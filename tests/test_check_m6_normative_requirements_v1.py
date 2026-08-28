@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
+import tracemalloc
 from copy import deepcopy
 from dataclasses import replace
 from functools import lru_cache
@@ -60,7 +62,20 @@ TEST_QUALITY_V2: dict[str, object] = {
     ],
     "semantic_mutants": [
         "MUT-VACUOUS-CAPABILITY-EDGE",
+        "MUT-VACUOUS-REQUIREMENT-EDGE",
         "MUT-STALE-DONOR-PROMOTION",
+        "MUT-PLAN-AUTHORITY-PROMOTION",
+        "MUT-VM-GATE-PROMOTION",
+        "MUT-PLAN-REQUIREMENTS-FLOOR-PROMOTION",
+        "MUT-PLAN-OPERATOR-NESTED-PROMOTION",
+        "MUT-PLAN-NORMATIVE-TEXT-PROMOTION",
+        "MUT-PLAN-NONCLAIM-GRANT",
+        "MUT-PLAN-BOOLEAN-ALIAS",
+        "MUT-PLAN-MUTABLE-CROSS-FIELD-SNAPSHOT",
+        "MUT-SHARED-ALIAS-VALIDATION-WORK-AMPLIFICATION",
+        "MUT-HOSTILE-METACLASS-REJECTION-HOOK",
+        "MUT-AMBIENT-RECURSION-LIMIT-ESCAPE",
+        "MUT-MANIFEST-COMPLETION-PROMOTION",
         "MUT-BDD-WORKFLOW-INHERITANCE",
         "MUT-INVERSE-EDGE-ERASURE",
         "MUT-NONCANONICAL-EDGE-ORDER",
@@ -72,8 +87,21 @@ TEST_QUALITY_V2: dict[str, object] = {
     "nonclaims": [
         "Tests establish deterministic structural replay only.",
         "Tests do not establish implementation, proof, mounting, release, or value authority.",
+        "Direct mutable-object canonicalization assumes caller-exclusive ownership; claim-bearing Plan admission accepts immutable bytes only.",
     ],
 }
+
+PLAN_R5_PROMOTION_MUTANT_V1 = "Production authority is ACTIVE and VM-01 is CLOSED."
+PLAN_R5_GENERATED_MUTANT_COUNT_V1 = 2_408
+PLAN_R5_FUTURE_REPIN_PATHS_V1: tuple[tuple[str, tuple[str | int, ...]], ...] = (
+    ("subject", ("subject", "plan_commit_binding")),
+    ("normative", ("normative_inputs", 0, "role")),
+    ("historical", ("historical_inputs", 0, "authority")),
+    ("advisory", ("advisory_reviews", 0, "verdict")),
+    ("upstream", ("upstream_dependencies", 0, "classification")),
+    ("policy", ("unresolved_semantic_decisions", 0, "topic")),
+    ("obligation", ("next_obligations", 7, "required_evidence", 0)),
+)
 
 
 @lru_cache(maxsize=1)
@@ -93,8 +121,187 @@ def _artifact() -> dict[str, Any]:
     return value
 
 
+def _plan_v2() -> dict[str, Any]:
+    """Return one independently mutable Plan V2 specimen for a named mutant."""
+
+    value = json.loads(dict(_snapshot().document_bytes)[core.PLAN_PATH_V1])
+    if type(value) is not dict:
+        raise TypeError("Plan V2 source must decode to an object")
+    return value
+
+
 def _raw(value: dict[str, Any]) -> bytes:
     return canonical_json_bytes_v1(value)
+
+
+def _canonical_plan_bytes_oracle_v1(plan: dict[str, Any]) -> bytes:
+    """Independent stdlib oracle for the documented canonical JSON commitment."""
+
+    return json.dumps(
+        plan,
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+
+
+def _parse_plan_object_v1(
+    plan: dict[str, Any],
+) -> tuple[tuple[core.SimpleSourceV1, ...], dict[str, object], bytes]:
+    """Cross the claim-bearing Plan boundary through immutable bytes only."""
+
+    return core._parse_plan_v1(_canonical_plan_bytes_oracle_v1(plan))
+
+
+def _repinned_plan_snapshot_v1(
+    monkeypatch: pytest.MonkeyPatch, plan_bytes: bytes
+) -> SourceSnapshotV1:
+    """Model a later Plan-byte/source-blob repin without changing its semantic commitment."""
+
+    baseline = _snapshot()
+    replacement_blob = "f" * 40
+    plan_sha256 = hashlib.sha256(plan_bytes).hexdigest()
+    pins = list(core.SOURCE_PINS_V1)
+    documents = list(baseline.document_bytes)
+    source_entries = list(baseline.source_subject_entries)
+    current_entries = list(baseline.current_head_entries)
+    plan_index = next(index for index, pin in enumerate(pins) if pin.path == core.PLAN_PATH_V1)
+    pins[plan_index] = replace(
+        pins[plan_index], sha256=plan_sha256, git_blob_sha=replacement_blob
+    )
+    documents[plan_index] = (core.PLAN_PATH_V1, plan_bytes)
+    replacement_entry = (core.PLAN_PATH_V1, "100644", "blob", replacement_blob)
+    source_entries[plan_index] = replacement_entry
+    current_entries[plan_index] = replacement_entry
+    monkeypatch.setattr(core, "SOURCE_PINS_V1", tuple(pins))
+    return replace(
+        baseline,
+        document_bytes=tuple(documents),
+        source_subject_entries=tuple(source_entries),
+        current_head_entries=tuple(current_entries),
+    )
+
+
+def _plan_path_value_v1(root: object, path: tuple[str | int, ...]) -> object:
+    value = root
+    for component in path:
+        if type(component) is str and type(value) is dict:
+            value = value[component]
+        elif type(component) is int and type(value) is list:
+            value = value[component]
+        else:
+            raise TypeError(f"invalid Plan mutation path: {path!r}")
+    return value
+
+
+def _plan_mutation_specs_v1(
+    value: object, path: tuple[str | int, ...] = ()
+) -> list[tuple[str, tuple[str | int, ...], object]]:
+    """Generate parser-independent field and collection mutations from JSON structure."""
+
+    specs: list[tuple[str, tuple[str | int, ...], object]]
+    if type(value) is dict:
+        specs = [("unknown-field", path, PLAN_R5_PROMOTION_MUTANT_V1)]
+        for key in sorted(value):
+            child_path = (*path, key)
+            specs.append(("omit-field", child_path, None))
+            specs.extend(_plan_mutation_specs_v1(value[key], child_path))
+        return specs
+    if type(value) is list:
+        if not value:
+            return [("one", path, [PLAN_R5_PROMOTION_MUTANT_V1])]
+        specs = [
+            ("zero", path, []),
+            ("max-neighbor", path, [*deepcopy(value), deepcopy(value[-1])]),
+        ]
+        if len(value) > 1:
+            specs.append(("one", path, [deepcopy(value[0])]))
+        for index, item in enumerate(value):
+            specs.extend(
+                (
+                    (
+                        f"omit-index-{index}",
+                        path,
+                        [
+                            deepcopy(entry)
+                            for item_index, entry in enumerate(value)
+                            if item_index != index
+                        ],
+                    ),
+                    (
+                        f"duplicate-index-{index}",
+                        path,
+                        [
+                            *deepcopy(value[: index + 1]),
+                            deepcopy(item),
+                            *deepcopy(value[index + 1 :]),
+                        ],
+                    ),
+                )
+            )
+            specs.extend(_plan_mutation_specs_v1(item, (*path, index)))
+        for index in range(len(value) - 1):
+            if value[index] != value[index + 1]:
+                reordered = deepcopy(value)
+                reordered[index], reordered[index + 1] = reordered[index + 1], reordered[index]
+                specs.append((f"reorder-{index}-{index + 1}", path, reordered))
+        return specs
+    if type(value) is str:
+        return [("mutate-str", path, f"{value} {PLAN_R5_PROMOTION_MUTANT_V1}")]
+    if type(value) is bool:
+        return [("mutate-bool", path, not value)]
+    if type(value) is int:
+        return [("mutate-int", path, value + 1)]
+    raise TypeError(f"unsupported Plan value at {path!r}: {type(value).__name__}")
+
+
+def _apply_plan_mutation_v1(
+    plan: dict[str, Any], operation: str, path: tuple[str | int, ...], value: object
+) -> None:
+    if not path:
+        if operation != "unknown-field":
+            raise ValueError(operation)
+        plan["__r5_unknown_promotion__"] = value
+        return
+    parent = _plan_path_value_v1(plan, path[:-1])
+    key = path[-1]
+    if operation == "omit-field":
+        if type(parent) is not dict or type(key) is not str:
+            raise TypeError(path)
+        del parent[key]
+    elif operation == "unknown-field":
+        target = _plan_path_value_v1(plan, path)
+        if type(target) is not dict:
+            raise TypeError(path)
+        target["__r5_unknown_promotion__"] = value
+    elif type(parent) is dict and type(key) is str:
+        parent[key] = value
+    elif type(parent) is list and type(key) is int:
+        parent[key] = value
+    else:
+        raise TypeError(path)
+
+
+def _plan_nonempty_list_paths_v1(
+    value: object, path: tuple[str | int, ...] = ()
+) -> list[tuple[tuple[str | int, ...], int]]:
+    if type(value) is dict:
+        return [
+            item
+            for key in sorted(value)
+            for item in _plan_nonempty_list_paths_v1(value[key], (*path, key))
+        ]
+    if type(value) is list:
+        return [
+            (path, len(value)),
+            *[
+                item
+                for index, item_value in enumerate(value)
+                for item in _plan_nonempty_list_paths_v1(item_value, (*path, index))
+            ],
+        ]
+    return []
 
 
 def _report(value: dict[str, Any], snapshot: SourceSnapshotV1 | None = None) -> dict[str, Any]:
@@ -151,7 +358,7 @@ def test_quality_contract_has_exact_oracle_grade_and_nonclaims() -> None:
     assert type(mutants) is list
     assert type(nonclaims) is list
     assert len(mutants) >= 7
-    assert len(nonclaims) == 2
+    assert len(nonclaims) == 3
 
 
 def test_registry_replays_exact_inventory_partition_and_claim_ceiling() -> None:
@@ -208,6 +415,625 @@ def test_registry_replays_exact_inventory_partition_and_claim_ceiling() -> None:
     assert artifact["settlement_authority"] == "NONE"
     assert report["production_authority"] == "NONE"
     assert report["settlement_authority"] == "NONE"
+
+
+def test_r5_canonical_plan_commitment_matches_independent_oracle() -> None:
+    # Arrange.
+    plan = _plan_v2()
+
+    # Act.
+    actual = hashlib.sha256(_canonical_plan_bytes_oracle_v1(plan)).hexdigest()
+
+    # Assert.
+    assert actual == core.PLAN_CANONICAL_SHA256_V1
+
+
+@pytest.mark.parametrize(
+    ("specimen", "expected"),
+    (
+        (None, b"null"),
+        (False, b"false"),
+        (True, b"true"),
+        (0, b"0"),
+        (-1, b"-1"),
+        ("", b'""'),
+        ('quote=" slash=\\ newline=\n', b'"quote=\\" slash=\\\\ newline=\\n"'),
+        (
+            "snowman=\u2603 non-bmp=\U0001f600",
+            b'"snowman=\\u2603 non-bmp=\\ud83d\\ude00"',
+        ),
+        ([], b"[]"),
+        ({}, b"{}"),
+        (
+            [None, False, 0, "x", {"b": 2, "a": 1}],
+            b'[null,false,0,"x",{"a":1,"b":2}]',
+        ),
+        (
+            {"z": [], "a": {"unicode": "\u00e9", "negative": -7}},
+            b'{"a":{"negative":-7,"unicode":"\\u00e9"},"z":[]}',
+        ),
+    ),
+)
+def test_r5_iterative_canonical_encoder_matches_literal_fixed_vectors(
+    specimen: object, expected: bytes
+) -> None:
+    # Act.
+    actual = core.canonical_json_bytes_v1(specimen)
+
+    # Assert.
+    assert actual == expected
+
+
+def test_r5_preserves_o005_source_inventory_mapping() -> None:
+    # Arrange.
+    snapshot = _snapshot()
+
+    # Act.
+    sources = core.parse_sources_v1(snapshot)
+
+    # Assert.
+    assert len(sources.workflows) == 18
+    assert sum(len(workflow.scenarios) for workflow in sources.workflows) == 81
+    assert len(sources.expansions) == 11
+    assert len(sources.findings) == 8
+    assert len(sources.policies) == 20
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "expected_code", "expected_suffix"),
+    (
+        (("authority", "production_authority"), "ACTIVE", "SOURCE_PROMOTION", "production_authority"),
+        (("authority", "release_ready"), True, "SOURCE_PROMOTION", "release_ready"),
+        (("admission_model", "authority_effect"), "ACTIVE", "SOURCE_PROMOTION", "admission_model"),
+        (
+            ("baseline_verdict", "closed_value_movement_gates"),
+            1,
+            "SOURCE_PROMOTION",
+            "closed_value_movement_gates",
+        ),
+        (
+            ("value_movement_gates", 0, "status"),
+            "CLOSED",
+            "SOURCE_PROMOTION",
+            "value_movement_gates[0].status",
+        ),
+        (
+            ("release_gate", "whole_value_movement_claim"),
+            "ALLOWED",
+            "SOURCE_PROMOTION",
+            "whole_value_movement_claim",
+        ),
+        (
+            ("requirements_floor", "manifest_complete"),
+            True,
+            "SOURCE_PROMOTION",
+            "requirements_floor",
+        ),
+        (
+            ("next_obligations", 5, "closes"),
+            ["VM-01"],
+            "SOURCE_PROMOTION",
+            "next_obligations[5].closes[0]",
+        ),
+        (("gap_registry", 8, "status"), "CLOSED", "SOURCE_PROMOTION", "gap_registry[8].status"),
+    ),
+)
+def test_r5_claim_ceiling_mutants_have_typed_rejects(
+    path: tuple[str | int, ...], value: object, expected_code: str, expected_suffix: str
+) -> None:
+    # Arrange.
+    plan = _plan_v2()
+    _apply_plan_mutation_v1(plan, "replace", path, value)
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        _parse_plan_object_v1(plan)
+
+    # Assert.
+    assert captured.value.code == expected_code
+    assert captured.value.path.endswith(expected_suffix)
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "expected_code"),
+    (
+        (("authority", "release_ready"), 0, "TYPE_ERROR"),
+        (("baseline_verdict", "closed_value_movement_gates"), False, "TYPE_ERROR"),
+        (("value_movement_gates", 0, "status"), True, "TYPE_ERROR"),
+        (("subject", "base_worktree_clean"), 1, "PLAN_SEMANTIC_COMMITMENT"),
+    ),
+)
+def test_r5_bool_int_aliases_reject_deterministically(
+    path: tuple[str | int, ...], value: object, expected_code: str
+) -> None:
+    # Arrange.
+    plan = _plan_v2()
+    _apply_plan_mutation_v1(plan, "replace", path, value)
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        _parse_plan_object_v1(plan)
+
+    # Assert.
+    assert captured.value.code == expected_code
+
+
+@pytest.mark.parametrize("status", ("CLOSED", "PASS", "PASSED", "CLOSED_ON_SUBJECT", "UNKNOWN"))
+def test_r5_vm_gate_status_allowlist_rejects_every_nonopen_status(status: str) -> None:
+    # Arrange.
+    plan = _plan_v2()
+    _apply_plan_mutation_v1(plan, "replace", ("value_movement_gates", 0, "status"), status)
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        _parse_plan_object_v1(plan)
+
+    # Assert.
+    assert captured.value.code == "SOURCE_PROMOTION"
+    assert captured.value.path.endswith("value_movement_gates[0].status")
+
+
+@pytest.mark.parametrize("operation", ("omit-field", "unknown-field"))
+def test_r5_claim_subobjects_have_closed_field_sets(operation: str) -> None:
+    # Arrange.
+    plan = _plan_v2()
+    path = ("authority", "production_ready") if operation == "omit-field" else ("authority",)
+    _apply_plan_mutation_v1(plan, operation, path, PLAN_R5_PROMOTION_MUTANT_V1)
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        _parse_plan_object_v1(plan)
+
+    # Assert.
+    assert captured.value.code == "CLOSED_FIELDS"
+    assert captured.value.path.endswith(".authority")
+
+
+def test_r5_hostile_python_object_and_duplicate_json_key_reject_before_admission() -> None:
+    # Arrange.
+    plan = _plan_v2()
+    subject = plan["subject"]
+    if type(subject) is not dict:
+        raise TypeError("subject must be an object")
+    subject["base_worktree_clean"] = object()
+    duplicate_key = b'{"authority":{"production_authority":"NONE","production_authority":"ACTIVE"}}'
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as hostile_captured:
+        core._parse_plan_v1(plan)  # type: ignore[arg-type]
+    duplicate_captured = _expect_core_reject(duplicate_key)
+
+    # Assert.
+    assert hostile_captured.value.code == "JSON_BYTES_TYPE"
+    assert duplicate_captured.code == "JSON_DECODE"
+
+
+def test_r5_plan_boundary_rejects_mutable_cross_field_snapshot_before_field_access() -> None:
+    # Arrange. This is the minimized construction-level closure for a trace
+    # that combined authority and gate-count fields which never coexisted.
+    plan = _plan_v2()
+    authority = plan["authority"]
+    baseline = plan["baseline_verdict"]
+    if type(authority) is not dict or type(baseline) is not dict:
+        raise TypeError("Plan claim fields must be objects")
+    authority["production_authority"] = "NONE"
+    baseline["closed_value_movement_gates"] = 1
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        core._parse_plan_v1(plan)  # type: ignore[arg-type]
+
+    # Assert. The claim-bearing parser admits immutable bytes only, so no
+    # schedule can assemble a synthetic cross-field state from this object.
+    assert captured.value.code == "JSON_BYTES_TYPE"
+    assert authority["production_authority"] == "NONE"
+    assert baseline["closed_value_movement_gates"] == 1
+
+
+@pytest.mark.parametrize("sign", (-1, 1))
+def test_r5_direct_integer_digit_limit_has_exact_bva_and_typed_reject(sign: int) -> None:
+    # Arrange.
+    limit = core.MAX_JSON_INTEGER_MAGNITUDE_EXCLUSIVE_V1
+    specimens = (
+        (sign * 10 ** (core.MAX_JSON_INTEGER_DIGITS_V1 - 2), "ACCEPTED"),
+        (sign * (limit - 1), "ACCEPTED"),
+        (sign * limit, "JSON_INTEGER_LIMIT"),
+    )
+
+    # Act.
+    outcomes: list[tuple[str, str]] = []
+    for amount, _expected in specimens:
+        try:
+            encoded = core.canonical_json_bytes_v1({"amount": amount})
+        except RequirementsRejectV1 as captured:
+            outcomes.append((captured.code, captured.path))
+        else:
+            outcomes.append(("ACCEPTED" if encoded else "EMPTY", "$.amount"))
+
+    # Assert.
+    assert outcomes == [(expected, "$.amount") for _amount, expected in specimens]
+
+
+def test_r5_wide_list_below_long_key_has_bounded_path_allocation() -> None:
+    # Arrange. The former eager path renderer repeated the 4,096-character key
+    # for every list element and exceeded 34 MB of traced allocation.
+    specimen = {"k" * 4_096: [None] * 8_192}
+
+    # Act.
+    tracemalloc.start()
+    try:
+        encoded = core.canonical_json_bytes_v1(specimen)
+        _current, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    # Assert. This is a RIPR resource oracle: linked path tokens keep breadth
+    # independent of ancestor-string length while canonical encoding succeeds.
+    assert encoded
+    assert peak < 8_000_000
+
+
+def test_r5_direct_cycle_rejects_at_depth_bound_with_bounded_finding_path() -> None:
+    # Arrange.
+    cycle: list[object] = []
+    cycle.append(cycle)
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        core.canonical_json_bytes_v1({"cycle": cycle})
+
+    # Assert.
+    assert captured.value.code == "JSON_DEPTH_LIMIT"
+    assert captured.value.path.startswith("$.cycle[0]")
+    assert len(captured.value.path) <= core.MAX_FINDING_PATH_CHARS_V1
+
+
+def test_r5_wide_direct_container_rejects_before_breadth_stack_allocation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange. The former traversal enqueued every child and diagnostic path
+    # before observing the next node-limit violation.
+    specimen = [None] * 100_000
+    monkeypatch.setattr(core, "MAX_JSON_NODES_V1", 2)
+
+    # Act.
+    tracemalloc.start()
+    try:
+        with pytest.raises(RequirementsRejectV1) as captured:
+            core.canonical_json_bytes_v1(specimen)
+        _current, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    # Assert.
+    assert captured.value.code == "JSON_NODE_LIMIT"
+    assert peak < 1_000_000
+
+
+def test_r5_shared_alias_expansion_rejects_at_canonical_byte_limit() -> None:
+    # Arrange. Shared Python references must be charged once per serialized
+    # occurrence so an input object cannot expand to an unbounded JSON output.
+    shared = "v" * 4_096
+    specimen = {"items": [shared] * 8_192}
+
+    # Act.
+    tracemalloc.start()
+    try:
+        with pytest.raises(RequirementsRejectV1) as captured:
+            core.canonical_json_bytes_v1(specimen)
+        _current, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    # Assert.
+    assert captured.value.code == "JSON_BYTE_LIMIT"
+    assert captured.value.path == "$.items[255]"
+    assert peak < 4_000_000
+
+
+def test_r5_shared_long_aliases_are_cumulatively_charged_before_unbounded_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange. A shallow 1,024-element list formerly rescanned a shared
+    # 131,072-character value 1,024 times before canonical encoding rejected it.
+    shared = "v" * core.MAX_JSON_STRING_CHARS_V1
+    specimen = {"items": [shared] * 1_024}
+    original = core._validate_json_string_v1
+    validated_occurrences = 0
+
+    def counted(value: str, path: str | core._JsonPathV1) -> None:
+        nonlocal validated_occurrences
+        validated_occurrences += 1
+        original(value, path)
+
+    monkeypatch.setattr(core, "_validate_json_string_v1", counted)
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        core.canonical_json_bytes_v1(specimen)
+
+    # Assert. One key plus at most eight full shared-value occurrences exhaust
+    # the one-MiB lower bound on canonical bytes.
+    assert captured.value.code == "JSON_BYTE_LIMIT"
+    assert validated_occurrences <= 9
+
+
+@pytest.mark.parametrize("container_kind", ("dict", "list"))
+def test_r5_canonical_encoding_uses_one_owned_snapshot_under_same_size_mutation(
+    monkeypatch: pytest.MonkeyPatch, container_kind: str
+) -> None:
+    # Arrange. The mutation is injected while the selected value is being
+    # validated, after the traversal has observed it and before encoding.
+    specimen: dict[str, object] | list[object]
+    specimen = {"value": "SAFE"} if container_kind == "dict" else ["SAFE"]
+    original = core._validate_json_string_v1
+    mutation_count = 0
+
+    def mutate_source(value: str, path: str | core._JsonPathV1) -> None:
+        nonlocal mutation_count
+        original(value, path)
+        if value != "SAFE" or mutation_count:
+            return
+        mutation_count += 1
+        if type(specimen) is dict:
+            specimen["value"] = "EVIL"
+        else:
+            if type(specimen) is not list:
+                raise TypeError("specimen must be an exact JSON container")
+            specimen[0] = "EVIL"
+
+    monkeypatch.setattr(core, "_validate_json_string_v1", mutate_source)
+
+    # Act.
+    encoded = core.canonical_json_bytes_v1(specimen)
+
+    # Assert. Encoding consumes the value already copied into the owned
+    # snapshot; a caller mutation cannot change the admitted bytes.
+    assert mutation_count == 1
+    assert b"SAFE" in encoded
+    assert b"EVIL" not in encoded
+
+
+def test_r5_plan_extraction_uses_same_owned_snapshot_as_semantic_commitment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange. Inject the former commitment-to-extraction race at the exact
+    # boundary after commitment verification.
+    plan = _plan_v2()
+    policies = plan["unresolved_semantic_decisions"]
+    if type(policies) is not list or type(policies[0]) is not dict:
+        raise TypeError("Plan policy specimen must be an object")
+    expected_topic = policies[0]["topic"]
+    raw_plan = _canonical_plan_bytes_oracle_v1(plan)
+    original = core._require_plan_semantic_commitment_v1
+
+    def mutate_caller_after_commitment(document: dict[str, object]) -> None:
+        original(document)
+        policies[0]["topic"] = "FORGED_AFTER_COMMITMENT"
+
+    monkeypatch.setattr(
+        core, "_require_plan_semantic_commitment_v1", mutate_caller_after_commitment
+    )
+
+    # Act.
+    parsed_policies, _floor, _anchors = core._parse_plan_v1(raw_plan)
+    first_policy = json.loads(parsed_policies[0].fields_bytes)
+
+    # Assert. The parser extracts from its owned committed snapshot.
+    assert policies[0]["topic"] == "FORGED_AFTER_COMMITMENT"
+    assert first_policy["topic"] == expected_topic
+
+
+def test_r5_unsupported_type_rejection_does_not_invoke_hostile_metaclass() -> None:
+    # Arrange.
+    name_hook_calls = 0
+
+    class HostileMeta(type):
+        def __getattribute__(cls, name: str) -> object:
+            nonlocal name_hook_calls
+            if name == "__name__":
+                name_hook_calls += 1
+                raise RuntimeError("hostile metaclass name hook executed")
+            return super().__getattribute__(name)
+
+    class HostileValue(metaclass=HostileMeta):
+        pass
+
+    specimen = {"value": HostileValue()}
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        core.canonical_json_bytes_v1(specimen)
+
+    # Assert.
+    assert captured.value.code == "JSON_TYPE"
+    assert name_hook_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("recursion_limit", "expected"),
+    (
+        (core.MIN_PYTHON_RECURSION_LIMIT_V1 - 1, "JSON_RUNTIME_RECURSION_LIMIT"),
+        (core.MIN_PYTHON_RECURSION_LIMIT_V1, "ACCEPTED"),
+    ),
+)
+def test_r5_python_recursion_runtime_floor_has_exact_bva_and_typed_rejection(
+    recursion_limit: int, expected: str
+) -> None:
+    # Arrange. Depth 64 is inside the declared JSON domain. The earlier
+    # traversal leaked raw RecursionError under a low process-wide limit.
+    specimen: object = None
+    for _index in range(core.MAX_JSON_DEPTH_V1):
+        specimen = [specimen]
+    original_limit = sys.getrecursionlimit()
+
+    # Act.
+    try:
+        sys.setrecursionlimit(recursion_limit)
+        try:
+            encoded = core.canonical_json_bytes_v1(specimen)
+        except RequirementsRejectV1 as captured:
+            outcome = captured.code
+            encoded = b""
+        else:
+            outcome = "ACCEPTED"
+    finally:
+        sys.setrecursionlimit(original_limit)
+
+    # Assert.
+    assert outcome == expected
+    if expected == "ACCEPTED":
+        assert encoded.startswith(b"[")
+        assert encoded.endswith(b"]")
+        assert encoded.count(b"[") == core.MAX_JSON_DEPTH_V1
+
+
+def test_r5_non_bmp_canonical_expansion_is_charged_at_byte_boundary() -> None:
+    # Arrange. UTF-8 input can be compact while canonical ensure_ascii output
+    # uses twelve bytes per non-BMP character.
+    specimen = {"value": "\U0001f600" * 100_000}
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        core.canonical_json_bytes_v1(specimen)
+
+    # Assert.
+    assert captured.value.code == "JSON_BYTE_LIMIT"
+    assert captured.value.path == "$"
+
+
+def test_r5_repin_accepts_format_and_object_key_order_without_semantic_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange.
+    plan = _plan_v2()
+    reordered = {key: plan[key] for key in reversed(tuple(plan))}
+    source_bytes = json.dumps(reordered, ensure_ascii=True, indent=2, sort_keys=False).encode("ascii")
+    snapshot = _repinned_plan_snapshot_v1(monkeypatch, source_bytes)
+
+    # Act.
+    sources = core.parse_sources_v1(snapshot)
+
+    # Assert.
+    assert len(sources.policies) == 20
+    assert sum(len(workflow.scenarios) for workflow in sources.workflows) == 81
+
+
+@pytest.mark.parametrize(("family", "path"), PLAN_R5_FUTURE_REPIN_PATHS_V1)
+def test_r5_semantic_rejection_survives_future_source_repin(
+    monkeypatch: pytest.MonkeyPatch, family: str, path: tuple[str | int, ...]
+) -> None:
+    # Arrange.
+    plan = _plan_v2()
+    _apply_plan_mutation_v1(plan, f"future-repin-{family}", path, PLAN_R5_PROMOTION_MUTANT_V1)
+    snapshot = _repinned_plan_snapshot_v1(monkeypatch, _canonical_plan_bytes_oracle_v1(plan))
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        core.parse_sources_v1(snapshot)
+
+    # Assert.
+    assert captured.value.code == "PLAN_SEMANTIC_COMMITMENT"
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    (
+        (("requirements_floor", "classification"), "COMPLETE_AND_RELEASE_READY"),
+        (("baseline_verdict", "estimate_warning"), PLAN_R5_PROMOTION_MUTANT_V1),
+        (("vm_gate_promotion", "rule"), "An individual obligation may close a VM gate."),
+        (("nonclaims", 0), "This Plan grants release authority."),
+    ),
+)
+def test_r5_r3_semantic_blockers_remain_rejected(
+    path: tuple[str | int, ...], value: object
+) -> None:
+    # Arrange.
+    plan = _plan_v2()
+    _apply_plan_mutation_v1(plan, "r3-blocker", path, value)
+
+    # Act.
+    with pytest.raises(RequirementsRejectV1) as captured:
+        _parse_plan_object_v1(plan)
+
+    # Assert.
+    assert captured.value.code == "PLAN_SEMANTIC_COMMITMENT"
+
+
+def _assert_r5_mutation_surface_coverage_v1(
+    plan: dict[str, Any], mutation_specs: list[tuple[str, tuple[str | int, ...], object]]
+) -> None:
+    mutation_keys = {(operation, path) for operation, path, _value in mutation_specs}
+    root_omissions = {
+        path[0]
+        for operation, path, _value in mutation_specs
+        if operation == "omit-field" and len(path) == 1
+    }
+    obligations = plan["next_obligations"]
+    policies = plan["unresolved_semantic_decisions"]
+    if type(obligations) is not list or type(policies) is not list:
+        raise TypeError("Plan obligations and policies must be lists")
+    operator_scalar_paths: list[tuple[str | int, ...]] = []
+    evidence_paths: list[tuple[str | int, ...]] = []
+    for obligation_index, obligation in enumerate(obligations):
+        if type(obligation) is not dict or obligation["obligation_id"] == "O-005":
+            continue
+        for field in ("phase", "priority", "title"):
+            operator_scalar_paths.append(("next_obligations", obligation_index, field))
+        evidence = obligation["required_evidence"]
+        if type(evidence) is not list:
+            raise TypeError("required_evidence must be a list")
+        evidence_paths.extend(
+            ("next_obligations", obligation_index, "required_evidence", evidence_index)
+            for evidence_index in range(len(evidence))
+        )
+    up_topic_paths = [
+        ("unresolved_semantic_decisions", policy_index, "topic")
+        for policy_index in range(len(policies))
+    ]
+    list_operations: dict[tuple[str | int, ...], set[str]] = {}
+    for operation, path, _value in mutation_specs:
+        if operation in {"zero", "one", "max-neighbor"}:
+            list_operations.setdefault(path, set()).add(operation)
+    assert len(plan) == 24
+    assert root_omissions == set(plan)
+    assert len(operator_scalar_paths) + len(obligations) - 1 == 60
+    assert len(evidence_paths) == 81
+    assert len(up_topic_paths) == 20
+    assert all(("mutate-str", path) in mutation_keys for path in operator_scalar_paths)
+    assert all(("mutate-str", path) in mutation_keys for path in evidence_paths)
+    assert all(("mutate-str", path) in mutation_keys for path in up_topic_paths)
+    for list_path, length in _plan_nonempty_list_paths_v1(plan):
+        if length > 0:
+            assert {"zero", "max-neighbor"} <= list_operations[list_path]
+            if length > 1:
+                assert "one" in list_operations[list_path]
+    assert any(operation == "unknown-field" for operation, _path, _value in mutation_specs)
+    assert any(operation.startswith("duplicate-index-") for operation, _path, _value in mutation_specs)
+    assert any(operation.startswith("reorder-") for operation, _path, _value in mutation_specs)
+
+
+def test_r5_generated_plan_mutation_matrix_has_no_semantic_survivors() -> None:
+    # Arrange.
+    plan = _plan_v2()
+    mutation_specs = _plan_mutation_specs_v1(plan)
+    survivors: list[str] = []
+
+    # Act.
+    for operation, path, value in mutation_specs:
+        mutant = deepcopy(plan)
+        _apply_plan_mutation_v1(mutant, operation, path, value)
+        try:
+            _parse_plan_object_v1(mutant)
+        except RequirementsRejectV1:
+            continue
+        rendered_path = ".".join(str(component) for component in path) or "<root>"
+        survivors.append(f"{operation}:{rendered_path}")
+
+    # Assert.
+    _assert_r5_mutation_surface_coverage_v1(plan, mutation_specs)
+    assert len(mutation_specs) == PLAN_R5_GENERATED_MUTANT_COUNT_V1
+    assert survivors == []
 
 
 def test_source_roles_preserve_current_checker_and_stale_donor_distinction() -> None:
@@ -934,6 +1760,22 @@ def test_mut_vacuous_capability_edge_rejects() -> None:
     assert _codes(report) == ["VACUOUS_EDGE"]
 
 
+@pytest.mark.parametrize(
+    "requirement_id",
+    ("WF-01", "BDD-001", "RSE-001", "CE-001", "UP-01"),
+)
+def test_mut_vacuous_mapping_rejects_each_noninvariant_source_kind(requirement_id: str) -> None:
+    # Arrange.
+    artifact = deepcopy(_artifact())
+    _row(artifact, requirement_id)["edges"] = []
+
+    # Act.
+    report = _report(artifact)
+
+    # Assert.
+    assert _codes(report) == ["VACUOUS_EDGE"]
+
+
 def test_mut_bdd_workflow_inheritance_rejects_scenario_specific_mapping() -> None:
     # Arrange.
     artifact = deepcopy(_artifact())
@@ -1133,6 +1975,18 @@ def test_mut_stale_donor_promotion_and_authority_flags_reject() -> None:
     # Assert.
     assert _codes(donor_report) == ["STALE_DONOR_PROMOTION"]
     assert _codes(authority_report) == ["PROMOTION_MUTATION"]
+
+
+def test_mut_manifest_completion_rejects_before_semantic_closure() -> None:
+    # Arrange.
+    artifact = deepcopy(_artifact())
+    artifact["manifest_complete"] = True
+
+    # Act.
+    report = _report(artifact)
+
+    # Assert.
+    assert _codes(report) == ["PROMOTION_MUTATION"]
 
 
 def test_hostile_json_duplicate_key_exact_type_and_closed_root_reject() -> None:
@@ -1407,7 +2261,7 @@ def test_safe_reader_translates_expected_open_and_read_errors(
         def rejecting_open(path: str, *args: object, **kwargs: object) -> int:
             if path == "regular":
                 raise raised
-            return original_open(path, *args, **kwargs)  # type: ignore[arg-type]
+            return original_open(path, *args, **kwargs)
 
         monkeypatch.setattr(build_shell.os, "open", rejecting_open)
     else:
