@@ -11,15 +11,23 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from src.integration.local_route_quarantine import (
+    CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1,
+    CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1,
+)
+
+SCHEMA_V3 = "zeno_ledger.local_testnet_manifest.v3"
 SCHEMA_V2 = "zeno_ledger.local_testnet_manifest.v2"
 SCHEMA_V1 = "zeno_ledger.local_testnet_manifest.v1"
 SCHEMA_V0 = "zeno_ledger.local_testnet_manifest.v0"
-SUPPORTED_SCHEMAS = frozenset({SCHEMA_V0, SCHEMA_V1, SCHEMA_V2})
+SUPPORTED_SCHEMAS = frozenset({SCHEMA_V0, SCHEMA_V1, SCHEMA_V2, SCHEMA_V3})
 MANIFEST_FILENAME = "local_testnet_manifest.json"
 
 _SHA256_HEX_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -33,6 +41,22 @@ LOCAL_TESTNET_MOUNTABLE_LANES = (
     "CONFIDENTIAL_ATTESTATION_API_ENABLED",
 )
 _LOCAL_TESTNET_MOUNTABLE_LANE_SET = frozenset(LOCAL_TESTNET_MOUNTABLE_LANES)
+
+
+def canonical_nonsymlink_out_dir(out_dir: Path | str) -> Path:
+    """Return one normalized absolute path after rejecting symlink components."""
+
+    lexical = Path(os.path.abspath(os.fspath(out_dir)))
+    current = Path(lexical.anchor)
+    for part in lexical.parts[1:]:
+        current /= part
+        try:
+            entry = os.lstat(current)
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(entry.st_mode):
+            raise ValueError(f"local-testnet out-dir contains symlink component: {current}")
+    return lexical
 
 
 @dataclass(frozen=True)
@@ -49,7 +73,7 @@ class ManifestPaths:
 
     @classmethod
     def from_out_dir(cls, out_dir: Path) -> "ManifestPaths":
-        out = Path(out_dir).resolve()
+        out = canonical_nonsymlink_out_dir(out_dir)
         return cls(
             out_dir=out,
             fixtures_dir=out / "fixtures",
@@ -74,14 +98,14 @@ def writer_token_sha256(token: str) -> str:
 
 def legacy_compose_project_name(out_dir: Path | str) -> str:
     """Return the retired 32-bit project identity for legacy recovery only."""
-    abs_path = str(Path(out_dir).resolve()).encode("utf-8")
+    abs_path = str(canonical_nonsymlink_out_dir(out_dir)).encode("utf-8")
     hash8 = hashlib.blake2b(abs_path, digest_size=4).hexdigest()
     return f"zenodex-local-testnet-{hash8}"
 
 
 def compose_project_name(out_dir: Path | str) -> str:
     """Derive the versioned 128-bit project identity for a selected out-dir."""
-    abs_path = str(Path(out_dir).resolve()).encode("utf-8")
+    abs_path = str(canonical_nonsymlink_out_dir(out_dir)).encode("utf-8")
     hash128 = hashlib.blake2b(abs_path, digest_size=16).hexdigest()
     return f"zenodex-local-testnet-v2-{hash128}"
 
@@ -107,15 +131,17 @@ def build_manifest(
     be called on the result before persisting."""
     posture = _default_zk_posture() if zk_posture is None else dict(zk_posture)
     return {
-        "schema": SCHEMA_V2,
+        "schema": SCHEMA_V3,
         "compose_project": compose_project_name(out_dir),
-        "out_dir": str(Path(out_dir).resolve()),
+        "out_dir": str(canonical_nonsymlink_out_dir(out_dir)),
         "chain_id": chain_id,
         "network_id": network_id,
         "ports": dict(ports),
         "service_urls": dict(service_urls),
         "image_refs": dict(image_refs),
         "enabled_lanes": list(enabled_lanes),
+        "local_operator_profile_id": CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1,
+        "local_operator_profile_digest": CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1,
         "fixture_paths": dict(fixture_paths),
         "ledger_bundle_manifest": ledger_bundle_manifest,
         "writer_token_sha256": writer_token_sha256(writer_token),
@@ -188,6 +214,10 @@ V2_REQUIRED_KEYS = (
     "proof_artifact_hashes",
     "production_security_claim",
 )
+V3_REQUIRED_KEYS = (
+    "local_operator_profile_id",
+    "local_operator_profile_digest",
+)
 
 REQUIRED_PORT_KEYS = ("ui",)
 REQUIRED_SERVICE_KEYS = (
@@ -220,7 +250,7 @@ V1_REQUIRED_HOST_KEYS = ("fixtures_dir", "oracle_home_dir", "reports_dir")
 V2_REQUIRED_HOST_KEYS = ("secrets_dir",)
 
 
-def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
+def validate_manifest(manifest: object) -> list[str]:
     """Return a list of validation errors. Empty list means valid."""
     errors: list[str] = []
 
@@ -236,8 +266,9 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
         errors.append(
             f"schema must be one of {sorted(SUPPORTED_SCHEMAS)!r}, got {schema!r}"
         )
-    is_v1_or_later = schema in {SCHEMA_V1, SCHEMA_V2}
-    is_v2 = schema == SCHEMA_V2
+    is_v1_or_later = schema in {SCHEMA_V1, SCHEMA_V2, SCHEMA_V3}
+    is_v2_or_later = schema in {SCHEMA_V2, SCHEMA_V3}
+    is_v3 = schema == SCHEMA_V3
 
     project = manifest.get("compose_project", "")
     if not isinstance(project, str) or not _COMPOSE_PROJECT_RE.match(project):
@@ -326,7 +357,7 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
         for key in REQUIRED_FIXTURE_KEYS:
             if key not in fixture_paths:
                 errors.append(f"fixture_paths missing required key: {key}")
-        if is_v2:
+        if is_v2_or_later:
             for key in V2_REQUIRED_FIXTURE_KEYS:
                 if key not in fixture_paths:
                     errors.append(f"fixture_paths missing required key: {key}")
@@ -344,7 +375,7 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
             f"writer_token_sha256 must match {_SHA256_HEX_RE.pattern!r}, got {token_hash!r}"
         )
 
-    if is_v2:
+    if is_v2_or_later:
         stdlib_token_hash = manifest.get("stdlib_token_sha256")
         if not isinstance(stdlib_token_hash, str) or not _SHA256_HEX_RE.match(stdlib_token_hash):
             errors.append(
@@ -375,13 +406,13 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
                 value = host_paths.get(key)
                 if not isinstance(value, str) or not value.startswith("/"):
                     errors.append(f"host_paths[{key}] must be an absolute path string, got {value!r}")
-            if is_v2:
+            if is_v2_or_later:
                 for key in V2_REQUIRED_HOST_KEYS:
                     value = host_paths.get(key)
                     if not isinstance(value, str) or not value.startswith("/"):
                         errors.append(f"host_paths[{key}] must be an absolute path string, got {value!r}")
 
-    if is_v2:
+    if is_v2_or_later:
         for key in V2_REQUIRED_KEYS:
             if key not in manifest:
                 errors.append(f"missing required key: {key}")
@@ -427,6 +458,18 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
             if not strict_artifacts_ready:
                 errors.append("strict zk mode requires verifier and circuit artifact hashes")
 
+    if is_v3:
+        for key in V3_REQUIRED_KEYS:
+            if key not in manifest:
+                errors.append(f"missing required key: {key}")
+        if manifest.get("local_operator_profile_id") != CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1:
+            errors.append(
+                "local_operator_profile_id must equal the current fail-closed profile"
+            )
+        if manifest.get("local_operator_profile_digest") != CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1:
+            errors.append(
+                "local_operator_profile_digest must equal the current profile digest"
+            )
     return errors
 
 

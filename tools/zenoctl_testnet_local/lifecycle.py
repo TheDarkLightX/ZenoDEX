@@ -31,9 +31,14 @@ import urllib.request
 import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
 from src.integration.local_route_quarantine import (
+    CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1,
+    CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1,
+    CURRENT_LOCAL_OPERATOR_SERVICE_IMAGES_V1,
+    QUARANTINED_ROUTE_ENVIRONMENT_ALIASES_V1,
+    QUARANTINED_ROUTE_ENVIRONMENT_V1,
     RetiredOriginQuarantineV1,
     current_local_operator_release_admission_v1,
     parse_retired_origin_quarantine_v1,
@@ -55,6 +60,13 @@ from . import nginx as ng
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "docker-compose.local-testnet.yml"
 NGINX_TEMPLATE = REPO_ROOT / ".docker" / "nginx.local-testnet.conf.template"
+HOST_GLOBAL_RETIRED_ORIGIN_QUARANTINE_DIR_V1 = (
+    Path.home()
+    / ".local"
+    / "state"
+    / "zenodex"
+    / "retired-loopback-origins-v1"
+)
 
 DEFAULT_UI_PORT = 18080
 DEFAULT_CHAIN_ID = "zeno-ledger-localtest-v0"
@@ -87,6 +99,9 @@ OPERATOR_TOOLS_IMAGE = "zenodex/operator-tools:local"
 TAU_LOCAL_IMAGE = "zenodex/tau-local:local-testnet"
 UI_NGINX_IMAGE = "zenodex:local"
 CLOUDFLARED_IMAGE = "cloudflare/cloudflared:latest"
+EXPECTED_LOCAL_TESTNET_SERVICE_IMAGES = dict(
+    CURRENT_LOCAL_OPERATOR_SERVICE_IMAGES_V1
+)
 
 DEFAULT_MARKET_ID = "perp:ch2p:localtest-zusd-perps-v1"
 E8 = 100_000_000
@@ -184,20 +199,71 @@ class ConfidentialLocalFixture:
         }
 
 
-def _retired_origin_quarantine_path(paths: mf.ManifestPaths) -> Path:
-    """Derive a sibling marker that survives replacement of the output directory."""
+@dataclass(frozen=True)
+class _StableJsonObjectV1:
+    value: dict[str, object]
+    body: bytes
+    device: int
+    inode: int
+    size: int
+    mtime_ns: int
+
+
+@dataclass(frozen=True)
+class _LocalManifestSnapshotV1:
+    status: Literal["absent", "current", "retired"]
+    manifest: dict[str, object] | None
+    stable_source: _StableJsonObjectV1 | None
+
+
+def _local_unknown_origin_quarantine_path(paths: mf.ManifestPaths) -> Path:
+    """Derive a local all-ports marker for one ambiguous output identity."""
 
     project = mf.compose_project_name(paths.out_dir)
     return paths.out_dir.parent / f".{project}.retired-origin-quarantine-v1.json"
 
 
-def _read_stable_json_object(path: Path, *, max_bytes: int) -> dict[str, object]:
+def _host_global_retired_origin_quarantine_path(port: int) -> Path:
+    """Return the host-global marker for one canonical loopback port."""
+
+    if type(port) is not int or not (1 <= port <= 65535):
+        raise ValueError("host-global retired origin port must be exact")
+    return HOST_GLOBAL_RETIRED_ORIGIN_QUARANTINE_DIR_V1 / f"port-{port}.json"
+
+
+def _retired_origin_quarantine_path(
+    paths: mf.ManifestPaths,
+    *,
+    port: int | None = None,
+) -> Path:
+    """Return a known host-global marker or local unknown-origin marker."""
+
+    if port is None:
+        return _local_unknown_origin_quarantine_path(paths)
+    return _host_global_retired_origin_quarantine_path(port)
+
+
+def _reject_duplicate_json_keys(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _read_stable_json_object(path: Path, *, max_bytes: int) -> _StableJsonObjectV1:
     """Read one regular no-follow JSON file with pre/post identity binding."""
 
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     if nofollow == 0:
         raise RuntimeError("stable quarantine loading requires O_NOFOLLOW")
-    descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | nofollow)
+    descriptor = os.open(
+        path,
+        os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK | nofollow,
+    )
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
@@ -225,29 +291,78 @@ def _read_stable_json_object(path: Path, *, max_bytes: int) -> dict[str, object]
         )
         if identity_before != identity_after or len(body) != before.st_size:
             raise ValueError("quarantine file changed while it was read")
-        parsed = json.loads(bytes(body).decode("utf-8"))
+        encoded = bytes(body)
+        parsed = json.loads(
+            encoded.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_keys,
+        )
         if type(parsed) is not dict:
             raise ValueError("quarantine JSON must be an exact object")
-        return parsed
+        return _StableJsonObjectV1(
+            value=parsed,
+            body=encoded,
+            device=before.st_dev,
+            inode=before.st_ino,
+            size=before.st_size,
+            mtime_ns=before.st_mtime_ns,
+        )
     finally:
         os.close(descriptor)
 
 
-def _load_retired_origin_quarantine(
-    paths: mf.ManifestPaths,
+def _load_retired_origin_quarantine_at(
+    path: Path,
+    *,
+    expected_out_dir: str | None,
+    expected_compose_project: str | None,
 ) -> RetiredOriginQuarantineV1 | None:
-    path = _retired_origin_quarantine_path(paths)
     if not os.path.lexists(path):
         return None
-    value = _read_stable_json_object(
+    stable = _read_stable_json_object(
         path,
         max_bytes=MAX_RETIRED_ORIGIN_QUARANTINE_BYTES_V1,
     )
-    return parse_retired_origin_quarantine_v1(
-        value,
+    marker = parse_retired_origin_quarantine_v1(
+        stable.value,
+        expected_out_dir=expected_out_dir,
+        expected_compose_project=expected_compose_project,
+    )
+    if stable.body != marker.canonical_bytes():
+        raise ValueError("retired origin quarantine encoding is noncanonical")
+    return marker
+
+
+def _load_retired_origin_quarantine(
+    paths: mf.ManifestPaths,
+    *,
+    port: int | None,
+) -> RetiredOriginQuarantineV1 | None:
+    local_marker = _load_retired_origin_quarantine_at(
+        _local_unknown_origin_quarantine_path(paths),
         expected_out_dir=str(paths.out_dir),
         expected_compose_project=mf.compose_project_name(paths.out_dir),
     )
+    if local_marker is not None:
+        if (
+            local_marker.origin is not None
+            or not local_marker.all_loopback_ports_quarantined
+        ):
+            raise ValueError("local retired-origin marker must quarantine all ports")
+        return local_marker
+    if port is None:
+        return None
+    global_marker = _load_retired_origin_quarantine_at(
+        _host_global_retired_origin_quarantine_path(port),
+        expected_out_dir=None,
+        expected_compose_project=None,
+    )
+    if global_marker is not None and (
+        global_marker.origin is None
+        or global_marker.origin.port != port
+        or global_marker.all_loopback_ports_quarantined
+    ):
+        raise ValueError("host-global retired-origin marker does not bind its port")
+    return global_marker
 
 
 def _write_all(descriptor: int, body: bytes) -> None:
@@ -265,37 +380,95 @@ def _persist_retired_origin_quarantine(
 ) -> RetiredOriginQuarantineV1:
     """Persist the first origin marker atomically; conflicting markers fail closed."""
 
-    existing = _load_retired_origin_quarantine(paths)
+    path = (
+        _local_unknown_origin_quarantine_path(paths)
+        if candidate.origin is None
+        else _host_global_retired_origin_quarantine_path(candidate.origin.port)
+    )
+    existing = _load_retired_origin_quarantine_at(
+        path,
+        expected_out_dir=(str(paths.out_dir) if candidate.origin is None else None),
+        expected_compose_project=(
+            mf.compose_project_name(paths.out_dir)
+            if candidate.origin is None
+            else None
+        ),
+    )
     if existing is not None:
-        if existing != candidate:
+        same_global_port = (
+            candidate.origin is not None
+            and existing.origin is not None
+            and candidate.origin.port == existing.origin.port
+            and not candidate.all_loopback_ports_quarantined
+            and not existing.all_loopback_ports_quarantined
+        )
+        if existing != candidate and not same_global_port:
             raise ValueError("retired origin quarantine conflicts with its durable marker")
         return existing
 
-    path = _retired_origin_quarantine_path(paths)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{secrets.token_hex(16)}.tmp")
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     if nofollow == 0:
         raise RuntimeError("durable quarantine writing requires O_NOFOLLOW")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | nofollow
-    descriptor = os.open(temporary, flags, 0o600)
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | nofollow
+    directory_fd = os.open(path.parent, directory_flags)
+    temporary_name = f".{path.name}.{secrets.token_hex(16)}.tmp"
+    flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | nofollow
+    descriptor = os.open(temporary_name, flags, 0o600, dir_fd=directory_fd)
+    destination_fd = -1
     try:
-        _write_all(descriptor, candidate.canonical_bytes())
+        body = candidate.canonical_bytes()
+        _write_all(descriptor, body)
         os.fsync(descriptor)
+        source_stat = os.fstat(descriptor)
+        os.link(
+            temporary_name,
+            path.name,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+        destination_fd = os.open(
+            path.name,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK | nofollow,
+            dir_fd=directory_fd,
+        )
+        destination_stat = os.fstat(destination_fd)
+        if (
+            not stat.S_ISREG(destination_stat.st_mode)
+            or (destination_stat.st_dev, destination_stat.st_ino)
+            != (source_stat.st_dev, source_stat.st_ino)
+            or destination_stat.st_size != len(body)
+        ):
+            raise ValueError("persisted retired-origin marker inode mismatch")
+        persisted_body = bytearray()
+        while len(persisted_body) < len(body):
+            chunk = os.read(destination_fd, len(body) - len(persisted_body))
+            if not chunk:
+                break
+            persisted_body.extend(chunk)
+        if bytes(persisted_body) != body:
+            raise ValueError("persisted retired-origin marker bytes mismatch")
+        os.fsync(directory_fd)
+        current_path_stat = os.stat(
+            path.name,
+            dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+        if (current_path_stat.st_dev, current_path_stat.st_ino) != (
+            source_stat.st_dev,
+            source_stat.st_ino,
+        ):
+            raise ValueError("persisted retired-origin marker path changed")
     finally:
+        if destination_fd >= 0:
+            os.close(destination_fd)
         os.close(descriptor)
-    try:
-        os.link(temporary, path, follow_symlinks=False)
-        temporary.unlink()
-        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | nofollow
-        directory_fd = os.open(path.parent, directory_flags)
         try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
+            os.unlink(temporary_name, dir_fd=directory_fd)
+        except FileNotFoundError:
+            pass
+        os.close(directory_fd)
     return candidate
 
 
@@ -346,16 +519,30 @@ def _quiesce_and_mark_detected_retired_route(
     return marker_ok
 
 
-def _identity_bound_retired_route_manifest(
+def _unknown_retired_manifest(paths: mf.ManifestPaths) -> dict[str, object]:
+    return {
+        "out_dir": str(paths.out_dir),
+        "compose_project": mf.compose_project_name(paths.out_dir),
+        "enabled_lanes": None,
+        "ports": None,
+        "service_urls": None,
+    }
+
+
+def _load_local_manifest_snapshot(
     paths: mf.ManifestPaths,
-) -> dict[str, Any] | None:
-    """Classify every non-current lane shape as possible retired authority."""
+) -> _LocalManifestSnapshotV1:
+    """Read and classify one descriptor-bound manifest snapshot exactly once."""
 
     if not os.path.lexists(paths.manifest_path):
-        return None
+        return _LocalManifestSnapshotV1(
+            status="absent",
+            manifest=None,
+            stable_source=None,
+        )
     expected_project = mf.compose_project_name(paths.out_dir)
     try:
-        manifest = _read_stable_json_object(
+        stable = _read_stable_json_object(
             paths.manifest_path,
             max_bytes=MAX_PROOF_ARTIFACT_METADATA_BYTES,
         )
@@ -364,29 +551,69 @@ def _identity_bound_retired_route_manifest(
             "quarantine",
             f"manifest entry is not durably trustworthy: {type(exc).__name__}: {exc}",
         )
-        return {
-            "out_dir": str(paths.out_dir),
-            "compose_project": expected_project,
-            "enabled_lanes": None,
-            "ports": None,
-            "service_urls": None,
-        }
-    if manifest.get("out_dir") != str(paths.out_dir):
-        raise ValueError("refusing automatic quarantine of a foreign output identity")
-    if manifest.get("compose_project") != expected_project:
-        raise ValueError(
-            "refusing automatic quarantine due to unsafe identity binding for a "
-            "collision-prone or foreign Compose identity"
+        return _LocalManifestSnapshotV1(
+            status="retired",
+            manifest=_unknown_retired_manifest(paths),
+            stable_source=None,
+        )
+    manifest = stable.value
+    if (
+        manifest.get("out_dir") != str(paths.out_dir)
+        or manifest.get("compose_project") != expected_project
+    ):
+        _log(
+            "quarantine",
+            "manifest identity is foreign or collision-prone; only the derived project will be stopped",
+        )
+        return _LocalManifestSnapshotV1(
+            status="retired",
+            manifest=_unknown_retired_manifest(paths),
+            stable_source=stable,
         )
     raw_lanes = manifest.get("enabled_lanes")
     if (
-        type(raw_lanes) is list
+        manifest.get("schema") == mf.SCHEMA_V3
+        and type(raw_lanes) is list
         and all(type(lane) is str for lane in raw_lanes)
         and all(lane in mf.LOCAL_TESTNET_MOUNTABLE_LANES for lane in raw_lanes)
         and not mf.validate_manifest(manifest)
     ):
-        return None
-    return manifest
+        return _LocalManifestSnapshotV1(
+            status="current",
+            manifest=manifest,
+            stable_source=stable,
+        )
+    return _LocalManifestSnapshotV1(
+        status="retired",
+        manifest=manifest,
+        stable_source=stable,
+    )
+
+
+def _manifest_snapshot_path_unchanged(
+    paths: mf.ManifestPaths,
+    snapshot: _LocalManifestSnapshotV1,
+) -> bool:
+    stable = snapshot.stable_source
+    if snapshot.status == "absent":
+        return not os.path.lexists(paths.manifest_path)
+    if stable is None:
+        return False
+    try:
+        current = os.stat(paths.manifest_path, follow_symlinks=False)
+    except OSError:
+        return False
+    return stat.S_ISREG(current.st_mode) and (
+        current.st_dev,
+        current.st_ino,
+        current.st_size,
+        current.st_mtime_ns,
+    ) == (
+        stable.device,
+        stable.inode,
+        stable.size,
+        stable.mtime_ns,
+    )
 
 
 def _quiesce_retired_route_stack(
@@ -422,8 +649,11 @@ def _retired_route_quiescence_report(paths: mf.ManifestPaths) -> dict[str, Any]:
         "ok": False,
         "status": "retired_route_stack_stopped",
         "manifest_path": str(paths.manifest_path),
-        "retired_origin_quarantine_path": str(
-            _retired_origin_quarantine_path(paths)
+        "local_unknown_origin_quarantine_path": str(
+            _local_unknown_origin_quarantine_path(paths)
+        ),
+        "host_global_origin_quarantine_dir": str(
+            HOST_GLOBAL_RETIRED_ORIGIN_QUARANTINE_DIR_V1
         ),
         "current_profile_id": admission.profile_id,
         "authority": admission.authority,
@@ -461,7 +691,8 @@ def _quiesce_if_retired_origin_blocks_manifest(
     """Stop a stack whose current-shaped manifest conflicts with its tombstone."""
 
     try:
-        marker = _load_retired_origin_quarantine(paths)
+        port = _manifest_ui_port(manifest) if manifest is not None else None
+        marker = _load_retired_origin_quarantine(paths, port=port)
     except (OSError, RuntimeError, ValueError) as exc:
         _log(
             "quarantine",
@@ -492,38 +723,99 @@ def _quiesce_if_retired_origin_blocks_manifest(
     return True
 
 
+def _live_project_profile_gap(
+    manifest: Mapping[str, Any],
+    containers: tuple[cm.ProjectContainerSnapshot, ...],
+) -> str | None:
+    """Return the first exact live-container mismatch against the current profile."""
+
+    expected_project = manifest.get("compose_project")
+    expected_profile = manifest.get("local_operator_profile_id")
+    expected_digest = manifest.get("local_operator_profile_digest")
+    seen_services: set[str] = set()
+    for container in containers:
+        service = container.compose_service
+        if service in seen_services:
+            return f"duplicate live compose service {service!r}"
+        seen_services.add(service)
+        expected_image = EXPECTED_LOCAL_TESTNET_SERVICE_IMAGES.get(service)
+        if expected_image is None:
+            return f"unknown live compose service {service!r}"
+        if container.compose_project != expected_project:
+            return f"live compose project mismatch for {service!r}"
+        if container.profile_id != expected_profile:
+            return f"live local profile id mismatch for {service!r}"
+        if container.profile_digest != expected_digest:
+            return f"live local profile digest mismatch for {service!r}"
+        if container.image != expected_image:
+            return f"live image mismatch for {service!r}"
+        for alias in QUARANTINED_ROUTE_ENVIRONMENT_ALIASES_V1:
+            if container.environment_value(alias) is not None:
+                return f"retired route alias {alias!r} is present in {service!r}"
+        for name in QUARANTINED_ROUTE_ENVIRONMENT_V1:
+            value = container.environment_value(name)
+            if service == "zenodex-api" and value != "false":
+                return f"retired route {name!r} is not exact false in {service!r}"
+            if service != "zenodex-api" and value not in (None, "false", "0"):
+                return f"retired route {name!r} is enabled in {service!r}"
+    return None
+
+
+def _quiesce_if_live_project_profile_untrusted(
+    *,
+    paths: mf.ManifestPaths,
+    manifest: Mapping[str, Any],
+    engine_name: str,
+    engine: cm.ComposeEngine | None = None,
+) -> bool:
+    """Inspect live container facts and quiesce on any ambiguity or mismatch."""
+
+    selected_engine = engine or cm.detect_engine(engine_name)
+    try:
+        containers = cm.inspect_project_containers(
+            engine=selected_engine,
+            project_name=str(manifest["compose_project"]),
+            env=_lifecycle_env_for_compose(dict(manifest), paths),
+        )
+        gap = _live_project_profile_gap(manifest, containers)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        gap = f"live container inspection failed: {type(exc).__name__}: {exc}"
+    if gap is None:
+        return False
+    _log("quarantine", gap)
+    _quiesce_retired_route_stack(
+        paths=paths,
+        engine_name=engine_name,
+        remove_volumes=False,
+    )
+    return True
+
+
 def cmd_up(opts: UpOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
-    retired_manifest = _identity_bound_retired_route_manifest(paths)
-    try:
-        retired_origin_quarantine = (
-            _persist_detected_retired_origin(paths, retired_manifest)
-            if retired_manifest is not None
-            else _load_retired_origin_quarantine(paths)
-        )
-    except (OSError, RuntimeError, ValueError) as exc:
-        if retired_manifest is not None or os.path.lexists(
-            _retired_origin_quarantine_path(paths)
-        ):
-            _quiesce_retired_route_stack(
-                paths=paths,
-                engine_name=opts.engine,
-                remove_volumes=False,
-            )
-        _log(
-            "quarantine",
-            f"retired origin identity is not durably trustworthy: {type(exc).__name__}: {exc}",
+    manifest_snapshot = _load_local_manifest_snapshot(paths)
+    retired_manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "retired"
+        else None
+    )
+    existing_manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "current"
+        else None
+    )
+    if (
+        manifest_snapshot.status == "current"
+        and not _manifest_snapshot_path_unchanged(paths, manifest_snapshot)
+    ):
+        _quiesce_and_mark_detected_retired_route(
+            paths=paths,
+            manifest=_unknown_retired_manifest(paths),
+            engine_name=opts.engine,
+            remove_volumes=False,
         )
         return 2
 
-    existing_manifest = (
-        _load_manifest_if_present(
-            paths.manifest_path,
-            allow_invalid=opts.force,
-        )
-        if retired_manifest is None
-        else None
-    )
     effective_ui_port = opts.ui_port
     if (
         existing_manifest is not None
@@ -531,6 +823,27 @@ def cmd_up(opts: UpOptions) -> int:
         and opts.ui_port == DEFAULT_UI_PORT
     ):
         effective_ui_port = _manifest_ui_port(existing_manifest)
+    try:
+        retired_origin_quarantine = (
+            _persist_detected_retired_origin(paths, retired_manifest)
+            if retired_manifest is not None
+            else _load_retired_origin_quarantine(
+                paths,
+                port=effective_ui_port,
+            )
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        _log(
+            "quarantine",
+            f"retired origin identity is not durably trustworthy: {type(exc).__name__}: {exc}",
+        )
+        return 2
+
     if retired_origin_quarantine is not None and retired_origin_quarantine.blocks_port(
         effective_ui_port
     ):
@@ -553,7 +866,14 @@ def cmd_up(opts: UpOptions) -> int:
                 engine_name=opts.engine,
                 remove_volumes=True,
             )
-            shutil.rmtree(paths.out_dir, ignore_errors=True)
+            try:
+                _remove_out_dir_verified(paths.out_dir)
+            except OSError as exc:
+                _log(
+                    "quarantine",
+                    f"retired stack state removal failed: {type(exc).__name__}: {exc}",
+                )
+                return 2
         else:
             _quiesce_retired_route_stack(
                 paths=paths,
@@ -565,11 +885,14 @@ def cmd_up(opts: UpOptions) -> int:
                 "stopped identity-bound stack with retired value routes; use --force to rebuild the current profile",
             )
             return 2
-        existing_manifest = _load_manifest_if_present(
-            paths.manifest_path,
-            allow_invalid=opts.force,
-        )
     if existing_manifest is not None:
+        if not _manifest_snapshot_path_unchanged(paths, manifest_snapshot):
+            _quiesce_retired_route_stack(
+                paths=paths,
+                engine_name=opts.engine,
+                remove_volumes=False,
+            )
+            return 2
         if (
             retired_origin_quarantine is not None
             and _retired_origin_quarantine_blocks_manifest(
@@ -590,7 +913,23 @@ def cmd_up(opts: UpOptions) -> int:
         if not opts.force:
             return _cmd_up_existing(opts=opts, paths=paths, manifest=existing_manifest)
         _log("preflight", f"force reset requested for {paths.out_dir}")
-        _reset_stack(paths=paths, engine_name=opts.engine, manifest=existing_manifest)
+        try:
+            _reset_stack(paths=paths, engine_name=opts.engine, manifest=existing_manifest)
+        except OSError as exc:
+            _log("reset", f"stack state removal failed: {type(exc).__name__}: {exc}")
+            return 2
+
+    if (
+        manifest_snapshot.status == "absent"
+        and not _manifest_snapshot_path_unchanged(paths, manifest_snapshot)
+    ):
+        _quiesce_and_mark_detected_retired_route(
+            paths=paths,
+            manifest=_unknown_retired_manifest(paths),
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        return 2
 
     paths.out_dir.mkdir(parents=True, exist_ok=True)
     paths.reports_dir.mkdir(parents=True, exist_ok=True)
@@ -640,34 +979,12 @@ def cmd_up(opts: UpOptions) -> int:
     )
     ng.write_rendered_conf(rendered_nginx, out_path=paths.rendered_nginx)
     paths.rendered_runtime_config.parent.mkdir(parents=True, exist_ok=True)
-    device_approval_exercise = json.loads(bundle.perps_wallet_device_approval_exercise.read_text(encoding="utf-8"))
-    signer_device_integration = json.loads(bundle.perps_wallet_signer_device_integration.read_text(encoding="utf-8"))
-    signer_prompt_capture = json.loads(bundle.perps_wallet_signer_prompt_capture.read_text(encoding="utf-8"))
-    signer_execution_exercise = json.loads(bundle.perps_wallet_signer_execution_exercise.read_text(encoding="utf-8"))
-    signer_ceremony_fixture = {
-        "device_approval_exercise": device_approval_exercise,
-        "signer_device_integration": signer_device_integration,
-        "signer_prompt_capture": signer_prompt_capture,
-        "signer_execution_exercise": signer_execution_exercise,
-    }
-    gov_fixtures = {
-        "recoveryExercise": json.loads(bundle.perps_wallet_recovery_exercise.read_text(encoding="utf-8")),
-        "rotationExercise": json.loads(bundle.perps_wallet_rotation_exercise.read_text(encoding="utf-8")),
-        "deviceApprovalExercise": device_approval_exercise,
-        "signerDeviceIntegration": signer_device_integration,
-        "signerPromptCapture": signer_prompt_capture,
-        "signerExecutionExercise": signer_execution_exercise,
-        "signerCeremony": signer_ceremony_fixture,
-        "hardwareCustody": signer_ceremony_fixture,
-        "encryptedSssBackup": json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8")),
-    }
     paths.rendered_runtime_config.write_text(
         ng.render_runtime_config(
             demo_mode=False,
             extra={
                 "chainId": opts.chain_id,
                 "networkId": opts.network_id,
-                "localTestnetGovernanceFixtures": gov_fixtures,
                 "localTestnetZkPosture": zk_posture,
                 "localTestnetConfidentialFixture": confidential_fixture.to_runtime_config(),
             },
@@ -729,6 +1046,13 @@ def cmd_up(opts: UpOptions) -> int:
         env=env,
         extra_args=["--build"],
     )
+    if _quiesce_if_live_project_profile_untrusted(
+        paths=paths,
+        manifest=manifest,
+        engine_name=opts.engine,
+        engine=engine,
+    ):
+        return 2
 
     try:
         ui_base = f"http://127.0.0.1:{opts.ui_port}"
@@ -792,6 +1116,13 @@ def _cmd_up_existing(*, opts: UpOptions, paths: mf.ManifestPaths, manifest: Mapp
         return 2
     paths.reports_dir.mkdir(parents=True, exist_ok=True)
     env = _runtime_env_for_existing_manifest(manifest=manifest, paths=paths)
+    if _quiesce_if_live_project_profile_untrusted(
+        paths=paths,
+        manifest=manifest,
+        engine_name=opts.engine,
+        engine=engine,
+    ):
+        return 2
     _log("preflight", f"existing manifest detected; restarting compose project={project}")
     cm.compose_up(
         engine=engine,
@@ -800,6 +1131,13 @@ def _cmd_up_existing(*, opts: UpOptions, paths: mf.ManifestPaths, manifest: Mapp
         env=env,
         extra_args=["--build"],
     )
+    if _quiesce_if_live_project_profile_untrusted(
+        paths=paths,
+        manifest=manifest,
+        engine_name=opts.engine,
+        engine=engine,
+    ):
+        return 2
 
     ui_base = str((manifest.get("service_urls") or {}).get("ui") or f"http://127.0.0.1:{manifest_port}")
     try:
@@ -841,7 +1179,12 @@ def _existing_manifest_zk_request_gap(*, opts: UpOptions, manifest: Mapping[str,
 
 def cmd_down(opts: DownOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
-    retired_manifest = _identity_bound_retired_route_manifest(paths)
+    manifest_snapshot = _load_local_manifest_snapshot(paths)
+    retired_manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "retired"
+        else None
+    )
     if retired_manifest is not None:
         marker_ok = _quiesce_and_mark_detected_retired_route(
             paths=paths,
@@ -850,7 +1193,11 @@ def cmd_down(opts: DownOptions) -> int:
             remove_volumes=False,
         )
         return 0 if marker_ok else 2
-    manifest = _load_manifest_if_present(paths.manifest_path)
+    manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "current"
+        else None
+    )
     if _quiesce_if_retired_origin_blocks_manifest(
         paths=paths,
         manifest=manifest,
@@ -875,7 +1222,12 @@ def cmd_down(opts: DownOptions) -> int:
 
 def cmd_status(opts: StatusOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
-    retired_manifest = _identity_bound_retired_route_manifest(paths)
+    manifest_snapshot = _load_local_manifest_snapshot(paths)
+    retired_manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "retired"
+        else None
+    )
     if retired_manifest is not None:
         _quiesce_and_mark_detected_retired_route(
             paths=paths,
@@ -888,7 +1240,11 @@ def cmd_status(opts: StatusOptions) -> int:
             as_json=opts.as_json,
         )
         return 2
-    manifest = _load_manifest_if_present(paths.manifest_path)
+    manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "current"
+        else None
+    )
     if _quiesce_if_retired_origin_blocks_manifest(
         paths=paths,
         manifest=manifest,
@@ -903,15 +1259,36 @@ def cmd_status(opts: StatusOptions) -> int:
         report = {"ok": False, "status": "no_manifest", "manifest_path": str(paths.manifest_path)}
         _emit_status(report, as_json=opts.as_json)
         return 1
+    if not _manifest_snapshot_path_unchanged(paths, manifest_snapshot):
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        return 2
 
     engine = cm.detect_engine(opts.engine)
+    if _quiesce_if_live_project_profile_untrusted(
+        paths=paths,
+        manifest=manifest,
+        engine_name=opts.engine,
+        engine=engine,
+    ):
+        _emit_status(
+            _retired_route_quiescence_report(paths),
+            as_json=opts.as_json,
+        )
+        return 2
     services = cm.compose_ps_json(
         engine=engine,
         project_name=str(manifest["compose_project"]),
         compose_files=[COMPOSE_FILE],
         env=_lifecycle_env_for_compose(manifest, paths),
     )
-    ui_base = str(manifest["service_urls"]["ui"])
+    service_urls = manifest.get("service_urls")
+    if not isinstance(service_urls, Mapping):
+        raise ValueError("current manifest service_urls must be a mapping")
+    ui_base = str(service_urls["ui"])
     base_health = _probe_base_services(ui_base=ui_base)
     lanes = _collect_lane_readiness(ui_base=ui_base, manifest=manifest) if base_health["ok"] else {"ok": False, "lanes": {}}
     report = {
@@ -939,7 +1316,12 @@ def cmd_status(opts: StatusOptions) -> int:
 
 def cmd_smoke(opts: SmokeOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
-    retired_manifest = _identity_bound_retired_route_manifest(paths)
+    manifest_snapshot = _load_local_manifest_snapshot(paths)
+    retired_manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "retired"
+        else None
+    )
     if retired_manifest is not None:
         _quiesce_and_mark_detected_retired_route(
             paths=paths,
@@ -949,7 +1331,11 @@ def cmd_smoke(opts: SmokeOptions) -> int:
         )
         print(json.dumps(_retired_route_quiescence_report(paths), indent=2, sort_keys=True))
         return 2
-    manifest = _load_manifest_if_present(paths.manifest_path)
+    manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "current"
+        else None
+    )
     if _quiesce_if_retired_origin_blocks_manifest(
         paths=paths,
         manifest=manifest,
@@ -958,19 +1344,41 @@ def cmd_smoke(opts: SmokeOptions) -> int:
         print(json.dumps(_retired_route_quiescence_report(paths), indent=2, sort_keys=True))
         return 2
     if manifest is None:
-        report = {"ok": False, "status": "no_manifest", "manifest_path": str(paths.manifest_path)}
-        _write_json(paths.reports_dir / "local_smoke_report.json", report)
-        print(json.dumps(report, indent=2, sort_keys=True))
+        no_manifest_report = {
+            "ok": False,
+            "status": "no_manifest",
+            "manifest_path": str(paths.manifest_path),
+        }
+        _write_json(paths.reports_dir / "local_smoke_report.json", no_manifest_report)
+        print(json.dumps(no_manifest_report, indent=2, sort_keys=True))
         return 1
+    if not _manifest_snapshot_path_unchanged(paths, manifest_snapshot):
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        return 2
 
     engine = cm.detect_engine(opts.engine)
+    if _quiesce_if_live_project_profile_untrusted(
+        paths=paths,
+        manifest=manifest,
+        engine_name=opts.engine,
+        engine=engine,
+    ):
+        print(json.dumps(_retired_route_quiescence_report(paths), indent=2, sort_keys=True))
+        return 2
     services = cm.compose_ps_json(
         engine=engine,
         project_name=str(manifest["compose_project"]),
         compose_files=[COMPOSE_FILE],
         env=_lifecycle_env_for_compose(manifest, paths),
     )
-    ui_base = str(manifest["service_urls"]["ui"])
+    service_urls = manifest.get("service_urls")
+    if not isinstance(service_urls, Mapping):
+        raise ValueError("current manifest service_urls must be a mapping")
+    ui_base = str(service_urls["ui"])
     base_health = _probe_base_services(ui_base=ui_base)
     readiness = (
         _collect_lane_readiness(ui_base=ui_base, manifest=manifest)
@@ -1026,7 +1434,12 @@ def cmd_smoke(opts: SmokeOptions) -> int:
 
 def cmd_release_smoke(opts: ReleaseSmokeOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
-    retired_manifest = _identity_bound_retired_route_manifest(paths)
+    manifest_snapshot = _load_local_manifest_snapshot(paths)
+    retired_manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "retired"
+        else None
+    )
     if retired_manifest is not None:
         _quiesce_and_mark_detected_retired_route(
             paths=paths,
@@ -1035,11 +1448,22 @@ def cmd_release_smoke(opts: ReleaseSmokeOptions) -> int:
             remove_volumes=False,
         )
     else:
-        _quiesce_if_retired_origin_blocks_manifest(
+        current_manifest = (
+            manifest_snapshot.manifest
+            if manifest_snapshot.status == "current"
+            else None
+        )
+        origin_blocked = _quiesce_if_retired_origin_blocks_manifest(
             paths=paths,
-            manifest=None,
+            manifest=current_manifest,
             engine_name=opts.engine,
         )
+        if current_manifest is not None and not origin_blocked:
+            _quiesce_if_live_project_profile_untrusted(
+                paths=paths,
+                manifest=current_manifest,
+                engine_name=opts.engine,
+            )
     admission = current_local_operator_release_admission_v1()
     report = {
         "schema": "zenodex.local_testnet.release_flow_smoke_report.v1",
@@ -1071,7 +1495,12 @@ def cmd_public_up(opts: PublicUpOptions) -> int:
 
 def cmd_logs(opts: LogsOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
-    retired_manifest = _identity_bound_retired_route_manifest(paths)
+    manifest_snapshot = _load_local_manifest_snapshot(paths)
+    retired_manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "retired"
+        else None
+    )
     if retired_manifest is not None:
         _quiesce_and_mark_detected_retired_route(
             paths=paths,
@@ -1081,7 +1510,11 @@ def cmd_logs(opts: LogsOptions) -> int:
         )
         _log("quarantine", "retired-route stack stopped; no logs are admitted")
         return 2
-    manifest = _load_manifest_if_present(paths.manifest_path)
+    manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "current"
+        else None
+    )
     if _quiesce_if_retired_origin_blocks_manifest(
         paths=paths,
         manifest=manifest,
@@ -1092,7 +1525,22 @@ def cmd_logs(opts: LogsOptions) -> int:
     if manifest is None:
         _log("logs", f"no manifest at {paths.manifest_path}")
         return 1
+    if not _manifest_snapshot_path_unchanged(paths, manifest_snapshot):
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        return 2
     engine = cm.detect_engine(opts.engine)
+    if _quiesce_if_live_project_profile_untrusted(
+        paths=paths,
+        manifest=manifest,
+        engine_name=opts.engine,
+        engine=engine,
+    ):
+        _log("quarantine", "untrusted live profile stopped; no logs are admitted")
+        return 2
     output = cm.compose_logs(
         engine=engine,
         project_name=str(manifest["compose_project"]),
@@ -1107,7 +1555,12 @@ def cmd_logs(opts: LogsOptions) -> int:
 
 def cmd_reset(opts: ResetOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
-    retired_manifest = _identity_bound_retired_route_manifest(paths)
+    manifest_snapshot = _load_local_manifest_snapshot(paths)
+    retired_manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "retired"
+        else None
+    )
     if retired_manifest is not None:
         _refuse_unsafe_reset_target(paths.out_dir)
         marker_ok = _quiesce_and_mark_detected_retired_route(
@@ -1118,20 +1571,35 @@ def cmd_reset(opts: ResetOptions) -> int:
         )
         if not marker_ok:
             return 2
-        shutil.rmtree(paths.out_dir, ignore_errors=True)
+        try:
+            _remove_out_dir_verified(paths.out_dir)
+        except OSError as exc:
+            _log(
+                "quarantine",
+                f"retired stack state removal failed: {type(exc).__name__}: {exc}",
+            )
+            return 2
         _log(
             "quarantine",
             "removed retired stack state after persisting its origin quarantine",
         )
         return 0
-    manifest = _load_manifest_if_present(paths.manifest_path)
+    manifest = (
+        manifest_snapshot.manifest
+        if manifest_snapshot.status == "current"
+        else None
+    )
     if _quiesce_if_retired_origin_blocks_manifest(
         paths=paths,
         manifest=manifest,
         engine_name=opts.engine,
     ):
         return 2
-    _reset_stack(paths=paths, engine_name=opts.engine, manifest=manifest)
+    try:
+        _reset_stack(paths=paths, engine_name=opts.engine, manifest=manifest)
+    except OSError as exc:
+        _log("reset", f"stack state removal failed: {type(exc).__name__}: {exc}")
+        return 2
     return 0
 
 
@@ -1182,6 +1650,17 @@ def _refuse_unsafe_reset_target(out_dir: Path) -> None:
         )
 
 
+def _remove_out_dir_verified(out_dir: Path) -> None:
+    """Remove a selected operator directory and verify the pathname is gone."""
+
+    _refuse_unsafe_reset_target(out_dir)
+    if not os.path.lexists(out_dir):
+        return
+    shutil.rmtree(out_dir)
+    if os.path.lexists(out_dir):
+        raise OSError(f"operator output directory still exists after removal: {out_dir}")
+
+
 def _reset_stack(*, paths: mf.ManifestPaths, engine_name: str, manifest: Mapping[str, Any] | None) -> None:
     _refuse_unsafe_reset_target(paths.out_dir)
     # If there is no manifest and the out-dir contains unrelated entries,
@@ -1227,7 +1706,7 @@ def _reset_stack(*, paths: mf.ManifestPaths, engine_name: str, manifest: Mapping
             remove_volumes=True,
             env=_lifecycle_env_for_compose(reset_manifest, paths),
         )
-    shutil.rmtree(paths.out_dir, ignore_errors=True)
+    _remove_out_dir_verified(paths.out_dir)
 
 
 def _compose_env(
@@ -1248,6 +1727,8 @@ def _compose_env(
         if zk_env_gap:
             raise ValueError(f"strict ZK compose environment is not ready: {zk_env_gap}")
     env = {
+        "ZENODEX_LOCAL_OPERATOR_PROFILE_ID": CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1,
+        "ZENODEX_LOCAL_OPERATOR_PROFILE_DIGEST": CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1,
         "ZENO_LEDGER_WRITER_TOKEN": writer_token,
         "ZENODEX_API_BEARER_TOKEN": stdlib_token,
         "RENDERED_NGINX_CONF_PATH": str(paths.rendered_nginx),
@@ -1408,10 +1889,21 @@ def _confidential_verifier_cmd_json(fixture: ConfidentialLocalFixture) -> str:
     return json.dumps(["/usr/local/bin/python", "-c", code])
 
 
-def _lifecycle_env_for_compose(manifest: dict[str, Any], paths: mf.ManifestPaths) -> dict[str, str]:
-    host_paths = manifest.get("host_paths") if isinstance(manifest.get("host_paths"), Mapping) else {}
+def _lifecycle_env_for_compose(manifest: Mapping[str, Any], paths: mf.ManifestPaths) -> dict[str, str]:
+    host_paths_value = manifest.get("host_paths")
+    host_paths: Mapping[str, Any] = (
+        host_paths_value if isinstance(host_paths_value, Mapping) else {}
+    )
     confidential_fixture = _confidential_local_fixture_from_manifest(manifest=manifest, paths=paths)
     env = {
+        "ZENODEX_LOCAL_OPERATOR_PROFILE_ID": str(
+            manifest.get("local_operator_profile_id")
+            or CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1
+        ),
+        "ZENODEX_LOCAL_OPERATOR_PROFILE_DIGEST": str(
+            manifest.get("local_operator_profile_digest")
+            or CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1
+        ),
         "ZENO_LEDGER_WRITER_TOKEN": _LIFECYCLE_PLACEHOLDER,
         "ZENODEX_API_BEARER_TOKEN": _LIFECYCLE_PLACEHOLDER,
         "RENDERED_NGINX_CONF_PATH": str(
@@ -1469,7 +1961,10 @@ def _runtime_env_for_existing_manifest(*, manifest: Mapping[str, Any], paths: mf
     ng.write_rendered_conf(rendered_nginx, out_path=paths.rendered_nginx)
     _refresh_existing_runtime_config(paths.rendered_runtime_config)
 
-    fixture_paths = manifest.get("fixture_paths") if isinstance(manifest.get("fixture_paths"), Mapping) else {}
+    fixture_paths_value = manifest.get("fixture_paths")
+    fixture_paths: Mapping[str, Any] = (
+        fixture_paths_value if isinstance(fixture_paths_value, Mapping) else {}
+    )
     key_bundle_path = Path(str(fixture_paths.get("key_bundle") or (paths.fixtures_dir / "keys.json")))
     key_bundle = _load_json_file(key_bundle_path, label="key bundle")
     roles = _role_materials(key_bundle)
@@ -1496,6 +1991,7 @@ def _refresh_existing_runtime_config(path: Path) -> None:
         config = dict(raw)
     else:
         config = {}
+    config.pop("localTestnetGovernanceFixtures", None)
     default_external_signer = {
         "schema": "zenodex/dex-ui/runtime-default-external-signer/v0",
         "signerSecurityProfile": "native-desktop-loopback-signer-v0",
@@ -1527,7 +2023,10 @@ def _refresh_existing_runtime_config(path: Path) -> None:
 
 
 def _recover_tokens_from_rendered_nginx(*, manifest: Mapping[str, Any], paths: mf.ManifestPaths) -> tuple[str, str]:
-    rendered_paths = manifest.get("rendered_paths") if isinstance(manifest.get("rendered_paths"), Mapping) else {}
+    rendered_paths_value = manifest.get("rendered_paths")
+    rendered_paths: Mapping[str, Any] = (
+        rendered_paths_value if isinstance(rendered_paths_value, Mapping) else {}
+    )
     nginx_path = Path(str(rendered_paths.get("nginx_conf") or paths.rendered_nginx))
     if not nginx_path.is_file():
         raise FileNotFoundError(f"rendered nginx config missing: {nginx_path}")
@@ -3286,7 +3785,10 @@ def _run_release_flow_smoke_historical_donor(
         "network_config_hash": config.get("network_config_hash"),
         "posture": config.get("public_config_url_posture"),
     }
-    fixture_prefund = seed_report.get("fixture_prefund") if isinstance(seed_report.get("fixture_prefund"), Mapping) else {}
+    fixture_prefund_value = seed_report.get("fixture_prefund")
+    fixture_prefund: Mapping[str, Any] = (
+        fixture_prefund_value if isinstance(fixture_prefund_value, Mapping) else {}
+    )
     funded_roles = set(fixture_prefund.get("roles") or []) if isinstance(fixture_prefund, Mapping) else set()
     funded_assets = set(fixture_prefund.get("assets") or []) if isinstance(fixture_prefund, Mapping) else set()
     checks["fixture_prefund"] = {
@@ -3454,7 +3956,10 @@ def _run_release_flow_smoke_historical_donor(
     _require_ok(pools, label="release pools status")
     _require_ok(features, label="release feature status")
     _require_ok(network, label="release network status")
-    local_tip = network.get("local_tip") if isinstance(network.get("local_tip"), Mapping) else {}
+    local_tip_value = network.get("local_tip")
+    local_tip: Mapping[str, Any] = (
+        local_tip_value if isinstance(local_tip_value, Mapping) else {}
+    )
     checks["status_and_header_agreement"] = {
         "ok": (
             isinstance(features.get("feature_suite_hash"), str)
@@ -4663,7 +5168,7 @@ def _tail_service_logs(*, engine: cm.ComposeEngine, project: str, env: dict[str,
         sys.stderr.write(f"--- {svc} (last 40 lines) ---\n{tail}\n")
 
 
-def _summary_text(manifest: dict[str, Any]) -> str:
+def _summary_text(manifest: Mapping[str, Any]) -> str:
     lines = [
         "",
         "ZenoDEX local-testnet is up.",

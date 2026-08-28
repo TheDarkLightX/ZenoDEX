@@ -4,6 +4,7 @@ health polling, Tau hello check."""
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import socket
 import subprocess
@@ -13,13 +14,17 @@ import urllib.request
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
-
+from typing import Any, Iterable, Sequence
 
 DEFAULT_UI_PORT = 18080
 DEFAULT_HEALTH_TIMEOUT_S = 60.0
 DEFAULT_HEALTH_POLL_INTERVAL_S = 1.0
 TAU_HELLO_FRAME = b"hello version=1\r\n"
+_COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
+_COMPOSE_SERVICE_LABEL = "com.docker.compose.service"
+_LOCAL_PROFILE_ID_LABEL = "io.zenodex.local-operator-profile-id"
+_LOCAL_PROFILE_DIGEST_LABEL = "io.zenodex.local-operator-profile-digest"
+_CANONICAL_CONTAINER_ID_RE = re.compile(r"[0-9a-f]{64}")
 
 
 @dataclass(frozen=True)
@@ -32,6 +37,25 @@ class ComposeEngine:
         # podman: `podman compose` exists on modern podman; the CLI surface
         # matches docker compose for `up -d`, `down`, `ps`, `logs`.
         return ["podman", "compose"]
+
+
+@dataclass(frozen=True)
+class ProjectContainerSnapshot:
+    """Minimal owned view of one untrusted container-engine record."""
+
+    container_id: str
+    compose_project: str
+    compose_service: str
+    profile_id: str
+    profile_digest: str
+    image: str
+    environment: tuple[tuple[str, str], ...]
+
+    def environment_value(self, name: str) -> str | None:
+        for key, value in self.environment:
+            if key == name:
+                return value
+        return None
 
 
 def detect_engine(preferred: str = "auto") -> ComposeEngine:
@@ -119,8 +143,11 @@ def compose_down(
     remove_volumes: bool = False,
     env: dict[str, str] | None = None,
 ) -> None:
-    """Bring down the compose project. Preserves volumes unless
-    `remove_volumes=True` (used by `reset --force`)."""
+    """Bring down the compose project and prove no project containers survive.
+
+    Volumes are preserved unless `remove_volumes=True` (used by
+    `reset --force`).
+    """
     cmd = [
         *engine.base_cmd(),
         "-p",
@@ -128,10 +155,161 @@ def compose_down(
     ]
     for f in compose_files:
         cmd += ["-f", str(f)]
-    cmd += ["down"]
+    cmd += ["down", "--remove-orphans"]
     if remove_volumes:
         cmd += ["-v"]
-    _run(cmd, env=env, check=False)
+    _run(cmd, env=env, check=True)
+
+    survivors = _query_project_container_ids(
+        engine=engine,
+        project_name=project_name,
+        env=env,
+    )
+    if survivors:
+        survivor_list = ", ".join(survivors)
+        raise RuntimeError(
+            f"compose project {project_name!r} still has {len(survivors)} "
+            f"container(s) after down: {survivor_list}"
+        )
+
+
+def inspect_project_containers(
+    *,
+    engine: ComposeEngine,
+    project_name: str,
+    env: dict[str, str] | None = None,
+) -> tuple[ProjectContainerSnapshot, ...]:
+    """Return exact typed snapshots for every container under one project label."""
+
+    container_ids = _query_project_container_ids(
+        engine=engine,
+        project_name=project_name,
+        env=env,
+    )
+    if not container_ids:
+        return ()
+    result = _run(
+        [engine.binary, "inspect", "--type", "container", *container_ids],
+        env=env,
+        check=True,
+        capture=True,
+    )
+    if type(result.stdout) is not str:
+        raise RuntimeError("container inspect returned no stdout")
+    try:
+        decoded = json.loads(result.stdout, object_pairs_hook=_reject_duplicate_json_keys)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"container inspect returned invalid JSON: {exc}") from None
+    if type(decoded) is not list:
+        raise RuntimeError("container inspect must return an exact JSON array")
+
+    snapshots = tuple(
+        _project_container_snapshot(item, expected_project=project_name)
+        for item in decoded
+    )
+    observed_ids = tuple(snapshot.container_id for snapshot in snapshots)
+    if len(observed_ids) != len(set(observed_ids)):
+        raise RuntimeError("container inspect returned duplicate container records")
+    if set(observed_ids) != set(container_ids):
+        raise RuntimeError("container inspect result does not match the project container query")
+    return tuple(sorted(snapshots, key=lambda snapshot: snapshot.container_id))
+
+
+def _query_project_container_ids(
+    *,
+    engine: ComposeEngine,
+    project_name: str,
+    env: dict[str, str] | None,
+) -> tuple[str, ...]:
+    query_cmd = [
+        engine.binary,
+        "ps",
+        "--all",
+        "--quiet",
+        "--no-trunc",
+        "--filter",
+        f"label={_COMPOSE_PROJECT_LABEL}={project_name}",
+    ]
+    result = _run(query_cmd, env=env, check=True, capture=True)
+    if result.stdout is None:
+        raise RuntimeError("container query returned no stdout")
+    return _parse_canonical_container_ids(result.stdout)
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    decoded: dict[str, Any] = {}
+    for key, value in pairs:
+        if type(key) is not str or key in decoded:
+            raise ValueError("container inspect contains a duplicate or non-string key")
+        decoded[key] = value
+    return decoded
+
+
+def _project_container_snapshot(
+    value: object,
+    *,
+    expected_project: str,
+) -> ProjectContainerSnapshot:
+    if type(value) is not dict:
+        raise RuntimeError("container inspect entry must be an exact JSON object")
+    record = value
+    container_id = record.get("Id")
+    config = record.get("Config")
+    if type(container_id) is not str or _CANONICAL_CONTAINER_ID_RE.fullmatch(container_id) is None:
+        raise RuntimeError("container inspect entry has a non-canonical container ID")
+    if type(config) is not dict:
+        raise RuntimeError("container inspect entry has no exact Config object")
+    image = config.get("Image")
+    labels = config.get("Labels")
+    environment = config.get("Env")
+    if type(image) is not str or not image:
+        raise RuntimeError("container inspect entry has no exact image reference")
+    if type(labels) is not dict:
+        raise RuntimeError("container inspect entry has no exact label object")
+    required_labels = (
+        _COMPOSE_PROJECT_LABEL,
+        _COMPOSE_SERVICE_LABEL,
+        _LOCAL_PROFILE_ID_LABEL,
+        _LOCAL_PROFILE_DIGEST_LABEL,
+    )
+    if any(type(labels.get(name)) is not str for name in required_labels):
+        raise RuntimeError("container inspect entry has missing or non-string profile labels")
+    if labels[_COMPOSE_PROJECT_LABEL] != expected_project:
+        raise RuntimeError("container inspect project label mismatch")
+    if type(environment) is not list or any(type(item) is not str for item in environment):
+        raise RuntimeError("container inspect entry has no exact environment list")
+    parsed_environment: dict[str, str] = {}
+    for item in environment:
+        if "=" not in item:
+            raise RuntimeError("container inspect environment entry has no value delimiter")
+        name, env_value = item.split("=", 1)
+        if not name or name in parsed_environment:
+            raise RuntimeError("container inspect environment has an empty or duplicate name")
+        parsed_environment[name] = env_value
+    return ProjectContainerSnapshot(
+        container_id=container_id,
+        compose_project=labels[_COMPOSE_PROJECT_LABEL],
+        compose_service=labels[_COMPOSE_SERVICE_LABEL],
+        profile_id=labels[_LOCAL_PROFILE_ID_LABEL],
+        profile_digest=labels[_LOCAL_PROFILE_DIGEST_LABEL],
+        image=image,
+        environment=tuple(sorted(parsed_environment.items())),
+    )
+
+
+def _parse_canonical_container_ids(output: str) -> tuple[str, ...]:
+    """Decode `ps --quiet --no-trunc` output without accepting ambiguity."""
+
+    if output == "":
+        return ()
+    lines = output.splitlines()
+    if output != "".join(f"{line}\n" for line in lines):
+        raise RuntimeError("container query returned non-canonical output")
+    if any(_CANONICAL_CONTAINER_ID_RE.fullmatch(line) is None for line in lines):
+        raise RuntimeError("container query returned a non-canonical container ID")
+    if len(lines) != len(set(lines)):
+        raise RuntimeError("container query returned duplicate container IDs")
+    return tuple(lines)
 
 
 def compose_ps_json(

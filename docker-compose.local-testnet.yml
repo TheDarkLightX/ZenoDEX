@@ -24,6 +24,8 @@
 #   - UI_PORT                    host TCP port for the UI nginx (default 18080)
 #   - CHAIN_ID, NETWORK_ID       ledger identifiers
 #   - ZENO_LEDGER_TOKEN_SYMBOL   local protocol-token symbol (default ZDEX)
+#   - ZENODEX_LOCAL_OPERATOR_PROFILE_ID exact local admission profile
+#   - ZENODEX_LOCAL_OPERATOR_PROFILE_DIGEST content digest for that profile
 
 services:
   zeno-ledger-bootstrap:
@@ -31,6 +33,9 @@ services:
       context: .
       dockerfile: Dockerfile.operator-tools
     image: zenodex/operator-tools:local
+    labels: &local_operator_profile_labels
+      io.zenodex.local-operator-profile-id: ${ZENODEX_LOCAL_OPERATOR_PROFILE_ID:?ZENODEX_LOCAL_OPERATOR_PROFILE_ID must be set by the orchestrator}
+      io.zenodex.local-operator-profile-digest: ${ZENODEX_LOCAL_OPERATOR_PROFILE_DIGEST:?ZENODEX_LOCAL_OPERATOR_PROFILE_DIGEST must be set by the orchestrator}
     command:
       - tools/zeno_ledger_multidocker_scenario.py
       - bootstrap
@@ -55,7 +60,7 @@ services:
       ZENO_LEDGER_TOKEN_SYMBOL: ${ZENO_LEDGER_TOKEN_SYMBOL:-ZDEX}
     volumes:
       - zeno-local-testnet-data:/app/data
-      - ${FIXTURES_DIR:?FIXTURES_DIR must be set by the orchestrator}:/app/fixtures:ro
+      - ${FIXTURES_DIR:?FIXTURES_DIR must be set by the orchestrator}/role_pubkeys.json:/app/fixtures/role_pubkeys.json:ro
     networks: [zenodex-local-testnet]
     security_opt: &security_opts
       - no-new-privileges:true
@@ -70,6 +75,7 @@ services:
 
   zeno-ledger-writer:
     image: zenodex/operator-tools:local
+    labels: *local_operator_profile_labels
     depends_on:
       zeno-ledger-bootstrap:
         condition: service_started
@@ -129,6 +135,7 @@ services:
 
   zeno-ledger-forwarder:
     image: zenodex/operator-tools:local
+    labels: *local_operator_profile_labels
     depends_on:
       zeno-ledger-writer:
         condition: service_started
@@ -181,6 +188,7 @@ services:
 
   zeno-ledger-readonly:
     image: zenodex/operator-tools:local
+    labels: *local_operator_profile_labels
     depends_on:
       zeno-ledger-writer:
         condition: service_started
@@ -229,6 +237,7 @@ services:
       context: .
       dockerfile: .docker/Dockerfile.tau-local
     image: zenodex/tau-local:local-testnet
+    labels: *local_operator_profile_labels
     working_dir: /work
     command: ["bash", "tools/run_local_tau_node_container.sh"]
     environment:
@@ -275,6 +284,7 @@ services:
 
   zenodex-oracle:
     image: zenodex/operator-tools:local
+    labels: *local_operator_profile_labels
     user: "${HOST_UID:?HOST_UID must be set by the orchestrator}:${HOST_GID:?HOST_GID must be set by the orchestrator}"
     command:
       - tools/zenodex_oracle.py
@@ -302,6 +312,7 @@ services:
 
   zenodex-api:
     image: zenodex/operator-tools:local
+    labels: *local_operator_profile_labels
     user: "${HOST_UID:?HOST_UID must be set by the orchestrator}:${HOST_GID:?HOST_GID must be set by the orchestrator}"
     depends_on:
       zeno-ledger-writer:
@@ -392,6 +403,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: zenodex:local
+    labels: *local_operator_profile_labels
     user: "${HOST_UID:?HOST_UID must be set by the orchestrator}:${HOST_GID:?HOST_GID must be set by the orchestrator}"
     depends_on:
       zenodex-api:

@@ -15,6 +15,16 @@ ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
 
 
+def test_current_profile_excludes_retired_governance_surface_from_app_contract() -> None:
+    """The current UI shell has no importer, route id, or render branch for Keys."""
+
+    app_source = (DEX_UI / "src" / "App.jsx").read_text(encoding="utf-8")
+
+    assert "PerpsGovernanceSurface" not in app_source
+    assert "id: 'governance'" not in app_source
+    assert "activeTab === 'governance'" not in app_source
+
+
 def _chrome_binary() -> str | None:
     for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
         path = shutil.which(name)
@@ -141,6 +151,22 @@ def test_current_profile_hides_quarantined_value_route_controls(tmp_path: Path) 
         assert "Signer credential" not in zusd_dom
         assert "Quick Mint zUSD" not in zusd_dom
         assert "Submit transaction" not in zusd_dom
+
+        governance_dom = _dump_dom(
+            chrome,
+            profile=tmp_path / "chrome-governance",
+            url=(
+                f"{vite_base}/?tab=governance&demo=false"
+                "&zenodexUiSmokeGovernance=1&zenodexUiSmokeSssDelivery=1"
+            ),
+        )
+        assert "swap-container" in governance_dom
+        assert 'id="perps-governance-surface"' not in governance_dom
+        assert ">Keys</button>" not in governance_dom
+        assert "Submit Device Approval" not in governance_dom
+        assert "Submit Social Recovery" not in governance_dom
+        assert "Submit Key Rotation" not in governance_dom
+        assert "Evaluate Fixture Backup" not in governance_dom
     finally:
         vite_proc.terminate()
         try:

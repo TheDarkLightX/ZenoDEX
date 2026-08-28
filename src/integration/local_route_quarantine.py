@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -37,6 +38,39 @@ QUARANTINED_ROUTE_ENVIRONMENT_ALIASES_V1: Final = (
     "zusd_monetary_api_enabled",
 )
 CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1: Final = "local-testnet-retired-bridge-quarantine-v1"
+CURRENT_LOCAL_OPERATOR_SERVICE_IMAGES_V1: Final = (
+    ("tau-local", "zenodex/tau-local:local-testnet"),
+    ("zeno-ledger-bootstrap", "zenodex/operator-tools:local"),
+    ("zeno-ledger-forwarder", "zenodex/operator-tools:local"),
+    ("zeno-ledger-readonly", "zenodex/operator-tools:local"),
+    ("zeno-ledger-writer", "zenodex/operator-tools:local"),
+    ("zenodex-api", "zenodex/operator-tools:local"),
+    ("zenodex-nginx", "zenodex:local"),
+    ("zenodex-oracle", "zenodex/operator-tools:local"),
+)
+_CURRENT_LOCAL_OPERATOR_PROFILE_BODY_V1: Final = {
+    "authority": "NONE",
+    "enabled_lanes": [
+        "CONFIDENTIAL_ATTESTATION_API_ENABLED",
+        "DEX_API_ENABLED",
+    ],
+    "profile_id": CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1,
+    "service_images": dict(CURRENT_LOCAL_OPERATOR_SERVICE_IMAGES_V1),
+    "quarantined_route_environment": {
+        name: "false" for name in QUARANTINED_ROUTE_ENVIRONMENT_V1
+    },
+    "release_eligible": False,
+    "schema": "zenodex.local_operator_profile.v1",
+    "vm_gates_closed": [],
+}
+CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1: Final = "sha256:" + hashlib.sha256(
+    json.dumps(
+        _CURRENT_LOCAL_OPERATOR_PROFILE_BODY_V1,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+).hexdigest()
 CURRENT_LOCAL_OPERATOR_RELEASE_BLOCKER_V1: Final = (
     "current profile quarantines stream-8 perps, stream-9 zUSD wallet, and stream-11 "
     "zUSD monetary routes; retained testnet artifacts cannot authorize a current release"
@@ -236,8 +270,8 @@ def retired_origin_quarantine_from_manifest_v1(
 def parse_retired_origin_quarantine_v1(
     value: object,
     *,
-    expected_out_dir: str,
-    expected_compose_project: str,
+    expected_out_dir: str | None = None,
+    expected_compose_project: str | None = None,
 ) -> RetiredOriginQuarantineV1:
     """Decode a closed exact tombstone into verifier-owned immutable values."""
 
@@ -249,10 +283,17 @@ def parse_retired_origin_quarantine_v1(
     if type(schema) is not str or schema != RETIRED_ORIGIN_QUARANTINE_SCHEMA_V1:
         raise ValueError("retired origin quarantine schema mismatch")
     out_dir = value.get("out_dir")
-    if type(out_dir) is not str or out_dir != expected_out_dir:
+    if type(out_dir) is not str or not out_dir.startswith("/"):
+        raise ValueError("retired origin quarantine out_dir mismatch")
+    if expected_out_dir is not None and out_dir != expected_out_dir:
         raise ValueError("retired origin quarantine out_dir mismatch")
     compose_project = value.get("compose_project")
-    if type(compose_project) is not str or compose_project != expected_compose_project:
+    if type(compose_project) is not str or not compose_project:
+        raise ValueError("retired origin quarantine compose identity mismatch")
+    if (
+        expected_compose_project is not None
+        and compose_project != expected_compose_project
+    ):
         raise ValueError("retired origin quarantine compose identity mismatch")
     authority = value.get("authority")
     if type(authority) is not str or authority != "NONE":
@@ -287,8 +328,8 @@ def parse_retired_origin_quarantine_v1(
             port=port,
         )
     return RetiredOriginQuarantineV1(
-        out_dir=expected_out_dir,
-        compose_project=expected_compose_project,
+        out_dir=out_dir,
+        compose_project=compose_project,
         origin=origin,
         all_loopback_ports_quarantined=all_ports,
     )

@@ -626,8 +626,8 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         anchors=(
             "test_manifest_rejects_retired_tau_value_lanes",
             "test_identity_bound_retired_route_manifest_is_quiesced_before_lifecycle",
-            "test_foreign_retired_route_manifest_cannot_stop_an_unrelated_project",
-            "test_release_smoke_rejects_before_manifest_or_runtime_effects",
+            "test_foreign_manifest_quiesces_only_the_selected_derived_project",
+            "test_release_smoke_without_state_creates_no_runtime_effects",
             "test_browser_smoke_cases_omit_quarantined_value_routes",
             "test_compose_overlay_quarantines_retired_perps_and_zusd_monetary_routes",
             "test_quarantined_api_mount_has_no_retired_route_reconstitution_material",

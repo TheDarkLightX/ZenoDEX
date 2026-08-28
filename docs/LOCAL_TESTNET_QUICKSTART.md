@@ -86,9 +86,9 @@ and AutoTrader are unmounted.
 | `zenoctl testnet local down --out-dir DIR` | Stop the stack. Preserves compose volumes, manifest, and fixtures. |
 | `zenoctl testnet local status --out-dir DIR [--json]` | Show stack health, per-service state, and per-lane readiness. |
 | `zenoctl testnet local smoke --out-dir DIR [--browser auto\|off\|required]` | Exercise Spot, Oracle, bounded Confidential, and optional browser checks. Stream `8`, stream `9`, stream `11`, and AutoTrader are omitted. Writes `<out-dir>/reports/local_smoke_report.json`. |
-| `zenoctl testnet local release-smoke --out-dir DIR` | Refuse deterministically because the historical release flow requires quarantined stream `8` and stream `11`; no manifest or runtime is accessed. |
-| `zenoctl testnet local public [--no-open] [--no-release-smoke]` | Retained command surface that refuses before stack or tunnel effects. The legacy bypass flag does not alter the canonical admission result. |
-| `zenoctl testnet local public-up --out-dir DIR` | Refuse before stack, tunnel, manifest, or host-report effects while the current profile is release-ineligible. |
+| `zenoctl testnet local release-smoke --out-dir DIR` | Refuse deterministically because the historical release flow requires quarantined stream `8` and stream `11`. Existing untrusted or retired project containers are stopped before the refusal report. |
+| `zenoctl testnet local public [--no-open] [--no-release-smoke]` | Retained command surface that creates no new stack or tunnel. It may stop an existing untrusted or retired project. The legacy bypass flag does not alter the canonical admission result. |
+| `zenoctl testnet local public-up --out-dir DIR` | Create no new stack, tunnel, manifest, or host report while the current profile is release-ineligible. It may stop an existing untrusted or retired project. |
 | `zenoctl testnet local logs --out-dir DIR [--service NAME] [--tail N]` | Stream or tail compose logs from one service or the whole stack. |
 | `zenoctl testnet local reset --out-dir DIR --force` | Destructive: stops the stack, removes compose volumes, and deletes the out-dir (manifest + fixtures + reports). `--force` is required. |
 
@@ -175,12 +175,20 @@ When an older output directory records retired value routes, every lifecycle
 command first stops its exact Compose project. A forced rebuild must also use a
 different `--ui-port`; this prevents a still-running managed tunnel from
 reattaching to the new local origin at the historical port. Before removing old
-state, the lifecycle writes a canonical sibling origin-quarantine marker that
-survives failed rebuilds, successful replacement, and later resets. Conflicting,
-malformed, or unreadable origin evidence quarantines every port for that
-output-directory identity; the operator must then select a different output
-directory. Every lifecycle command also stops a current-shaped manifest that
-reuses a port named by that marker.
+state, the lifecycle writes a canonical quarantine marker that survives failed
+rebuilds, successful replacement, and later resets. A known retired loopback
+port is recorded in a host-global per-port registry, so another output directory
+cannot silently reattach a stale managed tunnel. Conflicting, malformed, or
+unreadable origin evidence creates an output-directory-specific all-ports
+quarantine. Every lifecycle command also stops a current-shaped manifest that
+reuses a quarantined port.
+
+Current manifests carry an exact local profile ID and content digest. Every
+Compose service carries the same labels. Before restart, status, smoke, logs,
+or release inspection, the lifecycle reads typed live-container snapshots and
+checks project, service, image, profile labels, and retired-route environment
+values. Any ambiguity or mismatch stops the exact output-directory-derived
+Compose project.
 
 Same-origin public routes:
 
@@ -237,7 +245,7 @@ tips, and `common_header_match: true`.
 |---|---|---|
 | Spot pools | ZenoLedger writer (`/api/pools`, `/api/swap`) | Mutation auth: nginx injects the writer bearer; browser never holds it. |
 | zUSD monetary | Unmounted (`/api/zusd/monetary/*`) | Normal startup refuses the retired stream `11` application bridge. |
-| Perps wallet | Unmounted (`/api/perps/wallet/*`) | Normal startup refuses the retired stream `8` application bridge. The perps grid remains a retained preview. |
+| Perps wallet | Unmounted (`/api/perps/wallet/*`) | Normal startup refuses the retired stream `8` application bridge. The perps grid remains a retained preview; the retired Keys surface is absent from the app shell. |
 | AutoTrader | Unmounted (`/api/strategy/autotrader/*` refused at startup) | UI retained; no local-testnet submission authority. |
 | Confidential | Stdlib API (`/api/confidential/*`) | Status and attestation routes. |
 | Oracle dashboard | Oracle service (`/api/oracle/*`) | Reverse-proxied through nginx (same-origin). |
@@ -293,6 +301,8 @@ tips, and `common_header_match: true`.
   isolated evaluator tests may supply the donor fixtures explicitly. Hardware
   custody evidence, strict ZK artifacts, and production promotion evidence
   remain separate gates. The fixture sets `production_security_claim=false`.
+  The ledger bootstrap container receives only `role_pubkeys.json`; the full
+  fixture directory and SSS recipient-key fixture are not mounted into it.
 - **Public tunnel posture.** `public-up` currently refuses before resolving or
   starting a tunnel. Historical tunnel instructions below are donor material.
 - **Fixture keys are local-only.** They are deterministic per-out-dir and

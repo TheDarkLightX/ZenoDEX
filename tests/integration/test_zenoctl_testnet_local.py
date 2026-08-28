@@ -23,8 +23,7 @@ import subprocess
 import sys
 from contextlib import closing
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Callable, Mapping
+from typing import Any, Callable, Mapping
 
 import pytest
 import yaml
@@ -33,6 +32,22 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_OVERLAY = REPO_ROOT / "docker-compose.local-testnet.yml"
 COMPOSE_MULTIMACHINE = REPO_ROOT / "docker-compose.multimachine.yml"
 NGINX_TEMPLATE = REPO_ROOT / ".docker" / "nginx.local-testnet.conf.template"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_retired_origin_quarantine_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    state_dir = tmp_path.parent / f".host-global-retired-origins-{tmp_path.name}"
+    state_dir.mkdir(mode=0o700)
+    monkeypatch.setattr(
+        lc,
+        "HOST_GLOBAL_RETIRED_ORIGIN_QUARANTINE_DIR_V1",
+        state_dir,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +100,9 @@ def test_manifest_build_validate_roundtrip(tmp_path: Path) -> None:
 
     body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
     assert mf.validate_manifest(body) == []
-    assert body["schema"] == mf.SCHEMA_V2
+    assert body["schema"] == mf.SCHEMA_V3
+    assert body["local_operator_profile_id"] == "local-testnet-retired-bridge-quarantine-v1"
+    assert body["local_operator_profile_digest"].startswith("sha256:")
     assert body["compose_project"].startswith("zenodex-local-testnet-")
     assert body["writer_token_sha256"].startswith("sha256:")
     assert body["stdlib_token_sha256"].startswith("sha256:")
@@ -101,6 +118,27 @@ def test_manifest_build_validate_roundtrip(tmp_path: Path) -> None:
     assert body["host_paths"]["oracle_home_dir"].startswith("/")
     assert body["host_paths"]["reports_dir"].startswith("/")
     assert "writer-secret-abc" not in json.dumps(body, sort_keys=True), "raw token must not be in manifest"
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_error"),
+    (
+        ("local_operator_profile_id", "retired-profile", "profile_id"),
+        ("local_operator_profile_digest", "sha256:" + "0" * 64, "profile_digest"),
+    ),
+)
+def test_manifest_rejects_relabelled_local_operator_profile(
+    tmp_path: Path,
+    field: str,
+    value: str,
+    expected_error: str,
+) -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body[field] = value
+
+    assert any(expected_error in error for error in mf.validate_manifest(body))
 
 
 def test_manifest_save_load_roundtrip(tmp_path: Path) -> None:
@@ -133,6 +171,20 @@ def test_manifest_rejects_split_ui_origin_port(tmp_path: Path) -> None:
         "service_urls[ui] must equal" in error
         for error in mf.validate_manifest(body)
     )
+
+
+def test_manifest_paths_reject_retargetable_out_dir_symlink(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    target = tmp_path / "target-a"
+    target.mkdir()
+    alias = tmp_path / "selected-out-dir"
+    alias.symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink component"):
+        mf.ManifestPaths.from_out_dir(alias)
+    with pytest.raises(ValueError, match="symlink component"):
+        mf.compose_project_name(alias)
 
 
 @pytest.mark.parametrize("port", (1, 65_535))
@@ -303,7 +355,6 @@ def test_identity_bound_retired_route_manifest_is_quiesced_before_lifecycle(
 
     monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
     monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
-    monkeypatch.setattr(lc.shutil, "rmtree", lambda *_args, **_kwargs: None)
 
     if operation == "up":
         code = lc.cmd_up(lc.UpOptions(out_dir=tmp_path))
@@ -331,7 +382,7 @@ def test_identity_bound_retired_route_manifest_is_quiesced_before_lifecycle(
     assert calls[0]["remove_volumes"] is (operation == "reset")
 
 
-def test_foreign_retired_route_manifest_cannot_stop_an_unrelated_project(
+def test_foreign_manifest_quiesces_only_the_selected_derived_project(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -343,22 +394,14 @@ def test_foreign_retired_route_manifest_cannot_stop_an_unrelated_project(
     body["compose_project"] = "zenodex-local-testnet-v2-" + ("0" * 32)
     path = tmp_path / mf.MANIFEST_FILENAME
     path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    effects: list[str] = []
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
 
-    def record_engine_detection(_name: str) -> object:
-        effects.append("engine")
-        return object()
-
-    monkeypatch.setattr(
-        lc.cm,
-        "detect_engine",
-        record_engine_detection,
-    )
-
-    with pytest.raises(ValueError, match="unsafe identity binding"):
-        lc.cmd_down(lc.DownOptions(out_dir=tmp_path))
-
-    assert effects == []
+    assert lc.cmd_down(lc.DownOptions(out_dir=tmp_path)) == 0
+    assert len(calls) == 1
+    assert calls[0]["project_name"] == mf.compose_project_name(tmp_path)
+    assert calls[0]["project_name"] != body["compose_project"]
 
 
 def test_force_up_quiesces_and_removes_retired_route_state_before_rebuild(
@@ -394,7 +437,8 @@ def test_force_up_quiesces_and_removes_retired_route_state_before_rebuild(
     assert tmp_path.is_dir()
     assert not manifest_path.exists()
     quarantine_path = lc._retired_origin_quarantine_path(
-        mf.ManifestPaths.from_out_dir(tmp_path)
+        mf.ManifestPaths.from_out_dir(tmp_path),
+        port=18_080,
     )
     assert quarantine_path.is_file()
     quarantine = json.loads(quarantine_path.read_text(encoding="utf-8"))
@@ -479,7 +523,8 @@ def test_reset_preserves_retired_origin_identity_until_fresh_port_rebuild(
     assert calls[0]["remove_volumes"] is True
     assert not manifest_path.exists()
     quarantine_path = lc._retired_origin_quarantine_path(
-        mf.ManifestPaths.from_out_dir(tmp_path)
+        mf.ManifestPaths.from_out_dir(tmp_path),
+        port=18_080,
     )
     assert quarantine_path.is_file()
 
@@ -752,7 +797,8 @@ def test_retired_origin_marker_symlink_quiesces_and_refuses_rebuild(
         encoding="utf-8",
     )
     marker_path = lc._retired_origin_quarantine_path(
-        mf.ManifestPaths.from_out_dir(tmp_path)
+        mf.ManifestPaths.from_out_dir(tmp_path),
+        port=18_080,
     )
     hostile_target = marker_path.with_name("hostile-retired-origin.json")
     hostile_target.write_text("{}\n", encoding="utf-8")
@@ -784,7 +830,8 @@ def test_dangling_retired_origin_marker_refuses_preflight_without_manifest(
     from tools.zenoctl_testnet_local import manifest as mf
 
     marker_path = lc._retired_origin_quarantine_path(
-        mf.ManifestPaths.from_out_dir(tmp_path)
+        mf.ManifestPaths.from_out_dir(tmp_path),
+        port=18_080,
     )
     marker_path.symlink_to(marker_path.with_name("missing-retired-origin.json"))
     calls: list[dict[str, object]] = []
@@ -839,6 +886,331 @@ def test_dangling_manifest_quiesces_and_persists_unknown_origin_quarantine(
     assert quarantine["all_loopback_ports_quarantined"] is True
 
 
+def test_retired_origin_port_quarantine_is_host_global_across_output_dirs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    out_a = tmp_path / "stack-a"
+    out_b = tmp_path / "stack-b"
+    retired_body = mf.build_manifest(**_valid_manifest_kwargs(out_a))
+    retired_body["enabled_lanes"].append("PERPS_WALLET_API_ENABLED")
+    out_a.mkdir()
+    (out_a / mf.MANIFEST_FILENAME).write_text(
+        json.dumps(retired_body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    down_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(
+        lc.cm,
+        "compose_down",
+        lambda **kwargs: down_calls.append(kwargs),
+    )
+
+    assert lc.cmd_reset(lc.ResetOptions(out_dir=out_a)) == 0
+    down_calls.clear()
+    preflight: list[str] = []
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        lambda _repo_root: preflight.append("reached"),
+    )
+
+    assert lc.cmd_up(lc.UpOptions(out_dir=out_b, ui_port=18_080)) == 2
+    assert preflight == []
+    assert len(down_calls) == 1
+    assert down_calls[0]["project_name"] == mf.compose_project_name(out_b)
+
+
+def _live_api_container_snapshot(
+    *,
+    project: str,
+    service: str = "zenodex-api",
+    profile_id: str = "local-testnet-retired-bridge-quarantine-v1",
+    profile_digest: str,
+    image: str = "zenodex/operator-tools:local",
+    environment: tuple[tuple[str, str], ...] | None = None,
+):
+    from tools.zenoctl_testnet_local import compose as cm
+
+    return cm.ProjectContainerSnapshot(
+        container_id="a" * 64,
+        compose_project=project,
+        compose_service=service,
+        profile_id=profile_id,
+        profile_digest=profile_digest,
+        image=image,
+        environment=environment
+        or (
+            ("PERPS_WALLET_API_ENABLED", "false"),
+            ("ZUSD_MONETARY_WALLET_API_ENABLED", "false"),
+            ("ZUSD_TAU_WALLET_API_ENABLED", "false"),
+        ),
+    )
+
+
+def test_live_project_profile_accepts_exact_current_api_container(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    manifest = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    snapshot = _live_api_container_snapshot(
+        project=manifest["compose_project"],
+        profile_digest=manifest["local_operator_profile_digest"],
+    )
+
+    assert lc._live_project_profile_gap(manifest, (snapshot,)) is None
+
+
+@pytest.mark.parametrize(
+    ("override", "expected_gap"),
+    (
+        ({"service": "retired-api"}, "unknown live compose service"),
+        ({"profile_id": "retired-profile"}, "profile id mismatch"),
+        ({"profile_digest": "sha256:" + "0" * 64}, "profile digest mismatch"),
+        ({"image": "hostile:latest"}, "live image mismatch"),
+        (
+            {"environment": (("PERPS_WALLET_API_ENABLED", "true"),)},
+            "not exact false",
+        ),
+        (
+            {"environment": (("perps_wallet_enabled", "true"),)},
+            "retired route alias",
+        ),
+    ),
+)
+def test_live_project_profile_rejects_relabelled_or_enabled_container(
+    tmp_path: Path,
+    override: dict[str, object],
+    expected_gap: str,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    manifest = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    snapshot_args: dict[str, Any] = {
+        "project": manifest["compose_project"],
+        "profile_digest": manifest["local_operator_profile_digest"],
+        **override,
+    }
+    snapshot = _live_api_container_snapshot(**snapshot_args)
+
+    gap = lc._live_project_profile_gap(manifest, (snapshot,))
+    assert gap is not None
+    assert expected_gap in gap
+
+
+def test_current_manifest_with_retired_live_route_is_quiesced_before_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    manifest = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    mf.save_manifest(manifest, tmp_path / mf.MANIFEST_FILENAME)
+    hostile = _live_api_container_snapshot(
+        project=manifest["compose_project"],
+        profile_digest=manifest["local_operator_profile_digest"],
+        environment=(("PERPS_WALLET_API_ENABLED", "true"),),
+    )
+    down_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(
+        lc.cm,
+        "inspect_project_containers",
+        lambda **_kwargs: (hostile,),
+    )
+    monkeypatch.setattr(
+        lc.cm,
+        "compose_down",
+        lambda **kwargs: down_calls.append(kwargs),
+    )
+    monkeypatch.setattr(
+        lc.cm,
+        "compose_ps_json",
+        lambda **_kwargs: pytest.fail("status reached compose ps after live profile mismatch"),
+    )
+
+    assert lc.cmd_status(lc.StatusOptions(out_dir=tmp_path, as_json=True)) == 2
+    assert len(down_calls) == 1
+    assert down_calls[0]["project_name"] == manifest["compose_project"]
+
+
+def test_duplicate_key_retired_origin_marker_quiesces_before_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.integration.local_route_quarantine import (
+        CanonicalLoopbackOriginV1,
+        RetiredOriginQuarantineV1,
+    )
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    marker = RetiredOriginQuarantineV1(
+        out_dir=str(tmp_path),
+        compose_project=mf.compose_project_name(tmp_path),
+        origin=CanonicalLoopbackOriginV1(
+            scheme="http",
+            host="127.0.0.1",
+            port=18_080,
+        ),
+        all_loopback_ports_quarantined=False,
+    )
+    marker_path = lc._host_global_retired_origin_quarantine_path(18_080)
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    canonical = marker.canonical_bytes().decode("utf-8")
+    assert marker.origin is not None
+    first_origin = json.dumps(
+        marker.origin.to_mapping(),
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    second_origin = json.dumps(
+        {"host": "127.0.0.1", "port": 18_081, "scheme": "http"},
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    marker_path.write_text(
+        canonical.replace(
+            f'"origin":{first_origin}',
+            f'"origin":{first_origin},"origin":{second_origin}',
+        ),
+        encoding="utf-8",
+    )
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+
+    assert lc.cmd_up(lc.UpOptions(out_dir=tmp_path, ui_port=18_080)) == 2
+    assert len(calls) == 1
+
+
+def test_fifo_retired_origin_marker_is_opened_nonblocking_and_quiesced(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    marker_path = lc._host_global_retired_origin_quarantine_path(18_080)
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    os.mkfifo(marker_path)
+    real_open = lc.os.open
+    observed_nonblocking: list[bool] = []
+
+    def checked_open(
+        path: Any,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if path == marker_path:
+            observed_nonblocking.append(bool(flags & os.O_NONBLOCK))
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(lc.os, "open", checked_open)
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+
+    assert lc.cmd_up(lc.UpOptions(out_dir=tmp_path, ui_port=18_080)) == 2
+    assert observed_nonblocking == [True]
+    assert len(calls) == 1
+
+
+def test_retired_origin_first_write_rejects_path_substitution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.integration.local_route_quarantine import (
+        CanonicalLoopbackOriginV1,
+        RetiredOriginQuarantineV1,
+    )
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    candidate = RetiredOriginQuarantineV1(
+        out_dir=str(tmp_path),
+        compose_project=mf.compose_project_name(tmp_path),
+        origin=CanonicalLoopbackOriginV1("http", "127.0.0.1", 18_080),
+        all_loopback_ports_quarantined=False,
+    )
+    substituted = RetiredOriginQuarantineV1(
+        out_dir=str(tmp_path),
+        compose_project=mf.compose_project_name(tmp_path),
+        origin=CanonicalLoopbackOriginV1("http", "127.0.0.1", 18_081),
+        all_loopback_ports_quarantined=False,
+    )
+    real_link = lc.os.link
+
+    def substitute_then_link(
+        source: str,
+        destination: str,
+        *,
+        src_dir_fd: int,
+        dst_dir_fd: int,
+        follow_symlinks: bool,
+    ) -> None:
+        os.unlink(source, dir_fd=src_dir_fd)
+        replacement_fd = os.open(
+            source,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+            dir_fd=src_dir_fd,
+        )
+        try:
+            os.write(replacement_fd, substituted.canonical_bytes())
+        finally:
+            os.close(replacement_fd)
+        real_link(
+            source,
+            destination,
+            src_dir_fd=src_dir_fd,
+            dst_dir_fd=dst_dir_fd,
+            follow_symlinks=follow_symlinks,
+        )
+
+    monkeypatch.setattr(lc.os, "link", substitute_then_link)
+
+    with pytest.raises(ValueError, match="inode mismatch"):
+        lc._persist_retired_origin_quarantine(
+            mf.ManifestPaths.from_out_dir(tmp_path),
+            candidate,
+        )
+
+
+def test_manifest_snapshot_change_quiesces_before_up_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    mf.save_manifest(body, tmp_path / mf.MANIFEST_FILENAME)
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        lc,
+        "_manifest_snapshot_path_unchanged",
+        lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        lambda _repo_root: pytest.fail("manifest race reached preflight"),
+    )
+
+    assert lc.cmd_up(lc.UpOptions(out_dir=tmp_path, force=True)) == 2
+    assert len(calls) == 1
+
+
 def test_manifest_mountable_lane_registry_excludes_retired_tau_routes() -> None:
     from tools.zenoctl_testnet_local import manifest as mf
 
@@ -846,6 +1218,27 @@ def test_manifest_mountable_lane_registry_excludes_retired_tau_routes() -> None:
         "DEX_API_ENABLED",
         "CONFIDENTIAL_ATTESTATION_API_ENABLED",
     )
+
+
+def test_v2_manifest_is_valid_history_but_retired_for_current_mount(
+    tmp_path: Path,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["schema"] = mf.SCHEMA_V2
+    body.pop("local_operator_profile_id")
+    body.pop("local_operator_profile_digest")
+    assert mf.validate_manifest(body) == []
+    (tmp_path / mf.MANIFEST_FILENAME).write_text(
+        json.dumps(body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    snapshot = lc._load_local_manifest_snapshot(mf.ManifestPaths.from_out_dir(tmp_path))
+
+    assert snapshot.status == "retired"
 
 
 def test_lifecycle_source_has_no_retired_tau_route_reachability() -> None:
@@ -891,9 +1284,45 @@ def test_lifecycle_source_has_no_retired_tau_route_reachability() -> None:
             "_write_json",
         }
     )
+    for command_name in (
+        "cmd_up",
+        "cmd_down",
+        "cmd_status",
+        "cmd_smoke",
+        "cmd_release_smoke",
+        "cmd_logs",
+        "cmd_reset",
+    ):
+        direct_calls = [
+            node.func.id
+            for node in ast.walk(functions[command_name])
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        ]
+        assert direct_calls.count("_load_local_manifest_snapshot") == 1
+        assert "_load_manifest_if_present" not in direct_calls
+    for command_name in ("cmd_status", "cmd_smoke", "cmd_release_smoke", "cmd_logs"):
+        direct_calls = {
+            node.func.id
+            for node in ast.walk(functions[command_name])
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+        assert "_quiesce_if_live_project_profile_untrusted" in direct_calls
+    assert sum(
+        1
+        for node in ast.walk(functions["_cmd_up_existing"])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_quiesce_if_live_project_profile_untrusted"
+    ) == 2
+    assert any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_quiesce_if_live_project_profile_untrusted"
+        for node in ast.walk(functions["cmd_up"])
+    )
 
 
-def test_release_smoke_rejects_before_manifest_or_runtime_effects(
+def test_release_smoke_without_state_creates_no_runtime_effects(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -1035,7 +1464,6 @@ def test_force_reset_uses_derived_identity_and_safe_paths(
 
     monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
     monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: captured.update(kwargs))
-    monkeypatch.setattr(lc.shutil, "rmtree", lambda *_args, **_kwargs: None)
 
     lc._reset_stack(paths=paths, engine_name="auto", manifest=body)
 
@@ -2355,6 +2783,9 @@ def test_existing_runtime_config_refresh_updates_ui_contract(tmp_path: Path) -> 
                 "perpsWalletUiEnabled": True,
                 "zusdTauWalletUiEnabled": True,
                 "zusdMonetaryWalletUiEnabled": True,
+                "localTestnetGovernanceFixtures": {
+                    "encryptedSssBackup": {"recipientKey": "must-not-survive"}
+                },
                 "uiSurfaceContractSchema": "zenodex.dex_ui.surface_contract.v1",
                 "uiSurfaceContractVersion": "old-ui",
                 "uiSurfaceContractHash": "sha256:stale",
@@ -2371,6 +2802,7 @@ def test_existing_runtime_config_refresh_updates_ui_contract(tmp_path: Path) -> 
     assert parsed["perpsWalletUiEnabled"] is False
     assert parsed["zusdTauWalletUiEnabled"] is False
     assert parsed["zusdMonetaryWalletUiEnabled"] is False
+    assert "localTestnetGovernanceFixtures" not in parsed
     assert parsed["uiSurfaceContractSchema"] == "zenodex.dex_ui.surface_contract.v1"
     assert parsed["uiSurfaceContractVersion"] == ng.ui_surface_contract_version()
     assert parsed["uiSurfaceContractHash"] == ng.ui_surface_contract_hash()
@@ -2459,6 +2891,22 @@ def test_compose_overlay_api_command_respects_operator_tools_entrypoint() -> Non
     assert command[:2] == ["-m", "src.integration.api_server"]
 
 
+def test_compose_overlay_binds_every_service_to_current_local_profile() -> None:
+    doc = _load_compose_overlay()
+    expected = {
+        "io.zenodex.local-operator-profile-id": (
+            "${ZENODEX_LOCAL_OPERATOR_PROFILE_ID:?ZENODEX_LOCAL_OPERATOR_PROFILE_ID must be set by the orchestrator}"
+        ),
+        "io.zenodex.local-operator-profile-digest": (
+            "${ZENODEX_LOCAL_OPERATOR_PROFILE_DIGEST:?ZENODEX_LOCAL_OPERATOR_PROFILE_DIGEST must be set by the orchestrator}"
+        ),
+    }
+
+    assert doc["services"]
+    for service_name, service in doc["services"].items():
+        assert service["labels"] == expected, service_name
+
+
 def test_compose_overlay_api_does_not_enable_demo_or_fixture_shortcuts() -> None:
     doc = _load_compose_overlay()
     env = doc["services"]["zenodex-api"]["environment"]
@@ -2479,8 +2927,22 @@ def test_compose_overlay_bootstrap_service_has_writer_token_for_controller_runs(
     assert "ZENO_LEDGER_WRITER_TOKEN" in env
     assert env["ZENO_LEDGER_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-ZDEX}"
     assert "/app/fixtures/role_pubkeys.json" in service["command"]
-    assert "${FIXTURES_DIR:?FIXTURES_DIR must be set by the orchestrator}:/app/fixtures:ro" in service["volumes"]
+    assert service["volumes"] == [
+        "zeno-local-testnet-data:/app/data",
+        "${FIXTURES_DIR:?FIXTURES_DIR must be set by the orchestrator}/role_pubkeys.json:/app/fixtures/role_pubkeys.json:ro",
+    ]
     assert all("/app/local-secrets" not in volume for volume in service["volumes"])
+
+
+def test_local_up_does_not_publish_retired_governance_fixtures_to_browser() -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    source = Path(lc.__file__).read_text(encoding="utf-8")
+    cmd_up_source = source[source.index("def cmd_up(") : source.index("def _cmd_up_existing(")]
+
+    assert "localTestnetGovernanceFixtures" not in cmd_up_source
+    assert "perps_wallet_encrypted_sss_backup.read_text" not in cmd_up_source
+    assert "perps_wallet_signer_prompt_capture.read_text" not in cmd_up_source
 
 
 def test_compose_overlay_readonly_authenticates_controller_rejection_probe() -> None:
@@ -3575,6 +4037,50 @@ def test_reset_allows_dedicated_out_dirs(tmp_path: Path) -> None:
     lc._refuse_unsafe_reset_target(Path.home() / "zen-local-testnet")
 
 
+def test_remove_out_dir_verified_rejects_silent_noop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_text("retain", encoding="utf-8")
+    monkeypatch.setattr(lc.shutil, "rmtree", lambda _path: None)
+
+    with pytest.raises(OSError, match="still exists"):
+        lc._remove_out_dir_verified(tmp_path)
+    assert sentinel.read_text(encoding="utf-8") == "retain"
+
+
+def test_retired_reset_refuses_success_when_deletion_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("PERPS_WALLET_API_ENABLED")
+    (tmp_path / mf.MANIFEST_FILENAME).write_text(
+        json.dumps(body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **_kwargs: None)
+
+    def refuse_remove(_path: Path) -> None:
+        raise PermissionError("simulated deletion denial")
+
+    monkeypatch.setattr(lc.shutil, "rmtree", refuse_remove)
+
+    assert lc.cmd_reset(lc.ResetOptions(out_dir=tmp_path)) == 2
+    captured = capsys.readouterr()
+    assert "removed retired stack state" not in captured.err
+    assert "simulated deletion denial" in captured.err
+    assert (tmp_path / mf.MANIFEST_FILENAME).is_file()
+
+
 def test_reset_refuses_dir_without_manifest_when_dir_has_unrelated_files(tmp_path: Path) -> None:
     """If the out-dir has no manifest AND contains files we didn't create,
     refuse the reset — the user likely pointed at a populated dir by mistake."""
@@ -3605,6 +4111,8 @@ def test_lifecycle_env_for_compose_returns_all_required_vars(tmp_path: Path) -> 
     paths = mf.ManifestPaths.from_out_dir(tmp_path)
     env = lc._lifecycle_env_for_compose(body, paths)
     for required in (
+        "ZENODEX_LOCAL_OPERATOR_PROFILE_ID",
+        "ZENODEX_LOCAL_OPERATOR_PROFILE_DIGEST",
         "ZENO_LEDGER_WRITER_TOKEN",
         "ZENODEX_API_BEARER_TOKEN",
         "RENDERED_NGINX_CONF_PATH",
@@ -3858,6 +4366,7 @@ def test_feature_smoke_omits_quarantined_autotrader_and_zusd_tau_wallet_lanes(
     tmp_path: Path,
 ) -> None:
     from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
 
     roles = {
         "alice": {
@@ -3888,7 +4397,7 @@ def test_feature_smoke_omits_quarantined_autotrader_and_zusd_tau_wallet_lanes(
 
     report = lc._run_feature_smoke(
         ui_base="http://127.0.0.1:18080",
-        paths=SimpleNamespace(reports_dir=tmp_path),
+        paths=mf.ManifestPaths.from_out_dir(tmp_path),
         manifest={
             "chain_id": "chain",
             "fixture_paths": {"key_bundle": str(tmp_path / "keys.json")},
@@ -4072,6 +4581,7 @@ def test_cmd_up_restarts_existing_manifest_without_force(
         },
     )
     monkeypatch.setattr(lc.cm, "compose_up", fake_compose_up)
+    monkeypatch.setattr(lc.cm, "inspect_project_containers", lambda **_kwargs: ())
     monkeypatch.setattr(lc, "_wait_for_base_services", lambda **kwargs: None)
     monkeypatch.setattr(lc, "_collect_lane_readiness", lambda **kwargs: {"ok": True, "lanes": {}})
     monkeypatch.setattr(lc, "_summary_text", lambda manifest: "")
