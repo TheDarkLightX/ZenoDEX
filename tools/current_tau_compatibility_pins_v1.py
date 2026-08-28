@@ -72,7 +72,16 @@ HISTORICAL_BRIDGE_SOURCE_SHA256_V1: Final = (
     ("tau_manager.py", "18975f2bbe957eb5b08a3c7cf6effda6adc1a9551824837471577133b2e56431"),
 )
 
-LOCAL_PROFILE_SOURCE_SHA256_V1: Final = (
+# The local test profile was disqualified at this historical source subject.  It
+# is deliberately independent of the current worktree: O-002 may repair the
+# profile after this commit without erasing the evidence that the old profile
+# could not establish real-Tau execution.
+HISTORICAL_LOCAL_PROFILE_COMMIT_V1: Final = "a2042c88895cfdffd7cfb763d690e2f0e6bb6d94"
+HISTORICAL_LOCAL_PROFILE_TREE_V1: Final = "40f9dd02cd06c7026685da20577dbab3384c5339"
+HISTORICAL_LOCAL_PROFILE_TREE_LISTING_SHA256_V1: Final = (
+    "6e4f6cc6dfd4010ac7f30a992a291a1c9a4d0c18a4a368c71c42710273cdb8e5"
+)
+HISTORICAL_LOCAL_PROFILE_SOURCE_SHA256_V1: Final = (
     (
         "docker-compose.local-testnet.yml",
         "6d0e8aa402645d1fcf043fde286e16b1642c2ee6fb99c608f119de40b1b5bc8c",
@@ -95,7 +104,10 @@ LOCAL_PROFILE_SOURCE_SHA256_V1: Final = (
     ),
 )
 
-IMPLEMENTATION_EVIDENCE_PATHS_V1: Final = (
+# These inputs describe the replay implementation itself.  They intentionally
+# exclude the historical local profile so current repairs do not make the old
+# profile appear current or invalidate its Git-object-bound disqualifier.
+REPLAY_IMPLEMENTATION_EVIDENCE_PATHS_V1: Final = (
     "tools/__init__.py",
     "tools/current_tau_compatibility_pins_v1.py",
     "tools/current_tau_compatibility_core_v1.py",
@@ -105,9 +117,25 @@ IMPLEMENTATION_EVIDENCE_PATHS_V1: Final = (
     "tools/check_current_tau_compatibility_v1.py",
     "tools/current_tau_source_analysis_v1.py",
 )
-IMPLEMENTATION_SOURCE_PATHS_V1: Final = tuple(
-    path for path, _digest in LOCAL_PROFILE_SOURCE_SHA256_V1
-) + IMPLEMENTATION_EVIDENCE_PATHS_V1
+
+# Executable files are a closed subset of the replay evidence.  The test file
+# remains bound as evidence, while the runtime import/capture guard admits only
+# code that can execute in the isolated replay process.
+RUNTIME_EXECUTABLE_SOURCE_PATHS_V1: Final = (
+    "tools/__init__.py",
+    "tools/build_current_tau_compatibility_v1.py",
+    "tools/check_current_tau_compatibility_v1.py",
+    "tools/current_tau_compatibility_core_v1.py",
+    "tools/current_tau_compatibility_pins_v1.py",
+    "tools/current_tau_replay_io_v1.py",
+    "tools/current_tau_source_analysis_v1.py",
+)
+
+# Compatibility aliases preserve callers from the pre-R8 naming while the
+# source pin layout carries the stronger explicit distinction above.
+LOCAL_PROFILE_SOURCE_SHA256_V1: Final = HISTORICAL_LOCAL_PROFILE_SOURCE_SHA256_V1
+IMPLEMENTATION_EVIDENCE_PATHS_V1: Final = REPLAY_IMPLEMENTATION_EVIDENCE_PATHS_V1
+IMPLEMENTATION_SOURCE_PATHS_V1: Final = REPLAY_IMPLEMENTATION_EVIDENCE_PATHS_V1
 
 EXPECTED_CURRENT_RESERVED_STREAMS_V1: Final = tuple(range(12))
 EXPECTED_LEGACY_OPERATION_STREAMS_V1: Final = tuple(range(5, 12))

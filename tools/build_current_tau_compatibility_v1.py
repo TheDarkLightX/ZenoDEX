@@ -9,7 +9,12 @@ import sys as _bootstrap_sys
 
 
 def _require_isolated_python_main_v1() -> None:
-    """Fail before repository imports unless Python excluded ambient paths."""
+    """Install a conditional post-bootstrap code-object binding guard.
+
+    This is defense in depth only.  The Python process has already executed
+    this entrypoint before it can install the hook, and Git/interpreter/filesystem
+    selection remains an external replay trust premise.
+    """
 
     if (
         not _bootstrap_sys.flags.isolated
@@ -18,13 +23,22 @@ def _require_isolated_python_main_v1() -> None:
     ):
         _bootstrap_sys.stdout.write(
             '{"finding":"PYTHON_NOT_ISOLATED","o002_implemented":false,'
-            '"o003a_evidence_complete":false,"ok":false,'
+            '"o003a_evidence_complete":false,'
+            '"o003a_reviewed_current_tau_incompatibility_research_only":false,'
+            '"direct_python_replay_conditional":false,'
+            '"external_replay_trust_root_blocked":true,"ok":false,'
             '"production_authority":"NONE","release_authority":"NONE",'
             '"settlement_authority":"NONE","value_movement_authority":"NONE",'
             '"value_movement_claim_allowed":false,"vm_gates_closed":[]}\n'
         )
         raise SystemExit(1)
+    import hashlib as bootstrap_hashlib
+    import importlib.util as bootstrap_importlib_util
+    import marshal as bootstrap_marshal
     import os as bootstrap_os
+    import stat as bootstrap_stat
+    import subprocess as bootstrap_subprocess
+    from types import CodeType as bootstrap_code_type
 
     repo_root = bootstrap_os.path.dirname(
         bootstrap_os.path.dirname(bootstrap_os.path.realpath(__file__))
@@ -48,11 +62,19 @@ def _require_isolated_python_main_v1() -> None:
             "tools/current_tau_source_analysis_v1.py",
         }
     )
+    repository_module_paths = {
+        (relative[: -len("/__init__.py")] if relative.endswith("/__init__.py") else relative[:-3])
+        .replace("/", "."): relative
+        for relative in allowed_repository_exec
+    }
 
-    def reject_unbound_runtime_source() -> None:
+    def reject_unbound_runtime_source(code: str = "IMPLEMENTATION_RUNTIME_CODE_UNBOUND") -> None:
         _bootstrap_sys.stdout.write(
-            '{"finding":"IMPLEMENTATION_RUNTIME_SOURCE_UNBOUND",'
-            '"o002_implemented":false,"o003a_evidence_complete":false,"ok":false,'
+            '{"finding":"' + code + '",'
+            '"o002_implemented":false,"o003a_evidence_complete":false,'
+            '"o003a_reviewed_current_tau_incompatibility_research_only":false,'
+            '"direct_python_replay_conditional":false,'
+            '"external_replay_trust_root_blocked":true,"ok":false,'
             '"production_authority":"NONE","release_authority":"NONE",'
             '"settlement_authority":"NONE","value_movement_authority":"NONE",'
             '"value_movement_claim_allowed":false,"vm_gates_closed":[]}\n'
@@ -60,11 +82,147 @@ def _require_isolated_python_main_v1() -> None:
         _bootstrap_sys.stdout.flush()
         bootstrap_os._exit(1)
 
+    def git_source_bytes(relative: str) -> bytes | None:
+        try:
+            completed = bootstrap_subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "core.hooksPath=/dev/null",
+                    "-c",
+                    "core.fsmonitor=false",
+                    "-C",
+                    repo_root,
+                    "show",
+                    f"{captured_commit}:{relative}",
+                ],
+                check=False,
+                stdin=bootstrap_subprocess.DEVNULL,
+                stdout=bootstrap_subprocess.PIPE,
+                stderr=bootstrap_subprocess.PIPE,
+                env={
+                    "GIT_CONFIG_GLOBAL": bootstrap_os.devnull,
+                    "GIT_CONFIG_NOSYSTEM": "1",
+                    "GIT_NO_LAZY_FETCH": "1",
+                    "GIT_NO_REPLACE_OBJECTS": "1",
+                    "GIT_OPTIONAL_LOCKS": "0",
+                    "LC_ALL": "C",
+                    "PATH": bootstrap_os.defpath,
+                },
+                timeout=5,
+            )
+        except (OSError, bootstrap_subprocess.TimeoutExpired):
+            return None
+        if (
+            completed.returncode != 0
+            or completed.stderr
+            or len(completed.stdout) > 131_072
+        ):
+            return None
+        return completed.stdout
+
+    def worktree_source_bytes(relative: str) -> bytes | None:
+        """Read one regular source file through a non-symlink descriptor."""
+
+        try:
+            nofollow = bootstrap_os.O_NOFOLLOW
+        except AttributeError:
+            return None
+        descriptor: int | None = None
+        try:
+            descriptor = bootstrap_os.open(
+                bootstrap_os.path.join(repo_root, relative),
+                bootstrap_os.O_RDONLY | nofollow,
+            )
+            metadata = bootstrap_os.fstat(descriptor)
+            if (
+                not bootstrap_stat.S_ISREG(metadata.st_mode)
+                or metadata.st_size < 0
+                or metadata.st_size > 131_072
+            ):
+                return None
+            raw = bytearray()
+            while len(raw) < metadata.st_size:
+                chunk = bootstrap_os.read(descriptor, min(65_536, metadata.st_size - len(raw)))
+                if not chunk:
+                    return None
+                raw.extend(chunk)
+            return bytes(raw)
+        except OSError:
+            return None
+        finally:
+            if descriptor is not None:
+                bootstrap_os.close(descriptor)
+
+    def worktree_source_matches_captured_git(relative: str, expected: bytes) -> bool:
+        observed = worktree_source_bytes(relative)
+        return observed is not None and observed == expected
+
+    def load_captured_commit() -> str | None:
+        try:
+            completed = bootstrap_subprocess.run(
+                ["git", "-C", repo_root, "rev-parse", "--verify", "HEAD^{commit}"],
+                check=False,
+                stdin=bootstrap_subprocess.DEVNULL,
+                stdout=bootstrap_subprocess.PIPE,
+                stderr=bootstrap_subprocess.PIPE,
+                env={
+                    "GIT_CONFIG_GLOBAL": bootstrap_os.devnull,
+                    "GIT_CONFIG_NOSYSTEM": "1",
+                    "GIT_NO_LAZY_FETCH": "1",
+                    "GIT_NO_REPLACE_OBJECTS": "1",
+                    "GIT_OPTIONAL_LOCKS": "0",
+                    "LC_ALL": "C",
+                    "PATH": bootstrap_os.defpath,
+                },
+                timeout=5,
+            )
+        except (OSError, bootstrap_subprocess.TimeoutExpired):
+            return None
+        value = completed.stdout.decode("ascii", "ignore").strip()
+        return value if completed.returncode == 0 and not completed.stderr and len(value) == 40 else None
+
+    captured_commit = load_captured_commit()
+    if captured_commit is None:
+        reject_unbound_runtime_source("IMPLEMENTATION_RUNTIME_TRUST_ROOT_UNAVAILABLE")
+    expected_code_cache: dict[tuple[str, str], bytes] = {}
+
+    def code_matches_captured_source(code: object, filename: str, relative: str) -> bool:
+        if type(code) is not bootstrap_code_type:
+            return False
+        cache_key = (filename, relative)
+        expected_marshaled = expected_code_cache.get(cache_key)
+        if expected_marshaled is None:
+            raw = git_source_bytes(relative)
+            if raw is None:
+                return False
+            try:
+                expected = compile(
+                    raw.decode("utf-8"),
+                    filename,
+                    "exec",
+                    dont_inherit=True,
+                    optimize=_bootstrap_sys.flags.optimize,
+                )
+                expected_marshaled = bootstrap_marshal.dumps(expected)
+            except (UnicodeDecodeError, TypeError, ValueError):
+                return False
+            expected_code_cache[cache_key] = expected_marshaled
+        observed = bootstrap_marshal.dumps(code)
+        return bootstrap_hashlib.sha256(observed).digest() == bootstrap_hashlib.sha256(
+            expected_marshaled
+        ).digest()
+
     def audit_repository_exec(event: str, args: tuple[object, ...]) -> None:
         if event != "exec" or not args:
             return
-        filename = getattr(args[0], "co_filename", None)
-        if type(filename) is not str or not bootstrap_os.path.isabs(filename):
+        code = args[0]
+        filename = code.co_filename if type(code) is bootstrap_code_type else None
+        if type(filename) is not str:
+            reject_unbound_runtime_source()
+        if not bootstrap_os.path.isabs(filename):
+            if filename in allowed_repository_exec:
+                reject_unbound_runtime_source()
             return
         resolved = bootstrap_os.path.realpath(filename)
         try:
@@ -76,8 +234,63 @@ def _require_isolated_python_main_v1() -> None:
         relative = bootstrap_os.path.relpath(resolved, repo_root)
         if relative not in allowed_repository_exec:
             reject_unbound_runtime_source()
+        if not code_matches_captured_source(code, filename, relative):
+            reject_unbound_runtime_source()
 
     _bootstrap_sys.addaudithook(audit_repository_exec)
+
+    class SelectedRepositoryLoaderV1:
+        """Execute only selected Git bytes after the explicit bootstrap premise."""
+
+        def __init__(self, relative: str) -> None:
+            self._relative = relative
+
+        def create_module(self, _spec: object) -> None:
+            return None
+
+        def exec_module(self, module: object) -> None:
+            raw = git_source_bytes(self._relative)
+            if raw is None or not worktree_source_matches_captured_git(self._relative, raw):
+                reject_unbound_runtime_source()
+            filename = bootstrap_os.path.join(repo_root, self._relative)
+            try:
+                code = compile(
+                    raw.decode("utf-8"),
+                    filename,
+                    "exec",
+                    dont_inherit=True,
+                    optimize=_bootstrap_sys.flags.optimize,
+                )
+            except (UnicodeDecodeError, TypeError, ValueError):
+                reject_unbound_runtime_source()
+            exec(code, module.__dict__)
+
+    class SelectedRepositoryFinderV1:
+        """Bypass repository bytecode caches for the closed runtime import set."""
+
+        def find_spec(
+            self,
+            fullname: str,
+            _path: object = None,
+            _target: object = None,
+        ) -> object:
+            relative = repository_module_paths.get(fullname)
+            if relative is None:
+                if fullname == "tools" or fullname.startswith("tools."):
+                    reject_unbound_runtime_source()
+                return None
+            filename = bootstrap_os.path.join(repo_root, relative)
+            submodule_locations = (
+                [bootstrap_os.path.dirname(filename)] if relative.endswith("/__init__.py") else None
+            )
+            return bootstrap_importlib_util.spec_from_file_location(
+                fullname,
+                filename,
+                loader=SelectedRepositoryLoaderV1(relative),
+                submodule_search_locations=submodule_locations,
+            )
+
+    _bootstrap_sys.meta_path.insert(0, SelectedRepositoryFinderV1())
 
 
 if __name__ == "__main__":
@@ -85,6 +298,8 @@ if __name__ == "__main__":
 
 import hashlib
 import json
+import os
+import stat
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -116,7 +331,11 @@ from tools.current_tau_compatibility_pins_v1 import (  # noqa: E402
     HISTORICAL_BRIDGE_COMMIT_V1,
     HISTORICAL_BRIDGE_SOURCE_SHA256_V1,
     HISTORICAL_BRIDGE_TREE_LISTING_SHA256_V1,
-    IMPLEMENTATION_SOURCE_PATHS_V1,
+    HISTORICAL_LOCAL_PROFILE_COMMIT_V1,
+    HISTORICAL_LOCAL_PROFILE_SOURCE_SHA256_V1,
+    HISTORICAL_LOCAL_PROFILE_TREE_LISTING_SHA256_V1,
+    REPLAY_IMPLEMENTATION_EVIDENCE_PATHS_V1,
+    RUNTIME_EXECUTABLE_SOURCE_PATHS_V1,
 )
 from tools.current_tau_replay_io_v1 import (  # noqa: E402
     FailClosedArgumentParserV1,
@@ -169,15 +388,34 @@ class TauReplayPathsV1:
     historical_bridge_repo: Path
 
 
+@dataclass(frozen=True, slots=True)
+class ReplayCheckoutBindingV1:
+    """One externally supplied source checkout observed during replay capture.
+
+    The binding detects ordinary symlink/checkout replacement during this run.
+    It cannot make Python or the filesystem self-authenticating; that premise is
+    recorded as an external trust-root blocker in the artifact.
+    """
+
+    role: str
+    configured_path: Path
+    resolved_path: Path
+    device: int
+    inode: int
+    commit: str
+
+
 @dataclass(frozen=True)
 class ReplaySourcesV1:
     implementation_pin: SourcePinV1
     current_tau_pin: SourcePinV1
     current_tau_lang_pin: SourcePinV1
     historical_pin: SourcePinV1
+    historical_local_profile_pin: SourcePinV1
     implementation: SourceCorpusV1
     current_tau: SourceCorpusV1
     historical: SourceCorpusV1
+    historical_local_profile: SourceCorpusV1
 
 
 @dataclass(frozen=True, slots=True)
@@ -324,7 +562,7 @@ def _implementation_source_hashes_v1(
 ) -> tuple[tuple[str, str], ...]:
     return tuple(
         (path, _sha256_v1(_git_source_bytes_v1(root, commit, path)))
-        for path in IMPLEMENTATION_SOURCE_PATHS_V1
+        for path in REPLAY_IMPLEMENTATION_EVIDENCE_PATHS_V1
     )
 
 
@@ -337,6 +575,11 @@ def _require_capture_unchanged_v1(
     paths: TauReplayPathsV1,
     captured_head: str,
     snapshot: CurrentTauCompatibilitySnapshotV1,
+    checkout_bindings: tuple[
+        ReplayCheckoutBindingV1,
+        ReplayCheckoutBindingV1,
+        ReplayCheckoutBindingV1,
+    ],
 ) -> None:
     _require_unchanged_head_v1(paths.root, captured_head)
     _require_worktree_sources_match_v1(
@@ -344,7 +587,19 @@ def _require_capture_unchanged_v1(
         snapshot.implementation.source_sha256,
         "implementation final",
     )
-    _require_historical_bridge_checkout_v1(paths.historical_bridge_repo)
+    current_tau, current_tau_lang, historical_bridge = checkout_bindings
+    _require_checkout_binding_unchanged_v1(
+        current_tau,
+        expected_sources=CURRENT_TAU_SOURCE_SHA256_V1,
+    )
+    _require_checkout_binding_unchanged_v1(
+        current_tau_lang,
+        expected_sources=CURRENT_TAU_LANG_SOURCE_SHA256_V1,
+    )
+    _require_checkout_binding_unchanged_v1(
+        historical_bridge,
+        expected_sources=HISTORICAL_BRIDGE_SOURCE_SHA256_V1,
+    )
     plan, registry, admission, payload = _load_active_plan_binding_v1(paths.root)
     if (
         plan != snapshot.active_plan_sha256
@@ -364,6 +619,90 @@ def _require_worktree_sources_match_v1(
         raw = _read_bounded_regular_file_v1(root / path, MAX_SOURCE_BYTES_V1, f"{role}:{path}")
         if _sha256_v1(raw) != expected_sha:
             _reject("WORKTREE_SOURCE_DRIFT", path, f"{role} working source differs from pin")
+
+
+def _capture_checkout_binding_v1(
+    repo: Path,
+    *,
+    role: str,
+    expected_commit: str,
+    expected_sources: tuple[tuple[str, str], ...],
+) -> ReplayCheckoutBindingV1:
+    """Capture one checkout after binding its path, HEAD, and selected bytes.
+
+    This is a bounded race detector for the three explicit external replay
+    inputs.  Git, the interpreter, and filesystem remain external premises.
+    """
+
+    configured = Path(os.path.abspath(os.fspath(repo)))
+    try:
+        resolved = configured.resolve(strict=True)
+        metadata = os.stat(resolved, follow_symlinks=False)
+    except OSError as exc:
+        _reject("REPLAY_CHECKOUT_UNAVAILABLE", str(configured), f"{role}:{type(exc).__name__}")
+    if not stat.S_ISDIR(metadata.st_mode):
+        _reject("REPLAY_CHECKOUT_TYPE", str(configured), f"{role}: checkout must be a directory")
+    observed_head = _git_head_v1(resolved)
+    if observed_head != expected_commit:
+        _reject("REPLAY_CHECKOUT_HEAD_DRIFT", f"{role}.HEAD", "exact checkout commit drift")
+    _require_worktree_sources_match_v1(resolved, expected_sources, role)
+    return ReplayCheckoutBindingV1(
+        role=role,
+        configured_path=configured,
+        resolved_path=resolved,
+        device=metadata.st_dev,
+        inode=metadata.st_ino,
+        commit=observed_head,
+    )
+
+
+def _require_checkout_binding_unchanged_v1(
+    binding: ReplayCheckoutBindingV1,
+    *,
+    expected_sources: tuple[tuple[str, str], ...],
+) -> None:
+    """Re-resolve a captured checkout and reject a path, HEAD, or byte switch."""
+
+    refreshed = _capture_checkout_binding_v1(
+        binding.configured_path,
+        role=binding.role,
+        expected_commit=binding.commit,
+        expected_sources=expected_sources,
+    )
+    if (
+        refreshed.resolved_path != binding.resolved_path
+        or refreshed.device != binding.device
+        or refreshed.inode != binding.inode
+        or refreshed.commit != binding.commit
+    ):
+        _reject("REPLAY_CHECKOUT_SWITCHED", binding.role, "checkout identity changed during replay")
+
+
+def _capture_replay_checkouts_v1(
+    paths: TauReplayPathsV1,
+) -> tuple[ReplayCheckoutBindingV1, ReplayCheckoutBindingV1, ReplayCheckoutBindingV1]:
+    """Bind only current external upstream inputs, never the historical profile path."""
+
+    return (
+        _capture_checkout_binding_v1(
+            paths.tau_testnet_repo,
+            role="current_tau",
+            expected_commit=CURRENT_TAU_COMMIT_V1,
+            expected_sources=CURRENT_TAU_SOURCE_SHA256_V1,
+        ),
+        _capture_checkout_binding_v1(
+            paths.tau_lang_repo,
+            role="current_tau_lang",
+            expected_commit=CURRENT_TAU_LANG_COMMIT_V1,
+            expected_sources=CURRENT_TAU_LANG_SOURCE_SHA256_V1,
+        ),
+        _capture_checkout_binding_v1(
+            paths.historical_bridge_repo,
+            role="historical_bridge",
+            expected_commit=HISTORICAL_BRIDGE_COMMIT_V1,
+            expected_sources=HISTORICAL_BRIDGE_SOURCE_SHA256_V1,
+        ),
+    )
 
 
 def _load_sources_v1(paths: TauReplayPathsV1, implementation_commit: str) -> ReplaySourcesV1:
@@ -392,7 +731,12 @@ def _load_sources_v1(paths: TauReplayPathsV1, implementation_commit: str) -> Rep
         HISTORICAL_BRIDGE_TREE_LISTING_SHA256_V1,
         HISTORICAL_BRIDGE_SOURCE_SHA256_V1,
     )
-    _require_historical_bridge_checkout_v1(paths.historical_bridge_repo)
+    historical_local_profile_pin, historical_local_profile = _source_pin_v1(
+        paths.root,
+        HISTORICAL_LOCAL_PROFILE_COMMIT_V1,
+        HISTORICAL_LOCAL_PROFILE_TREE_LISTING_SHA256_V1,
+        HISTORICAL_LOCAL_PROFILE_SOURCE_SHA256_V1,
+    )
     _require_worktree_sources_match_v1(
         paths.root,
         implementation_sources,
@@ -403,23 +747,11 @@ def _load_sources_v1(paths: TauReplayPathsV1, implementation_commit: str) -> Rep
         current_tau_pin,
         current_tau_lang_pin,
         historical_pin,
+        historical_local_profile_pin,
         implementation,
         current_tau,
         historical,
-    )
-
-
-def _require_historical_bridge_checkout_v1(historical_bridge_repo: Path) -> None:
-    if _git_head_v1(historical_bridge_repo) != HISTORICAL_BRIDGE_COMMIT_V1:
-        _reject(
-            "HISTORICAL_BRIDGE_HEAD_DRIFT",
-            "historical_bridge.HEAD",
-            "selected bridge checkout is not the pinned historical source",
-        )
-    _require_worktree_sources_match_v1(
-        historical_bridge_repo,
-        HISTORICAL_BRIDGE_SOURCE_SHA256_V1,
-        "historical bridge",
+        historical_local_profile,
     )
 
 
@@ -430,8 +762,8 @@ def _signing_facts_v1(sources: ReplaySourcesV1) -> SigningFactsV1:
         "_get_signing_message_bytes",
     )
     local_fields = user_tx_signing_fields_v1(
-        sources.implementation["src/integration/tau_net_client.py"],
-        "implementation:src/integration/tau_net_client.py",
+        sources.historical_local_profile["src/integration/tau_net_client.py"],
+        "historical-local-profile:src/integration/tau_net_client.py",
         "_tx_signing_message_bytes",
     )
     historical_fields = user_tx_signing_fields_v1(
@@ -483,8 +815,8 @@ def _rpc_facts_v1(sources: ReplaySourcesV1) -> RpcFactsV1:
         *(name for name in names[1:2] if name in historical_registry),
     )
     local_method_set = class_methods_v1(
-        sources.implementation["src/integration/tau_net_client.py"],
-        "implementation:src/integration/tau_net_client.py",
+        sources.historical_local_profile["src/integration/tau_net_client.py"],
+        "historical-local-profile:src/integration/tau_net_client.py",
         "TauNetTcpClient",
     )
     local_methods = tuple(name for name in names[1:] if name in local_method_set)
@@ -492,23 +824,23 @@ def _rpc_facts_v1(sources: ReplaySourcesV1) -> RpcFactsV1:
 
 
 def _profile_facts_v1(sources: ReplaySourcesV1) -> ProfileFactsV1:
-    compose = sources.implementation["docker-compose.local-testnet.yml"]
-    runner = sources.implementation["tools/run_local_tau_node_container.sh"]
-    e2e = sources.implementation["tools/tau_testnet_local_e2e.py"]
+    compose = sources.historical_local_profile["docker-compose.local-testnet.yml"]
+    runner = sources.historical_local_profile["tools/run_local_tau_node_container.sh"]
+    e2e = sources.historical_local_profile["tools/tau_testnet_local_e2e.py"]
     return ProfileFactsV1(
         force_test=compose_service_environment_value_v1(
             compose,
-            "docker-compose.local-testnet.yml",
+            "historical-local-profile:docker-compose.local-testnet.yml",
             "tau-local",
             "TAU_FORCE_TEST",
         ),
         runner_forwards_force_test=shell_forwards_force_test_v1(
             runner,
-            "tools/run_local_tau_node_container.sh",
+            "historical-local-profile:tools/run_local_tau_node_container.sh",
         ),
         default_tau_env=python_env_default_v1(
             e2e,
-            "tools/tau_testnet_local_e2e.py",
+            "historical-local-profile:tools/tau_testnet_local_e2e.py",
         ),
         current_requires_test_env=force_test_requires_test_env_v1(
             sources.current_tau["tau_manager.py"],
@@ -567,21 +899,6 @@ def _load_active_plan_binding_v1(root: Path) -> tuple[str, str, str, str]:
     return observed, registry_sha, admission_sha, ADMISSION_RECEIPT_PAYLOAD_SHA256_V1
 
 
-def _require_profile_tau_source_bound_v1(paths: TauReplayPathsV1) -> None:
-    configured = paths.root / "external" / "tau-testnet"
-    try:
-        configured_real = configured.resolve(strict=True)
-        supplied_real = paths.historical_bridge_repo.resolve(strict=True)
-    except OSError as exc:
-        _reject("PROFILE_TAU_SOURCE_UNBOUND", str(configured), type(exc).__name__)
-    if configured_real != supplied_real:
-        _reject(
-            "PROFILE_TAU_SOURCE_UNBOUND",
-            str(configured),
-            "local runtime path differs from reviewed historical source",
-        )
-
-
 def load_current_tau_compatibility_snapshot_v1(
     paths: TauReplayPathsV1,
     *,
@@ -600,7 +917,7 @@ def load_current_tau_compatibility_snapshot_v1(
             _reject(code, "HEAD", "required source commit is not on current lineage")
     if not _git_is_ancestor_v1(paths.root, implementation_commit, captured_head):
         _reject("IMPLEMENTATION_ANCESTRY", "HEAD", "implementation is off current lineage")
-    _require_profile_tau_source_bound_v1(paths)
+    checkout_bindings = _capture_replay_checkouts_v1(paths)
     sources = _load_sources_v1(paths, implementation_commit)
     signing = _signing_facts_v1(sources)
     rpc = _rpc_facts_v1(sources)
@@ -614,6 +931,7 @@ def load_current_tau_compatibility_snapshot_v1(
         current_tau=sources.current_tau_pin,
         current_tau_lang=sources.current_tau_lang_pin,
         historical_bridge=sources.historical_pin,
+        historical_local_profile=sources.historical_local_profile_pin,
         implementation=sources.implementation_pin,
         active_plan_sha256=plan_sha,
         active_registry_sha256=registry_sha,
@@ -623,8 +941,8 @@ def load_current_tau_compatibility_snapshot_v1(
             sources.current_tau["tau_defs.py"], "current:tau_defs.py", "RESERVED_STREAMS"
         ),
         legacy_operation_streams=literal_string_assignments_v1(
-            sources.implementation["src/integration/tau_testnet_dex_plugin.py"],
-            "implementation:src/integration/tau_testnet_dex_plugin.py",
+            sources.historical_local_profile["src/integration/tau_testnet_dex_plugin.py"],
+            "historical-local-profile:src/integration/tau_testnet_dex_plugin.py",
             LEGACY_OPERATION_KEYS_V1,
         ),
         current_user_tx_signing_fields=signing.current_fields,
@@ -634,9 +952,9 @@ def load_current_tau_compatibility_snapshot_v1(
         local_signing_sha256=signing_vector_sha256_v1(signing.local_fields),
         current_success_envelope_sha256=success_envelope_sha256_v1(),
         local_prefix_parser_accepts_current_envelope=legacy_prefix_parser_accepts_v1(
-            sources.implementation["src/integration/tau_net_client.py"],
+            sources.historical_local_profile["src/integration/tau_net_client.py"],
             envelope,
-            "implementation:src/integration/tau_net_client.py",
+            "historical-local-profile:src/integration/tau_net_client.py",
         ),
         current_rpc_names_absent=rpc.current_absent,
         local_client_rpc_methods=rpc.local_methods,
@@ -647,7 +965,7 @@ def load_current_tau_compatibility_snapshot_v1(
         current_tau_force_test_requires_test_env=profile.current_requires_test_env,
         historical_bridge_force_test_enters_mock_mode=profile.historical_enters_mock,
     )
-    _require_capture_unchanged_v1(paths, captured_head, snapshot)
+    _require_capture_unchanged_v1(paths, captured_head, snapshot, checkout_bindings)
     return snapshot
 
 
@@ -673,7 +991,7 @@ def main(argv: list[str] | None = None) -> int:
         if _bootstrap_sys.flags.isolated and _bootstrap_sys.flags.no_site:
             unbound = _unbound_runtime_repository_imports_v1(
                 REPO_ROOT,
-                IMPLEMENTATION_SOURCE_PATHS_V1,
+                RUNTIME_EXECUTABLE_SOURCE_PATHS_V1,
             )
             if unbound:
                 _reject(
@@ -724,6 +1042,9 @@ def _builder_failure_report_v1(code: str) -> dict[str, object]:
         "ok": False,
         "finding": code,
         "o003a_evidence_complete": False,
+        "o003a_reviewed_current_tau_incompatibility_research_only": False,
+        "direct_python_replay_conditional": False,
+        "external_replay_trust_root_blocked": True,
         "o002_implemented": False,
         "production_authority": "NONE",
         "release_authority": "NONE",

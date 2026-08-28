@@ -19,6 +19,43 @@ LEGACY_OPERATION_KEYS_V1: Final = (
     "_PROOF_MINING_OPS_KEY",
     "_ZUSD_MONETARY_OPS_KEY",
 )
+
+_DYNAMIC_NAMESPACE_PRIMITIVES_V1: Final = frozenset(
+    {
+        "__builtins__",
+        "__dict__",
+        "__getattribute__",
+        "__getattr__",
+        "__setattr__",
+        "compile",
+        "delattr",
+        "eval",
+        "exec",
+        "getattr",
+        "globals",
+        "locals",
+        "setattr",
+        "vars",
+    }
+)
+_MUTATING_METHODS_V1: Final = frozenset(
+    {
+        "__delitem__",
+        "__setitem__",
+        "append",
+        "clear",
+        "extend",
+        "insert",
+        "pop",
+        "popitem",
+        "remove",
+        "setdefault",
+        "sort",
+        "update",
+    }
+)
+
+
 def _reject(code: str, path: str, detail: str) -> NoReturn:
     raise CurrentTauCompatibilityRejectV1(code, path, detail)
 
@@ -30,32 +67,106 @@ def python_tree_v1(raw: bytes, path: str) -> ast.Module:
         _reject("PYTHON_SOURCE_PARSE", path, type(exc).__name__)
 
 
+def _bound_name_v1(alias: ast.alias, *, import_from: bool) -> str:
+    return alias.asname or (alias.name if import_from else alias.name.split(".", 1)[0])
+
+
+def _name_binding_nodes_v1(root: ast.AST, name: str) -> tuple[ast.AST, ...]:
+    """Return every syntactic binder of a protected name at every nesting level."""
+
+    bindings: list[ast.AST] = []
+    for node in ast.walk(root):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == name:
+            bindings.append(node)
+        elif isinstance(node, ast.Import):
+            bindings.extend(
+                alias
+                for alias in node.names
+                if _bound_name_v1(alias, import_from=False) == name
+            )
+        elif isinstance(node, ast.ImportFrom):
+            bindings.extend(
+                alias
+                for alias in node.names
+                if _bound_name_v1(alias, import_from=True) == name
+            )
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)) and node.id == name:
+            bindings.append(node)
+        elif isinstance(node, ast.arg) and node.arg == name:
+            bindings.append(node)
+        elif isinstance(node, (ast.Global, ast.Nonlocal)) and name in node.names:
+            bindings.append(node)
+    return tuple(bindings)
+
+
+def _module_scope_statements_v1(root: ast.Module) -> tuple[ast.stmt, ...]:
+    """Return statements that execute in the module namespace.
+
+    A nested ``def main`` inside an unrelated callback is a lexical-local name,
+    while ``if flag: def main`` competes for the module binding.  Keeping that
+    distinction avoids treating ordinary upstream nested callbacks as a forged
+    module entry point.
+    """
+
+    statements: list[ast.stmt] = []
+
+    def visit(node: ast.AST, *, is_root: bool = False) -> None:
+        if isinstance(node, ast.stmt):
+            statements.append(node)
+        if not is_root and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            return
+        for child in ast.iter_child_nodes(node):
+            visit(child)
+
+    visit(root, is_root=True)
+    return tuple(statements)
+
+
+def _module_scope_name_bindings_v1(root: ast.Module, name: str) -> tuple[ast.AST, ...]:
+    bindings: list[ast.AST] = []
+    for node in _module_scope_statements_v1(root):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == name:
+            bindings.append(node)
+        elif isinstance(node, ast.Import):
+            bindings.extend(
+                alias
+                for alias in node.names
+                if _bound_name_v1(alias, import_from=False) == name
+            )
+        elif isinstance(node, ast.ImportFrom):
+            bindings.extend(
+                alias
+                for alias in node.names
+                if _bound_name_v1(alias, import_from=True) == name
+            )
+        elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Delete)):
+            targets = (
+                tuple(node.targets)
+                if isinstance(node, (ast.Assign, ast.Delete))
+                else (node.target,)
+            )
+            bindings.extend(
+                target
+                for target in targets
+                if isinstance(target, ast.Name) and target.id == name
+            )
+    if any(isinstance(node, ast.Global) and name in node.names for node in ast.walk(root)):
+        bindings.append(root)
+    return tuple(bindings)
+
+
 def _function_v1(tree: ast.Module, name: str, path: str) -> ast.FunctionDef:
     matches = [
         node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name
     ]
-    competing_bindings = [
-        node
-        for node in tree.body
-        if not (isinstance(node, ast.FunctionDef) and node.name == name)
-        and (
-            isinstance(node, (ast.AsyncFunctionDef, ast.ClassDef))
-            and node.name == name
-            or isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Delete))
-            and any(
-                isinstance(target, ast.Name) and target.id == name
-                for target in (
-                    node.targets
-                    if isinstance(node, (ast.Assign, ast.Delete))
-                    else [node.target]
-                )
-            )
-            or isinstance(node, (ast.Import, ast.ImportFrom))
-            and any((alias.asname or alias.name.split(".", 1)[0]) == name for alias in node.names)
-        )
-    ]
-    if len(matches) != 1 or matches[0].decorator_list or competing_bindings:
-        _reject("FUNCTION_SHAPE", path, f"expected one function {name}")
+    bindings = _module_scope_name_bindings_v1(tree, name)
+    if (
+        len(matches) != 1
+        or matches[0].decorator_list
+        or len(bindings) != 1
+        or bindings[0] is not matches[0]
+    ):
+        _reject("FUNCTION_SHAPE", path, f"expected one unshadowed top-level function {name}")
     return matches[0]
 
 
@@ -83,39 +194,112 @@ def _parent_map_v1(root: ast.AST) -> dict[ast.AST, ast.AST]:
     }
 
 
+def _expression_root_name_v1(value: ast.AST | None) -> str | None:
+    """Return the leftmost Name for an attribute/subscript access path."""
+
+    current = value
+    while isinstance(current, (ast.Attribute, ast.Subscript)):
+        current = current.value
+    return current.id if isinstance(current, ast.Name) else None
+
+
+def _contains_expression_root_v1(value: ast.AST, name: str) -> bool:
+    return any(_expression_root_name_v1(node) == name for node in ast.walk(value))
+
+
+def _has_protected_member_mutation_v1(root: ast.AST, names: frozenset[str]) -> bool:
+    """Reject rebinding/mutation through a protected module/object path."""
+
+    for node in ast.walk(root):
+        targets: tuple[ast.AST, ...] = ()
+        if isinstance(node, ast.Assign):
+            targets = tuple(node.targets)
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            targets = (node.target,)
+        elif isinstance(node, ast.Delete):
+            targets = tuple(node.targets)
+        if any(
+            isinstance(target, (ast.Attribute, ast.Subscript))
+            and _expression_root_name_v1(target) in names
+            for target in targets
+        ):
+            return True
+    return False
+
+
 def _module_import_binding_is_closed_v1(tree: ast.Module, name: str) -> bool:
-    bindings: list[tuple[ast.stmt, ast.alias | None]] = []
-    for node in tree.body:
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                bound = alias.asname or alias.name.split(".", 1)[0]
-                if bound == name:
-                    bindings.append((node, alias))
-        elif isinstance(node, ast.ImportFrom):
-            for alias in node.names:
-                bound = alias.asname or alias.name
-                if bound == name:
-                    bindings.append((node, alias))
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if node.name == name:
-                bindings.append((node, None))
+    imports = [
+        (node, alias)
+        for node in tree.body
+        if isinstance(node, ast.Import)
+        for alias in node.names
+        if alias.name == name and alias.asname is None
+    ]
     return (
-        len(bindings) == 1
-        and isinstance(bindings[0][0], ast.Import)
-        and bindings[0][1] is not None
-        and bindings[0][1].name == name
-        and bindings[0][1].asname in {None, name}
-        and _name_store_count_v1(tree, name) == 0
+        len(imports) == 1
+        and len(_module_scope_name_bindings_v1(tree, name)) == 1
+        and _module_scope_name_bindings_v1(tree, name)[0] is imports[0][1]
     )
+
+
+def _from_import_binding_is_closed_v1(
+    tree: ast.Module,
+    *,
+    module: str,
+    level: int,
+    name: str,
+) -> bool:
+    imports = [
+        (node, alias)
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom)
+        and node.module == module
+        and node.level == level
+        and len(node.names) == 1
+        for alias in node.names
+        if alias.name == name and alias.asname is None
+    ]
+    bindings = _module_scope_name_bindings_v1(tree, name)
+    return len(imports) == 1 and len(bindings) == 1 and bindings[0] is imports[0][1]
 
 
 def _contains_dynamic_namespace_access_v1(root: ast.AST) -> bool:
-    return any(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id in {"eval", "exec", "globals", "locals", "setattr", "vars"}
-        for node in ast.walk(root)
+    """Reject direct and aliased dynamic namespace capability acquisition.
+
+    The parser is intentionally conservative.  A protected analyzer has no
+    semantic reason to dynamically look up names, so unknown lookup routes are
+    treated as possible authority escape paths.
+    """
+
+    for node in ast.walk(root):
+        if isinstance(node, ast.Name) and node.id in _DYNAMIC_NAMESPACE_PRIMITIVES_V1:
+            return True
+        if isinstance(node, ast.Attribute) and node.attr in _DYNAMIC_NAMESPACE_PRIMITIVES_V1:
+            return True
+        if isinstance(node, (ast.Import, ast.ImportFrom)) and any(
+            alias.name.split(".", 1)[-1] in _DYNAMIC_NAMESPACE_PRIMITIVES_V1
+            for alias in node.names
+        ):
+            return True
+    return False
+
+
+def _contains_unbounded_namespace_access_v1(root: ast.AST) -> bool:
+    """Identify namespace capabilities other than a statically resolved lookup."""
+
+    non_lookup_primitives = _DYNAMIC_NAMESPACE_PRIMITIVES_V1 - frozenset(
+        {"getattr", "__getattribute__"}
     )
+    for node in ast.walk(root):
+        if isinstance(node, ast.Name) and node.id in non_lookup_primitives:
+            return True
+        if isinstance(node, ast.Attribute) and node.attr in non_lookup_primitives:
+            return True
+        if isinstance(node, (ast.Import, ast.ImportFrom)) and any(
+            alias.name.split(".", 1)[-1] in non_lookup_primitives for alias in node.names
+        ):
+            return True
+    return False
 
 
 def _constant_string_v1(value: ast.expr) -> str | None:
@@ -127,6 +311,85 @@ def _constant_string_v1(value: ast.expr) -> str | None:
         if left is not None and right is not None:
             return left + right
     return None
+
+
+def _dynamic_lookup_aliases_v1(tree: ast.AST) -> frozenset[str]:
+    """Find statically visible aliases of getattr-style lookup primitives."""
+
+    aliases = {"getattr", "__getattribute__"}
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+                continue
+            target = node.targets[0]
+            if not isinstance(target, ast.Name):
+                continue
+            value = node.value
+            source_name = (
+                value.id
+                if isinstance(value, ast.Name)
+                else value.attr
+                if isinstance(value, ast.Attribute)
+                else None
+            )
+            if source_name in aliases and target.id not in aliases:
+                aliases.add(target.id)
+                changed = True
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            for alias in node.names:
+                if alias.name in {"getattr", "__getattribute__"}:
+                    bound = alias.asname or alias.name
+                    if bound not in aliases:
+                        aliases.add(bound)
+                        changed = True
+    return frozenset(aliases)
+
+
+def _protected_binding_uses_dynamic_namespace_access_v1(
+    tree: ast.Module,
+    names: frozenset[str],
+) -> bool:
+    """Reject dynamic access that can resolve or replace protected bindings.
+
+    A large source module may legitimately inspect a field on an unrelated
+    domain object with ``getattr``.  That observation cannot replace a
+    protected module constant.  Access through a namespace primitive, an
+    imported primitive alias, a protected literal key, or an unknown lookup key
+    remains ambiguous and therefore rejects.
+    """
+
+    direct_primitives = _DYNAMIC_NAMESPACE_PRIMITIVES_V1 - frozenset({"getattr"})
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in direct_primitives:
+            return True
+        if isinstance(node, ast.Attribute) and node.attr in direct_primitives:
+            return True
+        if isinstance(node, (ast.Import, ast.ImportFrom)) and any(
+            alias.name.split(".", 1)[-1] in _DYNAMIC_NAMESPACE_PRIMITIVES_V1
+            for alias in node.names
+        ):
+            return True
+    lookup_aliases = _dynamic_lookup_aliases_v1(tree)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        is_lookup = (
+            isinstance(node.func, ast.Name) and node.func.id in lookup_aliases
+        ) or (
+            isinstance(node.func, ast.Attribute) and node.func.attr == "__getattribute__"
+        )
+        if not is_lookup:
+            continue
+        if len(node.args) < 2:
+            return True
+        lookup_key = _constant_string_v1(node.args[1])
+        if lookup_key is None or lookup_key in names:
+            return True
+    return False
 
 
 def source_references_identifier_v1(raw: bytes, path: str, identifier: str) -> bool:
@@ -145,27 +408,31 @@ def source_references_identifier_v1(raw: bytes, path: str, identifier: str) -> b
     )
     if direct:
         return True
+    if _contains_unbounded_namespace_access_v1(tree):
+        return True
+    lookup_aliases = _dynamic_lookup_aliases_v1(tree)
     for node in ast.walk(tree):
-        if not (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "getattr"
-        ):
+        if not isinstance(node, ast.Call):
+            continue
+        dynamic_call = (
+            isinstance(node.func, ast.Name) and node.func.id in lookup_aliases
+        ) or (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "__getattribute__"
+        )
+        if not dynamic_call:
             continue
         if len(node.args) < 2:
             return True
         derived = _constant_string_v1(node.args[1])
         if derived is None or derived == identifier:
             return True
-    return any(
-        isinstance(node, ast.Attribute) and node.attr == "__getattribute__"
-        for node in ast.walk(tree)
-    )
+    return False
 
 
 def literal_int_set_v1(raw: bytes, path: str, name: str) -> tuple[int, ...]:
     tree = python_tree_v1(raw, path)
-    if _contains_dynamic_namespace_access_v1(tree):
+    if _protected_binding_uses_dynamic_namespace_access_v1(tree, frozenset({name})):
         _reject("INT_SET_SHAPE", path, "dynamic namespace access is forbidden")
     matches: list[ast.Set] = []
     for node in tree.body:
@@ -209,7 +476,7 @@ def literal_string_assignments_v1(
     names: tuple[str, ...],
 ) -> tuple[int, ...]:
     tree = python_tree_v1(raw, path)
-    if _contains_dynamic_namespace_access_v1(tree):
+    if _protected_binding_uses_dynamic_namespace_access_v1(tree, frozenset(names)):
         _reject("STREAM_CONSTANT_SHAPE", path, "dynamic namespace access is forbidden")
     values: dict[str, int] = {}
     for node in tree.body:
@@ -338,6 +605,17 @@ def user_tx_signing_fields_v1(raw: bytes, path: str, function_name: str) -> tupl
         _reject("SIGNING_FUNCTION_SHAPE", path, "signing function must take only payload")
     if _contains_dynamic_namespace_access_v1(function):
         _reject("SIGNING_MUTATION_SHAPE", path, "dynamic namespace access is forbidden")
+    if any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        and node.name == "signing_dict"
+        for node in ast.walk(function)
+    ):
+        _reject("SIGNING_DICT_SHAPE", path, "nested signing_dict binding is forbidden")
+    if _has_protected_member_mutation_v1(
+        function,
+        frozenset({"json", "canonical_json_bytes"}),
+    ):
+        _reject("SIGNING_MUTATION_SHAPE", path, "serializer member mutation is forbidden")
     if not _payload_uses_are_read_only_v1(function):
         _reject("SIGNING_VALUE_BINDING", path, "payload access is not read-only")
     top_level_returns = [
@@ -461,6 +739,30 @@ def _signing_dict_uses_are_closed_v1(
 def _payload_uses_are_read_only_v1(function: ast.FunctionDef) -> bool:
     parents = _parent_map_v1(function)
     for node in ast.walk(function):
+        targets: tuple[ast.AST, ...] = ()
+        if isinstance(node, ast.Assign):
+            targets = tuple(node.targets)
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            targets = (node.target,)
+        elif isinstance(node, ast.Delete):
+            targets = tuple(node.targets)
+        if any(_expression_root_name_v1(target) == "payload" for target in targets):
+            return False
+        if not isinstance(node, ast.Call):
+            continue
+        if (
+            isinstance(node.func, ast.Attribute)
+            and _expression_root_name_v1(node.func.value) == "payload"
+            and node.func.attr != "get"
+        ):
+            return False
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr in _MUTATING_METHODS_V1
+            and any(_contains_expression_root_v1(argument, "payload") for argument in node.args)
+        ):
+            return False
+    for node in ast.walk(function):
         if not isinstance(node, ast.Name) or node.id != "payload":
             continue
         parent = parents.get(node)
@@ -540,38 +842,47 @@ def _json_dump_keywords_are_canonical_v1(call: ast.Call) -> bool:
 
 
 def _canonicalizer_binding_is_closed_v1(tree: ast.Module) -> bool:
-    imports = [
-        alias
-        for node in tree.body
-        if isinstance(node, ast.ImportFrom)
-        and node.module == "state.canonical"
-        and node.level == 2
-        for alias in node.names
-        if alias.name == "canonical_json_bytes"
-        and alias.asname in {None, "canonical_json_bytes"}
-    ]
-    conflicting_bindings = [
-        node
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-        and node.name == "canonical_json_bytes"
-    ]
-    writes = _name_store_count_v1(tree, "canonical_json_bytes")
-    return len(imports) == 1 and not conflicting_bindings and writes == 0
+    return _from_import_binding_is_closed_v1(
+        tree,
+        module="state.canonical",
+        level=2,
+        name="canonical_json_bytes",
+    ) and not _has_protected_member_mutation_v1(
+        tree,
+        frozenset({"canonical_json_bytes"}),
+    )
 
 
 def _json_binding_is_closed_v1(tree: ast.Module) -> bool:
-    return _module_import_binding_is_closed_v1(tree, "json")
+    return _module_import_binding_is_closed_v1(tree, "json") and not _has_protected_member_mutation_v1(
+        tree,
+        frozenset({"json"}),
+    )
+
+
+def _class_v1(
+    tree: ast.Module,
+    name: str,
+    path: str,
+    *,
+    allowed_decorators: frozenset[str] = frozenset(),
+) -> ast.ClassDef:
+    classes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == name]
+    bindings = _module_scope_name_bindings_v1(tree, name)
+    if len(classes) != 1 or len(bindings) != 1 or bindings[0] is not classes[0]:
+        _reject("CLASS_SHAPE", path, f"expected one unshadowed top-level class {name}")
+    if any(
+        not isinstance(decorator, ast.Name) or decorator.id not in allowed_decorators
+        for decorator in classes[0].decorator_list
+    ):
+        _reject("CLASS_SHAPE", path, f"unexpected decorator on {name}")
+    return classes[0]
 
 
 def class_methods_v1(raw: bytes, path: str, class_name: str) -> set[str]:
     tree = python_tree_v1(raw, path)
-    classes = [
-        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name
-    ]
-    if len(classes) != 1:
-        _reject("CLASS_SHAPE", path, f"expected one class {class_name}")
-    return {node.name for node in classes[0].body if isinstance(node, ast.FunctionDef)}
+    target = _class_v1(tree, class_name, path)
+    return {node.name for node in target.body if isinstance(node, ast.FunctionDef)}
 
 
 def require_success_envelope_v1(raw: bytes, path: str) -> None:
@@ -657,6 +968,7 @@ def force_test_requires_test_env_v1(raw: bytes, path: str) -> bool:
         not _has_exact_parameters_v1(function, ())
         or not _module_import_binding_is_closed_v1(tree, "os")
         or not _module_import_binding_is_closed_v1(tree, "config")
+        or _has_protected_member_mutation_v1(tree, frozenset({"os", "config"}))
         or any(isinstance(node, ast.Raise) for node in ast.walk(function))
         or _name_store_count_v1(function, "requested") != 1
         or _name_store_count_v1(function, "runtime_env") != 1
@@ -797,18 +1109,26 @@ def historical_force_test_enters_mock_v1(raw: bytes, path: str) -> bool:
     if (
         not _has_exact_parameters_v1(function, ())
         or not _module_import_binding_is_closed_v1(tree, "os")
+        or _contains_dynamic_namespace_access_v1(function)
+        or _has_protected_member_mutation_v1(
+            function,
+            frozenset(
+                {
+                    "logger",
+                    "os",
+                    "server_should_stop",
+                    "tau_process_ready",
+                    "tau_ready",
+                    "time",
+                }
+            ),
+        )
         or len(tau_test_assignments) != _name_store_count_v1(function, "tau_test_mode")
         or len(false_assignments) != 1
         or any(
             not isinstance(node.value, ast.Constant)
             or type(node.value.value) is not bool
             for node in tau_test_assignments
-        )
-        or any(
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id in {"eval", "exec", "globals", "locals", "setattr"}
-            for node in ast.walk(function)
         )
     ):
         return False
@@ -876,22 +1196,54 @@ def _is_force_test_env_condition_v1(test: ast.expr) -> bool:
 
 def command_registry_keys_v1(raw: bytes, path: str) -> tuple[str, ...]:
     tree = python_tree_v1(raw, path)
-    classes = [
-        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "ServiceContainer"
-    ]
-    if len(classes) != 1:
-        _reject("COMMAND_REGISTRY_CLASS", path, "expected ServiceContainer")
-    builds = [
-        node for node in classes[0].body if isinstance(node, ast.FunctionDef) and node.name == "build"
-    ]
-    if len(builds) != 1:
+    container = _class_v1(
+        tree,
+        "ServiceContainer",
+        path,
+        allowed_decorators=frozenset({"dataclass"}),
+    )
+    builds = [node for node in container.body if isinstance(node, ast.FunctionDef) and node.name == "build"]
+    build_bindings = _name_binding_nodes_v1(container, "build")
+    if (
+        len(builds) != 1
+        or len(build_bindings) != 1
+        or build_bindings[0] is not builds[0]
+        or len(builds[0].decorator_list) != 1
+        or not isinstance(builds[0].decorator_list[0], ast.Name)
+        or builds[0].decorator_list[0].id != "classmethod"
+    ):
         _reject("COMMAND_REGISTRY_FUNCTION", path, "expected one build method")
-    if any(isinstance(node, ast.Raise) for node in ast.walk(builds[0])) or (
-        _contains_dynamic_namespace_access_v1(builds[0])
+    build = builds[0]
+    positional = (*build.args.posonlyargs, *build.args.args)
+    if (
+        tuple(argument.arg for argument in positional) != ("cls",)
+        or tuple(argument.arg for argument in build.args.kwonlyargs) != ("settings", "overrides")
+        or build.args.vararg is not None
+        or build.args.kwarg is not None
+        or build.args.defaults
+        or len(build.args.kw_defaults) != 2
+        or any(
+            default is None
+            or not isinstance(default, ast.Constant)
+            or default.value is not None
+            for default in build.args.kw_defaults
+        )
+        or any(isinstance(node, ast.Raise) for node in ast.walk(build))
+        or _contains_dynamic_namespace_access_v1(build)
+        or _has_protected_member_mutation_v1(tree, frozenset({"ServiceContainer"}))
     ):
         _reject("COMMAND_REGISTRY_MUTATION", path, "raise is forbidden in registry construction")
     dictionaries: list[ast.Dict] = []
-    for node in builds[0].body:
+    override_maps: list[ast.Assign] = []
+    for node in build.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "override_map"
+            and _assignment_matches_v1(node, "overrides or {}")
+        ):
+            override_maps.append(node)
         if not (
             isinstance(node, ast.Assign)
             and len(node.targets) == 1
@@ -900,24 +1252,38 @@ def command_registry_keys_v1(raw: bytes, path: str) -> tuple[str, ...]:
             and isinstance(node.value, ast.BoolOp)
             and isinstance(node.value.op, ast.Or)
             and len(node.value.values) == 2
+            and isinstance(node.value.values[0], ast.Call)
+            and isinstance(node.value.values[0].func, ast.Attribute)
+            and isinstance(node.value.values[0].func.value, ast.Name)
+            and node.value.values[0].func.value.id == "override_map"
+            and node.value.values[0].func.attr == "get"
+            and len(node.value.values[0].args) == 1
+            and isinstance(node.value.values[0].args[0], ast.Constant)
+            and node.value.values[0].args[0].value == "command_handlers"
+            and not node.value.values[0].keywords
             and isinstance(node.value.values[1], ast.Dict)
         ):
             continue
         dictionaries.append(node.value.values[1])
-    if len(dictionaries) != 1:
+    if (
+        len(dictionaries) != 1
+        or len(override_maps) != 1
+        or _name_store_count_v1(build, "override_map") != 1
+        or _name_store_count_v1(build, "command_handlers") != 1
+    ):
         _reject("COMMAND_REGISTRY_SHAPE", path, "expected one reachable literal registry")
     name_writes = sum(
         isinstance(node, ast.Name)
         and node.id == "command_handlers"
         and isinstance(node.ctx, (ast.Store, ast.Del))
-        for node in ast.walk(builds[0])
+        for node in ast.walk(build)
     )
     subscript_writes = sum(
         isinstance(node, ast.Subscript)
         and isinstance(node.ctx, (ast.Store, ast.Del))
         and isinstance(node.value, ast.Name)
         and node.value.id == "command_handlers"
-        for node in ast.walk(builds[0])
+        for node in ast.walk(build)
     )
     mutator_calls = sum(
         isinstance(node, ast.Call)
@@ -925,13 +1291,13 @@ def command_registry_keys_v1(raw: bytes, path: str) -> tuple[str, ...]:
         and isinstance(node.func.value, ast.Name)
         and node.func.value.id == "command_handlers"
         and node.func.attr in {"clear", "pop", "popitem", "setdefault", "update"}
-        for node in ast.walk(builds[0])
+        for node in ast.walk(build)
     )
     if (
         name_writes != 1
         or subscript_writes
         or mutator_calls
-        or not _command_registry_uses_are_closed_v1(builds[0])
+        or not _command_registry_uses_are_closed_v1(build)
     ):
         _reject("COMMAND_REGISTRY_MUTATION", path, "registry changes after construction")
     keys: list[str] = []
@@ -962,15 +1328,11 @@ def _command_registry_uses_are_closed_v1(function: ast.FunctionDef) -> bool:
             isinstance(parent, ast.keyword)
             and parent.arg == "command_handlers"
             and parent.value is node
-        ):
-            continue
-        if (
-            isinstance(parent, ast.Call)
-            and isinstance(parent.func, ast.Name)
-            and parent.func.id == "cls"
-            and node in parent.args
-            and isinstance(parents.get(parent), ast.Return)
-            and function.body[-1] is parents[parent]
+            and isinstance(parents.get(parent), ast.Call)
+            and isinstance(parents[parent].func, ast.Name)
+            and parents[parent].func.id == "cls"
+            and isinstance(parents.get(parents[parent]), ast.Return)
+            and function.body[-1] is parents[parents[parent]]
         ):
             continue
         return False
@@ -983,6 +1345,14 @@ def server_uses_default_command_registry_v1(raw: bytes, path: str) -> bool:
         function = _function_v1(tree, "main", path)
     except CurrentTauCompatibilityRejectV1:
         return False
+    if not _from_import_binding_is_closed_v1(
+        tree,
+        module="app.container",
+        level=0,
+        name="ServiceContainer",
+    ) or _has_protected_member_mutation_v1(tree, frozenset({"ServiceContainer"})):
+        return False
+    parents = _parent_map_v1(function)
     calls = [
         node
         for node in ast.walk(function)
@@ -994,6 +1364,16 @@ def server_uses_default_command_registry_v1(raw: bytes, path: str) -> bool:
     ]
     if len(calls) != 1 or calls[0].args or len(calls[0].keywords) != 1:
         return False
+    call = calls[0]
+    assignment = parents.get(call)
+    if not (
+        isinstance(assignment, ast.Assign)
+        and len(assignment.targets) == 1
+        and isinstance(assignment.targets[0], ast.Name)
+        and assignment.targets[0].id == "container"
+        and assignment in function.body
+    ):
+        return False
     keyword = calls[0].keywords[0]
     if keyword.arg != "overrides" or not isinstance(keyword.value, ast.Dict):
         return False
@@ -1002,6 +1382,36 @@ def server_uses_default_command_registry_v1(raw: bytes, path: str) -> bool:
         for key in keyword.value.keys
     )
     if keys != ("logger", "ephemeral_identity"):
+        return False
+    build_index = function.body.index(assignment)
+    if any(
+        isinstance(node, (ast.Return, ast.Raise, ast.Break, ast.Continue))
+        for node in function.body[:build_index]
+    ):
+        return False
+    if _name_store_count_v1(function, "container") != 1:
+        return False
+    run_calls = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_run_server"
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Name)
+        and node.args[0].id == "container"
+        and not node.keywords
+    ]
+    if len(run_calls) != 1:
+        return False
+    current: ast.AST = run_calls[0]
+    top_level: ast.stmt | None = None
+    while current in parents:
+        current = parents[current]
+        if current in function.body:
+            top_level = current if isinstance(current, ast.stmt) else None
+            break
+    if top_level is None or function.body.index(top_level) <= build_index:
         return False
     return not any(
         (
@@ -1021,6 +1431,11 @@ def server_uses_default_command_registry_v1(raw: bytes, path: str) -> bool:
 
 def historical_apply_app_tx_bridge_v1(raw: bytes, path: str) -> bool:
     function = _function_v1(python_tree_v1(raw, path), "_call_app_bridge", path)
+    if _contains_dynamic_namespace_access_v1(function) or _has_protected_member_mutation_v1(
+        function,
+        frozenset({"bridge"}),
+    ):
+        return False
     statements = [
         node
         for node in function.body
@@ -1064,12 +1479,20 @@ def compose_service_environment_value_v1(
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         _reject("PROFILE_YAML_SHAPE", path, type(exc).__name__)
-    if "\t" in text or "<<:" in text:
-        _reject("PROFILE_YAML_SHAPE", path, "tabs and merge keys are forbidden")
-    stack: dict[int, str] = {}
+    if "\t" in text:
+        _reject("PROFILE_YAML_SHAPE", path, "tabs are forbidden")
+    stack: list[tuple[int, str]] = []
+    occurrences: dict[tuple[str, ...], int] = {}
     matches: list[str] = []
     block_scalar_indent: int | None = None
     mapping_line = re.compile(r"^([A-Za-z0-9_.-]+):(?:\s*(.*))?$")
+    block_scalar = re.compile(r"^[|>](?:[1-9][+-]?|[+-][1-9]?)?$")
+    required_paths = (
+        ("services",),
+        ("services", service),
+        ("services", service, "environment"),
+        ("services", service, "environment", key),
+    )
     for raw_line in text.splitlines():
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):
             continue
@@ -1081,28 +1504,47 @@ def compose_service_environment_value_v1(
         content = raw_line[indent:]
         parsed = mapping_line.fullmatch(content)
         if parsed is None:
+            parents = tuple(value for _level, value in stack)
+            if parents in required_paths[:-1]:
+                _reject("PROFILE_YAML_SHAPE", path, "ambiguous effective-path syntax")
             continue
-        for old_indent in tuple(stack):
-            if old_indent >= indent:
-                del stack[old_indent]
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
         yaml_key, scalar = parsed.groups()
-        parents = tuple(stack[level] for level in sorted(stack))
+        parents = tuple(value for _level, value in stack)
         scalar = scalar or ""
-        if scalar in {"|", "|-", "|+", ">", ">-", ">+"}:
+        effective_path = (*parents, yaml_key)
+        if effective_path in required_paths:
+            occurrences[effective_path] = occurrences.get(effective_path, 0) + 1
+            if occurrences[effective_path] != 1:
+                _reject("PROFILE_YAML_SHAPE", path, "duplicate effective-path mapping")
+        if yaml_key == "<<" or "<<:" in content:
+            if any(
+                effective_path[: len(required)] == required for required in required_paths[:-1]
+            ):
+                _reject("PROFILE_YAML_SHAPE", path, "merge key reaches effective path")
+            continue
+        if block_scalar.fullmatch(scalar):
             block_scalar_indent = indent
             continue
+        is_required_parent = effective_path in required_paths[:-1]
+        if is_required_parent and scalar:
+            _reject("PROFILE_YAML_SHAPE", path, "effective-path parent must be one plain mapping")
         if parents == ("services", service, "environment") and yaml_key == key:
             if (
                 len(scalar) < 2
                 or not scalar.startswith('"')
                 or not scalar.endswith('"')
                 or '"' in scalar[1:-1]
+                or "&" in scalar
+                or "*" in scalar
+                or "<<" in scalar
             ):
                 _reject("PROFILE_YAML_VALUE", path, f"{key} must be a simple quoted scalar")
             matches.append(scalar[1:-1])
         if not scalar:
-            stack[indent] = yaml_key
-    if len(matches) != 1:
+            stack.append((indent, yaml_key))
+    if any(occurrences.get(required, 0) != 1 for required in required_paths) or len(matches) != 1:
         _reject("PROFILE_YAML_SHAPE", path, f"expected one services.{service}.environment.{key}")
     return matches[0]
 
@@ -1132,10 +1574,42 @@ def shell_forwards_force_test_v1(raw: bytes, path: str) -> bool:
         for line in lines[index + 3 :]
     ):
         return False
-    exec_lines = [position for position, line in enumerate(lines) if line.startswith("exec ")]
-    exit_lines = [line for line in lines if line.startswith("exit ")]
+    forbidden_control = re.compile(
+        r"^(?:builtin|command)\s+(?:exec|exit)\b|^(?:return|break|continue)\b|"
+        r"^(?:eval|(?:ba|z|da)?sh\s+-c)\b",
+    )
+    alias_or_function = re.compile(
+        r"^(?:alias\s+[^=]+=(?:['\"])?(?:exec|exit)(?:['\"])?(?:\s|$)|"
+        r"(?:function\s+)?(?:exec|exit)\s*(?:\(\)|\{)|"
+        r"(?:(?:declare|export|local|readonly|typeset)\s+)?[A-Za-z_][A-Za-z0-9_]*="
+        r"(?:['\"])?(?:exec|exit)(?:['\"])?(?:\s|$))",
+    )
+    trap = re.compile(r"^trap\b.*\b(?:DEBUG|EXIT)\b")
+    if any(
+        forbidden_control.search(line)
+        or alias_or_function.search(line)
+        or trap.search(line)
+        for line in lines
+    ):
+        return False
+    exec_lines = [
+        position for position, line in enumerate(lines) if re.match(r"^exec(?:\s|$)", line)
+    ]
+    exit_lines = [position for position, line in enumerate(lines) if re.match(r"^exit(?:\s|$)", line)]
+    missing_tau_condition = 'if [[ ! -f "$ROOT/external/tau-testnet/server.py" ]]; then'
+    missing_index = next(
+        (position for position, line in enumerate(lines) if line == missing_tau_condition),
+        -1,
+    )
+    missing_end = next(
+        (position for position in range(missing_index + 1, len(lines)) if lines[position] == "fi"),
+        -1,
+    )
     return (
-        exit_lines == ["exit 2"]
+        missing_index >= 0
+        and missing_end > missing_index
+        and exit_lines == [missing_index + 3]
+        and lines[exit_lines[0]] == "exit 2"
         and exec_lines == [len(lines) - 1]
         and lines[-1] == 'exec python "${ARGS[@]}"'
     )
@@ -1197,6 +1671,7 @@ def python_env_default_v1(raw: bytes, path: str) -> str:
         len(matches) != 1
         or len(tau_env_constants) != 2
         or env_mutators
+        or _environment_writes_tau_env_v1(function, matches[0].value if matches else None)
         or _contains_dynamic_namespace_access_v1(function)
         or not _environment_uses_are_direct_v1(function)
         or match_index < 0
@@ -1225,6 +1700,75 @@ def _environment_uses_are_direct_v1(function: ast.FunctionDef) -> bool:
             continue
         return False
     return True
+
+
+def _environment_writes_tau_env_v1(
+    function: ast.FunctionDef,
+    expected_default: ast.expr | None,
+) -> bool:
+    """Reject every direct, computed, or aliased write route to TAU_ENV."""
+
+    expected_dump = (
+        ast.dump(expected_default, include_attributes=False)
+        if expected_default is not None
+        else None
+    )
+    string_bindings: dict[str, str] = {}
+    changed = True
+    while changed:
+        changed = False
+        for candidate in ast.walk(function):
+            if (
+                not isinstance(candidate, ast.Assign)
+                or len(candidate.targets) != 1
+                or not isinstance(candidate.targets[0], ast.Name)
+            ):
+                continue
+            value = _constant_string_v1(candidate.value)
+            if value is None and isinstance(candidate.value, ast.Name):
+                value = string_bindings.get(candidate.value.id)
+            if value is not None and string_bindings.get(candidate.targets[0].id) != value:
+                string_bindings[candidate.targets[0].id] = value
+                changed = True
+
+    def key_value(value: ast.expr) -> str | None:
+        direct = _constant_string_v1(value)
+        return direct if direct is not None else string_bindings.get(value.id) if isinstance(value, ast.Name) else None
+
+    for node in ast.walk(function):
+        targets: tuple[ast.AST, ...] = ()
+        if isinstance(node, ast.Assign):
+            targets = tuple(node.targets)
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            targets = (node.target,)
+        elif isinstance(node, ast.Delete):
+            targets = tuple(node.targets)
+        for target in targets:
+            if (
+                isinstance(target, ast.Subscript)
+                and _expression_root_name_v1(target.value) == "env"
+                and key_value(target.slice) in {None, "TAU_ENV"}
+            ):
+                return True
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if _expression_root_name_v1(node.func.value) != "env":
+            continue
+        if (
+            node.func.attr == "setdefault"
+            and ast.dump(node, include_attributes=False) == expected_dump
+        ):
+            continue
+        if node.func.attr in _MUTATING_METHODS_V1:
+            if not node.args:
+                return True
+            if key_value(node.args[0]) in {None, "TAU_ENV"}:
+                return True
+            if node.func.attr in {"clear", "update"}:
+                return True
+        if node.func.attr in {"__setitem__", "__delitem__"}:
+            return True
+    return False
 
 
 def signing_vector_sha256_v1(fields: tuple[str, ...]) -> str:

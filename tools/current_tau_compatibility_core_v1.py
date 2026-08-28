@@ -39,8 +39,11 @@ from .current_tau_compatibility_pins_v1 import (
     HISTORICAL_BRIDGE_SOURCE_SHA256_V1,
     HISTORICAL_BRIDGE_TREE_LISTING_SHA256_V1,
     HISTORICAL_BRIDGE_TREE_V1,
-    IMPLEMENTATION_SOURCE_PATHS_V1,
-    LOCAL_PROFILE_SOURCE_SHA256_V1,
+    HISTORICAL_LOCAL_PROFILE_COMMIT_V1,
+    HISTORICAL_LOCAL_PROFILE_SOURCE_SHA256_V1,
+    HISTORICAL_LOCAL_PROFILE_TREE_LISTING_SHA256_V1,
+    HISTORICAL_LOCAL_PROFILE_TREE_V1,
+    REPLAY_IMPLEMENTATION_EVIDENCE_PATHS_V1,
     SCHEMA_V1,
 )
 
@@ -70,6 +73,7 @@ class CurrentTauCompatibilitySnapshotV1:
     current_tau: SourcePinV1
     current_tau_lang: SourcePinV1
     historical_bridge: SourcePinV1
+    historical_local_profile: SourcePinV1
     implementation: SourcePinV1
     active_plan_sha256: str
     active_registry_sha256: str
@@ -212,6 +216,19 @@ def _validate_pin(pin: SourcePinV1, expected: SourcePinV1, path: str) -> None:
     )
 
 
+def _validate_historical_local_profile_pin(pin: SourcePinV1) -> None:
+    _validate_pin(
+        pin,
+        SourcePinV1(
+            HISTORICAL_LOCAL_PROFILE_COMMIT_V1,
+            HISTORICAL_LOCAL_PROFILE_TREE_V1,
+            HISTORICAL_LOCAL_PROFILE_TREE_LISTING_SHA256_V1,
+            HISTORICAL_LOCAL_PROFILE_SOURCE_SHA256_V1,
+        ),
+        "historical_local_profile",
+    )
+
+
 def _validate_implementation_pin(pin: SourcePinV1) -> None:
     if type(pin) is not SourcePinV1:
         _reject("SOURCE_PIN_TYPE", "implementation", "must be an exact SourcePinV1")
@@ -238,19 +255,12 @@ def _validate_implementation_pin(pin: SourcePinV1) -> None:
         observed_hashes[path] = digest
     _require_exact(
         tuple(observed_paths),
-        IMPLEMENTATION_SOURCE_PATHS_V1,
+        REPLAY_IMPLEMENTATION_EVIDENCE_PATHS_V1,
         "IMPLEMENTATION_SOURCE_PATH_DRIFT",
         "implementation.source_sha256",
     )
     if len(observed_hashes) != len(observed_paths):
         _reject("SOURCE_PATH_DUPLICATE", "implementation.source_sha256", "duplicate path")
-    for path, expected_digest in LOCAL_PROFILE_SOURCE_SHA256_V1:
-        _require_exact(
-            observed_hashes[path],
-            expected_digest,
-            "LOCAL_PROFILE_SOURCE_DRIFT",
-            path,
-        )
 
 
 def _validate_source_pins(snapshot: CurrentTauCompatibilitySnapshotV1) -> None:
@@ -284,6 +294,7 @@ def _validate_source_pins(snapshot: CurrentTauCompatibilitySnapshotV1) -> None:
         ),
         "historical_bridge",
     )
+    _validate_historical_local_profile_pin(snapshot.historical_local_profile)
     _validate_implementation_pin(snapshot.implementation)
 
 
@@ -465,17 +476,19 @@ def _rpc_witness(snapshot: CurrentTauCompatibilitySnapshotV1) -> dict[str, objec
 def _force_test_witness(snapshot: CurrentTauCompatibilitySnapshotV1) -> dict[str, object]:
     return {
         "witness_id": "force_test_disqualifier",
-        "local_profile_force_test": snapshot.local_profile_force_test,
-        "local_runner_forwards_force_test": snapshot.local_runner_forwards_force_test,
-        "local_runner_default_tau_env": snapshot.local_runner_default_tau_env,
+        "evidence_kind": "HISTORICAL_SOURCE_SYNTAX_ONLY",
+        "historical_local_profile_commit": snapshot.historical_local_profile.commit,
+        "historical_local_profile_force_test": snapshot.local_profile_force_test,
+        "historical_local_runner_forwards_force_test": snapshot.local_runner_forwards_force_test,
+        "historical_local_runner_default_tau_env": snapshot.local_runner_default_tau_env,
         "current_tau_requires_test_env": snapshot.current_tau_force_test_requires_test_env,
-        "historical_bridge_enters_mock_mode": (
+        "historical_bridge_force_test_syntax_enters_mock_mode": (
             snapshot.historical_bridge_force_test_enters_mock_mode
         ),
         "interpretation": (
-            "The flag alone does not prove current-Tau mock execution. The selected historical "
-            "bridge source consumes it as mock mode, so that local profile cannot evidence real "
-            "Tau evaluation or current-Tau compatibility."
+            "The historical local-profile and bridge facts are exact static source observations. "
+            "They preserve why that historical profile could not evidence real Tau evaluation. "
+            "They do not describe a repaired current local profile or prove runtime behavior."
         ),
         "verdict": "DISQUALIFIES_REAL_TAU_EVIDENCE",
     }
@@ -490,7 +503,8 @@ def _source_pins_json(snapshot: CurrentTauCompatibilitySnapshotV1) -> dict[str, 
             "admission_receipt_sha256": snapshot.admission_receipt_sha256,
             "admission_receipt_payload_sha256": snapshot.admission_receipt_payload_sha256,
         },
-        "implementation": _pin_json(snapshot.implementation),
+        "replay_implementation": _pin_json(snapshot.implementation),
+        "historical_local_profile": _pin_json(snapshot.historical_local_profile),
         "current_tau": _pin_json(snapshot.current_tau),
         "current_tau_lang": _pin_json(snapshot.current_tau_lang),
         "historical_bridge": _pin_json(snapshot.historical_bridge),
@@ -505,11 +519,12 @@ def build_current_tau_compatibility_artifact_v1(
     _validate_snapshot(snapshot)
     artifact: dict[str, object] = {
         "schema": SCHEMA_V1,
-        "status": "REPLAYED_CURRENT_TAU_INCOMPATIBILITY_RESEARCH_ONLY",
+        "status": "BLOCKED_EXTERNAL_REPLAY_TRUST_ROOT",
         "obligation": {
             "obligation_id": "O-003A",
-            "status": "EVIDENCE_COMPLETE_RESEARCH_ONLY",
-            "closed_gap_ids": ["current_tau_compatibility_gap"],
+            "status": "REVIEWED_CURRENT_TAU_INCOMPATIBILITY_RESEARCH_ONLY",
+            "closed_gap_ids": [],
+            "blocked_by": ["EXTERNAL_REPLAY_TRUST_ROOT"],
         },
         "source_pins": _source_pins_json(snapshot),
         "witnesses": [
@@ -523,9 +538,21 @@ def build_current_tau_compatibility_artifact_v1(
             "route_quarantine_implemented": False,
             "next_obligation": "O-002",
         },
+        "replay_trust": {
+            "direct_python_replay": (
+                "CONDITIONAL_ON_TRUSTED_INTERPRETER_FILESYSTEM_REPOSITORY_BYTES_AND_GIT_OBJECT_STORE"
+            ),
+            "in_repository_self_authentication": "NOT_CLAIMED",
+            "post_bootstrap_code_object_binding": "DEFENSE_IN_DEPTH_ONLY",
+            "independent_bootstrap_prerequisite": "O-003A-INDEPENDENT-BOOTSTRAP",
+            "independent_bootstrap_scope": (
+                "OUT_OF_SCOPE: an external literal manifest digest must bind exact Git commit, "
+                "tree, mode, blob, SHA-256, size, and closed paths before isolated replay."
+            ),
+        },
         "vm_ledger_contribution": {
             "contributes_to": [],
-            "gate_closures": [],
+            "vm_gates_closed": [],
             "status": "NO_VM_GATE_PROMOTION",
         },
         "authority": {
@@ -545,6 +572,8 @@ def build_current_tau_compatibility_artifact_v1(
             "This evidence grants no settlement, publication, release, migration, or value-moving authority.",
             "Source compatibility does not establish Tau economic finality.",
             "No value-movement gate or release-evidence cell is promoted.",
+            "Direct Python replay is conditional on external interpreter, filesystem, repository-byte, and Git-object-store trust.",
+            "The historical local-profile witness is not a claim about the current local profile.",
         ],
     }
     artifact["artifact_root"] = hashlib.sha256(
@@ -608,7 +637,10 @@ def _check_report(
         "findings": findings,
         "artifact_sha256": artifact_sha256,
         "artifact_root": artifact_root,
-        "o003a_evidence_complete": ok,
+        "o003a_evidence_complete": False,
+        "o003a_reviewed_current_tau_incompatibility_research_only": ok,
+        "direct_python_replay_conditional": ok,
+        "external_replay_trust_root_blocked": True,
         "route_quarantine_implemented": False,
         "current_tau_compatible": False,
         "production_authority": "NONE",
