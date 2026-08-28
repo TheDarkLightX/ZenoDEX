@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1};
 use crate::effects::{
@@ -9,9 +9,9 @@ use crate::effects::{
 };
 use crate::proof::EconomicCommandOccurrenceV1;
 use crate::release::{
-    EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1, LaneIdV1,
-    LaneModuleReleaseV1, LaneRegistryV1, ProfileStatusV1, ReleaseStatusV1, RouteRegistryV1,
-    RouteReleaseV1,
+    EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1,
+    LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReleaseV1, LaneRegistryV1, ProfileStatusV1,
+    ReleaseStatusV1, RouteRegistryV1, RouteReleaseV1,
 };
 use crate::zdex_fee_allocation_receipt_verification::VerifiedZDEXFeeAllocationV1;
 use crate::zdex_fee_allocation_types::{ZDEXFeeAllocationOccurrenceV1, FEE_BUYBACK_PRINCIPAL_V1};
@@ -19,9 +19,11 @@ use crate::zdex_purchase_burn_receipt_verification::{
     VerifiedZDEXAMMPurchaseV1, VerifiedZDEXBurnV1, ZDEXVerifiedLaneExpectationV1,
 };
 use crate::zdex_purchase_burn_types::{
-    zdex_amm_purchase_port_schema_root_v1, zdex_burn_port_schema_root_v1, ZDEXAMMPurchaseJournalV1,
-    ZDEXBurnJournalV1, AMM_PURCHASE_OUTPUT_ROLE_V1, PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
-    ZDEX_BURN_INPUT_ROLE_V1,
+    zdex_amm_purchase_port_schema_root_v1, zdex_burn_port_schema_root_v1,
+    zdex_occurrence_burn_port_v1, zdex_pool_reserve_principal_v1, ZDEXAMMPurchaseJournalV1,
+    ZDEXBurnJournalV1, ZDEXBuybackExecutionPolicyV1, AMM_PURCHASE_OUTPUT_ROLE_V1,
+    PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1, ZDEX_BURN_INPUT_ROLE_V1,
+    ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
 };
 use crate::zdex_tokenomics_lane_types::zdex_tokenomics_complete_lane_obligation_root_v1;
 
@@ -39,6 +41,7 @@ pub enum ZDEXPurchaseBurnRouteRejectCodeV1 {
     AMOUNT_MISMATCH,
     BURN_BUCKET_MISMATCH,
     BUYBACK_BUDGET_MISMATCH,
+    BUYBACK_EXECUTION_POLICY_MISMATCH,
     CONSERVATION_HISTORY_DISCONNECTED,
 }
 
@@ -47,6 +50,8 @@ pub struct ZDEXPurchaseBurnRouteProfileRegistriesV1<'a> {
     pub lanes: &'a LaneRegistryV1,
     pub coordinators: &'a LaneCoordinatorRegistryV1,
     pub routes: &'a RouteRegistryV1,
+    pub policies: &'a EconomicPolicyRegistryV1,
+    pub buyback_execution_policy: &'a ZDEXBuybackExecutionPolicyV1,
 }
 
 pub struct GovernedZDEXPurchaseBurnRouteV1<'a> {
@@ -56,6 +61,7 @@ pub struct GovernedZDEXPurchaseBurnRouteV1<'a> {
     burn_module_release: &'a LaneModuleReleaseV1,
     purchase_coordinator_release: &'a LaneCoordinatorReleaseV1,
     burn_coordinator_release: &'a LaneCoordinatorReleaseV1,
+    buyback_execution_policy: &'a ZDEXBuybackExecutionPolicyV1,
 }
 
 fn registered_buyback_route_v1(routes: &RouteRegistryV1) -> AbiResultV1<&RouteReleaseV1> {
@@ -144,6 +150,8 @@ pub fn bind_zdex_purchase_burn_shadow_profile_v1<'a>(
         lanes,
         coordinators,
         routes,
+        policies,
+        buyback_execution_policy,
     } = registries;
     profile.validate()?;
     if &profile.profile_id != expected_profile_id {
@@ -162,6 +170,21 @@ pub fn bind_zdex_purchase_burn_shadow_profile_v1<'a>(
         ));
     }
     profile.validate_registries(lanes, coordinators, routes)?;
+    buyback_execution_policy.validate()?;
+    if policies.registry_root()? != profile.policy_registry_root {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX buyback economic policy registry",
+        ));
+    }
+    let execution_binding = policies.require_binding(
+        ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
+        PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    )?;
+    if execution_binding.policy_root != buyback_execution_policy.policy_root()? {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX buyback execution policy binding",
+        ));
+    }
     let governed = GovernedZDEXPurchaseBurnRouteV1 {
         profile,
         route_release: registered_buyback_route_v1(routes)?,
@@ -177,6 +200,7 @@ pub fn bind_zdex_purchase_burn_shadow_profile_v1<'a>(
         burn_coordinator_release: coordinators.release_for(LaneIdV1::ZDEX_TOKENOMICS).ok_or(
             AbiErrorV1::InvalidBinding("ZDEX purchase-burn burn coordinator absent"),
         )?,
+        buyback_execution_policy,
     };
     require_governed_route_shapes_v1(&governed)?;
     Ok(governed)
@@ -205,43 +229,90 @@ pub struct ZDEXPurchaseBurnRouteAcceptedV1 {
     pub ordered_lane_journal_roots: Vec<RootV1>,
     pub ordered_verified_binding_roots: Vec<RootV1>,
     pub verified_budget_binding_root: RootV1,
+    pub buyback_execution_policy_root: RootV1,
     pub effects: GlobalEconomicEffectPlanV1,
     pub terminal_obligations_root: RootV1,
 }
 
-impl ZDEXPurchaseBurnRouteAcceptedV1 {
-    pub fn composition_root(&self) -> AbiResultV1<RootV1> {
-        self.effects.validate()?;
+pub const ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V2: &str =
+    "zenodex/zdex-purchase-burn-route-composition/v2";
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZDEXPurchaseBurnRouteCompositionJournalV2 {
+    pub schema: String,
+    pub route_release_id: RootV1,
+    pub command_occurrence_id: RootV1,
+    pub profile_root: RootV1,
+    pub writer_epoch: u64,
+    pub ordered_lane_journal_roots: Vec<RootV1>,
+    pub ordered_verified_binding_roots: Vec<RootV1>,
+    pub verified_budget_binding_root: RootV1,
+    pub buyback_execution_policy_root: RootV1,
+    pub effect_plan_root: RootV1,
+    pub terminal_obligations_root: RootV1,
+}
+
+impl ZDEXPurchaseBurnRouteCompositionJournalV2 {
+    pub fn validate(&self) -> AbiResultV1<()> {
+        if self.schema != ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V2 {
+            return Err(AbiErrorV1::InvalidBinding(
+                "ZDEX route composition V2 schema",
+            ));
+        }
+        for root in [
+            &self.route_release_id,
+            &self.command_occurrence_id,
+            &self.profile_root,
+            &self.verified_budget_binding_root,
+            &self.buyback_execution_policy_root,
+            &self.effect_plan_root,
+        ] {
+            root.validate("ZDEX route composition V2 root", false)?;
+        }
         self.terminal_obligations_root
             .validate("ZDEX route terminal obligations", true)?;
-        #[derive(Serialize)]
-        struct Composition<'a> {
-            schema: &'static str,
-            route_release_id: &'a RootV1,
-            command_occurrence_id: &'a RootV1,
-            profile_root: &'a RootV1,
-            writer_epoch: u64,
-            ordered_lane_journal_roots: &'a [RootV1],
-            ordered_verified_binding_roots: &'a [RootV1],
-            verified_budget_binding_root: &'a RootV1,
-            effect_plan_root: RootV1,
-            terminal_obligations_root: &'a RootV1,
+        if self.ordered_lane_journal_roots.len() != 2
+            || self.ordered_verified_binding_roots.len() != 2
+        {
+            return Err(AbiErrorV1::InvalidBinding(
+                "ZDEX route composition V2 ordered cardinality",
+            ));
         }
-        hash_global_v1(
-            "zdex-purchase-burn-route-composition-v1",
-            &Composition {
-                schema: GLOBAL_SETTLEMENT_ABI_V1,
-                route_release_id: &self.route_release_id,
-                command_occurrence_id: &self.command_occurrence_id,
-                profile_root: &self.profile_root,
-                writer_epoch: self.writer_epoch,
-                ordered_lane_journal_roots: &self.ordered_lane_journal_roots,
-                ordered_verified_binding_roots: &self.ordered_verified_binding_roots,
-                verified_budget_binding_root: &self.verified_budget_binding_root,
-                effect_plan_root: self.effects.effect_plan_root()?,
-                terminal_obligations_root: &self.terminal_obligations_root,
-            },
-        )
+        for root in self
+            .ordered_lane_journal_roots
+            .iter()
+            .chain(&self.ordered_verified_binding_roots)
+        {
+            root.validate("ZDEX route composition V2 ordered root", false)?;
+        }
+        Ok(())
+    }
+
+    pub fn journal_root(&self) -> AbiResultV1<RootV1> {
+        self.validate()?;
+        hash_global_v1("zdex-purchase-burn-route-composition-v2", self)
+    }
+}
+
+impl ZDEXPurchaseBurnRouteAcceptedV1 {
+    pub fn composition_journal_v2(&self) -> AbiResultV1<ZDEXPurchaseBurnRouteCompositionJournalV2> {
+        self.effects.validate()?;
+        let journal = ZDEXPurchaseBurnRouteCompositionJournalV2 {
+            schema: ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V2.to_owned(),
+            route_release_id: self.route_release_id.clone(),
+            command_occurrence_id: self.command_occurrence_id.clone(),
+            profile_root: self.profile_root.clone(),
+            writer_epoch: self.writer_epoch,
+            ordered_lane_journal_roots: self.ordered_lane_journal_roots.clone(),
+            ordered_verified_binding_roots: self.ordered_verified_binding_roots.clone(),
+            verified_budget_binding_root: self.verified_budget_binding_root.clone(),
+            buyback_execution_policy_root: self.buyback_execution_policy_root.clone(),
+            effect_plan_root: self.effects.effect_plan_root()?,
+            terminal_obligations_root: self.terminal_obligations_root.clone(),
+        };
+        journal.validate()?;
+        Ok(journal)
     }
 }
 
@@ -500,6 +571,36 @@ fn economic_reject_code_v1(
     let purchase = candidate.purchase_journal;
     let burn = candidate.burn_journal;
     let budget = candidate.buyback_budget_occurrence;
+    let execution_policy = candidate.governed_profile.buyback_execution_policy;
+    let budget_root = budget.occurrence_root()?;
+    if budget_root == candidate.occurrence.occurrence_id()?
+        || candidate.occurrence.consumed_object_ids != vec![budget_root.to_string()]
+    {
+        return Ok(Some(
+            ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_BUDGET_MISMATCH,
+        ));
+    }
+    let expected_quote_pool_bucket = zdex_pool_reserve_principal_v1(
+        &execution_policy.pool_id,
+        &execution_policy.quote_asset_id,
+    )?;
+    let expected_zdex_pool_bucket =
+        zdex_pool_reserve_principal_v1(&execution_policy.pool_id, &execution_policy.zdex_asset_id)?;
+    let expected_burn_bucket = zdex_occurrence_burn_port_v1(
+        &candidate.occurrence.profile_root,
+        &candidate.route_release.route_release_id,
+        &candidate.occurrence.occurrence_id()?,
+    )?;
+    if purchase.quote_asset_id != execution_policy.quote_asset_id
+        || purchase.zdex_asset_id != execution_policy.zdex_asset_id
+        || purchase.quote_pool_bucket_id != expected_quote_pool_bucket
+        || purchase.zdex_pool_bucket_id != expected_zdex_pool_bucket
+        || purchase.burn_bucket_id != expected_burn_bucket
+    {
+        return Ok(Some(
+            ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_EXECUTION_POLICY_MISMATCH,
+        ));
+    }
     if purchase.zdex_asset_id != burn.zdex_asset_id {
         return Ok(Some(ZDEXPurchaseBurnRouteRejectCodeV1::ASSET_MISMATCH));
     }
@@ -518,14 +619,11 @@ fn economic_reject_code_v1(
             ZDEXPurchaseBurnRouteRejectCodeV1::BURN_BUCKET_MISMATCH,
         ));
     }
-    let budget_root = budget.occurrence_root()?;
     if purchase.buyback_budget_occurrence_root != budget_root
         || burn.buyback_budget_occurrence_root != budget_root
         || purchase.quote_asset_id != budget.fee_asset_id
         || purchase.quote_amount_in_atoms != burn.authorized_quote_input_atoms
         || purchase.quote_amount_in_atoms != budget.buyback_quote_atoms()
-        || budget_root == candidate.occurrence.occurrence_id()?
-        || candidate.occurrence.consumed_object_ids != vec![budget_root.to_string()]
     {
         return Ok(Some(
             ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_BUDGET_MISMATCH,
@@ -584,6 +682,10 @@ pub fn compose_zdex_purchase_burn_route_v1(
                 candidate.verified_burn.binding_root()?,
             ],
             verified_budget_binding_root: candidate.verified_buyback_budget.binding_root()?,
+            buyback_execution_policy_root: candidate
+                .governed_profile
+                .buyback_execution_policy
+                .policy_root()?,
             effects: compose_effects_v1(&candidate, &occurrence_id)?,
             terminal_obligations_root: zdex_tokenomics_complete_lane_obligation_root_v1()?,
         },

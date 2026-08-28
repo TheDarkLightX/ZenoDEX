@@ -18,6 +18,10 @@ from .global_settlement_types_v1 import (
 )
 
 PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1: Final = "protocol_buy_and_burn"
+ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1: Final = (
+    "zenodex/zdex-buyback-execution-policy/v1"
+)
+ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1: Final = "zdex_buyback_execution_v1"
 AMM_PURCHASE_OUTPUT_ROLE_V1: Final = "AMM_PURCHASE_OUTPUT"
 ZDEX_BURN_INPUT_ROLE_V1: Final = "ZDEX_BURN_INPUT"
 
@@ -26,6 +30,90 @@ PROTOCOL_BUYBACK_CUSTODY_DOMAIN_V1: Final = "zenoledger:protocol-buyback"
 PROTOCOL_BURN_CUSTODY_DOMAIN_V1: Final = "zenoledger:protocol-burn"
 PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1: Final = "zenoledger:protocol-supply"
 ZDEX_SUPPLY_PRINCIPAL_V1: Final = "protocol:zdex-supply"
+
+
+@dataclass(frozen=True, slots=True)
+class ZDEXBuybackExecutionPolicyV1:
+    """Profile-governed pool identity; leaf and price proofs remain separate."""
+
+    pool_id: str
+    pool_definition_root: str
+    quote_asset_id: str
+    zdex_asset_id: str
+
+    def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
+        for field_name in (
+            "pool_id",
+            "pool_definition_root",
+            "quote_asset_id",
+            "zdex_asset_id",
+        ):
+            value = getattr(self, field_name)
+            if type(value) is not str:
+                raise TypeError(f"ZDEX buyback {field_name} must be exact str")
+            _require_root(value, name=f"ZDEX buyback {field_name}")
+        if self.quote_asset_id == self.zdex_asset_id:
+            raise ValueError("ZDEX buyback assets must differ")
+
+    @property
+    def policy_root(self) -> str:
+        self.validate()
+        return hash_global_v1(
+            "zdex-buyback-execution-policy-v1",
+            self.to_canonical(),
+        )
+
+    def to_canonical(self) -> dict[str, object]:
+        return {
+            "schema": ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1,
+            "pool_id": self.pool_id,
+            "pool_definition_root": self.pool_definition_root,
+            "quote_asset_id": self.quote_asset_id,
+            "zdex_asset_id": self.zdex_asset_id,
+        }
+
+
+def zdex_pool_reserve_principal_v1(*, pool_id: str, asset_id: str) -> str:
+    if type(pool_id) is not str or type(asset_id) is not str:
+        raise TypeError("ZDEX reserve identity requires exact str roots")
+    _require_root(pool_id, name="ZDEX buyback reserve pool id")
+    _require_root(asset_id, name="ZDEX buyback reserve asset id")
+    return hash_global_v1(
+        "zdex-pool-reserve-principal-v1",
+        {
+            "schema": GLOBAL_SETTLEMENT_ABI_V1,
+            "pool_id": pool_id,
+            "asset_id": asset_id,
+        },
+    )
+
+
+def zdex_occurrence_burn_port_v1(
+    *,
+    profile_root: str,
+    route_release_id: str,
+    command_occurrence_id: str,
+) -> str:
+    for field_name, value in (
+        ("profile_root", profile_root),
+        ("route_release_id", route_release_id),
+        ("command_occurrence_id", command_occurrence_id),
+    ):
+        if type(value) is not str:
+            raise TypeError(f"ZDEX burn port {field_name} must be exact str")
+        _require_root(value, name=f"ZDEX burn port {field_name}")
+    return hash_global_v1(
+        "zdex-occurrence-burn-port-v1",
+        {
+            "schema": GLOBAL_SETTLEMENT_ABI_V1,
+            "profile_root": profile_root,
+            "route_release_id": route_release_id,
+            "command_occurrence_id": command_occurrence_id,
+        },
+    )
 
 
 class ZDEXPurchaseBurnRouteRejectCodeV1(str, Enum):
@@ -40,6 +128,7 @@ class ZDEXPurchaseBurnRouteRejectCodeV1(str, Enum):
     AMOUNT_MISMATCH = "AMOUNT_MISMATCH"
     BURN_BUCKET_MISMATCH = "BURN_BUCKET_MISMATCH"
     BUYBACK_BUDGET_MISMATCH = "BUYBACK_BUDGET_MISMATCH"
+    BUYBACK_EXECUTION_POLICY_MISMATCH = "BUYBACK_EXECUTION_POLICY_MISMATCH"
     CONSERVATION_HISTORY_DISCONNECTED = "CONSERVATION_HISTORY_DISCONNECTED"
 
 
@@ -332,10 +421,15 @@ __all__ = [
     "PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1",
     "ZDEXAMMPurchaseJournalV1",
     "ZDEXBurnJournalV1",
+    "ZDEXBuybackExecutionPolicyV1",
     "ZDEXPurchaseBurnRouteRejectCodeV1",
+    "ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1",
+    "ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1",
     "ZDEX_BURN_INPUT_ROLE_V1",
     "ZDEX_SUPPLY_PRINCIPAL_V1",
     "ZERO_ROOT_V1",
     "zdex_amm_purchase_port_schema_root_v1",
     "zdex_burn_port_schema_root_v1",
+    "zdex_occurrence_burn_port_v1",
+    "zdex_pool_reserve_principal_v1",
 ]

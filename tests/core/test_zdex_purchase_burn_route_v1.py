@@ -67,11 +67,15 @@ from src.core.zdex_purchase_burn_receipt_verification_v1 import (
 )
 from src.core.zdex_purchase_burn_route_types_v1 import (
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
     ZDEXAMMPurchaseJournalV1,
     ZDEXBurnJournalV1,
+    ZDEXBuybackExecutionPolicyV1,
     ZDEXPurchaseBurnRouteRejectCodeV1,
     zdex_amm_purchase_port_schema_root_v1,
     zdex_burn_port_schema_root_v1,
+    zdex_occurrence_burn_port_v1,
+    zdex_pool_reserve_principal_v1,
 )
 from src.core.zdex_purchase_burn_route_v1 import (
     GovernedZDEXPurchaseBurnRouteV1,
@@ -217,6 +221,7 @@ def _governed_shadow_profile(
     buyback_route: RouteReleaseV1,
     allocation_route: RouteReleaseV1,
     policy_root: str,
+    buyback_execution_policy_root: str,
 ) -> tuple[EconomicProfileSnapshotV1, EconomicPolicyRegistryV1]:
     releases = []
     for ordinal, lane_id in enumerate(ALL_LANE_IDS_V1, start=1):
@@ -238,6 +243,11 @@ def _governed_shadow_profile(
     )
     policy_registry = EconomicPolicyRegistryV1(
         (
+            EconomicPolicyBindingV1(
+                ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
+                PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+                buyback_execution_policy_root,
+            ),
             EconomicPolicyBindingV1(
                 ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
                 PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
@@ -288,6 +298,7 @@ def _purchase_journal(
     route: RouteReleaseV1,
     spot_release: LaneModuleReleaseV1,
     occurrence: EconomicCommandOccurrenceV1,
+    buyback_pool_id: str,
     quote_atoms: int = 125,
     purchased_atoms: int = 40,
     quote_owned_atoms: int = 10_000,
@@ -309,9 +320,19 @@ def _purchase_journal(
         quote_asset_id=_root(600),
         zdex_asset_id=_root(601),
         quote_source_bucket_id="protocol-fee-buyback-reserve",
-        quote_pool_bucket_id="pool:quote",
-        zdex_pool_bucket_id="pool:zdex",
-        burn_bucket_id="protocol:zdex-burn-transient",
+        quote_pool_bucket_id=zdex_pool_reserve_principal_v1(
+            pool_id=buyback_pool_id,
+            asset_id=_root(600),
+        ),
+        zdex_pool_bucket_id=zdex_pool_reserve_principal_v1(
+            pool_id=buyback_pool_id,
+            asset_id=_root(601),
+        ),
+        burn_bucket_id=zdex_occurrence_burn_port_v1(
+            profile_root=occurrence.profile_root,
+            route_release_id=route.route_release_id,
+            command_occurrence_id=occurrence.occurrence_id,
+        ),
         quote_amount_in_atoms=quote_atoms,
         purchased_zdex_atoms=purchased_atoms,
         quote_source_pre_atoms=1_000,
@@ -642,6 +663,12 @@ def _verified_fixture(
         guest_image_id=buyback_route_guest_image_id,
     )
     policy = candidate_zdex_fee_allocation_policy_v1()
+    buyback_execution_policy = ZDEXBuybackExecutionPolicyV1(
+        pool_id=_root(602),
+        pool_definition_root=_root(603),
+        quote_asset_id=_root(600),
+        zdex_asset_id=_root(601),
+    )
     allocation_route = _allocation_route_release(burn_release)
     profile, policy_registry = _governed_shadow_profile(
         spot_release=spot_release,
@@ -649,12 +676,14 @@ def _verified_fixture(
         buyback_route=route,
         allocation_route=allocation_route,
         policy_root=policy.policy_root,
+        buyback_execution_policy_root=buyback_execution_policy.policy_root,
     )
     occurrence = _occurrence(route, profile)
     purchase = _purchase_journal(
         route=route,
         spot_release=spot_release,
         occurrence=occurrence,
+        buyback_pool_id=buyback_execution_policy.pool_id,
     )
     if purchase_overrides:
         normalized_purchase_overrides = dict(purchase_overrides)
@@ -701,7 +730,20 @@ def _verified_fixture(
             else consumed_object_ids_override
         ),
     )
-    purchase = replace(purchase, command_occurrence_id=occurrence.occurrence_id)
+    occurrence_id = occurrence.occurrence_id
+    purchase = replace(
+        purchase,
+        command_occurrence_id=occurrence_id,
+        burn_bucket_id=(
+            purchase.burn_bucket_id
+            if purchase_overrides and "burn_bucket_id" in purchase_overrides
+            else zdex_occurrence_burn_port_v1(
+                profile_root=occurrence.profile_root,
+                route_release_id=route.route_release_id,
+                command_occurrence_id=occurrence_id,
+            )
+        ),
+    )
     purchase_effects = _purchase_effects(purchase)
     purchase = replace(purchase, effect_plan_root=purchase_effects.effect_plan_root)
     purchase_effects = _purchase_effects(purchase)
@@ -749,6 +791,8 @@ def _verified_fixture(
         expected_profile_id=profile.profile_id,
         expected_authority_epoch=profile.authority_epoch,
         profile=profile,
+        policy_registry=policy_registry,
+        buyback_execution_policy=buyback_execution_policy,
     )
     return ZDEXPurchaseBurnRouteCandidateV1(
         governed_route,
@@ -784,6 +828,12 @@ def _fee_receipt_candidate_fixture(
         guest_image_id=buyback_route_guest_image_id,
     )
     policy = candidate_zdex_fee_allocation_policy_v1()
+    buyback_execution_policy = ZDEXBuybackExecutionPolicyV1(
+        pool_id=_root(602),
+        pool_definition_root=_root(603),
+        quote_asset_id=_root(600),
+        zdex_asset_id=_root(601),
+    )
     allocation_route = _allocation_route_release(burn_release)
     profile, policy_registry = _governed_shadow_profile(
         spot_release=spot_release,
@@ -791,12 +841,14 @@ def _fee_receipt_candidate_fixture(
         buyback_route=route,
         allocation_route=allocation_route,
         policy_root=policy.policy_root,
+        buyback_execution_policy_root=buyback_execution_policy.policy_root,
     )
     occurrence = _occurrence(route, profile)
     purchase = _purchase_journal(
         route=route,
         spot_release=spot_release,
         occurrence=occurrence,
+        buyback_pool_id=buyback_execution_policy.pool_id,
     )
     _, _, receipt_candidate = _buyback_budget(
         profile=profile,
@@ -895,6 +947,8 @@ def test_self_consistent_alternative_buyback_profile_rejects_trusted_anchor() ->
             expected_profile_id=fields.profile.profile_id,
             expected_authority_epoch=fields.profile.authority_epoch,
             profile=profile,
+            policy_registry=fields.policy_registry,
+            buyback_execution_policy=fields.buyback_execution_policy,
         )
 
 
@@ -906,6 +960,10 @@ def test_alternative_governed_route_rejects_without_effects() -> None:
         expected_profile_id=profile.profile_id,
         expected_authority_epoch=profile.authority_epoch,
         profile=profile,
+        policy_registry=candidate.governed_profile._fields.policy_registry,
+        buyback_execution_policy=(
+            candidate.governed_profile._fields.buyback_execution_policy
+        ),
     )
 
     # Act
@@ -957,6 +1015,8 @@ def test_governed_route_epoch_rejects_boolean_alias() -> None:
             expected_profile_id=fields.profile.profile_id,
             expected_authority_epoch=True,
             profile=fields.profile,
+            policy_registry=fields.policy_registry,
+            buyback_execution_policy=fields.buyback_execution_policy,
         )
 
 
@@ -1007,6 +1067,148 @@ def test_verified_leaves_compose_shadow_effects_with_open_coordinator_obligation
     assert result.terminal_obligations_root == (
         "0xb3a804a59299dd1349592fafec630720031217d4b3340a385a345d544d4b4553"
     )
+
+
+def test_caller_substituted_pool_buckets_reject_without_effects() -> None:
+    # Arrange: retain the governed route, assets, budget, and amounts while
+    # producing authenticated leaf data for attacker-selected pool buckets.
+    candidate = _verified_fixture(
+        purchase_overrides={
+            "quote_pool_bucket_id": "pool:attacker-quote",
+            "zdex_pool_bucket_id": "pool:attacker-zdex",
+        }
+    )
+
+    # Act.
+    result = compose_zdex_purchase_burn_route_v1(candidate)
+
+    # Assert.
+    _assert_no_effect_reject(
+        result,
+        ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_EXECUTION_POLICY_MISMATCH,
+    )
+
+
+def test_same_pair_alternate_pool_rejects_without_effects() -> None:
+    # Arrange: both reserves belong to one alternate pool with the same assets.
+    alternate_pool_id = _root(990)
+    candidate = _verified_fixture(
+        purchase_overrides={
+            "quote_pool_bucket_id": zdex_pool_reserve_principal_v1(
+                pool_id=alternate_pool_id,
+                asset_id=_root(600),
+            ),
+            "zdex_pool_bucket_id": zdex_pool_reserve_principal_v1(
+                pool_id=alternate_pool_id,
+                asset_id=_root(601),
+            ),
+        }
+    )
+
+    # Act.
+    result = compose_zdex_purchase_burn_route_v1(candidate)
+
+    # Assert.
+    _assert_no_effect_reject(
+        result,
+        ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_EXECUTION_POLICY_MISMATCH,
+    )
+
+
+def test_mixed_pool_reserve_keys_reject_without_effects() -> None:
+    # Arrange: retain the governed quote reserve and splice an alternate output reserve.
+    candidate = _verified_fixture(
+        purchase_overrides={
+            "zdex_pool_bucket_id": zdex_pool_reserve_principal_v1(
+                pool_id=_root(990),
+                asset_id=_root(601),
+            )
+        }
+    )
+
+    # Act.
+    result = compose_zdex_purchase_burn_route_v1(candidate)
+
+    # Assert.
+    _assert_no_effect_reject(
+        result,
+        ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_EXECUTION_POLICY_MISMATCH,
+    )
+
+
+def test_occurrence_scoped_burn_ports_are_distinct_and_deterministic() -> None:
+    # Arrange.
+    candidate = _verified_fixture()
+    occurrence = candidate.occurrence
+    common = {
+        "profile_root": occurrence.profile_root,
+        "route_release_id": occurrence.route_release_id,
+    }
+
+    # Act.
+    first = zdex_occurrence_burn_port_v1(
+        **common,
+        command_occurrence_id=occurrence.occurrence_id,
+    )
+    second = zdex_occurrence_burn_port_v1(
+        **common,
+        command_occurrence_id=_root(991),
+    )
+
+    # Assert.
+    assert first == candidate.purchase_journal.burn_bucket_id
+    assert first != second
+    assert first == zdex_occurrence_burn_port_v1(
+        **common,
+        command_occurrence_id=occurrence.occurrence_id,
+    )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    (
+        ("quote_asset_id", _root(991)),
+        ("zdex_asset_id", _root(992)),
+        ("quote_pool_bucket_id", "pool:alternate-quote"),
+        ("zdex_pool_bucket_id", "pool:alternate-zdex"),
+        ("burn_bucket_id", "protocol:alternate-burn"),
+    ),
+)
+def test_every_governed_buyback_resource_substitution_rejects_without_effects(
+    field_name: str,
+    value: str,
+) -> None:
+    # Arrange.
+    candidate = _verified_fixture(purchase_overrides={field_name: value})
+
+    # Act.
+    result = compose_zdex_purchase_burn_route_v1(candidate)
+
+    # Assert.
+    _assert_no_effect_reject(
+        result,
+        ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_EXECUTION_POLICY_MISMATCH,
+    )
+
+
+def test_unregistered_buyback_execution_policy_rejects_profile_binding() -> None:
+    # Arrange.
+    candidate = _verified_fixture()
+    fields = candidate.governed_profile._fields
+    substituted = replace(
+        fields.buyback_execution_policy,
+        pool_id=_root(990),
+    )
+
+    # Act / Assert.
+    with pytest.raises(ValueError, match="execution policy binding mismatch"):
+        bind_zdex_purchase_burn_shadow_profile_v1(
+            expected_profile_id=fields.profile.profile_id,
+            expected_authority_epoch=fields.profile.authority_epoch,
+            profile=fields.profile,
+            policy_registry=fields.policy_registry,
+            buyback_execution_policy=substituted,
+        )
 
 
 @pytest.mark.parametrize(
@@ -1346,14 +1548,57 @@ def test_policy_registry_root_matches_rust_golden_vector() -> None:
     policy_registry = governed._fields.policy_registry
 
     assert policy_registry.registry_root == (
-        "0x67554f616a2cb0413e0b72d6789ae0e08382475943b4ad8a14e009bb0779d0a9"
+        "0x91935990f8290fcca1ed76bbd4ea11aaccc85d8067096e10ca3fb908f79cc759"
     )
     assert canonical_global_bytes_v1(policy_registry) == (
-        b'{"bindings":[{"command_kind":"protocol_fee_allocation",'
+        b'{"bindings":[{"command_kind":"protocol_buy_and_burn",'
+        b'"policy_kind":"zdex_buyback_execution_v1",'
+        b'"policy_root":"0x4603d57180f7be6fc23dd39ffdf1da2eb1b6b19168dca37349875183e4296599"},'
+        b'{"command_kind":"protocol_fee_allocation",'
         b'"policy_kind":"zdex_fee_allocation",'
         b'"policy_root":"0xd810507e5d15fd874a2e75b6f32b71b47174a799b8015301700e4554614032c2"}],'
         b'"schema":"zenodex/global-settlement-abi/v1"}'
     )
+
+
+def test_buyback_execution_policy_root_matches_rust_golden_vector() -> None:
+    candidate = _verified_fixture()
+
+    assert candidate.governed_profile._fields.buyback_execution_policy.policy_root == (
+        "0x4603d57180f7be6fc23dd39ffdf1da2eb1b6b19168dca37349875183e4296599"
+    )
+
+
+def test_buyback_execution_policy_rejects_unknown_fields_and_resource_aliases() -> None:
+    candidate = _verified_fixture()
+    policy = candidate.governed_profile._fields.buyback_execution_policy
+
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        ZDEXBuybackExecutionPolicyV1(
+            pool_id=policy.pool_id,
+            pool_definition_root=policy.pool_definition_root,
+            quote_asset_id=policy.quote_asset_id,
+            zdex_asset_id=policy.zdex_asset_id,
+            caller_pool_override="pool:attacker",  # type: ignore[call-arg]
+        )
+    with pytest.raises(ValueError, match="assets must differ"):
+        replace(policy, zdex_asset_id=policy.quote_asset_id)
+
+
+def test_buyback_execution_policy_rejects_hostile_string_subclasses() -> None:
+    class ExplodingStr(str):
+        def __eq__(self, other: object) -> bool:
+            raise AssertionError("hostile equality must not execute")
+
+        def __hash__(self) -> int:
+            raise AssertionError("hostile hash must not execute")
+
+    # Arrange.
+    policy = _verified_fixture().governed_profile._fields.buyback_execution_policy
+
+    # Act / Assert.
+    with pytest.raises(TypeError, match="must be exact str"):
+        replace(policy, pool_id=ExplodingStr(policy.pool_id))
 
 
 def test_policy_registry_rejects_duplicate_and_unsorted_binding_keys() -> None:
@@ -2073,12 +2318,30 @@ def test_route_rejects_owned_supply_baseline_neighbor_without_effects(
 def test_python_rust_golden_composition_root_is_stable() -> None:
     result = compose_zdex_purchase_burn_route_v1(_verified_fixture())
 
-    assert result.composition_root == (
-        "0xe4016bdba019f681a033744d30632102d8d34c3efd50dd85289c4e564e3b0a7b"
+    assert result.composition_journal_v2.buyback_execution_policy_root == (
+        result.buyback_execution_policy_root
+    )
+    assert result.composition_journal_v2.journal_root == (
+        "0x33f6ab97120d9b0aaa59ccf5cbde361d32aa7d0a3881fff97e38a6dcb8e0e152"
     )
     assert zdex_burn_port_schema_root_v1() == (
         "0x744c54af6df7c8a4fa0c5e0b152e0139add14c337d7cbcf1c8062e8aa2fa5289"
     )
+
+
+def test_composition_journal_v2_rejects_unknown_fields_and_wrong_cardinality() -> None:
+    # Arrange.
+    result = compose_zdex_purchase_burn_route_v1(_verified_fixture())
+    journal = result.composition_journal_v2
+
+    # Act / Assert.
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        type(journal)(
+            **journal.to_canonical(),
+            caller_pool_override=_root(990),  # type: ignore[call-arg]
+        )
+    with pytest.raises(ValueError, match="must have two roots"):
+        replace(journal, ordered_lane_journal_roots=journal.ordered_lane_journal_roots[:1])
 
 
 @pytest.mark.parametrize("amount", (2**127, 2**128 - 1))
@@ -2247,7 +2510,7 @@ def test_profile_selected_fee_leaf_and_coordinator_bind_complete_lane() -> None:
     assert verified.pre_lane_root == candidate.lane_candidate.pre_state.state_root
     assert verified.post_lane_root == candidate.lane_candidate.post_state.state_root
     assert verified.binding_root == (
-        "0x0734719e8e80b95ece0dff339bef408d584610b67533e9aa74a9f2e52a11aca8"
+            "0x5a0edace975c58c0954cdaa2f73d72594b6d8e256e6ccc796daa75ba38cf6654"
     )
     assert verifier.calls == [
         (

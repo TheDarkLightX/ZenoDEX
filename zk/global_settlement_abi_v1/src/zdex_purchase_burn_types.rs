@@ -6,6 +6,9 @@ use crate::canonical::{
 };
 
 pub const PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1: &str = "protocol_buy_and_burn";
+pub const ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1: &str =
+    "zenodex/zdex-buyback-execution-policy/v1";
+pub const ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1: &str = "zdex_buyback_execution_v1";
 pub const AMM_PURCHASE_OUTPUT_ROLE_V1: &str = "AMM_PURCHASE_OUTPUT";
 pub const ZDEX_BURN_INPUT_ROLE_V1: &str = "ZDEX_BURN_INPUT";
 pub const AMM_POOL_CUSTODY_DOMAIN_V1: &str = "zenoledger:amm-pool";
@@ -13,6 +16,104 @@ pub const PROTOCOL_BUYBACK_CUSTODY_DOMAIN_V1: &str = "zenoledger:protocol-buybac
 pub const PROTOCOL_BURN_CUSTODY_DOMAIN_V1: &str = "zenoledger:protocol-burn";
 pub const PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1: &str = "zenoledger:protocol-supply";
 pub const ZDEX_SUPPLY_PRINCIPAL_V1: &str = "protocol:zdex-supply";
+
+/// Exact economic resources selected by the governed profile for one buyback route.
+///
+/// A permissionless caller may trigger the route, but cannot choose these resources.
+/// This policy root does not establish price integrity or prove that a purchase leaf
+/// authenticated `pool_definition_root`; those are separate proof obligations.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZDEXBuybackExecutionPolicyV1 {
+    pub schema: String,
+    pub pool_id: RootV1,
+    pub pool_definition_root: RootV1,
+    pub quote_asset_id: RootV1,
+    pub zdex_asset_id: RootV1,
+}
+
+impl ZDEXBuybackExecutionPolicyV1 {
+    pub fn validate(&self) -> AbiResultV1<()> {
+        if self.schema != ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1 {
+            return Err(AbiErrorV1::InvalidBinding(
+                "ZDEX buyback execution policy schema",
+            ));
+        }
+        for (root, field) in [
+            (&self.pool_id, "ZDEX buyback pool id"),
+            (
+                &self.pool_definition_root,
+                "ZDEX buyback pool definition root",
+            ),
+            (&self.quote_asset_id, "ZDEX buyback quote asset"),
+            (&self.zdex_asset_id, "ZDEX buyback output asset"),
+        ] {
+            root.validate(field, false)?;
+        }
+        if self.quote_asset_id == self.zdex_asset_id {
+            return Err(AbiErrorV1::InvalidBinding(
+                "ZDEX buyback execution policy distinct resources",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn policy_root(&self) -> AbiResultV1<RootV1> {
+        self.validate()?;
+        hash_global_v1("zdex-buyback-execution-policy-v1", self)
+    }
+}
+
+pub fn zdex_pool_reserve_principal_v1(pool_id: &RootV1, asset_id: &RootV1) -> AbiResultV1<String> {
+    pool_id.validate("ZDEX buyback reserve pool id", false)?;
+    asset_id.validate("ZDEX buyback reserve asset id", false)?;
+    #[derive(Serialize)]
+    struct ReservePrincipal<'a> {
+        schema: &'static str,
+        pool_id: &'a RootV1,
+        asset_id: &'a RootV1,
+    }
+    Ok(hash_global_v1(
+        "zdex-pool-reserve-principal-v1",
+        &ReservePrincipal {
+            schema: GLOBAL_SETTLEMENT_ABI_V1,
+            pool_id,
+            asset_id,
+        },
+    )?
+    .to_string())
+}
+
+pub fn zdex_occurrence_burn_port_v1(
+    profile_root: &RootV1,
+    route_release_id: &RootV1,
+    command_occurrence_id: &RootV1,
+) -> AbiResultV1<String> {
+    for (root, field) in [
+        (profile_root, "ZDEX burn port profile root"),
+        (route_release_id, "ZDEX burn port route release"),
+        (command_occurrence_id, "ZDEX burn port occurrence"),
+    ] {
+        root.validate(field, false)?;
+    }
+    #[derive(Serialize)]
+    struct BurnPort<'a> {
+        schema: &'static str,
+        profile_root: &'a RootV1,
+        route_release_id: &'a RootV1,
+        command_occurrence_id: &'a RootV1,
+    }
+    Ok(hash_global_v1(
+        "zdex-occurrence-burn-port-v1",
+        &BurnPort {
+            schema: GLOBAL_SETTLEMENT_ABI_V1,
+            profile_root,
+            route_release_id,
+            command_occurrence_id,
+        },
+    )?
+    .to_string())
+}
 
 fn port_schema_root_v1(port_name: &str) -> AbiResultV1<RootV1> {
     #[derive(Serialize)]
