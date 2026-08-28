@@ -140,7 +140,7 @@ test('value route presentation rejects inherited enable flags', () => {
   });
 });
 
-test('value route presentation accepts only exact owned true flags', () => {
+test('current profile rejects exact owned true value-route flags', () => {
   const presentation = getRuntimeValueRoutePresentationV1({
     perpsWalletUiEnabled: true,
     zusdTauWalletUiEnabled: false,
@@ -148,9 +148,9 @@ test('value route presentation accepts only exact owned true flags', () => {
   });
 
   assert.deepEqual(presentation, {
-    perpsWalletEnabled: true,
+    perpsWalletEnabled: false,
     zusdTauWalletEnabled: false,
-    zusdMonetaryWalletEnabled: true,
+    zusdMonetaryWalletEnabled: false,
   });
 });
 
@@ -165,7 +165,7 @@ test('value route presentation is an immutable snapshot', () => {
   runtimeConfig.perpsWalletUiEnabled = false;
 
   assert.equal(Object.isFrozen(presentation), true);
-  assert.equal(presentation.perpsWalletEnabled, true);
+  assert.equal(presentation.perpsWalletEnabled, false);
   assert.throws(() => {
     presentation.perpsWalletEnabled = false;
   }, TypeError);

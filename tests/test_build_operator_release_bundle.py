@@ -132,6 +132,38 @@ def _add_regular_member(tar: tarfile.TarFile, name: str, payload: bytes = b"x") 
     tar.addfile(info, io.BytesIO(payload))
 
 
+def _bind_manifest_to_archive(manifest_path: Path, archive_path: Path) -> None:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["archive_sha256"] = release_builder._sha256_file(archive_path)
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_canonical_gzip(path: Path, payload: bytes) -> None:
+    with path.open("wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+            compressed.write(payload)
+
+
+def _expected_parse_rejection(manifest_path: Path, error: str) -> dict[str, object]:
+    return {
+        "schema": "zenodex.operator_candidate_bundle.verify_report.v1",
+        "ok": False,
+        "status": "REJECTED_UNADMITTED_CANDIDATE",
+        "errors": [error],
+        "authority": "NONE",
+        "release_eligible": False,
+        "vm_gates_closed": [],
+        "current_profile_id": "local-testnet-retired-bridge-quarantine-v1",
+        "version": None,
+        "archive_name": None,
+        "archive_sha256": None,
+        "manifest_sha256": release_builder._sha256_file(manifest_path),
+    }
+
+
 def test_current_profile_rejects_release_bundle_before_filesystem_effect(
     tmp_path: Path,
 ) -> None:
@@ -419,6 +451,153 @@ def test_operator_candidate_bundle_verify_rejects_tampered_archive(tmp_path: Pat
 
     assert verify["ok"] is False
     assert "archive_sha256 mismatch" in verify["errors"]
+
+
+def test_operator_candidate_verifier_rejects_hash_bound_trailing_payload(
+    tmp_path: Path,
+) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_candidate_bundle(
+        root=root, out_dir=tmp_path / "out", version="trailing"
+    )
+    archive_path = Path(report["archive_path"])
+    manifest_path = Path(report["manifest_path"])
+    with archive_path.open("ab") as fh:
+        fh.write(b"ZENODEX-UNVERIFIED-TRAILING-PAYLOAD")
+    _bind_manifest_to_archive(manifest_path, archive_path)
+
+    verify = verify_operator_candidate_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert "archive contains trailing data" in verify["errors"]
+
+
+def test_operator_candidate_verifier_rejects_concatenated_gzip_member(
+    tmp_path: Path,
+) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_candidate_bundle(
+        root=root, out_dir=tmp_path / "out", version="concatenated"
+    )
+    archive_path = Path(report["archive_path"])
+    manifest_path = Path(report["manifest_path"])
+    with archive_path.open("ab") as fh:
+        fh.write(gzip.compress(b"", mtime=0))
+    _bind_manifest_to_archive(manifest_path, archive_path)
+
+    verify = verify_operator_candidate_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert verify["errors"] == ["archive contains trailing data"]
+
+
+def test_operator_candidate_verifier_rejects_covert_tar_tail_inside_gzip(
+    tmp_path: Path,
+) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_candidate_bundle(
+        root=root, out_dir=tmp_path / "out", version="covert-tail"
+    )
+    archive_path = Path(report["archive_path"])
+    manifest_path = Path(report["manifest_path"])
+    tar_payload = gzip.decompress(archive_path.read_bytes())
+    _write_canonical_gzip(archive_path, tar_payload + b"covert-after-tar-end")
+    _bind_manifest_to_archive(manifest_path, archive_path)
+
+    verify = verify_operator_candidate_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert verify["errors"] == ["archive contains trailing data"]
+
+
+def test_operator_candidate_verifier_rejects_release_looking_archive_override(
+    tmp_path: Path,
+) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_candidate_bundle(
+        root=root, out_dir=tmp_path / "out", version="rename"
+    )
+    release_looking = tmp_path / "zenodex-operator-release-rename.tar.gz"
+    release_looking.write_bytes(Path(report["archive_path"]).read_bytes())
+
+    verify = verify_operator_candidate_manifest(
+        manifest_path=Path(report["manifest_path"]),
+        archive_path=release_looking,
+    )
+
+    assert verify["ok"] is False
+    assert verify["errors"] == ["archive basename does not match candidate manifest"]
+
+
+def test_operator_candidate_verification_receipt_binds_subject_and_non_authority(
+    tmp_path: Path,
+) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_candidate_bundle(
+        root=root, out_dir=tmp_path / "out", version="receipt"
+    )
+    manifest_path = Path(report["manifest_path"])
+
+    verify = verify_operator_candidate_manifest(manifest_path=manifest_path)
+
+    assert verify == {
+        "schema": "zenodex.operator_candidate_bundle.verify_report.v1",
+        "ok": True,
+        "status": "VERIFIED_UNADMITTED_CANDIDATE_NO_RELEASE_AUTHORITY",
+        "errors": [],
+        "authority": "NONE",
+        "release_eligible": False,
+        "vm_gates_closed": [],
+        "current_profile_id": "local-testnet-retired-bridge-quarantine-v1",
+        "version": "receipt",
+        "archive_name": "zenodex-operator-candidate-receipt.tar.gz",
+        "archive_sha256": release_builder._sha256_file(Path(report["archive_path"])),
+        "manifest_sha256": release_builder._sha256_file(manifest_path),
+    }
+
+
+def test_operator_candidate_verifier_rejects_symlink_manifest(tmp_path: Path) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_candidate_bundle(
+        root=root, out_dir=tmp_path / "out", version="manifest-link"
+    )
+    manifest_path = Path(report["manifest_path"])
+    manifest_link = tmp_path / "manifest-link.json"
+    manifest_link.symlink_to(manifest_path)
+
+    verify = verify_operator_candidate_manifest(manifest_path=manifest_link)
+
+    assert verify["ok"] is False
+    assert verify["errors"] == ["manifest cannot be read as a stable regular file"]
+
+
+def test_operator_candidate_verifier_rejects_manifest_path_swap_during_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_candidate_bundle(
+        root=root, out_dir=tmp_path / "out", version="manifest-swap"
+    )
+    manifest_path = Path(report["manifest_path"])
+    alternate = tmp_path / "alternate-manifest.json"
+    alternate.write_text("{}\n", encoding="utf-8")
+    real_status = release_builder._opened_path_status
+    swapped = False
+
+    def swap_then_check(path: Path, file: object, identity: object) -> str:
+        nonlocal swapped
+        if path == manifest_path and not swapped:
+            alternate.replace(manifest_path)
+            swapped = True
+        return real_status(path, file, identity)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(release_builder, "_opened_path_status", swap_then_check)
+
+    verify = verify_operator_candidate_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert verify["errors"] == ["manifest cannot be read as a stable regular file"]
 
 
 def test_archive_member_verifier_rejects_duplicate_regular_member(tmp_path: Path) -> None:
@@ -759,11 +938,10 @@ def test_operator_candidate_bundle_verify_rejects_excessive_json_nesting(
     verify = verify_operator_candidate_manifest(manifest_path=manifest_path)
 
     # Assert.
-    assert verify == {
-        "schema": "zenodex.operator_candidate_bundle.verify_report.v1",
-        "ok": False,
-        "errors": ["manifest cannot be parsed within structural resource ceiling"],
-    }
+    assert verify == _expected_parse_rejection(
+        manifest_path,
+        "manifest cannot be parsed within structural resource ceiling",
+    )
 
 
 def test_operator_candidate_bundle_verify_rejects_duplicate_manifest_key(
@@ -780,11 +958,10 @@ def test_operator_candidate_bundle_verify_rejects_duplicate_manifest_key(
     verify = verify_operator_candidate_manifest(manifest_path=manifest_path)
 
     # Assert.
-    assert verify == {
-        "schema": "zenodex.operator_candidate_bundle.verify_report.v1",
-        "ok": False,
-        "errors": ["manifest cannot be parsed within resource ceiling"],
-    }
+    assert verify == _expected_parse_rejection(
+        manifest_path,
+        "manifest cannot be parsed within resource ceiling",
+    )
 
 
 def test_operator_candidate_bundle_verify_rejects_manifest_above_byte_ceiling(

@@ -15,6 +15,7 @@ import sys
 import tarfile
 import tempfile
 import unicodedata
+import zlib
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -372,19 +373,36 @@ def _write_candidate_manifest(
 
 def verify_operator_candidate_manifest(*, manifest_path: Path, archive_path: Path | None = None) -> dict[str, Any]:
     """Verify candidate archive integrity without granting release authority."""
-    manifest, errors = _load_candidate_manifest(manifest_path)
+    candidate: _CandidateManifestV1 | None = None
+    actual_archive_sha256: str | None = None
+    archive_name: str | None = None
+    manifest, errors, manifest_sha256 = _load_candidate_manifest(manifest_path)
+
+    def report(report_errors: list[str]) -> dict[str, Any]:
+        return _verify_report(
+            report_errors,
+            candidate=candidate,
+            archive_name=archive_name,
+            archive_sha256=actual_archive_sha256,
+            manifest_sha256=manifest_sha256,
+        )
+
     if manifest is None:
-        return _verify_report(errors)
+        return report(errors)
     candidate, validation_errors = _validate_candidate_manifest(manifest)
     errors.extend(validation_errors)
     if errors:
-        return _verify_report(errors)
+        return report(errors)
     if candidate is None:
-        return _verify_report(["manifest validation produced no owned value"])
+        return report(["manifest validation produced no owned value"])
 
     archive = archive_path or (
         manifest_path.parent / f"zenodex-operator-candidate-{candidate.version}.tar.gz"
     )
+    archive_name = archive.name
+    expected_archive_name = f"zenodex-operator-candidate-{candidate.version}.tar.gz"
+    if archive_name != expected_archive_name:
+        return report(["archive basename does not match candidate manifest"])
     try:
         with _open_regular_readonly(archive) as (archive_file, identity):
             with tempfile.TemporaryFile(mode="w+b") as snapshot:
@@ -393,51 +411,62 @@ def verify_operator_candidate_manifest(*, manifest_path: Path, archive_path: Pat
                     destination=snapshot,
                     limit=MAX_ARCHIVE_COMPRESSED_BYTES_V1,
                 )
-                actual_sha = _sha256_file_bounded(
+                actual_archive_sha256 = _sha256_file_bounded(
                     snapshot,
                     MAX_ARCHIVE_COMPRESSED_BYTES_V1,
                 )
                 source_status = _opened_path_status(archive, archive_file, identity)
                 if source_status == "path_changed":
-                    return _verify_report(["archive path changed during verification"])
+                    return report(["archive path changed during verification"])
                 if source_status != "stable":
-                    return _verify_report(["archive changed during verification"])
-                if actual_sha != candidate.archive_sha256:
-                    return _verify_report(["archive_sha256 mismatch"])
+                    return report(["archive changed during verification"])
+                if actual_archive_sha256 != candidate.archive_sha256:
+                    return report(["archive_sha256 mismatch"])
                 if not _has_canonical_gzip_header(snapshot):
-                    return _verify_report(["archive gzip header is non-canonical"])
+                    return report(["archive gzip header is non-canonical"])
                 archive_errors = _verify_archive_file(
                     archive_file=snapshot,
                     manifest=candidate,
                 )
                 source_status = _opened_path_status(archive, archive_file, identity)
                 if source_status == "path_changed":
-                    return _verify_report(["archive path changed during verification"])
+                    return report(["archive path changed during verification"])
                 if source_status != "stable":
-                    return _verify_report(["archive changed during verification"])
+                    return report(["archive changed during verification"])
     except (OSError, ValueError):
-        return _verify_report(["archive cannot be read within resource ceiling"])
-    return _verify_report(archive_errors)
+        return report(["archive cannot be read within resource ceiling"])
+    return report(archive_errors)
 
 
-def _load_candidate_manifest(manifest_path: Path) -> tuple[dict[str, Any] | None, list[str]]:
+def _load_candidate_manifest(
+    manifest_path: Path,
+) -> tuple[dict[str, Any] | None, list[str], str | None]:
     try:
-        manifest_bytes = _read_bounded(manifest_path, MAX_MANIFEST_BYTES_V1)
+        with _open_regular_readonly(manifest_path) as (manifest_file, identity):
+            manifest_bytes = manifest_file.read(MAX_MANIFEST_BYTES_V1 + 1)
+            if _opened_path_status(manifest_path, manifest_file, identity) != "stable":
+                raise OSError("manifest changed during read")
+    except OSError:
+        return None, ["manifest cannot be read as a stable regular file"], None
+    manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+    if len(manifest_bytes) > MAX_MANIFEST_BYTES_V1:
+        return None, ["manifest cannot be parsed within resource ceiling"], manifest_sha256
+    try:
         decoded = json.loads(
             manifest_bytes.decode("utf-8"),
             object_pairs_hook=_reject_duplicate_json_keys,
         )
     except RecursionError:
-        return None, ["manifest cannot be parsed within structural resource ceiling"]
-    except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
-        return None, ["manifest cannot be parsed within resource ceiling"]
+        return None, ["manifest cannot be parsed within structural resource ceiling"], manifest_sha256
+    except (UnicodeError, json.JSONDecodeError, ValueError):
+        return None, ["manifest cannot be parsed within resource ceiling"], manifest_sha256
     if not isinstance(decoded, dict):
-        return None, ["manifest must be a JSON object"]
+        return None, ["manifest must be a JSON object"], manifest_sha256
     if not _json_structure_within_budget(decoded):
-        return decoded, ["manifest exceeds structural resource ceiling"]
+        return decoded, ["manifest exceeds structural resource ceiling"], manifest_sha256
     canonical = (json.dumps(decoded, indent=2, sort_keys=True) + "\n").encode("utf-8")
     errors = [] if manifest_bytes == canonical else ["manifest encoding is non-canonical"]
-    return decoded, errors
+    return decoded, errors, manifest_sha256
 
 
 def _validate_candidate_manifest(
@@ -563,11 +592,32 @@ def _validated_manifest_path(
     return relpath
 
 
-def _verify_report(errors: list[str]) -> dict[str, Any]:
+def _verify_report(
+    errors: list[str],
+    *,
+    candidate: _CandidateManifestV1 | None,
+    archive_name: str | None,
+    archive_sha256: str | None,
+    manifest_sha256: str | None,
+) -> dict[str, Any]:
+    admission = current_local_operator_release_admission_v1()
     return {
         "schema": "zenodex.operator_candidate_bundle.verify_report.v1",
         "ok": not errors,
+        "status": (
+            "REJECTED_UNADMITTED_CANDIDATE"
+            if errors
+            else "VERIFIED_UNADMITTED_CANDIDATE_NO_RELEASE_AUTHORITY"
+        ),
         "errors": errors,
+        "authority": admission.authority,
+        "release_eligible": False,
+        "vm_gates_closed": list(admission.vm_gates_closed),
+        "current_profile_id": admission.profile_id,
+        "version": candidate.version if candidate is not None else None,
+        "archive_name": archive_name,
+        "archive_sha256": archive_sha256,
+        "manifest_sha256": manifest_sha256,
     }
 
 
@@ -765,10 +815,15 @@ def _add_bundle_member(
         raise ValueError("bundle source must be a stable regular file") from exc
 
 
-def _canonical_tar_info(item: BundleFile, *, prefix: str) -> tarfile.TarInfo:
-    info = tarfile.TarInfo(f"{prefix}/{item.relative_path}")
+def _canonical_tar_info(
+    item: BundleFile | _CandidateManifestFileV1,
+    *,
+    prefix: str,
+) -> tarfile.TarInfo:
+    relpath = item.relative_path if isinstance(item, BundleFile) else item.path
+    info = tarfile.TarInfo(f"{prefix}/{relpath}")
     info.size = item.size_bytes
-    info.mode = _canonical_archive_mode(item.relative_path)
+    info.mode = _canonical_archive_mode(relpath)
     info.uid = 0
     info.gid = 0
     info.uname = ""
@@ -798,6 +853,11 @@ def _verify_archive_file(
 ) -> list[str]:
     expected = {item.path: item for item in manifest.files}
     prefix = f"zenodex-operator-candidate-{manifest.version}/"
+    actual_tar_sha256, actual_tar_size, gzip_error = _single_gzip_tar_fingerprint(
+        archive_file
+    )
+    if gzip_error is not None:
+        return [gzip_error]
     try:
         archive_file.seek(0)
         with gzip.GzipFile(fileobj=archive_file, mode="rb") as decompressed:
@@ -806,7 +866,13 @@ def _verify_archive_file(
                 MAX_ARCHIVE_UNCOMPRESSED_BYTES_V1,
             )
             with tarfile.open(fileobj=bounded, mode="r|") as tar:
-                errors, observed, member_count = _verify_archive_stream_members(
+                (
+                    errors,
+                    observed,
+                    member_count,
+                    canonical_tar_sha256,
+                    canonical_tar_size,
+                ) = _verify_archive_stream_members(
                     tar=tar,
                     expected=expected,
                     expected_order=tuple(item.path for item in manifest.files),
@@ -821,7 +887,45 @@ def _verify_archive_file(
         errors.append(f"archive missing manifest file: {relpath}")
     if member_count != len(expected):
         errors.append("archive member count differs from manifest")
+    if (
+        not errors
+        and (
+            actual_tar_sha256 != canonical_tar_sha256
+            or actual_tar_size != canonical_tar_size
+        )
+    ):
+        errors.append("archive contains trailing data")
     return errors
+
+
+def _single_gzip_tar_fingerprint(
+    archive_file: BinaryIO,
+) -> tuple[str | None, int, str | None]:
+    """Fingerprint one bounded gzip member and reject concatenated/trailing data."""
+
+    digest = hashlib.sha256()
+    decompressor = zlib.decompressobj(wbits=16 + zlib.MAX_WBITS)
+    total = 0
+    archive_file.seek(0)
+    try:
+        while chunk := archive_file.read(1024 * 1024):
+            if decompressor.eof:
+                return None, total, "archive contains trailing data"
+            remaining = MAX_ARCHIVE_UNCOMPRESSED_BYTES_V1 - total
+            payload = decompressor.decompress(chunk, remaining + 1)
+            total += len(payload)
+            if total > MAX_ARCHIVE_UNCOMPRESSED_BYTES_V1 or decompressor.unconsumed_tail:
+                return None, total, "archive decompression exceeds resource ceiling"
+            digest.update(payload)
+            if decompressor.unused_data:
+                return None, total, "archive contains trailing data"
+    except zlib.error:
+        return None, total, "archive cannot be parsed"
+    finally:
+        archive_file.seek(0)
+    if not decompressor.eof:
+        return None, total, "archive cannot be parsed"
+    return digest.hexdigest(), total, None
 
 
 def _verify_archive_stream_members(
@@ -830,12 +934,14 @@ def _verify_archive_stream_members(
     expected: dict[str, _CandidateManifestFileV1],
     expected_order: tuple[str, ...],
     prefix: str,
-) -> tuple[list[str], set[str], int]:
+) -> tuple[list[str], set[str], int, str, int]:
     errors: list[str] = []
     observed: set[str] = set()
     member_names: set[str] = set()
     member_count = 0
     total_payload_bytes = 0
+    canonical_digest = hashlib.sha256()
+    canonical_size = 0
     for member in tar:
         member_count += 1
         if member_count > MAX_ARCHIVE_MEMBERS_V1:
@@ -894,7 +1000,30 @@ def _verify_archive_stream_members(
         if hashlib.sha256(payload).hexdigest() != expected_item.sha256:
             errors.append(f"archive member sha256 mismatch: {relpath}")
             break
-    return errors, observed, member_count
+        canonical_header = _canonical_tar_info(
+            expected_item,
+            prefix=prefix.removesuffix("/"),
+        ).tobuf(format=tarfile.PAX_FORMAT)
+        canonical_digest.update(canonical_header)
+        canonical_digest.update(payload)
+        payload_padding = (-len(payload)) % tarfile.BLOCKSIZE
+        if payload_padding:
+            canonical_digest.update(b"\0" * payload_padding)
+        canonical_size += len(canonical_header) + len(payload) + payload_padding
+    if not errors:
+        canonical_digest.update(b"\0" * (tarfile.BLOCKSIZE * 2))
+        canonical_size += tarfile.BLOCKSIZE * 2
+        record_padding = (-canonical_size) % tarfile.RECORDSIZE
+        if record_padding:
+            canonical_digest.update(b"\0" * record_padding)
+            canonical_size += record_padding
+    return (
+        errors,
+        observed,
+        member_count,
+        canonical_digest.hexdigest(),
+        canonical_size,
+    )
 
 
 def _archive_member_metadata_is_canonical(

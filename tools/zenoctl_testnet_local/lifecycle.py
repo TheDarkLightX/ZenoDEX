@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from src.integration.local_route_quarantine import (
+    QUARANTINED_ROUTE_ENVIRONMENT_V1,
     current_local_operator_release_admission_v1,
     refuse_current_local_operator_operation_v1,
 )
@@ -179,8 +180,96 @@ class ConfidentialLocalFixture:
         }
 
 
+def _identity_bound_retired_route_manifest(
+    paths: mf.ManifestPaths,
+) -> dict[str, Any] | None:
+    """Recognize only the selected v2 stack when it records retired routes."""
+
+    if not paths.manifest_path.exists():
+        return None
+    manifest = _load_manifest_if_present(paths.manifest_path, allow_invalid=True)
+    if manifest is None:
+        return None
+    raw_lanes = manifest.get("enabled_lanes")
+    if type(raw_lanes) is not list:
+        return None
+    retired_lanes = {
+        lane
+        for lane in raw_lanes
+        if type(lane) is str and lane in QUARANTINED_ROUTE_ENVIRONMENT_V1
+    }
+    if not retired_lanes:
+        return None
+    expected_project = mf.compose_project_name(paths.out_dir)
+    if manifest.get("compose_project") != expected_project:
+        raise ValueError(
+            "refusing automatic quarantine of a collision-prone or foreign Compose identity"
+        )
+    return manifest
+
+
+def _quiesce_retired_route_stack(
+    *,
+    paths: mf.ManifestPaths,
+    engine_name: str,
+    remove_volumes: bool,
+) -> None:
+    """Stop the exact out-dir-derived project without trusting manifest paths."""
+
+    engine = cm.detect_engine(engine_name)
+    safe_manifest = {
+        "ports": {"ui": DEFAULT_UI_PORT},
+        "chain_id": DEFAULT_CHAIN_ID,
+        "network_id": DEFAULT_NETWORK_ID,
+        "host_paths": {},
+        "rendered_paths": {},
+        "zk_required": False,
+    }
+    cm.compose_down(
+        engine=engine,
+        project_name=mf.compose_project_name(paths.out_dir),
+        compose_files=[COMPOSE_FILE],
+        remove_volumes=remove_volumes,
+        env=_lifecycle_env_for_compose(safe_manifest, paths),
+    )
+
+
+def _retired_route_quiescence_report(paths: mf.ManifestPaths) -> dict[str, Any]:
+    admission = current_local_operator_release_admission_v1()
+    return {
+        "schema": "zenodex.local_testnet.retired_route_quiescence.v1",
+        "ok": False,
+        "status": "retired_route_stack_stopped",
+        "manifest_path": str(paths.manifest_path),
+        "current_profile_id": admission.profile_id,
+        "authority": admission.authority,
+        "vm_gates_closed": list(admission.vm_gates_closed),
+    }
+
+
 def cmd_up(opts: UpOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
+    retired_manifest = _identity_bound_retired_route_manifest(paths)
+    if retired_manifest is not None:
+        if opts.force:
+            _refuse_unsafe_reset_target(paths.out_dir)
+            _quiesce_retired_route_stack(
+                paths=paths,
+                engine_name=opts.engine,
+                remove_volumes=True,
+            )
+            shutil.rmtree(paths.out_dir, ignore_errors=True)
+        else:
+            _quiesce_retired_route_stack(
+                paths=paths,
+                engine_name=opts.engine,
+                remove_volumes=False,
+            )
+            _log(
+                "quarantine",
+                "stopped identity-bound stack with retired value routes; use --force to rebuild the current profile",
+            )
+            return 2
     existing_manifest = _load_manifest_if_present(paths.manifest_path, allow_invalid=opts.force)
     if existing_manifest is not None:
         if not opts.force:
@@ -437,6 +526,13 @@ def _existing_manifest_zk_request_gap(*, opts: UpOptions, manifest: Mapping[str,
 
 def cmd_down(opts: DownOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
+    if _identity_bound_retired_route_manifest(paths) is not None:
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        return 0
     manifest = _load_manifest_if_present(paths.manifest_path)
     if manifest is None:
         _log("down", f"no manifest at {paths.manifest_path}; nothing to do")
@@ -456,6 +552,17 @@ def cmd_down(opts: DownOptions) -> int:
 
 def cmd_status(opts: StatusOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
+    if _identity_bound_retired_route_manifest(paths) is not None:
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        _emit_status(
+            _retired_route_quiescence_report(paths),
+            as_json=opts.as_json,
+        )
+        return 2
     manifest = _load_manifest_if_present(paths.manifest_path)
     if manifest is None:
         report = {"ok": False, "status": "no_manifest", "manifest_path": str(paths.manifest_path)}
@@ -497,6 +604,14 @@ def cmd_status(opts: StatusOptions) -> int:
 
 def cmd_smoke(opts: SmokeOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
+    if _identity_bound_retired_route_manifest(paths) is not None:
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        print(json.dumps(_retired_route_quiescence_report(paths), indent=2, sort_keys=True))
+        return 2
     manifest = _load_manifest_if_present(paths.manifest_path)
     if manifest is None:
         report = {"ok": False, "status": "no_manifest", "manifest_path": str(paths.manifest_path)}
@@ -566,7 +681,13 @@ def cmd_smoke(opts: SmokeOptions) -> int:
 
 
 def cmd_release_smoke(opts: ReleaseSmokeOptions) -> int:
-    _ = opts
+    paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
+    if _identity_bound_retired_route_manifest(paths) is not None:
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
     admission = current_local_operator_release_admission_v1()
     report = {
         "schema": "zenodex.local_testnet.release_flow_smoke_report.v1",
@@ -598,6 +719,14 @@ def cmd_public_up(opts: PublicUpOptions) -> int:
 
 def cmd_logs(opts: LogsOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
+    if _identity_bound_retired_route_manifest(paths) is not None:
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        _log("quarantine", "retired-route stack stopped; no logs are admitted")
+        return 2
     manifest = _load_manifest_if_present(paths.manifest_path)
     if manifest is None:
         _log("logs", f"no manifest at {paths.manifest_path}")
@@ -617,6 +746,15 @@ def cmd_logs(opts: LogsOptions) -> int:
 
 def cmd_reset(opts: ResetOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
+    if _identity_bound_retired_route_manifest(paths) is not None:
+        _refuse_unsafe_reset_target(paths.out_dir)
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=True,
+        )
+        shutil.rmtree(paths.out_dir, ignore_errors=True)
+        return 0
     manifest = _load_manifest_if_present(paths.manifest_path)
     _reset_stack(paths=paths, engine_name=opts.engine, manifest=manifest)
     return 0
@@ -1001,6 +1139,9 @@ def _refresh_existing_runtime_config(path: Path) -> None:
             "allowBrowserKeyGeneration": True,
             "allowDefaultExternalSigner": True,
             "defaultExternalSigner": default_external_signer,
+            "perpsWalletUiEnabled": False,
+            "zusdTauWalletUiEnabled": False,
+            "zusdMonetaryWalletUiEnabled": False,
             "uiSurfaceContractSchema": "zenodex.dex_ui.surface_contract.v1",
             "uiSurfaceContractVersion": ng.ui_surface_contract_version(),
             "uiSurfaceContractHash": ng.ui_surface_contract_hash(),
@@ -1504,7 +1645,7 @@ def _seed_api_state(
     tau_rpc_timeout_s: float,
 ) -> dict[str, Any]:
     _ = (engine, project, env, roles, chain_id, tau_rpc_timeout_s)
-    refuse_current_local_operator_operation_v1("seed_api_state")
+    return refuse_current_local_operator_operation_v1("seed_api_state")
 
 
 def _seed_api_state_historical_donor(
@@ -1517,6 +1658,8 @@ def _seed_api_state_historical_donor(
     tau_rpc_timeout_s: float,
 ) -> dict[str, Any]:
     """Retained unmounted seed implementation for later current-Tau refinement."""
+
+    refuse_current_local_operator_operation_v1("historical_seed_api_state_donor")
 
     payload = {
         "chain_id": chain_id,
@@ -2506,7 +2649,7 @@ def _materialize_release_native_collateral(
     amount_e8: int,
 ) -> dict[str, Any]:
     _ = (engine, compose_project, env, roles, amount_e8)
-    refuse_current_local_operator_operation_v1("materialize_release_native_collateral")
+    return refuse_current_local_operator_operation_v1("materialize_release_native_collateral")
 
 
 def _materialize_release_native_collateral_historical_donor(
@@ -2518,6 +2661,10 @@ def _materialize_release_native_collateral_historical_donor(
     amount_e8: int,
 ) -> dict[str, Any]:
     """Retained unmounted collateral materializer for later route refinement."""
+
+    refuse_current_local_operator_operation_v1(
+        "historical_release_native_collateral_donor"
+    )
 
     owner = roles["alice"]
     preferred_refiller_names = [
@@ -2704,7 +2851,7 @@ def _run_release_flow_smoke(
     env: Mapping[str, str],
 ) -> dict[str, Any]:
     _ = (ui_base, paths, manifest, engine, compose_project, env)
-    refuse_current_local_operator_operation_v1("release_flow_smoke")
+    return refuse_current_local_operator_operation_v1("release_flow_smoke")
 
 
 def _run_release_flow_smoke_historical_donor(
@@ -2717,6 +2864,8 @@ def _run_release_flow_smoke_historical_donor(
     env: Mapping[str, str],
 ) -> dict[str, Any]:
     """Retained unmounted release smoke for later route refinement."""
+
+    refuse_current_local_operator_operation_v1("historical_release_flow_smoke_donor")
 
     key_bundle_path = Path(str(manifest["fixture_paths"]["key_bundle"]))
     roles = _role_materials(_load_json_file(key_bundle_path, label="key bundle"))
@@ -3261,7 +3410,7 @@ def _run_cloudflare_quick_tunnel(
     manifest: Mapping[str, Any],
 ) -> int:
     _ = (opts, paths, manifest)
-    refuse_current_local_operator_operation_v1("cloudflare_quick_tunnel")
+    return refuse_current_local_operator_operation_v1("cloudflare_quick_tunnel")
 
 
 def _run_cloudflare_quick_tunnel_historical_donor(
@@ -3271,6 +3420,10 @@ def _run_cloudflare_quick_tunnel_historical_donor(
     manifest: Mapping[str, Any],
 ) -> int:
     """Retained unmounted public tunnel workflow for later release admission."""
+
+    refuse_current_local_operator_operation_v1(
+        "historical_cloudflare_quick_tunnel_donor"
+    )
 
     runner = _resolve_cloudflared_runner(opts.cloudflared_bin, engine=opts.engine)
     if runner is None:
@@ -3696,7 +3849,7 @@ def _zusd_transfer_payload(
     deadline: int,
 ) -> dict[str, Any]:
     _ = (ui_base, roles, deadline)
-    refuse_current_local_operator_operation_v1("zusd_transfer_payload")
+    return refuse_current_local_operator_operation_v1("zusd_transfer_payload")
 
 
 def _zusd_transfer_payload_historical_donor(
@@ -3706,6 +3859,8 @@ def _zusd_transfer_payload_historical_donor(
     deadline: int,
 ) -> dict[str, Any]:
     """Retained unmounted stream-9 transfer smoke payload builder."""
+
+    refuse_current_local_operator_operation_v1("historical_zusd_transfer_payload_donor")
 
     alice = _role_pubkey(roles, "alice")
     bob = _role_pubkey(roles, "bob")
@@ -3778,7 +3933,7 @@ def _run_perps_wallet_cycle_smoke(
     settles it, then advances once so the browser/UI smoke can publish again.
     """
     _ = (ui_base, market_id, roles, deadline, zk_required)
-    refuse_current_local_operator_operation_v1("perps_wallet_cycle_smoke")
+    return refuse_current_local_operator_operation_v1("perps_wallet_cycle_smoke")
 
 
 def _run_perps_wallet_cycle_smoke_historical_donor(
@@ -3790,6 +3945,10 @@ def _run_perps_wallet_cycle_smoke_historical_donor(
     zk_required: bool = False,
 ) -> dict[str, Any]:
     """Retained unmounted stream-8 perps cycle for later route refinement."""
+
+    refuse_current_local_operator_operation_v1(
+        "historical_perps_wallet_cycle_smoke_donor"
+    )
 
     steps: dict[str, dict[str, Any]] = {}
 

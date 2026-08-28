@@ -261,7 +261,8 @@ tips, and `common_header_match: true`.
 
 - **Loopback only.** Only nginx exposes a host port (`127.0.0.1:18080`). All
   backend services live on the compose network and cannot be reached from
-  outside the host unless `public-up` starts a Quick Tunnel.
+  outside the host. The current profile refuses `public-up` and does not start
+  a Quick Tunnel.
 - **Browser never holds bearer tokens.** The UI calls relative `/api/*`
   paths; nginx injects the right bearer token server-side. The rendered
   `nginx.local-testnet.conf` contains the live tokens (mode 0600); the
@@ -272,21 +273,16 @@ tips, and `common_header_match: true`.
   profile, signer threshold, recovery policies, recovery/rotation exercises,
   device approval, signer ceremony, hardware or fixture custody, and encrypted
   SSS backup checks are ready.
-- **Encrypted SSS backup fixture.** The local fixture set includes a 3-of-5
+- **Encrypted SSS backup donor fixture.** The retained fixture set includes a 3-of-5
   Shamir backup of the perps wallet fixture key. Each share is encrypted with
   `cryptography` AES-256-GCM using HKDF-derived per-recipient keys before it is
   assigned to recovery email, cloud-drive (`dropbox`/`box` style), or
-  offline-export transport. The public runtime config receives only encrypted
-  backup receipts. A separate mode-0600 recipient replay-key fixture is mounted
-  into the local API so status can decrypt threshold shares, reconstitute the
-  fixture key, verify the subject public key, and replay hostile-share checks
-  instead of trusting self-attested booleans. Status also requires provider
-  diversity, per-envelope delivery receipts, and no raw key/share material in
-  public reports. The runtime no longer fabricates external provider-delivery
-  receipts: provider delivery uses configured SMTP/cloud/offline export
-  backends or fails closed. Hardware custody evidence, strict ZK artifacts, and
-  production promotion evidence remain separate gates. This is still a
-  local-testnet fixture and sets `production_security_claim=false`.
+  offline-export transport. The recipient replay-key fixture remains offline
+  test material. The current API container receives no fixtures mount and no
+  perps authority, recovery, signer, backup, or reconstruction file. Direct
+  isolated evaluator tests may supply the donor fixtures explicitly. Hardware
+  custody evidence, strict ZK artifacts, and production promotion evidence
+  remain separate gates. The fixture sets `production_security_claim=false`.
 - **Public tunnel posture.** `public-up` currently refuses before resolving or
   starting a tunnel. Historical tunnel instructions below are donor material.
 - **Fixture keys are local-only.** They are deterministic per-out-dir and

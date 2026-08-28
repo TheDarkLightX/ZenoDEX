@@ -72,7 +72,11 @@ python3 tools/build_operator_release_bundle.py verify \
 
 The `build` subcommand refuses before writing files while the current operator
 profile is release-ineligible. Candidate archives grant no release or
-publication authority.
+publication authority. A successful candidate verification report binds the
+manifest hash, archive hash, canonical candidate basename, current profile,
+`authority: NONE`, `release_eligible: false`, and the empty VM-gate set. The
+verifier rejects symlinked or changing manifests, renamed archives,
+concatenated gzip members, and noncanonical tar tails.
 
 ## 2. Operator Preflight
 

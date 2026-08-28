@@ -101,10 +101,11 @@ exist.
 
 The checked-in `zenodex-config.json` also keeps
 `perpsWalletUiEnabled`, `zusdTauWalletUiEnabled`, and
-`zusdMonetaryWalletUiEnabled` exactly `false`. These are presentation gates,
-not settlement authority. The executable UI contract rejects a missing or
-non-false current-profile value, and the backend independently refuses the
-corresponding routes.
+`zusdMonetaryWalletUiEnabled` exactly `false`. The current profile ignores
+runtime attempts to set these fields to `true`, and restart refresh overwrites
+them with exact `false` values. The executable UI contract rejects a missing or
+non-false checked-in value. The backend independently refuses the corresponding
+routes. These fields carry no settlement authority.
 
 The Tau node can run through the local-node Docker profile:
 

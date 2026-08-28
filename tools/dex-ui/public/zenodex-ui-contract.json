@@ -1,6 +1,6 @@
 {
   "schema": "zenodex.dex_ui.surface_contract.v1",
-  "version": "dex-ui-current-route-quarantine-20260828-v1",
+  "version": "dex-ui-current-route-quarantine-20260828-v2",
   "purpose": "Pin retained product surfaces and require current-profile perps and zUSD value-route controls to remain fail-closed.",
   "current_quarantined_value_route_ui_flags": [
     "perpsWalletUiEnabled",
@@ -37,8 +37,8 @@
   },
   {
     "path": "src/lib/api.js",
-    "contains": "getRuntimeValueRoutePresentationV1",
-    "reason": "value-route presentation snapshots exact owned booleans and fails closed on malformed runtime config"
+    "contains": "return CURRENT_PROFILE_QUARANTINED_VALUE_ROUTES_V1;",
+    "reason": "current-profile value-route presentation is structurally false and ignores browser runtime input"
   },
   {
     "path": "src/lib/PerpProvider.jsx",

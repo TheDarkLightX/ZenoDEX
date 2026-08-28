@@ -24,7 +24,7 @@ import sys
 from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Mapping
+from typing import Callable, Mapping
 
 import pytest
 import yaml
@@ -189,6 +189,130 @@ def test_manifest_rejects_retired_tau_value_lanes(tmp_path: Path, lane: str) -> 
     assert mf.validate_manifest(body) == [
         f"enabled_lanes contains unmountable lanes: [{lane!r}]"
     ]
+
+
+@pytest.mark.parametrize(
+    ("operation", "expected_code"),
+    (
+        ("up", 2),
+        ("down", 0),
+        ("status", 2),
+        ("smoke", 2),
+        ("release_smoke", 2),
+        ("public_up", 2),
+        ("logs", 2),
+        ("reset", 0),
+    ),
+)
+def test_identity_bound_retired_route_manifest_is_quiesced_before_lifecycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    expected_code: int,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].extend(
+        ["PERPS_WALLET_API_ENABLED", "ZUSD_MONETARY_WALLET_API_ENABLED"]
+    )
+    path = tmp_path / mf.MANIFEST_FILENAME
+    path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    calls: list[dict[str, object]] = []
+
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(lc.shutil, "rmtree", lambda *_args, **_kwargs: None)
+
+    if operation == "up":
+        code = lc.cmd_up(lc.UpOptions(out_dir=tmp_path))
+    elif operation == "down":
+        code = lc.cmd_down(lc.DownOptions(out_dir=tmp_path))
+    elif operation == "status":
+        code = lc.cmd_status(lc.StatusOptions(out_dir=tmp_path, as_json=True))
+    elif operation == "smoke":
+        code = lc.cmd_smoke(lc.SmokeOptions(out_dir=tmp_path, browser="off"))
+    elif operation == "release_smoke":
+        code = lc.cmd_release_smoke(lc.ReleaseSmokeOptions(out_dir=tmp_path))
+    elif operation == "public_up":
+        code = lc.cmd_public_up(lc.PublicUpOptions(out_dir=tmp_path))
+    elif operation == "logs":
+        code = lc.cmd_logs(lc.LogsOptions(out_dir=tmp_path))
+    elif operation == "reset":
+        code = lc.cmd_reset(lc.ResetOptions(out_dir=tmp_path))
+    else:
+        raise AssertionError(operation)
+
+    assert code == expected_code
+    assert len(calls) == 1
+    assert calls[0]["project_name"] == mf.compose_project_name(tmp_path)
+    assert calls[0]["compose_files"] == [lc.COMPOSE_FILE]
+    assert calls[0]["remove_volumes"] is (operation == "reset")
+
+
+def test_foreign_retired_route_manifest_cannot_stop_an_unrelated_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("PERPS_WALLET_API_ENABLED")
+    body["compose_project"] = "zenodex-local-testnet-v2-" + ("0" * 32)
+    path = tmp_path / mf.MANIFEST_FILENAME
+    path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    effects: list[str] = []
+
+    def record_engine_detection(_name: str) -> object:
+        effects.append("engine")
+        return object()
+
+    monkeypatch.setattr(
+        lc.cm,
+        "detect_engine",
+        record_engine_detection,
+    )
+
+    with pytest.raises(ValueError, match="unsafe identity binding"):
+        lc.cmd_down(lc.DownOptions(out_dir=tmp_path))
+
+    assert effects == []
+
+
+def test_force_up_quiesces_and_removes_retired_route_state_before_rebuild(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("PERPS_WALLET_API_ENABLED")
+    manifest_path = tmp_path / mf.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    calls: list[dict[str, object]] = []
+
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+
+    def stop_before_rebuild(_repo_root: Path) -> None:
+        raise RuntimeError("rebuild preflight reached")
+
+    monkeypatch.setattr(lc.cm, "check_external_tau_testnet_present", stop_before_rebuild)
+
+    with pytest.raises(RuntimeError, match="rebuild preflight reached"):
+        lc.cmd_up(lc.UpOptions(out_dir=tmp_path, force=True))
+
+    assert len(calls) == 1
+    assert calls[0]["project_name"] == mf.compose_project_name(tmp_path)
+    assert calls[0]["remove_volumes"] is True
+    assert tmp_path.is_dir()
+    assert not manifest_path.exists()
 
 
 def test_manifest_mountable_lane_registry_excludes_retired_tau_routes() -> None:
@@ -1668,6 +1792,9 @@ def test_runtime_config_has_no_tokens() -> None:
     assert "Bearer" not in serialized
     assert "writer" not in serialized.lower()
     assert "token" not in serialized.lower()
+    assert parsed["perpsWalletUiEnabled"] is False
+    assert parsed["zusdTauWalletUiEnabled"] is False
+    assert parsed["zusdMonetaryWalletUiEnabled"] is False
 
 
 def test_runtime_config_rejects_overriding_builtin_keys() -> None:
@@ -1683,6 +1810,13 @@ def test_runtime_config_rejects_overriding_builtin_keys() -> None:
         ng.render_runtime_config(extra={"defaultExternalSigner": {}})
     with pytest.raises(ValueError, match="conflicts"):
         ng.render_runtime_config(extra={"uiSurfaceContractVersion": "old-ui"})
+    for field in (
+        "perpsWalletUiEnabled",
+        "zusdTauWalletUiEnabled",
+        "zusdMonetaryWalletUiEnabled",
+    ):
+        with pytest.raises(ValueError, match="conflicts"):
+            ng.render_runtime_config(extra={field: True})
 
 
 def test_existing_runtime_config_refresh_updates_ui_contract(tmp_path: Path) -> None:
@@ -1694,6 +1828,9 @@ def test_existing_runtime_config_refresh_updates_ui_contract(tmp_path: Path) -> 
         json.dumps(
             {
                 "demoMode": True,
+                "perpsWalletUiEnabled": True,
+                "zusdTauWalletUiEnabled": True,
+                "zusdMonetaryWalletUiEnabled": True,
                 "uiSurfaceContractSchema": "zenodex.dex_ui.surface_contract.v1",
                 "uiSurfaceContractVersion": "old-ui",
                 "uiSurfaceContractHash": "sha256:stale",
@@ -1707,6 +1844,9 @@ def test_existing_runtime_config_refresh_updates_ui_contract(tmp_path: Path) -> 
 
     assert parsed["demoMode"] is False
     assert parsed["allowBrowserKeyGeneration"] is True
+    assert parsed["perpsWalletUiEnabled"] is False
+    assert parsed["zusdTauWalletUiEnabled"] is False
+    assert parsed["zusdMonetaryWalletUiEnabled"] is False
     assert parsed["uiSurfaceContractSchema"] == "zenodex.dex_ui.surface_contract.v1"
     assert parsed["uiSurfaceContractVersion"] == ng.ui_surface_contract_version()
     assert parsed["uiSurfaceContractHash"] == ng.ui_surface_contract_hash()
@@ -1854,6 +1994,86 @@ def test_compose_overlay_quarantines_retired_perps_and_zusd_monetary_routes() ->
     assert env["ZUSD_MONETARY_WALLET_API_ENABLED"] == "false"
     assert env["ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING"] == "false"
     assert env["ZUSD_MONETARY_WALLET_AUTO_MINE"] == "false"
+
+
+def test_quarantined_api_mount_has_no_retired_route_reconstitution_material() -> None:
+    doc = _load_compose_overlay()
+    service = doc["services"]["zenodex-api"]
+    env = service["environment"]
+    forbidden_environment = {
+        "PERPS_WALLET_AUTHORITY_PROFILE_FILE",
+        "PERPS_WALLET_RECOVERY_EXERCISE_FILE",
+        "PERPS_WALLET_ROTATION_EXERCISE_FILE",
+        "PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_FILE",
+        "PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_FILE",
+        "PERPS_WALLET_SIGNER_PROMPT_CAPTURE_FILE",
+        "PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_FILE",
+        "PERPS_WALLET_ENCRYPTED_SSS_BACKUP_FILE",
+        "PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_FILE",
+    }
+
+    assert forbidden_environment.isdisjoint(env)
+    assert all("/app/fixtures" not in str(volume) for volume in service.get("volumes", []))
+
+
+def test_historical_donor_helpers_refuse_before_any_effect() -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    calls: tuple[tuple[Callable[..., object], dict[str, object]], ...] = (
+        (
+            lc._seed_api_state_historical_donor,
+            {
+                "engine": None,
+                "project": "retired",
+                "env": {},
+                "roles": {},
+                "chain_id": "retired",
+                "tau_rpc_timeout_s": 1.0,
+            },
+        ),
+        (
+            lc._materialize_release_native_collateral_historical_donor,
+            {
+                "engine": None,
+                "compose_project": "retired",
+                "env": {},
+                "roles": {},
+                "amount_e8": 1,
+            },
+        ),
+        (
+            lc._run_release_flow_smoke_historical_donor,
+            {
+                "ui_base": "http://127.0.0.1:1",
+                "paths": None,
+                "manifest": {},
+                "engine": None,
+                "compose_project": "retired",
+                "env": {},
+            },
+        ),
+        (
+            lc._run_cloudflare_quick_tunnel_historical_donor,
+            {"opts": None, "paths": None, "manifest": {}},
+        ),
+        (
+            lc._zusd_transfer_payload_historical_donor,
+            {"ui_base": "http://127.0.0.1:1", "roles": {}, "deadline": 0},
+        ),
+        (
+            lc._run_perps_wallet_cycle_smoke_historical_donor,
+            {
+                "ui_base": "http://127.0.0.1:1",
+                "market_id": "retired",
+                "roles": {},
+                "deadline": 0,
+            },
+        ),
+    )
+
+    for helper, kwargs in calls:
+        with pytest.raises(RuntimeError, match="retired Tau value routes"):
+            helper(**kwargs)
 
 
 def test_compose_overlay_autotrader_uses_persistent_execution_journal() -> None:

@@ -15,8 +15,16 @@ The current runtime profile sets the perps, zUSD token-transfer, and zUSD
 monetary UI route flags exactly `false`. Perps retains a read-only market view
 while hiding its operator console. The zUSD tab renders a read-only quarantine
 notice without mounting quick-mint, monetary, token-transfer, or signer
-controls. URL and build-time requests cannot override these current-profile
-gates.
+controls. The current UI code ignores runtime, URL, and build-time requests to
+enable these routes. Restart refresh overwrites all three runtime fields with
+exact `false` values.
+
+An identity-bound prior-profile stack that records any retired value route is
+stopped before `up`, `down`, `status`, `smoke`, `release-smoke`, `public-up`,
+`logs`, or `reset` proceeds. The current API container receives no mounted
+fixture directory and no perps authority, recovery, signer, or SSS
+reconstruction file. Retained historical donor helpers begin with the same
+typed current-profile refusal as their public replacements.
 
 Every later use of "mounted" in this dated note describes the superseded
 2026-05-20 research profile.

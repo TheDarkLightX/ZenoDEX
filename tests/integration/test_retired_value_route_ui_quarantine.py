@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import socket
@@ -66,7 +67,7 @@ def _dump_dom(chrome: str, *, profile: Path, url: str) -> str:
 
 
 def test_current_profile_hides_quarantined_value_route_controls(tmp_path: Path) -> None:
-    """Given hostile UI overrides, retired routes remain visibly read-only."""
+    """Given hostile runtime and URL overrides, retired routes remain read-only."""
 
     chrome_candidate = _chrome_binary()
     if chrome_candidate is None:
@@ -77,11 +78,35 @@ def test_current_profile_hides_quarantined_value_route_controls(tmp_path: Path) 
     if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
         pytest.skip("tools/dex-ui dependencies are not installed")
 
+    isolated_ui = tmp_path / "dex-ui"
+    shutil.copytree(
+        DEX_UI,
+        isolated_ui,
+        ignore=shutil.ignore_patterns("dist", "node_modules"),
+    )
+    (isolated_ui / "node_modules").symlink_to(
+        DEX_UI / "node_modules",
+        target_is_directory=True,
+    )
+    runtime_config_path = isolated_ui / "public" / "zenodex-config.json"
+    hostile_config = json.loads(runtime_config_path.read_text(encoding="utf-8"))
+    hostile_config.update(
+        {
+            "perpsWalletUiEnabled": True,
+            "zusdTauWalletUiEnabled": True,
+            "zusdMonetaryWalletUiEnabled": True,
+        }
+    )
+    runtime_config_path.write_text(
+        json.dumps(hostile_config, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
-        cwd=DEX_UI,
+        cwd=isolated_ui,
         env={**os.environ, "API_PROXY_TARGET": "", "VITE_DEMO_MODE": "false"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
