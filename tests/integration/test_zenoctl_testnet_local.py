@@ -377,6 +377,41 @@ def test_reset_preserves_retired_origin_identity_until_fresh_port_rebuild(
     assert manifest_path.is_file()
 
 
+def test_force_up_rejects_malformed_retired_origin_identity_after_quiescence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("PERPS_WALLET_API_ENABLED")
+    body["ports"]["ui"] = True
+    manifest_path = tmp_path / mf.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    calls: list[dict[str, object]] = []
+    preflight: list[str] = []
+
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        lambda _repo_root: preflight.append("rebuild"),
+    )
+
+    code = lc.cmd_up(lc.UpOptions(out_dir=tmp_path, force=True, ui_port=18080))
+
+    assert code == 2
+    assert len(calls) == 1
+    assert calls[0]["remove_volumes"] is False
+    assert manifest_path.is_file()
+    assert preflight == []
+
+
 def test_manifest_mountable_lane_registry_excludes_retired_tau_routes() -> None:
     from tools.zenoctl_testnet_local import manifest as mf
 

@@ -252,7 +252,20 @@ def cmd_up(opts: UpOptions) -> int:
     retired_manifest = _identity_bound_retired_route_manifest(paths)
     if retired_manifest is not None:
         if opts.force:
-            retired_ui_port = _manifest_ui_port(retired_manifest)
+            try:
+                retired_ui_port = _manifest_ui_port(retired_manifest)
+            except ValueError:
+                _quiesce_retired_route_stack(
+                    paths=paths,
+                    engine_name=opts.engine,
+                    remove_volumes=False,
+                )
+                _log(
+                    "quarantine",
+                    "stopped identity-bound stack; its historical UI port is invalid, "
+                    "so automatic rebuild is refused",
+                )
+                return 2
             if opts.ui_port == retired_ui_port:
                 _quiesce_retired_route_stack(
                     paths=paths,
@@ -1216,7 +1229,7 @@ def _manifest_ui_port(manifest: Mapping[str, Any]) -> int:
     if not isinstance(ports, Mapping):
         raise ValueError("manifest ports missing")
     port = ports.get("ui")
-    if not isinstance(port, int) or not (1 <= port <= 65535):
+    if type(port) is not int or not (1 <= port <= 65535):
         raise ValueError(f"manifest ui port invalid: {port!r}")
     return port
 
