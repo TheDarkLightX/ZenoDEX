@@ -55,6 +55,7 @@ GIT_TIMEOUT_SECONDS_V1 = 5.0
 _READ_CHUNK_BYTES_V1: Final = 65_536
 _SHELL_PATH_LIMIT_V1: Final = 256
 _SHELL_DETAIL_LIMIT_V1: Final = 512
+_NATIVE_PATH_TYPE_V1: Final = type(REPO_ROOT)
 
 
 @dataclass(frozen=True)
@@ -277,8 +278,35 @@ def _git_tree_entry_v1(root: Path, commit: str, path: str) -> tuple[str, str, st
     return (recorded_path, mode, object_type, blob)
 
 
-def _open_parent_dir_v1(path: Path) -> tuple[int, str]:
-    absolute = Path(os.path.abspath(os.fspath(path)))
+def _require_inert_path_v1(path: object, role: str) -> Path:
+    """Accept only native path values before any path protocol can run.
+
+    Callers of these shell helpers can be hostile.  In particular, a
+    ``pathlib.Path`` subclass can override ``__fspath__``, ``__str__``, or
+    path composition.  Exact native paths and exact strings carry no such
+    caller-controlled dispatch.
+    """
+
+    if type(path) is str:
+        path_text = path
+        inert_path: Path | None = None
+    elif type(path) is _NATIVE_PATH_TYPE_V1:
+        inert_path = path
+        path_text = str(path)
+    else:
+        _shell_reject("FILE_PATH_TYPE", role, "requires an exact native path or exact str")
+    if "\x00" in path_text or any(0xD800 <= ord(character) <= 0xDFFF for character in path_text):
+        _shell_reject(
+            "FILE_PATH_ENCODING",
+            role,
+            "embedded NUL and lone Unicode surrogates are forbidden",
+        )
+    return Path(path_text) if inert_path is None else inert_path
+
+
+def _open_parent_dir_v1(path: Path | str) -> tuple[int, str]:
+    inert_path = _require_inert_path_v1(path, "filesystem path")
+    absolute = Path(os.path.abspath(str(inert_path)))
     parts = absolute.parts
     if len(parts) < 2 or parts[0] != os.sep or parts[-1] in {"", ".", ".."}:
         _shell_reject("FILE_PATH", str(path), "path must name an absolute file")
@@ -324,37 +352,43 @@ def _open_parent_dir_v1(path: Path) -> tuple[int, str]:
         raise
 
 
-def _read_bounded_regular_file_v1(path: Path, max_bytes: int, role: str) -> bytes:
+def _read_bounded_regular_file_v1(path: Path | str, max_bytes: int, role: str) -> bytes:
     """Read once through no-follow descriptors after regular-file and size checks."""
 
     if type(max_bytes) is not int or max_bytes < 0:
         _shell_reject("FILE_LIMIT_TYPE", role, "byte ceiling must be a nonnegative exact int")
-    directory_fd, name = _open_parent_dir_v1(path)
+    inert_path = _require_inert_path_v1(path, role)
+    directory_fd, name = _open_parent_dir_v1(inert_path)
     file_fd = -1
     try:
         try:
             before = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
         except FileNotFoundError:
-            _shell_reject("FILE_NOT_FOUND", role, str(path))
+            _shell_reject("FILE_NOT_FOUND", role, str(inert_path))
         except OSError as exc:
             _filesystem_reject_v1("FILE", role, exc)
         if stat.S_ISLNK(before.st_mode):
-            _shell_reject("FILE_SYMLINK", role, str(path))
+            _shell_reject("FILE_SYMLINK", role, str(inert_path))
         if not stat.S_ISREG(before.st_mode):
-            _shell_reject("FILE_NONREGULAR", role, str(path))
+            _shell_reject("FILE_NONREGULAR", role, str(inert_path))
         if before.st_size > max_bytes:
             _shell_reject("FILE_SIZE_LIMIT", role, f"{before.st_size}>{max_bytes}")
-        flags = os.O_RDONLY
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
+        if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_NONBLOCK"):
+            _shell_reject(
+                "FILE_PLATFORM_FLAG",
+                role,
+                "O_NOFOLLOW and O_NONBLOCK are required for bounded regular-file reads",
+            )
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
         try:
             file_fd = os.open(name, flags, dir_fd=directory_fd)
         except OSError as exc:
             _filesystem_reject_v1("FILE", role, exc)
         opened = os.fstat(file_fd)
+        if not stat.S_ISREG(opened.st_mode):
+            _shell_reject("FILE_NONREGULAR", role, "opened descriptor is not a regular file")
         if (
-            not stat.S_ISREG(opened.st_mode)
-            or opened.st_dev != before.st_dev
+            opened.st_dev != before.st_dev
             or opened.st_ino != before.st_ino
             or opened.st_size != before.st_size
         ):

@@ -10,6 +10,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 from typing import Final, NoReturn, TypeVar
@@ -24,7 +26,7 @@ try:
         MISSING_TARGET_EDGE_SPECS_V1,
     )
 except ModuleNotFoundError:
-    from m6_normative_requirements_decisions_v1 import (  # type: ignore[no-redef]
+    from m6_normative_requirements_decisions_v1 import (
         AMBIGUOUS_CAPABILITY_SPECS_V1,
         AMBIGUOUS_ROUTE_SPECS_V1,
         GLOBAL_OBLIGATION_EDGE_SPECS_V1,
@@ -43,6 +45,8 @@ MAX_JSON_DEPTH_V1: Final = 64
 MAX_JSON_NODES_V1: Final = 100_000
 MAX_JSON_STRING_CHARS_V1: Final = 131_072
 MAX_JSON_INTEGER_DIGITS_V1: Final = 256
+MAX_JSON_INTEGER_MAGNITUDE_EXCLUSIVE_V1: Final = 10**MAX_JSON_INTEGER_DIGITS_V1
+MIN_PYTHON_RECURSION_LIMIT_V1: Final = 256
 MAX_FINDING_PATH_CHARS_V1: Final = 256
 MAX_FINDING_DETAIL_CHARS_V1: Final = 512
 
@@ -50,6 +54,67 @@ ATDD_PATH_V1: Final = "docs/research/m6_global_economic_core_atdd_bdd_v1.json"
 LUNA_PATH_V1: Final = "docs/research/m6_global_economic_core_luna_completeness_review_v1.json"
 PLAN_PATH_V1: Final = "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json"
 MANIFEST_PATH_V1: Final = "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json"
+PLAN_CANONICAL_SHA256_V1: Final = "83773cf81dceff2ed94f0214d585d55004a62418b2b4c478b001ffbb1628a34f"
+
+# The source pin binds Plan bytes. This separately binds the admitted JSON value,
+# so a later source repin cannot promote or otherwise alter Plan semantics.
+_PLAN_FORBIDDEN_VALUE_CLAIM_V1: Final = (
+    "FORBIDDEN_UNTIL_ALL_12_VM_GATES_PASS_ON_ONE_EXACT_RELEASE_SUBJECT"
+)
+_PLAN_O005_ID_V1: Final = "O-005"
+_PLAN_O005_CLOSES_V1: Final = ("incomplete_requirements_registry",)
+_PLAN_OPEN_GAP_STATUS_V1: Final = "OPEN"
+_PLAN_ALLOWED_VM_STATUSES_V1: Final = frozenset({"GAP", "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"})
+_PLAN_AUTHORITY_FIELDS_V1: Final = frozenset(
+    {"production_authority", "production_ready", "release_ready", "settlement_authority"}
+)
+_PLAN_ADMISSION_FIELDS_V1: Final = frozenset(
+    {"authority_effect", "deterministic_evidence", "human_selection", "llm_review"}
+)
+_PLAN_REQUIREMENTS_FLOOR_FIELDS_V1: Final = frozenset(
+    {
+        "classification",
+        "closure_rule",
+        "completeness_review",
+        "confirmed_finding_count",
+        "confirmed_findings",
+        "manifest_complete",
+        "required_expansion_count",
+        "required_expansion_ids",
+        "scenario_count",
+        "unresolved_policy_count",
+        "workflow_count",
+    }
+)
+_PLAN_BASELINE_FIELDS_V1: Final = frozenset(
+    {
+        "architecture_inventory",
+        "candidate_disposition",
+        "closed_value_movement_gates",
+        "current_ledger_status",
+        "estimate_warning",
+        "explicit_exclusion_count",
+        "immediate_blockers",
+        "minimum_release_evidence_cell_count",
+        "minimum_release_evidence_cell_formula",
+        "observed_release_closure_basis_points",
+        "promoted_release_evidence_cell_count",
+        "required_release_statuses",
+        "required_route_count",
+        "scope_discovery_confidence",
+        "strict_release_closure",
+        "unclosed_release_evidence_cell_count",
+        "value_movement_gate_count",
+    }
+)
+_PLAN_VM_GATE_FIELDS_V1: Final = frozenset({"gate_id", "status", "title"})
+_PLAN_RELEASE_GATE_FIELDS_V1: Final = frozenset(
+    {"excluded_capability_status", "required_capability_statuses", "whole_value_movement_claim"}
+)
+_PLAN_O005_FIELDS_V1: Final = frozenset(
+    {"closes", "depends_on", "obligation_id", "phase", "priority", "required_evidence", "title"}
+)
+_PLAN_GAP_FIELDS_V1: Final = frozenset({"gap_id", "owner_obligation", "status"})
 
 _COMMIT_RE: Final = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE: Final = re.compile(r"^[0-9a-f]{64}$")
@@ -1216,10 +1281,117 @@ def _sanitized_finding_text_v1(value: str, limit: int) -> str:
     return cleaned if len(cleaned) <= limit else cleaned[: limit - 3] + "..."
 
 
-def _reject(code: str, path: str, detail: str) -> NoReturn:
+@dataclass(frozen=True, slots=True)
+class _JsonPathV1:
+    """One constant-size path edge retained until a rejection needs rendering."""
+
+    parent: str | _JsonPathV1
+    component: str | int
+
+
+@dataclass(slots=True)
+class _JsonBudgetV1:
+    """Cumulative work charged while creating one owned JSON snapshot."""
+
+    nodes: int = 0
+    string_characters: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class _JsonVisitV1:
+    value: object
+    path: str | _JsonPathV1
+    depth: int
+    destination: list[object] | dict[str, object]
+    destination_key: str | None = None
+
+
+@dataclass(slots=True)
+class _JsonListCursorV1:
+    values: list[object]
+    owned: list[object]
+    path: str | _JsonPathV1
+    depth: int
+    expected_length: int
+    next_index: int = 0
+
+
+@dataclass(slots=True)
+class _JsonDictCursorV1:
+    values: dict[str, object]
+    items: Iterator[tuple[str, object]]
+    owned: dict[str, object]
+    path: str | _JsonPathV1
+    depth: int
+    expected_length: int
+
+
+@dataclass(slots=True)
+class _JsonEncodeListCursorV1:
+    values: list[object]
+    next_index: int = 0
+
+
+@dataclass(slots=True)
+class _JsonEncodeDictCursorV1:
+    items: tuple[tuple[str, object], ...]
+    next_index: int = 0
+
+
+def _render_json_path_v1(path: str | _JsonPathV1) -> str:
+    """Render only the bounded finding prefix of a lazily represented path."""
+
+    if type(path) is str:
+        return path
+    components: list[str | int] = []
+    current: str | _JsonPathV1 = path
+    while type(current) is _JsonPathV1:
+        components.append(current.component)
+        current = current.parent
+    if type(current) is not str:
+        raise TypeError("JSON path root must have exact str type")
+    root = current
+    parts: list[str] = []
+    rendered_length = 0
+    truncated = False
+
+    def append_prefix(text: str) -> None:
+        nonlocal rendered_length, truncated
+        remaining = MAX_FINDING_PATH_CHARS_V1 - rendered_length
+        if remaining <= 0:
+            truncated = True
+            return
+        if len(text) > remaining:
+            parts.append(text[:remaining])
+            rendered_length += remaining
+            truncated = True
+            return
+        parts.append(text)
+        rendered_length += len(text)
+
+    append_prefix(root)
+    for component in reversed(components):
+        if truncated:
+            break
+        if type(component) is int:
+            append_prefix("[")
+            append_prefix(str(component))
+            append_prefix("]")
+        else:
+            if type(component) is not str:
+                raise TypeError("JSON path component must be exact str or int")
+            append_prefix(".")
+            append_prefix(component)
+    rendered = "".join(parts)
+    if truncated and MAX_FINDING_PATH_CHARS_V1 >= 3:
+        return rendered[: MAX_FINDING_PATH_CHARS_V1 - 3] + "..."
+    return rendered
+
+
+def _reject(code: str, path: str | _JsonPathV1, detail: str) -> NoReturn:
     raise RequirementsRejectV1(
         _sanitized_finding_text_v1(code, 64),
-        _sanitized_finding_text_v1(path, MAX_FINDING_PATH_CHARS_V1),
+        _sanitized_finding_text_v1(_render_json_path_v1(path), MAX_FINDING_PATH_CHARS_V1),
         _sanitized_finding_text_v1(detail, MAX_FINDING_DETAIL_CHARS_V1),
     )
 
@@ -1250,62 +1422,257 @@ def _float_rejector_v1(value: str) -> NoReturn:
     raise ValueError("floating-point JSON numbers are forbidden")
 
 
-def _validate_json_string_v1(value: str, path: str) -> None:
+def _validate_json_string_v1(value: str, path: str | _JsonPathV1) -> None:
     if len(value) > MAX_JSON_STRING_CHARS_V1:
         _reject("JSON_STRING_LIMIT", path, "string exceeds character ceiling")
     if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
         _reject("JSON_LONE_SURROGATE", path, "lone Unicode surrogate is forbidden")
 
 
-def _validate_json_v1(value: object, path: str) -> None:
-    stack: list[tuple[object, str, int]] = [(value, path, 0)]
-    node_count = 0
+def _charge_json_node_v1(budget: _JsonBudgetV1, path: str | _JsonPathV1) -> None:
+    budget.nodes += 1
+    if budget.nodes > MAX_JSON_NODES_V1:
+        _reject("JSON_NODE_LIMIT", path, "JSON node ceiling exceeded")
+
+
+def _snapshot_json_string_v1(value: str, path: str | _JsonPathV1, budget: _JsonBudgetV1) -> str:
+    """Validate and charge one serialized occurrence of an exact string."""
+
+    _validate_json_string_v1(value, path)
+    budget.string_characters += len(value)
+    # Every source character needs at least one canonical ASCII byte. Charging
+    # aliases by occurrence bounds validation work before canonical expansion.
+    if budget.string_characters > MAX_JSON_BYTES_V1:
+        _reject("JSON_BYTE_LIMIT", path, "canonical JSON byte ceiling exceeded")
+    return value
+
+
+def _store_owned_json_v1(task: _JsonVisitV1, owned: object) -> None:
+    if type(task.destination) is list:
+        task.destination.append(owned)
+        return
+    if type(task.destination) is dict and type(task.destination_key) is str:
+        task.destination[task.destination_key] = owned
+        return
+    raise RuntimeError("invalid internal JSON snapshot destination")
+
+
+def _owned_json_v1(value: object, path: str) -> object:
+    """Create one transitively owned exact-JSON snapshot with an explicit stack."""
+
+    budget = _JsonBudgetV1()
+    root: list[object] = []
+    stack: list[_JsonVisitV1 | _JsonListCursorV1 | _JsonDictCursorV1] = [
+        _JsonVisitV1(value, path, 0, root)
+    ]
     while stack:
-        current, current_path, depth = stack.pop()
-        node_count += 1
-        if node_count > MAX_JSON_NODES_V1:
-            _reject("JSON_NODE_LIMIT", current_path, "JSON node ceiling exceeded")
-        if depth > MAX_JSON_DEPTH_V1:
-            _reject("JSON_DEPTH_LIMIT", current_path, "JSON depth ceiling exceeded")
-        if current is None or type(current) in (bool, int):
+        task = stack.pop()
+        if type(task) is _JsonListCursorV1:
+            if len(task.values) != task.expected_length:
+                _reject("JSON_MUTATION", task.path, "list length changed during snapshot")
+            if task.next_index >= task.expected_length:
+                continue
+            index = task.next_index
+            task.next_index += 1
+            try:
+                item = task.values[index]
+            except IndexError:
+                _reject("JSON_MUTATION", task.path, "list changed during snapshot")
+            stack.append(task)
+            stack.append(
+                _JsonVisitV1(
+                    item,
+                    _JsonPathV1(task.path, index),
+                    task.depth + 1,
+                    task.owned,
+                )
+            )
+            continue
+        if type(task) is _JsonDictCursorV1:
+            try:
+                key, item = next(task.items)
+            except StopIteration:
+                if (
+                    len(task.values) != task.expected_length
+                    or len(task.owned) != task.expected_length
+                ):
+                    _reject("JSON_MUTATION", task.path, "object changed during snapshot")
+                continue
+            except RuntimeError:
+                _reject("JSON_MUTATION", task.path, "object changed during snapshot")
+            _charge_json_node_v1(budget, task.path)
+            if type(key) is not str:
+                _reject("JSON_KEY_TYPE", task.path, "object keys must have exact str type")
+            owned_key = _snapshot_json_string_v1(key, _JsonPathV1(task.path, "<key>"), budget)
+            if owned_key in task.owned:
+                _reject("JSON_MUTATION", task.path, "object key repeated during snapshot")
+            stack.append(task)
+            stack.append(
+                _JsonVisitV1(
+                    item,
+                    _JsonPathV1(task.path, owned_key),
+                    task.depth + 1,
+                    task.owned,
+                    owned_key,
+                )
+            )
+            continue
+        if type(task) is not _JsonVisitV1:
+            raise RuntimeError("invalid internal JSON snapshot task")
+
+        _charge_json_node_v1(budget, task.path)
+        if task.depth > MAX_JSON_DEPTH_V1:
+            _reject("JSON_DEPTH_LIMIT", task.path, "JSON depth ceiling exceeded")
+        current = task.value
+        if current is None or type(current) is bool:
+            _store_owned_json_v1(task, current)
+            continue
+        if type(current) is int:
+            if (
+                not -MAX_JSON_INTEGER_MAGNITUDE_EXCLUSIVE_V1
+                < current
+                < MAX_JSON_INTEGER_MAGNITUDE_EXCLUSIVE_V1
+            ):
+                _reject("JSON_INTEGER_LIMIT", task.path, "integer exceeds digit ceiling")
+            _store_owned_json_v1(task, current)
             continue
         if type(current) is str:
-            _validate_json_string_v1(current, current_path)
+            _store_owned_json_v1(task, _snapshot_json_string_v1(current, task.path, budget))
             continue
         if type(current) is list:
-            for index in range(len(current) - 1, -1, -1):
-                stack.append((current[index], f"{current_path}[{index}]", depth + 1))
+            owned_list: list[object] = []
+            _store_owned_json_v1(task, owned_list)
+            stack.append(
+                _JsonListCursorV1(
+                    values=current,
+                    owned=owned_list,
+                    path=task.path,
+                    depth=task.depth,
+                    expected_length=len(current),
+                )
+            )
             continue
         if type(current) is dict:
-            items = list(current.items())
-            for key, item in reversed(items):
-                node_count += 1
-                if node_count > MAX_JSON_NODES_V1:
-                    _reject("JSON_NODE_LIMIT", current_path, "JSON node ceiling exceeded")
-                if type(key) is not str:
-                    _reject("JSON_KEY_TYPE", current_path, "object keys must have exact str type")
-                _validate_json_string_v1(key, f"{current_path}.<key>")
-                stack.append((item, f"{current_path}.{key}", depth + 1))
+            owned_dict: dict[str, object] = {}
+            _store_owned_json_v1(task, owned_dict)
+            stack.append(
+                _JsonDictCursorV1(
+                    values=current,
+                    items=iter(current.items()),
+                    owned=owned_dict,
+                    path=task.path,
+                    depth=task.depth,
+                    expected_length=len(current),
+                )
+            )
             continue
-        _reject("JSON_TYPE", current_path, f"unsupported exact type {type(current).__name__}")
+        _reject("JSON_TYPE", task.path, "unsupported exact JSON value type")
+    if len(root) != 1:
+        raise RuntimeError("invalid internal JSON snapshot root")
+    return root[0]
+
+
+def _validate_json_v1(value: object, path: str) -> None:
+    _owned_json_v1(value, path)
+
+
+def _require_supported_python_runtime_v1() -> None:
+    """Fail closed before low process recursion limits can leak raw failures."""
+
+    if sys.getrecursionlimit() < MIN_PYTHON_RECURSION_LIMIT_V1:
+        raise RequirementsRejectV1(
+            "JSON_RUNTIME_RECURSION_LIMIT",
+            "$",
+            "Python recursion limit is below the supported deterministic floor",
+        )
+
+
+def _append_canonical_json_chunk_v1(chunks: list[bytes], encoded_size: int, chunk: str) -> int:
+    encoded = chunk.encode("ascii")
+    next_size = encoded_size + len(encoded)
+    if next_size > MAX_JSON_BYTES_V1:
+        _reject("JSON_BYTE_LIMIT", "$", "canonical JSON byte ceiling exceeded")
+    chunks.append(encoded)
+    return next_size
+
+
+def _encode_owned_json_v1(value: object) -> bytes:
+    """Encode an owned exact-JSON value without Python recursion."""
+
+    chunks: list[bytes] = []
+    encoded_size = 0
+    stack: list[object | _JsonEncodeListCursorV1 | _JsonEncodeDictCursorV1] = [value]
+    while stack:
+        task = stack.pop()
+        if type(task) is _JsonEncodeListCursorV1:
+            if task.next_index >= len(task.values):
+                encoded_size = _append_canonical_json_chunk_v1(chunks, encoded_size, "]")
+                continue
+            if task.next_index:
+                encoded_size = _append_canonical_json_chunk_v1(chunks, encoded_size, ",")
+            item = task.values[task.next_index]
+            task.next_index += 1
+            stack.append(task)
+            stack.append(item)
+            continue
+        if type(task) is _JsonEncodeDictCursorV1:
+            if task.next_index >= len(task.items):
+                encoded_size = _append_canonical_json_chunk_v1(chunks, encoded_size, "}")
+                continue
+            if task.next_index:
+                encoded_size = _append_canonical_json_chunk_v1(chunks, encoded_size, ",")
+            key, item = task.items[task.next_index]
+            task.next_index += 1
+            encoded_size = _append_canonical_json_chunk_v1(
+                chunks, encoded_size, json.encoder.encode_basestring_ascii(key)
+            )
+            encoded_size = _append_canonical_json_chunk_v1(chunks, encoded_size, ":")
+            stack.append(task)
+            stack.append(item)
+            continue
+        if task is None:
+            encoded_size = _append_canonical_json_chunk_v1(chunks, encoded_size, "null")
+            continue
+        if type(task) is bool:
+            encoded_size = _append_canonical_json_chunk_v1(
+                chunks, encoded_size, "true" if task else "false"
+            )
+            continue
+        if type(task) is int:
+            encoded_size = _append_canonical_json_chunk_v1(chunks, encoded_size, str(task))
+            continue
+        if type(task) is str:
+            encoded_size = _append_canonical_json_chunk_v1(
+                chunks, encoded_size, json.encoder.encode_basestring_ascii(task)
+            )
+            continue
+        if type(task) is list:
+            encoded_size = _append_canonical_json_chunk_v1(chunks, encoded_size, "[")
+            stack.append(_JsonEncodeListCursorV1(task))
+            continue
+        if type(task) is dict:
+            encoded_size = _append_canonical_json_chunk_v1(chunks, encoded_size, "{")
+            stack.append(_JsonEncodeDictCursorV1(tuple(sorted(task.items()))))
+            continue
+        raise RuntimeError("owned JSON snapshot contains an invalid value")
+    return b"".join(chunks)
 
 
 def canonical_json_bytes_v1(value: object) -> bytes:
-    """Encode only exact JSON scalar/object/list values in one canonical form."""
+    """Encode one caller-owned, quiescent exact-JSON value canonically.
 
-    _validate_json_v1(value, "$")
-    return json.dumps(
-        value,
-        allow_nan=False,
-        ensure_ascii=True,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("ascii")
+    Claim-bearing ingress uses immutable bytes and ``decode_json_object_v1``.
+    This helper does not make a concurrently shared mutable object linearizable.
+    """
+
+    _require_supported_python_runtime_v1()
+    return _encode_owned_json_v1(_owned_json_v1(value, "$"))
 
 
 def decode_json_object_v1(raw: bytes, label: str) -> dict[str, object]:
     """Decode a closed JSON object at a shell-to-core boundary."""
 
+    _require_supported_python_runtime_v1()
     if type(raw) is not bytes:
         _reject("JSON_BYTES_TYPE", label, "must have exact bytes type")
     if len(raw) > MAX_JSON_BYTES_V1:
@@ -1326,10 +1693,10 @@ def decode_json_object_v1(raw: bytes, label: str) -> dict[str, object]:
         json.JSONDecodeError,
     ) as exc:
         _reject("JSON_DECODE", label, f"{type(exc).__name__}: {exc}")
-    _validate_json_v1(parsed, label)
-    if type(parsed) is not dict:
+    owned = _owned_json_v1(parsed, label)
+    if type(owned) is not dict:
         _reject("JSON_ROOT_TYPE", label, "root must be an object")
-    return parsed
+    return owned
 
 
 def _decoded_canonical_object_v1(raw: bytes) -> dict[str, object]:
@@ -1723,10 +2090,147 @@ def _parse_luna_v1(
     return expansions, findings
 
 
+def _plan_record_v1(
+    records: list[object], collection_path: str, id_field: str, expected_id: str
+) -> tuple[int, dict[str, object]]:
+    matches: list[tuple[int, dict[str, object]]] = []
+    for index, raw_record in enumerate(records):
+        record_path = f"{collection_path}[{index}]"
+        record = _expect_object(raw_record, record_path)
+        identifier = _expect_str(record.get(id_field), f"{record_path}.{id_field}")
+        if identifier == expected_id:
+            matches.append((index, record))
+    if len(matches) != 1:
+        _reject("SOURCE_OBLIGATION", collection_path, f"must contain exactly one {expected_id}")
+    return matches[0]
+
+
+def _parse_plan_claim_ceiling_v1(fields: dict[str, object]) -> None:
+    """Give promotion-bearing fields typed, stable rejects before the full commitment."""
+
+    authority_path = f"{PLAN_PATH_V1}.authority"
+    authority = _closed(
+        _expect_object(fields["authority"], authority_path),
+        _PLAN_AUTHORITY_FIELDS_V1,
+        authority_path,
+    )
+    for field in ("production_authority", "settlement_authority"):
+        field_path = f"{authority_path}.{field}"
+        if _expect_str(authority.get(field), field_path) != "NONE":
+            _reject("SOURCE_PROMOTION", field_path, "authority must remain NONE")
+    for field in ("production_ready", "release_ready"):
+        field_path = f"{authority_path}.{field}"
+        if _expect_bool(authority.get(field), field_path):
+            _reject("SOURCE_PROMOTION", field_path, "readiness must remain false")
+
+    admission_path = f"{PLAN_PATH_V1}.admission_model"
+    admission = _closed(
+        _expect_object(fields["admission_model"], admission_path),
+        _PLAN_ADMISSION_FIELDS_V1,
+        admission_path,
+    )
+    if (
+        _expect_str(admission.get("authority_effect"), f"{admission_path}.authority_effect")
+        != "NONE"
+    ):
+        _reject("SOURCE_PROMOTION", admission_path, "admission cannot grant authority")
+
+    floor_path = f"{PLAN_PATH_V1}.requirements_floor"
+    floor = _closed(
+        _expect_object(fields["requirements_floor"], floor_path),
+        _PLAN_REQUIREMENTS_FLOOR_FIELDS_V1,
+        floor_path,
+    )
+    if _expect_bool(floor.get("manifest_complete"), f"{floor_path}.manifest_complete"):
+        _reject("SOURCE_PROMOTION", floor_path, "requirements floor must remain incomplete")
+
+    baseline_path = f"{PLAN_PATH_V1}.baseline_verdict"
+    baseline = _closed(
+        _expect_object(fields["baseline_verdict"], baseline_path),
+        _PLAN_BASELINE_FIELDS_V1,
+        baseline_path,
+    )
+    closed_gate_count_path = f"{baseline_path}.closed_value_movement_gates"
+    if _expect_int(baseline.get("closed_value_movement_gates"), closed_gate_count_path) != 0:
+        _reject("SOURCE_PROMOTION", closed_gate_count_path, "zero VM gates must be closed")
+
+    gates_path = f"{PLAN_PATH_V1}.value_movement_gates"
+    for index, raw_gate in enumerate(_expect_list(fields["value_movement_gates"], gates_path)):
+        gate_path = f"{gates_path}[{index}]"
+        gate = _closed(_expect_object(raw_gate, gate_path), _PLAN_VM_GATE_FIELDS_V1, gate_path)
+        status_path = f"{gate_path}.status"
+        if _expect_str(gate.get("status"), status_path) not in _PLAN_ALLOWED_VM_STATUSES_V1:
+            _reject("SOURCE_PROMOTION", status_path, "VM gate status is not an allowed open status")
+
+    release_gate_path = f"{PLAN_PATH_V1}.release_gate"
+    release_gate = _closed(
+        _expect_object(fields["release_gate"], release_gate_path),
+        _PLAN_RELEASE_GATE_FIELDS_V1,
+        release_gate_path,
+    )
+    claim_path = f"{release_gate_path}.whole_value_movement_claim"
+    if (
+        _expect_str(release_gate.get("whole_value_movement_claim"), claim_path)
+        != _PLAN_FORBIDDEN_VALUE_CLAIM_V1
+    ):
+        _reject("SOURCE_PROMOTION", claim_path, "whole value-movement claim must remain forbidden")
+
+
+def _parse_o005_closure_v1(fields: dict[str, object]) -> None:
+    """Keep O-005's incomplete, non-VM closure scope explicit at the boundary."""
+
+    obligations_path = f"{PLAN_PATH_V1}.next_obligations"
+    obligation_index, obligation = _plan_record_v1(
+        _expect_list(fields["next_obligations"], obligations_path),
+        obligations_path,
+        "obligation_id",
+        _PLAN_O005_ID_V1,
+    )
+    obligation_path = f"{obligations_path}[{obligation_index}]"
+    _closed(obligation, _PLAN_O005_FIELDS_V1, obligation_path)
+    for field in ("phase", "priority"):
+        if _expect_str(obligation.get(field), f"{obligation_path}.{field}") != "P1":
+            _reject("SOURCE_OBLIGATION", f"{obligation_path}.{field}", "O-005 must remain P1")
+    closes_path = f"{obligation_path}.closes"
+    closes = tuple(
+        _expect_str(value, f"{closes_path}[{index}]")
+        for index, value in enumerate(_expect_list(obligation.get("closes"), closes_path))
+    )
+    for index, close in enumerate(closes):
+        if close.startswith("VM-"):
+            _reject("SOURCE_PROMOTION", f"{closes_path}[{index}]", "O-005 cannot close a VM gate")
+    if closes != _PLAN_O005_CLOSES_V1:
+        _reject("SOURCE_OBLIGATION", closes_path, "O-005 closure scope drift")
+
+    gaps_path = f"{PLAN_PATH_V1}.gap_registry"
+    gap_index, gap = _plan_record_v1(
+        _expect_list(fields["gap_registry"], gaps_path),
+        gaps_path,
+        "gap_id",
+        _PLAN_O005_CLOSES_V1[0],
+    )
+    gap_path = f"{gaps_path}[{gap_index}]"
+    _closed(gap, _PLAN_GAP_FIELDS_V1, gap_path)
+    if _expect_str(gap.get("owner_obligation"), f"{gap_path}.owner_obligation") != _PLAN_O005_ID_V1:
+        _reject("SOURCE_OBLIGATION", gap_path, "O-005 gap owner drift")
+    if _expect_str(gap.get("status"), f"{gap_path}.status") != _PLAN_OPEN_GAP_STATUS_V1:
+        _reject("SOURCE_PROMOTION", f"{gap_path}.status", "O-005 gap must remain OPEN")
+
+
+def _require_plan_semantic_commitment_v1(document: dict[str, object]) -> None:
+    actual = hashlib.sha256(canonical_json_bytes_v1(document)).hexdigest()
+    if actual != PLAN_CANONICAL_SHA256_V1:
+        _reject("PLAN_SEMANTIC_COMMITMENT", PLAN_PATH_V1, "canonical Plan V2 semantics drift")
+
+
 def _parse_plan_v1(
-    document: dict[str, object],
+    raw_document: bytes,
 ) -> tuple[tuple[SimpleSourceV1, ...], dict[str, object], bytes]:
-    fields = _closed(document, _PLAN_ROOT_FIELDS, PLAN_PATH_V1)
+    """Parse the claim-bearing Plan from one immutable byte snapshot only."""
+
+    fields = _closed(
+        decode_json_object_v1(raw_document, PLAN_PATH_V1), _PLAN_ROOT_FIELDS, PLAN_PATH_V1
+    )
     if _expect_str(fields["schema"], f"{PLAN_PATH_V1}.schema") != "zenodex/whole-program-plan/v2.1":
         _reject("SOURCE_SCHEMA", PLAN_PATH_V1, "Plan V2 schema drift")
     if (
@@ -1734,14 +2238,10 @@ def _parse_plan_v1(
         != "RESEARCH_ONLY_CANDIDATE_PENDING_ADMISSION"
     ):
         _reject("SOURCE_STATUS", PLAN_PATH_V1, "Plan V2 status drift")
-    authority = _expect_object(fields["authority"], f"{PLAN_PATH_V1}.authority")
-    if (
-        _expect_str(
-            authority.get("production_authority"), f"{PLAN_PATH_V1}.authority.production_authority"
-        )
-        != "NONE"
-    ):
-        _reject("SOURCE_PROMOTION", PLAN_PATH_V1, "Plan V2 production authority must remain NONE")
+    _parse_plan_claim_ceiling_v1(fields)
+    _parse_o005_closure_v1(fields)
+    _require_plan_semantic_commitment_v1(fields)
+
     policies = _source_rows_v1(
         _expect_list(
             fields["unresolved_semantic_decisions"], f"{PLAN_PATH_V1}.unresolved_semantic_decisions"
@@ -1907,9 +2407,7 @@ def parse_sources_v1(snapshot: SourceSnapshotV1) -> SourceBundleV1:
     expansions, findings = _parse_luna_v1(
         decode_json_object_v1(documents[LUNA_PATH_V1], LUNA_PATH_V1)
     )
-    policies, floor, anchors = _parse_plan_v1(
-        decode_json_object_v1(documents[PLAN_PATH_V1], PLAN_PATH_V1)
-    )
+    policies, floor, anchors = _parse_plan_v1(documents[PLAN_PATH_V1])
     pairs, routes, exclusions = _parse_manifest_v1(
         decode_json_object_v1(documents[MANIFEST_PATH_V1], MANIFEST_PATH_V1)
     )
