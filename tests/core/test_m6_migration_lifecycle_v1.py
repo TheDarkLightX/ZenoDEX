@@ -172,7 +172,7 @@ def test_given_raw_caller_step_when_submitted_then_core_rejects_non_verified_aut
     raw = _step(plan, M6MigrationStepKindV1.SHADOW_REPLAY, 11)
 
     with pytest.raises(TypeError, match="authenticated"):
-        step_m6_migration_v1(M6MigrationStateV1.initial(plan), raw)  # type: ignore[arg-type]
+        step_m6_migration_v1(M6MigrationStateV1.initial(plan), raw)
 
 
 def test_given_structural_replay_witness_when_authoritative_core_runs_then_it_is_rejected() -> None:
@@ -182,7 +182,7 @@ def test_given_structural_replay_witness_when_authoritative_core_runs_then_it_is
     with pytest.raises(TypeError, match="authenticated"):
         step_m6_migration_v1(
             M6MigrationStateV1.initial(plan),
-            witness,  # type: ignore[arg-type]
+            witness,
         )
 
 
@@ -554,3 +554,101 @@ def test_migration_phase_table_is_immutable_and_rebinding_safe(
     accepted = step_m6_migration_replay_v1(initial, witness)
     assert isinstance(accepted, M6MigrationAcceptedV1)
     assert accepted.post_state.phase is M6MigrationPhaseV1.SHADOW_REPLAY
+
+
+def test_all_phase_step_pairs_match_the_formal_writer_authority_model() -> None:
+    """Differential: Python's 8x8 transition surface matches the Lean model."""
+
+    # Arrange.
+    plan = _plan()
+    states = {M6MigrationPhaseV1.LEGACY: M6MigrationStateV1.initial(plan)}
+    state = states[M6MigrationPhaseV1.LEGACY]
+    for kind, next_phase in (
+        (M6MigrationStepKindV1.SHADOW_REPLAY, M6MigrationPhaseV1.SHADOW_REPLAY),
+        (M6MigrationStepKindV1.DUAL_CHECK, M6MigrationPhaseV1.DUAL_CHECK),
+        (M6MigrationStepKindV1.QUIESCE, M6MigrationPhaseV1.QUIESCED),
+        (M6MigrationStepKindV1.AUTHORITY_SWITCH, M6MigrationPhaseV1.AUTHORITY_SWITCH),
+        (
+            M6MigrationStepKindV1.POST_SWITCH_VALIDATION,
+            M6MigrationPhaseV1.POST_SWITCH_VALIDATION,
+        ),
+        (M6MigrationStepKindV1.LEGACY_DISABLE, M6MigrationPhaseV1.LEGACY_DISABLED),
+    ):
+        accepted = step_m6_migration_replay_v1(
+            state,
+            _verified(plan, kind, 100 + len(states), state=state),
+        )
+        assert isinstance(accepted, M6MigrationAcceptedV1)
+        state = accepted.post_state
+        states[next_phase] = state
+    switched = states[M6MigrationPhaseV1.AUTHORITY_SWITCH]
+    failed = step_m6_migration_replay_v1(
+        switched,
+        _verified(
+            plan,
+            M6MigrationStepKindV1.POST_SWITCH_FAIL_STOP,
+            199,
+            state=switched,
+        ),
+    )
+    assert isinstance(failed, M6MigrationAcceptedV1)
+    states[M6MigrationPhaseV1.POST_SWITCH_FAILED] = failed.post_state
+    expected_accepts = {
+        (M6MigrationPhaseV1.LEGACY, M6MigrationStepKindV1.SHADOW_REPLAY): M6MigrationPhaseV1.SHADOW_REPLAY,
+        (M6MigrationPhaseV1.SHADOW_REPLAY, M6MigrationStepKindV1.DUAL_CHECK): M6MigrationPhaseV1.DUAL_CHECK,
+        (M6MigrationPhaseV1.DUAL_CHECK, M6MigrationStepKindV1.QUIESCE): M6MigrationPhaseV1.QUIESCED,
+        (M6MigrationPhaseV1.QUIESCED, M6MigrationStepKindV1.AUTHORITY_SWITCH): M6MigrationPhaseV1.AUTHORITY_SWITCH,
+        (
+            M6MigrationPhaseV1.AUTHORITY_SWITCH,
+            M6MigrationStepKindV1.POST_SWITCH_VALIDATION,
+        ): M6MigrationPhaseV1.POST_SWITCH_VALIDATION,
+        (
+            M6MigrationPhaseV1.POST_SWITCH_VALIDATION,
+            M6MigrationStepKindV1.LEGACY_DISABLE,
+        ): M6MigrationPhaseV1.LEGACY_DISABLED,
+        (
+            M6MigrationPhaseV1.AUTHORITY_SWITCH,
+            M6MigrationStepKindV1.POST_SWITCH_FAIL_STOP,
+        ): M6MigrationPhaseV1.POST_SWITCH_FAILED,
+        (
+            M6MigrationPhaseV1.POST_SWITCH_VALIDATION,
+            M6MigrationStepKindV1.POST_SWITCH_FAIL_STOP,
+        ): M6MigrationPhaseV1.POST_SWITCH_FAILED,
+        (M6MigrationPhaseV1.SHADOW_REPLAY, M6MigrationStepKindV1.ROLLBACK): M6MigrationPhaseV1.LEGACY,
+        (M6MigrationPhaseV1.DUAL_CHECK, M6MigrationStepKindV1.ROLLBACK): M6MigrationPhaseV1.LEGACY,
+        (M6MigrationPhaseV1.QUIESCED, M6MigrationStepKindV1.ROLLBACK): M6MigrationPhaseV1.LEGACY,
+    }
+
+    # Act / Assert.
+    for phase, pre_state in states.items():
+        for ordinal, kind in enumerate(M6MigrationStepKindV1, start=1):
+            result = step_m6_migration_replay_v1(
+                pre_state,
+                _verified(
+                    plan,
+                    kind,
+                    300 + ordinal,
+                    rollback=kind is M6MigrationStepKindV1.ROLLBACK,
+                    state=pre_state,
+                ),
+            )
+            expected_phase = expected_accepts.get((phase, kind))
+            if expected_phase is None:
+                assert isinstance(result, M6MigrationRejectedV1)
+                assert result.pre_state_root == result.post_state_root == pre_state.state_root
+                if kind is M6MigrationStepKindV1.ROLLBACK:
+                    expected_code = (
+                        M6MigrationRejectCodeV1.LEGACY_ALREADY_DISABLED
+                        if phase is M6MigrationPhaseV1.LEGACY_DISABLED
+                        else M6MigrationRejectCodeV1.ROLLBACK_FORBIDDEN
+                    )
+                else:
+                    expected_code = M6MigrationRejectCodeV1.PHASE_MISMATCH
+                assert result.code is expected_code
+                continue
+            assert isinstance(result, M6MigrationAcceptedV1)
+            assert result.post_state.phase is expected_phase
+            assert not (
+                result.post_state.legacy_writes_enabled
+                and result.post_state.target_writes_enabled
+            )
