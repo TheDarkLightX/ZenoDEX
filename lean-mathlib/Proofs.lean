@@ -108,6 +108,7 @@ import Proofs.GamifiedRefundFairQueue
 import Proofs.GeneralizedSettlementCertificates
 import Proofs.GlobalSettlementCoreV1
 import Proofs.ExternalCustodyDisabledLaneV1
+import Proofs.LaneCapabilityRegistryV1
 import Proofs.GlobalSettlementCoreV1Challenge
 import Proofs.GracefulDegradation
 import Proofs.GrossMarginSafety
