@@ -101,7 +101,7 @@ def _amount_delta_rows_v1(
         )
         if delta != 0:
             rows.append(_AmountDeltaRowV1(table, owner, asset, domain, delta))
-    return tuple(rows)
+    return tuple(sorted(rows))
 
 
 def _effect_amount_delta_rows_v1(

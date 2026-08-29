@@ -26,14 +26,15 @@ from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
     EconomicProfileSnapshotV1,
+    LaneIdV1,
+    ProfileStatusV1,
+    ReleaseStatusV1,
     _require_positive_int,
     _require_root,
     hash_global_v1,
 )
 
-_DEPLOYMENT_BINDING_ROOT_DOMAIN_V1: Final = (
-    "economic-receipt-verifier-deployment-binding-v1"
-)
+_DEPLOYMENT_BINDING_ROOT_DOMAIN_V1: Final = "economic-receipt-verifier-deployment-binding-v1"
 
 
 class EconomicReceiptVerifierBackendV1(Protocol):
@@ -109,9 +110,7 @@ class BoundEconomicReceiptVerifierV1:
 
     @property
     def binding_root(self) -> str:
-        return _bound_receipt_verifier_binding_root_v1(
-            _bound_receipt_verifier_authority_v1(self)
-        )
+        return _bound_receipt_verifier_binding_root_v1(_bound_receipt_verifier_authority_v1(self))
 
     @property
     def selection_purpose(self) -> EconomicReceiptVerifierSelectionPurposeV1:
@@ -154,14 +153,78 @@ class BoundEconomicReceiptVerifierV1:
         authority = _snapshot_bound_receipt_verifier_authority_v1(
             _bound_receipt_verifier_authority_v1(self)
         )
+        if type(expected_image_id) is not str or expected_image_id != authority.root_image_id:
+            raise ValueError("economic receipt verifier image binding mismatch")
+        self._verify_exact_receipt(
+            authority,
+            receipt_bytes,
+            expected_image_id=expected_image_id,
+            expected_journal_bytes=expected_journal_bytes,
+        )
+
+    def verify_profile_lane_receipt(
+        self,
+        receipt_bytes: bytes,
+        *,
+        profile: EconomicProfileSnapshotV1,
+        lane_id: LaneIdV1,
+        expected_module_release_id: str,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> None:
+        """Verify one receipt only under a profile-selected lane image.
+
+        This closes the caller-selected-image gap for recursive leaf admission.
+        The capability remains process-local; durable publication must also fence
+        the current authority head.
+        """
+
+        authority = _snapshot_bound_receipt_verifier_authority_v1(
+            _bound_receipt_verifier_authority_v1(self)
+        )
+        owned_profile = snapshot_economic_profile_v1(profile)
+        if type(lane_id) is not LaneIdV1:
+            raise TypeError("economic receipt verifier lane id is not closed")
+        release = owned_profile.lane_registry.release_for(lane_id)
+        if (
+            owned_profile.profile_id != authority.profile_root
+            or owned_profile.verifier_registry_root != authority.verifier_registry_root
+            or owned_profile.root_image_id != authority.root_image_id
+            or expected_module_release_id != release.release_id
+            or expected_image_id != release.guest_image_id
+        ):
+            raise ValueError("economic receipt verifier lane image is outside the profile")
+        if authority.selection_purpose is EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW:
+            if (
+                owned_profile.status is not ProfileStatusV1.SHADOW
+                or release.status is not ReleaseStatusV1.SHADOW
+                or release.accepts_new_objects
+            ):
+                raise ValueError("economic receipt verifier lane is outside shadow status")
+        else:
+            raise ValueError("production lane receipt verification is not implemented")
+        self._verify_exact_receipt(
+            authority,
+            receipt_bytes,
+            expected_image_id=expected_image_id,
+            expected_journal_bytes=expected_journal_bytes,
+        )
+
+    def _verify_exact_receipt(
+        self,
+        authority: _BoundEconomicReceiptVerifierAuthorityV1,
+        receipt_bytes: bytes,
+        *,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> None:
         if type(receipt_bytes) is not bytes or not (
             1 <= len(receipt_bytes) <= authority.max_receipt_bytes
         ):
             raise ValueError("economic receipt verifier receipt byte length is out of bounds")
-        if type(expected_image_id) is not str or (
-            expected_image_id != authority.root_image_id
-        ):
-            raise ValueError("economic receipt verifier image binding mismatch")
+        if type(expected_image_id) is not str:
+            raise TypeError("economic receipt verifier image id must be exact str")
+        _require_root(expected_image_id, name="economic receipt verifier image id")
         if type(expected_journal_bytes) is not bytes or not (
             1 <= len(expected_journal_bytes) <= authority.max_journal_bytes
         ):
@@ -200,18 +263,14 @@ def bind_economic_receipt_verifier_deployment_v1(
     """Construct one measured capability from profile-selected release data."""
 
     owned_profile = snapshot_economic_profile_v1(profile)
-    owned_registry = _snapshot_economic_receipt_verifier_registry_v1(
-        verifier_registry
-    )
+    owned_registry = _snapshot_economic_receipt_verifier_registry_v1(verifier_registry)
     release = select_profile_governed_economic_receipt_verifier_release_v1(
         profile=owned_profile,
         verifier_registry=owned_registry,
         selection_purpose=selection_purpose,
     )
     owned_release = _snapshot_economic_receipt_verifier_release_v1(release)
-    owned_manifest = _snapshot_economic_receipt_verifier_manifest_v1(
-        evidence_manifest
-    )
+    owned_manifest = _snapshot_economic_receipt_verifier_manifest_v1(evidence_manifest)
     if owned_manifest.manifest_root != owned_release.evidence_manifest_root:
         raise ValueError("economic receipt verifier evidence manifest root mismatch")
     _require_manifest_release_coordinates_v1(owned_manifest, owned_release)
@@ -219,9 +278,7 @@ def bind_economic_receipt_verifier_deployment_v1(
         economic_receipt_verifier_backend_protocol_root_v1()
     ):
         raise ValueError("economic receipt verifier backend protocol root mismatch")
-    measured_root = economic_receipt_verifier_implementation_root_v1(
-        measured_artifact_bytes
-    )
+    measured_root = economic_receipt_verifier_implementation_root_v1(measured_artifact_bytes)
     if measured_root != owned_release.implementation_root:
         raise ValueError("economic receipt verifier measured implementation root mismatch")
     if type(deployment_root) is not str:
@@ -279,9 +336,7 @@ def _snapshot_bound_receipt_verifier_authority_v1(
 ) -> _BoundEconomicReceiptVerifierAuthorityV1:
     if type(authority) is not _BoundEconomicReceiptVerifierAuthorityV1:
         raise TypeError("economic receipt verifier authority is not closed")
-    owned_registry = _snapshot_economic_receipt_verifier_registry_v1(
-        authority.verifier_registry
-    )
+    owned_registry = _snapshot_economic_receipt_verifier_registry_v1(authority.verifier_registry)
     string_fields = (
         authority.release_id,
         authority.verifier_registry_root,
@@ -310,9 +365,7 @@ def _snapshot_bound_receipt_verifier_authority_v1(
         raise ValueError("economic receipt verifier authority registry root mismatch")
     selected_release = owned_registry.release_for(authority.selection_purpose)
     if selected_release.release_id != authority.release_id:
-        raise ValueError(
-            "economic receipt verifier authority release is not selected by registry"
-        )
+        raise ValueError("economic receipt verifier authority release is not selected by registry")
     release_coordinates = (
         (selected_release.implementation_root, authority.implementation_root),
         (selected_release.evidence_manifest_root, authority.evidence_manifest_root),
@@ -322,9 +375,7 @@ def _snapshot_bound_receipt_verifier_authority_v1(
         (selected_release.max_journal_bytes, authority.max_journal_bytes),
     )
     if any(actual != expected for actual, expected in release_coordinates):
-        raise ValueError(
-            "economic receipt verifier authority release coordinates mismatch"
-        )
+        raise ValueError("economic receipt verifier authority release coordinates mismatch")
     if not callable(authority.verify_call):
         raise TypeError("economic receipt verifier authority callable is invalid")
     return _BoundEconomicReceiptVerifierAuthorityV1(
@@ -419,8 +470,7 @@ def _snapshot_economic_receipt_verifier_registry_v1(
         raise TypeError("economic receipt verifier registry must be exactly typed")
     return EconomicReceiptVerifierRegistryV1(
         tuple(
-            _snapshot_economic_receipt_verifier_release_v1(release)
-            for release in registry.releases
+            _snapshot_economic_receipt_verifier_release_v1(release) for release in registry.releases
         )
     )
 

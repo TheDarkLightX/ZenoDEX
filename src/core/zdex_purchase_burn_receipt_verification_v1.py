@@ -6,9 +6,18 @@ import hashlib
 from dataclasses import dataclass, replace
 from typing import Final, Protocol
 
+from .economic_receipt_verifier_deployment_v1 import BoundEconomicReceiptVerifierV1
+from .economic_receipt_verifier_registry_v1 import (
+    EconomicReceiptVerifierSelectionPurposeV1,
+)
+from .global_economic_authority_head_v1 import (
+    GlobalEconomicAuthorityHeadV1,
+    GlobalEconomicAuthorityStatusV1,
+)
 from .global_economic_profile_snapshot_v1 import (
     _snapshot_lane_release_v1,
     _snapshot_route_release_v1,
+    snapshot_economic_profile_v1,
 )
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
 from .global_economic_refinement_snapshot_v1 import (
@@ -17,9 +26,12 @@ from .global_economic_refinement_snapshot_v1 import (
     _snapshot_occurrence_v1,
 )
 from .global_settlement_types_v1 import (
+    ZERO_ROOT_V1,
+    EconomicProfileSnapshotV1,
     GlobalEconomicEffectPlanV1,
     LaneIdV1,
     LaneModuleReleaseV1,
+    ProfileStatusV1,
     ReleaseStatusV1,
     RouteReleaseV1,
     canonical_global_bytes_v1,
@@ -220,6 +232,8 @@ class _VerifiedZDEXLaneFieldsV1:
     expected_image_id: str
     receipt_digest: str
     receipt_kind: ReceiptKindV1
+    authority_head_root: str
+    verifier_binding_root: str
 
 
 class _VerifiedZDEXLaneV1:
@@ -282,23 +296,37 @@ class _VerifiedZDEXLaneV1:
         return self._fields.receipt_kind
 
     @property
+    def authority_head_root(self) -> str:
+        return self._fields.authority_head_root
+
+    @property
+    def verifier_binding_root(self) -> str:
+        return self._fields.verifier_binding_root
+
+    @property
     def binding_root(self) -> str:
+        body: dict[str, object] = {
+            "schema": self._schema,
+            "route_release_id": self.route_release_id,
+            "module_release_id": self.module_release_id,
+            "command_occurrence_id": self.command_occurrence_id,
+            "profile_root": self.profile_root,
+            "writer_epoch": self.writer_epoch,
+            "journal_root": self.journal_root,
+            "journal_digest": self.journal_digest,
+            "effect_plan_root": self.effect_plan_root,
+            "expected_image_id": self.expected_image_id,
+            "receipt_digest": self.receipt_digest,
+            "receipt_kind": self.receipt_kind,
+        }
+        if self.authority_head_root != ZERO_ROOT_V1 or self.verifier_binding_root != ZERO_ROOT_V1:
+            body.update(
+                authority_head_root=self.authority_head_root,
+                verifier_binding_root=self.verifier_binding_root,
+            )
         return hash_global_v1(
             self._domain,
-            {
-                "schema": self._schema,
-                "route_release_id": self.route_release_id,
-                "module_release_id": self.module_release_id,
-                "command_occurrence_id": self.command_occurrence_id,
-                "profile_root": self.profile_root,
-                "writer_epoch": self.writer_epoch,
-                "journal_root": self.journal_root,
-                "journal_digest": self.journal_digest,
-                "effect_plan_root": self.effect_plan_root,
-                "expected_image_id": self.expected_image_id,
-                "receipt_digest": self.receipt_digest,
-                "receipt_kind": self.receipt_kind,
-            },
+            body,
         )
 
 
@@ -431,6 +459,8 @@ def verify_zdex_amm_purchase_receipt_v1(
             owned.module_release.guest_image_id,
             receipt_digest,
             owned.receipt.receipt_kind,
+            ZERO_ROOT_V1,
+            ZERO_ROOT_V1,
         ),
     )
 
@@ -499,6 +529,184 @@ def verify_zdex_burn_receipt_v1(
             owned.module_release.guest_image_id,
             receipt_digest,
             owned.receipt.receipt_kind,
+            ZERO_ROOT_V1,
+            ZERO_ROOT_V1,
+        ),
+    )
+
+
+class _ProfileLaneReceiptVerifierV1:
+    """Narrow adapter that removes caller-selected lane image authority."""
+
+    __slots__ = ("_bound", "_profile", "_lane_id", "_module_release_id")
+
+    def __init__(
+        self,
+        bound: BoundEconomicReceiptVerifierV1,
+        profile: EconomicProfileSnapshotV1,
+        lane_id: LaneIdV1,
+        module_release_id: str,
+    ) -> None:
+        self._bound = bound
+        self._profile = profile
+        self._lane_id = lane_id
+        self._module_release_id = module_release_id
+
+    def verify_succinct_receipt(
+        self,
+        receipt_bytes: bytes,
+        *,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> None:
+        self._bound.verify_profile_lane_receipt(
+            receipt_bytes,
+            profile=self._profile,
+            lane_id=self._lane_id,
+            expected_module_release_id=self._module_release_id,
+            expected_image_id=expected_image_id,
+            expected_journal_bytes=expected_journal_bytes,
+        )
+
+
+def _require_current_shadow_authority_v1(
+    *,
+    profile: EconomicProfileSnapshotV1,
+    route: RouteReleaseV1,
+    release: LaneModuleReleaseV1,
+    occurrence: EconomicCommandOccurrenceV1,
+    lane_id: LaneIdV1,
+    authority_head: GlobalEconomicAuthorityHeadV1,
+    receipt_verifier: BoundEconomicReceiptVerifierV1,
+) -> EconomicProfileSnapshotV1:
+    if type(authority_head) is not GlobalEconomicAuthorityHeadV1:
+        raise TypeError("ZDEX governed receipt authority head must be exact typed data")
+    if type(receipt_verifier) is not BoundEconomicReceiptVerifierV1:
+        raise TypeError("ZDEX governed receipt verifier must be a bound capability")
+    owned_profile = snapshot_economic_profile_v1(profile)
+    governed_release = owned_profile.lane_registry.release_for(lane_id)
+    governed_routes = tuple(
+        item
+        for item in owned_profile.route_registry.routes
+        if item.command_kind == occurrence.command_kind
+    )
+    if (
+        owned_profile.status is not ProfileStatusV1.SHADOW
+        or len(governed_routes) != 1
+        or governed_routes[0] != route
+        or governed_release != release
+        or authority_head.status is not GlobalEconomicAuthorityStatusV1.ACTIVE
+        or authority_head.chain_id != occurrence.chain_id
+        or authority_head.deployment_root != occurrence.deployment_root
+        or occurrence.profile_root != owned_profile.profile_id
+        or authority_head.profile_root != owned_profile.profile_id
+        or authority_head.writer_epoch != owned_profile.authority_epoch
+        or authority_head.verifier_registry_root != owned_profile.verifier_registry_root
+        or authority_head.verifier_release_id != receipt_verifier.release_id
+        or authority_head.verifier_binding_root != receipt_verifier.binding_root
+        or authority_head.root_image_id != owned_profile.root_image_id
+    ):
+        raise ValueError("ZDEX lane receipt is outside the current governed authority")
+    receipt_verifier.require_binding(
+        verifier_registry_root=authority_head.verifier_registry_root,
+        deployment_root=authority_head.deployment_root,
+        profile_root=authority_head.profile_root,
+        root_image_id=authority_head.root_image_id,
+        selection_purpose=EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW,
+    )
+    return owned_profile
+
+
+def verify_governed_zdex_amm_purchase_receipt_shadow_v1(
+    candidate: ZDEXPurchaseReceiptCandidateV1,
+    *,
+    profile: EconomicProfileSnapshotV1,
+    authority_head: GlobalEconomicAuthorityHeadV1,
+    receipt_verifier: BoundEconomicReceiptVerifierV1,
+) -> VerifiedZDEXAMMPurchaseV1:
+    """Verify a purchase under the current profile-selected Spot image."""
+
+    owned = _snapshot_purchase_candidate_v1(candidate)
+    owned_profile = _require_current_shadow_authority_v1(
+        profile=profile,
+        route=owned.route_release,
+        release=owned.module_release,
+        occurrence=owned.occurrence,
+        lane_id=LaneIdV1.SPOT_LIQUIDITY,
+        authority_head=authority_head,
+        receipt_verifier=receipt_verifier,
+    )
+    if owned.journal.writer_epoch != owned_profile.authority_epoch:
+        raise ValueError("ZDEX purchase receipt writer epoch is outside the profile")
+    verified = verify_zdex_amm_purchase_receipt_v1(
+        ZDEXPurchaseReceiptCandidateV1(
+            owned.route_release,
+            owned.module_release,
+            owned.occurrence,
+            owned.journal,
+            owned.effects,
+            owned.receipt,
+        ),
+        _ProfileLaneReceiptVerifierV1(
+            receipt_verifier,
+            owned_profile,
+            LaneIdV1.SPOT_LIQUIDITY,
+            owned.module_release.release_id,
+        ),
+    )
+    return VerifiedZDEXAMMPurchaseV1(
+        _VERIFIED_PURCHASE_TOKEN,
+        replace(
+            verified._fields,
+            authority_head_root=authority_head.authority_root,
+            verifier_binding_root=receipt_verifier.binding_root,
+        ),
+    )
+
+
+def verify_governed_zdex_burn_receipt_shadow_v1(
+    candidate: ZDEXBurnReceiptCandidateV1,
+    *,
+    profile: EconomicProfileSnapshotV1,
+    authority_head: GlobalEconomicAuthorityHeadV1,
+    receipt_verifier: BoundEconomicReceiptVerifierV1,
+) -> VerifiedZDEXBurnV1:
+    """Verify a burn under the current profile-selected tokenomics image."""
+
+    owned = _snapshot_burn_candidate_v1(candidate)
+    owned_profile = _require_current_shadow_authority_v1(
+        profile=profile,
+        route=owned.route_release,
+        release=owned.module_release,
+        occurrence=owned.occurrence,
+        lane_id=LaneIdV1.ZDEX_TOKENOMICS,
+        authority_head=authority_head,
+        receipt_verifier=receipt_verifier,
+    )
+    if owned.journal.writer_epoch != owned_profile.authority_epoch:
+        raise ValueError("ZDEX burn receipt writer epoch is outside the profile")
+    verified = verify_zdex_burn_receipt_v1(
+        ZDEXBurnReceiptCandidateV1(
+            owned.route_release,
+            owned.module_release,
+            owned.occurrence,
+            owned.journal,
+            owned.effects,
+            owned.receipt,
+        ),
+        _ProfileLaneReceiptVerifierV1(
+            receipt_verifier,
+            owned_profile,
+            LaneIdV1.ZDEX_TOKENOMICS,
+            owned.module_release.release_id,
+        ),
+    )
+    return VerifiedZDEXBurnV1(
+        _VERIFIED_BURN_TOKEN,
+        replace(
+            verified._fields,
+            authority_head_root=authority_head.authority_root,
+            verifier_binding_root=receipt_verifier.binding_root,
         ),
     )
 
@@ -514,4 +722,6 @@ __all__ = [
     "ZDEXPurchaseReceiptCandidateV1",
     "verify_zdex_amm_purchase_receipt_v1",
     "verify_zdex_burn_receipt_v1",
+    "verify_governed_zdex_amm_purchase_receipt_shadow_v1",
+    "verify_governed_zdex_burn_receipt_shadow_v1",
 ]

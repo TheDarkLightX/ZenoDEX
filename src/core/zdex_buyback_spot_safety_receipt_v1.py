@@ -10,10 +10,19 @@ claim; every host-side input is copied and revalidated before that callback.
 from __future__ import annotations
 
 import hashlib
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Final, NoReturn, Protocol
+from typing import Final, NoReturn
 
+from .economic_receipt_verifier_deployment_v1 import BoundEconomicReceiptVerifierV1
+from .economic_receipt_verifier_registry_v1 import (
+    EconomicReceiptVerifierSelectionPurposeV1,
+)
+from .global_economic_authority_head_v1 import (
+    GlobalEconomicAuthorityHeadV1,
+    GlobalEconomicAuthorityStatusV1,
+)
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
 from .global_economic_refinement_snapshot_v1 import (
@@ -23,7 +32,6 @@ from .global_economic_refinement_snapshot_v1 import (
 )
 from .global_settlement_types_v1 import (
     MAX_DELTA_ATOMS_V1,
-    ZERO_ROOT_V1,
     EconomicPolicyBindingV1,
     EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
@@ -39,6 +47,18 @@ from .global_settlement_types_v1 import (
     _require_token,
     canonical_global_bytes_v1,
     hash_global_v1,
+)
+from .zdex_atomic_buyback_state_v1 import ZDEXAtomicBuybackTokenomicsStateV1
+from .zdex_buyback_spend_v1 import (
+    ZDEX_BUYBACK_SPEND_POLICY_KIND_V1,
+    ZDEXBuybackSpendPolicyV1,
+)
+from .zdex_fee_allocation_receipt_verification_v1 import _snapshot_fee_policy_v1
+from .zdex_fee_allocation_types_v1 import (
+    ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
+    ZDEXFeeAllocationCommandV1,
+    ZDEXFeeAllocationContextV1,
+    ZDEXFeeAllocationPolicyV1,
 )
 from .zdex_purchase_burn_route_types_v1 import (
     AMM_PURCHASE_OUTPUT_ROLE_V1,
@@ -61,6 +81,7 @@ _VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V1 = object()
 
 class ZDEXBuybackSpotReceiptRejectCodeV1(str, Enum):
     MALFORMED_CANDIDATE = "MALFORMED_CANDIDATE"
+    AUTHORITY_BINDING_MISMATCH = "AUTHORITY_BINDING_MISMATCH"
     SHADOW_PROFILE_REQUIRED = "SHADOW_PROFILE_REQUIRED"
     GOVERNED_ROUTE_MISMATCH = "GOVERNED_ROUTE_MISMATCH"
     GOVERNED_SPOT_RELEASE_MISMATCH = "GOVERNED_SPOT_RELEASE_MISMATCH"
@@ -117,6 +138,14 @@ class ZDEXBuybackSpotSafetyPurchaseJournalV1:
     global_pre_state_root: str
     spot_module_release_id: str
     spot_guest_image_id: str
+    tokenomics_module_release_id: str
+    tokenomics_pre_state_root: str
+    spend_policy_root: str
+    fee_policy_root: str
+    fee_pre_state_root: str
+    cadence_pre_state_root: str
+    fee_context_root: str
+    fee_command_root: str
     pre_spot_lane_root: str
     post_spot_lane_root: str
     pool_id: str
@@ -135,7 +164,20 @@ class ZDEXBuybackSpotSafetyPurchaseJournalV1:
     safety_binding_root: str = field(init=False)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "terminal_obligations_root", ZERO_ROOT_V1)
+        object.__setattr__(
+            self,
+            "terminal_obligations_root",
+            hash_global_v1(
+                "zdex-buyback-pending-burn-obligation-v1",
+                {
+                    "profile_root": self.profile_root,
+                    "route_release_id": self.route_release_id,
+                    "command_occurrence_id": self.command_occurrence_id,
+                    "zdex_asset_id": self.zdex_asset_id,
+                    "purchased_zdex_atoms": self.purchased_zdex_atoms,
+                },
+            ),
+        )
         object.__setattr__(
             self,
             "safety_binding_root",
@@ -158,6 +200,14 @@ class ZDEXBuybackSpotSafetyPurchaseJournalV1:
             "global_pre_state_root": self.global_pre_state_root,
             "spot_module_release_id": self.spot_module_release_id,
             "spot_guest_image_id": self.spot_guest_image_id,
+            "tokenomics_module_release_id": self.tokenomics_module_release_id,
+            "tokenomics_pre_state_root": self.tokenomics_pre_state_root,
+            "spend_policy_root": self.spend_policy_root,
+            "fee_policy_root": self.fee_policy_root,
+            "fee_pre_state_root": self.fee_pre_state_root,
+            "cadence_pre_state_root": self.cadence_pre_state_root,
+            "fee_context_root": self.fee_context_root,
+            "fee_command_root": self.fee_command_root,
             "pre_spot_lane_root": self.pre_spot_lane_root,
             "post_spot_lane_root": self.post_spot_lane_root,
             "pool_id": self.pool_id,
@@ -185,6 +235,14 @@ class ZDEXBuybackSpotSafetyPurchaseJournalV1:
             "global_pre_state_root",
             "spot_module_release_id",
             "spot_guest_image_id",
+            "tokenomics_module_release_id",
+            "tokenomics_pre_state_root",
+            "spend_policy_root",
+            "fee_policy_root",
+            "fee_pre_state_root",
+            "cadence_pre_state_root",
+            "fee_context_root",
+            "fee_command_root",
             "pre_spot_lane_root",
             "post_spot_lane_root",
             "pool_id",
@@ -211,13 +269,10 @@ class ZDEXBuybackSpotSafetyPurchaseJournalV1:
             raise TypeError("ZDEX buyback Spot journal integers must be exact int")
         _require_token(self.chain_id, name="ZDEX buyback Spot chain id")
         _require_token(self.oracle_id, name="ZDEX buyback Spot oracle id")
-        for name in (
-            field_name for field_name in string_fields[1:] if field_name != "oracle_id"
-        ):
+        for name in (field_name for field_name in string_fields[1:] if field_name != "oracle_id"):
             _require_root(
                 getattr(self, name),
                 name=f"ZDEX buyback Spot {name}",
-                allow_zero=name == "terminal_obligations_root",
             )
         _require_nonnegative_int(self.writer_epoch, name="ZDEX buyback Spot writer epoch")
         _require_nonnegative_int(
@@ -248,8 +303,18 @@ class ZDEXBuybackSpotSafetyPurchaseJournalV1:
             or self.purchased_zdex_atoms > MAX_DELTA_ATOMS_V1
         ):
             raise ValueError("ZDEX buyback Spot amounts must fit signed effect atoms")
-        if self.terminal_obligations_root != ZERO_ROOT_V1:
-            raise ValueError("ZDEX buyback Spot terminal obligations must be closed")
+        expected_terminal = hash_global_v1(
+            "zdex-buyback-pending-burn-obligation-v1",
+            {
+                "profile_root": self.profile_root,
+                "route_release_id": self.route_release_id,
+                "command_occurrence_id": self.command_occurrence_id,
+                "zdex_asset_id": self.zdex_asset_id,
+                "purchased_zdex_atoms": self.purchased_zdex_atoms,
+            },
+        )
+        if self.terminal_obligations_root != expected_terminal:
+            raise ValueError("ZDEX buyback pending burn obligation mismatch")
         expected_binding = hash_global_v1(
             "zdex-buyback-spot-safety-binding-v1",
             self._safety_binding_body(),
@@ -284,23 +349,18 @@ class ZDEXBuybackSpotReceiptEnvelopeV1:
             raise TypeError("ZDEX buyback Spot receipt bytes must be exact bytes")
 
 
-class ZDEXBuybackSpotSuccinctReceiptVerifierV1(Protocol):
-    def verify_succinct_receipt(
-        self,
-        receipt_bytes: bytes,
-        *,
-        expected_image_id: str,
-        expected_journal_bytes: bytes,
-    ) -> object | None: ...
-
-
 @dataclass(frozen=True, slots=True)
 class ZDEXBuybackSpotReceiptCandidateV1:
     profile: EconomicProfileSnapshotV1
     policy_registry: EconomicPolicyRegistryV1
     buyback_policy: ZDEXBuybackExecutionPolicyV1
+    spend_policy: ZDEXBuybackSpendPolicyV1
+    fee_policy: ZDEXFeeAllocationPolicyV1
+    fee_context: ZDEXFeeAllocationContextV1
+    fee_command: ZDEXFeeAllocationCommandV1
     occurrence: EconomicCommandOccurrenceV1
     global_pre_state: GlobalEconomicStateV1
+    tokenomics_pre_state: ZDEXAtomicBuybackTokenomicsStateV1
     journal: ZDEXBuybackSpotSafetyPurchaseJournalV1
     receipt: ZDEXBuybackSpotReceiptEnvelopeV1
 
@@ -309,23 +369,37 @@ class ZDEXBuybackSpotReceiptCandidateV1:
             (self.profile, EconomicProfileSnapshotV1, "profile"),
             (self.policy_registry, EconomicPolicyRegistryV1, "policy registry"),
             (self.buyback_policy, ZDEXBuybackExecutionPolicyV1, "buyback policy"),
+            (self.spend_policy, ZDEXBuybackSpendPolicyV1, "spend policy"),
+            (self.fee_policy, ZDEXFeeAllocationPolicyV1, "fee policy"),
+            (self.fee_context, ZDEXFeeAllocationContextV1, "fee context"),
+            (self.fee_command, ZDEXFeeAllocationCommandV1, "fee command"),
             (self.occurrence, EconomicCommandOccurrenceV1, "occurrence"),
             (self.global_pre_state, GlobalEconomicStateV1, "global pre-state"),
+            (
+                self.tokenomics_pre_state,
+                ZDEXAtomicBuybackTokenomicsStateV1,
+                "tokenomics pre-state",
+            ),
             (self.journal, ZDEXBuybackSpotSafetyPurchaseJournalV1, "journal"),
             (self.receipt, ZDEXBuybackSpotReceiptEnvelopeV1, "receipt"),
         )
         for value, expected_type, label in expected:
             if type(value) is not expected_type:
-                raise TypeError(
-                    f"ZDEX buyback Spot receipt {label} must be exact typed data"
-                )
+                raise TypeError(f"ZDEX buyback Spot receipt {label} must be exact typed data")
+
+
 @dataclass(frozen=True, slots=True)
 class _ZDEXBuybackSpotReceiptSnapshotV1:
     profile: EconomicProfileSnapshotV1
     policy_registry: EconomicPolicyRegistryV1
     buyback_policy: ZDEXBuybackExecutionPolicyV1
+    spend_policy: ZDEXBuybackSpendPolicyV1
+    fee_policy: ZDEXFeeAllocationPolicyV1
+    fee_context: ZDEXFeeAllocationContextV1
+    fee_command: ZDEXFeeAllocationCommandV1
     occurrence: EconomicCommandOccurrenceV1
     global_pre_state: GlobalEconomicStateV1
+    tokenomics_pre_state: ZDEXAtomicBuybackTokenomicsStateV1
     journal: ZDEXBuybackSpotSafetyPurchaseJournalV1
     receipt: ZDEXBuybackSpotReceiptEnvelopeV1
 
@@ -356,6 +430,45 @@ def _snapshot_buyback_policy_v1(
     return replace(policy)
 
 
+def _snapshot_spend_policy_v1(
+    policy: ZDEXBuybackSpendPolicyV1,
+) -> ZDEXBuybackSpendPolicyV1:
+    if type(policy) is not ZDEXBuybackSpendPolicyV1:
+        raise TypeError("ZDEX buyback spend policy must be exact typed data")
+    _require_exact_dataclass_scalars_v1(policy, name="ZDEX buyback spend policy")
+    return replace(policy)
+
+
+def _snapshot_tokenomics_pre_state_v1(
+    state: ZDEXAtomicBuybackTokenomicsStateV1,
+) -> ZDEXAtomicBuybackTokenomicsStateV1:
+    if type(state) is not ZDEXAtomicBuybackTokenomicsStateV1:
+        raise TypeError("ZDEX buyback tokenomics pre-state must be exact typed data")
+    owned = deepcopy(state)
+    owned.validate()
+    return owned
+
+
+def _snapshot_fee_context_v1(
+    context: ZDEXFeeAllocationContextV1,
+) -> ZDEXFeeAllocationContextV1:
+    if type(context) is not ZDEXFeeAllocationContextV1:
+        raise TypeError("ZDEX buyback fee context must be exact typed data")
+    _require_exact_dataclass_scalars_v1(context, name="ZDEX buyback fee context")
+    context.validate()
+    return replace(context)
+
+
+def _snapshot_fee_command_v1(
+    command: ZDEXFeeAllocationCommandV1,
+) -> ZDEXFeeAllocationCommandV1:
+    if type(command) is not ZDEXFeeAllocationCommandV1:
+        raise TypeError("ZDEX buyback fee command must be exact typed data")
+    _require_exact_dataclass_scalars_v1(command, name="ZDEX buyback fee command")
+    command.validate()
+    return replace(command)
+
+
 def _snapshot_journal_v1(
     journal: ZDEXBuybackSpotSafetyPurchaseJournalV1,
 ) -> ZDEXBuybackSpotSafetyPurchaseJournalV1:
@@ -376,8 +489,13 @@ def _snapshot_candidate_v1(
         profile=snapshot_economic_profile_v1(candidate.profile),
         policy_registry=_snapshot_policy_registry_v1(candidate.policy_registry),
         buyback_policy=_snapshot_buyback_policy_v1(candidate.buyback_policy),
+        spend_policy=_snapshot_spend_policy_v1(candidate.spend_policy),
+        fee_policy=_snapshot_fee_policy_v1(candidate.fee_policy),
+        fee_context=_snapshot_fee_context_v1(candidate.fee_context),
+        fee_command=_snapshot_fee_command_v1(candidate.fee_command),
         occurrence=_snapshot_occurrence_v1(candidate.occurrence),
         global_pre_state=_snapshot_state_v1(candidate.global_pre_state),
+        tokenomics_pre_state=_snapshot_tokenomics_pre_state_v1(candidate.tokenomics_pre_state),
         journal=_snapshot_journal_v1(candidate.journal),
         receipt=ZDEXBuybackSpotReceiptEnvelopeV1(
             candidate.receipt.receipt_kind,
@@ -388,7 +506,7 @@ def _snapshot_candidate_v1(
 
 def _select_shadow_route_and_release_v1(
     owned: _ZDEXBuybackSpotReceiptSnapshotV1,
-) -> tuple[RouteReleaseV1, LaneModuleReleaseV1]:
+) -> tuple[RouteReleaseV1, LaneModuleReleaseV1, LaneModuleReleaseV1]:
     profile = owned.profile
     if profile.status is not ProfileStatusV1.SHADOW:
         _reject(
@@ -424,6 +542,7 @@ def _select_shadow_route_and_release_v1(
             "buyback route shape or status mismatch",
         )
     release = profile.lane_registry.release_for(LaneIdV1.SPOT_LIQUIDITY)
+    tokenomics_release = profile.lane_registry.release_for(LaneIdV1.ZDEX_TOKENOMICS)
     if (
         release.status is not ReleaseStatusV1.SHADOW
         or release.accepts_new_objects
@@ -434,7 +553,17 @@ def _select_shadow_route_and_release_v1(
             ZDEXBuybackSpotReceiptRejectCodeV1.GOVERNED_SPOT_RELEASE_MISMATCH,
             "profile-selected Spot release mismatch",
         )
-    return route, release
+    if (
+        tokenomics_release.status is not ReleaseStatusV1.SHADOW
+        or tokenomics_release.accepts_new_objects
+        or route.module_release_ids[1] != tokenomics_release.release_id
+        or PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1 not in tokenomics_release.command_variants
+    ):
+        _reject(
+            ZDEXBuybackSpotReceiptRejectCodeV1.GOVERNED_SPOT_RELEASE_MISMATCH,
+            "profile-selected tokenomics release mismatch",
+        )
+    return route, release, tokenomics_release
 
 
 def _require_governed_policy_v1(
@@ -447,8 +576,16 @@ def _require_governed_policy_v1(
             "policy registry is outside the selected profile",
         )
     try:
-        binding = owned.policy_registry.require_binding(
+        execution_binding = owned.policy_registry.require_binding(
             policy_kind=ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
+            command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+        )
+        spend_binding = owned.policy_registry.require_binding(
+            policy_kind=ZDEX_BUYBACK_SPEND_POLICY_KIND_V1,
+            command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+        )
+        fee_binding = owned.policy_registry.require_binding(
+            policy_kind=ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
             command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
         )
     except ValueError:
@@ -459,7 +596,10 @@ def _require_governed_policy_v1(
     journal = owned.journal
     policy = owned.buyback_policy
     if (
-        binding.policy_root != policy.policy_root
+        execution_binding.policy_root != policy.policy_root
+        or spend_binding.policy_root != owned.spend_policy.policy_root
+        or fee_binding.policy_root != owned.fee_policy.policy_root
+        or owned.spend_policy.quote_asset_id != policy.quote_asset_id
         or journal.pool_id != policy.pool_id
         or journal.pool_definition_root != policy.pool_definition_root
         or journal.quote_asset_id != policy.quote_asset_id
@@ -476,6 +616,7 @@ def _require_occurrence_bindings_v1(
     owned: _ZDEXBuybackSpotReceiptSnapshotV1,
     route: RouteReleaseV1,
     release: LaneModuleReleaseV1,
+    tokenomics_release: LaneModuleReleaseV1,
 ) -> None:
     occurrence = owned.occurrence
     journal = owned.journal
@@ -497,12 +638,29 @@ def _require_occurrence_bindings_v1(
         (journal.command_occurrence_id, occurrence.occurrence_id),
         (journal.spot_module_release_id, release.release_id),
         (journal.spot_guest_image_id, release.guest_image_id),
+        (journal.tokenomics_module_release_id, tokenomics_release.release_id),
         (journal.consensus_height, occurrence.height),
     )
     if any(actual != wanted for actual, wanted in expected):
         _reject(
             ZDEXBuybackSpotReceiptRejectCodeV1.OCCURRENCE_BINDING_MISMATCH,
             "journal occurrence or release coordinate mismatch",
+        )
+    fee_context = owned.fee_context
+    if (
+        fee_context.chain_id != occurrence.chain_id
+        or fee_context.deployment_root != occurrence.deployment_root
+        or fee_context.profile_root != occurrence.profile_root
+        or fee_context.writer_epoch != owned.profile.authority_epoch
+        or fee_context.allocation_route_release_id != route.route_release_id
+        or fee_context.authorized_buyback_route_release_id != route.route_release_id
+        or fee_context.tokenomics_module_release_id != tokenomics_release.release_id
+        or fee_context.command_occurrence_id != occurrence.occurrence_id
+        or fee_context.policy_root != owned.fee_policy.policy_root
+    ):
+        _reject(
+            ZDEXBuybackSpotReceiptRejectCodeV1.OCCURRENCE_BINDING_MISMATCH,
+            "fee command context is outside the same governed occurrence",
         )
 
 
@@ -524,9 +682,7 @@ def _require_state_and_oracle_bindings_v1(
             ZDEXBuybackSpotReceiptRejectCodeV1.STATE_ROOT_BINDING_MISMATCH,
             "global pre-state is stale or outside the occurrence",
         )
-    spot = next(
-        row for row in state.lane_roots if row.lane_id is LaneIdV1.SPOT_LIQUIDITY
-    )
+    spot = next(row for row in state.lane_roots if row.lane_id is LaneIdV1.SPOT_LIQUIDITY)
     if (
         spot.lane_id is not LaneIdV1.SPOT_LIQUIDITY
         or spot.enabled
@@ -536,6 +692,33 @@ def _require_state_and_oracle_bindings_v1(
         _reject(
             ZDEXBuybackSpotReceiptRejectCodeV1.STATE_ROOT_BINDING_MISMATCH,
             "Spot shadow pre-root is outside the disabled global lane commitment",
+        )
+    tokenomics = next(row for row in state.lane_roots if row.lane_id is LaneIdV1.ZDEX_TOKENOMICS)
+    fee_state = owned.tokenomics_pre_state.fee_state_for(journal.quote_asset_id)
+    cadence_state = owned.tokenomics_pre_state.cadence_state_for(journal.quote_asset_id)
+    if (
+        tokenomics.enabled
+        or tokenomics.module_release_id != journal.tokenomics_module_release_id
+        or tokenomics.state_root != owned.tokenomics_pre_state.state_root
+        or journal.tokenomics_pre_state_root != tokenomics.state_root
+        or journal.spend_policy_root != owned.spend_policy.policy_root
+        or journal.fee_policy_root != owned.fee_policy.policy_root
+        or journal.fee_pre_state_root != fee_state.state_root
+        or journal.cadence_pre_state_root != cadence_state.state_root
+        or journal.fee_context_root
+        != hash_global_v1(
+            "zdex-fee-allocation-context-v1",
+            owned.fee_context.to_canonical(),
+        )
+        or journal.fee_command_root
+        != hash_global_v1(
+            "zdex-fee-allocation-command-v1",
+            {"fee_charged_atoms": owned.fee_command.fee_charged_atoms},
+        )
+    ):
+        _reject(
+            ZDEXBuybackSpotReceiptRejectCodeV1.STATE_ROOT_BINDING_MISMATCH,
+            "tokenomics policy or pre-state is outside the global lane commitment",
         )
     oracle = next(
         (row for row in state.oracle_occurrences if row.oracle_id == journal.oracle_id),
@@ -551,11 +734,6 @@ def _require_state_and_oracle_bindings_v1(
             ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
             "Oracle occurrence is absent, unfinalized, future, or substituted",
         )
-    if journal.terminal_obligations_root != ZERO_ROOT_V1:
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.TERMINAL_OBLIGATION_MISMATCH,
-            "authenticated terminal obligations are not closed",
-        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -565,6 +743,13 @@ class _VerifiedZDEXBuybackSpotFieldsV1:
     expected_image_id: str
     receipt_digest: str
     receipt_kind: ReceiptKindV1
+    tokenomics_pre_state: ZDEXAtomicBuybackTokenomicsStateV1
+    spend_policy: ZDEXBuybackSpendPolicyV1
+    fee_policy: ZDEXFeeAllocationPolicyV1
+    fee_context: ZDEXFeeAllocationContextV1
+    fee_command: ZDEXFeeAllocationCommandV1
+    authority_head_root: str
+    verifier_binding_root: str
 
     def to_canonical(self) -> dict[str, object]:
         return {
@@ -574,6 +759,19 @@ class _VerifiedZDEXBuybackSpotFieldsV1:
             "expected_image_id": self.expected_image_id,
             "receipt_digest": self.receipt_digest,
             "receipt_kind": self.receipt_kind,
+            "tokenomics_pre_state_root": self.tokenomics_pre_state.state_root,
+            "spend_policy_root": self.spend_policy.policy_root,
+            "fee_policy_root": self.fee_policy.policy_root,
+            "fee_context_root": hash_global_v1(
+                "zdex-fee-allocation-context-v1",
+                self.fee_context.to_canonical(),
+            ),
+            "fee_command_root": hash_global_v1(
+                "zdex-fee-allocation-command-v1",
+                {"fee_charged_atoms": self.fee_command.fee_charged_atoms},
+            ),
+            "authority_head_root": self.authority_head_root,
+            "verifier_binding_root": self.verifier_binding_root,
         }
 
 
@@ -589,9 +787,7 @@ class VerifiedZDEXBuybackSpotSafetyPurchaseV1:
         fields: _VerifiedZDEXBuybackSpotFieldsV1,
     ) -> None:
         if token is not _VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V1:
-            raise TypeError(
-                "VerifiedZDEXBuybackSpotSafetyPurchaseV1 is verifier-constructed"
-            )
+            raise TypeError("VerifiedZDEXBuybackSpotSafetyPurchaseV1 is verifier-constructed")
         if type(fields) is not _VerifiedZDEXBuybackSpotFieldsV1:
             raise TypeError("verified ZDEX buyback Spot fields must be exact typed data")
         object.__setattr__(self, "_fields", fields)
@@ -624,6 +820,34 @@ class VerifiedZDEXBuybackSpotSafetyPurchaseV1:
         return self._fields.receipt_kind
 
     @property
+    def tokenomics_pre_state(self) -> ZDEXAtomicBuybackTokenomicsStateV1:
+        return deepcopy(self._fields.tokenomics_pre_state)
+
+    @property
+    def spend_policy(self) -> ZDEXBuybackSpendPolicyV1:
+        return replace(self._fields.spend_policy)
+
+    @property
+    def fee_policy(self) -> ZDEXFeeAllocationPolicyV1:
+        return deepcopy(self._fields.fee_policy)
+
+    @property
+    def fee_context(self) -> ZDEXFeeAllocationContextV1:
+        return replace(self._fields.fee_context)
+
+    @property
+    def fee_command(self) -> ZDEXFeeAllocationCommandV1:
+        return replace(self._fields.fee_command)
+
+    @property
+    def authority_head_root(self) -> str:
+        return self._fields.authority_head_root
+
+    @property
+    def verifier_binding_root(self) -> str:
+        return self._fields.verifier_binding_root
+
+    @property
     def binding_root(self) -> str:
         return hash_global_v1(
             "verified-zdex-buyback-spot-safety-purchase-v1",
@@ -633,7 +857,9 @@ class VerifiedZDEXBuybackSpotSafetyPurchaseV1:
 
 def verify_zdex_buyback_spot_safety_receipt_shadow_v1(
     candidate: ZDEXBuybackSpotReceiptCandidateV1,
-    receipt_verifier: ZDEXBuybackSpotSuccinctReceiptVerifierV1,
+    *,
+    authority_head: GlobalEconomicAuthorityHeadV1,
+    receipt_verifier: BoundEconomicReceiptVerifierV1,
 ) -> VerifiedZDEXBuybackSpotSafetyPurchaseV1:
     """Verify exact shadow receipt bindings and return an opaque witness.
 
@@ -650,9 +876,39 @@ def verify_zdex_buyback_spot_safety_receipt_shadow_v1(
             ZDEXBuybackSpotReceiptRejectCodeV1.MALFORMED_CANDIDATE,
             "candidate ownership or invariant validation failed",
         )
-    route, release = _select_shadow_route_and_release_v1(owned)
+    route, release, tokenomics_release = _select_shadow_route_and_release_v1(owned)
+    if (
+        type(authority_head) is not GlobalEconomicAuthorityHeadV1
+        or type(receipt_verifier) is not BoundEconomicReceiptVerifierV1
+        or authority_head.status is not GlobalEconomicAuthorityStatusV1.ACTIVE
+        or authority_head.chain_id != owned.occurrence.chain_id
+        or authority_head.deployment_root != owned.occurrence.deployment_root
+        or authority_head.profile_root != owned.profile.profile_id
+        or authority_head.writer_epoch != owned.profile.authority_epoch
+        or authority_head.verifier_registry_root != owned.profile.verifier_registry_root
+        or authority_head.verifier_release_id != receipt_verifier.release_id
+        or authority_head.verifier_binding_root != receipt_verifier.binding_root
+        or authority_head.root_image_id != owned.profile.root_image_id
+    ):
+        _reject(
+            ZDEXBuybackSpotReceiptRejectCodeV1.AUTHORITY_BINDING_MISMATCH,
+            "receipt verifier is outside the current authority head",
+        )
+    try:
+        receipt_verifier.require_binding(
+            verifier_registry_root=authority_head.verifier_registry_root,
+            deployment_root=authority_head.deployment_root,
+            profile_root=authority_head.profile_root,
+            root_image_id=authority_head.root_image_id,
+            selection_purpose=EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW,
+        )
+    except (TypeError, ValueError):
+        _reject(
+            ZDEXBuybackSpotReceiptRejectCodeV1.AUTHORITY_BINDING_MISMATCH,
+            "receipt verifier deployment binding mismatch",
+        )
     _require_governed_policy_v1(owned, route)
-    _require_occurrence_bindings_v1(owned, route, release)
+    _require_occurrence_bindings_v1(owned, route, release, tokenomics_release)
     _require_state_and_oracle_bindings_v1(owned)
     receipt = owned.receipt
     if receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
@@ -677,10 +933,20 @@ def verify_zdex_buyback_spot_safety_receipt_shadow_v1(
         expected_image_id=release.guest_image_id,
         receipt_digest="0x" + hashlib.sha256(receipt.receipt_bytes).hexdigest(),
         receipt_kind=receipt.receipt_kind,
+        tokenomics_pre_state=owned.tokenomics_pre_state,
+        spend_policy=owned.spend_policy,
+        fee_policy=owned.fee_policy,
+        fee_context=owned.fee_context,
+        fee_command=owned.fee_command,
+        authority_head_root=authority_head.authority_root,
+        verifier_binding_root=receipt_verifier.binding_root,
     )
     try:
-        callback_result = receipt_verifier.verify_succinct_receipt(
+        receipt_verifier.verify_profile_lane_receipt(
             receipt.receipt_bytes,
+            profile=owned.profile,
+            lane_id=LaneIdV1.SPOT_LIQUIDITY,
+            expected_module_release_id=release.release_id,
             expected_image_id=release.guest_image_id,
             expected_journal_bytes=journal_bytes,
         )
@@ -688,11 +954,6 @@ def verify_zdex_buyback_spot_safety_receipt_shadow_v1(
         _reject(
             ZDEXBuybackSpotReceiptRejectCodeV1.RECEIPT_VERIFICATION_FAILED,
             "receipt callback rejected or failed",
-        )
-    if callback_result is not None:
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.RECEIPT_VERIFICATION_FAILED,
-            "receipt callback violated the exact None success contract",
         )
     return VerifiedZDEXBuybackSpotSafetyPurchaseV1(
         _VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V1,
@@ -709,6 +970,5 @@ __all__ = [
     "ZDEXBuybackSpotReceiptRejectCodeV1",
     "ZDEXBuybackSpotReceiptRejectedV1",
     "ZDEXBuybackSpotSafetyPurchaseJournalV1",
-    "ZDEXBuybackSpotSuccinctReceiptVerifierV1",
     "verify_zdex_buyback_spot_safety_receipt_shadow_v1",
 ]
