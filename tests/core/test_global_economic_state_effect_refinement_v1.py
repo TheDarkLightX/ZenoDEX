@@ -6,7 +6,9 @@ Golden-root parity detects Python/Rust canonical encoding drift.
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -21,7 +23,10 @@ from src.core.global_economic_state_effect_refinement_v1 import (
 )
 from src.core.global_settlement_types_v1 import (
     ALL_LANE_IDS_V1,
+    FEE_RESIDUE_CONTROL_DOMAIN_V1,
+    FEE_RESIDUE_PRINCIPAL_V1,
     MAX_ATOMS_V1,
+    MAX_DELTA_ATOMS_V1,
     ZERO_ROOT_V1,
     AssetConservationRowV1,
     AssetSupplyV1,
@@ -41,6 +46,17 @@ from src.core.global_settlement_types_v1 import (
     ReplayStateV1,
     TerminalObligationStatusV1,
     TerminalObligationV1,
+)
+from tests.global_economic_state_refinement_cases_v1 import (
+    FeeResidueFlowCaseV1,
+    fee_residue_flow_candidate_v1,
+    fee_residue_full_spend_candidate_v1,
+)
+
+FEE_RESIDUE_VECTOR = (
+    Path(__file__).resolve().parents[1]
+    / "fixtures"
+    / "global_economic_state_fee_residue_v1.json"
 )
 
 
@@ -165,6 +181,38 @@ def _candidate() -> GlobalEconomicStateEffectRefinementCandidateV1:
         _pre_state(),
         _post_state(),
         _effect_plan(),
+    )
+
+
+def _fee_residue_candidate(
+    *,
+    principal: str = FEE_RESIDUE_PRINCIPAL_V1,
+    control_domain: str = FEE_RESIDUE_CONTROL_DOMAIN_V1,
+    effect_atoms: int = 1,
+) -> GlobalEconomicStateEffectRefinementCandidateV1:
+    pre_state = replace(
+        _pre_state(),
+        reserves=_amounts((principal, "USD", control_domain, 5)),
+    )
+    post_state = replace(
+        _post_state(),
+        reserves=_amounts((principal, "USD", control_domain, 6)),
+    )
+    effects = _effect_plan()
+    rows = tuple(
+        EconomicEffectRowV1(row.kind, principal, row.asset, control_domain, effect_atoms)
+        if row.kind is EconomicEffectKindV1.RESERVE
+        else row
+        for row in effects.rows
+    )
+    return GlobalEconomicStateEffectRefinementCandidateV1(
+        pre_state,
+        post_state,
+        replace(
+            effects,
+            rows=tuple(sorted(rows, key=lambda row: row.key)),
+            fee_conservation=(FeeConservationRowV1("USD", 3, 2, 1),),
+        ),
     )
 
 
@@ -382,6 +430,43 @@ def test_refinement_requires_fee_label_to_mirror_real_value_delta() -> None:
         refine_global_economic_state_effects_v1(replace(candidate, effect_plan=wrong))
 
 
+def test_refinement_accepts_fee_residue_in_exact_named_reserve() -> None:
+    candidate = _fee_residue_candidate()
+
+    refinement = refine_global_economic_state_effects_v1(candidate)
+
+    assert refinement.pre_state_root == candidate.pre_state.state_root
+    assert refinement.post_state_root == candidate.post_state.state_root
+    assert refinement.refinement_root == (
+        "0x58da8bc5aed457f0b938e0e73318d58b59c1b62afd46dd7046e10009770307c6"
+    )
+
+
+def test_refinement_matches_shared_fee_residue_golden_vector() -> None:
+    vector = json.loads(FEE_RESIDUE_VECTOR.read_text(encoding="utf-8"))
+    candidate = _fee_residue_candidate(
+        principal=vector["principal"],
+        control_domain=vector["control_domain"],
+        effect_atoms=int(vector["reserve_effect_delta_atoms"]),
+    )
+
+    refinement = refine_global_economic_state_effects_v1(candidate)
+
+    assert vector["schema"] == "zenodex/global-economic-state-fee-residue-vector/v1"
+    assert candidate.pre_state.reserves[0].amount_atoms == int(vector["pre_reserve_atoms"])
+    assert candidate.post_state.reserves[0].amount_atoms == int(vector["post_reserve_atoms"])
+    assert candidate.effect_plan.fee_conservation[0].fee_charged_atoms == int(
+        vector["fee_charged_atoms"]
+    )
+    assert candidate.effect_plan.fee_conservation[0].current_allocations_atoms == int(
+        vector["current_allocations_atoms"]
+    )
+    assert candidate.effect_plan.fee_conservation[0].carried_residue_atoms == int(
+        vector["carried_residue_atoms"]
+    )
+    assert refinement.refinement_root == vector["expected_refinement_root"]
+
+
 def test_refinement_rejects_fee_residue_without_state_bucket() -> None:
     candidate = _candidate()
     wrong = replace(
@@ -389,8 +474,138 @@ def test_refinement_rejects_fee_residue_without_state_bucket() -> None:
         fee_conservation=(FeeConservationRowV1("USD", 3, 2, 1),),
     )
 
-    with pytest.raises(ValueError, match="fee residue has no state-bearing mapping"):
+    with pytest.raises(ValueError, match="fee residue state mapping mismatch"):
         refine_global_economic_state_effects_v1(replace(candidate, effect_plan=wrong))
+
+
+@pytest.mark.parametrize(
+    ("principal", "control_domain"),
+    (
+        ("wrong-residue-principal", FEE_RESIDUE_CONTROL_DOMAIN_V1),
+        (FEE_RESIDUE_PRINCIPAL_V1, "wrong-residue-control-domain"),
+    ),
+)
+def test_refinement_rejects_fee_residue_aliases(
+    principal: str,
+    control_domain: str,
+) -> None:
+    candidate = _fee_residue_candidate(
+        principal=principal,
+        control_domain=control_domain,
+    )
+
+    with pytest.raises(ValueError, match="fee residue state mapping mismatch"):
+        refine_global_economic_state_effects_v1(candidate)
+
+
+def test_refinement_rejects_fee_residue_amount_mismatch() -> None:
+    candidate = _fee_residue_candidate(effect_atoms=2)
+
+    with pytest.raises(ValueError, match="fee residue state mapping mismatch"):
+        refine_global_economic_state_effects_v1(candidate)
+
+
+def test_refinement_rejects_fee_residue_when_reserve_state_delta_disagrees() -> None:
+    candidate = _fee_residue_candidate()
+    wrong_post = replace(
+        candidate.post_state,
+        reserves=_amounts(
+            (
+                FEE_RESIDUE_PRINCIPAL_V1,
+                "USD",
+                FEE_RESIDUE_CONTROL_DOMAIN_V1,
+                7,
+            )
+        ),
+    )
+
+    with pytest.raises(ValueError):
+        refine_global_economic_state_effects_v1(replace(candidate, post_state=wrong_post))
+
+
+def test_refinement_accepts_fee_residue_at_signed_effect_maximum() -> None:
+    candidate = fee_residue_flow_candidate_v1(
+        (FeeResidueFlowCaseV1("USD", MAX_DELTA_ATOMS_V1),)
+    )
+
+    refinement = refine_global_economic_state_effects_v1(candidate)
+
+    assert refinement.pre_state_root == candidate.pre_state.state_root
+    assert refinement.post_state_root == candidate.post_state.state_root
+
+
+def test_refinement_rejects_fee_residue_above_signed_effect_maximum() -> None:
+    with pytest.raises(ValueError, match="signed 128-bit integer"):
+        fee_residue_flow_candidate_v1(
+            (FeeResidueFlowCaseV1("USD", MAX_DELTA_ATOMS_V1 + 1),)
+        )
+
+
+def test_refinement_accepts_two_asset_fee_residue_in_canonical_order() -> None:
+    candidate = fee_residue_flow_candidate_v1(
+        (
+            FeeResidueFlowCaseV1("ASSET-A", 1),
+            FeeResidueFlowCaseV1("ASSET-B", 2),
+        )
+    )
+
+    refinement = refine_global_economic_state_effects_v1(candidate)
+
+    assert tuple(row.asset for row in candidate.effect_plan.fee_conservation) == (
+        "ASSET-A",
+        "ASSET-B",
+    )
+    assert refinement.effect_plan_root == candidate.effect_plan.effect_plan_root
+
+
+def test_refinement_rejects_reversed_two_asset_fee_residue_order() -> None:
+    candidate = fee_residue_flow_candidate_v1(
+        (
+            FeeResidueFlowCaseV1("ASSET-A", 1),
+            FeeResidueFlowCaseV1("ASSET-B", 2),
+        )
+    )
+    with pytest.raises(ValueError, match="canonically ordered and unique"):
+        replace(
+            candidate.effect_plan,
+            fee_conservation=tuple(reversed(candidate.effect_plan.fee_conservation)),
+        )
+
+
+def test_refinement_rejects_duplicate_exact_fee_residue_effect() -> None:
+    candidate = fee_residue_flow_candidate_v1((FeeResidueFlowCaseV1("USD", 1),))
+    residue = next(
+        row
+        for row in candidate.effect_plan.rows
+        if row.kind is EconomicEffectKindV1.RESERVE
+    )
+
+    with pytest.raises(ValueError, match="canonically ordered and unique"):
+        replace(
+            candidate.effect_plan,
+            rows=tuple(sorted((*candidate.effect_plan.rows, residue), key=lambda row: row.key)),
+        )
+
+
+def test_refinement_rejects_orphan_positive_fee_residue_reserve() -> None:
+    candidate = fee_residue_flow_candidate_v1((FeeResidueFlowCaseV1("USD", 1),))
+    orphan = replace(candidate.effect_plan, fee_conservation=())
+
+    with pytest.raises(ValueError, match="fee residue state mapping mismatch"):
+        refine_global_economic_state_effects_v1(replace(candidate, effect_plan=orphan))
+
+
+def test_refinement_rejects_same_plan_carry_and_spend_but_accepts_later_spend() -> None:
+    carry = fee_residue_flow_candidate_v1((FeeResidueFlowCaseV1("USD", 1),))
+    refine_global_economic_state_effects_v1(carry)
+    later_spend = fee_residue_full_spend_candidate_v1(carry.post_state, asset="USD")
+
+    later_refinement = refine_global_economic_state_effects_v1(later_spend)
+
+    assert later_refinement.pre_state_root == carry.post_state.state_root
+    combined = fee_residue_flow_candidate_v1((FeeResidueFlowCaseV1("USD", 1, 1),))
+    with pytest.raises(ValueError, match="fee residue state mapping mismatch"):
+        refine_global_economic_state_effects_v1(combined)
 
 
 def test_refinement_rejects_zero_fee_conservation_row() -> None:

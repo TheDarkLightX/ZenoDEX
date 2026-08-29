@@ -11,7 +11,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::Serialize;
 
 use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
-use crate::effects::{EconomicEffectKindV1, GlobalEconomicEffectPlanV1};
+use crate::effects::{
+    EconomicEffectKindV1, GlobalEconomicEffectPlanV1, FEE_RESIDUE_CONTROL_DOMAIN_V1,
+    FEE_RESIDUE_PRINCIPAL_V1,
+};
 use crate::global_economic_replay_refinement::derive_replay_insertions_v1;
 use crate::global_economic_state_delta::{
     derive_global_economic_state_delta_v1, supply_map_v1, DerivedGlobalEconomicStateDeltaV1,
@@ -183,13 +186,30 @@ fn require_fee_mirror_v1(effect_plan: &GlobalEconomicEffectPlanV1) -> AbiResultV
             "economic refinement zero fee conservation row",
         ));
     }
-    if effect_plan
+    let residue_effects = effect_plan
+        .rows
+        .iter()
+        .filter(|row| {
+            row.kind == EconomicEffectKindV1::RESERVE
+                && row.principal == FEE_RESIDUE_PRINCIPAL_V1
+                && row.custody_domain == FEE_RESIDUE_CONTROL_DOMAIN_V1
+                && row.delta_atoms > 0
+        })
+        .map(|row| {
+            u128::try_from(row.delta_atoms)
+                .map(|atoms| (row.asset.as_str(), atoms))
+                .map_err(|_| AbiErrorV1::InvalidBounds("economic refinement fee residue"))
+        })
+        .collect::<AbiResultV1<BTreeMap<_, _>>>()?;
+    let expected_residue = effect_plan
         .fee_conservation
         .iter()
-        .any(|row| row.carried_residue_atoms != 0)
-    {
+        .filter(|row| row.carried_residue_atoms > 0)
+        .map(|row| (row.asset.as_str(), row.carried_residue_atoms))
+        .collect::<BTreeMap<_, _>>();
+    if residue_effects != expected_residue {
         return Err(AbiErrorV1::InvalidBinding(
-            "economic refinement fee residue unmapped",
+            "economic refinement fee residue state mapping",
         ));
     }
     Ok(())

@@ -12,6 +12,8 @@ from enum import Enum
 from typing import Final
 
 from .global_settlement_types_v1 import (
+    FEE_RESIDUE_CONTROL_DOMAIN_V1,
+    FEE_RESIDUE_PRINCIPAL_V1,
     GLOBAL_SETTLEMENT_ABI_V1,
     MAX_DELTA_ATOMS_V1,
     GlobalEconomicEffectPlanV1,
@@ -28,10 +30,8 @@ ZDEX_FEE_ALLOCATION_POLICY_KIND_V1: Final = "zdex_fee_allocation"
 FEE_ALLOCATION_OUTPUT_ROLE_V1: Final = "FEE_ALLOCATION_OUTPUT"
 FEE_ALLOCATION_OUTPUT_PORT_V1: Final = "ZDEX_FEE_ALLOCATION_OUTPUT_V1"
 FEE_INGRESS_PRINCIPAL_V1: Final = "protocol:fee-ingress"
-FEE_RESIDUE_PRINCIPAL_V1: Final = "protocol:fee-unallocated-reserve"
 FEE_BUYBACK_PRINCIPAL_V1: Final = "protocol-fee-buyback-reserve"
 FEE_INGRESS_CONTROL_DOMAIN_V1: Final = "zenoledger:protocol-fee-ingress"
-FEE_RESIDUE_CONTROL_DOMAIN_V1: Final = "zenoledger:protocol-fee-residue"
 
 
 def zdex_fee_allocation_port_schema_root_v1() -> str:

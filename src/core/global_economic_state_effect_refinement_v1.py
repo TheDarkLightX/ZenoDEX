@@ -33,6 +33,8 @@ from .global_economic_state_delta_v1 import (
     _DerivedGlobalEconomicStateDeltaV1,
 )
 from .global_settlement_types_v1 import (
+    FEE_RESIDUE_CONTROL_DOMAIN_V1,
+    FEE_RESIDUE_PRINCIPAL_V1,
     MAX_ATOMS_V1,
     MAX_U64_V1,
     EconomicEffectKindV1,
@@ -248,8 +250,21 @@ def _require_fee_mirror_v1(effect_plan: GlobalEconomicEffectPlanV1) -> None:
             raise ValueError("economic refinement fee allocation is not mirrored")
     if any(row.fee_charged_atoms == 0 for row in effect_plan.fee_conservation):
         raise ValueError("economic refinement zero fee conservation row is non-canonical")
-    if any(row.carried_residue_atoms != 0 for row in effect_plan.fee_conservation):
-        raise ValueError("economic refinement fee residue has no state-bearing mapping")
+    residue_effects = {
+        row.asset: row.delta_atoms
+        for row in effect_plan.rows
+        if row.kind is EconomicEffectKindV1.RESERVE
+        and row.principal == FEE_RESIDUE_PRINCIPAL_V1
+        and row.custody_domain == FEE_RESIDUE_CONTROL_DOMAIN_V1
+        and row.delta_atoms > 0
+    }
+    expected_residue = {
+        row.asset: row.carried_residue_atoms
+        for row in effect_plan.fee_conservation
+        if row.carried_residue_atoms > 0
+    }
+    if residue_effects != expected_residue:
+        raise ValueError("economic refinement fee residue state mapping mismatch")
 
 
 def _amount_totals_by_asset_v1(

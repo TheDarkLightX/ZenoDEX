@@ -40,7 +40,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -95,21 +95,54 @@ THV1_PACKET = (
     / "tests"
     / "evidence"
     / "test_hygiene"
-    / "THV1-20260826-global-settlement-formal-core-v1.json"
+    / "THV1-20260829-global-settlement-fee-residue-refinement-v1.json"
 )
-THV1_EVIDENCE_ID = "THV1-20260826-global-settlement-formal-core-v1"
+THV1_EVIDENCE_ID = "THV1-20260829-global-settlement-fee-residue-refinement-v1"
+THV1_REQUIRED_PIN_PATHS = frozenset(
+    {
+        "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
+        "src/core/global_economic_state_effect_refinement_v1.py",
+        "src/core/global_settlement_types_v1.py",
+        "src/core/zdex_fee_allocation_types_v1.py",
+        "src/core/zdex_fee_allocation_v1.py",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py",
+        "tests/fixtures/global_economic_state_fee_residue_v1.json",
+        "tests/formal/test_esso_global_settlement_core_v1.py",
+        "tests/global_economic_state_refinement_cases_v1.py",
+        "zk/global_settlement_abi_v1/src/effects.rs",
+        "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
+        "zk/global_settlement_abi_v1/src/zdex_fee_allocation.rs",
+        "zk/global_settlement_abi_v1/src/zdex_fee_allocation_types.rs",
+        "zk/global_settlement_abi_v1/tests/global_economic_state_effect_refinement.rs",
+    }
+)
 
 # Enforced source pins: blueprint row, this table, and the file must agree.
 # Claim grade is source-pin evidence, never refinement evidence.
 ENFORCED_PINS = {
     "src/core/global_settlement_types_v1.py": (
-        "df06cbff2800ed7e2a1a296766cd132a86fdcce51c5d8a9da3a01791344c16b0"
+        "5d17cd8043dc93fea2b7fa5c8cd8b2dce94417ac8bb208e7a6082fd4ff154537"
     ),
     "src/core/global_economic_state_effect_refinement_v1.py": (
-        "9e70b85ffc24e77fd7abf7a7a1e6aed8017f0f6ceac8d61e6c45e6f6dece7338"
+        "d0bf943a7b8eafb365cb40de6fd34a64be771e5bd1e105cdceda93a71ef75ce7"
     ),
     "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs": (
-        "81dfe788c02767d080c3a2dc1cadd814ad3e489cbbc2b6fbf66ecf21ee77ee01"
+        "d42c82a28fdb869ff54f61d9dfe9812d9c31b6691c3bdb728d0c3d5381d4449f"
+    ),
+    "src/core/zdex_fee_allocation_types_v1.py": (
+        "b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df"
+    ),
+    "src/core/zdex_fee_allocation_v1.py": (
+        "8f976781349e31ae9fd3c48b8534ae4fbfe74e8ce33e6b62c6a627c8109bad84"
+    ),
+    "zk/global_settlement_abi_v1/src/effects.rs": (
+        "e51f38d1a56cac7e61712ba786fe384d8aa7d6a14715715f1c90698292888bb6"
+    ),
+    "zk/global_settlement_abi_v1/src/zdex_fee_allocation.rs": (
+        "2dc440b8a1711f75c5950e5e8c51fb9b709f709d16bf68e52aea15f3b6f0e78b"
+    ),
+    "zk/global_settlement_abi_v1/src/zdex_fee_allocation_types.rs": (
+        "609fc31d4a987e5f86d1aff953f797f656e82dc9df090a3380763941b1b58b1e"
     ),
     "src/core/epoch_effect_composition_v1.py": (
         "a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045"
@@ -119,7 +152,9 @@ ENFORCED_PINS = {
     ),
 }
 
-GAP_IDS = tuple(f"GAP-{index:02d}" for index in range(1, 9))
+OPEN_GAP_IDS = tuple(f"GAP-{index:02d}" for index in (*range(1, 7), 8))
+CLOSED_GAP_IDS = ("GAP-07",)
+GAP_IDS = OPEN_GAP_IDS + CLOSED_GAP_IDS
 
 ESSO_SKIP_REASON = (
     "ESSO toolchain absent (no external/ESSO checkout, no importable ESSO): "
@@ -1233,6 +1268,22 @@ def test_blueprint_records_the_durable_status_and_no_authority() -> None:
     packet = json.loads(THV1_PACKET.read_text(encoding="utf-8"))
     assert packet["evidence_id"] == THV1_EVIDENCE_ID
     assert "Research-only" in packet["claim_scope"]
+    pins = {
+        row["path"]: row["sha256"]
+        for field in ("source_pins", "test_pins")
+        for row in packet[field]
+    }
+    assert THV1_REQUIRED_PIN_PATHS <= pins.keys()
+    for relative in THV1_REQUIRED_PIN_PATHS:
+        assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == pins[relative]
+    nonclaims = " ".join(packet["nonclaims"])
+    for phrase in (
+        "no production, settlement, release, migration, proof-receipt, or value-moving authority",
+        "same aggregated plan",
+        "Python/Rust parity",
+        "does not select residue ownership",
+    ):
+        assert phrase in nonclaims
     machine_specific = "/" + "home/"
     for name, body in _durable_texts().items():
         assert machine_specific not in body, name
@@ -1295,11 +1346,12 @@ def test_authority_ok_is_an_abstract_authorization_premise(model: BoundedModel) 
         assert denied_failures == [] and denied["reject_code"] == "RC_UNAUTHORIZED", name
 
 
-def test_blueprint_gap_table_lists_eight_primary_divergences() -> None:
+def test_blueprint_gap_table_lists_seven_open_and_one_closed_refinement_gap() -> None:
     text = _prose(BLUEPRINT.read_text(encoding="utf-8"))
     for gap_id in GAP_IDS:
         assert gap_id in text, gap_id
-    assert "eight primary divergences" in text
+    assert "seven open primary divergences" in text
+    assert "one closed refinement gap" in text
     assert "not a complete correspondence inventory" in text
     for phrase in (
         "route compatibility",
@@ -1311,8 +1363,8 @@ def test_blueprint_gap_table_lists_eight_primary_divergences() -> None:
         "epoch",
         "injective",
         "canonical runtime hash",
-        "no state-bearing mapping",
-        "known GAP, not a runtime-refinement pass",
+        "exact per-asset `RESERVE` effect",
+        "state-bearing mapping only",
         "invariant conjunction",
         "No per-invariant obligation was run",
         "command-lane routing",
@@ -1474,15 +1526,20 @@ def test_gap_06_base5_pre_state_image_is_injective_only_over_the_bounded_tuple(
     assert root(overflow, "a") == root(neighbour, "a")
 
 
-def test_gap_07_model_accepts_carried_residue_that_source_refinement_rejects(
+def test_gap_07_closed_model_residue_matches_named_runtime_reserve(
     model: BoundedModel,
 ) -> None:
-    from src.core.global_economic_state_effect_refinement_v1 import _require_fee_mirror_v1
+    from src.core.global_economic_state_effect_refinement_v1 import (
+        refine_global_economic_state_effects_v1,
+    )
     from src.core.global_settlement_types_v1 import (
-        EconomicEffectKindV1,
-        EconomicEffectRowV1,
-        FeeConservationRowV1,
-        GlobalEconomicEffectPlanV1,
+        FEE_RESIDUE_CONTROL_DOMAIN_V1,
+        FEE_RESIDUE_PRINCIPAL_V1,
+        EconomicAmountV1,
+    )
+    from tests.global_economic_state_refinement_cases_v1 import (
+        FeeResidueFlowCaseV1,
+        fee_residue_flow_candidate_v1,
     )
 
     # Model side: carried residue is an accepted accounting location.
@@ -1492,32 +1549,30 @@ def test_gap_07_model_accepts_carried_residue_that_source_refinement_rejects(
     assert failures == [] and effects["accepted"] is True
     assert post["fee_residue_a"] == 1 and effects["fee_residue_a"] == 1
 
-    # Source side: the pinned refinement check (refinement_v1.py:249-252)
-    # rejects the same nonzero residue as unmapped.  Zero residue with a
-    # mirrored allocation passes the same check.
-    residue_plan = GlobalEconomicEffectPlanV1(
-        rows=(),
-        asset_conservation=(),
-        fee_conservation=(FeeConservationRowV1("A", 1, 0, 1),),
-        lane_writes=(),
-        occurrence_consumptions=(),
-        external_outbox_enqueue=(),
+    # Runtime side: the public global refinement checks the complete state,
+    # reserve delta, conservation row, lane write, and effect plan together.
+    candidate = fee_residue_flow_candidate_v1(
+        (FeeResidueFlowCaseV1("A", 1),)
     )
-    with pytest.raises(ValueError, match="fee residue has no state-bearing mapping"):
-        _require_fee_mirror_v1(residue_plan)
-    mirrored_rows = tuple(
-        EconomicEffectRowV1(kind, "fee-vault", "A", "protocol", 1)
-        for kind in (EconomicEffectKindV1.ACCOUNT_MOVEMENT, EconomicEffectKindV1.FEE_ALLOCATION)
+    refinement = refine_global_economic_state_effects_v1(candidate)
+    assert refinement.pre_state_root == candidate.pre_state.state_root
+    assert refinement.post_state_root == candidate.post_state.state_root
+
+    # The fee row and named reserve effect still match, but the disclosed
+    # post-state reserve delta is two atoms. Full refinement must reject it.
+    wrong_post = replace(
+        candidate.post_state,
+        reserves=(
+            EconomicAmountV1(
+                FEE_RESIDUE_PRINCIPAL_V1,
+                "A",
+                FEE_RESIDUE_CONTROL_DOMAIN_V1,
+                2,
+            ),
+        ),
     )
-    mirrored_plan = GlobalEconomicEffectPlanV1(
-        rows=mirrored_rows,
-        asset_conservation=(),
-        fee_conservation=(FeeConservationRowV1("A", 1, 1, 0),),
-        lane_writes=(),
-        occurrence_consumptions=(),
-        external_outbox_enqueue=(),
-    )
-    _require_fee_mirror_v1(mirrored_plan)
+    with pytest.raises(ValueError):
+        refine_global_economic_state_effects_v1(replace(candidate, post_state=wrong_post))
 
 
 # --------------------------------------------------------------------------- #

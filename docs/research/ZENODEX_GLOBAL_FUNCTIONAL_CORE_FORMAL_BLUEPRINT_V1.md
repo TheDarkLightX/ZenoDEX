@@ -2,7 +2,8 @@
 
 Date: 2026-08-26 (repair 1: 2026-08-27; closure repair 2: 2026-08-27; naming
 repair 3: 2026-08-27; admission-coherence repair 4: 2026-08-27; Max-review
-repair 5: 2026-08-27)
+repair 5: 2026-08-27; residue-refinement repair 6: 2026-08-29;
+residue-evidence repair 7: 2026-08-29)
 
 Task: `FORMAL-MODEL-001` (`rlm-subagent-task/v1`, role `implementer`)
 
@@ -23,7 +24,7 @@ own file. No commit was amended.
 Status: `RESEARCH_ONLY_UNMOUNTED`, `BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY`
 
 Admission: `FORMAL_EVIDENCE_ADMITTED_RESEARCH_ONLY` under
-`THV1-20260826-global-settlement-formal-core-v1`
+`THV1-20260829-global-settlement-fee-residue-refinement-v1`
 
 Integration admission: `BLOCKED_SUBJECT_RECEIPT_AND_MAX_REVIEW`
 
@@ -75,8 +76,9 @@ verdict `VERIFIED` for two obligations, `init_implies_inv` and
 over two deterministic trials. The solver result is initialization and
 one-step inductiveness of the invariant conjunction, not independent proofs
 of each invariant (`GAP-08`). It establishes nothing about the Python or Rust
-runtime, and the model is a finite abstraction with the divergences tabled as
-`GAP-01` to `GAP-08` below. On a host without the toolchain the two ESSO tests
+runtime, and the model is a finite abstraction with seven open primary
+divergences and one closed refinement gap tabled as `GAP-01` to `GAP-08`
+below. On a host without the toolchain the two ESSO tests
 skip; that host's run is `INCOMPLETE`, and a skip is never a pass. The durable
   status rests on the recorded replay and the current live replay. The tests
   admit provided tool output only when its closed schema, IR hash, fingerprint,
@@ -86,8 +88,9 @@ skip; that host's run is `INCOMPLETE`, and a skip is never a pass. The durable
 
 ## Source pins
 
-The repository base is `f7e851565e063fb3e74b060a9c45f27b8621a8d7`. SHA-256
-values were computed on that base. Rows marked `enforced` are checked by
+The implementation ancestry base is
+`f7e851565e063fb3e74b060a9c45f27b8621a8d7`. Enforced SHA-256 values below
+bind the current repair candidate bytes. Rows marked `enforced` are checked by
 `test_blueprint_pins_base_commit_and_semantic_source_hashes`, which compares
 the value below, the value embedded in the test, and the file on disk; drift
 means this blueprint must be re-reviewed before it is trusted. Rows marked
@@ -95,9 +98,14 @@ means this blueprint must be re-reviewed before it is trusted. Rows marked
 
 | Pinned source | SHA-256 | Grade |
 | --- | --- | --- |
-| `src/core/global_settlement_types_v1.py` | `df06cbff2800ed7e2a1a296766cd132a86fdcce51c5d8a9da3a01791344c16b0` | enforced |
-| `src/core/global_economic_state_effect_refinement_v1.py` | `9e70b85ffc24e77fd7abf7a7a1e6aed8017f0f6ceac8d61e6c45e6f6dece7338` | enforced |
-| `zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs` | `81dfe788c02767d080c3a2dc1cadd814ad3e489cbbc2b6fbf66ecf21ee77ee01` | enforced |
+| `src/core/global_settlement_types_v1.py` | `5d17cd8043dc93fea2b7fa5c8cd8b2dce94417ac8bb208e7a6082fd4ff154537` | enforced |
+| `src/core/global_economic_state_effect_refinement_v1.py` | `d0bf943a7b8eafb365cb40de6fd34a64be771e5bd1e105cdceda93a71ef75ce7` | enforced |
+| `zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs` | `d42c82a28fdb869ff54f61d9dfe9812d9c31b6691c3bdb728d0c3d5381d4449f` | enforced |
+| `src/core/zdex_fee_allocation_types_v1.py` | `b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df` | enforced |
+| `src/core/zdex_fee_allocation_v1.py` | `8f976781349e31ae9fd3c48b8534ae4fbfe74e8ce33e6b62c6a627c8109bad84` | enforced |
+| `zk/global_settlement_abi_v1/src/effects.rs` | `e51f38d1a56cac7e61712ba786fe384d8aa7d6a14715715f1c90698292888bb6` | enforced |
+| `zk/global_settlement_abi_v1/src/zdex_fee_allocation.rs` | `2dc440b8a1711f75c5950e5e8c51fb9b709f709d16bf68e52aea15f3b6f0e78b` | enforced |
+| `zk/global_settlement_abi_v1/src/zdex_fee_allocation_types.rs` | `609fc31d4a987e5f86d1aff953f797f656e82dc9df090a3380763941b1b58b1e` | enforced |
 | `src/core/epoch_effect_composition_v1.py` | `a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045` | enforced |
 | `src/kernels/dex/global_settlement_core_v1.yaml` (subject, this revision) | `121972779c7ac2f06dee1a6970498ab6b8e17c80c3050342648d8d2d432a2b7d` | enforced |
 | `src/kernels/dex/global_settlement_core_v1.yaml` (subject at `e091ccb01`) | `dabacaf6eff5d5106393aabebb0d3171c94776ad3f1f3a240f9d2a550658d1ca` | informative |
@@ -112,7 +120,7 @@ means this blueprint must be re-reviewed before it is trusted. Rows marked
 | `docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.md` | `f865f36b59a0bdfb5ce95fbefeb36ab64e6b37f4e94144b3f1a3404806a580d1` | informative |
 | `docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md` | `32985ee88b0b15a0b6ef1408e60ac1767f93e20eade434090011e144ecd56990` | informative |
 
-Pinned semantics, by source location on the base:
+Pinned semantics, by current candidate source location:
 
 - Lane registry: `LaneIdV1` and `ALL_LANE_IDS_V1`
   (`src/core/global_settlement_types_v1.py:201-216`) close exactly twelve
@@ -140,14 +148,17 @@ Pinned semantics, by source location on the base:
   carry the empty effect plan (`:1754-1785`); the closed transition reject
   codes are `LaneTransitionRejectCodeV1` (`:1700-1707`).
 - State-effect refinement: `_require_fee_mirror_v1` rejects a zero fee row as
-  non-canonical and rejects any nonzero `carried_residue_atoms` with
-  `economic refinement fee residue has no state-bearing mapping`
-  (`src/core/global_economic_state_effect_refinement_v1.py:249-252`); the
-  Rust mirror source rejects nonzero residue with
-  `economic refinement fee residue unmapped`
-  (`zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs:186-194`).
-  The executable GAP-07 witness invokes the Python check; this task source-pins
-  and inspects the Rust rule without executing it.
+  non-canonical. Positive `carried_residue_atoms` must equal the positive
+  per-asset `RESERVE` effects at the exact principal
+  `protocol:fee-unallocated-reserve` and control domain
+  `zenoledger:protocol-fee-residue`. Missing, aliased, orphaned, or
+  amount-mismatched rows reject. Python and Rust apply the same rule. The
+  executable GAP-07 witness invokes the Python check, while the Rust suite
+  executes the corresponding acceptance and rejection cases. Because an
+  aggregated effect plan carries only the net reserve delta, carrying current
+  residue and spending that reserve in the same aggregated plan rejects. A
+  later transition may spend an already carried reserve with a negative named
+  reserve effect and no new carried-residue row.
   Epoch composition sums per-asset fee, allocation, and residue totals with
   checked unsigned 128-bit arithmetic
   (`src/core/epoch_effect_composition_v1.py:112-129`) and rejects
@@ -330,11 +341,11 @@ no claim is made that they are the exact source codes.
 
 ## Divergence and gap table
 
-These are eight primary divergences between the model and the pinned source,
-not a complete correspondence inventory. Each row names the test that
-witnesses the divergence in the model or checks the documented fact. Additional
-omissions are recorded in Refinement and Nonclaims. None of these rows is
-closed by this blueprint, and no policy is invented to close one.
+These are seven open primary divergences and one closed refinement gap between
+the model and the pinned source, not a complete correspondence inventory. Each
+row names the test that witnesses the divergence in the model or checks the
+documented fact. Additional omissions are recorded in Refinement and Nonclaims.
+No policy is invented to close an open row.
 
 | ID | Divergence | Consequence | Witness |
 | --- | --- | --- | --- |
@@ -344,8 +355,8 @@ closed by this blueprint, and no policy is invented to close one.
 | `GAP-04` | A terminal obligation is aggregate atoms only (`obligation_X`); detailed terminal-obligation identities are unmodeled. | No obligation object ID, claimant, creating release ID, status registry (`OPEN`, `DRAINED`, `TOMBSTONED`), or terminal totality theorem exists in the model; a partial drain of aggregate atoms is accepted. | `test_gap_04_terminal_obligations_are_aggregate_atoms_only` |
 | `GAP-05` | Width 4 atoms, height horizon 3, and three occurrence IDs. | These prove only the finite model. They prove nothing about u128 atoms, i128 deltas, u64 heights, or the 64-command epoch bounds. | `test_gap_05_finite_widths_are_model_bounds_not_production_widths` |
 | `GAP-06` | `g_pre_root_X` is a base-5 mixed-radix image of six bounded quantities. | It is injective only over the bounded per-asset tuple (five atoms in one location collides with one atom in the next) and is not a canonical runtime hash or SHA-256 root. | `test_gap_06_base5_pre_state_image_is_injective_only_over_the_bounded_tuple` |
-| `GAP-07` | `fee_residue_X` is a normative candidate accounting location required by the whole-program plan (fee charged equals allocations plus carried residue). | The executable Python state-effect refinement witness rejects nonzero `carried_residue_atoms` (`no state-bearing mapping`). The source-pinned Rust mirror contains the parallel rejection but is not executed by this suite. This is a known GAP, not a runtime-refinement pass; residue ownership is not selected. | `test_gap_07_model_accepts_carried_residue_that_source_refinement_rejects` |
-| `GAP-08` | ESSO proved `init_implies_inv` and `inductive_step` only. | These establish initialization and one-step inductiveness of the declared invariant conjunction, not independent proofs of each invariant. No per-invariant obligation was run, so no invariant is claimed to be inductive on its own. | `test_esso_verify_multi_reports_verified_or_evidence_is_incomplete`, `test_blueprint_gap_table_lists_eight_primary_divergences` |
+| `GAP-07` (closed) | `fee_residue_X` is the model accounting location required by the whole-program fee equation. | Python and Rust require an exact per-asset `RESERVE` effect at the ABI-defined residue principal and control domain whose positive delta equals `carried_residue_atoms`. Same-plan carry-and-spend rejects because the ABI V1 plan exposes only the net reserve delta; a later transition can spend previously carried residue. This closes the state-bearing mapping only. Ownership, allocation percentages, and terminal disposition remain policy inputs. | `test_gap_07_closed_model_residue_matches_named_runtime_reserve` plus Python/Rust refinement tests and the shared golden vector |
+| `GAP-08` | ESSO proved `init_implies_inv` and `inductive_step` only. | These establish initialization and one-step inductiveness of the declared invariant conjunction, not independent proofs of each invariant. No per-invariant obligation was run, so no invariant is claimed to be inductive on its own. | `test_esso_verify_multi_reports_verified_or_evidence_is_incomplete`, `test_blueprint_gap_table_lists_seven_open_and_one_closed_refinement_gap` |
 
 ## Safety
 
@@ -445,7 +456,7 @@ incomplete.
 | Model | Source |
 | --- | --- |
 | `payer_X`, `rest_X` | `GlobalEconomicStateV1.balances` rows for the asset |
-| `fee_alloc_X`, `fee_residue_X`, `obligation_X` | `GlobalEconomicStateV1.custody` rows (field name) and `terminal_obligations` amounts; residue has no runtime mapping yet (`GAP-07`) |
+| `fee_alloc_X`, `fee_residue_X`, `obligation_X` | state-bearing allocation rows, the exact ABI-defined fee-residue reserve row, and `terminal_obligations` amounts; the GAP-07 mapping is closed while residue ownership remains unselected |
 | `supply_X` | `GlobalEconomicStateV1.supplies` |
 | `height`, `bound_height` | `GlobalEconomicStateV1.height` and the command's bound pre-state identity |
 | `consumed_i`, `occurrence` | `replay_state` occurrence ids and `occurrence_consumptions` |
@@ -467,7 +478,7 @@ premise, and the fee policy collapsed into two parameters.
 | Input | Treatment | Plan reference |
 | --- | --- | --- |
 | fee amount and allocation split | parameterized as `fee_charged` and `fee_alloc`; no percentage is selected | `UP-01`, `UP-12`, `UP-13` |
-| residue ownership and disposition | blocked; the model carries residue in an accounting location and selects no owner (`GAP-07`) | `UP-01`, `UP-12` |
+| residue ownership and disposition | blocked; the model and runtime share one exact accounting location, while no owner or terminal disposition is selected | `UP-01`, `UP-12` |
 | burn floor or retained-supply rule | blocked; the model only checks explicit burn rows and non-negative supply | `UP-14`, `UP-20` |
 | issue and burn authority | parameterized as the `authority_ok` premise; no grant policy is selected | `UP-13` |
 | Oracle economics | blocked; no Oracle occurrence exists in the model | `UP-06` |
@@ -736,8 +747,9 @@ unterminated block comments and strings. Repair 5 closes those bounded defects:
   domain-cap, solver-version, toolchain-hash, IR-hash, and fingerprint binding;
 - the parser fixture is explicitly named as a fixture and carries no historical
   provenance claim;
-- the divergence table is eight primary divergences and explicitly remains an
-  incomplete correspondence inventory;
+- the divergence table was established as eight primary divergences and an
+  incomplete correspondence inventory; repair 6 closes only the exact
+  fee-residue state-bearing mapping, leaving seven open divergences;
 - the Lean scanner rejects `constant` declarations and malformed lexical
   enclosures, with retained negative tests; a separate `#print axioms` gate
   checks the explicit 34-claim surface against the allowed Lean standard set
@@ -840,12 +852,13 @@ three files.
   runtime.
 - The refinement between this model and the Python or Rust source is by
   inspection only. There is no theorem, simulation relation, generated
-  reference, or parity vector. `GAP-01` to `GAP-08` list eight primary
-  divergences, not a complete correspondence inventory: command-lane routing,
-  unknown-asset policy, authentication derivation, terminal-obligation
-  identities, finite widths, the base-5 image, the fee-residue refinement gap,
-  and the conjunction scope of the solver result. None is closed here and no
-  policy is invented to close one.
+  reference, or parity vector. `GAP-01` to `GAP-08` list seven open primary
+  divergences and one closed refinement gap, not a complete correspondence
+  inventory. The open divergences are command-lane routing, unknown-asset
+  policy, authentication derivation, terminal-obligation identities, finite
+  widths, the base-5 image, and the conjunction scope of the solver result.
+  Repair 6 closes only the exact fee-residue state-bearing mapping. It selects
+  no ownership or disposition policy.
 - Additional correspondence omissions include single-subject aggregation,
   the collapsed two-parameter fee policy, informative-only reject-code mapping
   without source reject-order proof, model height advancement per accepted
@@ -876,9 +889,7 @@ three files.
 
 Issue the separate subject-bound admission receipt, then complete the pending
 independent Max review. If it raises a blocker, repair in a further commit
-without amending. Before FCIS runtime work, close or explicitly carry each
-`GAP-*` row into the runtime obligations, starting with a restricted runtime
-refinement that accepts only the already supported zero-residue,
-`ASSET_TRANSFER` transfer/issue/burn domain. Residue ownership (`GAP-07`) and
-general command-lane routing (`GAP-01`) remain policy decisions. Do not derive
-runtime code from the `authority_ok` premise (`GAP-03`).
+without amending. Close or explicitly carry each open `GAP-*` row into the
+runtime obligations. The residue state mapping is closed; residue ownership
+and disposition remain `UP-01` and `UP-12`. General command-lane routing remains
+`GAP-01`. Do not derive runtime code from the `authority_ok` premise (`GAP-03`).

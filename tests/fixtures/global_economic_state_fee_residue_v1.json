@@ -1,0 +1,14 @@
+{
+  "schema": "zenodex/global-economic-state-fee-residue-vector/v1",
+  "case_id": "one-atom-exact-named-reserve",
+  "asset": "USD",
+  "principal": "protocol:fee-unallocated-reserve",
+  "control_domain": "zenoledger:protocol-fee-residue",
+  "pre_reserve_atoms": "5",
+  "post_reserve_atoms": "6",
+  "fee_charged_atoms": "3",
+  "current_allocations_atoms": "2",
+  "carried_residue_atoms": "1",
+  "reserve_effect_delta_atoms": "1",
+  "expected_refinement_root": "0x58da8bc5aed457f0b938e0e73318d58b59c1b62afd46dd7046e10009770307c6"
+}

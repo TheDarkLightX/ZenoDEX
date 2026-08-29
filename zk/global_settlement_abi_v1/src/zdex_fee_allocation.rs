@@ -1,7 +1,7 @@
 use crate::canonical::{AbiErrorV1, AbiResultV1, GLOBAL_SETTLEMENT_ABI_V1};
 use crate::effects::{
     AssetConservationRowV1, EconomicEffectKindV1, EconomicEffectRowV1, FeeConservationRowV1,
-    GlobalEconomicEffectPlanV1,
+    GlobalEconomicEffectPlanV1, FEE_RESIDUE_CONTROL_DOMAIN_V1, FEE_RESIDUE_PRINCIPAL_V1,
 };
 use crate::zdex_fee_allocation_types::{
     destination_control_domain_v1, destination_principal_v1, ZDEXFeeAllocationAcceptedV1,
@@ -9,7 +9,6 @@ use crate::zdex_fee_allocation_types::{
     ZDEXFeeAllocationPolicyV1, ZDEXFeeAllocationRejectCodeV1, ZDEXFeeAllocationRejectedV1,
     ZDEXFeeAllocationResultV1, ZDEXFeeDestinationAmountV1, ZDEXFeeStateV1,
     BASIS_POINTS_DENOMINATOR_V1, FEE_INGRESS_CONTROL_DOMAIN_V1, FEE_INGRESS_PRINCIPAL_V1,
-    FEE_RESIDUE_CONTROL_DOMAIN_V1, FEE_RESIDUE_PRINCIPAL_V1,
 };
 
 struct AllocationProjectionV1 {

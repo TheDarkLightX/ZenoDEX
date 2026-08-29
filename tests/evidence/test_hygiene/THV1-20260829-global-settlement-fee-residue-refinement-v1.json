@@ -1,0 +1,181 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260829-global-settlement-fee-residue-refinement-v1",
+  "created_date": "2026-08-29",
+  "claim_scope": "Research-only source-bound evidence that the Python and Rust GlobalSettlementABI V1 refinements accept positive carried fee residue only through the exact named reserve mapping, reject aliases, mismatches, orphan rows, duplicate rows, unsupported same-plan carry-and-spend, and values beyond the signed effect range, and share one canonical golden vector.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSV1-FEE-RESIDUE-EXACT-NAMED-RESERVE",
+    "GSV1-FEE-RESIDUE-STATE-DELTA-REFINEMENT",
+    "GSV1-FEE-RESIDUE-CANONICAL-MULTI-ASSET",
+    "GSV1-FEE-RESIDUE-SIGNED-RANGE-BVA",
+    "GSV1-FEE-RESIDUE-PYTHON-RUST-PARITY",
+    "GSV1-FEE-RESIDUE-SAME-PLAN-SPEND-FAIL-CLOSED"
+  ],
+  "failure_modes": [
+    "a carried fee residue is disclosed without a positive reserve effect at the ABI-defined principal and control domain",
+    "an aliased principal or control domain receives the carried residue",
+    "the fee row, reserve effect, or complete pre/post reserve state disagree",
+    "duplicate or orphan residue effects bypass canonical accounting",
+    "per-asset residue accounting is reordered or merged across assets",
+    "a residue delta outside the signed effect domain is presented as representable",
+    "one aggregated plan hides a reserve spend behind a net delta while claiming the gross carried residue",
+    "Python and Rust canonical refinement roots diverge for the shared vector"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
+      "sha256": "66b03604142286602f1def3c8edc5c6172a11104b50d0190e11eeb41e81d23fd"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "d0bf943a7b8eafb365cb40de6fd34a64be771e5bd1e105cdceda93a71ef75ce7"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "5d17cd8043dc93fea2b7fa5c8cd8b2dce94417ac8bb208e7a6082fd4ff154537"
+    },
+    {
+      "path": "src/core/zdex_fee_allocation_types_v1.py",
+      "sha256": "b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df"
+    },
+    {
+      "path": "src/core/zdex_fee_allocation_v1.py",
+      "sha256": "8f976781349e31ae9fd3c48b8534ae4fbfe74e8ce33e6b62c6a627c8109bad84"
+    },
+    {
+      "path": "tests/fixtures/global_economic_state_fee_residue_v1.json",
+      "sha256": "4c84ba52e2b40b42960f212b3534121e6a268786ff704a3812c535f183f3ffb5"
+    },
+    {
+      "path": "tests/global_economic_state_refinement_cases_v1.py",
+      "sha256": "104a601d9a9d54e0cededa1c0efcabc7c77021d1cfe45cae3cd0e79fb34846dd"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/effects.rs",
+      "sha256": "e51f38d1a56cac7e61712ba786fe384d8aa7d6a14715715f1c90698292888bb6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
+      "sha256": "d42c82a28fdb869ff54f61d9dfe9812d9c31b6691c3bdb728d0c3d5381d4449f"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_fee_allocation.rs",
+      "sha256": "2dc440b8a1711f75c5950e5e8c51fb9b709f709d16bf68e52aea15f3b6f0e78b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_fee_allocation_types.rs",
+      "sha256": "609fc31d4a987e5f86d1aff953f797f656e82dc9df090a3380763941b1b58b1e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_economic_state_effect_refinement.rs",
+      "sha256": "b90b7e5b075a1f182b8d825914781cc5c5371d221f41f9e0a9207d7091a05430"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_economic_state_effect_refinement_v1.py",
+      "sha256": "7bd7e9ab7e771151b13e2a877e739cb98d26b04948b72ce7d08f8119834469c9",
+      "node_ids": [
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_matches_cross_language_golden_root",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_accepts_fee_residue_in_exact_named_reserve",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_matches_shared_fee_residue_golden_vector",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_without_state_bucket",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_aliases",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_amount_mismatch",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_when_reserve_state_delta_disagrees",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_accepts_fee_residue_at_signed_effect_maximum",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_above_signed_effect_maximum",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_accepts_two_asset_fee_residue_in_canonical_order",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_reversed_two_asset_fee_residue_order",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_duplicate_exact_fee_residue_effect",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_orphan_positive_fee_residue_reserve",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_same_plan_carry_and_spend_but_accepts_later_spend",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_zero_fee_conservation_row"
+      ]
+    },
+    {
+      "path": "tests/formal/test_esso_global_settlement_core_v1.py",
+      "sha256": "b35807da510949e5bd76de24d64861c00e14017ea338d71b51b1ebacb2774689",
+      "node_ids": [
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_blueprint_pins_base_commit_and_semantic_source_hashes",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_blueprint_records_the_durable_status_and_no_authority",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_blueprint_gap_table_lists_seven_open_and_one_closed_refinement_gap",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_gap_07_closed_model_residue_matches_named_runtime_reserve"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "stateful",
+    "mutation",
+    "formal",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each focused test arranges a complete typed state and canonical effect plan, acts through the public refinement or closed plan validator, and asserts the exact accepted roots or fail-closed rejection. The stateful case carries residue and then spends it through two connected full states."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "This slice is a pure witness-construction checker with no durable writer. Rejection returns no opaque refinement witness and performs no external effect; typed transition reject-is-no-op remains a separate route obligation."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "residue_atoms_signed_effect_range",
+      "points": ["zero uses no residue row", "one atom accepts", "i128 maximum accepts", "i128 maximum plus one is unrepresentable and rejects"]
+    },
+    {
+      "name": "residue_identity",
+      "points": ["exact principal and control domain accept", "principal alias rejects", "control-domain alias rejects"]
+    },
+    {
+      "name": "residue_cardinality_and_assets",
+      "points": ["one asset accepts", "two canonically ordered assets accept", "reversed two-asset fee rows reject", "exact duplicate rejects", "orphan positive reserve rejects"]
+    },
+    {
+      "name": "state_and_flow_consistency",
+      "points": ["effect and state delta agree", "state delta differs by one atom", "carry then later spend accepts", "same aggregated plan carry-and-spend rejects"]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "replace the exact fee-residue principal with an alias",
+      "killed_by": "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_aliases"
+    },
+    {
+      "description": "change the reserve effect amount while preserving the fee row",
+      "killed_by": "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_amount_mismatch"
+    },
+    {
+      "description": "change the disclosed post-state reserve while preserving fee and effect rows",
+      "killed_by": "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_when_reserve_state_delta_disagrees"
+    },
+    {
+      "description": "drop the fee-conservation row while retaining a positive named reserve effect",
+      "killed_by": "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_orphan_positive_fee_residue_reserve"
+    },
+    {
+      "description": "hide a same-plan residue spend by exposing only the net reserve delta",
+      "killed_by": "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_same_plan_carry_and_spend_but_accepts_later_spend"
+    },
+    {
+      "description": "reverse two distinct asset fee rows while preserving every value",
+      "killed_by": "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_reversed_two_asset_fee_residue_order"
+    }
+  ],
+  "nonclaims": [
+    "This packet establishes no production, settlement, release, migration, proof-receipt, or value-moving authority.",
+    "The closed mapping does not select residue ownership, allocation percentages, spending authority, destination policy, or terminal disposition.",
+    "A carry and reserve spend in the same aggregated plan rejects because ABI V1 exposes only one net reserve effect per canonical key; this packet does not prove a gross-flow extension.",
+    "Python/Rust parity is limited to the source-pinned shared vector and focused tests; no RISC0 receipt or guest replay is established.",
+    "The ESSO model remains finite and the two external ESSO checks remain INCOMPLETE on hosts without the private toolchain.",
+    "A later negative reserve effect is structurally representable, but this packet does not authorize who may spend residue or where it may go.",
+    "Passing this evidence does not guarantee all ZenoDEX value movement."
+  ]
+}

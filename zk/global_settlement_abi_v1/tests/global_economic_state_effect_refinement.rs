@@ -3,14 +3,40 @@
 //! Structural pre/post deltas are the independent semantic oracle. The shared
 //! Python/Rust root detects canonical encoding drift.
 
+use serde::Deserialize;
 use zenodex_global_settlement_abi_v1::{
     refine_global_economic_state_effects_v1, AbiErrorV1, AssetConservationRowV1, AssetSupplyV1,
     EconomicAmountV1, EconomicCommandOccurrenceV1, EconomicEffectKindV1, EconomicEffectRowV1,
     ExternalOutboxEnqueueV1, FeeConservationRowV1, GlobalEconomicEffectPlanV1,
     GlobalEconomicStateEffectRefinementCandidateV1, GlobalEconomicStateV1, LaneIdV1,
     LaneStateRootV1, LaneWriteV1, ReplayStateV1, RootV1, RouteCompositionJournalV1,
-    ALL_LANE_IDS_V1, GLOBAL_SETTLEMENT_ABI_V1, ZERO_ROOT_V1,
+    ALL_LANE_IDS_V1, FEE_RESIDUE_CONTROL_DOMAIN_V1, FEE_RESIDUE_PRINCIPAL_V1,
+    GLOBAL_SETTLEMENT_ABI_V1, ZERO_ROOT_V1,
 };
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FeeResidueVectorV1 {
+    schema: String,
+    case_id: String,
+    asset: String,
+    principal: String,
+    control_domain: String,
+    pre_reserve_atoms: String,
+    post_reserve_atoms: String,
+    fee_charged_atoms: String,
+    current_allocations_atoms: String,
+    carried_residue_atoms: String,
+    reserve_effect_delta_atoms: String,
+    expected_refinement_root: String,
+}
+
+fn fee_residue_vector_v1() -> FeeResidueVectorV1 {
+    serde_json::from_str(include_str!(
+        "../../../tests/fixtures/global_economic_state_fee_residue_v1.json"
+    ))
+    .expect("shared fee residue vector must be closed valid JSON")
+}
 
 fn root(value: u64) -> RootV1 {
     RootV1::parse(format!("0x{value:064x}"), "refinement test root", false).unwrap()
@@ -208,6 +234,217 @@ fn candidate<'a>(
         consumed_occurrences: &[],
         route_journals: &[],
     }
+}
+
+fn fee_residue_case(
+    principal: &str,
+    control_domain: &str,
+    effect_atoms: i128,
+) -> (
+    GlobalEconomicStateV1,
+    GlobalEconomicStateV1,
+    GlobalEconomicEffectPlanV1,
+) {
+    let mut pre = pre_state();
+    pre.reserves = vec![amount(principal, "USD", control_domain, 5)];
+    let mut post = post_state();
+    post.reserves = vec![amount(principal, "USD", control_domain, 6)];
+    let mut effects = effect_plan();
+    let residue = effects
+        .rows
+        .iter_mut()
+        .find(|row| row.kind == EconomicEffectKindV1::RESERVE)
+        .expect("base plan has one reserve row");
+    residue.principal = principal.to_owned();
+    residue.custody_domain = control_domain.to_owned();
+    residue.delta_atoms = effect_atoms;
+    effects.rows.sort_by_key(|row| {
+        (
+            format!("{:?}", row.kind),
+            row.asset.clone(),
+            row.principal.clone(),
+            row.custody_domain.clone(),
+        )
+    });
+    effects.fee_conservation[0].fee_charged_atoms = 3;
+    effects.fee_conservation[0].carried_residue_atoms = 1;
+    (pre, post, effects)
+}
+
+fn isolated_fee_residue_case(
+    flows: &[(&str, u128, u128)],
+) -> (
+    GlobalEconomicStateV1,
+    GlobalEconomicStateV1,
+    GlobalEconomicEffectPlanV1,
+) {
+    let mut pre_balances = vec![];
+    let mut pre_reserves = vec![];
+    let mut post_balances = vec![];
+    let mut post_reserves = vec![];
+    let mut supplies = vec![];
+    let mut rows = vec![];
+    let mut conservation = vec![];
+    let mut fee_conservation = vec![];
+    for (asset, carried_atoms, spent_atoms) in flows {
+        let total_atoms = carried_atoms
+            .checked_add(*spent_atoms)
+            .expect("test flow total must fit u128");
+        let carried_delta = i128::try_from(*carried_atoms)
+            .expect("test carried residue must fit signed effect range");
+        let spent_delta =
+            i128::try_from(*spent_atoms).expect("test spend must fit signed effect range");
+        pre_balances.push(amount(
+            "protocol:fee-ingress",
+            asset,
+            "accounts",
+            *carried_atoms,
+        ));
+        if *spent_atoms > 0 {
+            pre_reserves.push(amount(
+                FEE_RESIDUE_PRINCIPAL_V1,
+                asset,
+                FEE_RESIDUE_CONTROL_DOMAIN_V1,
+                *spent_atoms,
+            ));
+            post_balances.push(amount(
+                "protocol:fee-spend-sink",
+                asset,
+                "accounts",
+                *spent_atoms,
+            ));
+            rows.push(EconomicEffectRowV1 {
+                kind: EconomicEffectKindV1::ACCOUNT_MOVEMENT,
+                principal: "protocol:fee-spend-sink".to_owned(),
+                asset: (*asset).to_owned(),
+                custody_domain: "accounts".to_owned(),
+                delta_atoms: spent_delta,
+            });
+        }
+        post_reserves.push(amount(
+            FEE_RESIDUE_PRINCIPAL_V1,
+            asset,
+            FEE_RESIDUE_CONTROL_DOMAIN_V1,
+            *carried_atoms,
+        ));
+        rows.push(EconomicEffectRowV1 {
+            kind: EconomicEffectKindV1::ACCOUNT_MOVEMENT,
+            principal: "protocol:fee-ingress".to_owned(),
+            asset: (*asset).to_owned(),
+            custody_domain: "accounts".to_owned(),
+            delta_atoms: -carried_delta,
+        });
+        let reserve_delta = carried_delta - spent_delta;
+        if reserve_delta != 0 {
+            rows.push(EconomicEffectRowV1 {
+                kind: EconomicEffectKindV1::RESERVE,
+                principal: FEE_RESIDUE_PRINCIPAL_V1.to_owned(),
+                asset: (*asset).to_owned(),
+                custody_domain: FEE_RESIDUE_CONTROL_DOMAIN_V1.to_owned(),
+                delta_atoms: reserve_delta,
+            });
+        }
+        supplies.push(AssetSupplyV1 {
+            asset: (*asset).to_owned(),
+            amount_atoms: total_atoms,
+        });
+        conservation.push(AssetConservationRowV1 {
+            asset: (*asset).to_owned(),
+            owned_and_custodied_pre_atoms: total_atoms,
+            owned_and_custodied_post_atoms: total_atoms,
+            supply_pre_atoms: total_atoms,
+            supply_post_atoms: total_atoms,
+            authorized_issue_atoms: 0,
+            authorized_burn_atoms: 0,
+        });
+        fee_conservation.push(FeeConservationRowV1 {
+            asset: (*asset).to_owned(),
+            fee_charged_atoms: *carried_atoms,
+            current_allocations_atoms: 0,
+            carried_residue_atoms: *carried_atoms,
+        });
+    }
+    let amount_order = |left: &EconomicAmountV1, right: &EconomicAmountV1| {
+        (&left.asset, &left.owner, &left.custody_domain).cmp(&(
+            &right.asset,
+            &right.owner,
+            &right.custody_domain,
+        ))
+    };
+    pre_balances.sort_by(amount_order);
+    pre_reserves.sort_by(amount_order);
+    post_balances.sort_by(amount_order);
+    post_reserves.sort_by(amount_order);
+    supplies.sort_by(|left, right| left.asset.cmp(&right.asset));
+    rows.sort_by(|left, right| {
+        (
+            format!("{:?}", left.kind),
+            &left.asset,
+            &left.principal,
+            &left.custody_domain,
+        )
+            .cmp(&(
+                format!("{:?}", right.kind),
+                &right.asset,
+                &right.principal,
+                &right.custody_domain,
+            ))
+    });
+    conservation.sort_by(|left, right| left.asset.cmp(&right.asset));
+    fee_conservation.sort_by(|left, right| left.asset.cmp(&right.asset));
+
+    let pre = GlobalEconomicStateV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        chain_id: "zeno-fee-residue-test".to_owned(),
+        deployment_root: root(1_000),
+        writer_epoch: 17,
+        height: 41,
+        profile_root: root(1_001),
+        lane_roots: lane_roots(2_001),
+        balances: pre_balances,
+        supplies: supplies.clone(),
+        custody: vec![],
+        liabilities: vec![],
+        reserves: pre_reserves,
+        oracle_occurrences: vec![],
+        replay_state: vec![],
+        terminal_obligations: vec![],
+        history_root: zero_root(),
+        outbox: vec![],
+    };
+    let post = GlobalEconomicStateV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        chain_id: pre.chain_id.clone(),
+        deployment_root: pre.deployment_root.clone(),
+        writer_epoch: pre.writer_epoch,
+        height: pre.height,
+        profile_root: pre.profile_root.clone(),
+        lane_roots: lane_roots(9_001),
+        balances: post_balances,
+        supplies,
+        custody: vec![],
+        liabilities: vec![],
+        reserves: post_reserves,
+        oracle_occurrences: vec![],
+        replay_state: vec![],
+        terminal_obligations: vec![],
+        history_root: zero_root(),
+        outbox: vec![],
+    };
+    let effects = GlobalEconomicEffectPlanV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        rows,
+        asset_conservation: conservation,
+        fee_conservation,
+        lane_writes: vec![LaneWriteV1 {
+            lane_id: LaneIdV1::ASSET_TRANSFER,
+            pre_root: root(2_001),
+            post_root: root(9_001),
+        }],
+        occurrence_consumptions: vec![],
+        external_outbox_enqueue: vec![],
+    };
+    (pre, post, effects)
 }
 
 fn occurrence(
@@ -433,7 +670,7 @@ fn refinement_rejects_supply_lane_and_conservation_substitution() {
 }
 
 #[test]
-fn refinement_rejects_unmirrored_fee_residue_and_unmapped_effects() {
+fn refinement_rejects_unmirrored_fee_and_unmapped_effects() {
     let pre = pre_state();
     let post = post_state();
 
@@ -442,11 +679,6 @@ fn refinement_rejects_unmirrored_fee_residue_and_unmapped_effects() {
     assert!(
         refine_global_economic_state_effects_v1(&candidate(&pre, &post, &unmirrored,)).is_err()
     );
-
-    let mut residue = effect_plan();
-    residue.fee_conservation[0].fee_charged_atoms = 3;
-    residue.fee_conservation[0].carried_residue_atoms = 1;
-    assert!(refine_global_economic_state_effects_v1(&candidate(&pre, &post, &residue)).is_err());
 
     for kind in [EconomicEffectKindV1::REWARD, EconomicEffectKindV1::SLASH] {
         let mut effects = effect_plan();
@@ -473,6 +705,295 @@ fn refinement_rejects_unmirrored_fee_residue_and_unmapped_effects() {
         assert!(
             refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects)).is_err()
         );
+    }
+}
+
+#[test]
+fn refinement_accepts_fee_residue_in_exact_named_reserve() {
+    let (pre, post, effects) =
+        fee_residue_case(FEE_RESIDUE_PRINCIPAL_V1, FEE_RESIDUE_CONTROL_DOMAIN_V1, 1);
+
+    let refinement = refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects))
+        .expect("exact named residue reserve must refine");
+
+    assert_eq!(refinement.pre_state_root(), &pre.state_root().unwrap());
+    assert_eq!(refinement.post_state_root(), &post.state_root().unwrap());
+    assert_eq!(
+        refinement.refinement_root().unwrap().as_str(),
+        "0x58da8bc5aed457f0b938e0e73318d58b59c1b62afd46dd7046e10009770307c6"
+    );
+}
+
+#[test]
+fn refinement_matches_shared_fee_residue_golden_vector() {
+    let vector = fee_residue_vector_v1();
+    let effect_atoms = vector
+        .reserve_effect_delta_atoms
+        .parse::<i128>()
+        .expect("vector effect atoms must parse");
+    let (pre, post, effects) =
+        fee_residue_case(&vector.principal, &vector.control_domain, effect_atoms);
+
+    let refinement = refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects))
+        .expect("shared fee residue vector must refine");
+
+    assert_eq!(
+        vector.schema,
+        "zenodex/global-economic-state-fee-residue-vector/v1"
+    );
+    assert_eq!(vector.case_id, "one-atom-exact-named-reserve");
+    assert_eq!(vector.asset, "USD");
+    assert_eq!(
+        pre.reserves[0].amount_atoms,
+        vector.pre_reserve_atoms.parse::<u128>().unwrap()
+    );
+    assert_eq!(
+        post.reserves[0].amount_atoms,
+        vector.post_reserve_atoms.parse::<u128>().unwrap()
+    );
+    assert_eq!(
+        effects.fee_conservation[0].fee_charged_atoms,
+        vector.fee_charged_atoms.parse::<u128>().unwrap()
+    );
+    assert_eq!(
+        effects.fee_conservation[0].current_allocations_atoms,
+        vector.current_allocations_atoms.parse::<u128>().unwrap()
+    );
+    assert_eq!(
+        effects.fee_conservation[0].carried_residue_atoms,
+        vector.carried_residue_atoms.parse::<u128>().unwrap()
+    );
+    assert_eq!(
+        refinement.refinement_root().unwrap().as_str(),
+        vector.expected_refinement_root
+    );
+}
+
+#[test]
+fn refinement_accepts_fee_residue_at_signed_effect_maximum() {
+    let maximum = i128::MAX as u128;
+    let (pre, post, effects) = isolated_fee_residue_case(&[("USD", maximum, 0)]);
+
+    let refinement = refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects))
+        .expect("signed-effect maximum residue must refine");
+
+    assert_eq!(refinement.pre_state_root(), &pre.state_root().unwrap());
+    assert_eq!(refinement.post_state_root(), &post.state_root().unwrap());
+}
+
+#[test]
+fn refinement_rejects_fee_residue_above_signed_effect_range() {
+    let state = pre_state();
+    let above_effect_range = (i128::MAX as u128) + 1;
+    let effects = GlobalEconomicEffectPlanV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        rows: vec![],
+        asset_conservation: vec![],
+        fee_conservation: vec![FeeConservationRowV1 {
+            asset: "USD".to_owned(),
+            fee_charged_atoms: above_effect_range,
+            current_allocations_atoms: 0,
+            carried_residue_atoms: above_effect_range,
+        }],
+        lane_writes: vec![],
+        occurrence_consumptions: vec![],
+        external_outbox_enqueue: vec![],
+    };
+
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&candidate(&state, &state, &effects)),
+        Err(AbiErrorV1::InvalidBinding(
+            "economic refinement fee residue state mapping"
+        ))
+    ));
+}
+
+#[test]
+fn refinement_accepts_two_asset_fee_residue_in_canonical_order() {
+    let (pre, post, effects) = isolated_fee_residue_case(&[("ASSET-A", 1, 0), ("ASSET-B", 2, 0)]);
+
+    let refinement = refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects))
+        .expect("canonically ordered multi-asset residue must refine");
+
+    assert_eq!(
+        effects
+            .fee_conservation
+            .iter()
+            .map(|row| row.asset.as_str())
+            .collect::<Vec<_>>(),
+        vec!["ASSET-A", "ASSET-B"]
+    );
+    assert_eq!(
+        refinement.effect_plan_root(),
+        &effects.effect_plan_root().unwrap()
+    );
+}
+
+#[test]
+fn refinement_rejects_reversed_two_asset_fee_residue_order() {
+    let (pre, post, mut effects) =
+        isolated_fee_residue_case(&[("ASSET-A", 1, 0), ("ASSET-B", 2, 0)]);
+    effects.fee_conservation.reverse();
+
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects)),
+        Err(AbiErrorV1::InvalidOrder("fee conservation"))
+    ));
+}
+
+#[test]
+fn refinement_rejects_duplicate_and_orphan_fee_residue_rows() {
+    let (pre, post, effects) = isolated_fee_residue_case(&[("USD", 1, 0)]);
+    let mut duplicate = effects.clone();
+    let residue = duplicate
+        .rows
+        .iter()
+        .find(|row| row.kind == EconomicEffectKindV1::RESERVE)
+        .unwrap()
+        .clone();
+    duplicate.rows.push(residue);
+    duplicate.rows.sort_by(|left, right| {
+        (
+            format!("{:?}", left.kind),
+            &left.asset,
+            &left.principal,
+            &left.custody_domain,
+        )
+            .cmp(&(
+                format!("{:?}", right.kind),
+                &right.asset,
+                &right.principal,
+                &right.custody_domain,
+            ))
+    });
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&candidate(&pre, &post, &duplicate)),
+        Err(AbiErrorV1::InvalidOrder("effect rows"))
+    ));
+
+    let mut orphan = effects;
+    orphan.fee_conservation.clear();
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&candidate(&pre, &post, &orphan)),
+        Err(AbiErrorV1::InvalidBinding(
+            "economic refinement fee residue state mapping"
+        ))
+    ));
+}
+
+#[test]
+fn refinement_rejects_residue_state_delta_mismatch_and_same_plan_spend() {
+    let (pre, mut post, effects) =
+        fee_residue_case(FEE_RESIDUE_PRINCIPAL_V1, FEE_RESIDUE_CONTROL_DOMAIN_V1, 1);
+    post.reserves[0].amount_atoms = 7;
+    assert!(refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects)).is_err());
+
+    let (pre, post, combined) = isolated_fee_residue_case(&[("USD", 1, 1)]);
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&candidate(&pre, &post, &combined)),
+        Err(AbiErrorV1::InvalidBinding(
+            "economic refinement fee residue state mapping"
+        ))
+    ));
+}
+
+#[test]
+fn refinement_accepts_later_fee_residue_spend() {
+    let (carry_pre, carry_post, carry_effects) = isolated_fee_residue_case(&[("USD", 1, 0)]);
+    refine_global_economic_state_effects_v1(&candidate(&carry_pre, &carry_post, &carry_effects))
+        .expect("fee residue carry must refine before a later spend");
+
+    let spend_pre = carry_post;
+    let mut spend_post = spend_pre.clone();
+    spend_post
+        .lane_roots
+        .iter_mut()
+        .find(|row| row.lane_id == LaneIdV1::ASSET_TRANSFER)
+        .expect("asset lane must exist")
+        .state_root = root(9_002);
+    spend_post.balances = vec![amount("protocol:fee-spend-sink", "USD", "accounts", 1)];
+    spend_post.reserves.clear();
+    let spend_effects = GlobalEconomicEffectPlanV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        rows: vec![
+            effect(
+                EconomicEffectKindV1::ACCOUNT_MOVEMENT,
+                "protocol:fee-spend-sink",
+                "accounts",
+                1,
+            ),
+            effect(
+                EconomicEffectKindV1::RESERVE,
+                FEE_RESIDUE_PRINCIPAL_V1,
+                FEE_RESIDUE_CONTROL_DOMAIN_V1,
+                -1,
+            ),
+        ],
+        asset_conservation: vec![AssetConservationRowV1 {
+            asset: "USD".to_owned(),
+            owned_and_custodied_pre_atoms: 1,
+            owned_and_custodied_post_atoms: 1,
+            supply_pre_atoms: 1,
+            supply_post_atoms: 1,
+            authorized_issue_atoms: 0,
+            authorized_burn_atoms: 0,
+        }],
+        fee_conservation: vec![],
+        lane_writes: vec![LaneWriteV1 {
+            lane_id: LaneIdV1::ASSET_TRANSFER,
+            pre_root: root(9_001),
+            post_root: root(9_002),
+        }],
+        occurrence_consumptions: vec![],
+        external_outbox_enqueue: vec![],
+    };
+
+    refine_global_economic_state_effects_v1(&candidate(&spend_pre, &spend_post, &spend_effects))
+        .expect("a separate later residue spend must refine");
+}
+
+#[test]
+fn refinement_rejects_fee_residue_without_exact_named_reserve() {
+    let pre = pre_state();
+    let post = post_state();
+    let mut effects = effect_plan();
+    effects.fee_conservation[0].fee_charged_atoms = 3;
+    effects.fee_conservation[0].carried_residue_atoms = 1;
+
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects)),
+        Err(AbiErrorV1::InvalidBinding(
+            "economic refinement fee residue state mapping"
+        ))
+    ));
+}
+
+#[test]
+fn refinement_rejects_fee_residue_amount_mismatch() {
+    let (pre, post, effects) =
+        fee_residue_case(FEE_RESIDUE_PRINCIPAL_V1, FEE_RESIDUE_CONTROL_DOMAIN_V1, 2);
+
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects)),
+        Err(AbiErrorV1::InvalidBinding(
+            "economic refinement fee residue state mapping"
+        ))
+    ));
+}
+
+#[test]
+fn refinement_rejects_fee_residue_principal_and_domain_aliases() {
+    for (principal, control_domain) in [
+        ("wrong-residue-principal", FEE_RESIDUE_CONTROL_DOMAIN_V1),
+        (FEE_RESIDUE_PRINCIPAL_V1, "wrong-residue-control-domain"),
+    ] {
+        let (pre, post, effects) = fee_residue_case(principal, control_domain, 1);
+        assert!(matches!(
+            refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects)),
+            Err(AbiErrorV1::InvalidBinding(
+                "economic refinement fee residue state mapping"
+            ))
+        ));
     }
 }
 

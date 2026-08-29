@@ -16,6 +16,8 @@ from typing import Final, Mapping, Protocol, runtime_checkable
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes
 
 GLOBAL_SETTLEMENT_ABI_V1: Final = "zenodex/global-settlement-abi/v1"
+FEE_RESIDUE_PRINCIPAL_V1: Final = "protocol:fee-unallocated-reserve"
+FEE_RESIDUE_CONTROL_DOMAIN_V1: Final = "zenoledger:protocol-fee-residue"
 MAX_TOKEN_BYTES_V1: Final = 160
 MAX_ROUTE_MODULES_V1: Final = 8
 MAX_EPOCH_COMMANDS_V1: Final = 64

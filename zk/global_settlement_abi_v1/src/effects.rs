@@ -12,6 +12,9 @@ use crate::canonical::{
 use crate::release::LaneIdV1;
 use crate::state::TerminalObligationV1;
 
+pub const FEE_RESIDUE_PRINCIPAL_V1: &str = "protocol:fee-unallocated-reserve";
+pub const FEE_RESIDUE_CONTROL_DOMAIN_V1: &str = "zenoledger:protocol-fee-residue";
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[allow(non_camel_case_types)]
 pub enum EconomicEffectKindV1 {

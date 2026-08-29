@@ -12,10 +12,8 @@ pub const ZDEX_FEE_ALLOCATION_POLICY_KIND_V1: &str = "zdex_fee_allocation";
 pub const FEE_ALLOCATION_OUTPUT_ROLE_V1: &str = "FEE_ALLOCATION_OUTPUT";
 pub const FEE_ALLOCATION_OUTPUT_PORT_V1: &str = "ZDEX_FEE_ALLOCATION_OUTPUT_V1";
 pub const FEE_INGRESS_PRINCIPAL_V1: &str = "protocol:fee-ingress";
-pub const FEE_RESIDUE_PRINCIPAL_V1: &str = "protocol:fee-unallocated-reserve";
 pub const FEE_BUYBACK_PRINCIPAL_V1: &str = "protocol-fee-buyback-reserve";
 pub const FEE_INGRESS_CONTROL_DOMAIN_V1: &str = "zenoledger:protocol-fee-ingress";
-pub const FEE_RESIDUE_CONTROL_DOMAIN_V1: &str = "zenoledger:protocol-fee-residue";
 
 pub fn zdex_fee_allocation_port_schema_root_v1() -> AbiResultV1<RootV1> {
     #[derive(Serialize)]
