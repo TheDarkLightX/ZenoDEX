@@ -51,6 +51,46 @@ purchased_zdex_atoms    = burned_zdex_atoms
 Every rejected transition has identical prestate and poststate and emits no
 economic effects.
 
+## Governed spend-selection refinement
+
+The functional core uses one spend rule:
+
+```text
+available = checked_u128(B0 + b)
+q = min(available, per_command_quote_cap, route_safe_quote_limit)
+B1 = available - q
+```
+
+The selected release profile supplies a positive minimum spend, a per-command
+cap, and a positive minimum block interval. Consensus height determines cadence. The
+route-safety limit remains an authenticated Spot/Oracle input and must bind the
+same profile, route, command occurrence, prestate, pool, assets, and pricing
+policy. A zero safe limit, stale state, regressed height, incomplete cooldown,
+reserve overflow, or result below the governed minimum rejects without effects.
+
+The spend-selection mechanism is implemented as an unmounted kernel in Python
+and Rust and is mirrored by checked Lean natural-number models:
+
+- `src/core/zdex_buyback_spend_v1.py`
+- `src/core/zdex_buyback_spot_safety_receipt_v1.py`
+- `src/core/zdex_verified_buyback_spend_v1.py`
+- `zk/global_settlement_abi_v1/src/zdex_buyback_spend.rs`
+- `lean-mathlib/Proofs/ZDEXBuybackSpendV1.lean`
+- `lean-mathlib/Proofs/ZDEXAtomicBuybackAccountingV1.lean`
+
+The Python SHADOW adapter snapshots the complete global prestate, selects its
+disabled Spot lane commitment, requires a finalized non-future Oracle
+occurrence from that state, verifies the exact profile-selected Spot image and
+canonical journal, and derives consensus height and the route-safe limit from
+that authenticated occurrence. More precisely, it calls an injected receipt
+verifier with the exact image and journal bytes; no production-trusted verifier
+is mounted yet. It then requires the actual Spot quote input to equal the spend
+selected from the canonical fee state.
+
+Exact numeric caps, intervals, minimum output, freshness, deviation, impact,
+and liquidity policy remain versioned profile inputs. These modules do not
+compose both lane receipts or authorize settlement by themselves.
+
 ## Sole-owner map
 
 | Economic fact | Sole authoritative owner | Global representation |
@@ -188,7 +228,7 @@ or treated as authoritative for ZenoDEX semantics.
 This architecture does not select:
 
 - fee percentages or destination shares;
-- the amount or cadence spent from the accumulated reserve;
+- numeric spend caps, minimums, and cadence intervals;
 - residue disposition;
 - minimum output, Oracle or TWAP source, freshness, finality, or deviation;
 - execution-impact and MEV bounds;
@@ -200,9 +240,25 @@ Fixtures and comparative protocols cannot select these values. Their eventual
 policy envelope needs explicit user approval, deterministic boundary evidence,
 and a new content-derived release.
 
+## PulseX lessons applied in this checkpoint
+
+The implementation keeps the useful atomic shape: observed quote value moves
+directly from the canonical buyback balance into the governed Spot purchase,
+and the actual ZDEX output is the amount later required at the burn boundary.
+The release-selected pool, assets, and Oracle policy replace caller-selected
+inventory. The journal requires a positive safe limit and output minimum and
+binds both to the receipt. A future governed Spot guest must establish their
+Oracle, freshness, liquidity, and impact formulas before this closes the
+price-free reserve-extraction risk. Hosting compensation remains a separate fee
+destination and cannot suppress burning through a zero-bounty configuration
+branch.
+
 ## Claim ceiling
 
-This decision closes an architecture choice only. The replacement route,
-versioned tokenomics state, ABI V1 nullifier completion, Python and Rust parity,
-RISC0 guests, machine-checked refinement, migration, durable publication, and
-all value-movement gates remain incomplete.
+The spend-selection kernel now has Python/Rust canonical-root parity, bounded
+Lean arithmetic and atomic-accounting theorems, and an authenticated SHADOW
+Spot/Oracle adapter. The replacement two-lane route, complete tokenomics lane
+state transition, ABI V1 nullifier completion, RISC0 guests, runtime-to-theorem
+refinement, migration, durable publication, and all value-movement gates remain
+incomplete. No production, settlement, release, publication, migration, or
+value-moving authority is claimed.

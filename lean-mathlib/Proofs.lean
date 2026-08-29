@@ -337,6 +337,8 @@ import Proofs.ZenoDEXSettlementCompactBundle
 import Proofs.ZenoDEXSettlementEndogenousLPValuePacket
 import Proofs.ZenoDEXSettlementEndToEndCertificatePacket
 import Proofs.ZenoDEXSettlementFeatureExtensionPacket
+import Proofs.ZDEXAtomicBuybackAccountingV1
+import Proofs.ZDEXBuybackSpendV1
 import Proofs.ZenoDEXSettlementPriceHistoryCertificate
 import Proofs.ZenoDEXSettlementValuePacket
 import Proofs.ZenoDEXSTierDisasterMath
