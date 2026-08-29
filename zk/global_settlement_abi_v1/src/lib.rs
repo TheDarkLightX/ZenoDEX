@@ -11,6 +11,7 @@ mod asset_transfer_lane_module;
 mod asset_transfer_policy_registry;
 mod asset_transfer_types;
 mod canonical;
+mod current_profile_lane_gate;
 mod economic_command_authentication;
 mod economic_command_authorization_registry;
 mod economic_command_signature_verifier_deployment;
@@ -92,6 +93,7 @@ pub use canonical::{
     MAX_EPOCH_LEAF_OCCURRENCES_V1, MAX_JOURNAL_BYTES_V1, MAX_LANE_MODULE_RECEIPT_BYTES_V1,
     MAX_POLICY_BINDINGS_V1, MAX_ROUTE_MODULES_V1, MAX_TOKEN_BYTES_V1, ZERO_ROOT_V1,
 };
+pub use current_profile_lane_gate::*;
 pub use economic_command_authentication::*;
 pub use economic_command_authorization_registry::*;
 pub use economic_command_signature_verifier_deployment::*;

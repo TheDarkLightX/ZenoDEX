@@ -377,6 +377,7 @@ import Proofs.ZUSDRedemptionDrainGuards
 import Proofs.ZUSDSPConvexity
 import Proofs.ZKClearingPriceCorrectness
 import Proofs.CrossShardAtomicSettlement
+import Proofs.CurrentProfileLaneGateV1
 import Proofs.UnifiedMEVModel
 
 /-!
