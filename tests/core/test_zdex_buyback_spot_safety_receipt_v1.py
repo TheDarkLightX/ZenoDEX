@@ -58,6 +58,7 @@ from src.core.zdex_atomic_buyback_state_v1 import (
 )
 from src.core.zdex_buyback_price_safety_v1 import (
     ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
+    ZDEXBuybackOraclePriceOccurrenceV1,
     ZDEXBuybackPriceSafetyPolicyV1,
 )
 from src.core.zdex_buyback_spend_v1 import (
@@ -66,13 +67,13 @@ from src.core.zdex_buyback_spend_v1 import (
     ZDEXBuybackSpendStateV1,
 )
 from src.core.zdex_buyback_spot_safety_receipt_v1 import (
-    VerifiedZDEXBuybackSpotSafetyPurchaseV1,
-    ZDEXBuybackSpotReceiptCandidateV1,
+    VerifiedZDEXBuybackSpotSafetyPurchaseV2,
+    ZDEXBuybackSpotReceiptCandidateV2,
     ZDEXBuybackSpotReceiptEnvelopeV1,
     ZDEXBuybackSpotReceiptRejectCodeV1,
     ZDEXBuybackSpotReceiptRejectedV1,
-    ZDEXBuybackSpotSafetyPurchaseJournalV1,
-    verify_zdex_buyback_spot_safety_receipt_shadow_v1,
+    ZDEXBuybackSpotSafetyPurchaseJournalV2,
+    verify_zdex_buyback_spot_safety_receipt_shadow_v2,
 )
 from src.core.zdex_fee_allocation_types_v1 import (
     ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
@@ -215,7 +216,7 @@ class _RecordingVerifier:
 
 @dataclass(frozen=True, slots=True)
 class _Fixture:
-    candidate: ZDEXBuybackSpotReceiptCandidateV1
+    candidate: ZDEXBuybackSpotReceiptCandidateV2
     route: RouteReleaseV1
     spot_release: LaneModuleReleaseV1
     authority_head: GlobalEconomicAuthorityHeadV1
@@ -388,7 +389,14 @@ def _fixture() -> _Fixture:
         status=ProfileStatusV1.SHADOW,
     )
     oracle_id = "zdex-buyback-oracle"
-    oracle_occurrence_root = _root(52)
+    oracle_occurrence_root = ZDEXBuybackOraclePriceOccurrenceV1(
+        oracle_id=oracle_id,
+        quote_asset_id=policy.quote_asset_id,
+        zdex_asset_id=policy.zdex_asset_id,
+        quote_numerator_atoms=1,
+        zdex_denominator_atoms=1,
+        observed_height=76,
+    ).occurrence_root
     global_pre_state = GlobalEconomicStateV1(
         chain_id="zenodex-shadow",
         deployment_root=_root(40),
@@ -472,7 +480,7 @@ def _fixture() -> _Fixture:
         nonce=9,
         profile_root=profile.profile_id,
         pre_state_root=global_pre_state.state_root,
-        consumed_object_ids=(),
+        consumed_object_ids=(oracle_occurrence_root,),
     )
     fee_context = ZDEXFeeAllocationContextV1(
         occurrence.chain_id,
@@ -487,7 +495,7 @@ def _fixture() -> _Fixture:
     )
     fee_command = ZDEXFeeAllocationCommandV1(125)
     expected_spot_pre_root = _root(50)
-    journal = ZDEXBuybackSpotSafetyPurchaseJournalV1(
+    journal = ZDEXBuybackSpotSafetyPurchaseJournalV2(
         chain_id=occurrence.chain_id,
         deployment_root=occurrence.deployment_root,
         profile_root=profile.profile_id,
@@ -531,7 +539,7 @@ def _fixture() -> _Fixture:
         minimum_output_atoms=109,
         purchased_zdex_atoms=111,
     )
-    candidate = ZDEXBuybackSpotReceiptCandidateV1(
+    candidate = ZDEXBuybackSpotReceiptCandidateV2(
         profile=profile,
         policy_registry=policy_registry,
         buyback_policy=policy,
@@ -615,7 +623,7 @@ def test_caller_selected_fee_budget_rejects_before_receipt_callback() -> None:
 
     # Act / Assert
     with pytest.raises(ZDEXBuybackSpotReceiptRejectedV1) as rejected:
-        verify_zdex_buyback_spot_safety_receipt_shadow_v1(
+        verify_zdex_buyback_spot_safety_receipt_shadow_v2(
             candidate,
             authority_head=fixture.authority_head,
             receipt_verifier=fixture.receipt_verifier,
@@ -626,9 +634,9 @@ def test_caller_selected_fee_budget_rejects_before_receipt_callback() -> None:
 
 def _verify(
     fixture: _Fixture,
-    candidate: ZDEXBuybackSpotReceiptCandidateV1 | None = None,
-) -> VerifiedZDEXBuybackSpotSafetyPurchaseV1:
-    return verify_zdex_buyback_spot_safety_receipt_shadow_v1(
+    candidate: ZDEXBuybackSpotReceiptCandidateV2 | None = None,
+) -> VerifiedZDEXBuybackSpotSafetyPurchaseV2:
+    return verify_zdex_buyback_spot_safety_receipt_shadow_v2(
         candidate or fixture.candidate,
         authority_head=fixture.authority_head,
         receipt_verifier=fixture.receipt_verifier,
@@ -637,7 +645,7 @@ def _verify(
 
 def _assert_reject(
     fixture: _Fixture,
-    candidate: ZDEXBuybackSpotReceiptCandidateV1,
+    candidate: ZDEXBuybackSpotReceiptCandidateV2,
     expected_code: ZDEXBuybackSpotReceiptRejectCodeV1,
 ) -> None:
     with pytest.raises(ZDEXBuybackSpotReceiptRejectedV1) as exc_info:
@@ -675,7 +683,7 @@ def test_verified_witness_is_opaque_immutable_and_binding_stable() -> None:
     journal_copy = verified.journal
 
     with pytest.raises(TypeError, match="verifier-constructed"):
-        VerifiedZDEXBuybackSpotSafetyPurchaseV1(object(), object())  # type: ignore[arg-type]
+        VerifiedZDEXBuybackSpotSafetyPurchaseV2(object(), object())  # type: ignore[arg-type]
     with pytest.raises(AttributeError, match="immutable"):
         verified._fields = object()  # type: ignore[assignment]
     object.__setattr__(journal_copy, "safety_binding_root", _root(90_001))
@@ -688,7 +696,7 @@ def test_canonical_journal_digest_is_fixed() -> None:
     journal_bytes = canonical_global_bytes_v1(_fixture().candidate.journal)
 
     assert hashlib.sha256(journal_bytes).hexdigest() == (
-        "c74784d287b9436c4fd08a2bc8c1bfdb9837f2387a45a8b6f0b85732e15b70d6"
+        "15fc1d0093129ab31273b9d2d4dc5a1eb8ada41233af59c64e6e5e92b39bd28f"
     )
 
 
@@ -760,7 +768,7 @@ def test_raw_accept_all_callback_cannot_create_authority_witness() -> None:
             del args, kwargs
 
     with pytest.raises(ZDEXBuybackSpotReceiptRejectedV1) as exc_info:
-        verify_zdex_buyback_spot_safety_receipt_shadow_v1(
+        verify_zdex_buyback_spot_safety_receipt_shadow_v2(
             fixture.candidate,
             authority_head=fixture.authority_head,
             receipt_verifier=_AcceptAll(),
@@ -775,7 +783,7 @@ def test_stale_current_authority_head_rejects_before_receipt_verification() -> N
     stale = replace(fixture.authority_head, profile_root=_root(70_000))
 
     with pytest.raises(ZDEXBuybackSpotReceiptRejectedV1) as exc_info:
-        verify_zdex_buyback_spot_safety_receipt_shadow_v1(
+        verify_zdex_buyback_spot_safety_receipt_shadow_v2(
             fixture.candidate,
             authority_head=stale,
             receipt_verifier=fixture.receipt_verifier,
@@ -867,16 +875,29 @@ def test_purchased_output_below_positive_minimum_rejects_before_callback() -> No
 
 
 @pytest.mark.parametrize(
-    "changes",
+    ("changes", "expected_code"),
     (
-        {"oracle_quote_numerator_atoms": 2},
-        {"purchased_zdex_atoms": 110},
-        {"route_safe_quote_limit_atoms": 199},
-        {"minimum_output_atoms": 110},
+        (
+            {"oracle_quote_numerator_atoms": 2},
+            ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
+        ),
+        (
+            {"purchased_zdex_atoms": 110},
+            ZDEXBuybackSpotReceiptRejectCodeV1.PRICE_SAFETY_REJECTED,
+        ),
+        (
+            {"route_safe_quote_limit_atoms": 199},
+            ZDEXBuybackSpotReceiptRejectCodeV1.PRICE_SAFETY_REJECTED,
+        ),
+        (
+            {"minimum_output_atoms": 110},
+            ZDEXBuybackSpotReceiptRejectCodeV1.PRICE_SAFETY_REJECTED,
+        ),
     ),
 )
 def test_price_envelope_mutations_reject_before_receipt_callback(
     changes: dict[str, int],
+    expected_code: ZDEXBuybackSpotReceiptRejectCodeV1,
 ) -> None:
     fixture = _fixture()
     candidate = replace(
@@ -887,7 +908,7 @@ def test_price_envelope_mutations_reject_before_receipt_callback(
     _assert_reject(
         fixture,
         candidate,
-        ZDEXBuybackSpotReceiptRejectCodeV1.PRICE_SAFETY_REJECTED,
+        expected_code,
     )
 
 
@@ -1025,11 +1046,32 @@ def test_stale_global_or_spot_pre_root_rejects(
     (
         ((), ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH),
         (
-            (OracleOccurrenceStateV1("zdex-buyback-oracle", _root(52), 76, False),),
+            (
+                OracleOccurrenceStateV1(
+                    "zdex-buyback-oracle",
+                    ZDEXBuybackOraclePriceOccurrenceV1(
+                        "zdex-buyback-oracle",
+                        _root(12),
+                        _root(13),
+                        1,
+                        1,
+                        76,
+                    ).occurrence_root,
+                    76,
+                    False,
+                ),
+            ),
             ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
         ),
         (
-            (OracleOccurrenceStateV1("zdex-buyback-oracle", _root(52), 78, True),),
+            (
+                OracleOccurrenceStateV1(
+                    "zdex-buyback-oracle",
+                    _root(52),
+                    78,
+                    True,
+                ),
+            ),
             ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
         ),
     ),

@@ -6,14 +6,23 @@ use crate::canonical::{
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::proof::{EconomicCommandOccurrenceV1, ReceiptKindV1};
 use crate::release::{LaneIdV1, LaneModuleReleaseV1, ReleaseStatusV1, RouteReleaseV1};
+use crate::state::GlobalEconomicStateV1;
+use crate::zdex_buyback_price_authority::{
+    verify_zdex_buyback_price_authority_v1, ZDEXBuybackPriceAuthorityCandidateV1,
+};
+use crate::zdex_buyback_price_safety::{
+    ZDEXBuybackOraclePriceOccurrenceV1, ZDEXBuybackPriceSafetyPolicyV1,
+};
+use crate::zdex_fee_allocation_types::FEE_BUYBACK_PRINCIPAL_V1;
 use crate::zdex_purchase_burn_effects::{burn_effects_v1, purchase_effects_v1};
 use crate::zdex_purchase_burn_types::{
-    zdex_amm_purchase_port_schema_root_v1, zdex_burn_port_schema_root_v1, ZDEXAMMPurchaseJournalV1,
-    ZDEXBurnJournalV1, AMM_PURCHASE_OUTPUT_ROLE_V1, PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
-    ZDEX_BURN_INPUT_ROLE_V1,
+    zdex_amm_purchase_port_schema_root_v1, zdex_burn_port_schema_root_v1,
+    zdex_occurrence_burn_port_v1, zdex_pool_reserve_principal_v1, ZDEXAMMPurchaseJournalV2,
+    ZDEXBurnJournalV1, ZDEXBuybackExecutionPolicyV1, AMM_PURCHASE_OUTPUT_ROLE_V1,
+    PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1, ZDEX_BURN_INPUT_ROLE_V1,
 };
 
-pub const VERIFIED_ZDEX_AMM_PURCHASE_SCHEMA_V1: &str = "zenodex/verified-zdex-amm-purchase/v1";
+pub const VERIFIED_ZDEX_AMM_PURCHASE_SCHEMA_V2: &str = "zenodex/verified-zdex-amm-purchase/v2";
 pub const VERIFIED_ZDEX_BURN_SCHEMA_V1: &str = "zenodex/verified-zdex-burn/v1";
 
 pub trait ZDEXLaneSuccinctReceiptVerifierV1 {
@@ -31,11 +40,15 @@ pub struct ZDEXLaneReceiptEnvelopeV1 {
     pub receipt_bytes: Vec<u8>,
 }
 
-pub struct ZDEXPurchaseReceiptCandidateV1<'a> {
+pub struct ZDEXPurchaseReceiptCandidateV2<'a> {
     pub route_release: &'a RouteReleaseV1,
     pub module_release: &'a LaneModuleReleaseV1,
     pub occurrence: &'a EconomicCommandOccurrenceV1,
-    pub journal: &'a ZDEXAMMPurchaseJournalV1,
+    pub pre_state: &'a GlobalEconomicStateV1,
+    pub execution_policy: &'a ZDEXBuybackExecutionPolicyV1,
+    pub price_policy: &'a ZDEXBuybackPriceSafetyPolicyV1,
+    pub price_occurrence: &'a ZDEXBuybackOraclePriceOccurrenceV1,
+    pub journal: &'a ZDEXAMMPurchaseJournalV2,
     pub effects: &'a GlobalEconomicEffectPlanV1,
     pub receipt: &'a ZDEXLaneReceiptEnvelopeV1,
 }
@@ -62,6 +75,93 @@ struct VerifiedZDEXLaneFieldsV1 {
     expected_image_id: RootV1,
     receipt_digest: RootV1,
     receipt_kind: ReceiptKindV1,
+    price_authority_root: Option<RootV1>,
+    price_safety_policy_root: Option<RootV1>,
+}
+
+fn verified_purchase_binding_root_v2(fields: &VerifiedZDEXLaneFieldsV1) -> AbiResultV1<RootV1> {
+    #[derive(Serialize)]
+    struct Binding<'a> {
+        schema: &'static str,
+        route_release_id: &'a RootV1,
+        module_release_id: &'a RootV1,
+        command_occurrence_id: &'a RootV1,
+        profile_root: &'a RootV1,
+        writer_epoch: u64,
+        journal_root: &'a RootV1,
+        journal_digest: &'a RootV1,
+        effect_plan_root: &'a RootV1,
+        expected_image_id: &'a RootV1,
+        receipt_digest: &'a RootV1,
+        receipt_kind: ReceiptKindV1,
+        price_authority_root: &'a RootV1,
+        price_safety_policy_root: &'a RootV1,
+    }
+    let price_authority_root = fields
+        .price_authority_root
+        .as_ref()
+        .ok_or(AbiErrorV1::InvalidBinding("ZDEX purchase price authority"))?;
+    let price_safety_policy_root = fields
+        .price_safety_policy_root
+        .as_ref()
+        .ok_or(AbiErrorV1::InvalidBinding("ZDEX purchase price policy"))?;
+    hash_global_v1(
+        "verified-zdex-amm-purchase-v2",
+        &Binding {
+            schema: VERIFIED_ZDEX_AMM_PURCHASE_SCHEMA_V2,
+            route_release_id: &fields.route_release_id,
+            module_release_id: &fields.module_release_id,
+            command_occurrence_id: &fields.command_occurrence_id,
+            profile_root: &fields.profile_root,
+            writer_epoch: fields.writer_epoch,
+            journal_root: &fields.journal_root,
+            journal_digest: &fields.journal_digest,
+            effect_plan_root: &fields.effect_plan_root,
+            expected_image_id: &fields.expected_image_id,
+            receipt_digest: &fields.receipt_digest,
+            receipt_kind: fields.receipt_kind,
+            price_authority_root,
+            price_safety_policy_root,
+        },
+    )
+}
+
+fn verified_burn_binding_root_v1(fields: &VerifiedZDEXLaneFieldsV1) -> AbiResultV1<RootV1> {
+    #[derive(Serialize)]
+    struct Binding<'a> {
+        schema: &'static str,
+        route_release_id: &'a RootV1,
+        module_release_id: &'a RootV1,
+        command_occurrence_id: &'a RootV1,
+        profile_root: &'a RootV1,
+        writer_epoch: u64,
+        journal_root: &'a RootV1,
+        journal_digest: &'a RootV1,
+        effect_plan_root: &'a RootV1,
+        expected_image_id: &'a RootV1,
+        receipt_digest: &'a RootV1,
+        receipt_kind: ReceiptKindV1,
+    }
+    if fields.price_authority_root.is_some() || fields.price_safety_policy_root.is_some() {
+        return Err(AbiErrorV1::InvalidBinding("ZDEX burn price authority"));
+    }
+    hash_global_v1(
+        "verified-zdex-burn-v1",
+        &Binding {
+            schema: VERIFIED_ZDEX_BURN_SCHEMA_V1,
+            route_release_id: &fields.route_release_id,
+            module_release_id: &fields.module_release_id,
+            command_occurrence_id: &fields.command_occurrence_id,
+            profile_root: &fields.profile_root,
+            writer_epoch: fields.writer_epoch,
+            journal_root: &fields.journal_root,
+            journal_digest: &fields.journal_digest,
+            effect_plan_root: &fields.effect_plan_root,
+            expected_image_id: &fields.expected_image_id,
+            receipt_digest: &fields.receipt_digest,
+            receipt_kind: fields.receipt_kind,
+        },
+    )
 }
 
 pub(crate) struct ZDEXVerifiedLaneExpectationV1<'a> {
@@ -74,7 +174,7 @@ pub(crate) struct ZDEXVerifiedLaneExpectationV1<'a> {
 }
 
 macro_rules! verified_lane_type {
-    ($name:ident, $schema:expr, $domain:expr) => {
+    ($name:ident, $binding_root:path) => {
         #[derive(Clone, Debug, Eq, PartialEq)]
         pub struct $name(VerifiedZDEXLaneFieldsV1);
 
@@ -112,39 +212,14 @@ macro_rules! verified_lane_type {
             pub fn receipt_kind(&self) -> ReceiptKindV1 {
                 self.0.receipt_kind
             }
+            pub fn price_authority_root(&self) -> Option<&RootV1> {
+                self.0.price_authority_root.as_ref()
+            }
+            pub fn price_safety_policy_root(&self) -> Option<&RootV1> {
+                self.0.price_safety_policy_root.as_ref()
+            }
             pub fn binding_root(&self) -> AbiResultV1<RootV1> {
-                #[derive(Serialize)]
-                struct Binding<'a> {
-                    schema: &'static str,
-                    route_release_id: &'a RootV1,
-                    module_release_id: &'a RootV1,
-                    command_occurrence_id: &'a RootV1,
-                    profile_root: &'a RootV1,
-                    writer_epoch: u64,
-                    journal_root: &'a RootV1,
-                    journal_digest: &'a RootV1,
-                    effect_plan_root: &'a RootV1,
-                    expected_image_id: &'a RootV1,
-                    receipt_digest: &'a RootV1,
-                    receipt_kind: ReceiptKindV1,
-                }
-                hash_global_v1(
-                    $domain,
-                    &Binding {
-                        schema: $schema,
-                        route_release_id: self.route_release_id(),
-                        module_release_id: self.module_release_id(),
-                        command_occurrence_id: self.command_occurrence_id(),
-                        profile_root: self.profile_root(),
-                        writer_epoch: self.writer_epoch(),
-                        journal_root: self.journal_root(),
-                        journal_digest: self.journal_digest(),
-                        effect_plan_root: self.effect_plan_root(),
-                        expected_image_id: self.expected_image_id(),
-                        receipt_digest: self.receipt_digest(),
-                        receipt_kind: self.receipt_kind(),
-                    },
-                )
+                $binding_root(&self.0)
             }
             pub(crate) fn matches_route_input<T: Serialize>(
                 &self,
@@ -166,16 +241,8 @@ macro_rules! verified_lane_type {
     };
 }
 
-verified_lane_type!(
-    VerifiedZDEXAMMPurchaseV1,
-    VERIFIED_ZDEX_AMM_PURCHASE_SCHEMA_V1,
-    "verified-zdex-amm-purchase-v1"
-);
-verified_lane_type!(
-    VerifiedZDEXBurnV1,
-    VERIFIED_ZDEX_BURN_SCHEMA_V1,
-    "verified-zdex-burn-v1"
-);
+verified_lane_type!(VerifiedZDEXAMMPurchaseV2, verified_purchase_binding_root_v2);
+verified_lane_type!(VerifiedZDEXBurnV1, verified_burn_binding_root_v1);
 
 fn require_route_shape_v1(route: &RouteReleaseV1) -> AbiResultV1<()> {
     route.validate()?;
@@ -261,10 +328,10 @@ pub(crate) fn verify_receipt_v1(
     ))
 }
 
-pub fn verify_zdex_amm_purchase_receipt_v1(
-    candidate: ZDEXPurchaseReceiptCandidateV1<'_>,
+pub fn verify_zdex_amm_purchase_receipt_v2(
+    candidate: ZDEXPurchaseReceiptCandidateV2<'_>,
     verifier: &impl ZDEXLaneSuccinctReceiptVerifierV1,
-) -> AbiResultV1<VerifiedZDEXAMMPurchaseV1> {
+) -> AbiResultV1<VerifiedZDEXAMMPurchaseV2> {
     require_release_and_occurrence_v1(
         candidate.route_release,
         candidate.module_release,
@@ -276,6 +343,22 @@ pub fn verify_zdex_amm_purchase_receipt_v1(
     candidate.effects.validate()?;
     let occurrence_id = candidate.occurrence.occurrence_id()?;
     let journal = candidate.journal;
+    let execution_policy_root = candidate.execution_policy.policy_root()?;
+    let price_policy_root = candidate.price_policy.policy_root()?;
+    let price_occurrence_root = candidate.price_occurrence.occurrence_root()?;
+    let expected_quote_pool = zdex_pool_reserve_principal_v1(
+        &candidate.execution_policy.pool_id,
+        &candidate.execution_policy.quote_asset_id,
+    )?;
+    let expected_zdex_pool = zdex_pool_reserve_principal_v1(
+        &candidate.execution_policy.pool_id,
+        &candidate.execution_policy.zdex_asset_id,
+    )?;
+    let expected_burn_bucket = zdex_occurrence_burn_port_v1(
+        &candidate.occurrence.profile_root,
+        &candidate.route_release.route_release_id,
+        &occurrence_id,
+    )?;
     if journal.chain_id != candidate.occurrence.chain_id
         || journal.deployment_root != candidate.occurrence.deployment_root
         || journal.profile_root != candidate.occurrence.profile_root
@@ -283,6 +366,19 @@ pub fn verify_zdex_amm_purchase_receipt_v1(
         || journal.command_occurrence_id != occurrence_id
         || journal.spot_module_release_id != candidate.module_release.release_id
         || journal.issue_burn_policy_root != candidate.route_release.issue_burn_policy_root
+        || journal.buyback_execution_policy_root != execution_policy_root
+        || journal.price_safety_policy_root != price_policy_root
+        || journal.oracle_occurrence_root != price_occurrence_root
+        || journal.oracle_observed_height != candidate.price_occurrence.observed_height
+        || journal.oracle_quote_numerator_atoms != candidate.price_occurrence.quote_numerator_atoms
+        || journal.oracle_zdex_denominator_atoms
+            != candidate.price_occurrence.zdex_denominator_atoms
+        || journal.quote_asset_id != candidate.execution_policy.quote_asset_id
+        || journal.zdex_asset_id != candidate.execution_policy.zdex_asset_id
+        || journal.quote_source_bucket_id != FEE_BUYBACK_PRINCIPAL_V1
+        || journal.quote_pool_bucket_id != expected_quote_pool
+        || journal.zdex_pool_bucket_id != expected_zdex_pool
+        || journal.burn_bucket_id != expected_burn_bucket
         || journal.effect_plan_root != candidate.effects.effect_plan_root()?
         || candidate.effects != &purchase_effects_v1(journal)?
     {
@@ -290,6 +386,21 @@ pub fn verify_zdex_amm_purchase_receipt_v1(
             "ZDEX purchase journal or effects",
         ));
     }
+    let price_authority =
+        verify_zdex_buyback_price_authority_v1(ZDEXBuybackPriceAuthorityCandidateV1 {
+            pre_state: candidate.pre_state,
+            route: candidate.route_release,
+            occurrence: candidate.occurrence,
+            execution_policy: candidate.execution_policy,
+            price_policy: candidate.price_policy,
+            price_occurrence: candidate.price_occurrence,
+            route_safe_quote_limit_atoms: journal.route_safe_quote_limit_atoms,
+            minimum_output_atoms: journal.minimum_output_atoms,
+            expected_quote_reserve_atoms: journal.quote_pool_pre_atoms,
+            expected_zdex_reserve_atoms: journal.zdex_pool_pre_atoms,
+            quote_amount_in_atoms: journal.quote_amount_in_atoms,
+            purchased_zdex_atoms: journal.purchased_zdex_atoms,
+        })?;
     let journal_bytes = canonical_bytes_v1(journal)?;
     let (journal_digest, receipt_digest) = verify_receipt_v1(
         candidate.receipt,
@@ -297,7 +408,7 @@ pub fn verify_zdex_amm_purchase_receipt_v1(
         candidate.module_release,
         verifier,
     )?;
-    Ok(VerifiedZDEXAMMPurchaseV1(VerifiedZDEXLaneFieldsV1 {
+    Ok(VerifiedZDEXAMMPurchaseV2(VerifiedZDEXLaneFieldsV1 {
         route_release_id: candidate.route_release.route_release_id.clone(),
         module_release_id: candidate.module_release.release_id.clone(),
         command_occurrence_id: occurrence_id,
@@ -309,6 +420,8 @@ pub fn verify_zdex_amm_purchase_receipt_v1(
         expected_image_id: candidate.module_release.guest_image_id.clone(),
         receipt_digest,
         receipt_kind: candidate.receipt.receipt_kind,
+        price_authority_root: Some(price_authority.authority_root()?),
+        price_safety_policy_root: Some(price_policy_root),
     }))
 }
 
@@ -358,5 +471,7 @@ pub fn verify_zdex_burn_receipt_v1(
         expected_image_id: candidate.module_release.guest_image_id.clone(),
         receipt_digest,
         receipt_kind: candidate.receipt.receipt_kind,
+        price_authority_root: None,
+        price_safety_policy_root: None,
     }))
 }

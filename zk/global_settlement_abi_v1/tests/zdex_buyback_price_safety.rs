@@ -40,6 +40,30 @@ fn observation() -> ZDEXBuybackPriceSafetyObservationV1 {
     }
 }
 
+#[test]
+fn oracle_price_occurrence_commits_exact_assets_ratio_and_height() {
+    let occurrence = ZDEXBuybackOraclePriceOccurrenceV1 {
+        schema: ZDEX_BUYBACK_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1.to_owned(),
+        oracle_id: "zdex-buyback-oracle".to_owned(),
+        quote_asset_id: root(12),
+        zdex_asset_id: root(13),
+        quote_numerator_atoms: 1,
+        zdex_denominator_atoms: 1,
+        observed_height: 76,
+    };
+
+    assert_eq!(
+        occurrence.occurrence_root().unwrap().as_str(),
+        "0x12ad650a7b272427b60a2b8572cc31ac48dfa67dd79e24d333e2d8c510231021"
+    );
+    let mut substituted = occurrence.clone();
+    substituted.quote_numerator_atoms = 2;
+    assert_ne!(
+        substituted.occurrence_root().unwrap(),
+        occurrence.occurrence_root().unwrap()
+    );
+}
+
 fn reject_code(
     observation: &ZDEXBuybackPriceSafetyObservationV1,
 ) -> ZDEXBuybackPriceSafetyRejectCodeV1 {

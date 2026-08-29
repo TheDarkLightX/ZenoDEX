@@ -52,6 +52,7 @@ from .zdex_atomic_buyback_state_v1 import ZDEXAtomicBuybackTokenomicsStateV1
 from .zdex_buyback_price_safety_v1 import (
     ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
     VerifiedZDEXBuybackPriceSafetyV1,
+    ZDEXBuybackOraclePriceOccurrenceV1,
     ZDEXBuybackPriceSafetyObservationV1,
     ZDEXBuybackPriceSafetyPolicyV1,
     ZDEXBuybackPriceSafetyRejectedV1,
@@ -84,13 +85,13 @@ from .zdex_verified_fee_ingress_slice_v1 import (
     _derive_verified_zdex_fee_ingress_slice_v1,
 )
 
-ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_JOURNAL_SCHEMA_V1: Final = (
-    "zenodex/zdex-buyback-spot-safety-purchase-journal/v1"
+ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_JOURNAL_SCHEMA_V2: Final = (
+    "zenodex/zdex-buyback-spot-safety-purchase-journal/v2"
 )
-VERIFIED_ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_SCHEMA_V1: Final = (
-    "zenodex/verified-zdex-buyback-spot-safety-purchase/v1"
+VERIFIED_ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_SCHEMA_V2: Final = (
+    "zenodex/verified-zdex-buyback-spot-safety-purchase/v2"
 )
-_VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V1 = object()
+_VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V2 = object()
 
 
 class ZDEXBuybackSpotReceiptRejectCodeV1(str, Enum):
@@ -135,7 +136,7 @@ def _reject(
 
 
 @dataclass(frozen=True, slots=True)
-class ZDEXBuybackSpotSafetyPurchaseJournalV1:
+class ZDEXBuybackSpotSafetyPurchaseJournalV2:
     """Authenticated public facts for one governed exact-in Spot purchase.
 
     Amounts are unsigned integer atoms.  ``quote_amount_in_atoms`` is the
@@ -210,7 +211,7 @@ class ZDEXBuybackSpotSafetyPurchaseJournalV1:
 
     def _safety_binding_body(self) -> dict[str, object]:
         return {
-            "schema": ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_JOURNAL_SCHEMA_V1,
+            "schema": ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_JOURNAL_SCHEMA_V2,
             "chain_id": self.chain_id,
             "deployment_root": self.deployment_root,
             "profile_root": self.profile_root,
@@ -396,7 +397,7 @@ class ZDEXBuybackSpotReceiptEnvelopeV1:
 
 
 @dataclass(frozen=True, slots=True)
-class ZDEXBuybackSpotReceiptCandidateV1:
+class ZDEXBuybackSpotReceiptCandidateV2:
     profile: EconomicProfileSnapshotV1
     policy_registry: EconomicPolicyRegistryV1
     buyback_policy: ZDEXBuybackExecutionPolicyV1
@@ -408,7 +409,7 @@ class ZDEXBuybackSpotReceiptCandidateV1:
     occurrence: EconomicCommandOccurrenceV1
     global_pre_state: GlobalEconomicStateV1
     tokenomics_pre_state: ZDEXAtomicBuybackTokenomicsStateV1
-    journal: ZDEXBuybackSpotSafetyPurchaseJournalV1
+    journal: ZDEXBuybackSpotSafetyPurchaseJournalV2
     receipt: ZDEXBuybackSpotReceiptEnvelopeV1
 
     def __post_init__(self) -> None:
@@ -428,7 +429,7 @@ class ZDEXBuybackSpotReceiptCandidateV1:
                 ZDEXAtomicBuybackTokenomicsStateV1,
                 "tokenomics pre-state",
             ),
-            (self.journal, ZDEXBuybackSpotSafetyPurchaseJournalV1, "journal"),
+            (self.journal, ZDEXBuybackSpotSafetyPurchaseJournalV2, "journal"),
             (self.receipt, ZDEXBuybackSpotReceiptEnvelopeV1, "receipt"),
         )
         for value, expected_type, label in expected:
@@ -437,7 +438,7 @@ class ZDEXBuybackSpotReceiptCandidateV1:
 
 
 @dataclass(frozen=True, slots=True)
-class _ZDEXBuybackSpotReceiptSnapshotV1:
+class _ZDEXBuybackSpotReceiptSnapshotV2:
     profile: EconomicProfileSnapshotV1
     policy_registry: EconomicPolicyRegistryV1
     buyback_policy: ZDEXBuybackExecutionPolicyV1
@@ -449,7 +450,7 @@ class _ZDEXBuybackSpotReceiptSnapshotV1:
     occurrence: EconomicCommandOccurrenceV1
     global_pre_state: GlobalEconomicStateV1
     tokenomics_pre_state: ZDEXAtomicBuybackTokenomicsStateV1
-    journal: ZDEXBuybackSpotSafetyPurchaseJournalV1
+    journal: ZDEXBuybackSpotSafetyPurchaseJournalV2
     receipt: ZDEXBuybackSpotReceiptEnvelopeV1
 
 
@@ -528,9 +529,9 @@ def _snapshot_fee_command_v1(
 
 
 def _snapshot_journal_v1(
-    journal: ZDEXBuybackSpotSafetyPurchaseJournalV1,
-) -> ZDEXBuybackSpotSafetyPurchaseJournalV1:
-    if type(journal) is not ZDEXBuybackSpotSafetyPurchaseJournalV1:
+    journal: ZDEXBuybackSpotSafetyPurchaseJournalV2,
+) -> ZDEXBuybackSpotSafetyPurchaseJournalV2:
+    if type(journal) is not ZDEXBuybackSpotSafetyPurchaseJournalV2:
         raise TypeError("ZDEX buyback Spot journal must be exact typed data")
     _require_exact_dataclass_scalars_v1(journal, name="ZDEX buyback Spot journal")
     journal.validate()
@@ -538,12 +539,12 @@ def _snapshot_journal_v1(
 
 
 def _snapshot_candidate_v1(
-    candidate: ZDEXBuybackSpotReceiptCandidateV1,
-) -> _ZDEXBuybackSpotReceiptSnapshotV1:
-    if type(candidate) is not ZDEXBuybackSpotReceiptCandidateV1:
+    candidate: ZDEXBuybackSpotReceiptCandidateV2,
+) -> _ZDEXBuybackSpotReceiptSnapshotV2:
+    if type(candidate) is not ZDEXBuybackSpotReceiptCandidateV2:
         raise TypeError("ZDEX buyback Spot candidate must be exact typed data")
     candidate.__post_init__()
-    return _ZDEXBuybackSpotReceiptSnapshotV1(
+    return _ZDEXBuybackSpotReceiptSnapshotV2(
         profile=snapshot_economic_profile_v1(candidate.profile),
         policy_registry=_snapshot_policy_registry_v1(candidate.policy_registry),
         buyback_policy=_snapshot_buyback_policy_v1(candidate.buyback_policy),
@@ -564,7 +565,7 @@ def _snapshot_candidate_v1(
 
 
 def _select_shadow_route_and_release_v1(
-    owned: _ZDEXBuybackSpotReceiptSnapshotV1,
+    owned: _ZDEXBuybackSpotReceiptSnapshotV2,
 ) -> tuple[RouteReleaseV1, LaneModuleReleaseV1, LaneModuleReleaseV1]:
     profile = owned.profile
     if profile.status is not ProfileStatusV1.SHADOW:
@@ -626,7 +627,7 @@ def _select_shadow_route_and_release_v1(
 
 
 def _require_governed_policy_v1(
-    owned: _ZDEXBuybackSpotReceiptSnapshotV1,
+    owned: _ZDEXBuybackSpotReceiptSnapshotV2,
     route: RouteReleaseV1,
 ) -> None:
     if owned.profile.policy_registry_root != owned.policy_registry.registry_root:
@@ -679,7 +680,7 @@ def _require_governed_policy_v1(
 
 
 def _require_occurrence_bindings_v1(
-    owned: _ZDEXBuybackSpotReceiptSnapshotV1,
+    owned: _ZDEXBuybackSpotReceiptSnapshotV2,
     route: RouteReleaseV1,
     release: LaneModuleReleaseV1,
     tokenomics_release: LaneModuleReleaseV1,
@@ -731,7 +732,7 @@ def _require_occurrence_bindings_v1(
 
 
 def _require_state_and_oracle_bindings_v1(
-    owned: _ZDEXBuybackSpotReceiptSnapshotV1,
+    owned: _ZDEXBuybackSpotReceiptSnapshotV2,
 ) -> VerifiedZDEXBuybackPriceSafetyV1:
     journal = owned.journal
     state = owned.global_pre_state
@@ -798,10 +799,24 @@ def _require_state_and_oracle_bindings_v1(
         or oracle.observed_height != journal.oracle_observed_height
         or not oracle.finalized
         or oracle.observed_height > occurrence.height
+        or journal.oracle_occurrence_root not in occurrence.consumed_object_ids
     ):
         _reject(
             ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
             "Oracle occurrence is absent, unfinalized, future, or substituted",
+        )
+    price_occurrence = ZDEXBuybackOraclePriceOccurrenceV1(
+        oracle_id=journal.oracle_id,
+        quote_asset_id=journal.quote_asset_id,
+        zdex_asset_id=journal.zdex_asset_id,
+        quote_numerator_atoms=journal.oracle_quote_numerator_atoms,
+        zdex_denominator_atoms=journal.oracle_zdex_denominator_atoms,
+        observed_height=journal.oracle_observed_height,
+    )
+    if price_occurrence.occurrence_root != journal.oracle_occurrence_root:
+        _reject(
+            ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
+            "Oracle occurrence root does not commit the exact price payload",
         )
     quote_pool_principal = zdex_pool_reserve_principal_v1(
         pool_id=owned.buyback_policy.pool_id,
@@ -864,8 +879,8 @@ def _require_state_and_oracle_bindings_v1(
 
 
 @dataclass(frozen=True, slots=True)
-class _VerifiedZDEXBuybackSpotFieldsV1:
-    journal: ZDEXBuybackSpotSafetyPurchaseJournalV1
+class _VerifiedZDEXBuybackSpotFieldsV2:
+    journal: ZDEXBuybackSpotSafetyPurchaseJournalV2
     journal_digest: str
     expected_image_id: str
     receipt_digest: str
@@ -882,7 +897,7 @@ class _VerifiedZDEXBuybackSpotFieldsV1:
 
     def to_canonical(self) -> dict[str, object]:
         return {
-            "schema": VERIFIED_ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_SCHEMA_V1,
+            "schema": VERIFIED_ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_SCHEMA_V2,
             "journal_root": self.journal.journal_root,
             "journal_digest": self.journal_digest,
             "expected_image_id": self.expected_image_id,
@@ -906,28 +921,28 @@ class _VerifiedZDEXBuybackSpotFieldsV1:
         }
 
 
-class VerifiedZDEXBuybackSpotSafetyPurchaseV1:
+class VerifiedZDEXBuybackSpotSafetyPurchaseV2:
     """Opaque process-local witness for one authenticated shadow journal."""
 
-    _fields: _VerifiedZDEXBuybackSpotFieldsV1
+    _fields: _VerifiedZDEXBuybackSpotFieldsV2
     __slots__ = ("_fields",)
 
     def __init__(
         self,
         token: object,
-        fields: _VerifiedZDEXBuybackSpotFieldsV1,
+        fields: _VerifiedZDEXBuybackSpotFieldsV2,
     ) -> None:
-        if token is not _VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V1:
-            raise TypeError("VerifiedZDEXBuybackSpotSafetyPurchaseV1 is verifier-constructed")
-        if type(fields) is not _VerifiedZDEXBuybackSpotFieldsV1:
+        if token is not _VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V2:
+            raise TypeError("VerifiedZDEXBuybackSpotSafetyPurchaseV2 is verifier-constructed")
+        if type(fields) is not _VerifiedZDEXBuybackSpotFieldsV2:
             raise TypeError("verified ZDEX buyback Spot fields must be exact typed data")
         object.__setattr__(self, "_fields", fields)
 
     def __setattr__(self, name: str, value: object) -> None:
-        raise AttributeError("VerifiedZDEXBuybackSpotSafetyPurchaseV1 is immutable")
+        raise AttributeError("VerifiedZDEXBuybackSpotSafetyPurchaseV2 is immutable")
 
     @property
-    def journal(self) -> ZDEXBuybackSpotSafetyPurchaseJournalV1:
+    def journal(self) -> ZDEXBuybackSpotSafetyPurchaseJournalV2:
         return replace(self._fields.journal)
 
     @property
@@ -989,17 +1004,17 @@ class VerifiedZDEXBuybackSpotSafetyPurchaseV1:
     @property
     def binding_root(self) -> str:
         return hash_global_v1(
-            "verified-zdex-buyback-spot-safety-purchase-v1",
+            "verified-zdex-buyback-spot-safety-purchase-v2",
             self._fields.to_canonical(),
         )
 
 
-def verify_zdex_buyback_spot_safety_receipt_shadow_v1(
-    candidate: ZDEXBuybackSpotReceiptCandidateV1,
+def verify_zdex_buyback_spot_safety_receipt_shadow_v2(
+    candidate: ZDEXBuybackSpotReceiptCandidateV2,
     *,
     authority_head: GlobalEconomicAuthorityHeadV1,
     receipt_verifier: BoundEconomicReceiptVerifierV1,
-) -> VerifiedZDEXBuybackSpotSafetyPurchaseV1:
+) -> VerifiedZDEXBuybackSpotSafetyPurchaseV2:
     """Verify exact shadow receipt bindings and return an opaque witness.
 
     Reject precedence is candidate ownership, governed selection, occurrence,
@@ -1089,7 +1104,7 @@ def verify_zdex_buyback_spot_safety_receipt_shadow_v1(
         authority_head_root=authority_head.authority_root,
         verifier_binding_root=receipt_verifier.binding_root,
     )
-    fields = _VerifiedZDEXBuybackSpotFieldsV1(
+    fields = _VerifiedZDEXBuybackSpotFieldsV2(
         journal=owned.journal,
         journal_digest="0x" + hashlib.sha256(journal_bytes).hexdigest(),
         expected_image_id=release.guest_image_id,
@@ -1105,20 +1120,20 @@ def verify_zdex_buyback_spot_safety_receipt_shadow_v1(
         authority_head_root=authority_head.authority_root,
         verifier_binding_root=receipt_verifier.binding_root,
     )
-    return VerifiedZDEXBuybackSpotSafetyPurchaseV1(
-        _VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V1,
+    return VerifiedZDEXBuybackSpotSafetyPurchaseV2(
+        _VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V2,
         fields,
     )
 
 
 __all__ = [
-    "VERIFIED_ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_SCHEMA_V1",
-    "ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_JOURNAL_SCHEMA_V1",
-    "VerifiedZDEXBuybackSpotSafetyPurchaseV1",
-    "ZDEXBuybackSpotReceiptCandidateV1",
+    "VERIFIED_ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_SCHEMA_V2",
+    "ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_JOURNAL_SCHEMA_V2",
+    "VerifiedZDEXBuybackSpotSafetyPurchaseV2",
+    "ZDEXBuybackSpotReceiptCandidateV2",
     "ZDEXBuybackSpotReceiptEnvelopeV1",
     "ZDEXBuybackSpotReceiptRejectCodeV1",
     "ZDEXBuybackSpotReceiptRejectedV1",
-    "ZDEXBuybackSpotSafetyPurchaseJournalV1",
-    "verify_zdex_buyback_spot_safety_receipt_shadow_v1",
+    "ZDEXBuybackSpotSafetyPurchaseJournalV2",
+    "verify_zdex_buyback_spot_safety_receipt_shadow_v2",
 ]

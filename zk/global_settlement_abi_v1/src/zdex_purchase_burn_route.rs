@@ -13,14 +13,17 @@ use crate::release::{
     LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReleaseV1, LaneRegistryV1, ProfileStatusV1,
     ReleaseStatusV1, RouteRegistryV1, RouteReleaseV1,
 };
+use crate::zdex_buyback_price_safety::{
+    ZDEXBuybackPriceSafetyPolicyV1, ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
+};
 use crate::zdex_fee_allocation_receipt_verification::VerifiedZDEXFeeAllocationV1;
 use crate::zdex_fee_allocation_types::{ZDEXFeeAllocationOccurrenceV1, FEE_BUYBACK_PRINCIPAL_V1};
 use crate::zdex_purchase_burn_receipt_verification::{
-    VerifiedZDEXAMMPurchaseV1, VerifiedZDEXBurnV1, ZDEXVerifiedLaneExpectationV1,
+    VerifiedZDEXAMMPurchaseV2, VerifiedZDEXBurnV1, ZDEXVerifiedLaneExpectationV1,
 };
 use crate::zdex_purchase_burn_types::{
     zdex_amm_purchase_port_schema_root_v1, zdex_burn_port_schema_root_v1,
-    zdex_occurrence_burn_port_v1, zdex_pool_reserve_principal_v1, ZDEXAMMPurchaseJournalV1,
+    zdex_occurrence_burn_port_v1, zdex_pool_reserve_principal_v1, ZDEXAMMPurchaseJournalV2,
     ZDEXBurnJournalV1, ZDEXBuybackExecutionPolicyV1, AMM_PURCHASE_OUTPUT_ROLE_V1,
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1, ZDEX_BURN_INPUT_ROLE_V1,
     ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
@@ -42,6 +45,7 @@ pub enum ZDEXPurchaseBurnRouteRejectCodeV1 {
     BURN_BUCKET_MISMATCH,
     BUYBACK_BUDGET_MISMATCH,
     BUYBACK_EXECUTION_POLICY_MISMATCH,
+    PRICE_SAFETY_AUTHORITY_MISMATCH,
     CONSERVATION_HISTORY_DISCONNECTED,
 }
 
@@ -52,6 +56,7 @@ pub struct ZDEXPurchaseBurnRouteProfileRegistriesV1<'a> {
     pub routes: &'a RouteRegistryV1,
     pub policies: &'a EconomicPolicyRegistryV1,
     pub buyback_execution_policy: &'a ZDEXBuybackExecutionPolicyV1,
+    pub price_safety_policy: &'a ZDEXBuybackPriceSafetyPolicyV1,
 }
 
 pub struct GovernedZDEXPurchaseBurnRouteV1<'a> {
@@ -62,6 +67,7 @@ pub struct GovernedZDEXPurchaseBurnRouteV1<'a> {
     purchase_coordinator_release: &'a LaneCoordinatorReleaseV1,
     burn_coordinator_release: &'a LaneCoordinatorReleaseV1,
     buyback_execution_policy: &'a ZDEXBuybackExecutionPolicyV1,
+    price_safety_policy: &'a ZDEXBuybackPriceSafetyPolicyV1,
 }
 
 fn registered_buyback_route_v1(routes: &RouteRegistryV1) -> AbiResultV1<&RouteReleaseV1> {
@@ -152,6 +158,7 @@ pub fn bind_zdex_purchase_burn_shadow_profile_v1<'a>(
         routes,
         policies,
         buyback_execution_policy,
+        price_safety_policy,
     } = registries;
     profile.validate()?;
     if &profile.profile_id != expected_profile_id {
@@ -171,6 +178,7 @@ pub fn bind_zdex_purchase_burn_shadow_profile_v1<'a>(
     }
     profile.validate_registries(lanes, coordinators, routes)?;
     buyback_execution_policy.validate()?;
+    price_safety_policy.validate()?;
     if policies.registry_root()? != profile.policy_registry_root {
         return Err(AbiErrorV1::InvalidBinding(
             "ZDEX buyback economic policy registry",
@@ -183,6 +191,18 @@ pub fn bind_zdex_purchase_burn_shadow_profile_v1<'a>(
     if execution_binding.policy_root != buyback_execution_policy.policy_root()? {
         return Err(AbiErrorV1::InvalidBinding(
             "ZDEX buyback execution policy binding",
+        ));
+    }
+    let price_binding = policies.require_binding(
+        ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
+        PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    )?;
+    let price_policy_root = price_safety_policy.policy_root()?;
+    if price_binding.policy_root != price_policy_root
+        || registered_buyback_route_v1(routes)?.oracle_policy_root != price_policy_root
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX buyback price-safety policy binding",
         ));
     }
     let governed = GovernedZDEXPurchaseBurnRouteV1 {
@@ -201,6 +221,7 @@ pub fn bind_zdex_purchase_burn_shadow_profile_v1<'a>(
             AbiErrorV1::InvalidBinding("ZDEX purchase-burn burn coordinator absent"),
         )?,
         buyback_execution_policy,
+        price_safety_policy,
     };
     require_governed_route_shapes_v1(&governed)?;
     Ok(governed)
@@ -212,9 +233,9 @@ pub struct ZDEXPurchaseBurnRouteCandidateV1<'a> {
     pub occurrence: &'a EconomicCommandOccurrenceV1,
     pub buyback_budget_occurrence: &'a ZDEXFeeAllocationOccurrenceV1,
     pub verified_buyback_budget: &'a VerifiedZDEXFeeAllocationV1,
-    pub purchase_journal: &'a ZDEXAMMPurchaseJournalV1,
+    pub purchase_journal: &'a ZDEXAMMPurchaseJournalV2,
     pub purchase_effects: &'a GlobalEconomicEffectPlanV1,
-    pub verified_purchase: &'a VerifiedZDEXAMMPurchaseV1,
+    pub verified_purchase: &'a VerifiedZDEXAMMPurchaseV2,
     pub burn_journal: &'a ZDEXBurnJournalV1,
     pub burn_effects: &'a GlobalEconomicEffectPlanV1,
     pub verified_burn: &'a VerifiedZDEXBurnV1,
@@ -230,16 +251,18 @@ pub struct ZDEXPurchaseBurnRouteAcceptedV1 {
     pub ordered_verified_binding_roots: Vec<RootV1>,
     pub verified_budget_binding_root: RootV1,
     pub buyback_execution_policy_root: RootV1,
+    pub price_safety_policy_root: RootV1,
+    pub price_authority_root: RootV1,
     pub effects: GlobalEconomicEffectPlanV1,
     pub terminal_obligations_root: RootV1,
 }
 
-pub const ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V2: &str =
-    "zenodex/zdex-purchase-burn-route-composition/v2";
+pub const ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V3: &str =
+    "zenodex/zdex-purchase-burn-route-composition/v3";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct ZDEXPurchaseBurnRouteCompositionJournalV2 {
+pub struct ZDEXPurchaseBurnRouteCompositionJournalV3 {
     pub schema: String,
     pub route_release_id: RootV1,
     pub command_occurrence_id: RootV1,
@@ -249,15 +272,17 @@ pub struct ZDEXPurchaseBurnRouteCompositionJournalV2 {
     pub ordered_verified_binding_roots: Vec<RootV1>,
     pub verified_budget_binding_root: RootV1,
     pub buyback_execution_policy_root: RootV1,
+    pub price_safety_policy_root: RootV1,
+    pub price_authority_root: RootV1,
     pub effect_plan_root: RootV1,
     pub terminal_obligations_root: RootV1,
 }
 
-impl ZDEXPurchaseBurnRouteCompositionJournalV2 {
+impl ZDEXPurchaseBurnRouteCompositionJournalV3 {
     pub fn validate(&self) -> AbiResultV1<()> {
-        if self.schema != ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V2 {
+        if self.schema != ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V3 {
             return Err(AbiErrorV1::InvalidBinding(
-                "ZDEX route composition V2 schema",
+                "ZDEX route composition V3 schema",
             ));
         }
         for root in [
@@ -266,9 +291,11 @@ impl ZDEXPurchaseBurnRouteCompositionJournalV2 {
             &self.profile_root,
             &self.verified_budget_binding_root,
             &self.buyback_execution_policy_root,
+            &self.price_safety_policy_root,
+            &self.price_authority_root,
             &self.effect_plan_root,
         ] {
-            root.validate("ZDEX route composition V2 root", false)?;
+            root.validate("ZDEX route composition V3 root", false)?;
         }
         self.terminal_obligations_root
             .validate("ZDEX route terminal obligations", true)?;
@@ -276,7 +303,7 @@ impl ZDEXPurchaseBurnRouteCompositionJournalV2 {
             || self.ordered_verified_binding_roots.len() != 2
         {
             return Err(AbiErrorV1::InvalidBinding(
-                "ZDEX route composition V2 ordered cardinality",
+                "ZDEX route composition V3 ordered cardinality",
             ));
         }
         for root in self
@@ -284,22 +311,22 @@ impl ZDEXPurchaseBurnRouteCompositionJournalV2 {
             .iter()
             .chain(&self.ordered_verified_binding_roots)
         {
-            root.validate("ZDEX route composition V2 ordered root", false)?;
+            root.validate("ZDEX route composition V3 ordered root", false)?;
         }
         Ok(())
     }
 
     pub fn journal_root(&self) -> AbiResultV1<RootV1> {
         self.validate()?;
-        hash_global_v1("zdex-purchase-burn-route-composition-v2", self)
+        hash_global_v1("zdex-purchase-burn-route-composition-v3", self)
     }
 }
 
 impl ZDEXPurchaseBurnRouteAcceptedV1 {
-    pub fn composition_journal_v2(&self) -> AbiResultV1<ZDEXPurchaseBurnRouteCompositionJournalV2> {
+    pub fn composition_journal_v3(&self) -> AbiResultV1<ZDEXPurchaseBurnRouteCompositionJournalV3> {
         self.effects.validate()?;
-        let journal = ZDEXPurchaseBurnRouteCompositionJournalV2 {
-            schema: ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V2.to_owned(),
+        let journal = ZDEXPurchaseBurnRouteCompositionJournalV3 {
+            schema: ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V3.to_owned(),
             route_release_id: self.route_release_id.clone(),
             command_occurrence_id: self.command_occurrence_id.clone(),
             profile_root: self.profile_root.clone(),
@@ -308,6 +335,8 @@ impl ZDEXPurchaseBurnRouteAcceptedV1 {
             ordered_verified_binding_roots: self.ordered_verified_binding_roots.clone(),
             verified_budget_binding_root: self.verified_budget_binding_root.clone(),
             buyback_execution_policy_root: self.buyback_execution_policy_root.clone(),
+            price_safety_policy_root: self.price_safety_policy_root.clone(),
+            price_authority_root: self.price_authority_root.clone(),
             effect_plan_root: self.effects.effect_plan_root()?,
             terminal_obligations_root: self.terminal_obligations_root.clone(),
         };
@@ -324,7 +353,7 @@ pub struct ZDEXPurchaseBurnRouteRejectedV1 {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ZDEXPurchaseBurnRouteResultV1 {
-    Accepted(ZDEXPurchaseBurnRouteAcceptedV1),
+    Accepted(Box<ZDEXPurchaseBurnRouteAcceptedV1>),
     Rejected(ZDEXPurchaseBurnRouteRejectedV1),
 }
 
@@ -574,9 +603,13 @@ fn economic_reject_code_v1(
     let burn = candidate.burn_journal;
     let budget = candidate.buyback_budget_occurrence;
     let execution_policy = candidate.governed_profile.buyback_execution_policy;
+    let price_policy = candidate.governed_profile.price_safety_policy;
     let budget_root = budget.occurrence_root()?;
+    let price_occurrence_root = purchase.oracle_occurrence_root.clone();
+    let mut expected_consumed = vec![budget_root.to_string(), price_occurrence_root.to_string()];
+    expected_consumed.sort();
     if budget_root == candidate.occurrence.occurrence_id()?
-        || candidate.occurrence.consumed_object_ids != vec![budget_root.to_string()]
+        || candidate.occurrence.consumed_object_ids != expected_consumed
     {
         return Ok(Some(
             ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_BUDGET_MISMATCH,
@@ -593,7 +626,8 @@ fn economic_reject_code_v1(
         &candidate.route_release.route_release_id,
         &candidate.occurrence.occurrence_id()?,
     )?;
-    if purchase.quote_asset_id != execution_policy.quote_asset_id
+    if purchase.buyback_execution_policy_root != execution_policy.policy_root()?
+        || purchase.quote_asset_id != execution_policy.quote_asset_id
         || purchase.zdex_asset_id != execution_policy.zdex_asset_id
         || purchase.quote_pool_bucket_id != expected_quote_pool_bucket
         || purchase.zdex_pool_bucket_id != expected_zdex_pool_bucket
@@ -601,6 +635,15 @@ fn economic_reject_code_v1(
     {
         return Ok(Some(
             ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_EXECUTION_POLICY_MISMATCH,
+        ));
+    }
+    let price_policy_root = price_policy.policy_root()?;
+    if purchase.price_safety_policy_root != price_policy_root
+        || candidate.verified_purchase.price_safety_policy_root() != Some(&price_policy_root)
+        || candidate.verified_purchase.price_authority_root().is_none()
+    {
+        return Ok(Some(
+            ZDEXPurchaseBurnRouteRejectCodeV1::PRICE_SAFETY_AUTHORITY_MISMATCH,
         ));
     }
     if purchase.zdex_asset_id != burn.zdex_asset_id {
@@ -672,7 +715,7 @@ pub fn compose_zdex_purchase_burn_route_v1(
     let burn = candidate.burn_journal;
     let purchase_root = purchase.journal_root()?;
     let burn_root = burn.journal_root()?;
-    Ok(ZDEXPurchaseBurnRouteResultV1::Accepted(
+    Ok(ZDEXPurchaseBurnRouteResultV1::Accepted(Box::new(
         ZDEXPurchaseBurnRouteAcceptedV1 {
             route_release_id: route_id.clone(),
             command_occurrence_id: occurrence_id.clone(),
@@ -688,8 +731,19 @@ pub fn compose_zdex_purchase_burn_route_v1(
                 .governed_profile
                 .buyback_execution_policy
                 .policy_root()?,
+            price_safety_policy_root: candidate
+                .governed_profile
+                .price_safety_policy
+                .policy_root()?,
+            price_authority_root: candidate
+                .verified_purchase
+                .price_authority_root()
+                .ok_or(AbiErrorV1::InvalidBinding(
+                    "ZDEX buyback price authority absent",
+                ))?
+                .clone(),
             effects: compose_effects_v1(&candidate, &occurrence_id)?,
             terminal_obligations_root: zdex_tokenomics_complete_lane_obligation_root_v1()?,
         },
-    ))
+    )))
 }

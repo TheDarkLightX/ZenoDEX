@@ -32,6 +32,9 @@ ZDEX_BUYBACK_PRICE_SAFETY_POLICY_SCHEMA_V1: Final = (
 ZDEX_BUYBACK_PRICE_SAFETY_OBSERVATION_SCHEMA_V1: Final = (
     "zenodex/zdex-buyback-price-safety-observation/v1"
 )
+ZDEX_BUYBACK_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1: Final = (
+    "zenodex/zdex-buyback-oracle-price-occurrence/v1"
+)
 ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1: Final = (
     "zdex_buyback_price_safety_v1"
 )
@@ -52,6 +55,55 @@ class ZDEXBuybackPriceSafetyRejectCodeV1(str, Enum):
     DERIVED_MINIMUM_OUTPUT_MISMATCH = "DERIVED_MINIMUM_OUTPUT_MISMATCH"
     MINIMUM_OUTPUT_NOT_MET = "MINIMUM_OUTPUT_NOT_MET"
     OUTPUT_EXCEEDS_RESERVE = "OUTPUT_EXCEEDS_RESERVE"
+
+
+@dataclass(frozen=True, slots=True)
+class ZDEXBuybackOraclePriceOccurrenceV1:
+    oracle_id: str
+    quote_asset_id: str
+    zdex_asset_id: str
+    quote_numerator_atoms: int
+    zdex_denominator_atoms: int
+    observed_height: int
+
+    def __post_init__(self) -> None:
+        if type(self.oracle_id) is not str:
+            raise TypeError("ZDEX buyback Oracle price id must be exact str")
+        _require_token(self.oracle_id, name="ZDEX buyback Oracle price id")
+        for name in ("quote_asset_id", "zdex_asset_id"):
+            value = getattr(self, name)
+            if type(value) is not str:
+                raise TypeError(f"ZDEX buyback Oracle price {name} must be exact str")
+            _require_root(value, name=f"ZDEX buyback Oracle price {name}")
+        if self.quote_asset_id == self.zdex_asset_id:
+            raise ValueError("ZDEX buyback Oracle price assets must differ")
+        for name in ("quote_numerator_atoms", "zdex_denominator_atoms"):
+            value = _require_atoms_u128(
+                getattr(self, name),
+                name=f"ZDEX buyback Oracle price {name}",
+            )
+            if value == 0:
+                raise ValueError(f"ZDEX buyback Oracle price {name} must be positive")
+        if type(self.observed_height) is not int or not 0 <= self.observed_height <= MAX_U64_V1:
+            raise ValueError("ZDEX buyback Oracle price observed height must fit unsigned 64-bit")
+
+    @property
+    def occurrence_root(self) -> str:
+        return hash_global_v1(
+            "zdex-buyback-oracle-price-occurrence-v1",
+            self.to_canonical(),
+        )
+
+    def to_canonical(self) -> dict[str, object]:
+        return {
+            "schema": ZDEX_BUYBACK_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1,
+            "oracle_id": self.oracle_id,
+            "quote_asset_id": self.quote_asset_id,
+            "zdex_asset_id": self.zdex_asset_id,
+            "quote_numerator_atoms": self.quote_numerator_atoms,
+            "zdex_denominator_atoms": self.zdex_denominator_atoms,
+            "observed_height": self.observed_height,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -429,9 +481,11 @@ def verify_zdex_buyback_price_safety_v1(
 __all__ = [
     "BASIS_POINTS_V1",
     "ZDEX_BUYBACK_PRICE_SAFETY_OBSERVATION_SCHEMA_V1",
+    "ZDEX_BUYBACK_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1",
     "ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1",
     "ZDEX_BUYBACK_PRICE_SAFETY_POLICY_SCHEMA_V1",
     "VerifiedZDEXBuybackPriceSafetyV1",
+    "ZDEXBuybackOraclePriceOccurrenceV1",
     "ZDEXBuybackPriceSafetyObservationV1",
     "ZDEXBuybackPriceSafetyPolicyV1",
     "ZDEXBuybackPriceSafetyRejectCodeV1",

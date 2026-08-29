@@ -9,7 +9,7 @@ use zenodex_global_settlement_abi_v1::{
     EconomicProfileSnapshotV1, EvidenceStatusV1, LaneCoordinatorRegistryV1,
     LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReleaseV1, LaneModuleTransitionJournalV1,
     LaneRegistryV1, ProfileStatusV1, ReceiptKindV1, ReleaseStatusV1, RootV1, RouteRegistryV1,
-    RouteReleaseV1, VerifiedZDEXBurnV1, ZDEXAMMPurchaseJournalV1, ZDEXAmountBucketV1,
+    RouteReleaseV1, VerifiedZDEXBurnV1, ZDEXAMMPurchaseJournalV2, ZDEXAmountBucketV1,
     ZDEXBurnReceiptCandidateV1, ZDEXBurnRouteContextV1, ZDEXFeeDestinationAmountV1,
     ZDEXFeeDestinationV1, ZDEXFeeStateV1, ZDEXHyperdeflationPolicyV1, ZDEXLaneReceiptEnvelopeV1,
     ZDEXLaneSuccinctReceiptVerifierV1, ZDEXPurchaseAndBurnCommandV1, ZDEXPurchaseAndBurnResultV1,
@@ -18,7 +18,8 @@ use zenodex_global_settlement_abi_v1::{
     ZDEXTokenomicsLaneReceiptCandidateV1, ZDEXTokenomicsLaneStateV1,
     ZDEXTokenomicsProfileRegistriesV1, ALL_LANE_IDS_V1, AMM_PURCHASE_OUTPUT_ROLE_V1,
     GLOBAL_SETTLEMENT_ABI_V1, MAX_ZDEX_TOKENOMICS_FEE_ASSETS_V1,
-    PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1, ZDEX_BURN_INPUT_ROLE_V1,
+    PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1, ZDEX_AMM_PURCHASE_JOURNAL_SCHEMA_V2,
+    ZDEX_BURN_INPUT_ROLE_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -281,8 +282,8 @@ fn burn_projection() -> zenodex_global_settlement_abi_v1::ZDEXBurnLeafProjection
         maximum_decimals: 64,
         maximum_decimal_step: 8,
     };
-    let purchase = ZDEXAMMPurchaseJournalV1 {
-        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+    let purchase = ZDEXAMMPurchaseJournalV2 {
+        schema: ZDEX_AMM_PURCHASE_JOURNAL_SCHEMA_V2.to_owned(),
         chain_id: "tau-testnet".to_owned(),
         deployment_root: root(10),
         profile_root: root(11),
@@ -292,6 +293,14 @@ fn burn_projection() -> zenodex_global_settlement_abi_v1::ZDEXBurnLeafProjection
         spot_module_release_id: root(13),
         issue_burn_policy_root: policy.policy_root().unwrap(),
         buyback_budget_occurrence_root: root(14),
+        buyback_execution_policy_root: root(17),
+        price_safety_policy_root: root(18),
+        oracle_occurrence_root: root(19),
+        oracle_observed_height: 6,
+        oracle_quote_numerator_atoms: 1,
+        oracle_zdex_denominator_atoms: 1,
+        route_safe_quote_limit_atoms: 100,
+        minimum_output_atoms: 1,
         quote_asset_id: root(15),
         zdex_asset_id: policy.asset_id.clone(),
         quote_source_bucket_id: "protocol:buyback:quote".to_owned(),
@@ -689,11 +698,11 @@ fn burn_substate_is_embedded_in_one_complete_tokenomics_lane_write() {
     );
     assert_eq!(
         candidate.port.port_root().unwrap(),
-        root_hex("0x3599e1c7349810b87811902c2cfc367f9c791c9d16aead73c7280753dc24e619")
+        root_hex("0x3c3a9c017aeead88da5822de9e77524af9596b3236c8dd868c7328c7d1a23a34")
     );
     assert_eq!(
         candidate.module.journal_root().unwrap(),
-        root_hex("0x0b5ab6278d91be413bb56072a4210bd1a4b621d0379a85fe6e309cdd727471ca")
+        root_hex("0xa6b20c1f2cd04d29f75076dc28820eca767fb7da6bbc9d059e3d8e60773a3179")
     );
     assert_eq!(
         accepted.effects.effect_plan_root().unwrap(),
@@ -701,7 +710,7 @@ fn burn_substate_is_embedded_in_one_complete_tokenomics_lane_write() {
     );
     assert_eq!(
         accepted.lane_journal.journal_root().unwrap(),
-        root_hex("0x0f608f755e7fa941a454a49e4e92c86e1e5ca88589be2591a769d238b60ad6f3")
+        root_hex("0xc7e649d03f2fb89a2c0513435c89bb7dcffa5e5d946b5866f0d6c9653ed3f009")
     );
 }
 
@@ -1117,7 +1126,7 @@ fn release_selected_coordinator_receipt_mints_exact_shadow_witness() {
     );
     assert_eq!(
         verified.binding_root().unwrap(),
-        root_hex("0x3d9398fda81e68baa95f537e08197e6474bbe9d5ecef562853d25888e1dbdd5f")
+        root_hex("0xb826d64574a3c98df1597f47bf1cf376973bd8d981237714f09e5413c8be4f2f")
     );
 }
 

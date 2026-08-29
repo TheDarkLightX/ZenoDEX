@@ -22,7 +22,7 @@ from .zdex_buyback_spend_v1 import (
     transition_zdex_buyback_spend_v1,
 )
 from .zdex_buyback_spot_safety_receipt_v1 import (
-    VerifiedZDEXBuybackSpotSafetyPurchaseV1,
+    VerifiedZDEXBuybackSpotSafetyPurchaseV2,
 )
 from .zdex_purchase_burn_route_types_v1 import (
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
@@ -105,12 +105,12 @@ def _reject_safety_mismatch_v1(
 
 def transition_verified_zdex_buyback_spend_shadow_v1(
     occurrence: EconomicCommandOccurrenceV1,
-    safety_purchase: VerifiedZDEXBuybackSpotSafetyPurchaseV1,
+    safety_purchase: VerifiedZDEXBuybackSpotSafetyPurchaseV2,
 ) -> VerifiedZDEXBuybackSpendResultV1:
     """Derive ``q`` only from receipt-owned policy, state, and command data."""
 
     owned_occurrence = _snapshot_occurrence_v1(occurrence)
-    if type(safety_purchase) is not VerifiedZDEXBuybackSpotSafetyPurchaseV1:
+    if type(safety_purchase) is not VerifiedZDEXBuybackSpotSafetyPurchaseV2:
         raise TypeError("ZDEX buyback safety purchase must be verifier-constructed")
     journal = safety_purchase.journal
     state = safety_purchase.tokenomics_pre_state

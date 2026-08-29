@@ -13,12 +13,12 @@ use crate::zdex_hyperdeflation_results::ZDEXPurchaseAndBurnAcceptedV1;
 use crate::zdex_purchase_burn_effects::{
     burn_effects_from_inputs_v1, burn_effects_v1, purchase_effects_v1, ZDEXBurnEffectInputsV1,
 };
-use crate::zdex_purchase_burn_types::{ZDEXAMMPurchaseJournalV1, ZDEXBurnJournalV1};
+use crate::zdex_purchase_burn_types::{ZDEXAMMPurchaseJournalV2, ZDEXBurnJournalV1};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ZDEXBurnLeafProjectionV1 {
     pub(crate) accepted: ZDEXPurchaseAndBurnAcceptedV1,
-    pub(crate) purchase_journal: ZDEXAMMPurchaseJournalV1,
+    pub(crate) purchase_journal: ZDEXAMMPurchaseJournalV2,
     pub(crate) tokenomics_module_release_id: RootV1,
     pub(crate) journal: ZDEXBurnJournalV1,
     pub(crate) effects: GlobalEconomicEffectPlanV1,
@@ -29,7 +29,7 @@ impl ZDEXBurnLeafProjectionV1 {
         &self.accepted
     }
 
-    pub fn purchase_journal(&self) -> &ZDEXAMMPurchaseJournalV1 {
+    pub fn purchase_journal(&self) -> &ZDEXAMMPurchaseJournalV2 {
         &self.purchase_journal
     }
 
@@ -71,7 +71,7 @@ impl ZDEXBurnLeafProjectionV1 {
 
 fn require_refinement_bindings_v1(
     accepted: &ZDEXPurchaseAndBurnAcceptedV1,
-    purchase: &ZDEXAMMPurchaseJournalV1,
+    purchase: &ZDEXAMMPurchaseJournalV2,
 ) -> AbiResultV1<()> {
     accepted.validate()?;
     purchase.validate()?;
@@ -113,7 +113,7 @@ fn require_refinement_bindings_v1(
 
 fn derive_burn_journal_v1(
     accepted: &ZDEXPurchaseAndBurnAcceptedV1,
-    purchase: &ZDEXAMMPurchaseJournalV1,
+    purchase: &ZDEXAMMPurchaseJournalV2,
     tokenomics_module_release_id: &RootV1,
 ) -> AbiResultV1<ZDEXBurnJournalV1> {
     tokenomics_module_release_id.validate("ZDEX tokenomics module release id", false)?;
@@ -164,7 +164,7 @@ fn derive_burn_journal_v1(
 
 pub fn refine_zdex_burn_leaf_v1(
     accepted: &ZDEXPurchaseAndBurnAcceptedV1,
-    purchase_journal: &ZDEXAMMPurchaseJournalV1,
+    purchase_journal: &ZDEXAMMPurchaseJournalV2,
     tokenomics_module_release_id: &RootV1,
 ) -> AbiResultV1<ZDEXBurnLeafProjectionV1> {
     let journal = derive_burn_journal_v1(accepted, purchase_journal, tokenomics_module_release_id)?;

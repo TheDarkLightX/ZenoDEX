@@ -7,6 +7,7 @@ import pytest
 from src.core.global_settlement_types_v1 import MAX_ATOMS_V1
 from src.core.zdex_buyback_price_safety_v1 import (
     VerifiedZDEXBuybackPriceSafetyV1,
+    ZDEXBuybackOraclePriceOccurrenceV1,
     ZDEXBuybackPriceSafetyObservationV1,
     ZDEXBuybackPriceSafetyPolicyV1,
     ZDEXBuybackPriceSafetyRejectCodeV1,
@@ -69,6 +70,24 @@ def test_exact_integer_price_envelope_accepts_and_matches_rust_roots() -> None:
     )
     assert observation.observation_root == (
         "0xcaee810d431a967702c20a76df988014dde2b063c7fab375a1ae972f80b8b915"
+    )
+
+
+def test_oracle_price_occurrence_commits_exact_assets_ratio_and_height() -> None:
+    occurrence = ZDEXBuybackOraclePriceOccurrenceV1(
+        oracle_id="zdex-buyback-oracle",
+        quote_asset_id=_root(12),
+        zdex_asset_id=_root(13),
+        quote_numerator_atoms=1,
+        zdex_denominator_atoms=1,
+        observed_height=76,
+    )
+
+    assert occurrence.occurrence_root == (
+        "0x12ad650a7b272427b60a2b8572cc31ac48dfa67dd79e24d333e2d8c510231021"
+    )
+    assert replace(occurrence, quote_numerator_atoms=2).occurrence_root != (
+        occurrence.occurrence_root
     )
 
 

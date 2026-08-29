@@ -22,7 +22,7 @@ from .global_settlement_types_v1 import (
 )
 from .zdex_atomic_buyback_state_v1 import ZDEXAtomicBuybackTokenomicsStateV1
 from .zdex_buyback_spot_safety_receipt_v1 import (
-    VerifiedZDEXBuybackSpotSafetyPurchaseV1,
+    VerifiedZDEXBuybackSpotSafetyPurchaseV2,
 )
 from .zdex_fee_allocation_types_v1 import (
     FEE_BUYBACK_PRINCIPAL_V1,
@@ -74,7 +74,7 @@ class ZDEXAtomicBuybackRejectCodeV1(str, Enum):
 class ZDEXAtomicBuybackCandidateV1:
     occurrence: EconomicCommandOccurrenceV1
     route: RouteReleaseV1
-    safety_purchase: VerifiedZDEXBuybackSpotSafetyPurchaseV1
+    safety_purchase: VerifiedZDEXBuybackSpotSafetyPurchaseV2
     verified_spend: VerifiedZDEXBuybackSpendV1
     purchase_journal: ZDEXAMMPurchaseJournalV1
     purchase_effects: GlobalEconomicEffectPlanV1
@@ -85,7 +85,7 @@ class ZDEXAtomicBuybackCandidateV1:
         expected = (
             (self.occurrence, EconomicCommandOccurrenceV1),
             (self.route, RouteReleaseV1),
-            (self.safety_purchase, VerifiedZDEXBuybackSpotSafetyPurchaseV1),
+            (self.safety_purchase, VerifiedZDEXBuybackSpotSafetyPurchaseV2),
             (self.verified_spend, VerifiedZDEXBuybackSpendV1),
             (self.purchase_journal, ZDEXAMMPurchaseJournalV1),
             (self.purchase_effects, GlobalEconomicEffectPlanV1),

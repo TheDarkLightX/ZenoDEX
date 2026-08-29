@@ -1,8 +1,8 @@
 use zenodex_global_settlement_abi_v1::{
     refine_zdex_burn_leaf_v1, transition_zdex_purchase_and_burn_v1, RootV1,
-    ZDEXAMMPurchaseJournalV1, ZDEXAmountBucketV1, ZDEXBurnRouteContextV1,
+    ZDEXAMMPurchaseJournalV2, ZDEXAmountBucketV1, ZDEXBurnRouteContextV1,
     ZDEXHyperdeflationPolicyV1, ZDEXPurchaseAndBurnCommandV1, ZDEXPurchaseAndBurnResultV1,
-    ZDEXSupplyStateV1, GLOBAL_SETTLEMENT_ABI_V1,
+    ZDEXSupplyStateV1, ZDEX_AMM_PURCHASE_JOURNAL_SCHEMA_V2,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -28,9 +28,9 @@ fn policy() -> ZDEXHyperdeflationPolicyV1 {
     }
 }
 
-fn purchase(policy: &ZDEXHyperdeflationPolicyV1) -> ZDEXAMMPurchaseJournalV1 {
-    ZDEXAMMPurchaseJournalV1 {
-        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+fn purchase(policy: &ZDEXHyperdeflationPolicyV1) -> ZDEXAMMPurchaseJournalV2 {
+    ZDEXAMMPurchaseJournalV2 {
+        schema: ZDEX_AMM_PURCHASE_JOURNAL_SCHEMA_V2.to_owned(),
         chain_id: "tau-testnet".to_owned(),
         deployment_root: root(10),
         profile_root: root(11),
@@ -40,6 +40,14 @@ fn purchase(policy: &ZDEXHyperdeflationPolicyV1) -> ZDEXAMMPurchaseJournalV1 {
         spot_module_release_id: root(13),
         issue_burn_policy_root: policy.policy_root().unwrap(),
         buyback_budget_occurrence_root: root(14),
+        buyback_execution_policy_root: root(17),
+        price_safety_policy_root: root(18),
+        oracle_occurrence_root: root(19),
+        oracle_observed_height: 6,
+        oracle_quote_numerator_atoms: 1,
+        oracle_zdex_denominator_atoms: 1,
+        route_safe_quote_limit_atoms: 100,
+        minimum_output_atoms: 1,
         quote_asset_id: root(15),
         zdex_asset_id: policy.asset_id.clone(),
         quote_source_bucket_id: "protocol:buyback:quote".to_owned(),
@@ -70,7 +78,7 @@ fn purchase(policy: &ZDEXHyperdeflationPolicyV1) -> ZDEXAMMPurchaseJournalV1 {
 
 fn accepted(
     policy: &ZDEXHyperdeflationPolicyV1,
-    purchase: &ZDEXAMMPurchaseJournalV1,
+    purchase: &ZDEXAMMPurchaseJournalV2,
     source_atoms: u128,
     burned_atoms: u128,
     checked_supply_atoms: u128,
@@ -89,7 +97,7 @@ fn accepted(
 #[allow(clippy::too_many_arguments)]
 fn accepted_with_route_caps(
     policy: &ZDEXHyperdeflationPolicyV1,
-    purchase: &ZDEXAMMPurchaseJournalV1,
+    purchase: &ZDEXAMMPurchaseJournalV2,
     source_atoms: u128,
     burned_atoms: u128,
     checked_supply_atoms: u128,
@@ -141,7 +149,7 @@ fn accepted_with_route_caps(
 }
 
 #[test]
-fn refinement_derives_python_parity_journal_and_effects() {
+fn refinement_derives_versioned_journal_and_effects() {
     // Arrange
     let policy = policy();
     let purchase = purchase(&policy);
@@ -153,11 +161,11 @@ fn refinement_derives_python_parity_journal_and_effects() {
     // Assert
     assert_eq!(
         purchase.journal_root().unwrap().as_str(),
-        "0xc7bc06f6e2475adba501f493450ca57fcf24a738e179f7ba11079281a9144dc8"
+        "0x772728deb2daa19a6f9d78fdef4ab4faaa7ea8107ae2dc434ab1981d3bc8d613"
     );
     assert_eq!(
         projection.journal().journal_root().unwrap().as_str(),
-        "0xe6c3831c5f376c3436ad48a94132ffa00a4775042c8bc4700df11ca1e1fa515b"
+        "0xdc9e749eed36b9dc37f9ce92cea1ee84ea5d62c9a0bec78c701b8fff330ec774"
     );
     assert_eq!(
         projection.effects().effect_plan_root().unwrap().as_str(),
@@ -165,7 +173,7 @@ fn refinement_derives_python_parity_journal_and_effects() {
     );
     assert_eq!(
         projection.journal().route_context_root.as_str(),
-        "0x5512d60e46a0728396903fb766dd516a6865620bd0373e79a704912d3c38a451"
+        "0x848fb60371b64519b605728cfd718fb23974f4cf0db45b1c22b7005c92021f40"
     );
     assert_eq!(
         projection.journal().pre_tokenomics_burn_substate_root,

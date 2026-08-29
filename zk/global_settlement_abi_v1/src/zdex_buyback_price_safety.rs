@@ -6,8 +6,51 @@ pub const ZDEX_BUYBACK_PRICE_SAFETY_POLICY_SCHEMA_V1: &str =
     "zenodex/zdex-buyback-price-safety-policy/v1";
 pub const ZDEX_BUYBACK_PRICE_SAFETY_OBSERVATION_SCHEMA_V1: &str =
     "zenodex/zdex-buyback-price-safety-observation/v1";
+pub const ZDEX_BUYBACK_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1: &str =
+    "zenodex/zdex-buyback-oracle-price-occurrence/v1";
 pub const ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1: &str = "zdex_buyback_price_safety_v1";
 pub const BASIS_POINTS_V1: u128 = 10_000;
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZDEXBuybackOraclePriceOccurrenceV1 {
+    pub schema: String,
+    pub oracle_id: String,
+    pub quote_asset_id: RootV1,
+    pub zdex_asset_id: RootV1,
+    pub quote_numerator_atoms: u128,
+    pub zdex_denominator_atoms: u128,
+    pub observed_height: u64,
+}
+
+impl ZDEXBuybackOraclePriceOccurrenceV1 {
+    pub fn validate(&self) -> AbiResultV1<()> {
+        if self.schema != ZDEX_BUYBACK_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1 {
+            return Err(AbiErrorV1::InvalidBinding(
+                "ZDEX buyback Oracle price occurrence schema",
+            ));
+        }
+        validate_token_v1(&self.oracle_id, "ZDEX buyback Oracle price id")?;
+        self.quote_asset_id
+            .validate("ZDEX buyback Oracle quote asset", false)?;
+        self.zdex_asset_id
+            .validate("ZDEX buyback Oracle ZDEX asset", false)?;
+        if self.quote_asset_id == self.zdex_asset_id
+            || self.quote_numerator_atoms == 0
+            || self.zdex_denominator_atoms == 0
+        {
+            return Err(AbiErrorV1::InvalidBounds(
+                "ZDEX buyback Oracle price occurrence",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn occurrence_root(&self) -> AbiResultV1<RootV1> {
+        self.validate()?;
+        hash_global_v1("zdex-buyback-oracle-price-occurrence-v1", self)
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

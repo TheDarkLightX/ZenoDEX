@@ -6,6 +6,7 @@ use crate::canonical::{
 };
 
 pub const PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1: &str = "protocol_buy_and_burn";
+pub const ZDEX_AMM_PURCHASE_JOURNAL_SCHEMA_V2: &str = "zenodex/zdex-amm-purchase-journal/v2";
 pub const ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1: &str =
     "zenodex/zdex-buyback-execution-policy/v1";
 pub const ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1: &str = "zdex_buyback_execution_v1";
@@ -147,7 +148,7 @@ fn validate_positive_effect_amount_v1(value: u128, field: &'static str) -> AbiRe
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct ZDEXAMMPurchaseJournalV1 {
+pub struct ZDEXAMMPurchaseJournalV2 {
     pub schema: String,
     pub chain_id: String,
     pub deployment_root: RootV1,
@@ -158,6 +159,14 @@ pub struct ZDEXAMMPurchaseJournalV1 {
     pub spot_module_release_id: RootV1,
     pub issue_burn_policy_root: RootV1,
     pub buyback_budget_occurrence_root: RootV1,
+    pub buyback_execution_policy_root: RootV1,
+    pub price_safety_policy_root: RootV1,
+    pub oracle_occurrence_root: RootV1,
+    pub oracle_observed_height: u64,
+    pub oracle_quote_numerator_atoms: u128,
+    pub oracle_zdex_denominator_atoms: u128,
+    pub route_safe_quote_limit_atoms: u128,
+    pub minimum_output_atoms: u128,
     pub quote_asset_id: RootV1,
     pub zdex_asset_id: RootV1,
     pub quote_source_bucket_id: String,
@@ -183,9 +192,13 @@ pub struct ZDEXAMMPurchaseJournalV1 {
     pub effect_plan_root: RootV1,
 }
 
-impl ZDEXAMMPurchaseJournalV1 {
+impl ZDEXAMMPurchaseJournalV2 {
     pub fn validate(&self) -> AbiResultV1<()> {
-        validate_schema_v1(&self.schema)?;
+        if self.schema != ZDEX_AMM_PURCHASE_JOURNAL_SCHEMA_V2 {
+            return Err(AbiErrorV1::InvalidBinding(
+                "ZDEX purchase journal V2 schema",
+            ));
+        }
         validate_token_v1(&self.chain_id, "ZDEX purchase chain id")?;
         for root in [
             &self.deployment_root,
@@ -195,6 +208,9 @@ impl ZDEXAMMPurchaseJournalV1 {
             &self.spot_module_release_id,
             &self.issue_burn_policy_root,
             &self.buyback_budget_occurrence_root,
+            &self.buyback_execution_policy_root,
+            &self.price_safety_policy_root,
+            &self.oracle_occurrence_root,
             &self.quote_asset_id,
             &self.zdex_asset_id,
             &self.pre_spot_lane_root,
@@ -227,6 +243,32 @@ impl ZDEXAMMPurchaseJournalV1 {
             self.purchased_zdex_atoms,
             "ZDEX purchase output amount",
         )?;
+        for (value, field) in [
+            (
+                self.oracle_quote_numerator_atoms,
+                "ZDEX purchase Oracle quote numerator",
+            ),
+            (
+                self.oracle_zdex_denominator_atoms,
+                "ZDEX purchase Oracle ZDEX denominator",
+            ),
+            (
+                self.route_safe_quote_limit_atoms,
+                "ZDEX purchase route-safe quote limit",
+            ),
+            (self.minimum_output_atoms, "ZDEX purchase minimum output"),
+        ] {
+            if value == 0 {
+                return Err(AbiErrorV1::InvalidBounds(field));
+            }
+        }
+        if self.quote_amount_in_atoms > self.route_safe_quote_limit_atoms
+            || self.purchased_zdex_atoms < self.minimum_output_atoms
+        {
+            return Err(AbiErrorV1::InvalidBounds(
+                "ZDEX purchase price-safety amounts",
+            ));
+        }
         if self
             .quote_source_post_atoms
             .checked_add(self.quote_amount_in_atoms)

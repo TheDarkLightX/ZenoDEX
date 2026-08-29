@@ -5,7 +5,7 @@ use crate::effects::{
 };
 use crate::release::LaneIdV1;
 use crate::zdex_purchase_burn_types::{
-    ZDEXAMMPurchaseJournalV1, ZDEXBurnJournalV1, AMM_POOL_CUSTODY_DOMAIN_V1,
+    ZDEXAMMPurchaseJournalV2, ZDEXBurnJournalV1, AMM_POOL_CUSTODY_DOMAIN_V1,
     PROTOCOL_BURN_CUSTODY_DOMAIN_V1, PROTOCOL_BUYBACK_CUSTODY_DOMAIN_V1,
     PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1, ZDEX_SUPPLY_PRINCIPAL_V1,
 };
@@ -46,7 +46,7 @@ fn positive_i128_v1(value: u128) -> AbiResultV1<i128> {
 }
 
 pub(crate) fn purchase_effects_v1(
-    journal: &ZDEXAMMPurchaseJournalV1,
+    journal: &ZDEXAMMPurchaseJournalV2,
 ) -> AbiResultV1<GlobalEconomicEffectPlanV1> {
     journal.validate()?;
     let quote = positive_i128_v1(journal.quote_amount_in_atoms)?;
