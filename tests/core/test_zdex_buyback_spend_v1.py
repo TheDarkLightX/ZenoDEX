@@ -191,15 +191,22 @@ def test_cadence_boundary_and_regression() -> None:
     _assert_noop(back, regressed, ZDEXBuybackSpendRejectCodeV1.HEIGHT_REGRESSION)
 
 
-def test_fee_allocation_is_recomputed_and_rejection_is_preserved() -> None:
-    values = list(_fixture())
-    values[5] = ZDEXFeeAllocationCommandV1(126)
+@pytest.mark.parametrize("submitted_atoms", (124, 126))
+def test_fee_budget_must_equal_committed_ingress_without_effect(
+    submitted_atoms: int,
+) -> None:
+    values = list(_fixture(fee_atoms=125))
+    values[5] = ZDEXFeeAllocationCommandV1(submitted_atoms)
 
     result = _run(tuple(values))
 
     assert isinstance(result, ZDEXBuybackSpendRejectedV1)
-    _assert_noop(result, tuple(values), ZDEXBuybackSpendRejectCodeV1.FEE_ALLOCATION_REJECTED)
-    assert result.fee_code is not None
+    _assert_noop(
+        result,
+        tuple(values),
+        ZDEXBuybackSpendRejectCodeV1.FEE_INGRESS_MISMATCH,
+    )
+    assert result.fee_code is None
 
 
 @pytest.mark.parametrize(
@@ -238,6 +245,17 @@ def test_forged_acceptance_with_foreign_intent_prestate_rejects_construction() -
         replace(
             accepted,
             intent=replace(accepted.intent, cadence_pre_state_root=_root(99)),
+        )
+
+
+def test_forged_acceptance_with_partial_fee_budget_rejects_construction() -> None:
+    accepted = _run(_fixture(fee_atoms=125))
+    assert isinstance(accepted, ZDEXBuybackSpendAcceptedV1)
+
+    with pytest.raises(ValueError):
+        replace(
+            accepted,
+            fee_command=ZDEXFeeAllocationCommandV1(124),
         )
 
 

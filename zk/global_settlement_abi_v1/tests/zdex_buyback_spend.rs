@@ -287,18 +287,17 @@ fn cadence_accepts_boundary_and_rejects_predecessor_and_regression() {
 }
 
 #[test]
-fn fee_allocation_is_recomputed_and_its_rejection_is_preserved() {
-    let mut fixture = fixture(DEFAULT_FIXTURE_PARAMS_V1);
-    fixture.fee_command.fee_charged_atoms = 126;
-    let fee_code = assert_reject(
-        run(&fixture),
-        &fixture,
-        ZDEXBuybackSpendRejectCodeV1::FEE_ALLOCATION_REJECTED,
-    );
-    assert_eq!(
-        fee_code,
-        Some(ZDEXFeeAllocationRejectCodeV1::INSUFFICIENT_FEE_INGRESS)
-    );
+fn fee_budget_must_equal_committed_ingress_without_effect() {
+    for submitted_atoms in [124, 126] {
+        let mut fixture = fixture(DEFAULT_FIXTURE_PARAMS_V1);
+        fixture.fee_command.fee_charged_atoms = submitted_atoms;
+        let fee_code = assert_reject(
+            run(&fixture),
+            &fixture,
+            ZDEXBuybackSpendRejectCodeV1::FEE_INGRESS_MISMATCH,
+        );
+        assert_eq!(fee_code, None);
+    }
 }
 
 #[test]

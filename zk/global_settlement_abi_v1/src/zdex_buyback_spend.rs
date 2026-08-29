@@ -23,6 +23,7 @@ pub enum ZDEXBuybackSpendRejectCodeV1 {
     STALE_STATE,
     HEIGHT_REGRESSION,
     COOLDOWN_NOT_ELAPSED,
+    FEE_INGRESS_MISMATCH,
     FEE_ALLOCATION_REJECTED,
     VERIFIED_SAFETY_MISMATCH,
     ROUTE_SAFE_LIMIT_ZERO,
@@ -281,7 +282,10 @@ impl ZDEXBuybackSpendAcceptedV1 {
                 "ZDEX buyback accepted fee allocation",
             ));
         };
-        if *recomputed != self.fee_allocation {
+        if *recomputed != self.fee_allocation
+            || self.fee_command.fee_charged_atoms
+                != self.fee_allocation.pre_state.fee_ingress_atoms
+        {
             return Err(AbiErrorV1::InvalidBinding(
                 "ZDEX buyback accepted fee allocation recomputation",
             ));
@@ -579,6 +583,14 @@ pub fn transition_zdex_buyback_spend_v1(
     }
     if let Some(code) = cadence_reject_v1(spend_policy, cadence, context.current_height) {
         return reject_v1(code, cadence, fee_pre_state, None);
+    }
+    if fee_command.fee_charged_atoms != fee_pre_state.fee_ingress_atoms {
+        return reject_v1(
+            ZDEXBuybackSpendRejectCodeV1::FEE_INGRESS_MISMATCH,
+            cadence,
+            fee_pre_state,
+            None,
+        );
     }
 
     let fee_allocation = match transition_zdex_fee_allocation_v1(

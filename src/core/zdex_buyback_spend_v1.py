@@ -45,6 +45,7 @@ class ZDEXBuybackSpendRejectCodeV1(str, Enum):
     STALE_STATE = "STALE_STATE"
     HEIGHT_REGRESSION = "HEIGHT_REGRESSION"
     COOLDOWN_NOT_ELAPSED = "COOLDOWN_NOT_ELAPSED"
+    FEE_INGRESS_MISMATCH = "FEE_INGRESS_MISMATCH"
     FEE_ALLOCATION_REJECTED = "FEE_ALLOCATION_REJECTED"
     VERIFIED_SAFETY_MISMATCH = "VERIFIED_SAFETY_MISMATCH"
     ROUTE_SAFE_LIMIT_ZERO = "ROUTE_SAFE_LIMIT_ZERO"
@@ -297,6 +298,8 @@ class ZDEXBuybackSpendAcceptedV1:
         )
         if (
             recomputed != allocation
+            or self.fee_command.fee_charged_atoms
+            != allocation.pre_state.fee_ingress_atoms
             or intent.spend_policy_root != self.policy.policy_root
             or intent.cadence_pre_state_root != self.cadence_pre_state.state_root
             or intent.fee_allocation_occurrence_root != allocation.occurrence.occurrence_root
@@ -449,6 +452,12 @@ def transition_zdex_buyback_spend_v1(
         return rejected
     if rejected := _cadence_rejection(spend_policy, cadence, fee_pre_state, context):
         return rejected
+    if fee_command.fee_charged_atoms != fee_pre_state.fee_ingress_atoms:
+        return _reject(
+            ZDEXBuybackSpendRejectCodeV1.FEE_INGRESS_MISMATCH,
+            cadence,
+            fee_pre_state,
+        )
     allocation = transition_zdex_fee_allocation_v1(
         fee_context, fee_pre_state, fee_policy, fee_command
     )
