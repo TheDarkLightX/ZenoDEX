@@ -49,14 +49,18 @@ from .global_settlement_types_v1 import (
     hash_global_v1,
 )
 from .zdex_atomic_buyback_state_v1 import ZDEXAtomicBuybackTokenomicsStateV1
+from .zdex_buyback_price_authority_v1 import (
+    VerifiedZDEXBuybackPriceAuthorityV1,
+    ZDEXBuybackPriceAuthorityCandidateV1,
+    ZDEXBuybackPriceAuthorityRejectCodeV1,
+    ZDEXBuybackPriceAuthorityRejectedV1,
+    verify_zdex_buyback_price_authority_v1,
+)
 from .zdex_buyback_price_safety_v1 import (
     ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
     VerifiedZDEXBuybackPriceSafetyV1,
     ZDEXBuybackOraclePriceOccurrenceV1,
-    ZDEXBuybackPriceSafetyObservationV1,
     ZDEXBuybackPriceSafetyPolicyV1,
-    ZDEXBuybackPriceSafetyRejectedV1,
-    verify_zdex_buyback_price_safety_v1,
 )
 from .zdex_buyback_spend_v1 import (
     ZDEX_BUYBACK_SPEND_POLICY_KIND_V1,
@@ -70,7 +74,6 @@ from .zdex_fee_allocation_types_v1 import (
     ZDEXFeeAllocationPolicyV1,
 )
 from .zdex_purchase_burn_route_types_v1 import (
-    AMM_POOL_CUSTODY_DOMAIN_V1,
     AMM_PURCHASE_OUTPUT_ROLE_V1,
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
     ZDEX_BURN_INPUT_ROLE_V1,
@@ -78,7 +81,6 @@ from .zdex_purchase_burn_route_types_v1 import (
     ZDEXBuybackExecutionPolicyV1,
     zdex_amm_purchase_port_schema_root_v1,
     zdex_burn_port_schema_root_v1,
-    zdex_pool_reserve_principal_v1,
 )
 from .zdex_verified_fee_ingress_slice_v1 import (
     VerifiedZDEXFeeIngressSliceV1,
@@ -733,7 +735,8 @@ def _require_occurrence_bindings_v1(
 
 def _require_state_and_oracle_bindings_v1(
     owned: _ZDEXBuybackSpotReceiptSnapshotV2,
-) -> VerifiedZDEXBuybackPriceSafetyV1:
+    route: RouteReleaseV1,
+) -> VerifiedZDEXBuybackPriceAuthorityV1:
     journal = owned.journal
     state = owned.global_pre_state
     occurrence = owned.occurrence
@@ -789,22 +792,6 @@ def _require_state_and_oracle_bindings_v1(
             ZDEXBuybackSpotReceiptRejectCodeV1.STATE_ROOT_BINDING_MISMATCH,
             "tokenomics policy or pre-state is outside the global lane commitment",
         )
-    oracle = next(
-        (row for row in state.oracle_occurrences if row.oracle_id == journal.oracle_id),
-        None,
-    )
-    if (
-        oracle is None
-        or oracle.occurrence_root != journal.oracle_occurrence_root
-        or oracle.observed_height != journal.oracle_observed_height
-        or not oracle.finalized
-        or oracle.observed_height > occurrence.height
-        or journal.oracle_occurrence_root not in occurrence.consumed_object_ids
-    ):
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
-            "Oracle occurrence is absent, unfinalized, future, or substituted",
-        )
     price_occurrence = ZDEXBuybackOraclePriceOccurrenceV1(
         oracle_id=journal.oracle_id,
         quote_asset_id=journal.quote_asset_id,
@@ -818,66 +805,44 @@ def _require_state_and_oracle_bindings_v1(
             ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
             "Oracle occurrence root does not commit the exact price payload",
         )
-    quote_pool_principal = zdex_pool_reserve_principal_v1(
-        pool_id=owned.buyback_policy.pool_id,
-        asset_id=owned.buyback_policy.quote_asset_id,
-    )
-    zdex_pool_principal = zdex_pool_reserve_principal_v1(
-        pool_id=owned.buyback_policy.pool_id,
-        asset_id=owned.buyback_policy.zdex_asset_id,
-    )
-    reserve_amounts = {
-        (row.owner, row.asset, row.custody_domain): row.amount_atoms
-        for row in state.custody
-    }
-    if (
-        reserve_amounts.get(
-            (
-                quote_pool_principal,
-                journal.quote_asset_id,
-                AMM_POOL_CUSTODY_DOMAIN_V1,
+    try:
+        return verify_zdex_buyback_price_authority_v1(
+            ZDEXBuybackPriceAuthorityCandidateV1(
+                pre_state=state,
+                route=route,
+                occurrence=occurrence,
+                execution_policy=owned.buyback_policy,
+                price_policy=owned.price_policy,
+                price_occurrence=price_occurrence,
+                route_safe_quote_limit_atoms=(
+                    journal.route_safe_quote_limit_atoms
+                ),
+                minimum_output_atoms=journal.minimum_output_atoms,
+                expected_quote_reserve_atoms=journal.quote_reserve_atoms,
+                expected_zdex_reserve_atoms=journal.zdex_reserve_atoms,
+                quote_amount_in_atoms=journal.quote_amount_in_atoms,
+                purchased_zdex_atoms=journal.purchased_zdex_atoms,
             )
         )
-        != journal.quote_reserve_atoms
-        or reserve_amounts.get(
-            (
-                zdex_pool_principal,
-                journal.zdex_asset_id,
-                AMM_POOL_CUSTODY_DOMAIN_V1,
+    except ZDEXBuybackPriceAuthorityRejectedV1 as error:
+        if error.code is ZDEXBuybackPriceAuthorityRejectCodeV1.PRICE_ENVELOPE_REJECTED:
+            _reject(
+                ZDEXBuybackSpotReceiptRejectCodeV1.PRICE_SAFETY_REJECTED,
+                str(error),
             )
-        )
-        != journal.zdex_reserve_atoms
-    ):
+        if error.code in {
+            ZDEXBuybackPriceAuthorityRejectCodeV1.QUOTE_RESERVE_ABSENT,
+            ZDEXBuybackPriceAuthorityRejectCodeV1.ZDEX_RESERVE_ABSENT,
+            ZDEXBuybackPriceAuthorityRejectCodeV1.RESERVE_AMOUNT_MISMATCH,
+        }:
+            _reject(
+                ZDEXBuybackSpotReceiptRejectCodeV1.STATE_ROOT_BINDING_MISMATCH,
+                str(error),
+            )
         _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.STATE_ROOT_BINDING_MISMATCH,
-            "price-safety reserves are outside the committed pool accounting rows",
+            ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
+            str(error),
         )
-    price_result = verify_zdex_buyback_price_safety_v1(
-        owned.price_policy,
-        ZDEXBuybackPriceSafetyObservationV1(
-            oracle_occurrence_root=journal.oracle_occurrence_root,
-            current_height=journal.consensus_height,
-            oracle_observed_height=journal.oracle_observed_height,
-            oracle_quote_numerator_atoms=journal.oracle_quote_numerator_atoms,
-            oracle_zdex_denominator_atoms=journal.oracle_zdex_denominator_atoms,
-            quote_reserve_atoms=journal.quote_reserve_atoms,
-            zdex_reserve_atoms=journal.zdex_reserve_atoms,
-            quote_amount_in_atoms=journal.quote_amount_in_atoms,
-            purchased_zdex_atoms=journal.purchased_zdex_atoms,
-            claimed_route_safe_quote_limit_atoms=(
-                journal.route_safe_quote_limit_atoms
-            ),
-            claimed_minimum_output_atoms=journal.minimum_output_atoms,
-        ),
-    )
-    if isinstance(price_result, ZDEXBuybackPriceSafetyRejectedV1):
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.PRICE_SAFETY_REJECTED,
-            f"integer price envelope rejected with {price_result.code.value}",
-        )
-    return price_result
-
-
 @dataclass(frozen=True, slots=True)
 class _VerifiedZDEXBuybackSpotFieldsV2:
     journal: ZDEXBuybackSpotSafetyPurchaseJournalV2
@@ -891,7 +856,7 @@ class _VerifiedZDEXBuybackSpotFieldsV2:
     fee_context: ZDEXFeeAllocationContextV1
     fee_command: ZDEXFeeAllocationCommandV1
     fee_ingress: VerifiedZDEXFeeIngressSliceV1
-    price_safety: VerifiedZDEXBuybackPriceSafetyV1
+    price_authority: VerifiedZDEXBuybackPriceAuthorityV1
     authority_head_root: str
     verifier_binding_root: str
 
@@ -915,7 +880,7 @@ class _VerifiedZDEXBuybackSpotFieldsV2:
                 {"fee_charged_atoms": self.fee_command.fee_charged_atoms},
             ),
             "fee_ingress_binding_root": self.fee_ingress.binding_root,
-            "price_safety_binding_root": self.price_safety.binding_root,
+            "price_safety_binding_root": self.price_authority.price_safety_binding_root,
             "authority_head_root": self.authority_head_root,
             "verifier_binding_root": self.verifier_binding_root,
         }
@@ -991,7 +956,11 @@ class VerifiedZDEXBuybackSpotSafetyPurchaseV2:
 
     @property
     def price_safety(self) -> VerifiedZDEXBuybackPriceSafetyV1:
-        return self._fields.price_safety
+        return self._fields.price_authority.price_safety
+
+    @property
+    def price_authority_root(self) -> str:
+        return self._fields.price_authority.authority_root
 
     @property
     def authority_head_root(self) -> str:
@@ -1063,7 +1032,7 @@ def verify_zdex_buyback_spot_safety_receipt_shadow_v2(
         )
     _require_governed_policy_v1(owned, route)
     _require_occurrence_bindings_v1(owned, route, release, tokenomics_release)
-    price_safety = _require_state_and_oracle_bindings_v1(owned)
+    price_authority = _require_state_and_oracle_bindings_v1(owned, route)
     receipt = owned.receipt
     if receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
         _reject(
@@ -1116,7 +1085,7 @@ def verify_zdex_buyback_spot_safety_receipt_shadow_v2(
         fee_context=owned.fee_context,
         fee_command=ZDEXFeeAllocationCommandV1(fee_ingress.fee_ingress_atoms),
         fee_ingress=fee_ingress,
-        price_safety=price_safety,
+        price_authority=price_authority,
         authority_head_root=authority_head.authority_root,
         verifier_binding_root=receipt_verifier.binding_root,
     )

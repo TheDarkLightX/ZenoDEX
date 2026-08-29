@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 import pytest
@@ -56,6 +57,13 @@ from src.core.zdex_atomic_buyback_state_v1 import (
     ZDEXAtomicBuybackTokenomicsStateV1,
     zdex_atomic_buyback_tokenomics_state_schema_root_v1,
 )
+from src.core.zdex_buyback_price_authority_v1 import (
+    VerifiedZDEXBuybackPriceAuthorityV1,
+    ZDEXBuybackPriceAuthorityCandidateV1,
+    ZDEXBuybackPriceAuthorityRejectCodeV1,
+    ZDEXBuybackPriceAuthorityRejectedV1,
+    verify_zdex_buyback_price_authority_v1,
+)
 from src.core.zdex_buyback_price_safety_v1 import (
     ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
     ZDEXBuybackOraclePriceOccurrenceV1,
@@ -107,6 +115,10 @@ from src.core.zdex_tokenomics_lane_v1 import ZDEXTokenomicsLaneStateV1
 
 def _root(value: int) -> str:
     return f"0x{value:064x}"
+
+
+class _HostileRoot(str):
+    """Valid-looking scalar subclass rejected at the owned boundary."""
 
 
 _VERIFIER_ARTIFACT = b"shadow-buyback-profile-bound-verifier"
@@ -641,6 +653,192 @@ def _verify(
         authority_head=fixture.authority_head,
         receipt_verifier=fixture.receipt_verifier,
     )
+
+
+def _price_occurrence(
+    fixture: _Fixture,
+) -> ZDEXBuybackOraclePriceOccurrenceV1:
+    journal = fixture.candidate.journal
+    return ZDEXBuybackOraclePriceOccurrenceV1(
+        oracle_id=journal.oracle_id,
+        quote_asset_id=journal.quote_asset_id,
+        zdex_asset_id=journal.zdex_asset_id,
+        quote_numerator_atoms=journal.oracle_quote_numerator_atoms,
+        zdex_denominator_atoms=journal.oracle_zdex_denominator_atoms,
+        observed_height=journal.oracle_observed_height,
+    )
+
+
+def _price_authority_candidate(
+    fixture: _Fixture,
+) -> ZDEXBuybackPriceAuthorityCandidateV1:
+    journal = fixture.candidate.journal
+    return ZDEXBuybackPriceAuthorityCandidateV1(
+        pre_state=fixture.candidate.global_pre_state,
+        route=fixture.route,
+        occurrence=fixture.candidate.occurrence,
+        execution_policy=fixture.candidate.buyback_policy,
+        price_policy=fixture.candidate.price_policy,
+        price_occurrence=_price_occurrence(fixture),
+        route_safe_quote_limit_atoms=journal.route_safe_quote_limit_atoms,
+        minimum_output_atoms=journal.minimum_output_atoms,
+        expected_quote_reserve_atoms=journal.quote_reserve_atoms,
+        expected_zdex_reserve_atoms=journal.zdex_reserve_atoms,
+        quote_amount_in_atoms=journal.quote_amount_in_atoms,
+        purchased_zdex_atoms=journal.purchased_zdex_atoms,
+    )
+
+
+def _with_price_authority_pre_state(
+    candidate: ZDEXBuybackPriceAuthorityCandidateV1,
+    pre_state: GlobalEconomicStateV1,
+) -> ZDEXBuybackPriceAuthorityCandidateV1:
+    return replace(
+        candidate,
+        pre_state=pre_state,
+        occurrence=replace(
+            candidate.occurrence,
+            pre_state_root=pre_state.state_root,
+        ),
+    )
+
+
+def _unfinalized_oracle_mutant(
+    candidate: ZDEXBuybackPriceAuthorityCandidateV1,
+) -> ZDEXBuybackPriceAuthorityCandidateV1:
+    pre_state = replace(
+        candidate.pre_state,
+        oracle_occurrences=tuple(
+            replace(occurrence, finalized=False)
+            for occurrence in candidate.pre_state.oracle_occurrences
+        ),
+    )
+    return _with_price_authority_pre_state(candidate, pre_state)
+
+
+def _future_oracle_mutant(
+    candidate: ZDEXBuybackPriceAuthorityCandidateV1,
+) -> ZDEXBuybackPriceAuthorityCandidateV1:
+    price_occurrence = replace(
+        candidate.price_occurrence,
+        observed_height=candidate.occurrence.height + 1,
+    )
+    pre_state = replace(
+        candidate.pre_state,
+        oracle_occurrences=(
+            replace(
+                candidate.pre_state.oracle_occurrences[0],
+                occurrence_root=price_occurrence.occurrence_root,
+                observed_height=price_occurrence.observed_height,
+            ),
+        ),
+    )
+    rebound = _with_price_authority_pre_state(candidate, pre_state)
+    return replace(
+        rebound,
+        occurrence=replace(
+            rebound.occurrence,
+            consumed_object_ids=(price_occurrence.occurrence_root,),
+        ),
+        price_occurrence=price_occurrence,
+    )
+
+
+def test_price_authority_binds_exact_committed_state_oracle_and_policy() -> None:
+    # Arrange
+    fixture = _fixture()
+    candidate = _price_authority_candidate(fixture)
+
+    # Act
+    verified = verify_zdex_buyback_price_authority_v1(candidate)
+
+    # Assert
+    assert verified.pre_state_root == fixture.candidate.global_pre_state.state_root
+    assert verified.command_occurrence_id == fixture.candidate.occurrence.occurrence_id
+    assert verified.execution_policy_root == fixture.candidate.buyback_policy.policy_root
+    assert verified.price_policy_root == fixture.candidate.price_policy.policy_root
+    assert verified.price_occurrence_root == candidate.price_occurrence.occurrence_root
+    assert verified.price_safety_binding_root == verified.price_safety.binding_root
+    assert verified.authority_root.startswith("0x")
+    assert len(verified.authority_root) == 66
+
+
+def test_price_authority_witness_is_verifier_constructed_and_immutable() -> None:
+    # Arrange
+    fixture = _fixture()
+    candidate = _price_authority_candidate(fixture)
+    verified = verify_zdex_buyback_price_authority_v1(candidate)
+    stable_root = verified.authority_root
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="verifier-constructed"):
+        VerifiedZDEXBuybackPriceAuthorityV1(object(), object())  # type: ignore[arg-type]
+    with pytest.raises(AttributeError, match="immutable"):
+        verified._fields = object()  # type: ignore[assignment]
+    object.__setattr__(candidate.execution_policy, "pool_id", _root(80_001))
+    assert verified.authority_root == stable_root
+
+
+def test_price_authority_rejects_hostile_scalar_after_candidate_construction() -> None:
+    # Arrange
+    fixture = _fixture()
+    candidate = _price_authority_candidate(fixture)
+    object.__setattr__(
+        candidate.pre_state,
+        "deployment_root",
+        _HostileRoot(candidate.pre_state.deployment_root),
+    )
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="exact primitive"):
+        verify_zdex_buyback_price_authority_v1(candidate)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected_code"),
+    (
+        (
+            lambda candidate: replace(
+                candidate,
+                occurrence=replace(candidate.occurrence, consumed_object_ids=()),
+            ),
+            ZDEXBuybackPriceAuthorityRejectCodeV1.CONTEXT_MISMATCH,
+        ),
+        (
+            lambda candidate: replace(
+                candidate,
+                expected_quote_reserve_atoms=(
+                    candidate.expected_quote_reserve_atoms - 1
+                ),
+            ),
+            ZDEXBuybackPriceAuthorityRejectCodeV1.RESERVE_AMOUNT_MISMATCH,
+        ),
+        (
+            _unfinalized_oracle_mutant,
+            ZDEXBuybackPriceAuthorityRejectCodeV1.ORACLE_AUTHORITY_MISMATCH,
+        ),
+        (
+            _future_oracle_mutant,
+            ZDEXBuybackPriceAuthorityRejectCodeV1.ORACLE_AUTHORITY_MISMATCH,
+        ),
+    ),
+)
+def test_price_authority_mutants_reject_before_witness_creation(
+    mutate: Callable[
+        [ZDEXBuybackPriceAuthorityCandidateV1],
+        ZDEXBuybackPriceAuthorityCandidateV1,
+    ],
+    expected_code: ZDEXBuybackPriceAuthorityRejectCodeV1,
+) -> None:
+    # Arrange
+    fixture = _fixture()
+    candidate = _price_authority_candidate(fixture)
+    mutant = mutate(candidate)
+
+    # Act / Assert
+    with pytest.raises(ZDEXBuybackPriceAuthorityRejectedV1) as rejected:
+        verify_zdex_buyback_price_authority_v1(mutant)
+    assert rejected.value.code is expected_code
 
 
 def _assert_reject(
