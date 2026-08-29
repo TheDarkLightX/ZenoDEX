@@ -39,6 +39,8 @@ def test_atomic_buyback_accounting_proof_has_required_surface() -> None:
     assert "import Mathlib" not in source
     assert re.search(r"\b(?:sorry|admit|axiom)\b", source) is None
     for required_declaration in (
+        "def deriveFeeCommand",
+        "theorem derived_fee_command_equals_committed_ingress",
         "structure AtomicBuybackAssumptions",
         "theorem quote_conservation",
         "theorem spot_zdex_reduction_by_exact_burn",

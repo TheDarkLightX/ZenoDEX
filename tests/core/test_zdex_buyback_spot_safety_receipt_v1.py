@@ -548,6 +548,47 @@ def _fixture() -> _Fixture:
     )
 
 
+def test_fee_ingress_amount_is_derived_from_committed_tokenomics_state() -> None:
+    # Arrange
+    fixture = _fixture()
+
+    # Act
+    verified = _verify(fixture)
+
+    # Assert
+    assert verified.fee_ingress.fee_ingress_atoms == 125
+    assert verified.fee_ingress.fee_asset_id == fixture.candidate.journal.quote_asset_id
+    assert verified.fee_command.fee_charged_atoms == 125
+
+
+def test_caller_selected_fee_budget_rejects_before_receipt_callback() -> None:
+    # Arrange
+    fixture = _fixture()
+    substituted_command = ZDEXFeeAllocationCommandV1(124)
+    substituted_journal = replace(
+        fixture.candidate.journal,
+        fee_command_root=hash_global_v1(
+            "zdex-fee-allocation-command-v1",
+            {"fee_charged_atoms": substituted_command.fee_charged_atoms},
+        ),
+    )
+    candidate = replace(
+        fixture.candidate,
+        fee_command=substituted_command,
+        journal=substituted_journal,
+    )
+
+    # Act / Assert
+    with pytest.raises(ZDEXBuybackSpotReceiptRejectedV1) as rejected:
+        verify_zdex_buyback_spot_safety_receipt_shadow_v1(
+            candidate,
+            authority_head=fixture.authority_head,
+            receipt_verifier=fixture.receipt_verifier,
+        )
+    assert rejected.value.code is ZDEXBuybackSpotReceiptRejectCodeV1.STATE_ROOT_BINDING_MISMATCH
+    assert fixture.backend.calls == []
+
+
 def _verify(
     fixture: _Fixture,
     candidate: ZDEXBuybackSpotReceiptCandidateV1 | None = None,

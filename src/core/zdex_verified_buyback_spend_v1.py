@@ -118,6 +118,7 @@ def transition_verified_zdex_buyback_spend_shadow_v1(
     owned_fee_policy = safety_purchase.fee_policy
     owned_fee_context = safety_purchase.fee_context
     owned_fee_command = safety_purchase.fee_command
+    fee_ingress = safety_purchase.fee_ingress
     owned_cadence = state.cadence_state_for(journal.quote_asset_id)
     owned_fee_state = state.fee_state_for(journal.quote_asset_id)
     same_occurrence = (
@@ -133,6 +134,15 @@ def transition_verified_zdex_buyback_spend_shadow_v1(
         and owned_fee_context.chain_id == owned_occurrence.chain_id
         and owned_fee_context.deployment_root == owned_occurrence.deployment_root
         and owned_fee_context.writer_epoch == journal.writer_epoch
+        and fee_ingress.command_occurrence_id == owned_occurrence.occurrence_id
+        and fee_ingress.global_pre_state_root == owned_occurrence.pre_state_root
+        and fee_ingress.profile_root == owned_occurrence.profile_root
+        and fee_ingress.fee_state_root == owned_fee_state.state_root
+        and fee_ingress.fee_asset_id == journal.quote_asset_id
+        and fee_ingress.fee_ingress_atoms == owned_fee_state.fee_ingress_atoms
+        and owned_fee_command.fee_charged_atoms == fee_ingress.fee_ingress_atoms
+        and fee_ingress.authority_head_root == safety_purchase.authority_head_root
+        and fee_ingress.verifier_binding_root == safety_purchase.verifier_binding_root
     )
     if not same_occurrence:
         return _reject_safety_mismatch_v1(state, journal.quote_asset_id)

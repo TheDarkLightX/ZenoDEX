@@ -33,6 +33,15 @@ policy. Those remain separate refinement and verifier obligations.
 namespace Proofs
 namespace ZDEXAtomicBuybackAccountingV1
 
+/-- The buyback fee command has no independent amount parameter. -/
+def deriveFeeCommand (committedFeeIngress : Nat) : Nat :=
+  committedFeeIngress
+
+/-- Construction from committed ingress removes caller-selected fee budgets. -/
+theorem derived_fee_command_equals_committed_ingress
+    (committedFeeIngress : Nat) :
+    deriveFeeCommand committedFeeIngress = committedFeeIngress := rfl
+
 /-- Amounts observed before and after one proposed atomic buyback occurrence. -/
 structure AtomicBuybackAmounts where
   feeTotal : Nat

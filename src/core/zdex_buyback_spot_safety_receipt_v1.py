@@ -69,6 +69,10 @@ from .zdex_purchase_burn_route_types_v1 import (
     zdex_amm_purchase_port_schema_root_v1,
     zdex_burn_port_schema_root_v1,
 )
+from .zdex_verified_fee_ingress_slice_v1 import (
+    VerifiedZDEXFeeIngressSliceV1,
+    _derive_verified_zdex_fee_ingress_slice_v1,
+)
 
 ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_JOURNAL_SCHEMA_V1: Final = (
     "zenodex/zdex-buyback-spot-safety-purchase-journal/v1"
@@ -696,6 +700,7 @@ def _require_state_and_oracle_bindings_v1(
     tokenomics = next(row for row in state.lane_roots if row.lane_id is LaneIdV1.ZDEX_TOKENOMICS)
     fee_state = owned.tokenomics_pre_state.fee_state_for(journal.quote_asset_id)
     cadence_state = owned.tokenomics_pre_state.cadence_state_for(journal.quote_asset_id)
+    derived_fee_command = ZDEXFeeAllocationCommandV1(fee_state.fee_ingress_atoms)
     if (
         tokenomics.enabled
         or tokenomics.module_release_id != journal.tokenomics_module_release_id
@@ -705,6 +710,7 @@ def _require_state_and_oracle_bindings_v1(
         or journal.fee_policy_root != owned.fee_policy.policy_root
         or journal.fee_pre_state_root != fee_state.state_root
         or journal.cadence_pre_state_root != cadence_state.state_root
+        or owned.fee_command != derived_fee_command
         or journal.fee_context_root
         != hash_global_v1(
             "zdex-fee-allocation-context-v1",
@@ -713,7 +719,7 @@ def _require_state_and_oracle_bindings_v1(
         or journal.fee_command_root
         != hash_global_v1(
             "zdex-fee-allocation-command-v1",
-            {"fee_charged_atoms": owned.fee_command.fee_charged_atoms},
+            {"fee_charged_atoms": derived_fee_command.fee_charged_atoms},
         )
     ):
         _reject(
@@ -748,6 +754,7 @@ class _VerifiedZDEXBuybackSpotFieldsV1:
     fee_policy: ZDEXFeeAllocationPolicyV1
     fee_context: ZDEXFeeAllocationContextV1
     fee_command: ZDEXFeeAllocationCommandV1
+    fee_ingress: VerifiedZDEXFeeIngressSliceV1
     authority_head_root: str
     verifier_binding_root: str
 
@@ -770,6 +777,7 @@ class _VerifiedZDEXBuybackSpotFieldsV1:
                 "zdex-fee-allocation-command-v1",
                 {"fee_charged_atoms": self.fee_command.fee_charged_atoms},
             ),
+            "fee_ingress_binding_root": self.fee_ingress.binding_root,
             "authority_head_root": self.authority_head_root,
             "verifier_binding_root": self.verifier_binding_root,
         }
@@ -838,6 +846,10 @@ class VerifiedZDEXBuybackSpotSafetyPurchaseV1:
     @property
     def fee_command(self) -> ZDEXFeeAllocationCommandV1:
         return replace(self._fields.fee_command)
+
+    @property
+    def fee_ingress(self) -> VerifiedZDEXFeeIngressSliceV1:
+        return self._fields.fee_ingress
 
     @property
     def authority_head_root(self) -> str:
@@ -927,20 +939,6 @@ def verify_zdex_buyback_spot_safety_receipt_shadow_v1(
             ZDEXBuybackSpotReceiptRejectCodeV1.JOURNAL_TOO_LARGE,
             "canonical journal exceeds the selected release ceiling",
         )
-    fields = _VerifiedZDEXBuybackSpotFieldsV1(
-        journal=owned.journal,
-        journal_digest="0x" + hashlib.sha256(journal_bytes).hexdigest(),
-        expected_image_id=release.guest_image_id,
-        receipt_digest="0x" + hashlib.sha256(receipt.receipt_bytes).hexdigest(),
-        receipt_kind=receipt.receipt_kind,
-        tokenomics_pre_state=owned.tokenomics_pre_state,
-        spend_policy=owned.spend_policy,
-        fee_policy=owned.fee_policy,
-        fee_context=owned.fee_context,
-        fee_command=owned.fee_command,
-        authority_head_root=authority_head.authority_root,
-        verifier_binding_root=receipt_verifier.binding_root,
-    )
     try:
         receipt_verifier.verify_profile_lane_receipt(
             receipt.receipt_bytes,
@@ -955,6 +953,30 @@ def verify_zdex_buyback_spot_safety_receipt_shadow_v1(
             ZDEXBuybackSpotReceiptRejectCodeV1.RECEIPT_VERIFICATION_FAILED,
             "receipt callback rejected or failed",
         )
+    fee_state = owned.tokenomics_pre_state.fee_state_for(owned.journal.quote_asset_id)
+    fee_ingress = _derive_verified_zdex_fee_ingress_slice_v1(
+        command_occurrence_id=owned.occurrence.occurrence_id,
+        global_pre_state_root=owned.global_pre_state.state_root,
+        profile_root=owned.profile.profile_id,
+        fee_state=fee_state,
+        authority_head_root=authority_head.authority_root,
+        verifier_binding_root=receipt_verifier.binding_root,
+    )
+    fields = _VerifiedZDEXBuybackSpotFieldsV1(
+        journal=owned.journal,
+        journal_digest="0x" + hashlib.sha256(journal_bytes).hexdigest(),
+        expected_image_id=release.guest_image_id,
+        receipt_digest="0x" + hashlib.sha256(receipt.receipt_bytes).hexdigest(),
+        receipt_kind=receipt.receipt_kind,
+        tokenomics_pre_state=owned.tokenomics_pre_state,
+        spend_policy=owned.spend_policy,
+        fee_policy=owned.fee_policy,
+        fee_context=owned.fee_context,
+        fee_command=ZDEXFeeAllocationCommandV1(fee_ingress.fee_ingress_atoms),
+        fee_ingress=fee_ingress,
+        authority_head_root=authority_head.authority_root,
+        verifier_binding_root=receipt_verifier.binding_root,
+    )
     return VerifiedZDEXBuybackSpotSafetyPurchaseV1(
         _VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V1,
         fields,
