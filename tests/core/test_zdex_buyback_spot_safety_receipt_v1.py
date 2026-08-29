@@ -56,6 +56,10 @@ from src.core.zdex_atomic_buyback_state_v1 import (
     ZDEXAtomicBuybackTokenomicsStateV1,
     zdex_atomic_buyback_tokenomics_state_schema_root_v1,
 )
+from src.core.zdex_buyback_price_safety_v1 import (
+    ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
+    ZDEXBuybackPriceSafetyPolicyV1,
+)
 from src.core.zdex_buyback_spend_v1 import (
     ZDEX_BUYBACK_SPEND_POLICY_KIND_V1,
     ZDEXBuybackSpendPolicyV1,
@@ -87,6 +91,7 @@ from src.core.zdex_hyperdeflation_types_v1 import (
     ZDEXSupplyStateV1,
 )
 from src.core.zdex_purchase_burn_route_types_v1 import (
+    AMM_POOL_CUSTODY_DOMAIN_V1,
     AMM_PURCHASE_OUTPUT_ROLE_V1,
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
     ZDEX_BURN_INPUT_ROLE_V1,
@@ -94,6 +99,7 @@ from src.core.zdex_purchase_burn_route_types_v1 import (
     ZDEXBuybackExecutionPolicyV1,
     zdex_amm_purchase_port_schema_root_v1,
     zdex_burn_port_schema_root_v1,
+    zdex_pool_reserve_principal_v1,
 )
 from src.core.zdex_tokenomics_lane_v1 import ZDEXTokenomicsLaneStateV1
 
@@ -226,6 +232,24 @@ def _fixture() -> _Fixture:
     )
     fee_policy = candidate_zdex_fee_allocation_policy_v1()
     spend_policy = ZDEXBuybackSpendPolicyV1(policy.quote_asset_id, 1, 200, 1)
+    price_policy = ZDEXBuybackPriceSafetyPolicyV1(
+        oracle_id="zdex-buyback-oracle",
+        maximum_oracle_age_blocks=3,
+        minimum_quote_reserve_atoms=500,
+        minimum_zdex_reserve_atoms=500,
+        maximum_pool_oracle_deviation_bps=500,
+        maximum_execution_impact_bps=1_300,
+        maximum_oracle_execution_deviation_bps=1_500,
+        maximum_quote_reserve_spend_bps=2_000,
+    )
+    quote_pool_principal = zdex_pool_reserve_principal_v1(
+        pool_id=policy.pool_id,
+        asset_id=policy.quote_asset_id,
+    )
+    zdex_pool_principal = zdex_pool_reserve_principal_v1(
+        pool_id=policy.pool_id,
+        asset_id=policy.zdex_asset_id,
+    )
     fee_state = ZDEXFeeStateV1(
         policy.quote_asset_id,
         fee_policy.policy_root,
@@ -255,7 +279,7 @@ def _fixture() -> _Fixture:
                 8,
                 0,
                 1_000,
-                (ZDEXAmountBucketV1("amm-pool", 1_000),),
+                (ZDEXAmountBucketV1(zdex_pool_principal, 1_000),),
                 0,
                 500,
             ),
@@ -289,7 +313,7 @@ def _fixture() -> _Fixture:
         specification_root=_root(21),
         source_root=_root(22),
         toolchain_root=_root(23),
-        oracle_policy_root=_root(24),
+        oracle_policy_root=price_policy.policy_root,
         issue_burn_policy_root=supply_policy.policy_root,
         max_cycles=2_000_000,
         max_journal_bytes=65_536,
@@ -309,6 +333,11 @@ def _fixture() -> _Fixture:
                         ZDEX_BUYBACK_SPEND_POLICY_KIND_V1,
                         PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
                         spend_policy.policy_root,
+                    ),
+                    EconomicPolicyBindingV1(
+                        ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
+                        PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+                        price_policy.policy_root,
                     ),
                     EconomicPolicyBindingV1(
                         ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
@@ -398,9 +427,9 @@ def _fixture() -> _Fixture:
                         100,
                     ),
                     EconomicAmountV1(
-                        "quote-amm-pool",
+                        quote_pool_principal,
                         policy.quote_asset_id,
-                        "zenoledger:amm-pool",
+                        AMM_POOL_CUSTODY_DOMAIN_V1,
                         1_000,
                     ),
                     EconomicAmountV1(
@@ -410,9 +439,9 @@ def _fixture() -> _Fixture:
                         8_775,
                     ),
                     EconomicAmountV1(
-                        "amm-pool",
+                        zdex_pool_principal,
                         policy.zdex_asset_id,
-                        "zenoledger:amm-pool",
+                        AMM_POOL_CUSTODY_DOMAIN_V1,
                         1_000,
                     ),
                 ),
@@ -491,17 +520,23 @@ def _fixture() -> _Fixture:
         oracle_policy_root=route.oracle_policy_root,
         oracle_id=oracle_id,
         oracle_occurrence_root=oracle_occurrence_root,
+        oracle_observed_height=76,
+        oracle_quote_numerator_atoms=1,
+        oracle_zdex_denominator_atoms=1,
+        quote_reserve_atoms=1_000,
+        zdex_reserve_atoms=1_000,
         consensus_height=occurrence.height,
         route_safe_quote_limit_atoms=200,
         quote_amount_in_atoms=125,
-        minimum_output_atoms=30,
-        purchased_zdex_atoms=40,
+        minimum_output_atoms=109,
+        purchased_zdex_atoms=111,
     )
     candidate = ZDEXBuybackSpotReceiptCandidateV1(
         profile=profile,
         policy_registry=policy_registry,
         buyback_policy=policy,
         spend_policy=spend_policy,
+        price_policy=price_policy,
         fee_policy=fee_policy,
         fee_context=fee_context,
         fee_command=fee_command,
@@ -630,7 +665,7 @@ def test_authenticated_journal_uses_exact_release_image_and_canonical_bytes() ->
     assert verified.journal is not fixture.candidate.journal
     assert verified.journal.terminal_obligations_root != ZERO_ROOT_V1
     assert verified.journal.quote_amount_in_atoms == 125
-    assert verified.journal.purchased_zdex_atoms == 40
+    assert verified.journal.purchased_zdex_atoms == 111
 
 
 def test_verified_witness_is_opaque_immutable_and_binding_stable() -> None:
@@ -642,7 +677,7 @@ def test_verified_witness_is_opaque_immutable_and_binding_stable() -> None:
     with pytest.raises(TypeError, match="verifier-constructed"):
         VerifiedZDEXBuybackSpotSafetyPurchaseV1(object(), object())  # type: ignore[arg-type]
     with pytest.raises(AttributeError, match="immutable"):
-        verified._fields = object()  # type: ignore[misc]
+        verified._fields = object()  # type: ignore[assignment]
     object.__setattr__(journal_copy, "safety_binding_root", _root(90_001))
 
     assert verified.binding_root == binding_root
@@ -653,7 +688,7 @@ def test_canonical_journal_digest_is_fixed() -> None:
     journal_bytes = canonical_global_bytes_v1(_fixture().candidate.journal)
 
     assert hashlib.sha256(journal_bytes).hexdigest() == (
-        "dd2c671072028d3c183fa066bdd63f24284157e2948db559fdc3275efb7534aa"
+        "c74784d287b9436c4fd08a2bc8c1bfdb9837f2387a45a8b6f0b85732e15b70d6"
     )
 
 
@@ -728,7 +763,7 @@ def test_raw_accept_all_callback_cannot_create_authority_witness() -> None:
         verify_zdex_buyback_spot_safety_receipt_shadow_v1(
             fixture.candidate,
             authority_head=fixture.authority_head,
-            receipt_verifier=_AcceptAll(),  # type: ignore[arg-type]
+            receipt_verifier=_AcceptAll(),
         )
 
     assert exc_info.value.code is ZDEXBuybackSpotReceiptRejectCodeV1.AUTHORITY_BINDING_MISMATCH
@@ -759,6 +794,20 @@ def test_caller_substituted_spend_policy_rejects_before_receipt_verification() -
     _assert_reject(
         fixture,
         replace(fixture.candidate, spend_policy=substituted),
+        ZDEXBuybackSpotReceiptRejectCodeV1.GOVERNED_POLICY_MISMATCH,
+    )
+
+
+def test_caller_substituted_price_policy_rejects_before_receipt_verification() -> None:
+    fixture = _fixture()
+    substituted = replace(
+        fixture.candidate.price_policy,
+        maximum_execution_impact_bps=1_301,
+    )
+
+    _assert_reject(
+        fixture,
+        replace(fixture.candidate, price_policy=substituted),
         ZDEXBuybackSpotReceiptRejectCodeV1.GOVERNED_POLICY_MISMATCH,
     )
 
@@ -808,12 +857,51 @@ def test_quote_spend_above_authenticated_route_limit_rejects_before_callback() -
 
 def test_purchased_output_below_positive_minimum_rejects_before_callback() -> None:
     fixture = _fixture()
-    object.__setattr__(fixture.candidate.journal, "purchased_zdex_atoms", 29)
+    object.__setattr__(fixture.candidate.journal, "purchased_zdex_atoms", 108)
 
     _assert_reject(
         fixture,
         fixture.candidate,
         ZDEXBuybackSpotReceiptRejectCodeV1.MALFORMED_CANDIDATE,
+    )
+
+
+@pytest.mark.parametrize(
+    "changes",
+    (
+        {"oracle_quote_numerator_atoms": 2},
+        {"purchased_zdex_atoms": 110},
+        {"route_safe_quote_limit_atoms": 199},
+        {"minimum_output_atoms": 110},
+    ),
+)
+def test_price_envelope_mutations_reject_before_receipt_callback(
+    changes: dict[str, int],
+) -> None:
+    fixture = _fixture()
+    candidate = replace(
+        fixture.candidate,
+        journal=replace(fixture.candidate.journal, **changes),  # type: ignore[arg-type]
+    )
+
+    _assert_reject(
+        fixture,
+        candidate,
+        ZDEXBuybackSpotReceiptRejectCodeV1.PRICE_SAFETY_REJECTED,
+    )
+
+
+def test_uncommitted_reserve_claim_rejects_before_receipt_callback() -> None:
+    fixture = _fixture()
+    candidate = replace(
+        fixture.candidate,
+        journal=replace(fixture.candidate.journal, quote_reserve_atoms=999),
+    )
+
+    _assert_reject(
+        fixture,
+        candidate,
+        ZDEXBuybackSpotReceiptRejectCodeV1.STATE_ROOT_BINDING_MISMATCH,
     )
 
 
@@ -881,7 +969,7 @@ def test_purchased_output_below_positive_minimum_rejects_before_callback() -> No
         (
             "oracle_id",
             "substituted-oracle",
-            ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
+            ZDEXBuybackSpotReceiptRejectCodeV1.GOVERNED_POLICY_MISMATCH,
         ),
         (
             "oracle_occurrence_root",
@@ -896,7 +984,10 @@ def test_hostile_coordinate_substitution_rejects_before_callback(
     expected_code: ZDEXBuybackSpotReceiptRejectCodeV1,
 ) -> None:
     fixture = _fixture()
-    journal = replace(fixture.candidate.journal, **{field_name: hostile_value})
+    journal = replace(
+        fixture.candidate.journal,
+        **{field_name: hostile_value},  # type: ignore[arg-type]
+    )
     candidate = replace(fixture.candidate, journal=journal)
 
     _assert_reject(fixture, candidate, expected_code)
@@ -916,7 +1007,10 @@ def test_stale_global_or_spot_pre_root_rejects(
     fixture = _fixture()
     candidate = replace(
         fixture.candidate,
-        journal=replace(fixture.candidate.journal, **{field_name: hostile_value}),
+        journal=replace(
+            fixture.candidate.journal,
+            **{field_name: hostile_value},  # type: ignore[arg-type]
+        ),
     )
 
     _assert_reject(

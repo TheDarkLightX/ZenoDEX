@@ -34,7 +34,11 @@ from src.core.zdex_purchase_burn_receipt_verification_v1 import (
     verify_governed_zdex_amm_purchase_receipt_shadow_v1,
     verify_governed_zdex_burn_receipt_shadow_v1,
 )
-from src.core.zdex_purchase_burn_route_types_v1 import ZDEXAMMPurchaseJournalV1
+from src.core.zdex_purchase_burn_route_types_v1 import (
+    ZDEXAMMPurchaseJournalV1,
+    zdex_occurrence_burn_port_v1,
+    zdex_pool_reserve_principal_v1,
+)
 from src.core.zdex_verified_buyback_spend_v1 import (
     VerifiedZDEXBuybackSpendV1,
     transition_verified_zdex_buyback_spend_shadow_v1,
@@ -61,9 +65,19 @@ def _purchase_journal(
         quote_asset_id=safety.quote_asset_id,
         zdex_asset_id=safety.zdex_asset_id,
         quote_source_bucket_id="protocol-fee-buyback-reserve",
-        quote_pool_bucket_id="quote-amm-pool",
-        zdex_pool_bucket_id="amm-pool",
-        burn_bucket_id="protocol-burn",
+        quote_pool_bucket_id=zdex_pool_reserve_principal_v1(
+            pool_id=candidate.buyback_policy.pool_id,
+            asset_id=safety.quote_asset_id,
+        ),
+        zdex_pool_bucket_id=zdex_pool_reserve_principal_v1(
+            pool_id=candidate.buyback_policy.pool_id,
+            asset_id=safety.zdex_asset_id,
+        ),
+        burn_bucket_id=zdex_occurrence_burn_port_v1(
+            profile_root=candidate.occurrence.profile_root,
+            route_release_id=fixture.route.route_release_id,
+            command_occurrence_id=candidate.occurrence.occurrence_id,
+        ),
         quote_amount_in_atoms=safety.quote_amount_in_atoms,
         purchased_zdex_atoms=safety.purchased_zdex_atoms,
         quote_source_pre_atoms=125,
@@ -71,9 +85,9 @@ def _purchase_journal(
         quote_pool_pre_atoms=1_000,
         quote_pool_post_atoms=1_125,
         zdex_pool_pre_atoms=1_000,
-        zdex_pool_post_atoms=960,
+        zdex_pool_post_atoms=889,
         burn_bucket_pre_atoms=0,
-        burn_bucket_post_atoms=40,
+        burn_bucket_post_atoms=111,
         quote_owned_atoms=10_000,
         quote_supply_atoms=10_000,
         zdex_owned_atoms=supply.live_supply_atoms,
@@ -156,7 +170,7 @@ def test_bdd_fee_allocation_purchase_and_burn_close_one_atomic_obligation() -> N
 
     assert isinstance(pending, ZDEXAtomicBuybackPendingV1)
     assert pending.pending_terminal_obligations_root != ZERO_ROOT_V1
-    assert pending.post_state.tokenomics.supply_state.live_supply_atoms == 960
+    assert pending.post_state.tokenomics.supply_state.live_supply_atoms == 889
     assert (
         pending.post_state.fee_state_for(candidate.purchase_journal.quote_asset_id)
         .destination_balances[0]
@@ -166,14 +180,14 @@ def test_bdd_fee_allocation_purchase_and_burn_close_one_atomic_obligation() -> N
     accepted = finalize_zdex_atomic_buyback_v1(pending, _verify_burn(fixture, pending))
     assert isinstance(accepted, ZDEXAtomicBuybackAcceptedV1)
     assert accepted.terminal_obligations_root == ZERO_ROOT_V1
-    assert accepted.burn.journal.burned_zdex_atoms == 40
+    assert accepted.burn.journal.burned_zdex_atoms == 111
     assert (
         sum(
             -row.delta_atoms
             for row in accepted.effects.rows
             if row.kind is EconomicEffectKindV1.BURN
         )
-        == 40
+        == 111
     )
 
 
@@ -219,7 +233,7 @@ def test_atomic_effects_uniquely_project_and_refine_the_global_post_state() -> N
     assert refinement.post_state_root == post_state.state_root
     assert {row.asset: row.amount_atoms for row in post_state.supplies}[
         candidate.purchase_journal.zdex_asset_id
-    ] == 960
+    ] == 889
 
 
 def test_purchase_amount_substitution_rejects_as_exact_noop() -> None:

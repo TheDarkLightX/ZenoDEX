@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import cast
 
 import pytest
 
+from src.core.global_economic_proof_v1 import EconomicCommandOccurrenceV1
 from src.core.zdex_buyback_spend_v1 import (
     ZDEXBuybackSpendRejectCodeV1,
     ZDEXBuybackSpendRejectedV1,
@@ -29,7 +31,7 @@ def _inputs() -> tuple[object, ...]:
 
 
 def _run(values: tuple[object, ...]) -> object:
-    return transition_verified_zdex_buyback_spend_shadow_v1(*values)  # type: ignore[arg-type]
+    return transition_verified_zdex_buyback_spend_shadow_v1(*values)
 
 
 def test_authenticated_safety_receipt_supplies_height_limit_and_exact_spend() -> None:
@@ -56,7 +58,11 @@ def test_authenticated_purchase_amount_must_equal_selected_canonical_spend() -> 
     fixture = _safety_fixture()
     candidate = replace(
         fixture.candidate,
-        journal=replace(fixture.candidate.journal, quote_amount_in_atoms=124),
+        journal=replace(
+            fixture.candidate.journal,
+            quote_amount_in_atoms=124,
+            minimum_output_atoms=108,
+        ),
     )
     values[1] = _verify_safety(fixture, candidate)
 
@@ -72,11 +78,14 @@ def test_authenticated_purchase_amount_must_equal_selected_canonical_spend() -> 
 @pytest.mark.parametrize("field", ("nonce", "route_release_id", "pre_state_root"))
 def test_foreign_occurrence_coordinates_reject_without_effect(field: str) -> None:
     values = list(_inputs())
-    occurrence = values[0]
+    occurrence = cast(EconomicCommandOccurrenceV1, values[0])
     if field == "nonce":
-        values[0] = replace(occurrence, nonce=occurrence.nonce + 1)  # type: ignore[union-attr]
+        values[0] = replace(occurrence, nonce=occurrence.nonce + 1)
     else:
-        values[0] = replace(occurrence, **{field: "0x" + "99" * 32})
+        values[0] = replace(
+            occurrence,
+            **{field: "0x" + "99" * 32},
+        )
 
     result = _run(tuple(values))
 
@@ -87,9 +96,9 @@ def test_foreign_occurrence_coordinates_reject_without_effect(field: str) -> Non
 
 def test_verified_spend_witness_cannot_be_constructed_or_rebound_by_callers() -> None:
     with pytest.raises(TypeError, match="adapter-constructed"):
-        VerifiedZDEXBuybackSpendV1(object(), object())  # type: ignore[arg-type]
+        VerifiedZDEXBuybackSpendV1(object(), object())
 
     result = _run(_inputs())
     assert isinstance(result, VerifiedZDEXBuybackSpendV1)
     with pytest.raises(AttributeError, match="immutable"):
-        result._fields = object()  # type: ignore[misc]
+        result._fields = object()
