@@ -557,6 +557,8 @@ fn witness_reject_code_v1(
         || !candidate
             .verified_buyback_budget
             .matches_route_input(route_id, candidate.buyback_budget_occurrence)?
+        || candidate.verified_buyback_budget.fee_ingress_atoms()
+            != candidate.buyback_budget_occurrence.fee_charged_atoms
     {
         return Ok(Some(
             ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_BUDGET_MISMATCH,

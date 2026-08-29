@@ -43,6 +43,7 @@ struct VerifiedZDEXFeeAllocationFieldsV1 {
     receipt_kind: ReceiptKindV1,
     policy_root: RootV1,
     fee_asset_id: RootV1,
+    fee_ingress_atoms: u128,
     buyback_quote_atoms: u128,
     pre_lane_root: RootV1,
     post_lane_root: RootV1,
@@ -94,6 +95,9 @@ impl VerifiedZDEXFeeAllocationV1 {
     pub fn fee_asset_id(&self) -> &RootV1 {
         &self.0.fee_asset_id
     }
+    pub fn fee_ingress_atoms(&self) -> u128 {
+        self.0.fee_ingress_atoms
+    }
     pub fn buyback_quote_atoms(&self) -> u128 {
         self.0.buyback_quote_atoms
     }
@@ -122,6 +126,7 @@ impl VerifiedZDEXFeeAllocationV1 {
             receipt_kind: ReceiptKindV1,
             policy_root: &'a RootV1,
             fee_asset_id: &'a RootV1,
+            fee_ingress_atoms: u128,
             buyback_quote_atoms: u128,
             pre_lane_root: &'a RootV1,
             post_lane_root: &'a RootV1,
@@ -144,6 +149,7 @@ impl VerifiedZDEXFeeAllocationV1 {
                 receipt_kind: self.0.receipt_kind,
                 policy_root: &self.0.policy_root,
                 fee_asset_id: &self.0.fee_asset_id,
+                fee_ingress_atoms: self.0.fee_ingress_atoms,
                 buyback_quote_atoms: self.0.buyback_quote_atoms,
                 pre_lane_root: &self.0.pre_lane_root,
                 post_lane_root: &self.0.post_lane_root,
@@ -278,6 +284,7 @@ fn construct_verified_v1(
             receipt_kind: candidate.receipt.receipt_kind,
             policy_root: candidate.policy.policy_root()?,
             fee_asset_id: candidate.journal.fee_asset_id.clone(),
+            fee_ingress_atoms: candidate.pre_state.fee_ingress_atoms,
             buyback_quote_atoms: candidate.journal.buyback_quote_atoms(),
             pre_lane_root: candidate.journal.pre_lane_root.clone(),
             post_lane_root: candidate.journal.post_lane_root.clone(),

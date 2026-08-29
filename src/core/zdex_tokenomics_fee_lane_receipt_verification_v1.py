@@ -117,6 +117,7 @@ def _require_candidate_bindings(
         or verified.receipt_kind is not ReceiptKindV1.SUCCINCT
         or verified.policy_root != fields.policy_binding.policy_root
         or verified.fee_asset_id != journal.fee_asset_id
+        or verified.fee_ingress_atoms != allocation.pre_state.fee_ingress_atoms
         or verified.buyback_quote_atoms != journal.buyback_quote_atoms
         or verified.pre_lane_root != journal.pre_lane_root
         or verified.post_lane_root != journal.post_lane_root

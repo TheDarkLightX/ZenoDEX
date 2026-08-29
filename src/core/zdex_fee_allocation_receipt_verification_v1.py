@@ -210,6 +210,7 @@ class _VerifiedZDEXFeeAllocationFieldsV1:
     receipt_kind: ReceiptKindV1
     policy_root: str
     fee_asset_id: str
+    fee_ingress_atoms: int
     buyback_quote_atoms: int
     pre_lane_root: str
     post_lane_root: str
@@ -294,6 +295,10 @@ class VerifiedZDEXFeeAllocationV1:
         return self._fields.fee_asset_id
 
     @property
+    def fee_ingress_atoms(self) -> int:
+        return self._fields.fee_ingress_atoms
+
+    @property
     def buyback_quote_atoms(self) -> int:
         return self._fields.buyback_quote_atoms
 
@@ -327,6 +332,7 @@ class VerifiedZDEXFeeAllocationV1:
                 "receipt_kind": self.receipt_kind,
                 "policy_root": self.policy_root,
                 "fee_asset_id": self.fee_asset_id,
+                "fee_ingress_atoms": self.fee_ingress_atoms,
                 "buyback_quote_atoms": self.buyback_quote_atoms,
                 "pre_lane_root": self.pre_lane_root,
                 "post_lane_root": self.post_lane_root,
@@ -452,6 +458,7 @@ def verify_zdex_fee_allocation_receipt_v1(
         receipt.receipt_kind,
         owned_candidate.policy.policy_root,
         journal.fee_asset_id,
+        owned_candidate.pre_state.fee_ingress_atoms,
         journal.buyback_quote_atoms,
         journal.pre_lane_root,
         journal.post_lane_root,

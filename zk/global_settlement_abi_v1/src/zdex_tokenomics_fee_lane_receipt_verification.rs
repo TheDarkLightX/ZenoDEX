@@ -61,6 +61,8 @@ fn require_candidate_bindings_v1(
         || lane.policy.policy_root()? != policy_binding.policy_root
         || lane.module_journal.module_release_id != module.release_id
         || candidate.verified_allocation.expected_image_id() != &module.guest_image_id
+        || candidate.verified_allocation.fee_ingress_atoms()
+            != allocation.pre_state.fee_ingress_atoms
         || !verified_matches
     {
         return Err(AbiErrorV1::InvalidBinding(

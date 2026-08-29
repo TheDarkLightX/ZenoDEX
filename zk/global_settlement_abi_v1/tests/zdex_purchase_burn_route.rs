@@ -577,7 +577,7 @@ struct Fixture {
     verified_burn: VerifiedZDEXBurnV1,
 }
 
-fn fixture() -> Fixture {
+fn fixture_with_fee_ingress(fee_ingress_atoms: u128) -> Fixture {
     let spot_release = lane_release(LaneIdV1::SPOT_LIQUIDITY, 1);
     let burn_release = lane_release(LaneIdV1::ZDEX_TOKENOMICS, 2);
     let route = route_release(&spot_release, &burn_release);
@@ -658,7 +658,7 @@ fn fixture() -> Fixture {
     let fee_state = ZDEXFeeStateV1 {
         fee_asset_id: purchase.quote_asset_id.clone(),
         policy_root: fee_policy.policy_root().expect("fee policy root"),
-        fee_ingress_atoms: 625,
+        fee_ingress_atoms,
         unallocated_reserve_atoms: 0,
         destination_balances: ZDEX_FEE_DESTINATIONS_V1
             .into_iter()
@@ -852,6 +852,10 @@ fn fixture() -> Fixture {
     }
 }
 
+fn fixture() -> Fixture {
+    fixture_with_fee_ingress(625)
+}
+
 fn compose(fixture: &Fixture) -> ZDEXPurchaseBurnRouteResultV1 {
     let governed_profile = bind_zdex_purchase_burn_shadow_profile_v1(
         &fixture.profile.profile_id,
@@ -967,7 +971,7 @@ fn rust_matches_python_golden_composition_root_and_effects() {
             .journal_root()
             .expect("composition root")
             .as_str(),
-        "0x33f6ab97120d9b0aaa59ccf5cbde361d32aa7d0a3881fff97e38a6dcb8e0e152"
+        "0x5b253eabc0f3f8d9a302fc9bfcaf9e9be84193786aa7c7230d37c0fb0c1f86be"
     );
     assert_eq!(
         composition.buyback_execution_policy_root,
@@ -1687,6 +1691,27 @@ fn command_must_consume_exact_authenticated_budget_object() {
 
     let ZDEXPurchaseBurnRouteResultV1::Rejected(rejected) = compose(&fixture) else {
         panic!("wrong consumed object must reject")
+    };
+    assert_eq!(
+        rejected.code,
+        ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_BUDGET_MISMATCH
+    );
+    assert!(rejected.effects.is_empty());
+}
+
+#[test]
+fn buyback_budget_must_consume_exact_verified_fee_ingress() {
+    // Arrange: create a valid generic allocation that consumes only part of ingress.
+    let fixture = fixture_with_fee_ingress(626);
+    assert_eq!(fixture.buyback_budget_occurrence.fee_charged_atoms, 625);
+    assert_eq!(fixture.verified_buyback_budget.fee_ingress_atoms(), 626);
+
+    // Act.
+    let result = compose(&fixture);
+
+    // Assert.
+    let ZDEXPurchaseBurnRouteResultV1::Rejected(rejected) = result else {
+        panic!("partial fee-ingress buyback budget must reject")
     };
     assert_eq!(
         rejected.code,

@@ -752,6 +752,7 @@ def _budget_witness_matches(
             witness.effect_plan_root != budget.effect_plan_root,
             witness.policy_root != budget.policy_root,
             witness.fee_asset_id != budget.fee_asset_id,
+            witness.fee_ingress_atoms != budget.fee_charged_atoms,
             witness.buyback_quote_atoms != budget.buyback_quote_atoms,
             witness.pre_lane_root != budget.pre_lane_root,
             witness.post_lane_root != budget.post_lane_root,

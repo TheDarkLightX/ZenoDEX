@@ -534,16 +534,20 @@ def _buyback_budget(
     burn_release: LaneModuleReleaseV1,
     occurrence: EconomicCommandOccurrenceV1,
     purchase: ZDEXAMMPurchaseJournalV1,
+    fee_ingress_atoms: int | None = None,
 ) -> tuple[
     ZDEXFeeAllocationOccurrenceV1,
     VerifiedZDEXFeeAllocationV1,
     ZDEXFeeAllocationReceiptCandidateV1,
 ]:
     charged_fee_atoms = purchase.quote_amount_in_atoms * 5
+    committed_fee_ingress_atoms = (
+        charged_fee_atoms if fee_ingress_atoms is None else fee_ingress_atoms
+    )
     state = ZDEXFeeStateV1(
         fee_asset_id=purchase.quote_asset_id,
         policy_root=policy.policy_root,
-        fee_ingress_atoms=charged_fee_atoms,
+        fee_ingress_atoms=committed_fee_ingress_atoms,
         unallocated_reserve_atoms=0,
         destination_balances=tuple(
             ZDEXFeeDestinationAmountV1(destination, 0)
@@ -653,6 +657,7 @@ def _verified_fixture(
     burn_overrides: dict[str, object] | None = None,
     budget_overrides: dict[str, object] | None = None,
     consumed_object_ids_override: tuple[str, ...] | None = None,
+    budget_fee_ingress_atoms: int | None = None,
     buyback_route_guest_image_id: str = _root(500),
 ) -> ZDEXPurchaseBurnRouteCandidateV1:
     spot_release = _lane_release(LaneIdV1.SPOT_LIQUIDITY, 1)
@@ -715,6 +720,7 @@ def _verified_fixture(
         burn_release=burn_release,
         occurrence=occurrence,
         purchase=purchase,
+        fee_ingress_atoms=budget_fee_ingress_atoms,
     )
     purchase = replace(
         purchase,
@@ -1272,6 +1278,22 @@ def test_command_must_consume_exact_authenticated_budget_object(
 
     result = compose_zdex_purchase_burn_route_v1(candidate)
 
+    _assert_no_effect_reject(
+        result,
+        ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH,
+    )
+
+
+def test_buyback_budget_must_consume_exact_verified_fee_ingress() -> None:
+    # Arrange: create a valid generic allocation that consumes only part of ingress.
+    candidate = _verified_fixture(budget_fee_ingress_atoms=626)
+    assert candidate.buyback_budget_occurrence.fee_charged_atoms == 625
+    assert candidate.verified_buyback_budget.fee_ingress_atoms == 626
+
+    # Act
+    result = compose_zdex_purchase_burn_route_v1(candidate)
+
+    # Assert
     _assert_no_effect_reject(
         result,
         ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH,
@@ -2322,7 +2344,7 @@ def test_python_rust_golden_composition_root_is_stable() -> None:
         result.buyback_execution_policy_root
     )
     assert result.composition_journal_v2.journal_root == (
-        "0x33f6ab97120d9b0aaa59ccf5cbde361d32aa7d0a3881fff97e38a6dcb8e0e152"
+        "0x5b253eabc0f3f8d9a302fc9bfcaf9e9be84193786aa7c7230d37c0fb0c1f86be"
     )
     assert zdex_burn_port_schema_root_v1() == (
         "0x744c54af6df7c8a4fa0c5e0b152e0139add14c337d7cbcf1c8062e8aa2fa5289"
