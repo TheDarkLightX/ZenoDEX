@@ -1,0 +1,651 @@
+# Bounded lifecycle model for the SHADOW ZDEX fee-funded purchase-and-burn route.
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zdex_atomic_buyback_lifecycle_v1"
+  created_by: "zenodex"
+  seed: 0
+  notes: |
+    Research-only ESSO model of the publication boundary around one
+    same-occurrence ZDEX buy-and-burn route. The finite domain has two
+    occurrence slots and at most four atoms per movement. It models:
+
+      prepare(validated fee budget + profile-selected purchase)
+      finalize(exact burn receipt + current commit authority)
+      discard(unpublished pending result)
+
+    Only finalize may change committed accounting locations. A successful
+    finalize moves quote atoms from the buyback reserve to the selected pool,
+    removes the purchased ZDEX atoms from that pool, reduces ZDEX supply by
+    the same amount, closes the pending burn obligation, and consumes the
+    command, fee-budget, and Oracle occurrence tokens together. Preparation,
+    rejection, and discard preserve the full committed projection.
+
+    Boolean parameters abstract opaque verifier facts. They are adversarial
+    environment choices in this model and are never caller authority in the
+    implementation. This model proves bounded transition-system properties;
+    it does not prove the booleans, runtime refinement, cryptographic receipt
+    verification, Oracle truth, liveness, economic optimality, production
+    parameters, mounting, or settlement authority.
+
+observables:
+  state_vars:
+    - "phase"
+    - "quote_buyback"
+    - "quote_pool"
+    - "zdex_pool"
+    - "zdex_other"
+    - "zdex_supply"
+    - "height"
+    - "command_used_0"
+    - "command_used_1"
+    - "budget_used_0"
+    - "budget_used_1"
+    - "oracle_used_0"
+    - "oracle_used_1"
+    - "pending_spend"
+    - "pending_out"
+    - "pending_terminal"
+    - "g_decision"
+  effects:
+    - "decision"
+    - "published"
+    - "quote_spent"
+    - "zdex_burned"
+    - "pending_terminal"
+
+types:
+  - id: "Phase"
+    type:
+      kind: "enum"
+      symbols: ["EMPTY", "PENDING"]
+  - id: "Decision"
+    type:
+      kind: "enum"
+      symbols:
+        - "GENESIS"
+        - "PREPARED"
+        - "PREPARE_REJECTED"
+        - "COMMITTED"
+        - "FINALIZE_REJECTED"
+        - "DISCARDED"
+
+state_vars:
+  # Committed projection. Practical custody follows key control; these names
+  # identify accounting locations and do not make a title or custody claim.
+  - { id: "quote_buyback", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "quote_pool", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "zdex_pool", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "zdex_other", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "zdex_supply", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "height", role: "control", type: { kind: "int", min: 0, max: 2 } }
+  - { id: "command_used_0", role: "control", type: { kind: "bool" } }
+  - { id: "command_used_1", role: "control", type: { kind: "bool" } }
+  - { id: "budget_used_0", role: "control", type: { kind: "bool" } }
+  - { id: "budget_used_1", role: "control", type: { kind: "bool" } }
+  - { id: "oracle_used_0", role: "control", type: { kind: "bool" } }
+  - { id: "oracle_used_1", role: "control", type: { kind: "bool" } }
+
+  # Unpublished local preparation. PENDING is never a publishable economic head.
+  - { id: "phase", role: "control", type: { ref: "Phase" } }
+  - { id: "pending_occurrence", role: "control", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "pending_spend", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "pending_out", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "pending_terminal", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "pending_pre_quote_buyback", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "pending_pre_quote_pool", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "pending_pre_zdex_pool", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "pending_pre_zdex_supply", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "pending_pre_height", role: "control", type: { kind: "int", min: 0, max: 2 } }
+  - { id: "pending_safe_limit", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "pending_minimum_out", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "pending_burn_cap", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "pending_profile_route_ok", role: "control", type: { kind: "bool" } }
+  - { id: "pending_pool_assets_ok", role: "control", type: { kind: "bool" } }
+  - { id: "pending_budget_binding_ok", role: "control", type: { kind: "bool" } }
+  - { id: "pending_price_authority_ok", role: "control", type: { kind: "bool" } }
+  - { id: "pending_oracle_finalized", role: "control", type: { kind: "bool" } }
+  - { id: "pending_oracle_fresh", role: "control", type: { kind: "bool" } }
+  - { id: "pending_purchase_receipt_ok", role: "control", type: { kind: "bool" } }
+
+  # Last-step journal used by inductive obligations. Updates are simultaneous.
+  - { id: "g_decision", role: "control", type: { ref: "Decision" } }
+  - { id: "g_pre_quote_buyback", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_pre_quote_pool", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_pre_zdex_pool", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_pre_zdex_other", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_pre_zdex_supply", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "g_pre_height", role: "control", type: { kind: "int", min: 0, max: 2 } }
+  - { id: "g_pre_command_used_0", role: "control", type: { kind: "bool" } }
+  - { id: "g_pre_command_used_1", role: "control", type: { kind: "bool" } }
+  - { id: "g_pre_budget_used_0", role: "control", type: { kind: "bool" } }
+  - { id: "g_pre_budget_used_1", role: "control", type: { kind: "bool" } }
+  - { id: "g_pre_oracle_used_0", role: "control", type: { kind: "bool" } }
+  - { id: "g_pre_oracle_used_1", role: "control", type: { kind: "bool" } }
+  - { id: "g_occurrence", role: "control", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "g_spend", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_out", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_burn_receipt_ok", role: "control", type: { kind: "bool" } }
+  - { id: "g_pending_binding_ok", role: "control", type: { kind: "bool" } }
+  - { id: "g_commit_authority_current", role: "control", type: { kind: "bool" } }
+  - { id: "g_terminal_close_ok", role: "control", type: { kind: "bool" } }
+
+init:
+  - { var: "quote_buyback", expr: { const: 4 } }
+  - { var: "quote_pool", expr: { const: 0 } }
+  - { var: "zdex_pool", expr: { const: 4 } }
+  - { var: "zdex_other", expr: { const: 4 } }
+  - { var: "zdex_supply", expr: { const: 8 } }
+  - { var: "height", expr: { const: 0 } }
+  - { var: "command_used_0", expr: { bool: false } }
+  - { var: "command_used_1", expr: { bool: false } }
+  - { var: "budget_used_0", expr: { bool: false } }
+  - { var: "budget_used_1", expr: { bool: false } }
+  - { var: "oracle_used_0", expr: { bool: false } }
+  - { var: "oracle_used_1", expr: { bool: false } }
+  - { var: "phase", expr: { enum: "EMPTY" } }
+  - { var: "pending_occurrence", expr: { const: 0 } }
+  - { var: "pending_spend", expr: { const: 0 } }
+  - { var: "pending_out", expr: { const: 0 } }
+  - { var: "pending_terminal", expr: { const: 0 } }
+  - { var: "pending_pre_quote_buyback", expr: { const: 0 } }
+  - { var: "pending_pre_quote_pool", expr: { const: 0 } }
+  - { var: "pending_pre_zdex_pool", expr: { const: 0 } }
+  - { var: "pending_pre_zdex_supply", expr: { const: 0 } }
+  - { var: "pending_pre_height", expr: { const: 0 } }
+  - { var: "pending_safe_limit", expr: { const: 0 } }
+  - { var: "pending_minimum_out", expr: { const: 0 } }
+  - { var: "pending_burn_cap", expr: { const: 0 } }
+  - { var: "pending_profile_route_ok", expr: { bool: false } }
+  - { var: "pending_pool_assets_ok", expr: { bool: false } }
+  - { var: "pending_budget_binding_ok", expr: { bool: false } }
+  - { var: "pending_price_authority_ok", expr: { bool: false } }
+  - { var: "pending_oracle_finalized", expr: { bool: false } }
+  - { var: "pending_oracle_fresh", expr: { bool: false } }
+  - { var: "pending_purchase_receipt_ok", expr: { bool: false } }
+  - { var: "g_decision", expr: { enum: "GENESIS" } }
+  - { var: "g_pre_quote_buyback", expr: { const: 4 } }
+  - { var: "g_pre_quote_pool", expr: { const: 0 } }
+  - { var: "g_pre_zdex_pool", expr: { const: 4 } }
+  - { var: "g_pre_zdex_other", expr: { const: 4 } }
+  - { var: "g_pre_zdex_supply", expr: { const: 8 } }
+  - { var: "g_pre_height", expr: { const: 0 } }
+  - { var: "g_pre_command_used_0", expr: { bool: false } }
+  - { var: "g_pre_command_used_1", expr: { bool: false } }
+  - { var: "g_pre_budget_used_0", expr: { bool: false } }
+  - { var: "g_pre_budget_used_1", expr: { bool: false } }
+  - { var: "g_pre_oracle_used_0", expr: { bool: false } }
+  - { var: "g_pre_oracle_used_1", expr: { bool: false } }
+  - { var: "g_occurrence", expr: { const: 0 } }
+  - { var: "g_spend", expr: { const: 0 } }
+  - { var: "g_out", expr: { const: 0 } }
+  - { var: "g_burn_receipt_ok", expr: { bool: false } }
+  - { var: "g_pending_binding_ok", expr: { bool: false } }
+  - { var: "g_commit_authority_current", expr: { bool: false } }
+  - { var: "g_terminal_close_ok", expr: { bool: false } }
+
+invariants:
+  - id: "inv_quote_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { op: "+", args: [{ var: "quote_buyback" }, { var: "quote_pool" }] }
+        - { const: 4 }
+
+  - id: "inv_zdex_owned_equals_supply"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { op: "+", args: [{ var: "zdex_pool" }, { var: "zdex_other" }] }
+        - { var: "zdex_supply" }
+
+  - id: "inv_occurrence_resources_consumed_atomically"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "command_used_0" }, { var: "budget_used_0" }] }
+        - { op: "=", args: [{ var: "command_used_0" }, { var: "oracle_used_0" }] }
+        - { op: "=", args: [{ var: "command_used_1" }, { var: "budget_used_1" }] }
+        - { op: "=", args: [{ var: "command_used_1" }, { var: "oracle_used_1" }] }
+
+  - id: "inv_pending_is_unpublished_and_exact"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "PENDING" }] }
+        - op: "and"
+          args:
+            - { op: ">=", args: [{ var: "pending_spend" }, { const: 1 }] }
+            - { op: ">=", args: [{ var: "pending_out" }, { const: 1 }] }
+            - { op: "<=", args: [{ var: "pending_spend" }, { var: "pending_pre_quote_buyback" }] }
+            - { op: "<=", args: [{ var: "pending_out" }, { var: "pending_pre_zdex_pool" }] }
+            - { op: "<=", args: [{ var: "pending_spend" }, { var: "pending_safe_limit" }] }
+            - { op: ">=", args: [{ var: "pending_out" }, { var: "pending_minimum_out" }] }
+            - { op: "<=", args: [{ var: "pending_out" }, { var: "pending_burn_cap" }] }
+            - { var: "pending_profile_route_ok" }
+            - { var: "pending_pool_assets_ok" }
+            - { var: "pending_budget_binding_ok" }
+            - { var: "pending_price_authority_ok" }
+            - { var: "pending_oracle_finalized" }
+            - { var: "pending_oracle_fresh" }
+            - { var: "pending_purchase_receipt_ok" }
+            - { op: "=", args: [{ var: "pending_terminal" }, { var: "pending_out" }] }
+            - { op: "=", args: [{ var: "quote_buyback" }, { var: "pending_pre_quote_buyback" }] }
+            - { op: "=", args: [{ var: "quote_pool" }, { var: "pending_pre_quote_pool" }] }
+            - { op: "=", args: [{ var: "zdex_pool" }, { var: "pending_pre_zdex_pool" }] }
+            - { op: "=", args: [{ var: "zdex_supply" }, { var: "pending_pre_zdex_supply" }] }
+            - { op: "=", args: [{ var: "height" }, { var: "pending_pre_height" }] }
+            - { op: "<", args: [{ var: "pending_pre_height" }, { const: 2 }] }
+            - op: "ite"
+              cond: { op: "=", args: [{ var: "pending_occurrence" }, { const: 0 }] }
+              then: { op: "not", args: [{ var: "command_used_0" }] }
+              else: { op: "not", args: [{ var: "command_used_1" }] }
+
+  - id: "inv_empty_has_no_pending_value_or_obligation"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "EMPTY" }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "pending_spend" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_out" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_terminal" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_pre_quote_buyback" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_pre_quote_pool" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_pre_zdex_pool" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_pre_zdex_supply" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_pre_height" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_safe_limit" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_minimum_out" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_burn_cap" }, { const: 0 }] }
+            - { op: "not", args: [{ var: "pending_profile_route_ok" }] }
+            - { op: "not", args: [{ var: "pending_pool_assets_ok" }] }
+            - { op: "not", args: [{ var: "pending_budget_binding_ok" }] }
+            - { op: "not", args: [{ var: "pending_price_authority_ok" }] }
+            - { op: "not", args: [{ var: "pending_oracle_finalized" }] }
+            - { op: "not", args: [{ var: "pending_oracle_fresh" }] }
+            - { op: "not", args: [{ var: "pending_purchase_receipt_ok" }] }
+
+  - id: "inv_noncommit_preserves_committed_projection"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "!=", args: [{ var: "g_decision" }, { enum: "COMMITTED" }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "quote_buyback" }, { var: "g_pre_quote_buyback" }] }
+            - { op: "=", args: [{ var: "quote_pool" }, { var: "g_pre_quote_pool" }] }
+            - { op: "=", args: [{ var: "zdex_pool" }, { var: "g_pre_zdex_pool" }] }
+            - { op: "=", args: [{ var: "zdex_other" }, { var: "g_pre_zdex_other" }] }
+            - { op: "=", args: [{ var: "zdex_supply" }, { var: "g_pre_zdex_supply" }] }
+            - { op: "=", args: [{ var: "height" }, { var: "g_pre_height" }] }
+            - { op: "=", args: [{ var: "command_used_0" }, { var: "g_pre_command_used_0" }] }
+            - { op: "=", args: [{ var: "command_used_1" }, { var: "g_pre_command_used_1" }] }
+            - { op: "=", args: [{ var: "budget_used_0" }, { var: "g_pre_budget_used_0" }] }
+            - { op: "=", args: [{ var: "budget_used_1" }, { var: "g_pre_budget_used_1" }] }
+            - { op: "=", args: [{ var: "oracle_used_0" }, { var: "g_pre_oracle_used_0" }] }
+            - { op: "=", args: [{ var: "oracle_used_1" }, { var: "g_pre_oracle_used_1" }] }
+
+  - id: "inv_commit_requires_all_authorities"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "g_decision" }, { enum: "COMMITTED" }] }
+        - op: "and"
+          args:
+            - { var: "g_burn_receipt_ok" }
+            - { var: "g_pending_binding_ok" }
+            - { var: "g_commit_authority_current" }
+            - { var: "g_terminal_close_ok" }
+
+  - id: "inv_commit_is_exact_atomic_purchase_and_burn"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "g_decision" }, { enum: "COMMITTED" }] }
+        - op: "and"
+          args:
+            - op: "="
+              args:
+                - { var: "quote_buyback" }
+                - { op: "-", args: [{ var: "g_pre_quote_buyback" }, { var: "g_spend" }] }
+            - op: "="
+              args:
+                - { var: "quote_pool" }
+                - { op: "+", args: [{ var: "g_pre_quote_pool" }, { var: "g_spend" }] }
+            - op: "="
+              args:
+                - { var: "zdex_pool" }
+                - { op: "-", args: [{ var: "g_pre_zdex_pool" }, { var: "g_out" }] }
+            - { op: "=", args: [{ var: "zdex_other" }, { var: "g_pre_zdex_other" }] }
+            - op: "="
+              args:
+                - { var: "zdex_supply" }
+                - { op: "-", args: [{ var: "g_pre_zdex_supply" }, { var: "g_out" }] }
+            - { op: "=", args: [{ var: "height" }, { op: "+", args: [{ var: "g_pre_height" }, { const: 1 }] }] }
+            - { op: "=", args: [{ var: "phase" }, { enum: "EMPTY" }] }
+            - { op: "=", args: [{ var: "pending_terminal" }, { const: 0 }] }
+            - op: "ite"
+              cond: { op: "=", args: [{ var: "g_occurrence" }, { const: 0 }] }
+              then:
+                op: "and"
+                args:
+                  - { var: "command_used_0" }
+                  - { var: "budget_used_0" }
+                  - { var: "oracle_used_0" }
+                  - { op: "=", args: [{ var: "command_used_1" }, { var: "g_pre_command_used_1" }] }
+              else:
+                op: "and"
+                args:
+                  - { var: "command_used_1" }
+                  - { var: "budget_used_1" }
+                  - { var: "oracle_used_1" }
+                  - { op: "=", args: [{ var: "command_used_0" }, { var: "g_pre_command_used_0" }] }
+
+  - id: "inv_consumption_monotone"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: "=>", args: [{ var: "g_pre_command_used_0" }, { var: "command_used_0" }] }
+        - { op: "=>", args: [{ var: "g_pre_command_used_1" }, { var: "command_used_1" }] }
+
+actions:
+  - id: "prepare"
+    params:
+      - { id: "occurrence", type: { kind: "int", min: 0, max: 1 } }
+      - { id: "spend", type: { kind: "int", min: 0, max: 4 } }
+      - { id: "purchased", type: { kind: "int", min: 0, max: 4 } }
+      - { id: "safe_limit", type: { kind: "int", min: 0, max: 4 } }
+      - { id: "minimum_out", type: { kind: "int", min: 0, max: 4 } }
+      - { id: "burn_cap", type: { kind: "int", min: 0, max: 4 } }
+      - { id: "profile_route_ok", type: { kind: "bool" } }
+      - { id: "pool_assets_ok", type: { kind: "bool" } }
+      - { id: "budget_binding_ok", type: { kind: "bool" } }
+      - { id: "price_authority_ok", type: { kind: "bool" } }
+      - { id: "oracle_finalized", type: { kind: "bool" } }
+      - { id: "oracle_fresh", type: { kind: "bool" } }
+      - { id: "purchase_receipt_ok", type: { kind: "bool" } }
+    guard: { bool: true }
+    updates:
+      - var: "phase"
+        expr:
+          op: "ite"
+          cond: &prepare_ok
+            op: "and"
+            args:
+              - { op: "=", args: [{ var: "phase" }, { enum: "EMPTY" }] }
+              - { op: "<", args: [{ var: "height" }, { const: 2 }] }
+              - op: "ite"
+                cond: { op: "=", args: [{ param: "occurrence" }, { const: 0 }] }
+                then:
+                  op: "and"
+                  args:
+                    - { op: "not", args: [{ var: "command_used_0" }] }
+                    - { op: "not", args: [{ var: "budget_used_0" }] }
+                    - { op: "not", args: [{ var: "oracle_used_0" }] }
+                else:
+                  op: "and"
+                  args:
+                    - { op: "not", args: [{ var: "command_used_1" }] }
+                    - { op: "not", args: [{ var: "budget_used_1" }] }
+                    - { op: "not", args: [{ var: "oracle_used_1" }] }
+              - { param: "profile_route_ok" }
+              - { param: "pool_assets_ok" }
+              - { param: "budget_binding_ok" }
+              - { param: "price_authority_ok" }
+              - { param: "oracle_finalized" }
+              - { param: "oracle_fresh" }
+              - { param: "purchase_receipt_ok" }
+              - { op: ">=", args: [{ param: "spend" }, { const: 1 }] }
+              - { op: "<=", args: [{ param: "spend" }, { param: "safe_limit" }] }
+              - { op: "<=", args: [{ param: "spend" }, { var: "quote_buyback" }] }
+              - { op: ">=", args: [{ param: "purchased" }, { const: 1 }] }
+              - { op: ">=", args: [{ param: "purchased" }, { param: "minimum_out" }] }
+              - { op: "<=", args: [{ param: "purchased" }, { var: "zdex_pool" }] }
+              - { op: "<=", args: [{ param: "purchased" }, { param: "burn_cap" }] }
+          then: { enum: "PENDING" }
+          else: { var: "phase" }
+      - var: "pending_occurrence"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "occurrence" }, else: { var: "pending_occurrence" } }
+      - var: "pending_spend"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "spend" }, else: { var: "pending_spend" } }
+      - var: "pending_out"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "purchased" }, else: { var: "pending_out" } }
+      - var: "pending_terminal"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "purchased" }, else: { var: "pending_terminal" } }
+      - var: "pending_pre_quote_buyback"
+        expr: { op: "ite", cond: *prepare_ok, then: { var: "quote_buyback" }, else: { var: "pending_pre_quote_buyback" } }
+      - var: "pending_pre_quote_pool"
+        expr: { op: "ite", cond: *prepare_ok, then: { var: "quote_pool" }, else: { var: "pending_pre_quote_pool" } }
+      - var: "pending_pre_zdex_pool"
+        expr: { op: "ite", cond: *prepare_ok, then: { var: "zdex_pool" }, else: { var: "pending_pre_zdex_pool" } }
+      - var: "pending_pre_zdex_supply"
+        expr: { op: "ite", cond: *prepare_ok, then: { var: "zdex_supply" }, else: { var: "pending_pre_zdex_supply" } }
+      - var: "pending_pre_height"
+        expr: { op: "ite", cond: *prepare_ok, then: { var: "height" }, else: { var: "pending_pre_height" } }
+      - var: "pending_safe_limit"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "safe_limit" }, else: { var: "pending_safe_limit" } }
+      - var: "pending_minimum_out"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "minimum_out" }, else: { var: "pending_minimum_out" } }
+      - var: "pending_burn_cap"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "burn_cap" }, else: { var: "pending_burn_cap" } }
+      - var: "pending_profile_route_ok"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "profile_route_ok" }, else: { var: "pending_profile_route_ok" } }
+      - var: "pending_pool_assets_ok"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "pool_assets_ok" }, else: { var: "pending_pool_assets_ok" } }
+      - var: "pending_budget_binding_ok"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "budget_binding_ok" }, else: { var: "pending_budget_binding_ok" } }
+      - var: "pending_price_authority_ok"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "price_authority_ok" }, else: { var: "pending_price_authority_ok" } }
+      - var: "pending_oracle_finalized"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "oracle_finalized" }, else: { var: "pending_oracle_finalized" } }
+      - var: "pending_oracle_fresh"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "oracle_fresh" }, else: { var: "pending_oracle_fresh" } }
+      - var: "pending_purchase_receipt_ok"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "purchase_receipt_ok" }, else: { var: "pending_purchase_receipt_ok" } }
+      - { var: "g_decision", expr: { op: "ite", cond: *prepare_ok, then: { enum: "PREPARED" }, else: { enum: "PREPARE_REJECTED" } } }
+      - { var: "g_pre_quote_buyback", expr: { var: "quote_buyback" } }
+      - { var: "g_pre_quote_pool", expr: { var: "quote_pool" } }
+      - { var: "g_pre_zdex_pool", expr: { var: "zdex_pool" } }
+      - { var: "g_pre_zdex_other", expr: { var: "zdex_other" } }
+      - { var: "g_pre_zdex_supply", expr: { var: "zdex_supply" } }
+      - { var: "g_pre_height", expr: { var: "height" } }
+      - { var: "g_pre_command_used_0", expr: { var: "command_used_0" } }
+      - { var: "g_pre_command_used_1", expr: { var: "command_used_1" } }
+      - { var: "g_pre_budget_used_0", expr: { var: "budget_used_0" } }
+      - { var: "g_pre_budget_used_1", expr: { var: "budget_used_1" } }
+      - { var: "g_pre_oracle_used_0", expr: { var: "oracle_used_0" } }
+      - { var: "g_pre_oracle_used_1", expr: { var: "oracle_used_1" } }
+      - { var: "g_occurrence", expr: { param: "occurrence" } }
+      - { var: "g_spend", expr: { param: "spend" } }
+      - { var: "g_out", expr: { param: "purchased" } }
+      - { var: "g_burn_receipt_ok", expr: { bool: false } }
+      - { var: "g_pending_binding_ok", expr: { bool: false } }
+      - { var: "g_commit_authority_current", expr: { bool: false } }
+      - { var: "g_terminal_close_ok", expr: { bool: false } }
+    effects:
+      decision: { var: "g_decision" }
+      published: { bool: false }
+      quote_spent: { const: 0 }
+      zdex_burned: { const: 0 }
+      pending_terminal: { var: "pending_terminal" }
+
+  - id: "finalize"
+    params:
+      - { id: "burn_receipt_ok", type: { kind: "bool" } }
+      - { id: "pending_binding_ok", type: { kind: "bool" } }
+      - { id: "commit_authority_current", type: { kind: "bool" } }
+      - { id: "terminal_close_ok", type: { kind: "bool" } }
+    guard: { bool: true }
+    updates:
+      - var: "quote_buyback"
+        expr:
+          op: "ite"
+          cond: &commit_ok
+            op: "and"
+            args:
+              - { op: "=", args: [{ var: "phase" }, { enum: "PENDING" }] }
+              - { param: "burn_receipt_ok" }
+              - { param: "pending_binding_ok" }
+              - { param: "commit_authority_current" }
+              - { param: "terminal_close_ok" }
+              - { var: "pending_profile_route_ok" }
+              - { var: "pending_pool_assets_ok" }
+              - { var: "pending_budget_binding_ok" }
+              - { var: "pending_price_authority_ok" }
+              - { var: "pending_oracle_finalized" }
+              - { var: "pending_oracle_fresh" }
+              - { var: "pending_purchase_receipt_ok" }
+              - { op: "<=", args: [{ var: "pending_spend" }, { var: "pending_safe_limit" }] }
+              - { op: ">=", args: [{ var: "pending_out" }, { var: "pending_minimum_out" }] }
+              - { op: "<=", args: [{ var: "pending_out" }, { var: "pending_burn_cap" }] }
+              - { op: "<", args: [{ var: "height" }, { const: 2 }] }
+          then: { op: "-", args: [{ var: "quote_buyback" }, { var: "pending_spend" }] }
+          else: { var: "quote_buyback" }
+      - var: "quote_pool"
+        expr: { op: "ite", cond: *commit_ok, then: { op: "+", args: [{ var: "quote_pool" }, { var: "pending_spend" }] }, else: { var: "quote_pool" } }
+      - var: "zdex_pool"
+        expr: { op: "ite", cond: *commit_ok, then: { op: "-", args: [{ var: "zdex_pool" }, { var: "pending_out" }] }, else: { var: "zdex_pool" } }
+      - var: "zdex_supply"
+        expr: { op: "ite", cond: *commit_ok, then: { op: "-", args: [{ var: "zdex_supply" }, { var: "pending_out" }] }, else: { var: "zdex_supply" } }
+      - var: "height"
+        expr: { op: "ite", cond: *commit_ok, then: { op: "+", args: [{ var: "height" }, { const: 1 }] }, else: { var: "height" } }
+      - var: "command_used_0"
+        expr:
+          op: "or"
+          args:
+            - { var: "command_used_0" }
+            - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 0 }] }] }
+      - var: "command_used_1"
+        expr:
+          op: "or"
+          args:
+            - { var: "command_used_1" }
+            - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 1 }] }] }
+      - var: "budget_used_0"
+        expr:
+          op: "or"
+          args:
+            - { var: "budget_used_0" }
+            - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 0 }] }] }
+      - var: "budget_used_1"
+        expr:
+          op: "or"
+          args:
+            - { var: "budget_used_1" }
+            - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 1 }] }] }
+      - var: "oracle_used_0"
+        expr:
+          op: "or"
+          args:
+            - { var: "oracle_used_0" }
+            - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 0 }] }] }
+      - var: "oracle_used_1"
+        expr:
+          op: "or"
+          args:
+            - { var: "oracle_used_1" }
+            - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 1 }] }] }
+      - { var: "phase", expr: { op: "ite", cond: *commit_ok, then: { enum: "EMPTY" }, else: { var: "phase" } } }
+      - { var: "pending_spend", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_spend" } } }
+      - { var: "pending_out", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_out" } } }
+      - { var: "pending_terminal", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_terminal" } } }
+      - { var: "pending_pre_quote_buyback", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_pre_quote_buyback" } } }
+      - { var: "pending_pre_quote_pool", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_pre_quote_pool" } } }
+      - { var: "pending_pre_zdex_pool", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_pre_zdex_pool" } } }
+      - { var: "pending_pre_zdex_supply", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_pre_zdex_supply" } } }
+      - { var: "pending_pre_height", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_pre_height" } } }
+      - { var: "pending_safe_limit", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_safe_limit" } } }
+      - { var: "pending_minimum_out", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_minimum_out" } } }
+      - { var: "pending_burn_cap", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_burn_cap" } } }
+      - { var: "pending_profile_route_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_profile_route_ok" } } }
+      - { var: "pending_pool_assets_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_pool_assets_ok" } } }
+      - { var: "pending_budget_binding_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_budget_binding_ok" } } }
+      - { var: "pending_price_authority_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_price_authority_ok" } } }
+      - { var: "pending_oracle_finalized", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_oracle_finalized" } } }
+      - { var: "pending_oracle_fresh", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_oracle_fresh" } } }
+      - { var: "pending_purchase_receipt_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_purchase_receipt_ok" } } }
+      - { var: "g_decision", expr: { op: "ite", cond: *commit_ok, then: { enum: "COMMITTED" }, else: { enum: "FINALIZE_REJECTED" } } }
+      - { var: "g_pre_quote_buyback", expr: { var: "quote_buyback" } }
+      - { var: "g_pre_quote_pool", expr: { var: "quote_pool" } }
+      - { var: "g_pre_zdex_pool", expr: { var: "zdex_pool" } }
+      - { var: "g_pre_zdex_other", expr: { var: "zdex_other" } }
+      - { var: "g_pre_zdex_supply", expr: { var: "zdex_supply" } }
+      - { var: "g_pre_height", expr: { var: "height" } }
+      - { var: "g_pre_command_used_0", expr: { var: "command_used_0" } }
+      - { var: "g_pre_command_used_1", expr: { var: "command_used_1" } }
+      - { var: "g_pre_budget_used_0", expr: { var: "budget_used_0" } }
+      - { var: "g_pre_budget_used_1", expr: { var: "budget_used_1" } }
+      - { var: "g_pre_oracle_used_0", expr: { var: "oracle_used_0" } }
+      - { var: "g_pre_oracle_used_1", expr: { var: "oracle_used_1" } }
+      - { var: "g_occurrence", expr: { var: "pending_occurrence" } }
+      - { var: "g_spend", expr: { var: "pending_spend" } }
+      - { var: "g_out", expr: { var: "pending_out" } }
+      - { var: "g_burn_receipt_ok", expr: { param: "burn_receipt_ok" } }
+      - { var: "g_pending_binding_ok", expr: { param: "pending_binding_ok" } }
+      - { var: "g_commit_authority_current", expr: { param: "commit_authority_current" } }
+      - { var: "g_terminal_close_ok", expr: { param: "terminal_close_ok" } }
+    effects:
+      decision: { var: "g_decision" }
+      published: { op: "=", args: [{ var: "g_decision" }, { enum: "COMMITTED" }] }
+      quote_spent: { op: "ite", cond: { op: "=", args: [{ var: "g_decision" }, { enum: "COMMITTED" }] }, then: { var: "g_spend" }, else: { const: 0 } }
+      zdex_burned: { op: "ite", cond: { op: "=", args: [{ var: "g_decision" }, { enum: "COMMITTED" }] }, then: { var: "g_out" }, else: { const: 0 } }
+      pending_terminal: { var: "pending_terminal" }
+
+  - id: "discard"
+    params: []
+    guard: { op: "=", args: [{ var: "phase" }, { enum: "PENDING" }] }
+    updates:
+      - { var: "phase", expr: { enum: "EMPTY" } }
+      - { var: "pending_spend", expr: { const: 0 } }
+      - { var: "pending_out", expr: { const: 0 } }
+      - { var: "pending_terminal", expr: { const: 0 } }
+      - { var: "pending_pre_quote_buyback", expr: { const: 0 } }
+      - { var: "pending_pre_quote_pool", expr: { const: 0 } }
+      - { var: "pending_pre_zdex_pool", expr: { const: 0 } }
+      - { var: "pending_pre_zdex_supply", expr: { const: 0 } }
+      - { var: "pending_pre_height", expr: { const: 0 } }
+      - { var: "pending_safe_limit", expr: { const: 0 } }
+      - { var: "pending_minimum_out", expr: { const: 0 } }
+      - { var: "pending_burn_cap", expr: { const: 0 } }
+      - { var: "pending_profile_route_ok", expr: { bool: false } }
+      - { var: "pending_pool_assets_ok", expr: { bool: false } }
+      - { var: "pending_budget_binding_ok", expr: { bool: false } }
+      - { var: "pending_price_authority_ok", expr: { bool: false } }
+      - { var: "pending_oracle_finalized", expr: { bool: false } }
+      - { var: "pending_oracle_fresh", expr: { bool: false } }
+      - { var: "pending_purchase_receipt_ok", expr: { bool: false } }
+      - { var: "g_decision", expr: { enum: "DISCARDED" } }
+      - { var: "g_pre_quote_buyback", expr: { var: "quote_buyback" } }
+      - { var: "g_pre_quote_pool", expr: { var: "quote_pool" } }
+      - { var: "g_pre_zdex_pool", expr: { var: "zdex_pool" } }
+      - { var: "g_pre_zdex_other", expr: { var: "zdex_other" } }
+      - { var: "g_pre_zdex_supply", expr: { var: "zdex_supply" } }
+      - { var: "g_pre_height", expr: { var: "height" } }
+      - { var: "g_pre_command_used_0", expr: { var: "command_used_0" } }
+      - { var: "g_pre_command_used_1", expr: { var: "command_used_1" } }
+      - { var: "g_pre_budget_used_0", expr: { var: "budget_used_0" } }
+      - { var: "g_pre_budget_used_1", expr: { var: "budget_used_1" } }
+      - { var: "g_pre_oracle_used_0", expr: { var: "oracle_used_0" } }
+      - { var: "g_pre_oracle_used_1", expr: { var: "oracle_used_1" } }
+      - { var: "g_spend", expr: { const: 0 } }
+      - { var: "g_out", expr: { const: 0 } }
+      - { var: "g_burn_receipt_ok", expr: { bool: false } }
+      - { var: "g_pending_binding_ok", expr: { bool: false } }
+      - { var: "g_commit_authority_current", expr: { bool: false } }
+      - { var: "g_terminal_close_ok", expr: { bool: false } }
+    effects:
+      decision: { var: "g_decision" }
+      published: { bool: false }
+      quote_spent: { const: 0 }
+      zdex_burned: { const: 0 }
+      pending_terminal: { const: 0 }

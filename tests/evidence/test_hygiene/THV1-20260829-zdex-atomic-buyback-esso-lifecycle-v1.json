@@ -1,0 +1,148 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260829-zdex-atomic-buyback-esso-lifecycle-v1",
+  "created_date": "2026-08-29",
+  "claim_scope": "A research-only finite ESSO abstraction of the SHADOW ZDEX same-occurrence buy-and-burn lifecycle is inductive for two occurrence slots and 0..4-atom movements. Z3 and CVC5 agree that preparation, rejection, and discard preserve the committed projection; finalization requires all modeled authority premises, moves quote atoms without loss, removes purchased ZDEX from the profile-selected pool, reduces supply by exactly that output, closes the pending burn obligation, and consumes command, fee-budget, and Oracle tokens atomically. Four named semantic mutants produce counterexamples.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZDEX-BUYBACK-ESSO-QUOTE-CONSERVATION",
+    "ZDEX-BUYBACK-ESSO-OWNED-EQUALS-SUPPLY",
+    "ZDEX-BUYBACK-ESSO-PENDING-UNPUBLISHED",
+    "ZDEX-BUYBACK-ESSO-COMMIT-AUTHORITY",
+    "ZDEX-BUYBACK-ESSO-EXACT-PURCHASE-AND-BURN",
+    "ZDEX-BUYBACK-ESSO-ATOMIC-RESOURCE-CONSUMPTION",
+    "ZDEX-BUYBACK-ESSO-REPLAY-MONOTONICITY"
+  ],
+  "failure_modes": [
+    "a prepared purchase mutates the committed economic projection before the burn receipt is accepted",
+    "a finalization publishes without the exact burn receipt or current commit authority",
+    "purchased ZDEX leaves the selected pool without an equal supply burn",
+    "quote atoms disappear or are duplicated between the buyback reserve and selected pool",
+    "the command occurrence, fee budget, or Oracle occurrence is consumed without the other two",
+    "a replay releases or reuses a consumed occurrence",
+    "a pending terminal obligation is created at the finite horizon where it cannot be finalized"
+  ],
+  "source_pins": [
+    {
+      "path": "src/kernels/dex/zdex_atomic_buyback_lifecycle_v1.yaml",
+      "sha256": "4399f517ffd087dd214aeefc0b603eb9652faeec3b0255234bd0b81d2a0d660f"
+    },
+    {
+      "path": "src/core/zdex_atomic_buyback_v1.py",
+      "sha256": "89717708eb5d4cdf43a4a2ec995824b9a793bcd41be4f8c034cb0346167267c2"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_purchase_burn_route.rs",
+      "sha256": "55b24b9c1acd64efa1dfcccd1c6b90a7f8d573f42f53cfdc38efee658851b32e"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZDEXAtomicBuybackAccountingV1.lean",
+      "sha256": "a86651e82ea574c0612f110c0cff129d7b528e4b344d690cbf7c6a52cbf07e45"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZDEXBuybackSpendV1.lean",
+      "sha256": "99633d309930b39e575d46dee76d189a22163fe8de9093ad7058ad5ecdd5f12f"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZDEXBuybackPriceSafetyV1.lean",
+      "sha256": "a8a78bc47babf65316b46fef7deea6c9dfead939f1c9eb961a0689dfce6b8f12"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py",
+      "sha256": "58af676cf6fefa7d24795c7720902761481b8e3916d723246b93ab8c15ecdf77",
+      "node_ids": [
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_model_hash_action_set_and_obligations_are_exact",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_model_scope_is_finite_and_claim_ceiling_is_explicit",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_model_contract_names_the_runtime_commit_and_reject_obligations",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_two_solver_replay_is_exact_and_deterministic",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[purchase_without_exact_supply_burn]",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[commit_without_burn_receipt_authority]",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[prepare_without_profile_route_binding]",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[prepare_above_safe_spend_limit]"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "formal",
+    "stateful",
+    "boundary",
+    "negative_regression",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The replay tests arrange an exact source-pinned model or one isolated mutant, act through ESSO validation and dual-solver induction, then assert exact VERIFIED or FAILED verdicts, solver agreement, zero inconclusive queries, and deterministic fingerprints."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "inv_noncommit_preserves_committed_projection requires every preparation, rejection, and discard to preserve quote locations, ZDEX locations, supply, height, and all three occurrence-consumption resources."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "occurrence_slots",
+      "points": [
+        "first_occurrence",
+        "second_occurrence",
+        "consumed_occurrence_replay"
+      ]
+    },
+    {
+      "name": "amount_atoms",
+      "points": [
+        "zero_reject_boundary",
+        "one_atom_minimum",
+        "four_atom_model_maximum",
+        "spend_above_reserve_reject",
+        "output_above_pool_reject"
+      ]
+    },
+    {
+      "name": "publication_phase",
+      "points": [
+        "empty",
+        "pending_unpublished",
+        "committed_terminal_closed",
+        "discarded_without_effect"
+      ]
+    },
+    {
+      "name": "authority_conjunction",
+      "points": [
+        "all_finalize_authorities_true",
+        "each_finalize_authority_false"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "leave ZDEX supply unchanged after removing purchased output from the selected pool",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[purchase_without_exact_supply_burn]"
+    },
+    {
+      "description": "permit final commit while the burn-receipt authority premise is false",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[commit_without_burn_receipt_authority]"
+    },
+    {
+      "description": "prepare a pending value transition without the exact profile and route binding",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[prepare_without_profile_route_binding]"
+    },
+    {
+      "description": "prepare a quote spend above the verified safe spend limit",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[prepare_above_safe_spend_limit]"
+    }
+  ],
+  "nonclaims": [
+    "The ESSO result is bounded to two occurrence slots and 0..4-atom movements and is not an unbounded arithmetic theorem.",
+    "Boolean authority parameters abstract verified facts; the model does not prove receipt cryptography, Oracle truth, profile authenticity, key authority, or durable publication.",
+    "The model is not a refinement theorem for the Python or Rust implementations and does not replace their property, differential, or receipt tests.",
+    "The discard transition is an abstract recovery action and is not evidence of a mounted runtime recovery adapter.",
+    "No production, release, settlement, migration, writer, or value-moving authority is granted.",
+    "The route remains SHADOW and unmounted."
+  ]
+}
