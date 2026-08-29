@@ -1,7 +1,7 @@
 use zenodex_global_settlement_abi_v1::{
     lane_capability_registry_root_v1, resolve_lane_capability_v1,
-    validate_lane_capability_registry_v1, LaneCapabilityDispositionV1, LaneIdV1,
-    LANE_CAPABILITY_REGISTRY_V1,
+    resolve_perps_margin_command_capability_v1, validate_lane_capability_registry_v1,
+    LaneCapabilityDispositionV1, LaneIdV1, LANE_CAPABILITY_REGISTRY_V1,
 };
 
 #[test]
@@ -49,4 +49,19 @@ fn registry_root_matches_the_python_vector() {
         lane_capability_registry_root_v1().unwrap().as_str(),
         "0x9dc72bc86a0e6081ca3fbe6c371803119bc6bf623fd87ceee2deba0d4192e465"
     );
+}
+
+#[test]
+fn perps_margin_commands_have_exact_non_aliasing_capability_bindings() {
+    // Arrange / Act / Assert
+    assert_eq!(
+        resolve_perps_margin_command_capability_v1("perps_margin_deposit").unwrap(),
+        "margin_deposit"
+    );
+    assert_eq!(
+        resolve_perps_margin_command_capability_v1("perps_margin_withdraw").unwrap(),
+        "margin_withdraw"
+    );
+    assert!(resolve_perps_margin_command_capability_v1("perps_margin_close").is_err());
+    assert!(resolve_perps_margin_command_capability_v1("perps_margin_liquidate").is_err());
 }

@@ -2362,6 +2362,25 @@ fn perps_position_withdraw_binds_exact_price_and_succinct_receipt() {
 }
 
 #[test]
+fn perps_account_close_cannot_alias_unresolved_terminal_closeout_capability() {
+    // Arrange.
+    let mut fixture = perps_receipt_fixture(false, 6_500_000_000_000);
+    fixture.module_input.command.command_kind = PERPS_MARGIN_CLOSE_COMMAND_KIND_V1.to_owned();
+    fixture.module_input.command.amount_atoms = 0;
+
+    // Act.
+    let error =
+        bind_perps_margin_lane_output_to_release_route_v1(perps_binding_candidate(&fixture, None))
+            .unwrap_err();
+
+    // Assert.
+    assert_eq!(
+        error,
+        AbiErrorV1::InvalidBinding("perps margin command capability binding")
+    );
+}
+
+#[test]
 fn perps_price_substitution_extra_authority_and_wrong_kind_reject_pre_verifier() {
     let fixture = perps_receipt_fixture(true, 6_500_000_000_000);
     let wrong_price = perps_receipt_fixture(true, 6_500_000_000_001);

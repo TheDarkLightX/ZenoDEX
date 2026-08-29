@@ -10,6 +10,7 @@ use crate::asset_transfer_policy_registry::{
 };
 use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
 use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
+use crate::lane_capability_registry::resolve_perps_margin_command_capability_v1;
 use crate::managed_asset_lifecycle_lane_module::{
     recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1,
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
@@ -534,6 +535,7 @@ pub fn bind_perps_margin_lane_output_to_release_route_v1(
     candidate: PerpsMarginReleaseRouteBindingCandidateV1<'_>,
 ) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
     candidate.module_input.validate()?;
+    resolve_perps_margin_command_capability_v1(&candidate.module_input.command.command_kind)?;
     let expected = recompute_perps_margin_accepted_v1(candidate.module_input, candidate.accepted)?;
     require_perps_market_policy_binding_v1(&candidate)?;
     require_perps_oracle_price_binding_v1(

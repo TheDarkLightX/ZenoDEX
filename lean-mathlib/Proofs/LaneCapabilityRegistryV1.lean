@@ -129,5 +129,23 @@ theorem external_capability_count_is_nine :
 theorem proof_reward_capability_count_is_six :
     capabilityCount .proofRewards = 6 := rfl
 
+def perpsMarginCommandCapability : String → Option String
+  | "perps_margin_deposit" => some "margin_deposit"
+  | "perps_margin_withdraw" => some "margin_withdraw"
+  | _ => none
+
+theorem perps_margin_deposit_binding_is_registered :
+    perpsMarginCommandCapability "perps_margin_deposit" = some "margin_deposit" ∧
+      "margin_deposit" ∈ capabilityNames .perpsMarket := by
+  decide
+
+theorem perps_margin_withdraw_binding_is_registered :
+    perpsMarginCommandCapability "perps_margin_withdraw" = some "margin_withdraw" ∧
+      "margin_withdraw" ∈ capabilityNames .perpsMarket := by
+  decide
+
+theorem ambiguous_perps_close_has_no_capability_alias :
+    perpsMarginCommandCapability "perps_margin_close" = none := rfl
+
 end LaneCapabilityRegistryV1
 end Proofs

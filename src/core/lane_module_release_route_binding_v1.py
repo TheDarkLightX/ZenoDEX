@@ -37,6 +37,9 @@ from .global_settlement_types_v1 import (
     ProfileStatusV1,
     hash_global_v1,
 )
+from .lane_capability_registry_v1 import (
+    resolve_perps_margin_command_capability_v1,
+)
 from .managed_asset_lifecycle_lane_module_v1 import (
     ManagedAssetLifecycleLaneModuleAcceptedV1,
     ManagedAssetLifecycleLaneModuleInputV1,
@@ -697,6 +700,9 @@ def bind_perps_margin_lane_output_to_release_route_v1(
 
     if type(candidate) is not PerpsMarginReleaseRouteBindingCandidateV1:
         raise TypeError("perps margin route candidate must have the exact type")
+    resolve_perps_margin_command_capability_v1(
+        candidate.module_input.command.command_kind
+    )
     owned_input, expected = _recompute_perps_margin_accepted_v1(
         candidate.module_input,
         candidate.accepted,

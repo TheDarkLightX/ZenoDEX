@@ -622,6 +622,27 @@ def test_flat_deposit_rejects_unexpected_oracle_price_authority() -> None:
         )
 
 
+def test_account_close_cannot_alias_unresolved_terminal_closeout_capability() -> None:
+    # Arrange
+    fixture = _fixture(with_position=False)
+    ambiguous_input = replace(
+        fixture.module_input,
+        command=replace(
+            fixture.module_input.command,
+            command_kind=PERPS_MARGIN_CLOSE_COMMAND_KIND_V1,
+            amount_atoms=0,
+        ),
+    )
+    candidate = replace(
+        _binding_candidate(fixture, None),
+        module_input=ambiguous_input,
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="lacks an exact capability binding"):
+        bind_perps_margin_lane_output_to_release_route_v1(candidate)
+
+
 def test_mutated_perps_output_and_wrong_receipt_kind_never_reach_verifier() -> None:
     fixture = _fixture(with_position=True)
     verifier = _RecordingVerifier()

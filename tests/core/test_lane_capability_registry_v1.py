@@ -11,6 +11,7 @@ from src.core.lane_capability_registry_v1 import (
     LaneCapabilityDispositionV1,
     lane_capability_registry_root_v1,
     resolve_lane_capability_v1,
+    resolve_perps_margin_command_capability_v1,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -85,3 +86,18 @@ def test_registry_root_is_stable_across_python_and_rust() -> None:
     assert lane_capability_registry_root_v1() == (
         "0x9dc72bc86a0e6081ca3fbe6c371803119bc6bf623fd87ceee2deba0d4192e465"
     )
+
+
+def test_perps_margin_commands_have_exact_non_aliasing_capability_bindings() -> None:
+    # Arrange / Act
+    deposit = resolve_perps_margin_command_capability_v1("perps_margin_deposit")
+    withdraw = resolve_perps_margin_command_capability_v1("perps_margin_withdraw")
+
+    # Assert
+    assert deposit.lane.lane_id is LaneIdV1.PERPS_MARKET
+    assert deposit.capability_id == "margin_deposit"
+    assert withdraw.capability_id == "margin_withdraw"
+    with pytest.raises(ValueError, match="lacks an exact capability binding"):
+        resolve_perps_margin_command_capability_v1("perps_margin_close")
+    with pytest.raises(ValueError, match="lacks an exact capability binding"):
+        resolve_perps_margin_command_capability_v1("perps_margin_liquidate")

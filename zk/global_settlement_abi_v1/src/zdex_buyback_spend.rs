@@ -283,8 +283,7 @@ impl ZDEXBuybackSpendAcceptedV1 {
             ));
         };
         if *recomputed != self.fee_allocation
-            || self.fee_command.fee_charged_atoms
-                != self.fee_allocation.pre_state.fee_ingress_atoms
+            || self.fee_command.fee_charged_atoms != self.fee_allocation.pre_state.fee_ingress_atoms
         {
             return Err(AbiErrorV1::InvalidBinding(
                 "ZDEX buyback accepted fee allocation recomputation",

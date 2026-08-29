@@ -5,6 +5,11 @@ use crate::release::{LaneIdV1, ALL_LANE_IDS_V1};
 
 pub const LANE_CAPABILITY_REGISTRY_SCHEMA_V1: &str = "zenodex/lane-capability-registry/v1";
 
+pub const PERPS_MARGIN_REGISTERED_COMMAND_CAPABILITIES_V1: &[(&str, &str)] = &[
+    ("perps_margin_deposit", "margin_deposit"),
+    ("perps_margin_withdraw", "margin_withdraw"),
+];
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[allow(non_camel_case_types)]
 pub enum LaneCapabilityDispositionV1 {
@@ -228,6 +233,29 @@ pub fn validate_lane_capability_registry_v1() -> AbiResultV1<()> {
             "lane capability registry disposition",
         ));
     }
+    let perps_lane = LANE_CAPABILITY_REGISTRY_V1
+        .iter()
+        .find(|row| row.lane_id == LaneIdV1::PERPS_MARKET)
+        .ok_or(AbiErrorV1::InvalidBinding(
+            "perps margin command capability binding",
+        ))?;
+    for (index, (command_kind, capability_id)) in PERPS_MARGIN_REGISTERED_COMMAND_CAPABILITIES_V1
+        .iter()
+        .enumerate()
+    {
+        validate_token_v1(command_kind, "perps margin command kind")?;
+        if PERPS_MARGIN_REGISTERED_COMMAND_CAPABILITIES_V1[..index]
+            .iter()
+            .any(|(prior_command, prior_capability)| {
+                prior_command == command_kind || prior_capability == capability_id
+            })
+            || !perps_lane.capability_ids.contains(capability_id)
+        {
+            return Err(AbiErrorV1::InvalidBinding(
+                "perps margin command capability binding",
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -246,6 +274,19 @@ pub fn resolve_lane_capability_v1(
         .copied()
         .find(|candidate| *candidate == capability_id)
         .ok_or(AbiErrorV1::InvalidBinding("unknown lane capability"))
+}
+
+pub fn resolve_perps_margin_command_capability_v1(command_kind: &str) -> AbiResultV1<&'static str> {
+    validate_token_v1(command_kind, "perps margin command kind")?;
+    let capability_id = PERPS_MARGIN_REGISTERED_COMMAND_CAPABILITIES_V1
+        .iter()
+        .find_map(|(candidate, capability_id)| {
+            (*candidate == command_kind).then_some(*capability_id)
+        })
+        .ok_or(AbiErrorV1::InvalidBinding(
+            "perps margin command capability binding",
+        ))?;
+    resolve_lane_capability_v1(LaneIdV1::PERPS_MARKET, capability_id)
 }
 
 #[derive(Serialize)]

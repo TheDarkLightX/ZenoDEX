@@ -21,6 +21,11 @@ from .global_settlement_types_v1 import (
 
 LANE_CAPABILITY_REGISTRY_SCHEMA_V1: Final = "zenodex/lane-capability-registry/v1"
 
+PERPS_MARGIN_REGISTERED_COMMAND_CAPABILITIES_V1: Final = (
+    ("perps_margin_deposit", "margin_deposit"),
+    ("perps_margin_withdraw", "margin_withdraw"),
+)
+
 
 class LaneCapabilityDispositionV1(str, Enum):
     REQUIRED_UNRESOLVED = "REQUIRED_UNRESOLVED"
@@ -258,6 +263,26 @@ def _validate_registry_v1() -> None:
     )
     if disabled != (LaneIdV1.EXTERNAL_CUSTODY,):
         raise ValueError("only the external lane may use the current disabled disposition")
+    perps_commands = tuple(
+        command_kind
+        for command_kind, _capability_id in PERPS_MARGIN_REGISTERED_COMMAND_CAPABILITIES_V1
+    )
+    perps_capabilities = tuple(
+        capability_id
+        for _command_kind, capability_id in PERPS_MARGIN_REGISTERED_COMMAND_CAPABILITIES_V1
+    )
+    perps_lane = LANE_CAPABILITY_REGISTRY_V1[
+        ALL_LANE_IDS_V1.index(LaneIdV1.PERPS_MARKET)
+    ]
+    if (
+        len(perps_commands) != len(set(perps_commands))
+        or len(perps_capabilities) != len(set(perps_capabilities))
+        or any(
+            capability_id not in perps_lane.capability_ids
+            for capability_id in perps_capabilities
+        )
+    ):
+        raise ValueError("perps margin command capability bindings must be exact")
 
 
 def resolve_lane_capability_v1(
@@ -274,6 +299,22 @@ def resolve_lane_capability_v1(
     if capability_id not in lane.capability_ids:
         raise ValueError("unknown lane capability")
     return LaneCapabilityResolutionV1(lane, capability_id)
+
+
+def resolve_perps_margin_command_capability_v1(
+    command_kind: str,
+) -> LaneCapabilityResolutionV1:
+    """Resolve only exact perps commands whose M6 capability meaning is fixed."""
+
+    if type(command_kind) is not str:
+        raise TypeError("perps margin command kind must be exact text")
+    _require_token(command_kind, name="perps margin command kind")
+    capability_id = dict(PERPS_MARGIN_REGISTERED_COMMAND_CAPABILITIES_V1).get(
+        command_kind
+    )
+    if capability_id is None:
+        raise ValueError("perps margin command lacks an exact capability binding")
+    return resolve_lane_capability_v1(LaneIdV1.PERPS_MARKET, capability_id)
 
 
 def lane_capability_registry_root_v1() -> str:
@@ -293,9 +334,11 @@ _validate_registry_v1()
 __all__ = [
     "LANE_CAPABILITY_REGISTRY_SCHEMA_V1",
     "LANE_CAPABILITY_REGISTRY_V1",
+    "PERPS_MARGIN_REGISTERED_COMMAND_CAPABILITIES_V1",
     "LaneCapabilityDispositionV1",
     "LaneCapabilityResolutionV1",
     "LaneCapabilitySetV1",
     "lane_capability_registry_root_v1",
     "resolve_lane_capability_v1",
+    "resolve_perps_margin_command_capability_v1",
 ]
