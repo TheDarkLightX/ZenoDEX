@@ -2381,6 +2381,48 @@ fn perps_account_close_cannot_alias_unresolved_terminal_closeout_capability() {
 }
 
 #[test]
+fn perps_account_close_capability_ambiguity_rejects_before_receipt_verifier() {
+    // Arrange.
+    let mut fixture = perps_receipt_fixture(false, 6_500_000_000_000);
+    let binding =
+        bind_perps_margin_lane_output_to_release_route_v1(perps_binding_candidate(&fixture, None))
+            .unwrap();
+    fixture.module_input.command.command_kind = PERPS_MARGIN_CLOSE_COMMAND_KIND_V1.to_owned();
+    fixture.module_input.command.amount_atoms = 0;
+    let verifier = RecordingModuleReceiptVerifier::default();
+
+    // Act.
+    let error = verify_perps_margin_lane_module_receipt_v1(
+        PerpsMarginLaneModuleReceiptCandidateV1 {
+            profile: &fixture.profile,
+            policy_registry: &fixture.policy_registry,
+            market_policy: &fixture.market_policy,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+            authenticated_command: &fixture.authenticated_command,
+            module_input: &fixture.module_input,
+            accepted: &fixture.accepted,
+            release_route_binding: &binding,
+            verified_price: None,
+            receipt: LaneModuleReceiptEnvelopeV1 {
+                receipt_kind: ReceiptKindV1::SUCCINCT,
+                receipt_bytes: b"must-not-be-verified",
+            },
+        },
+        &verifier,
+    )
+    .unwrap_err();
+
+    // Assert.
+    assert_eq!(
+        error,
+        AbiErrorV1::InvalidBinding("perps margin command capability binding")
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
 fn perps_price_substitution_extra_authority_and_wrong_kind_reject_pre_verifier() {
     let fixture = perps_receipt_fixture(true, 6_500_000_000_000);
     let wrong_price = perps_receipt_fixture(true, 6_500_000_000_001);

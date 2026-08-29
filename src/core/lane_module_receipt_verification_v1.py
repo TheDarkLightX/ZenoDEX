@@ -44,6 +44,9 @@ from .global_settlement_types_v1 import (
     canonical_global_bytes_v1,
     hash_global_v1,
 )
+from .lane_capability_registry_v1 import (
+    resolve_perps_margin_command_capability_v1,
+)
 from .lane_module_release_route_binding_v1 import (
     AssetTransferReleaseRouteBindingCandidateV1,
     ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
@@ -537,8 +540,10 @@ def _snapshot_perps_margin_receipt_candidate_v1(
 ) -> PerpsMarginLaneModuleReceiptCandidateV1:
     if type(candidate) is not PerpsMarginLaneModuleReceiptCandidateV1:
         raise TypeError("perps margin receipt candidate must have the exact type")
+    module_input = _snapshot_perps_margin_lane_module_input_v1(candidate.module_input)
+    resolve_perps_margin_command_capability_v1(module_input.command.command_kind)
     _, accepted = _recompute_perps_margin_accepted_v1(
-        candidate.module_input,
+        module_input,
         candidate.accepted,
     )
     return PerpsMarginLaneModuleReceiptCandidateV1(
@@ -548,9 +553,7 @@ def _snapshot_perps_margin_receipt_candidate_v1(
         ),
         market_policy=snapshot_perps_market_policy_v1(candidate.market_policy),
         authenticated_command=candidate.authenticated_command,
-        module_input=_snapshot_perps_margin_lane_module_input_v1(
-            candidate.module_input
-        ),
+        module_input=module_input,
         accepted=accepted,
         release_route_binding=candidate.release_route_binding,
         verified_price=candidate.verified_price,

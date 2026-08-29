@@ -643,6 +643,44 @@ def test_account_close_cannot_alias_unresolved_terminal_closeout_capability() ->
         bind_perps_margin_lane_output_to_release_route_v1(candidate)
 
 
+def test_account_close_capability_ambiguity_rejects_before_receipt_verifier() -> None:
+    # Arrange.
+    fixture = _fixture(with_position=False)
+    verifier = _RecordingVerifier()
+    binding = bind_perps_margin_lane_output_to_release_route_v1(
+        _binding_candidate(fixture, None)
+    )
+    ambiguous_input = replace(
+        fixture.module_input,
+        command=replace(
+            fixture.module_input.command,
+            command_kind=PERPS_MARGIN_CLOSE_COMMAND_KIND_V1,
+            amount_atoms=0,
+        ),
+    )
+
+    # Act / Assert.
+    with pytest.raises(ValueError, match="lacks an exact capability binding"):
+        verify_perps_margin_lane_module_receipt_v1(
+            PerpsMarginLaneModuleReceiptCandidateV1(
+                fixture.profile,
+                fixture.policy_registry,
+                fixture.market_policy,
+                fixture.authenticated_command,
+                ambiguous_input,
+                fixture.accepted,
+                binding,
+                None,
+                LaneModuleReceiptEnvelopeV1(
+                    ReceiptKindV1.SUCCINCT,
+                    b"must-not-be-verified",
+                ),
+            ),
+            verifier,
+        )
+    assert verifier.calls == []
+
+
 def test_mutated_perps_output_and_wrong_receipt_kind_never_reach_verifier() -> None:
     fixture = _fixture(with_position=True)
     verifier = _RecordingVerifier()
