@@ -210,6 +210,99 @@ class BoundEconomicReceiptVerifierV1:
             expected_journal_bytes=expected_journal_bytes,
         )
 
+    def verify_profile_lane_coordinator_receipt(
+        self,
+        receipt_bytes: bytes,
+        *,
+        profile: EconomicProfileSnapshotV1,
+        lane_id: LaneIdV1,
+        expected_coordinator_release_id: str,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> None:
+        """Verify one profile-selected lane-coordinator receipt in SHADOW."""
+
+        authority = _snapshot_bound_receipt_verifier_authority_v1(
+            _bound_receipt_verifier_authority_v1(self)
+        )
+        owned_profile = snapshot_economic_profile_v1(profile)
+        if type(lane_id) is not LaneIdV1:
+            raise TypeError("economic receipt verifier coordinator lane is not closed")
+        release = owned_profile.lane_coordinator_registry.release_for(lane_id)
+        if (
+            owned_profile.profile_id != authority.profile_root
+            or owned_profile.verifier_registry_root != authority.verifier_registry_root
+            or owned_profile.root_image_id != authority.root_image_id
+            or expected_coordinator_release_id != release.coordinator_release_id
+            or expected_image_id != release.guest_image_id
+        ):
+            raise ValueError(
+                "economic receipt verifier coordinator image is outside the profile"
+            )
+        if authority.selection_purpose is EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW:
+            if (
+                owned_profile.status is not ProfileStatusV1.SHADOW
+                or release.status is not ReleaseStatusV1.SHADOW
+                or release.accepts_new_objects
+            ):
+                raise ValueError(
+                    "economic receipt verifier coordinator is outside shadow status"
+                )
+        else:
+            raise ValueError("production coordinator receipt verification is not implemented")
+        self._verify_exact_receipt(
+            authority,
+            receipt_bytes,
+            expected_image_id=expected_image_id,
+            expected_journal_bytes=expected_journal_bytes,
+        )
+
+    def verify_profile_route_receipt(
+        self,
+        receipt_bytes: bytes,
+        *,
+        profile: EconomicProfileSnapshotV1,
+        expected_route_release_id: str,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> None:
+        """Verify one profile-selected route-composer receipt in SHADOW."""
+
+        authority = _snapshot_bound_receipt_verifier_authority_v1(
+            _bound_receipt_verifier_authority_v1(self)
+        )
+        owned_profile = snapshot_economic_profile_v1(profile)
+        selected = tuple(
+            route
+            for route in owned_profile.route_registry.routes
+            if route.route_release_id == expected_route_release_id
+        )
+        if len(selected) != 1:
+            raise ValueError("economic receipt verifier route is outside the profile")
+        release = selected[0]
+        if (
+            owned_profile.profile_id != authority.profile_root
+            or owned_profile.verifier_registry_root != authority.verifier_registry_root
+            or owned_profile.root_image_id != authority.root_image_id
+            or expected_image_id != release.guest_image_id
+        ):
+            raise ValueError("economic receipt verifier route image is outside the profile")
+        if authority.selection_purpose is EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW:
+            if (
+                owned_profile.status is not ProfileStatusV1.SHADOW
+                or release.status is not ReleaseStatusV1.SHADOW
+                or release.accepts_new_objects
+            ):
+                raise ValueError("economic receipt verifier route is outside shadow status")
+        else:
+            raise ValueError("production route receipt verification is not implemented")
+        self._verify_exact_receipt(
+            authority,
+            receipt_bytes,
+            expected_image_id=expected_image_id,
+            expected_journal_bytes=expected_journal_bytes,
+        )
+
     def _verify_exact_receipt(
         self,
         authority: _BoundEconomicReceiptVerifierAuthorityV1,
