@@ -61,7 +61,7 @@
   "test_pins": [
     {
       "path": "tests/core/test_zdex_spot_buyback_transition_v1.py",
-      "sha256": "e563b7a1774358f252442c4679117809c345a3cecaa625ced9ed8cf55e4403a2",
+      "sha256": "eb453ac9a0885a08b32ef9f109c7b155399d5a560b31bb05cb60583bdded4656",
       "node_ids": [
         "tests/core/test_zdex_spot_buyback_transition_v1.py::test_accepts_derived_cpmm_transition_and_freezes_commitment_roots",
         "tests/core/test_zdex_spot_buyback_transition_v1.py::test_rounding_one_atom_siblings_and_spot_value_conservation",
@@ -79,7 +79,8 @@
         "tests/core/test_zdex_spot_buyback_transition_v1.py::test_release_reject_precedes_profile_and_later_failures",
         "tests/core/test_zdex_spot_buyback_transition_v1.py::test_reversed_asset_order_is_a_policy_mismatch_before_lane_validation",
         "tests/core/test_zdex_spot_buyback_transition_v1.py::test_cross_occurrence_substitution_changes_both_flow_identities",
-        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_accepted_result_rederives_and_rejects_private_token_forgery"
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_accepted_result_rederives_and_rejects_private_token_forgery",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_accepted_graph_resource_boundaries_are_exact"
       ]
     },
     {
@@ -152,7 +153,9 @@
         "different_command_occurrence_changes_both_flow_ids",
         "duplicated_private_port_role_rejects",
         "foreign_equality_and_builtin_bool_int_or_string_enum_aliases_reject_before_validation",
-        "cyclic_or_oversized_object_new_graphs_reject_with_bounded_typed_failures",
+        "cyclic_object_new_graphs_reject_with_bounded_typed_failures",
+        "graph_node_budget_accepts_4096_and_rejects_4097_visited_nodes",
+        "graph_depth_budget_accepts_64_and_rejects_65",
         "reversed_asset_order_rejects_as_policy_mismatch_in_python_and_rust"
       ]
     }

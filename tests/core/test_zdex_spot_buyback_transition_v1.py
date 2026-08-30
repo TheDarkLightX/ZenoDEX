@@ -1107,3 +1107,25 @@ def test_accepted_result_rederives_and_rejects_private_token_forgery() -> None:
     object.__setattr__(oversized_wrapper, "_fields", oversized_fields)
     with pytest.raises(ValueError, match="exceeds node budget"):
         oversized_wrapper.validate()
+
+
+def test_accepted_graph_resource_boundaries_are_exact() -> None:
+    # Arrange: count the outer tuple as one visited node and place the leaf at
+    # the exact configured depth.
+    node_cap = spot_transition._ACCEPTED_GRAPH_NODE_CAP_V1
+    depth_cap = spot_transition._ACCEPTED_GRAPH_DEPTH_CAP_V1
+    exact_node_graph = tuple("x" for _ in range(node_cap - 1))
+    excess_node_graph = tuple("x" for _ in range(node_cap))
+    exact_depth_graph: object = "x"
+    for _ in range(depth_cap):
+        exact_depth_graph = (exact_depth_graph,)
+    excess_depth_graph = (exact_depth_graph,)
+
+    # Act / Assert: both exact maxima pass; each immediate successor fails
+    # with its stable resource-specific rejection.
+    spot_transition._require_exact_accepted_graph_v1(exact_node_graph)
+    with pytest.raises(ValueError, match="exceeds node budget"):
+        spot_transition._require_exact_accepted_graph_v1(excess_node_graph)
+    spot_transition._require_exact_accepted_graph_v1(exact_depth_graph)
+    with pytest.raises(ValueError, match="exceeds depth budget"):
+        spot_transition._require_exact_accepted_graph_v1(excess_depth_graph)
