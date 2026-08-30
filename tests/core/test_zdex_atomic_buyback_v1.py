@@ -14,7 +14,11 @@ from src.core.global_economic_state_effect_refinement_v1 import (
     GlobalEconomicStateEffectRefinementCandidateV1,
     refine_route_global_economic_state_effects_v1,
 )
-from src.core.global_settlement_types_v1 import ZERO_ROOT_V1, EconomicEffectKindV1
+from src.core.global_settlement_types_v1 import (
+    ZERO_ROOT_V1,
+    EconomicEffectKindV1,
+    EconomicPolicyRegistryV1,
+)
 from src.core.zdex_atomic_buyback_v1 import (
     ZDEXAtomicBuybackAcceptedV1,
     ZDEXAtomicBuybackCandidateV1,
@@ -31,6 +35,7 @@ from src.core.zdex_purchase_burn_effects_v1 import (
     purchase_effects_v2,
 )
 from src.core.zdex_purchase_burn_receipt_verification_v1 import (
+    GovernedVerifiedZDEXAMMPurchaseV2,
     ZDEXBurnReceiptCandidateV1,
     ZDEXLaneReceiptEnvelopeV1,
     ZDEXPurchaseReceiptCandidateV1,
@@ -215,6 +220,14 @@ def test_v2_purchase_receipt_binds_exact_price_authority_before_callback() -> No
     assert verified.binding_root != verified.leaf_binding_root
     assert verified.verified_leaf.authority_head_root == ZERO_ROOT_V1
     assert verified.verified_leaf.verifier_binding_root == ZERO_ROOT_V1
+    assert verified.leaf_binding_root == (
+        "0x2297c6834d02ce2a84edf4d3e0f08c124baee16085231e1590c4a9f685c96867"
+    )
+
+
+def test_governed_v2_purchase_witness_cannot_be_caller_constructed() -> None:
+    with pytest.raises(TypeError, match="verifier-constructed"):
+        GovernedVerifiedZDEXAMMPurchaseV2(object(), object())
 
 
 def test_governed_v2_purchase_rejects_substituted_execution_policy_before_callback() -> (
@@ -253,6 +266,50 @@ def test_governed_v2_purchase_rejects_substituted_execution_policy_before_callba
             ),
             profile=fixture.candidate.profile,
             policy_registry=fixture.candidate.policy_registry,
+            authority_head=fixture.authority_head,
+            receipt_verifier=fixture.receipt_verifier,
+        )
+    assert len(fixture.backend.calls) == calls_before
+
+
+def test_governed_v2_purchase_rejects_profile_mismatched_registry_before_callback() -> (
+    None
+):
+    # Arrange
+    fixture, legacy_candidate = _candidate()
+    journal = _purchase_journal_v2(fixture, legacy_candidate.purchase_journal)
+    effects = purchase_effects_v2(journal)
+    first, *remaining = fixture.candidate.policy_registry.bindings
+    mismatched_registry = EconomicPolicyRegistryV1(
+        tuple(
+            sorted(
+                (replace(first, policy_root="0x" + "ac" * 32), *remaining),
+                key=lambda binding: (binding.policy_kind, binding.command_kind),
+            )
+        )
+    )
+    calls_before = len(fixture.backend.calls)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="economic policy registry mismatch"):
+        verify_governed_zdex_amm_purchase_receipt_shadow_v2(
+            ZDEXPurchaseReceiptCandidateV2(
+                route_release=fixture.route,
+                module_release=fixture.spot_release,
+                occurrence=fixture.candidate.occurrence,
+                pre_state=fixture.candidate.global_pre_state,
+                execution_policy=fixture.candidate.buyback_policy,
+                price_policy=fixture.candidate.price_policy,
+                price_occurrence=_price_occurrence(fixture),
+                journal=journal,
+                effects=effects,
+                receipt=ZDEXLaneReceiptEnvelopeV1(
+                    ReceiptKindV1.SUCCINCT,
+                    b"mismatched-policy-registry",
+                ),
+            ),
+            profile=fixture.candidate.profile,
+            policy_registry=mismatched_registry,
             authority_head=fixture.authority_head,
             receipt_verifier=fixture.receipt_verifier,
         )

@@ -475,3 +475,58 @@ pub fn verify_zdex_burn_receipt_v1(
         price_safety_policy_root: None,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn root(value: &str) -> RootV1 {
+        RootV1::parse(value, "verified purchase V2 golden root", false).unwrap()
+    }
+
+    #[test]
+    fn verified_purchase_v2_binding_root_matches_python_golden_vector() {
+        let fields = VerifiedZDEXLaneFieldsV1 {
+            route_release_id: root(
+                "0x43d48c9f73f7b50df62720804e6bfb8504ec1b9f46724deaa6c8c88b9481dcbc",
+            ),
+            module_release_id: root(
+                "0x7930bfefe4715aa91d5e5564d62d01db16f363a2810f3c6f3914ba76866a9053",
+            ),
+            command_occurrence_id: root(
+                "0x650353795d5ccb8eee0029a9b1bd2a2efd0c94314457f1060b365ee3198800c3",
+            ),
+            profile_root: root(
+                "0xf78649ee6f1098e078d3e31b563d9d129c8cacc34df08158718488015ddff828",
+            ),
+            writer_epoch: 11,
+            journal_root: root(
+                "0x1e45b3b2b7610efa2fdbd1d3a80cdcadc84954b45ef8d97d7e9cf1df07768f71",
+            ),
+            journal_digest: root(
+                "0x97460cedf0cee0685b28f7f05314b4558235a4e684b2eeedd90c2981ee1ec19f",
+            ),
+            effect_plan_root: root(
+                "0x0b09c25c12998ccbf6c4b553c658e14f1b6441a288c0df05592990b60d4d4135",
+            ),
+            expected_image_id: root(
+                "0x0000000000000000000000000000000000000000000000000000000000000429",
+            ),
+            receipt_digest: root(
+                "0xc381c4517fce61a3bbff8ab84753dc996990d266aa181ee0d35ebc4c3e864544",
+            ),
+            receipt_kind: ReceiptKindV1::SUCCINCT,
+            price_authority_root: Some(root(
+                "0x29919f7e5103b07ba7b61feaf63b56b3fb878c0c087be72f0511f8fad8fbaa09",
+            )),
+            price_safety_policy_root: Some(root(
+                "0x6247a62b46b80561c4f9bb7694a90cfaa514eea6a228e9defd1da392efd4e93a",
+            )),
+        };
+
+        assert_eq!(
+            verified_purchase_binding_root_v2(&fields).unwrap().as_str(),
+            "0x2297c6834d02ce2a84edf4d3e0f08c124baee16085231e1590c4a9f685c96867"
+        );
+    }
+}
