@@ -74,6 +74,7 @@ EXPECTED_CURRENT_ROUTE_SOURCE_ROOT_V3: Final = (
 )
 
 _SHA1_RE: Final = re.compile(r"^[0-9a-f]{40}$")
+_SHA256_RE: Final = re.compile(r"^[0-9a-f]{64}$")
 _CLASSIFICATIONS_V3: Final = ("QUARANTINED", "RESEARCH_ORACLE", "REMOVED")
 
 DIRECT_CONSUMER_PATHS_V3: Final = (
@@ -128,10 +129,6 @@ _BRIDGE_MODULES_V3: Final = frozenset(
         "src.integration.zusd_tau_wallet_api",
     }
 )
-_BRIDGE_IMPORT_NEEDLES_V3: Final = tuple(
-    sorted({module.rsplit(".", 1)[-1].encode("ascii") for module in _BRIDGE_MODULES_V3})
-)
-
 CURRENT_PATH_OPERATIONS_V3: Final = (
     ("src/agents/autotrader_client_policy_bundle.py", ("AUTOTRADER_POLICY_BUNDLE_BUILD",)),
     ("src/agents/intent_signer.py", ("DEX_INTENT_SIGNING",)),
@@ -256,6 +253,7 @@ SUBJECT_PIN_PATHS_V3: Final = tuple(
             "src/integration/bls_intent_signing.py",
             "tests/integration/test_bls_intent_signing.py",
             "tests/integration/test_retired_tau_bridge_startup_refusal_v2.py",
+            "tests/integration/test_zusd_tau_token.py",
             "tests/test_check_retired_tau_bridge_closure_v3.py",
             "tools/__init__.py",
             "tools/build_m6_normative_requirements_v1.py",
@@ -373,6 +371,7 @@ class ImportEdgeV3:
 class PythonImportDiscoveryV3:
     paths: tuple[str, ...]
     edges: tuple[ImportEdgeV3, ...]
+    source_root_sha256: str
 
 
 @dataclass
@@ -505,6 +504,43 @@ def _snapshot_sources(snapshot: SubjectSnapshotV3) -> tuple[dict[str, SourceFile
     return baseline, subject
 
 
+def require_terminal_snapshot_match_v3(
+    initial: SubjectSnapshotV3,
+    terminal: SubjectSnapshotV3,
+    *,
+    expected_head: str,
+) -> None:
+    """Reject observed source or discovery drift before checker acceptance."""
+
+    if type(initial) is not SubjectSnapshotV3 or type(terminal) is not SubjectSnapshotV3:
+        _reject("SNAPSHOT_TYPE", "terminal replay", "requires exact SubjectSnapshotV3")
+    if (
+        initial.captured_head != expected_head
+        or initial.rechecked_head != expected_head
+        or terminal.captured_head != expected_head
+        or terminal.rechecked_head != expected_head
+    ):
+        _reject("HEAD_CHANGED", expected_head, "HEAD changed during terminal source replay")
+    if terminal.baseline != initial.baseline or terminal.subject != initial.subject:
+        _reject(
+            "WORKTREE_SOURCE_CHANGED",
+            "terminal replay",
+            "pinned source snapshot changed before acceptance",
+        )
+    if terminal.current_discovery != initial.current_discovery:
+        _reject(
+            "CURRENT_DISCOVERY_CHANGED",
+            "terminal replay",
+            "Python discovery path or edge projection changed before acceptance",
+        )
+    if terminal != initial:
+        _reject(
+            "WORKTREE_INPUT_CHANGED",
+            "terminal replay",
+            "live snapshot metadata changed before acceptance",
+        )
+
+
 def _validate_discovery_snapshot(
     discovery: PythonImportDiscoveryV3 | None,
     *,
@@ -514,6 +550,7 @@ def _validate_discovery_snapshot(
         _reject("DISCOVERY_TYPE", role, "requires exact PythonImportDiscoveryV3")
     paths = discovery.paths
     edges = discovery.edges
+    source_root_sha256 = discovery.source_root_sha256
     if (
         type(paths) is not tuple
         or not paths
@@ -530,6 +567,8 @@ def _validate_discovery_snapshot(
         type(edge) is not ImportEdgeV3 for edge in edges
     ):
         _reject("DISCOVERY_EDGE_TYPE", role, "requires exact ImportEdgeV3 rows")
+    if type(source_root_sha256) is not str or _SHA256_RE.fullmatch(source_root_sha256) is None:
+        _reject("DISCOVERY_SOURCE_ROOT", role, "requires one lowercase SHA-256 digest")
     if tuple(sorted(edges)) != edges:
         _reject("DISCOVERY_EDGE_SET", role, "requires a sorted exact tuple")
     path_set = set(paths)
@@ -682,6 +721,7 @@ def discover_bridge_imports_v3(
         _reject("DISCOVERY_PATH_SET", "Python discovery", "duplicate path")
     total_bytes = 0
     rows: list[ImportEdgeV3] = []
+    source_rows: list[dict[str, object]] = []
     for path in paths:
         if not is_python_discovery_path_v3(path):
             _reject("DISCOVERY_PATH", str(path), "outside ordinary Python scope")
@@ -691,12 +731,17 @@ def discover_bridge_imports_v3(
         total_bytes += len(raw)
         if total_bytes > MAX_DISCOVERY_TOTAL_BYTES_V3:
             _reject("DISCOVERY_TOTAL_BYTES", "Python discovery", str(total_bytes))
-        if not any(needle in raw for needle in _BRIDGE_IMPORT_NEEDLES_V3):
-            continue
+        source_rows.append(
+            {"path": path, "sha256": _sha256(raw), "size": len(raw)}
+        )
         visitor = _ImportVisitorV3(path)
         visitor.visit(_parse_python(source, path))
         rows.extend(visitor.rows)
-    return PythonImportDiscoveryV3(paths=paths, edges=tuple(sorted(rows)))
+    return PythonImportDiscoveryV3(
+        paths=paths,
+        edges=tuple(sorted(rows)),
+        source_root_sha256=_manifest_root(source_rows),
+    )
 
 
 def _first_counter_extra(
@@ -811,7 +856,8 @@ def _require_discovery_closure(
             baseline_discovery.paths
         ),
         "python_discovery_scope": (
-            "TRACKED_NON_TEST_NONGENERATED_STATIC_PYTHON_IMPORTS"
+            "GIT_TREE_BASELINE_AND_SUBJECT_PLUS_CURRENT_INDEX_OR_UNTRACKED_"
+            "NONIGNORED_NONTEST_NONGENERATED_STATIC_PYTHON_IMPORTS"
         ),
         "subject_discovered_consumer_count": len(
             {edge.source_path for edge in subject_discovery.edges}
@@ -2444,6 +2490,8 @@ def build_artifact_v3(snapshot: SubjectSnapshotV3) -> bytes:
             "No O-007B/C recovery, migration, callback, worker, subprocess, administrative, deployed, or cross-language closure is claimed.",
             "Research-oracle source may remain in shipped bytes and has no current operation authority.",
             "The pinned Python checker modules, interpreter, operating system, and Git executable remain trusted replay premises.",
+            "Terminal replays require a quiescent single-writer worktree; sequential no-follow reads detect observed drift but do not create an atomic filesystem snapshot.",
+            "A successful replay on a descendant HEAD does not certify that descendant tree; completion remains bound to evidence_subject.",
             "No production, release, settlement, migration, or value-moving authority is granted.",
         ],
         "o003b_completion": {

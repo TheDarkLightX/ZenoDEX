@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -50,12 +51,28 @@ from tools.retired_tau_bridge_closure_v3 import (  # noqa: E402
     check_artifact_v3,
     discover_bridge_imports_v3,
     is_python_discovery_path_v3,
+    require_terminal_snapshot_match_v3,
 )
 
 OUTPUT_PATH: Final = Path(OUTPUT_PATH_V3)
 _GIT_TIMEOUT_SECONDS_V3: Final = 10.0
 _GIT_DISCOVERY_TIMEOUT_SECONDS_V3: Final = 30.0
 _GIT_TREE_OUTPUT_MAX_BYTES_V3: Final = 4_194_304
+
+
+def _repository_root_identity_v3(root: Path | str) -> tuple[int, int]:
+    inert_root = _require_inert_path_v1(root, "O-003B repository root")
+    try:
+        observed = os.stat(inert_root, follow_symlinks=False)
+    except OSError as exc:
+        raise ClosureRejectV3("ROOT_CHANGED", "repository root", type(exc).__name__) from exc
+    if not stat.S_ISDIR(observed.st_mode):
+        raise ClosureRejectV3(
+            "ROOT_CHANGED",
+            "repository root",
+            "root must remain one non-symlink directory",
+        )
+    return observed.st_dev, observed.st_ino
 
 
 def _run_git_bytes_v3(
@@ -475,7 +492,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
     try:
-        output = args.root / OUTPUT_PATH
+        inert_root = _require_inert_path_v1(args.root, "O-003B V3 root")
+        root_identity = _repository_root_identity_v3(inert_root)
+        output = inert_root / OUTPUT_PATH
         if args.check:
             actual = _read_bounded_regular_file_v1(
                 output,
@@ -483,14 +502,46 @@ def main(argv: list[str] | None = None) -> int:
                 "O-003B V3 certificate",
             )
             snapshot = load_subject_snapshot_v3(
-                args.root,
+                inert_root,
                 evidence_commit=_artifact_evidence_commit(actual),
             )
             report = check_artifact_v3(actual, snapshot)
+            terminal_snapshot = load_subject_snapshot_v3(
+                inert_root,
+                evidence_commit=snapshot.subject.commit,
+            )
+            require_terminal_snapshot_match_v3(
+                snapshot,
+                terminal_snapshot,
+                expected_head=snapshot.captured_head,
+            )
+            terminal_actual = _read_bounded_regular_file_v1(
+                output,
+                MAX_ARTIFACT_BYTES_V3,
+                "O-003B V3 terminal certificate",
+            )
+            if terminal_actual != actual:
+                raise ClosureRejectV3(
+                    "STAGE_B_ARTIFACT_CHANGED",
+                    OUTPUT_PATH.as_posix(),
+                    "artifact bytes changed before terminal acceptance",
+                )
+            if _repository_root_identity_v3(inert_root) != root_identity:
+                raise ClosureRejectV3(
+                    "ROOT_CHANGED",
+                    "repository root",
+                    "root identity changed before terminal acceptance",
+                )
+            if _git_head_v1(inert_root) != snapshot.captured_head:
+                raise ClosureRejectV3(
+                    "HEAD_CHANGED",
+                    snapshot.captured_head,
+                    "HEAD changed before terminal builder acceptance",
+                )
             print(json.dumps(report, sort_keys=True))
             return 0 if report["ok"] is True else 1
 
-        expected = build_certificate_v3(args.root)
+        expected = build_certificate_v3(inert_root)
         _atomic_replace_regular_file_v1(output, expected)
         print(
             json.dumps(

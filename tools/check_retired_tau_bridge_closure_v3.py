@@ -25,6 +25,7 @@ from tools.build_m6_normative_requirements_v1 import (  # noqa: E402
 )
 from tools.build_retired_tau_bridge_closure_v3 import (  # noqa: E402
     OUTPUT_PATH,
+    _repository_root_identity_v3,
     load_subject_snapshot_v3,
 )
 from tools.retired_tau_bridge_closure_v3 import (  # noqa: E402
@@ -34,6 +35,7 @@ from tools.retired_tau_bridge_closure_v3 import (  # noqa: E402
     _git_blob_sha,
     check_artifact_v3,
     failure_report_v3,
+    require_terminal_snapshot_match_v3,
 )
 
 
@@ -138,6 +140,7 @@ def check_retired_tau_bridge_closure_v3(
 ) -> dict[str, object]:
     try:
         inert_root = _require_inert_path_v1(root, "O-003B V3 checker root")
+        root_identity = _repository_root_identity_v3(inert_root)
         raw = _read_bounded_regular_file_v1(
             inert_root / OUTPUT_PATH,
             MAX_ARTIFACT_BYTES_V3,
@@ -164,6 +167,32 @@ def check_retired_tau_bridge_closure_v3(
                 "HEAD changed between Stage-B topology and source capture",
             )
         report = check_artifact_v3(raw, snapshot)
+        terminal_snapshot = load_subject_snapshot_v3(
+            inert_root,
+            evidence_commit=evidence_commit,
+        )
+        require_terminal_snapshot_match_v3(
+            snapshot,
+            terminal_snapshot,
+            expected_head=observed_head,
+        )
+        terminal_raw = _read_bounded_regular_file_v1(
+            inert_root / OUTPUT_PATH,
+            MAX_ARTIFACT_BYTES_V3,
+            "O-003B V3 terminal certificate",
+        )
+        if terminal_raw != raw:
+            raise ClosureRejectV3(
+                "STAGE_B_ARTIFACT_CHANGED",
+                OUTPUT_PATH.as_posix(),
+                "artifact bytes changed before terminal acceptance",
+            )
+        if _repository_root_identity_v3(inert_root) != root_identity:
+            raise ClosureRejectV3(
+                "ROOT_CHANGED",
+                "repository root",
+                "root identity changed before terminal acceptance",
+            )
         if _git_head_v1(inert_root) != observed_head:
             raise ClosureRejectV3(
                 "HEAD_CHANGED",

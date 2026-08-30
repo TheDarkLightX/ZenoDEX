@@ -28,6 +28,7 @@ from tools.retired_tau_bridge_closure_v3 import (
     SUBJECT_PIN_PATHS_V3,
     ClosureRejectV3,
     ImportEdgeV3,
+    PythonImportDiscoveryV3,
     SourceFileV3,
     SourceSnapshotV3,
     SubjectSnapshotV3,
@@ -233,8 +234,10 @@ def test_exact_import_projection_and_closed_operation_registry(
     assert projection["subject_discovered_consumer_count"] == 19
     assert projection["subject_discovered_edge_count"] == 92
     assert projection["python_discovery_scope"] == (
-        "TRACKED_NON_TEST_NONGENERATED_STATIC_PYTHON_IMPORTS"
+        "GIT_TREE_BASELINE_AND_SUBJECT_PLUS_CURRENT_INDEX_OR_UNTRACKED_"
+        "NONIGNORED_NONTEST_NONGENERATED_STATIC_PYTHON_IMPORTS"
     )
+    assert "tests/integration/test_zusd_tau_token.py" in SUBJECT_PIN_PATHS_V3
     assert projection["baseline_edge_root_sha256"] == EXPECTED_BASELINE_EDGE_ROOT_V3
     assert projection["current_edge_root_sha256"] == EXPECTED_CURRENT_EDGE_ROOT_V3
     assert projection["current_route_source_root_sha256"] == (
@@ -1273,18 +1276,26 @@ def test_stage_a_loader_accepts_unrelated_descendant_with_pins_unchanged(
     assert snapshot.captured_head != evidence_commit
 
 
+@pytest.mark.parametrize(
+    "source",
+    (
+        b"from src.integration.tau_net_client import TauNetTcpClient\n",
+        "import src.integration.tau_net_ｃlient as injected\n".encode("utf-8"),
+        b"# coding: unicode_escape\n"
+        b"import src.integration.tau_net_\\x63lient as injected\n",
+    ),
+    ids=("plain", "nfkc-identifier", "encoding-cookie-escape"),
+)
 def test_stage_a_loader_propagates_real_out_of_seed_bridge_import(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    source: bytes,
 ) -> None:
     _loader_subject_repo(tmp_path, monkeypatch)
     relative_path = "src/o003b_out_of_seed_mutant.py"
     source_path = tmp_path / relative_path
     source_path.parent.mkdir(parents=True, exist_ok=True)
-    source_path.write_text(
-        "from src.integration.tau_net_client import TauNetTcpClient\n",
-        encoding="utf-8",
-    )
+    source_path.write_bytes(source)
     _temp_git(tmp_path, "add", relative_path)
     _temp_git(tmp_path, "commit", "--quiet", "-m", "out-of-seed bridge import")
     mutant_commit = (
@@ -1460,6 +1471,304 @@ def test_public_checker_rejects_terminal_head_change(
             "path": observed_head,
         }
     ]
+
+
+def test_public_checker_rejects_terminal_artifact_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_head = "1" * 40
+    artifact_path = tmp_path / closure_checker.OUTPUT_PATH
+    artifact_path.parent.mkdir(parents=True)
+    artifact_path.write_bytes(b"{}\n")
+    monkeypatch.setattr(
+        closure_checker,
+        "_artifact_subject",
+        lambda _raw: ("a" * 40, "b" * 40),
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "_require_stage_b_topology",
+        lambda *_args, **_kwargs: (observed_head, "2" * 40),
+    )
+    snapshot = _empty_snapshot_for_head(observed_head)
+    monkeypatch.setattr(
+        closure_checker,
+        "load_subject_snapshot_v3",
+        lambda *_args, **_kwargs: snapshot,
+    )
+
+    def accept_then_replace(*_args: object) -> dict[str, object]:
+        replacement = artifact_path.with_suffix(".replacement")
+        replacement.write_bytes(b'{"mutated_after_capture":true}\n')
+        replacement.replace(artifact_path)
+        return {"ok": True}
+
+    monkeypatch.setattr(closure_checker, "check_artifact_v3", accept_then_replace)
+    monkeypatch.setattr(closure_checker, "_git_head_v1", lambda _root: observed_head)
+
+    report = closure_checker.check_retired_tau_bridge_closure_v3(tmp_path)
+
+    assert report["ok"] is False
+    assert report["findings"] == [
+        {
+            "code": "STAGE_B_ARTIFACT_CHANGED",
+            "detail": "artifact bytes changed before terminal acceptance",
+            "path": closure_checker.OUTPUT_PATH.as_posix(),
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("terminal_snapshot", "code"),
+    (
+        (
+            replace(
+                _empty_snapshot_for_head("1" * 40),
+                subject=SourceSnapshotV3(
+                    commit="a" * 40,
+                    tree="b" * 40,
+                    files=(_source("route.txt", b"changed\n"),),
+                ),
+            ),
+            "WORKTREE_SOURCE_CHANGED",
+        ),
+        (
+            replace(
+                _empty_snapshot_for_head("1" * 40),
+                current_discovery=PythonImportDiscoveryV3(
+                    paths=("late_importer.py",),
+                    edges=(),
+                    source_root_sha256="0" * 64,
+                ),
+            ),
+            "CURRENT_DISCOVERY_CHANGED",
+        ),
+    ),
+    ids=("pinned-source", "python-discovery"),
+)
+def test_public_checker_rejects_terminal_live_input_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    terminal_snapshot: SubjectSnapshotV3,
+    code: str,
+) -> None:
+    observed_head = "1" * 40
+    initial_snapshot = _empty_snapshot_for_head(observed_head)
+    snapshots = iter((initial_snapshot, terminal_snapshot))
+    monkeypatch.setattr(
+        closure_checker,
+        "_require_inert_path_v1",
+        lambda root, _label: Path(root),
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "_read_bounded_regular_file_v1",
+        lambda *_args: b"{}\n",
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "_artifact_subject",
+        lambda _raw: ("a" * 40, "b" * 40),
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "_require_stage_b_topology",
+        lambda *_args, **_kwargs: (observed_head, "2" * 40),
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "load_subject_snapshot_v3",
+        lambda *_args, **_kwargs: next(snapshots),
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "check_artifact_v3",
+        lambda *_args: {"ok": True},
+    )
+    monkeypatch.setattr(closure_checker, "_git_head_v1", lambda _root: observed_head)
+
+    report = closure_checker.check_retired_tau_bridge_closure_v3(tmp_path)
+
+    assert report["ok"] is False
+    assert report["findings"][0]["code"] == code
+
+
+def test_builder_check_rejects_terminal_artifact_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    artifact_path = tmp_path / closure_builder.OUTPUT_PATH
+    artifact_path.parent.mkdir(parents=True)
+    artifact_path.write_bytes(
+        canonical_json_bytes_v3(
+            {"evidence_subject": {"commit": "a" * 40}}
+        )
+    )
+    snapshot = _empty_snapshot_for_head("1" * 40)
+    snapshot = replace(
+        snapshot,
+        subject=replace(snapshot.subject, commit="a" * 40),
+    )
+    monkeypatch.setattr(
+        closure_builder,
+        "load_subject_snapshot_v3",
+        lambda *_args, **_kwargs: snapshot,
+    )
+
+    def accept_then_replace(*_args: object) -> dict[str, object]:
+        replacement = artifact_path.with_suffix(".replacement")
+        replacement.write_bytes(b'{"mutated_after_capture":true}\n')
+        replacement.replace(artifact_path)
+        return {"ok": True}
+
+    monkeypatch.setattr(closure_builder, "check_artifact_v3", accept_then_replace)
+    monkeypatch.setattr(closure_builder, "_git_head_v1", lambda _root: "1" * 40)
+
+    assert closure_builder.main(["--root", str(tmp_path), "--check"]) == 2
+    report = json.loads(capsys.readouterr().out)
+    assert report["finding"]["code"] == "STAGE_B_ARTIFACT_CHANGED"
+
+
+def test_public_checker_rejects_terminal_root_identity_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_head = "1" * 40
+    roots = iter(((1, 2), (3, 4)))
+    monkeypatch.setattr(
+        closure_checker,
+        "_repository_root_identity_v3",
+        lambda _root: next(roots),
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "_require_inert_path_v1",
+        lambda root, _label: Path(root),
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "_read_bounded_regular_file_v1",
+        lambda *_args: b"{}\n",
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "_artifact_subject",
+        lambda _raw: ("a" * 40, "b" * 40),
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "_require_stage_b_topology",
+        lambda *_args, **_kwargs: (observed_head, "2" * 40),
+    )
+    snapshot = _empty_snapshot_for_head(observed_head)
+    monkeypatch.setattr(
+        closure_checker,
+        "load_subject_snapshot_v3",
+        lambda *_args, **_kwargs: snapshot,
+    )
+    monkeypatch.setattr(
+        closure_checker,
+        "check_artifact_v3",
+        lambda *_args: {"ok": True},
+    )
+
+    report = closure_checker.check_retired_tau_bridge_closure_v3(tmp_path)
+
+    assert report["ok"] is False
+    assert report["findings"][0]["code"] == "ROOT_CHANGED"
+
+
+def test_public_checker_accepts_quiescent_real_stage_pair() -> None:
+    artifact_path = ROOT / closure_checker.OUTPUT_PATH
+    if not artifact_path.is_file():
+        pytest.skip("requires the committed Stage-B O-003B certificate")
+
+    report = closure_checker.check_retired_tau_bridge_closure_v3(ROOT)
+
+    assert report["ok"] is True
+    assert report["observed_head"] == _git_output("rev-parse", "HEAD").decode(
+        "ascii"
+    ).strip()
+    assert report["observed_tree"] == _git_output("rev-parse", "HEAD^{tree}").decode(
+        "ascii"
+    ).strip()
+
+
+@pytest.mark.parametrize(
+    ("case", "code"),
+    (
+        ("artifact", "STAGE_B_ARTIFACT_CHANGED"),
+        ("pinned-source", "WORKTREE_SOURCE_DRIFT"),
+        ("tracked-discovery", "CURRENT_DISCOVERY_CHANGED"),
+        ("tracked-byte-only", "CURRENT_DISCOVERY_CHANGED"),
+        ("late-untracked", "CURRENT_DISCOVERY_CHANGED"),
+    ),
+)
+def test_public_checker_rejects_real_post_semantic_worktree_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    code: str,
+) -> None:
+    artifact_path = ROOT / closure_checker.OUTPUT_PATH
+    if not artifact_path.is_file():
+        pytest.skip("requires the committed Stage-B O-003B certificate")
+    clone = tmp_path / "raced-repo"
+    subprocess.run(  # noqa: S603 - fixed test-only Git command
+        ("git", "clone", "--quiet", "--shared", str(ROOT), str(clone)),  # noqa: S607
+        check=True,
+    )
+    expected_head = (
+        _temp_git_output(clone, "rev-parse", "HEAD").decode("ascii").strip()
+    )
+    original_check = closure_checker.check_artifact_v3
+    events: list[str] = []
+
+    def accept_then_mutate(raw: bytes, snapshot: SubjectSnapshotV3) -> dict[str, object]:
+        report = original_check(raw, snapshot)
+        assert report["ok"] is True
+        events.append("semantic_acceptance")
+        if case == "artifact":
+            target = clone / closure_checker.OUTPUT_PATH
+            replacement = target.with_suffix(".replacement")
+            replacement.write_bytes(b'{"mutated_after_capture":true}\n')
+            replacement.replace(target)
+        elif case == "pinned-source":
+            target = clone / "src/integration/api_server.py"
+            target.write_bytes(
+                target.read_bytes()
+                + b"\nfrom src.integration import tau_testnet_dex_plugin\n"
+            )
+        elif case == "tracked-discovery":
+            target = clone / "src/core/__init__.py"
+            target.write_bytes(
+                target.read_bytes()
+                + b"\nfrom src.integration import tau_testnet_dex_plugin\n"
+            )
+        elif case == "tracked-byte-only":
+            target = clone / "src/core/__init__.py"
+            target.write_bytes(target.read_bytes() + b"\n# late byte drift\n")
+        else:
+            target = clone / "src/o003b_late_untracked_bridge.py"
+            target.write_bytes(
+                b"from src.integration.tau_net_client import TauNetTcpClient\n"
+            )
+        events.append("worktree_mutation")
+        return report
+
+    monkeypatch.setattr(closure_checker, "check_artifact_v3", accept_then_mutate)
+
+    report = closure_checker.check_retired_tau_bridge_closure_v3(clone)
+
+    assert report["ok"] is False
+    assert report["findings"][0]["code"] == code
+    assert events == ["semantic_acceptance", "worktree_mutation"]
+    assert (
+        _temp_git_output(clone, "rev-parse", "HEAD").decode("ascii").strip()
+        == expected_head
+    )
 
 
 def test_public_checker_propagates_new_bridge_import_from_real_stage_pair(
