@@ -13,24 +13,23 @@ use zenodex_global_settlement_abi_v1::{
     ZDEXBuybackOraclePriceOccurrenceV1, ZDEXBuybackPriceSafetyPolicyV1, ZDEXBuybackSpendPolicyV1,
     ZDEXBuybackSpendRejectCodeV1, ZDEXBuybackSpendStateV1, ZDEXFeeAllocationRejectCodeV1,
     ZDEXFeeDestinationAmountV1, ZDEXFeeStateV1, ZDEXHyperdeflationPolicyV1,
-    ZDEXSpotBuybackAcceptedV1, ZDEXSpotBuybackAuthorityContextV1,
-    ZDEXSpotBuybackAuthorityInputV1, ZDEXSpotBuybackInputV1, ZDEXSpotBuybackReleaseV1,
-    ZDEXSpotBuybackResultV1, ZDEXSpotCurveKindV1, ZDEXSpotLaneStateV1, ZDEXSpotOracleOccurrenceV1,
-    ZDEXSpotOracleRegistryV1, ZDEXSpotOracleStatusV1, ZDEXSpotPoolCreationReleaseV1,
-    ZDEXSpotPoolDefinitionV1, ZDEXSpotPoolStatusV1, ZDEXSpotPoolV1, ZDEXSpotPriceEnvelopeV1,
-    ZDEXSpotProfileAuthorizationV1, ZDEXSpotQuoteInputPortV1, ZDEXSpotTerminalObligationV1,
-    ZDEXTokenomicsBurnRejectCodeV1, ZDEXTokenomicsBuybackAcceptedV1,
-    ZDEXTokenomicsBuybackAuthorityContextV1, ZDEXTokenomicsBuybackAuthorityInputV1,
-    ZDEXTokenomicsBuybackInputV1, ZDEXTokenomicsBuybackIntentInputV1,
-    ZDEXTokenomicsBuybackIntentResultV1, ZDEXTokenomicsBuybackIntentV1,
-    ZDEXTokenomicsBuybackLaneStateV1, ZDEXTokenomicsBuybackRejectCodeV1,
-    ZDEXTokenomicsBuybackReleaseV1, ZDEXTokenomicsBuybackResultV1,
-    ZDEXTokenomicsProfileAuthorizationV1, ZDEXTokenomicsSafeLimitPortV1,
-    ZDEXTokenomicsSpotObligationInputV1, ZDEXTokenomicsSupplyControlStateV1,
-    FEE_BUYBACK_PRINCIPAL_V1, ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1,
-    ZDEX_BUYBACK_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1, ZDEX_BUYBACK_PRICE_SAFETY_POLICY_SCHEMA_V1,
-    ZDEX_BUYBACK_SPEND_POLICY_SCHEMA_V1, ZDEX_BUYBACK_SPEND_STATE_SCHEMA_V1,
-    ZDEX_FEE_DESTINATIONS_V1, ZERO_ROOT_V1,
+    ZDEXSpotBuybackAcceptedV1, ZDEXSpotBuybackAuthorityContextV1, ZDEXSpotBuybackAuthorityInputV1,
+    ZDEXSpotBuybackInputV1, ZDEXSpotBuybackReleaseV1, ZDEXSpotBuybackResultV1, ZDEXSpotCurveKindV1,
+    ZDEXSpotLaneStateV1, ZDEXSpotOracleOccurrenceV1, ZDEXSpotOracleRegistryV1,
+    ZDEXSpotOracleStatusV1, ZDEXSpotPoolCreationReleaseV1, ZDEXSpotPoolDefinitionV1,
+    ZDEXSpotPoolStatusV1, ZDEXSpotPoolV1, ZDEXSpotPriceEnvelopeV1, ZDEXSpotProfileAuthorizationV1,
+    ZDEXSpotQuoteInputPortV1, ZDEXSpotTerminalObligationV1, ZDEXTokenomicsBurnRejectCodeV1,
+    ZDEXTokenomicsBuybackAcceptedV1, ZDEXTokenomicsBuybackAuthorityContextV1,
+    ZDEXTokenomicsBuybackAuthorityInputV1, ZDEXTokenomicsBuybackInputV1,
+    ZDEXTokenomicsBuybackIntentInputV1, ZDEXTokenomicsBuybackIntentResultV1,
+    ZDEXTokenomicsBuybackIntentV1, ZDEXTokenomicsBuybackLaneStateV1,
+    ZDEXTokenomicsBuybackRejectCodeV1, ZDEXTokenomicsBuybackReleaseV1,
+    ZDEXTokenomicsBuybackResultV1, ZDEXTokenomicsProfileAuthorizationV1,
+    ZDEXTokenomicsSafeLimitPortV1, ZDEXTokenomicsSpotObligationInputV1,
+    ZDEXTokenomicsSupplyControlStateV1, FEE_BUYBACK_PRINCIPAL_V1,
+    ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1, ZDEX_BUYBACK_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1,
+    ZDEX_BUYBACK_PRICE_SAFETY_POLICY_SCHEMA_V1, ZDEX_BUYBACK_SPEND_POLICY_SCHEMA_V1,
+    ZDEX_BUYBACK_SPEND_STATE_SCHEMA_V1, ZDEX_FEE_DESTINATIONS_V1, ZERO_ROOT_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -403,9 +402,9 @@ fn spot_accepted(
     let amount = amount_override.unwrap_or(quote.amount_atoms);
     spot.quote_port.source_module_release_id = quote.producer_module_release_id.clone();
     spot.quote_port.destination_module_release_id = quote.consumer_module_release_id.clone();
-    spot.quote_port.source_pre_state_root = quote.producer_pre_lane_root.clone();
-    spot.quote_port.source_post_state_root = quote.producer_post_lane_root.clone();
-    spot.quote_port.source_effect_plan_root = quote.producer_effect_plan_root.clone();
+    spot.quote_port.source_pre_state_root = quote.producer_quote_pre_state_root.clone();
+    spot.quote_port.source_post_state_root = quote.producer_quote_post_state_root.clone();
+    spot.quote_port.source_effect_plan_root = quote.producer_quote_effect_plan_root.clone();
     spot.quote_port.amount_atoms = amount;
     spot.price_envelope.quote_amount_atoms = amount;
     match transition_zdex_spot_buyback_v1(&spot).expect("typed spot transition") {
@@ -494,7 +493,10 @@ fn roots_match_python_shadow_core_golden_vectors() {
         (125, 25)
     );
     assert_eq!(
-        (journal.other_allocations_atoms, journal.carried_residue_atoms),
+        (
+            journal.other_allocations_atoms,
+            journal.carried_residue_atoms
+        ),
         (67, 33)
     );
     assert_eq!(
@@ -509,7 +511,10 @@ fn roots_match_python_shadow_core_golden_vectors() {
         (125, 111)
     );
     assert_eq!(
-        (journal.live_supply_pre_atoms, journal.live_supply_post_atoms),
+        (
+            journal.live_supply_pre_atoms,
+            journal.live_supply_post_atoms
+        ),
         (1_000, 889)
     );
     assert_eq!(journal.retained_supply_atoms, 100);
@@ -542,7 +547,7 @@ fn roots_match_python_shadow_core_golden_vectors() {
     );
     assert_eq!(
         journal.quote_port_root.to_string(),
-        "0xc6efed1b345133dd469b42b9dcfd489efaa8728bc0f2e9e7bc1e9e52b02c29fd"
+        "0x7dc8539d4dda504287cf1a05f01afda38d29ba8f094b2d7dc281b105a2064460"
     );
     assert_eq!(
         journal.effect_plan_root.to_string(),
@@ -550,7 +555,7 @@ fn roots_match_python_shadow_core_golden_vectors() {
     );
     assert_eq!(
         journal.private_ports_root.to_string(),
-        "0x166111b32d9bdfe97312cdc75a31ff3caa4fc7c4afd9bf461d6f049001371496"
+        "0x251feb17eb4488b50a0c33ff2bca17839104692221380d9819812707078357c8"
     );
     assert_eq!(
         journal.discharged_obligation_id.to_string(),
@@ -558,7 +563,7 @@ fn roots_match_python_shadow_core_golden_vectors() {
     );
     assert_eq!(
         journal.journal_root().expect("root").to_string(),
-        "0x4277ab1b1fa2deb6403a1b8aa779b4b7e1c2ad81becfebb922c0542e2461e102"
+        "0x8e63890c22ffb41985e051604df2ab01971500bc0c117328d247b259ee9c0381"
     );
 }
 
@@ -586,11 +591,15 @@ fn ports_pair_exactly_with_the_spot_leaf_and_discharge_its_obligation() {
         spot.ports().purchased_output.amount_atoms
     );
     assert_eq!(
-        result.ports().quote_output.source_principal,
+        result.ports().quote_output.source_principal(),
         FEE_BUYBACK_PRINCIPAL_V1
     );
     assert_eq!(
-        result.ports().quote_output.destination_principal,
+        result
+            .ports()
+            .quote_output
+            .destination_principal()
+            .expect("derived destination"),
         spot.ports().quote_input.destination_principal
     );
     assert_eq!(&result.ports().burn_input, spot.terminal_obligation());
@@ -613,14 +622,18 @@ fn effect_plan_has_exact_shape_and_no_ephemeral_port_row() {
 
     // Assert.
     let effects = result.effects();
-    let count = |kind: EconomicEffectKindV1| effects.rows.iter().filter(|row| row.kind == kind).count();
+    let count =
+        |kind: EconomicEffectKindV1| effects.rows.iter().filter(|row| row.kind == kind).count();
     assert_eq!(count(EconomicEffectKindV1::BURN), 1);
     assert_eq!(count(EconomicEffectKindV1::CUSTODY), 2);
     assert_eq!(count(EconomicEffectKindV1::RESERVE), 1);
     assert_eq!(count(EconomicEffectKindV1::FEE_ALLOCATION), 5);
     assert_eq!(count(EconomicEffectKindV1::ACCOUNT_MOVEMENT), 0);
     let burn_principal = &result.discharged_obligation().burn_principal;
-    assert!(effects.rows.iter().all(|row| &row.principal != burn_principal));
+    assert!(effects
+        .rows
+        .iter()
+        .all(|row| &row.principal != burn_principal));
     let burn_row = effects
         .rows
         .iter()
@@ -876,7 +889,9 @@ fn purchase_port_guards_bind_pool_asset_principal_amount_and_exact_quote() {
         ZDEXTokenomicsBuybackRejectCodeV1::PURCHASE_PORT_MISMATCH
     );
     assert_eq!(
-        reject_code(&with_obligation(&|o| o.consumer_module_release_id = root(9_006))),
+        reject_code(&with_obligation(
+            &|o| o.consumer_module_release_id = root(9_006)
+        )),
         ZDEXTokenomicsBuybackRejectCodeV1::PURCHASE_PORT_MISMATCH
     );
     assert_eq!(
@@ -884,7 +899,9 @@ fn purchase_port_guards_bind_pool_asset_principal_amount_and_exact_quote() {
         ZDEXTokenomicsBuybackRejectCodeV1::PURCHASE_PORT_MISMATCH
     );
     assert_eq!(
-        reject_code(&with_obligation(&|o| o.burn_principal = "mallory:burn-port".to_owned())),
+        reject_code(&with_obligation(
+            &|o| o.burn_principal = "mallory:burn-port".to_owned()
+        )),
         ZDEXTokenomicsBuybackRejectCodeV1::PURCHASE_PORT_MISMATCH
     );
     assert_eq!(
@@ -941,19 +958,19 @@ fn quote_port_v2_is_acyclic_and_reserved_fields_are_absent() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert_eq!(keys.len(), 14);
+    assert_eq!(keys.len(), 13);
     assert!(keys
         .iter()
         .all(|key| !key.contains("journal") && !key.contains("receipt")));
     assert_eq!(
-        port.producer_pre_lane_root,
+        port.producer_quote_pre_state_root,
         result.pre_state().state_root().expect("root")
     );
     assert_eq!(
-        port.producer_post_lane_root,
+        port.producer_quote_post_state_root,
         result.spend_post_state().state_root().expect("root")
     );
     let mut cyclic = port.clone();
-    cyclic.producer_post_lane_root = cyclic.producer_pre_lane_root.clone();
+    cyclic.producer_quote_post_state_root = cyclic.producer_quote_pre_state_root.clone();
     assert!(cyclic.validate().is_err());
 }

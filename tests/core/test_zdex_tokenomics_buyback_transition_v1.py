@@ -296,9 +296,9 @@ def _spot_accepted(
             spot.quote_port,
             source_module_release_id=quote.producer_module_release_id,
             destination_module_release_id=quote.consumer_module_release_id,
-            source_pre_state_root=quote.producer_pre_lane_root,
-            source_post_state_root=quote.producer_post_lane_root,
-            source_effect_plan_root=quote.producer_effect_plan_root,
+            source_pre_state_root=quote.producer_quote_pre_state_root,
+            source_post_state_root=quote.producer_quote_post_state_root,
+            source_effect_plan_root=quote.producer_quote_effect_plan_root,
             amount_atoms=amount,
         ),
         price_envelope=replace(spot.price_envelope, quote_amount_atoms=amount),
@@ -415,19 +415,19 @@ def test_accepts_governed_spend_exact_burn_and_freezes_commitment_roots() -> Non
         "0x22edf33b9e3436a4beef01c9fdd4f3b00e68f17e7e5dee4d50c8c0bb883aea06"
     )
     assert journal.quote_port_root == (
-        "0xc6efed1b345133dd469b42b9dcfd489efaa8728bc0f2e9e7bc1e9e52b02c29fd"
+        "0x7dc8539d4dda504287cf1a05f01afda38d29ba8f094b2d7dc281b105a2064460"
     )
     assert journal.effect_plan_root == (
         "0x4ecdfd59112a923527512bf6c3790ea12fe1a8b64d0f0582d2348687d196f480"
     )
     assert journal.private_ports_root == (
-        "0x166111b32d9bdfe97312cdc75a31ff3caa4fc7c4afd9bf461d6f049001371496"
+        "0x251feb17eb4488b50a0c33ff2bca17839104692221380d9819812707078357c8"
     )
     assert journal.discharged_obligation_id == (
         "0x8783d36dbb5bfad76dbf286b2bea269d36da560ef38d1ee8a5107c88fb5536ff"
     )
     assert journal.journal_root == (
-        "0x4277ab1b1fa2deb6403a1b8aa779b4b7e1c2ad81becfebb922c0542e2461e102"
+        "0x8e63890c22ffb41985e051604df2ab01971500bc0c117328d247b259ee9c0381"
     )
     assert result.quote_output.port_root == journal.quote_port_root
     assert result.ports.ports_root == journal.private_ports_root
@@ -448,9 +448,12 @@ def test_intent_is_exact_prefix_of_accepted_transition() -> None:
     assert intent.spend_effects == result.spend_effects
     assert intent.spend_effects.lane_writes == ()
     assert intent.spend_post_state.supply == intent.pre_state.supply
-    assert intent.quote_output.producer_pre_lane_root == intent.pre_state.state_root
-    assert intent.quote_output.producer_post_lane_root == intent.spend_post_state.state_root
-    assert intent.quote_output.producer_effect_plan_root == intent.spend_effects.effect_plan_root
+    assert intent.quote_output.producer_quote_pre_state_root == intent.pre_state.state_root
+    assert intent.quote_output.producer_quote_post_state_root == intent.spend_post_state.state_root
+    assert (
+        intent.quote_output.producer_quote_effect_plan_root
+        == intent.spend_effects.effect_plan_root
+    )
     assert intent.quote_output.amount_atoms == intent.spend.intent.quote_spend_atoms
     assert result.journal.quote_port_root == intent.quote_output.port_root
     assert result.journal.spend_post_state_root == intent.spend_post_state.state_root
@@ -1296,21 +1299,22 @@ def test_quote_port_v2_is_acyclic_and_proof_independent() -> None:
         "global_pre_state_root",
         "producer_module_release_id",
         "consumer_module_release_id",
-        "producer_pre_lane_root",
-        "producer_post_lane_root",
-        "producer_effect_plan_root",
+        "producer_quote_pre_state_root",
+        "producer_quote_post_state_root",
+        "producer_quote_effect_plan_root",
         "selected_pool_id",
         "quote_asset_id",
-        "source_principal",
-        "destination_principal",
         "amount_atoms",
     }
     assert not any("journal" in name or "receipt" in name for name in names)
     result = _accepted(_candidate())
     port = result.quote_output
     assert result.journal.quote_port_root == port.port_root
-    with pytest.raises(ValueError, match="distinct owners"):
-        replace(port, producer_post_lane_root=port.producer_pre_lane_root)
-    with pytest.raises(ValueError, match="distinct owners"):
+    with pytest.raises(ValueError, match="quote phase must change"):
+        replace(
+            port,
+            producer_quote_post_state_root=port.producer_quote_pre_state_root,
+        )
+    with pytest.raises(ValueError, match="module releases must differ"):
         replace(port, consumer_module_release_id=port.producer_module_release_id)
     assert MAX_ATOMS_V1 > MAX_DELTA_ATOMS_V1

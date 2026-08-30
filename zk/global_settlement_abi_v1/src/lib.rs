@@ -55,6 +55,7 @@ mod route_global_state_projection;
 mod state;
 mod zdex_atomic_buyback;
 mod zdex_atomic_buyback_lane_ports;
+pub mod zdex_atomic_buyback_quote_port_v2;
 mod zdex_atomic_buyback_state;
 mod zdex_buyback_price_authority;
 mod zdex_buyback_price_safety;

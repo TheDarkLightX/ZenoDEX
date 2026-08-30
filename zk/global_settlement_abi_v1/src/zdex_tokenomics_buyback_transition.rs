@@ -21,6 +21,7 @@ use crate::effects::{
     LaneWriteV1,
 };
 use crate::release::LaneIdV1;
+use crate::zdex_atomic_buyback_quote_port_v2::ZDEXAtomicBuybackQuotePortV2;
 use crate::zdex_buyback_spend::{
     transition_zdex_buyback_spend_v1, ZDEXBuybackSpendAcceptedV1, ZDEXBuybackSpendContextV1,
     ZDEXBuybackSpendPolicyV1, ZDEXBuybackSpendRejectCodeV1, ZDEXBuybackSpendResultV1,
@@ -52,8 +53,6 @@ pub const ZDEX_TOKENOMICS_PROFILE_AUTHORIZATION_SCHEMA_V1: &str =
     "zenodex/zdex-tokenomics-buyback-profile-authorization/v1";
 pub const ZDEX_TOKENOMICS_SAFE_LIMIT_PORT_SCHEMA_V1: &str =
     "zenodex/zdex-tokenomics-safe-limit-port/v1";
-pub const ZDEX_ATOMIC_BUYBACK_QUOTE_PORT_SCHEMA_V2: &str =
-    "zenodex/zdex-atomic-buyback-quote-port/v2";
 pub const ZDEX_TOKENOMICS_PRIVATE_PORTS_SCHEMA_V1: &str =
     "zenodex/zdex-tokenomics-private-ports/v1";
 pub const ZDEX_TOKENOMICS_TRANSITION_JOURNAL_SCHEMA_V1: &str =
@@ -119,7 +118,8 @@ pub struct ZDEXTokenomicsSupplyControlStateV1 {
 
 impl ZDEXTokenomicsSupplyControlStateV1 {
     pub fn validate(&self) -> AbiResultV1<()> {
-        self.asset_id.validate("Tokenomics supply asset id", false)?;
+        self.asset_id
+            .validate("Tokenomics supply asset id", false)?;
         self.policy_root
             .validate("Tokenomics supply policy root", false)?;
         if self.live_supply_atoms == 0 {
@@ -527,108 +527,6 @@ pub struct ZDEXTokenomicsBuybackInputV1 {
     pub spot_obligation: ZDEXTokenomicsSpotObligationInputV1,
 }
 
-/// Acyclic semantic quote port: proof-independent coordinates and amount only.
-///
-/// It omits journal and receipt-binding roots so no hash fixed point can form
-/// with the module journal or an opaque verified leaf wrapper.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ZDEXAtomicBuybackQuotePortV2 {
-    pub profile_root: RootV1,
-    pub route_release_id: RootV1,
-    pub command_occurrence_id: RootV1,
-    pub global_pre_state_root: RootV1,
-    pub producer_module_release_id: RootV1,
-    pub consumer_module_release_id: RootV1,
-    pub producer_pre_lane_root: RootV1,
-    pub producer_post_lane_root: RootV1,
-    pub producer_effect_plan_root: RootV1,
-    pub selected_pool_id: RootV1,
-    pub quote_asset_id: RootV1,
-    pub source_principal: String,
-    pub destination_principal: String,
-    pub amount_atoms: u128,
-}
-
-impl ZDEXAtomicBuybackQuotePortV2 {
-    pub fn validate(&self) -> AbiResultV1<()> {
-        for root in [
-            &self.profile_root,
-            &self.route_release_id,
-            &self.command_occurrence_id,
-            &self.global_pre_state_root,
-            &self.producer_module_release_id,
-            &self.consumer_module_release_id,
-            &self.producer_pre_lane_root,
-            &self.producer_post_lane_root,
-            &self.producer_effect_plan_root,
-            &self.selected_pool_id,
-            &self.quote_asset_id,
-        ] {
-            root.validate("Atomic buyback quote port root", false)?;
-        }
-        validate_token_v1(&self.source_principal, "Atomic buyback quote port source")?;
-        validate_token_v1(
-            &self.destination_principal,
-            "Atomic buyback quote port destination",
-        )?;
-        if self.amount_atoms == 0 || self.amount_atoms > MAX_DELTA_ATOMS_V1 {
-            return Err(AbiErrorV1::InvalidBounds("Atomic buyback quote port amount"));
-        }
-        if self.producer_pre_lane_root == self.producer_post_lane_root
-            || self.producer_module_release_id == self.consumer_module_release_id
-            || self.source_principal == self.destination_principal
-        {
-            return Err(AbiErrorV1::InvalidBinding(
-                "Atomic buyback quote port distinct owners",
-            ));
-        }
-        Ok(())
-    }
-
-    pub fn port_root(&self) -> AbiResultV1<RootV1> {
-        self.validate()?;
-        #[derive(Serialize)]
-        struct Canonical<'a> {
-            schema: &'static str,
-            profile_root: &'a RootV1,
-            route_release_id: &'a RootV1,
-            command_occurrence_id: &'a RootV1,
-            global_pre_state_root: &'a RootV1,
-            producer_module_release_id: &'a RootV1,
-            consumer_module_release_id: &'a RootV1,
-            producer_pre_lane_root: &'a RootV1,
-            producer_post_lane_root: &'a RootV1,
-            producer_effect_plan_root: &'a RootV1,
-            selected_pool_id: &'a RootV1,
-            quote_asset_id: &'a RootV1,
-            source_principal: &'a str,
-            destination_principal: &'a str,
-            amount_atoms: u128,
-        }
-        hash_global_v1(
-            "zdex-atomic-buyback-quote-port-v2",
-            &Canonical {
-                schema: ZDEX_ATOMIC_BUYBACK_QUOTE_PORT_SCHEMA_V2,
-                profile_root: &self.profile_root,
-                route_release_id: &self.route_release_id,
-                command_occurrence_id: &self.command_occurrence_id,
-                global_pre_state_root: &self.global_pre_state_root,
-                producer_module_release_id: &self.producer_module_release_id,
-                consumer_module_release_id: &self.consumer_module_release_id,
-                producer_pre_lane_root: &self.producer_pre_lane_root,
-                producer_post_lane_root: &self.producer_post_lane_root,
-                producer_effect_plan_root: &self.producer_effect_plan_root,
-                selected_pool_id: &self.selected_pool_id,
-                quote_asset_id: &self.quote_asset_id,
-                source_principal: &self.source_principal,
-                destination_principal: &self.destination_principal,
-                amount_atoms: self.amount_atoms,
-            },
-        )
-    }
-}
-
 /// The produced quote port and the consumed Spot obligation, as one pair.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -873,11 +771,11 @@ impl ZDEXTokenomicsBuybackIntentV1 {
         let spend_post_root = self.spend_post_state.state_root()?;
         let quote = &self.quote_output;
         if pre_root == spend_post_root
-            || quote.producer_pre_lane_root != pre_root
-            || quote.producer_post_lane_root != spend_post_root
-            || quote.producer_effect_plan_root != self.spend_effects.effect_plan_root()?
+            || quote.producer_quote_pre_state_root != pre_root
+            || quote.producer_quote_post_state_root != spend_post_root
+            || quote.producer_quote_effect_plan_root != self.spend_effects.effect_plan_root()?
             || quote.amount_atoms != self.spend.intent().quote_spend_atoms
-            || quote.source_principal != FEE_BUYBACK_PRINCIPAL_V1
+            || quote.source_principal() != FEE_BUYBACK_PRINCIPAL_V1
             || !self.spend_effects.lane_writes.is_empty()
             || self.spend_post_state.supply != self.pre_state.supply
         {
@@ -1153,19 +1051,22 @@ fn release_matches_v1(authority: &ZDEXTokenomicsBuybackAuthorityContextV1) -> bo
 
 fn profile_matches_v1(authority: &ZDEXTokenomicsBuybackAuthorityContextV1) -> AbiResultV1<bool> {
     let profile = &authority.profile_authorization;
-    Ok(authority.profile_authorization_root == profile.authorization_root()?
-        && profile.profile_root == authority.profile_root
-        && profile.chain_id == authority.chain_id
-        && profile.deployment_root == authority.deployment_root
-        && profile.route_release_id == authority.route_release_id
-        && profile.spot_module_release_id == authority.spot_module_release_id
-        && profile.tokenomics_module_release_id == authority.tokenomics_module_release_id
-        && profile.release_root == authority.release.release_root()?
-        && profile.execution_policy_root == authority.execution_policy.policy_root()?
-        && profile.fee_policy_root == authority.fee_policy.policy_root()?
-        && profile.spend_policy_root == authority.spend_policy.policy_root()?
-        && profile.hyperdeflation_policy_root == authority.hyperdeflation_policy.policy_root()?
-        && profile.price_policy_root == authority.price_policy_root)
+    Ok(
+        authority.profile_authorization_root == profile.authorization_root()?
+            && profile.profile_root == authority.profile_root
+            && profile.chain_id == authority.chain_id
+            && profile.deployment_root == authority.deployment_root
+            && profile.route_release_id == authority.route_release_id
+            && profile.spot_module_release_id == authority.spot_module_release_id
+            && profile.tokenomics_module_release_id == authority.tokenomics_module_release_id
+            && profile.release_root == authority.release.release_root()?
+            && profile.execution_policy_root == authority.execution_policy.policy_root()?
+            && profile.fee_policy_root == authority.fee_policy.policy_root()?
+            && profile.spend_policy_root == authority.spend_policy.policy_root()?
+            && profile.hyperdeflation_policy_root
+                == authority.hyperdeflation_policy.policy_root()?
+            && profile.price_policy_root == authority.price_policy_root,
+    )
 }
 
 fn safe_limit_matches_v1(
@@ -1326,22 +1227,19 @@ fn quote_port_v2(
 ) -> AbiResultV1<ZDEXAtomicBuybackQuotePortV2> {
     let policy = &authority.execution_policy;
     let port = ZDEXAtomicBuybackQuotePortV2 {
+        schema: crate::zdex_atomic_buyback_quote_port_v2::ZDEX_ATOMIC_BUYBACK_QUOTE_PORT_SCHEMA_V2
+            .to_owned(),
         profile_root: authority.profile_root.clone(),
         route_release_id: authority.route_release_id.clone(),
         command_occurrence_id: authority.command_occurrence_id.clone(),
         global_pre_state_root: authority.global_pre_state_root.clone(),
         producer_module_release_id: authority.tokenomics_module_release_id.clone(),
         consumer_module_release_id: authority.spot_module_release_id.clone(),
-        producer_pre_lane_root: pre_state_root,
-        producer_post_lane_root: spend_post_state_root,
-        producer_effect_plan_root: spend_effects.effect_plan_root()?,
+        producer_quote_pre_state_root: pre_state_root,
+        producer_quote_post_state_root: spend_post_state_root,
+        producer_quote_effect_plan_root: spend_effects.effect_plan_root()?,
         selected_pool_id: policy.pool_id.clone(),
         quote_asset_id: policy.quote_asset_id.clone(),
-        source_principal: FEE_BUYBACK_PRINCIPAL_V1.to_owned(),
-        destination_principal: zdex_pool_reserve_principal_v1(
-            &policy.pool_id,
-            &policy.quote_asset_id,
-        )?,
         amount_atoms: spend.intent().quote_spend_atoms,
     };
     port.validate()?;
@@ -1364,7 +1262,9 @@ fn first_context_reject_v1(
         ));
     }
     if !safe_limit_matches_v1(&candidate.safe_limit_port, authority) {
-        return Ok(Some(ZDEXTokenomicsBuybackRejectCodeV1::SAFETY_LIMIT_MISMATCH));
+        return Ok(Some(
+            ZDEXTokenomicsBuybackRejectCodeV1::SAFETY_LIMIT_MISMATCH,
+        ));
     }
     if !policy_matches_v1(authority) {
         return Ok(Some(ZDEXTokenomicsBuybackRejectCodeV1::POLICY_MISMATCH));
@@ -1381,7 +1281,11 @@ pub fn derive_zdex_tokenomics_buyback_intent_v1(
     candidate: &ZDEXTokenomicsBuybackIntentInputV1,
 ) -> AbiResultV1<ZDEXTokenomicsBuybackIntentResultV1> {
     let pre_state = &candidate.pre_state;
-    let rejected = |code| Ok(ZDEXTokenomicsBuybackIntentResultV1::Rejected(Box::new(reject_v1(code, pre_state))));
+    let rejected = |code| {
+        Ok(ZDEXTokenomicsBuybackIntentResultV1::Rejected(Box::new(
+            reject_v1(code, pre_state),
+        )))
+    };
     let authority = match &candidate.authority {
         ZDEXTokenomicsBuybackAuthorityInputV1::CONTEXT(authority)
             if authority.validate_wire().is_ok() =>
@@ -1422,7 +1326,9 @@ pub fn derive_zdex_tokenomics_buyback_intent_v1(
         context_root: context_root_v1(authority, &candidate.safe_limit_port)?,
     };
     intent.validate()?;
-    Ok(ZDEXTokenomicsBuybackIntentResultV1::Accepted(Box::new(intent)))
+    Ok(ZDEXTokenomicsBuybackIntentResultV1::Accepted(Box::new(
+        intent,
+    )))
 }
 
 fn spot_flow_id_v1(
@@ -1457,7 +1363,11 @@ fn purchase_port_reject_v1<'a>(
         {
             obligation.as_ref()
         }
-        _ => return Ok(Err(ZDEXTokenomicsBuybackRejectCodeV1::PURCHASE_PORT_MISMATCH)),
+        _ => {
+            return Ok(Err(
+                ZDEXTokenomicsBuybackRejectCodeV1::PURCHASE_PORT_MISMATCH,
+            ))
+        }
     };
     let policy = &authority.execution_policy;
     let burn_principal = zdex_occurrence_burn_port_v1(
@@ -1480,14 +1390,16 @@ fn purchase_port_reject_v1<'a>(
         || obligation.selected_pool_id != policy.pool_id
         || purchased_flow_id.as_ref() != Ok(&obligation.purchased_output_flow_id)
     {
-        return Ok(Err(ZDEXTokenomicsBuybackRejectCodeV1::PURCHASE_PORT_MISMATCH));
+        return Ok(Err(
+            ZDEXTokenomicsBuybackRejectCodeV1::PURCHASE_PORT_MISMATCH,
+        ));
     }
     let quote_flow_id = spot_flow_id_v1(
         ZDEXSpotFlowRoleV1::QUOTE_INPUT,
         obligation,
         &policy.quote_asset_id,
         FEE_BUYBACK_PRINCIPAL_V1,
-        &intent.quote_output.destination_principal,
+        &intent.quote_output.destination_principal()?,
         intent.quote_output.amount_atoms,
     )?;
     if quote_flow_id != obligation.quote_input_flow_id {
@@ -1509,7 +1421,9 @@ fn burn_amounts_v1(
         .ok_or(AbiErrorV1::InvalidBounds("Tokenomics retained supply"))?;
     let epoch_headroom = supply.remaining_epoch_burn_cap_atoms;
     if ratio_headroom == 0 {
-        return Ok(Err(ZDEXTokenomicsBurnRejectCodeV1::RETAINED_SUPPLY_FLOOR_REACHED));
+        return Ok(Err(
+            ZDEXTokenomicsBurnRejectCodeV1::RETAINED_SUPPLY_FLOOR_REACHED,
+        ));
     }
     if epoch_headroom == 0 {
         return Ok(Err(ZDEXTokenomicsBurnRejectCodeV1::EPOCH_BURN_CAP_REACHED));
@@ -1600,10 +1514,10 @@ fn build_journal_v1(
         .ok_or(AbiErrorV1::InvalidBinding("Tokenomics buyback reserve row"))?;
     let journal = ZDEXTokenomicsBuybackJournalV1 {
         context_root: intent.context_root.clone(),
-        pre_state_root: quote.producer_pre_lane_root.clone(),
-        spend_post_state_root: quote.producer_post_lane_root.clone(),
+        pre_state_root: quote.producer_quote_pre_state_root.clone(),
+        spend_post_state_root: quote.producer_quote_post_state_root.clone(),
         post_state_root: post_state.state_root()?,
-        spend_effect_plan_root: quote.producer_effect_plan_root.clone(),
+        spend_effect_plan_root: quote.producer_quote_effect_plan_root.clone(),
         effect_plan_root: effects.effect_plan_root()?,
         quote_port_root: quote.port_root()?,
         private_ports_root: ports.ports_root()?,
@@ -1641,18 +1555,24 @@ pub fn transition_zdex_tokenomics_buyback_v1(
     candidate: &ZDEXTokenomicsBuybackInputV1,
 ) -> AbiResultV1<ZDEXTokenomicsBuybackResultV1> {
     let pre_state = &candidate.intent_input.pre_state;
-    let rejected = |code| Ok(ZDEXTokenomicsBuybackResultV1::Rejected(Box::new(reject_v1(code, pre_state))));
+    let rejected = |code| {
+        Ok(ZDEXTokenomicsBuybackResultV1::Rejected(Box::new(
+            reject_v1(code, pre_state),
+        )))
+    };
     let intent = match derive_zdex_tokenomics_buyback_intent_v1(&candidate.intent_input)? {
         ZDEXTokenomicsBuybackIntentResultV1::Accepted(intent) => *intent,
         ZDEXTokenomicsBuybackIntentResultV1::Rejected(rejected) => {
             return Ok(ZDEXTokenomicsBuybackResultV1::Rejected(rejected));
         }
     };
-    let ZDEXTokenomicsBuybackAuthorityInputV1::CONTEXT(authority) = &candidate.intent_input.authority
+    let ZDEXTokenomicsBuybackAuthorityInputV1::CONTEXT(authority) =
+        &candidate.intent_input.authority
     else {
         return rejected(ZDEXTokenomicsBuybackRejectCodeV1::AUTHORITY_MALFORMED);
     };
-    let obligation = match purchase_port_reject_v1(&candidate.spot_obligation, authority, &intent)? {
+    let obligation = match purchase_port_reject_v1(&candidate.spot_obligation, authority, &intent)?
+    {
         Ok(obligation) => obligation,
         Err(code) => return rejected(code),
     };

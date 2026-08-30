@@ -45,6 +45,7 @@ from .global_settlement_types_v1 import (
     _require_token,
     hash_global_v1,
 )
+from .zdex_atomic_buyback_quote_port_v2 import ZDEXAtomicBuybackQuotePortV2
 from .zdex_buyback_spend_v1 import (
     ZDEXBuybackSpendAcceptedV1,
     ZDEXBuybackSpendContextV1,
@@ -99,9 +100,6 @@ ZDEX_TOKENOMICS_PROFILE_AUTHORIZATION_SCHEMA_V1: Final = (
 )
 ZDEX_TOKENOMICS_SAFE_LIMIT_PORT_SCHEMA_V1: Final = (
     "zenodex/zdex-tokenomics-safe-limit-port/v1"
-)
-ZDEX_ATOMIC_BUYBACK_QUOTE_PORT_SCHEMA_V2: Final = (
-    "zenodex/zdex-atomic-buyback-quote-port/v2"
 )
 ZDEX_TOKENOMICS_PRIVATE_PORTS_SCHEMA_V1: Final = (
     "zenodex/zdex-tokenomics-private-ports/v1"
@@ -474,81 +472,6 @@ class ZDEXTokenomicsBuybackInputV1:
     def __post_init__(self) -> None:
         if type(self.intent_input) is not ZDEXTokenomicsBuybackIntentInputV1:
             raise TypeError("Tokenomics buyback input requires an exact intent input")
-
-
-@dataclass(frozen=True, slots=True)
-class ZDEXAtomicBuybackQuotePortV2:
-    """Acyclic semantic quote port: proof-independent coordinates and amount only.
-
-    The port deliberately omits journal and receipt-binding roots.  An outer
-    route composer pairs ``port_root`` with the producer journal and with an
-    opaque verified leaf wrapper after both lane receipts verify.
-    """
-
-    profile_root: str
-    route_release_id: str
-    command_occurrence_id: str
-    global_pre_state_root: str
-    producer_module_release_id: str
-    consumer_module_release_id: str
-    producer_pre_lane_root: str
-    producer_post_lane_root: str
-    producer_effect_plan_root: str
-    selected_pool_id: str
-    quote_asset_id: str
-    source_principal: str
-    destination_principal: str
-    amount_atoms: int
-
-    def __post_init__(self) -> None:
-        for name in (
-            "profile_root",
-            "route_release_id",
-            "command_occurrence_id",
-            "global_pre_state_root",
-            "producer_module_release_id",
-            "consumer_module_release_id",
-            "producer_pre_lane_root",
-            "producer_post_lane_root",
-            "producer_effect_plan_root",
-            "selected_pool_id",
-            "quote_asset_id",
-        ):
-            _require_root(getattr(self, name), name=f"Atomic buyback quote port {name}")
-        for name in ("source_principal", "destination_principal"):
-            _require_token(getattr(self, name), name=f"Atomic buyback quote port {name}")
-        amount = _require_atoms_u128(self.amount_atoms, name="Atomic buyback quote port amount")
-        if amount == 0 or amount > MAX_DELTA_ATOMS_V1:
-            raise ValueError("Atomic buyback quote port amount must fit a positive signed effect")
-        if (
-            self.producer_pre_lane_root == self.producer_post_lane_root
-            or self.producer_module_release_id == self.consumer_module_release_id
-            or self.source_principal == self.destination_principal
-        ):
-            raise ValueError("Atomic buyback quote port must move value between distinct owners")
-
-    @property
-    def port_root(self) -> str:
-        return hash_global_v1("zdex-atomic-buyback-quote-port-v2", self.to_canonical())
-
-    def to_canonical(self) -> dict[str, object]:
-        return {
-            "schema": ZDEX_ATOMIC_BUYBACK_QUOTE_PORT_SCHEMA_V2,
-            "profile_root": self.profile_root,
-            "route_release_id": self.route_release_id,
-            "command_occurrence_id": self.command_occurrence_id,
-            "global_pre_state_root": self.global_pre_state_root,
-            "producer_module_release_id": self.producer_module_release_id,
-            "consumer_module_release_id": self.consumer_module_release_id,
-            "producer_pre_lane_root": self.producer_pre_lane_root,
-            "producer_post_lane_root": self.producer_post_lane_root,
-            "producer_effect_plan_root": self.producer_effect_plan_root,
-            "selected_pool_id": self.selected_pool_id,
-            "quote_asset_id": self.quote_asset_id,
-            "source_principal": self.source_principal,
-            "destination_principal": self.destination_principal,
-            "amount_atoms": self.amount_atoms,
-        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -1336,20 +1259,18 @@ def _quote_port_v2(
 ) -> ZDEXAtomicBuybackQuotePortV2:
     policy = authority.execution_policy
     return ZDEXAtomicBuybackQuotePortV2(
-        authority.profile_root,
-        authority.route_release_id,
-        authority.command_occurrence_id,
-        authority.global_pre_state_root,
-        authority.tokenomics_module_release_id,
-        authority.spot_module_release_id,
-        pre_state_root,
-        spend_post_state_root,
-        spend_effects.effect_plan_root,
-        policy.pool_id,
-        policy.quote_asset_id,
-        FEE_BUYBACK_PRINCIPAL_V1,
-        zdex_pool_reserve_principal_v1(pool_id=policy.pool_id, asset_id=policy.quote_asset_id),
-        spend.intent.quote_spend_atoms,
+        profile_root=authority.profile_root,
+        route_release_id=authority.route_release_id,
+        command_occurrence_id=authority.command_occurrence_id,
+        global_pre_state_root=authority.global_pre_state_root,
+        producer_module_release_id=authority.tokenomics_module_release_id,
+        consumer_module_release_id=authority.spot_module_release_id,
+        producer_quote_pre_state_root=pre_state_root,
+        producer_quote_post_state_root=spend_post_state_root,
+        producer_quote_effect_plan_root=spend_effects.effect_plan_root,
+        selected_pool_id=policy.pool_id,
+        quote_asset_id=policy.quote_asset_id,
+        amount_atoms=spend.intent.quote_spend_atoms,
     )
 
 
@@ -1542,10 +1463,10 @@ def _build_journal_v1(
     quote = intent.quote_output
     return ZDEXTokenomicsBuybackJournalV1(
         intent.context_root,
-        quote.producer_pre_lane_root,
-        quote.producer_post_lane_root,
+        quote.producer_quote_pre_state_root,
+        quote.producer_quote_post_state_root,
         post_state.state_root,
-        quote.producer_effect_plan_root,
+        quote.producer_quote_effect_plan_root,
         effects.effect_plan_root,
         quote.port_root,
         ports.ports_root,
