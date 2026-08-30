@@ -408,11 +408,96 @@ The outer route composer, which does not exist yet, must pair the exact
 port, and bind both lane journals to opaque verified leaf wrappers. The
 safety-limit port, the obligation context root, and the profile authorization
 remain caller-constructible provenance inside this leaf. No receipt is
-verified, no lane coordinator or Lean model exists for the tokenomics leaf, the
-fee, spend, and retained-supply parameters remain unselected research fixtures,
-and no production, settlement, publication, or value-moving authority is
-established.
+verified, no lane coordinator or runtime-to-Lean refinement theorem exists for
+the tokenomics leaf, the fee, spend, and retained-supply parameters remain
+unselected research fixtures, and no production, settlement, publication, or
+value-moving authority is established.
 
+### Lean Tokenomics formal-model checkpoint
+
+`lean-mathlib/Proofs/ZDEXTokenomicsBuybackTransitionV1.lean` defines the
+successor `ZDEX_TOKENOMICS` state machine for the same occurrence. It imports
+the Spot leaf and the spend kernel, so it consumes the exact
+`FlowIdentity`, `TerminalObligation`, and `selectedQuoteSpend` values those
+modules define rather than re-declaring them.
+
+The command carries no caller-selected amounts. The fee amount is the committed
+fee ingress, the quote spend is the governed selection
+`min(B0 + b, per-command cap, route-safe limit)`, and the burned amount is read
+from the Spot purchased-ZDEX port. Closed destinations are an exact six-field
+record, so destination cardinality, key, and canonical order are unrepresentable
+failures rather than checked ones.
+
+Lean proves, on the accepted transition: exact fee conservation
+`F = b + sum(a) + r` over floored basis-point shares; `B1 + q = B0 + b` together
+with the subtraction form `B1 = B0 + b - q`; that the spend respects the
+reserve, the per-command cap, and the authenticated route-safe limit; that the
+quote port carries exactly the derived spend; that the purchased port amount,
+the obligation amount, the emitted burn magnitude, and the live-supply decrease
+are one value; exact supply reduction with a positive post-supply; tokenomics
+quote conservation, so the only quote atoms leaving the lane are `q`;
+preservation of lane well-formedness and of every unrelated component root;
+cadence advance under the governed interval; canonical effects that are
+nonzero, lane-owned, gross rather than netted, and accompanied by exactly one
+bound lane write and an empty consumed-object tuple; exact discharge of the
+`MUST_BURN_PURCHASED_ZDEX` obligation with a retained nonzero route
+coordination obligation; exact journal binding; and rejection as an exact
+no-effect, no-discharge, no-op. Every reject family has a concrete witness.
+Accepting fixtures cover the governed candidate split, the exact cadence
+boundary, and a four-atom fee whose shares all floor to zero.
+
+Three pairing theorems connect the two leaves directly: under the hypothesis
+that this leaf consumes the Spot leaf's accepted ports and obligation, the Spot
+quote input equals the governed tokenomics spend, the Spot purchased output
+equals the tokenomics burn, the Spot quote port's source post-state and
+effect-plan roots equal this leaf's derived roots, and the discharged
+obligation identity and amount are the Spot-issued ones.
+
+Every checked theorem depends only on `propext`, `Classical.choice`, and
+`Quot.sound`. The file uses no `native_decide`, so no claim rests on
+compiler-level evaluation.
+
+#### Realizable dependency order
+
+Building the first accepting witness exposed an ordering constraint the earlier
+checkpoints did not state. The Spot leaf consumes the tokenomics post-state
+root and effect-plan root inside its quote port and only then derives the
+terminal obligation identifier. A tokenomics effect plan that committed to the
+discharged obligation identifier, or that read the burn principal from the
+consumed obligation, would make the composed route a fixpoint with no
+constructible value.
+
+This release therefore takes the burn principal from the governed release and
+keeps discharged obligation identifiers outside the effect-plan root, binding
+them through the result and the journal instead. Three theorems check the
+property directly: the accepted post-state, the effect-plan root, and the
+derived spend are all invariant under substituting the consumed obligation and
+both Spot ports.
+
+#### Remaining formal/runtime abstraction gap
+
+The Lean `TokenomicsState` is an abstract mathematical projection of the
+runtime `ZDEXTokenomicsBuybackLaneStateV1`. Its injective natural-number
+commitments do not model canonical bytes or cryptographic hashing. It also
+consumes the historical Spot V1 mathematical port shape, while the runtime
+successor emits the acyclic shared `ZDEXAtomicBuybackQuotePortV2`. An explicit
+abstraction function, shared language-neutral corpus, and checked refinement
+theorems are still required before the Python and Rust implementations can be
+described as refinements of this model.
+
+#### Nonclaims for this checkpoint
+
+The model is an exact mathematical state machine over natural numbers. It does
+not establish canonical-byte encoding, cryptographic root construction,
+collision resistance, Python or Rust parity, RISC0 receipt verification, Spot
+lane-receipt verification, route or epoch composition, migration, or ZenoLedger
+publication. The route-safe quote limit, the Oracle registry root, the source
+journal and receipt-binding roots, and the Spot flow preimages remain
+authenticated verifier-port premises supplied to the core. The fixture
+percentages, caps, minimum spend, and cadence interval are release semantics for
+this bounded candidate and select no production economic policy. The pairing
+theorems assume a route composer that supplies matching leaves; no such
+composer, mount, or settlement authority is created here.
 ## ABI boundary for consumed objects
 
 `EconomicCommandOccurrenceV1` already commits `consumed_object_ids`, while the
@@ -532,9 +617,11 @@ evidence, with the complete Lean/runtime correspondence obligations described
 above.
 The successor tokenomics leaf now owns fee allocation, reserve spend, cadence,
 the acyclic V2 quote port, exact burn, and supply update in one complete
-state with bounded Python/Rust differential evidence; it verifies no receipt,
-and Spot V1 still consumes two placeholder provenance roots until a Spot V2
-port exists.
+state with bounded Python/Rust differential evidence. A separate Lean formal
+model proves its abstract fee, reserve, burn, rejection, and conditional
+cross-leaf equations. Exact canonical-byte and state-projection refinement
+between those artifacts remains open. The leaf verifies no receipt, and Spot
+V1 still consumes two placeholder provenance roots until a Spot V2 port exists.
 The existing burn-only tokenomics coordinator does not close the route
 obligation. Current-head admission, authenticated Tokenomics source receipt,
 RISC0 guests, universal runtime-to-theorem refinement, migration, durable

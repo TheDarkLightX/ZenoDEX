@@ -1,0 +1,218 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260830-zdex-tokenomics-buyback-successor-core-v1",
+  "created_date": "2026-08-30",
+  "claim_scope": "Research-only formal evidence for the successor same-occurrence ZDEX_TOKENOMICS state machine of one governed ZDEX buy-and-burn route. Lean models a complete tokenomics lane state, a closed six-destination fee-allocation record, committed-ingress fee derivation with no caller amount, the governed quote-spend selection reused from ZDEXBuybackSpendV1, consumption of the exact purchased-ZDEX flow port and MUST_BURN_PURCHASED_ZDEX terminal obligation imported from ZDEXSpotBuybackTransitionV1, exact fee conservation over floored basis-point shares, the buyback-reserve transition B1 = B0 + b - q, purchased-equals-burned across port, obligation, emitted burn effect and live supply, exact supply reduction with positive post-supply, tokenomics-local quote conservation, consensus-height cadence, gross non-netted canonical lane-owned effects, exact terminal discharge with a retained nonzero route-coordination obligation, exact journal binding, ordered typed rejection with a witness per family, rejection as an exact no-effect no-op, obligation-independence of the derived post-state and effect-plan roots, and direct pairing theorems against the Spot leaf.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "ZDEX-TOKENOMICS-BUYBACK-EXACT-FEE-CONSERVATION",
+    "ZDEX-TOKENOMICS-BUYBACK-DERIVED-FEE-COMMAND",
+    "ZDEX-TOKENOMICS-BUYBACK-GOVERNED-SPEND-SELECTION",
+    "ZDEX-TOKENOMICS-BUYBACK-RESERVE-TRANSITION",
+    "ZDEX-TOKENOMICS-BUYBACK-PURCHASED-EQUALS-BURNED",
+    "ZDEX-TOKENOMICS-BUYBACK-EXACT-SUPPLY-REDUCTION",
+    "ZDEX-TOKENOMICS-BUYBACK-LOCAL-QUOTE-CONSERVATION",
+    "ZDEX-TOKENOMICS-BUYBACK-CADENCE-ADVANCE",
+    "ZDEX-TOKENOMICS-BUYBACK-GROSS-CANONICAL-EFFECTS",
+    "ZDEX-TOKENOMICS-BUYBACK-SINGLE-BURN-ROW",
+    "ZDEX-TOKENOMICS-BUYBACK-UNRELATED-COMPONENT-PRESERVATION",
+    "ZDEX-TOKENOMICS-BUYBACK-TERMINAL-DISCHARGE",
+    "ZDEX-TOKENOMICS-BUYBACK-RETAINED-ROUTE-OBLIGATION",
+    "ZDEX-TOKENOMICS-BUYBACK-EXACT-JOURNAL-BINDING",
+    "ZDEX-TOKENOMICS-BUYBACK-REJECT-NOOP",
+    "ZDEX-TOKENOMICS-BUYBACK-FIRST-FAILURE-PRECEDENCE",
+    "ZDEX-TOKENOMICS-BUYBACK-MATHEMATICAL-COMMITMENT-INJECTIVITY",
+    "ZDEX-TOKENOMICS-BUYBACK-REALIZABLE-DEPENDENCY-ORDER",
+    "ZDEX-TOKENOMICS-BUYBACK-EXACT-SPOT-PAIRING",
+    "ZDEX-TOKENOMICS-BUYBACK-CORE-AXIOMS-ONLY"
+  ],
+  "failure_modes": [
+    "a caller selects the fee amount, the quote spend, or the burned amount",
+    "floored basis-point shares over-allocate or silently drop the unassigned remainder",
+    "the buyback reserve is debited without the matching allocation credit, or truncates",
+    "the burned amount differs from the purchased amount in the port, the obligation, the emitted effect, or the supply delta",
+    "a full-supply burn produces a live supply the runtime state type cannot represent",
+    "quote atoms leave the tokenomics lane other than through the governed spend",
+    "a buyback executes before the governed cadence interval or on a regressed height",
+    "the effect plan nets the buyback credit against the spend and hides the arithmetic",
+    "the tokenomics leaf writes a Spot pool reserve or a second lane",
+    "a zero-magnitude effect row is emitted",
+    "an unrelated tokenomics component root changes during a buyback",
+    "the Spot terminal obligation is discharged by a module that is not the named consumer",
+    "the route coordination obligation is closed by the module leaf alone",
+    "the effect-plan or post-state root depends on the consumed obligation, making the composed route a fixpoint",
+    "a flow from another command occurrence aliases an accepted port",
+    "rejection mutates state, emits effects, discharges an obligation, or creates a route obligation",
+    "a claim rests on a placeholder or on compiler-level native evaluation"
+  ],
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/ZDEXTokenomicsBuybackTransitionV1.lean",
+      "sha256": "c6b4e2cd0604b1009e6a981551808d3bee0ac3bf71be666e19e725075344f4cf"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZDEXSpotBuybackTransitionV1.lean",
+      "sha256": "e5c2bc35f15afc38cb9f812ac99bd8dc824153ff1b1f2d55845cae550bfa861d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZDEXBuybackSpendV1.lean",
+      "sha256": "99633d309930b39e575d46dee76d189a22163fe8de9093ad7058ad5ecdd5f12f"
+    },
+    {
+      "path": "docs/research/ZDEX_ATOMIC_BUYBACK_ARCHITECTURE_DECISION_20260828.md",
+      "sha256": "3ce4f03ded7d72258b89427dba9c65a13c0b38dade6082e91ad6eef2a972c168"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py",
+      "sha256": "7b0488deb03406e518f79062b1fa5b0520dbb26e4842e8cf0155a37f7ab33673",
+      "node_ids": [
+        "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_has_closed_successor_surface",
+        "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean",
+        "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_theorems_use_only_core_axioms"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "formal"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The surface test arranges the exact proof file, acts by reading it and by typechecking it with the toolchain pinned in lean-toolchain, and asserts the closed declaration set, the absence of placeholders and native_decide, the imported Spot and spend bindings, and the conservative nonclaims. The axiom test acts by printing the axiom footprint of fourteen load-bearing theorems and asserts it stays inside propext, Classical.choice and Quot.sound. RIPR reaches every definition used by transition, infects the derived allocation, spend, post-state, effects, discharge, journal and guards, propagates into theorem conclusions and decidable fixture evaluation, and reveals through a failed Lean check or a changed axiom footprint. The primary model oracle is grade 4; runtime refinement remains ungraded."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "rejected_is_exact_noop proves identical pre and post state, empty effects, no discharge and a zero route obligation for every rejected transition, and rejected_witness_is_an_exact_noop instantiates it on a concrete substituted-burn-principal witness. Runtime history, receipt, outbox and durable state no-op remain unproved."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "fee_split_and_residue",
+      "points": [
+        "one_thousand_atom_fee_splits_to_200_buyback_550_other_250_residue",
+        "four_atom_fee_floors_every_share_and_carries_three_as_residue",
+        "zero_basis_point_destination_emits_no_allocation_row",
+        "zero_fee_ingress_rejects_zero_fee",
+        "assigned_shares_above_ten_thousand_basis_points_reject_policy_mismatch"
+      ]
+    },
+    {
+      "name": "reserve_and_spend",
+      "points": [
+        "spend_bounded_by_reserve_cap_and_route_safe_limit",
+        "route_safe_limit_below_governed_minimum_rejects_minimum_spend_mismatch",
+        "reserve_post_equals_reserve_pre_plus_allocation_minus_spend_without_truncation",
+        "zero_route_safe_limit_rejects_amount_out_of_range"
+      ]
+    },
+    {
+      "name": "burn_and_supply",
+      "points": [
+        "zero_purchased_amount_rejects_amount_out_of_range",
+        "purchased_strictly_below_live_supply_keeps_post_supply_positive",
+        "live_supply_falls_by_exactly_the_purchased_amount"
+      ]
+    },
+    {
+      "name": "cadence_and_machine_width",
+      "points": [
+        "exact_governed_boundary_height_accepts",
+        "one_block_before_the_boundary_rejects_cadence_ineligible",
+        "never_executed_lane_is_always_cadence_eligible",
+        "current_height_max_u64_plus_one_rejects_arithmetic_out_of_range"
+      ]
+    },
+    {
+      "name": "port_and_obligation_provenance",
+      "points": [
+        "substituted_burn_principal_rejects_the_purchased_port",
+        "quote_port_amount_other_than_the_derived_spend_rejects",
+        "consumer_module_release_other_than_this_lane_rejects_the_obligation",
+        "different_command_occurrences_produce_distinct_quote_flow_commitments",
+        "post_state_effect_plan_and_spend_are_invariant_under_obligation_substitution"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "replace committed-ingress fee derivation with a caller-supplied amount field",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "drop the assigned-basis-point bound so floored shares may exceed the charged fee",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "discard the carried residue instead of crediting the unallocated reserve",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "net the buyback allocation against the spend into one effect row",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "read the burned amount from the command instead of the Spot purchased port",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "weaken the supply guard to allow a full-supply burn",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "emit a Spot pool reserve delta or a second lane write from this leaf",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "emit a zero-magnitude allocation or residue row",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "remove the cadence guard or accept a regressed consensus height",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "discharge the terminal obligation without checking the named consumer module",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "close the route coordination obligation inside the module leaf",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "commit the discharged obligation identifier or the obligation burn principal into the effect-plan root",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "drop the flow-commitment equality binding a port to the obligation it names",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "let a rejected transition emit effects, a discharge, or a route obligation",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "replace a proof with a placeholder or with native_decide evaluation",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_theorems_use_only_core_axioms"
+    },
+    {
+      "description": "emit a second burn row or relabel a fee row as a burn",
+      "killed_by": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not prove canonical serialization, cryptographic roots, collision resistance, or state-root refinement.",
+    "This packet does not establish Python, Rust, RISC0, Tau, Oracle-runtime, lane-receipt, route-receipt, or ZenoLedger refinement.",
+    "The route-safe quote limit, Oracle registry root, source journal root, source receipt-binding root, and Spot flow preimages are authenticated verifier-port premises supplied to the core, not results.",
+    "The fixture fee percentages, caps, minimum spend, and cadence interval are release semantics of this bounded candidate, not selected production economic policy.",
+    "The pairing theorems assume a route composer that supplies matching leaves for one occurrence. No composer, lane coordinator, or epoch verifier is created.",
+    "The Lean state and injective natural-number commitments are an abstract mathematical projection; canonical-byte, cryptographic-root, and shared-port refinement to the Python and Rust successors remain unproved.",
+    "The reported reject position for the terminal-obligation and both port families is stated as guard failure plus rejection rather than an evaluated ordinal, because deciding it would require evaluating the Spot flow-identity commitment.",
+    "No mount, migration, publication, settlement, or value-moving authority is created. The release remains SHADOW and research-only."
+  ]
+}
