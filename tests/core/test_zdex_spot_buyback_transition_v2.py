@@ -17,8 +17,14 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+import src.core.zdex_spot_buyback_transition_v1 as spot_v1
 import src.core.zdex_spot_buyback_transition_v2 as spot_v2
-from src.core.global_settlement_types_v1 import MAX_ATOMS_V1, ZERO_ROOT_V1, ReleaseStatusV1
+from src.core.global_settlement_types_v1 import (
+    MAX_ATOMS_V1,
+    ZERO_ROOT_V1,
+    GlobalEconomicEffectPlanV1,
+    ReleaseStatusV1,
+)
 from src.core.zdex_atomic_buyback_quote_port_v2 import ZDEXAtomicBuybackQuotePortV2
 from src.core.zdex_buyback_price_safety_v1 import (
     ZDEXBuybackOraclePriceOccurrenceV1,
@@ -444,6 +450,40 @@ def test_state_commitment_mismatch_precedes_port_and_price_validation() -> None:
     _assert_exact_noop(result, mutated, ZDEXSpotBuybackRejectCodeV2.STATE_COMMITMENT_MISMATCH)
 
 
+def test_state_commitment_precedes_simultaneous_port_and_price_defects() -> None:
+    """V2-M09: one real defect in each family still has exact precedence."""
+
+    # Arrange.
+    candidate = _candidate()
+    stable = _stable_authority(candidate)
+    bad_port = replace(candidate.quote_port, selected_pool_id=_root(90_003))
+    bad_coordinates = replace(
+        candidate.price_envelope.coordinates,
+        quote_port_root=_root(90_004),
+    )
+    mutated = _unchecked_replace(
+        candidate,
+        authority=ZDEXSpotBuybackAuthorityContextV2(
+            replace(stable, spot_pre_state_root=_root(90_002))
+        ),
+        quote_port=bad_port,
+        price_envelope=replace(
+            candidate.price_envelope,
+            coordinates=bad_coordinates,
+        ),
+    )
+
+    # Act.
+    result = transition_zdex_spot_buyback_v2(mutated)
+
+    # Assert.
+    _assert_exact_noop(
+        result,
+        mutated,
+        ZDEXSpotBuybackRejectCodeV2.STATE_COMMITMENT_MISMATCH,
+    )
+
+
 def test_one_atom_boundary_is_live_with_price_matched_reserves() -> None:
     # Arrange: 6000 * 1 // 501 = 11, matching the exact rounded Oracle floor.
     candidate = _candidate(
@@ -525,18 +565,16 @@ def test_forged_frozen_v1_state_and_authority_values_fail_closed_before_math() -
         authority=malformed_context,
     )
 
+    # Act / Assert: no valid no-op wrapper can retain an invalid state graph.
+    with pytest.raises(ValueError, match="created height"):
+        transition_zdex_spot_buyback_v2(malformed_state_candidate)
+
     # Act.
-    malformed_state_result = transition_zdex_spot_buyback_v2(malformed_state_candidate)
     malformed_authority_result = transition_zdex_spot_buyback_v2(
         malformed_authority_candidate
     )
 
     # Assert: semantic revalidation precedes pool selection, arithmetic, and hashing.
-    _assert_exact_noop(
-        malformed_state_result,
-        malformed_state_candidate,
-        ZDEXSpotBuybackRejectCodeV2.INPUT_MALFORMED,
-    )
     _assert_exact_noop(
         malformed_authority_result,
         malformed_authority_candidate,
@@ -663,3 +701,143 @@ def test_amount_over_u128_is_rejected_by_the_shared_port_constructor() -> None:
     # Act / Assert.
     with pytest.raises(ValueError, match="unsigned 128-bit"):
         replace(candidate.quote_port, amount_atoms=MAX_ATOMS_V1 + 1)
+
+
+def test_rejected_v2_requires_exact_empty_effect_plan_and_null_payloads() -> None:
+    """V2-M15: a forged rejection cannot smuggle an accepted projection."""
+
+    # Arrange.
+    candidate = _candidate()
+    rejected = spot_v2._reject(
+        ZDEXSpotBuybackRejectCodeV2.PRICE_UNSAFE,
+        candidate.pre_state,
+    )
+    nonempty = _unchecked_replace(
+        GlobalEconomicEffectPlanV1.empty(),
+        rows=(object(),),
+    )
+
+    # Act / Assert.
+    for update, error in (
+        ({"effects": object()}, TypeError),
+        ({"effects": nonempty}, TypeError),
+        ({"context": object()}, ValueError),
+        ({"ports": object()}, ValueError),
+        ({"journal": object()}, ValueError),
+        ({"terminal_obligation": object()}, ValueError),
+    ):
+        forged = _unchecked_replace(rejected, **update)
+        with pytest.raises(error):
+            forged.validate()
+
+
+def test_rejected_v2_effect_plans_are_fresh_exact_values() -> None:
+    """V2-M15: independent rejections do not share a default plan instance."""
+
+    # Arrange.
+    state = _candidate().pre_state
+
+    # Act.
+    first = spot_v2._reject(ZDEXSpotBuybackRejectCodeV2.PRICE_UNSAFE, state)
+    second = spot_v2._reject(ZDEXSpotBuybackRejectCodeV2.PRICE_UNSAFE, state)
+
+    # Assert.
+    assert type(first.effects) is GlobalEconomicEffectPlanV1
+    assert type(second.effects) is GlobalEconomicEffectPlanV1
+    assert first.effects is not second.effects
+    first.validate()
+    second.validate()
+
+
+def test_rejected_v2_revalidates_retained_state_after_forgery() -> None:
+    """V2-M15: retained no-op state receives the same deep validation as input."""
+
+    # Arrange.
+    state = _candidate().pre_state
+    forged_pool = _unchecked_replace(state.pools[0], created_height=True)
+    forged_state = _unchecked_replace(state, pools=(forged_pool,))
+    rejected = _unchecked_replace(
+        spot_v2._reject(ZDEXSpotBuybackRejectCodeV2.PRICE_UNSAFE, state),
+        pre_state=forged_state,
+        post_state=forged_state,
+    )
+
+    # Act / Assert.
+    with pytest.raises((TypeError, ValueError)):
+        rejected.validate()
+
+
+def test_v1_math_view_is_sufficient_and_exposes_no_route_authority() -> None:
+    """The unchanged V1 math receives only its exact data dependencies."""
+
+    # Arrange.
+    candidate = _candidate()
+    authority = _stable_authority(candidate)
+    view = spot_v2._v1_math_view_v2(candidate)
+    narrowed = cast(spot_v1.ZDEXSpotBuybackInputV1, view)
+
+    # Act.
+    selection = spot_v1._select_pool_v1(narrowed, authority)
+    assert type(selection) is spot_v1._ZDEXSpotSelectedPoolV1
+    amounts = spot_v1._derive_swap_amounts_v1(narrowed, authority, selection.pool)
+    assert type(amounts) is spot_v1._ZDEXSpotSwapAmountsV1
+    price = spot_v1._verify_price_safety_v1(
+        narrowed,
+        authority,
+        selection.pool,
+        amounts,
+    )
+
+    # Assert.
+    assert type(price) is not ZDEXSpotBuybackRejectCodeV2
+    assert not hasattr(view, "authority")
+    assert not hasattr(view.quote_port, "port_root")
+    assert not hasattr(view.price_envelope, "coordinates")
+    assert {
+        field.name for field in dataclass_fields(type(view.price_envelope))
+    } == {
+        "current_height",
+        "oracle_observed_height",
+        "oracle_quote_numerator_atoms",
+        "oracle_zdex_denominator_atoms",
+        "claimed_route_safe_quote_limit_atoms",
+        "minimum_output_atoms",
+    }
+
+
+def test_every_frozen_v2_root_is_byte_identical() -> None:
+    """V2-M11: the wave-zero accepted roots remain historical bytes."""
+
+    # Arrange.
+    candidate = _candidate()
+
+    # Act.
+    result = transition_zdex_spot_buyback_v2(candidate)
+    assert type(result) is ZDEXSpotBuybackAcceptedV2
+
+    # Assert.
+    assert {
+        "quote_port_root": candidate.quote_port.port_root,
+        "spot_pre_state_root": candidate.pre_state.state_root,
+        "coordinates_root": result.context.coordinates.coordinates_root,
+        "context_root": result.context.context_root,
+        "spot_post_state_root": result.post_state.state_root,
+        "effect_plan_root": result.effects.effect_plan_root,
+        "quote_input_flow_id": result.ports.quote_input.flow_id,
+        "purchased_output_flow_id": result.ports.purchased_output.flow_id,
+        "private_ports_root": result.ports.ports_root,
+        "terminal_obligation_id": result.terminal_obligation.obligation_id,
+        "journal_root": result.journal.journal_root,
+    } == {
+        "quote_port_root": "0xc55c0910c090ab45476f6cc773cfcebe7322842f21e083141d3ee94ef1df6c39",
+        "spot_pre_state_root": "0x49ac89c397d72b40aafb12b556cd1cb3e7e32bf4c0189eb0c16afc5cd12517cb",
+        "coordinates_root": "0x56ca299b1cc74138aac79cd4c07d0280c0d761e2e047ade2cbafe1dca05cdfd9",
+        "context_root": "0xc389a03563bb31372d241b284373fa1592795a3642c77d0dc33ff4a668f88441",
+        "spot_post_state_root": "0xb42313a61d18805ae7745a54b5d1bdf1e58479ebeda34861942aa022bc9a1b0f",
+        "effect_plan_root": "0xafcb6b6f8bd26a69fe8d637717450f37cc4d0f1ed380f64c19910dd01886d71a",
+        "quote_input_flow_id": "0x99a972ab1479ca9e180939cfed54e192816eeee7302d308cc05aa56c1a0ef53e",
+        "purchased_output_flow_id": "0xca98a627e4652ad1d0d40c0ade19b5c4e346d4dee2a310e256f76de548145152",
+        "private_ports_root": "0x4c57a5a9049ec31bfa5bad0893f33bdd30b8401eadd4e701956dd899581b64ed",
+        "terminal_obligation_id": "0xacdc6ff9fb66b718507ce62c5bc23dc0773101e44a6ae2e75117699d3c0b09e4",
+        "journal_root": "0x2f06748d44e4eeb7d60d0c267b8f256d22b31b529dd7f135d7d9625ae8852a4e",
+    }

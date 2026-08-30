@@ -12,7 +12,7 @@ publish state, rotate a writer epoch, or grant value-moving authority.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Final, TypeAlias, cast
 
@@ -612,19 +612,36 @@ class ZDEXSpotBuybackRejectedV2:
     code: ZDEXSpotBuybackRejectCodeV2
     pre_state: spot_v1.ZDEXSpotLaneStateV1
     post_state: spot_v1.ZDEXSpotLaneStateV1
-    effects: GlobalEconomicEffectPlanV1 = GlobalEconomicEffectPlanV1.empty()
+    effects: GlobalEconomicEffectPlanV1 = field(
+        default_factory=GlobalEconomicEffectPlanV1.empty
+    )
     context: None = None
     ports: None = None
     journal: None = None
     terminal_obligation: None = None
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         if type(self.code) is not ZDEXSpotBuybackRejectCodeV2:
             raise TypeError("Spot V2 reject code is not closed")
         if type(self.pre_state) is not spot_v1.ZDEXSpotLaneStateV1:
             raise TypeError("Spot V2 rejection pre-state must be exact typed data")
+        if type(self.post_state) is not spot_v1.ZDEXSpotLaneStateV1:
+            raise TypeError("Spot V2 rejection post-state must be exact typed data")
+        spot_v1._require_exact_accepted_graph_v1(self.pre_state)
+        _revalidate_v1_lane_state_v2(self.pre_state)
+        if type(self.effects) is not GlobalEconomicEffectPlanV1:
+            raise TypeError("Spot V2 rejection effects must be an exact effect plan")
+        self.effects.validate()
         if self.pre_state is not self.post_state or not self.effects.is_empty:
             raise ValueError("Spot V2 rejection must be an exact no-effect no-op")
+        if any(
+            object.__getattribute__(self, name) is not None
+            for name in ("context", "ports", "journal", "terminal_obligation")
+        ):
+            raise ValueError("Spot V2 rejection must expose no accepted projection")
 
 
 @dataclass(frozen=True, slots=True)
@@ -762,18 +779,52 @@ def _price_subject_matches_v2(
     )
 
 
-def _v1_math_input_view(
-    candidate: ZDEXSpotBuybackInputV2,
-) -> spot_v1.ZDEXSpotBuybackInputV1:
-    """Expose only the V1 helper fields shared by the V2 math contract.
+@dataclass(frozen=True, slots=True)
+class _ZDEXSpotV1QuoteAmountViewV2:
+    """Exact quote field read by the pinned V1 arithmetic helpers."""
 
-    This is a static view rather than a constructed V1 input.  The invoked
-    V1 helpers read ``pre_state``, ``quote_port.amount_atoms``, and the price
-    envelope arithmetic fields.  They never read a predecessor journal or
-    receipt-binding root, so no synthetic legacy data is introduced.
-    """
+    amount_atoms: int
 
-    return cast(spot_v1.ZDEXSpotBuybackInputV1, candidate)
+
+@dataclass(frozen=True, slots=True)
+class _ZDEXSpotV1PriceArithmeticViewV2:
+    """Exact price fields read by the pinned V1 arithmetic helpers."""
+
+    current_height: int
+    oracle_observed_height: int
+    oracle_quote_numerator_atoms: int
+    oracle_zdex_denominator_atoms: int
+    claimed_route_safe_quote_limit_atoms: int
+    minimum_output_atoms: int
+
+
+@dataclass(frozen=True, slots=True)
+class _ZDEXSpotV1MathViewV2:
+    """Least-authority structural input for the unchanged V1 math helpers."""
+
+    pre_state: spot_v1.ZDEXSpotLaneStateV1
+    quote_port: _ZDEXSpotV1QuoteAmountViewV2
+    price_envelope: _ZDEXSpotV1PriceArithmeticViewV2
+
+
+def _v1_math_view_v2(candidate: ZDEXSpotBuybackInputV2) -> _ZDEXSpotV1MathViewV2:
+    """Project V2 onto the complete pinned V1 math read set."""
+
+    envelope = candidate.price_envelope
+    return _ZDEXSpotV1MathViewV2(
+        pre_state=candidate.pre_state,
+        quote_port=_ZDEXSpotV1QuoteAmountViewV2(candidate.quote_port.amount_atoms),
+        price_envelope=_ZDEXSpotV1PriceArithmeticViewV2(
+            current_height=envelope.current_height,
+            oracle_observed_height=envelope.oracle_observed_height,
+            oracle_quote_numerator_atoms=envelope.oracle_quote_numerator_atoms,
+            oracle_zdex_denominator_atoms=envelope.oracle_zdex_denominator_atoms,
+            claimed_route_safe_quote_limit_atoms=(
+                envelope.claimed_route_safe_quote_limit_atoms
+            ),
+            minimum_output_atoms=envelope.minimum_output_atoms,
+        ),
+    )
 
 
 def _map_v1_reject(code: spot_v1.ZDEXSpotBuybackRejectCodeV1) -> ZDEXSpotBuybackRejectCodeV2:
@@ -922,7 +973,7 @@ def _run_stable_v1_math_v2(
 ):
     """Run the explicit V1 CPMM and price helpers over the V2 port view."""
 
-    math_input = _v1_math_input_view(candidate)
+    math_input = cast(spot_v1.ZDEXSpotBuybackInputV1, _v1_math_view_v2(candidate))
     selection = spot_v1._select_pool_v1(math_input, authority)
     if type(selection) is spot_v1.ZDEXSpotBuybackRejectCodeV1:
         return _reject(_map_v1_reject(selection), pre_state)
