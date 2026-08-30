@@ -1,0 +1,88 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260830-zdex-tokenomics-formal-model-claim-correction-v1",
+  "created_date": "2026-08-30",
+  "claim_scope": "Append-only evidence correction for THV1-20260830-zdex-tokenomics-buyback-successor-core-v1. The Lean artifact is a research-only abstract one-phase tokenomics model. It proves the stated arithmetic, rejection, obligation-independence, and abstract Spot-pairing theorems over its declared structures. It does not establish the runtime's stronger acyclic two-phase V2 transition, complete supply-control state, full runtime effect and rejection schemas, canonical encoding, or Python and Rust refinement. The architecture decision and pinned test now enforce this narrower claim while preserving the earlier packet unchanged as historical evidence.",
+  "change_kind": "evidence_correction",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "ZDEX-TOKENOMICS-FORMAL-MODEL-CLAIM-CEILING",
+    "ZDEX-TOKENOMICS-OBLIGATION-INDEPENDENCE-SCOPE",
+    "ZDEX-TOKENOMICS-FOUR-ATOM-FIXTURE-EXACTNESS"
+  ],
+  "failure_modes": [
+    "an abstract one-phase Lean model is represented as an exact refinement of the runtime's acyclic two-phase V2 transition",
+    "independence from the consumed terminal obligation is represented as independence from the purchased-output flow even though the final burn and post-state depend on that flow",
+    "the four-atom fee fixture is described as carrying all four atoms as residue even though one atom is allocated to treasury and three atoms are residue",
+    "a passing Lean compile is used to claim canonical bytes, Python or Rust parity, authenticated receipts, mounting, settlement, or value-moving authority"
+  ],
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/ZDEXTokenomicsBuybackTransitionV1.lean",
+      "sha256": "a205399621ea3567e1471be8bd617d56afd1b9c09a165c5cfaa5fc43a7b031e7"
+    },
+    {
+      "path": "docs/research/ZDEX_ATOMIC_BUYBACK_ARCHITECTURE_DECISION_20260828.md",
+      "sha256": "730ff45ab198de16c13789760ddb3eca58638c6f3a8819a4e8cbd1dbdbee3bf2"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py",
+      "sha256": "e3c22f7838524a5e6a0a2f4c225374bf22bbdd8bb4c599ab7b98c3adc921c29a",
+      "node_ids": [
+        "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_has_closed_abstract_surface",
+        "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean",
+        "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_theorems_use_only_core_axioms"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "formal"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The focused surface test arranges the exact Lean source, reads its declared scope, and asserts the abstract-model label plus the missing two-phase, supply-control, effect-schema, reject-schema, canonical-byte, runtime-parity, and authority nonclaims. The compile and axiom tests separately check theorem acceptance and the absence of sorryAx or compiler-evaluation authority."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The pinned Lean theorem rejected_is_exact_noop establishes equal abstract pre-state and post-state, empty effects, no discharge, and no route obligation for rejected abstract transitions. Runtime history, receipt, outbox, and durable-state no-op remain outside this artifact's claim."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "formal_claim_layer",
+      "points": [
+        "abstract_Lean_theorem_is_claimed",
+        "runtime_two_phase_refinement_is_unproved",
+        "mounted_value_movement_authority_is_unclaimed"
+      ]
+    },
+    {
+      "name": "dependency_scope",
+      "points": [
+        "derived_spend_is_independent_of_both_Spot_ports",
+        "post_state_and_effect_root_are_independent_of_consumed_obligation",
+        "final_burn_and_post_state_depend_on_purchased_output"
+      ]
+    },
+    {
+      "name": "four_atom_fee_fixture",
+      "points": [
+        "one_atom_allocated_to_treasury",
+        "three_atoms_carried_as_residue"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "This packet corrects claim interpretation and one fixture comment. It does not rewrite or erase the preceding append-only evidence packet.",
+    "No theorem in the pinned Lean file establishes the runtime's two-phase Phase A quote preparation, Spot execution, and Phase B purchased-output burn order.",
+    "The Lean state omits runtime asset-indexed registries, decimal precision state, precision epoch, burn-budget epoch and cap, and the complete hyperdeflation retained-floor controls.",
+    "No canonical-byte abstraction relation, Python or Rust differential corpus, RISC0 receipt, route composer, lane coordinator, epoch proof, ZenoLedger publication, migration, mount, or production authority is established.",
+    "The route remains SHADOW, research-only, unmounted, and without value-moving authority."
+  ]
+}

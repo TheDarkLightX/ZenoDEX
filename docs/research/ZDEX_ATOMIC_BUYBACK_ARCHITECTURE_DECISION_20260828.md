@@ -457,22 +457,21 @@ Every checked theorem depends only on `propext`, `Classical.choice`, and
 `Quot.sound`. The file uses no `native_decide`, so no claim rests on
 compiler-level evaluation.
 
-#### Realizable dependency order
+#### Obligation-independence result
 
-Building the first accepting witness exposed an ordering constraint the earlier
-checkpoints did not state. The Spot leaf consumes the tokenomics post-state
-root and effect-plan root inside its quote port and only then derives the
-terminal obligation identifier. A tokenomics effect plan that committed to the
-discharged obligation identifier, or that read the burn principal from the
-consumed obligation, would make the composed route a fixpoint with no
-constructible value.
+Building the first accepting witness exposed one ordering constraint the
+earlier checkpoints did not state. A tokenomics effect plan that committed to
+the discharged obligation identifier, or that read the burn principal from the
+consumed obligation, would introduce an avoidable dependency cycle.
 
 This release therefore takes the burn principal from the governed release and
 keeps discharged obligation identifiers outside the effect-plan root, binding
 them through the result and the journal instead. Three theorems check the
-property directly: the accepted post-state, the effect-plan root, and the
-derived spend are all invariant under substituting the consumed obligation and
-both Spot ports.
+property directly: the accepted post-state and effect-plan root are invariant
+under substituting the consumed obligation, and the derived spend is invariant
+under substituting both Spot ports. The final post-state and burn effect still
+depend on the purchased-output flow. These theorems therefore do not establish
+the runtime's stronger acyclic two-phase construction.
 
 #### Remaining formal/runtime abstraction gap
 

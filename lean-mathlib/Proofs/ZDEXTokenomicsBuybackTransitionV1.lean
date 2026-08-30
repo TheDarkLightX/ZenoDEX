@@ -2,15 +2,14 @@ import Proofs.ZDEXBuybackSpendV1
 import Proofs.ZDEXSpotBuybackTransitionV1
 
 /-!
-Formal functional core for the ZDEX_TOKENOMICS-owned part of one governed,
-same-occurrence ZDEX buy-and-burn route.
+Abstract formal functional core for the ZDEX_TOKENOMICS-owned part of one
+governed, same-occurrence ZDEX buy-and-burn route.
 
-This is the successor tokenomics leaf named by the atomic-buyback architecture
-decision. It owns fee allocation, buyback-reserve spending, cadence, and the
-exact burn inside one complete tokenomics state. It consumes the typed
-purchased-ZDEX port and the `MUST_BURN_PURCHASED_ZDEX` terminal obligation
-produced by `Proofs.ZDEXSpotBuybackTransitionV1`, and it produces the typed
-quote-input port that the same Spot command consumes.
+This mathematical model owns fee allocation, buyback-reserve spending,
+cadence, and the exact burn inside one abstract tokenomics state. It consumes
+the typed purchased-ZDEX port and the `MUST_BURN_PURCHASED_ZDEX` terminal
+obligation produced by `Proofs.ZDEXSpotBuybackTransitionV1`, and it produces
+the typed quote-input port that the same Spot command consumes.
 
 The fee amount is derived from committed fee ingress, so no caller may select a
 fee budget. The quote spend is derived by the governed selection rule of
@@ -18,7 +17,9 @@ fee budget. The quote spend is derived by the governed selection rule of
 amount is read from the Spot purchased-ZDEX port, so no caller may select a
 burn amount.
 
-Nonclaims: this file does not establish canonical-byte encoding, cryptographic
+Nonclaims: this file does not model the runtime's two-phase V2 dependency
+order, complete supply-control state, or full effect and reject schemas. It
+does not establish canonical-byte encoding, cryptographic
 root or collision resistance, Python/Rust parity, RISC0 receipt validity, Spot
 lane-receipt verification, route or epoch composition, migration, or ZenoLedger
 publication authority. The route-safe quote limit, the Oracle registry root,
@@ -1941,8 +1942,8 @@ def cadenceBoundaryInput : Input :=
     { nonvacuityBaseInput with
       authority := { nonvacuityAuthority with currentHeight := 150 } }
 
-/-- A four-atom fee floors every share to zero and carries the whole fee as
-residue, so no allocation row is emitted. -/
+/-- A four-atom fee allocates one treasury atom and carries three atoms as
+residue; every other destination share floors to zero. -/
 def roundedFeeInput : Input :=
   bindPorts (withPreState nonvacuityBaseInput
     { nonvacuityPreState with feeIngressAtoms := 4 })

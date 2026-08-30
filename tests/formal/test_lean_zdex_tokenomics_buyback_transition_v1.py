@@ -123,7 +123,7 @@ def _build_dependency_cache(lean: Path, cache: Path) -> dict[str, str]:
     return env
 
 
-def test_tokenomics_buyback_proof_has_closed_successor_surface() -> None:
+def test_tokenomics_buyback_proof_has_closed_abstract_surface() -> None:
     # Arrange
     source = PROOF.read_text(encoding="utf-8")
 
@@ -219,7 +219,12 @@ def test_tokenomics_buyback_proof_has_closed_successor_surface() -> None:
     assert "zdexTokenSupply" in source
     assert "consumedObjectIds := []" in source
 
-    # Conservative claim ceiling.
+    # Conservative claim ceiling. The checked Lean artifact is an abstract
+    # one-phase model; it is not the runtime's acyclic two-phase V2 refinement.
+    assert "Abstract formal functional core" in source
+    assert "does not model the runtime's two-phase V2 dependency" in source
+    assert "complete supply-control state" in source
+    assert "full effect and reject schemas" in source
     assert "does not establish canonical-byte encoding" in source
     assert "Python/Rust parity" in source
     assert "RISC0 receipt validity" in source
