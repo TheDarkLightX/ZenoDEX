@@ -79,6 +79,23 @@ RejectTuple = tuple[
 ]
 
 
+class _ExplodingEqualityStr(str):
+    """Hostile retained scalar whose equality hook must never be dispatched."""
+
+    equality_calls: int
+
+    def __new__(cls, value: str) -> _ExplodingEqualityStr:
+        instance = super().__new__(cls, value)
+        instance.equality_calls = 0
+        return instance
+
+    def __eq__(self, other: object) -> bool:
+        self.equality_calls += 1
+        raise AssertionError("hostile equality gadget executed")
+
+    __hash__ = str.__hash__
+
+
 def _root(value: int) -> str:
     return f"0x{value:064x}"
 
@@ -1147,6 +1164,181 @@ def test_two_occurrence_history_carries_the_reserve_and_rejects_replay() -> None
     assert second_result.post_state.buyback_cadence_states[0].last_execution_height == 82
     assert second_result.effects.lane_writes[0].pre_root == refilled.state_root
     assert replace(refilled, fee_allocation_states=carried.fee_allocation_states) == carried
+
+
+@pytest.mark.parametrize(
+    ("surface", "expected"),
+    [
+        ("authority", _plain(ZDEXTokenomicsBuybackRejectCodeV1.AUTHORITY_MALFORMED)),
+        ("safe_limit", _plain(ZDEXTokenomicsBuybackRejectCodeV1.SAFETY_LIMIT_MISMATCH)),
+    ],
+)
+def test_postconstruction_hostile_scalar_rejects_noop_without_equality_dispatch(
+    surface: str,
+    expected: RejectTuple,
+) -> None:
+    # Arrange: retain a valid pre-state while replacing one trusted scalar with
+    # an exact-value str subclass whose equality operation is adversarial.
+    candidate = _intent_input()
+    target: object
+    if surface == "authority":
+        target = _authority(candidate)
+        field = "route_release_id"
+    else:
+        target = candidate.safe_limit_port
+        field = "profile_root"
+    hostile = _ExplodingEqualityStr(cast(str, object.__getattribute__(target, field)))
+    object.__setattr__(target, field, hostile)
+
+    # Act: run only the public phase-A transition.
+    observed = _intent_reject(candidate)
+
+    # Assert: malformed retained input is classified before any equality hook,
+    # and the rejection remains the exact original-state, empty-effect no-op.
+    assert observed == expected
+    assert hostile.equality_calls == 0
+
+
+def test_postconstruction_lane_gadget_fails_closed_before_equality_dispatch() -> None:
+    # Arrange: mutate one nested fee-state key after every constructor accepted it.
+    candidate = _intent_input()
+    fee_state = candidate.pre_state.fee_allocation_states[0]
+    hostile = _ExplodingEqualityStr(fee_state.fee_asset_id)
+    object.__setattr__(fee_state, "fee_asset_id", hostile)
+
+    # Act / Assert: malformed authoritative state cannot enter hashing or lookup.
+    with pytest.raises(TypeError, match="owned graph is not closed"):
+        derive_zdex_tokenomics_buyback_intent_v1(candidate)
+    assert hostile.equality_calls == 0
+
+
+@pytest.mark.parametrize("malformed_limit", (True, MAX_DELTA_ATOMS_V1 + 1))
+def test_postconstruction_safe_limit_numeric_drift_rejects_exact_noop(
+    malformed_limit: object,
+) -> None:
+    # Arrange: bool aliases int in Python; max+1 crosses the signed effect bound.
+    candidate = _intent_input()
+    object.__setattr__(
+        candidate.safe_limit_port,
+        "route_safe_quote_limit_atoms",
+        malformed_limit,
+    )
+
+    # Act / Assert: exact-type drift is a safe-limit rejection with no effects.
+    assert _intent_reject(candidate) == _plain(
+        ZDEXTokenomicsBuybackRejectCodeV1.SAFETY_LIMIT_MISMATCH
+    )
+
+
+def test_u128_supply_and_epoch_cap_maximum_preserve_exact_conservation() -> None:
+    # Arrange: place both supply counters on their inclusive u128 boundary.
+    candidate = _candidate(
+        _intent_input(
+            live_supply_atoms=MAX_ATOMS_V1,
+            remaining_cap_atoms=MAX_ATOMS_V1,
+        )
+    )
+
+    # Act.
+    result = _accepted(candidate)
+
+    # Assert: all subtractions and the canonical conservation row remain exact.
+    burned = result.journal.burned_zdex_atoms
+    supply_row = next(row for row in result.effects.asset_conservation if row.authorized_burn_atoms)
+    assert result.post_state.supply.live_supply_atoms + burned == MAX_ATOMS_V1
+    assert result.post_state.supply.remaining_epoch_burn_cap_atoms + burned == MAX_ATOMS_V1
+    assert supply_row.owned_and_custodied_post_atoms + burned == (
+        supply_row.owned_and_custodied_pre_atoms
+    )
+    assert supply_row.supply_post_atoms + burned == supply_row.supply_pre_atoms
+
+
+def test_postconstruction_spot_obligation_gadget_rejects_noop_without_equality_dispatch() -> None:
+    # Arrange: retain the valid intent and corrupt only the untrusted obligation scalar.
+    candidate = _candidate()
+    obligation = cast(Any, candidate.spot_obligation)
+    hostile = _ExplodingEqualityStr(obligation.consumer_module_release_id)
+    object.__setattr__(obligation, "consumer_module_release_id", hostile)
+
+    # Act / Assert: no obligation comparison executes attacker behavior.
+    assert _reject(candidate) == _plain(
+        ZDEXTokenomicsBuybackRejectCodeV1.PURCHASE_PORT_MISMATCH
+    )
+    assert hostile.equality_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement", "error"),
+    [
+        ("amount_atoms", True, ValueError),
+        ("profile_root", _ExplodingEqualityStr(_root(3_000)), TypeError),
+    ],
+)
+def test_quote_port_revalidates_before_canonicalization_after_mutation(
+    field: str,
+    replacement: object,
+    error: type[Exception],
+) -> None:
+    # Arrange: bypass frozen-dataclass protection after a valid port was produced.
+    port = _accepted(_candidate()).quote_output
+    object.__setattr__(port, field, replacement)
+
+    # Act / Assert: canonical bytes/root are unavailable for a stale invalid port.
+    with pytest.raises(error):
+        _ = port.port_root
+    if type(replacement) is _ExplodingEqualityStr:
+        assert replacement.equality_calls == 0
+
+
+def test_quote_port_rejects_collapsed_module_roles_after_mutation() -> None:
+    # Arrange: collapse the producer and consumer roles after construction.
+    port = _accepted(_candidate()).quote_output
+    object.__setattr__(
+        port,
+        "consumer_module_release_id",
+        port.producer_module_release_id,
+    )
+
+    # Act / Assert: the shared port revalidates before exposing canonical bytes.
+    with pytest.raises(ValueError, match="module releases must differ"):
+        _ = port.port_root
+
+
+def test_accepted_result_detects_valid_retained_subject_mutation() -> None:
+    # Arrange: produce an accepted result, then mutate its retained input to a
+    # different individually valid binding root.
+    candidate = _candidate()
+    accepted = _accepted(candidate)
+    object.__setattr__(candidate.intent_input.safe_limit_port, "binding_root", _root(99_001))
+
+    # Act / Assert: the stale output cannot validate against the changed subject.
+    with pytest.raises(ValueError, match="no longer rederives"):
+        accepted.validate()
+
+
+def test_forged_rejection_cannot_hide_a_non_noop_post_state() -> None:
+    # Arrange: obtain a real rejection, then bypass immutability and replace its
+    # post-state with a distinct, valid state.
+    candidate = _intent_input(safe_limit_atoms=0)
+    rejected = derive_zdex_tokenomics_buyback_intent_v1(candidate)
+    assert type(rejected) is ZDEXTokenomicsBuybackRejectedV1
+    forged = _unchecked_replace(rejected, post_state=_intent_input().pre_state)
+
+    # Act / Assert: rejection self-validation exposes the hidden state change.
+    with pytest.raises(ValueError, match="exact no-effect no-op"):
+        forged.validate()
+
+
+def test_rejection_revalidates_its_retained_state_after_mutation() -> None:
+    # Arrange: obtain an exact no-op rejection, then corrupt the one state
+    # object intentionally shared by its pre/post projections.
+    rejected = derive_zdex_tokenomics_buyback_intent_v1(_intent_input(safe_limit_atoms=0))
+    assert type(rejected) is ZDEXTokenomicsBuybackRejectedV1
+    object.__setattr__(rejected.pre_state.supply, "live_supply_atoms", True)
+
+    # Act / Assert: identity alone cannot make malformed retained state valid.
+    with pytest.raises(ValueError, match="must be a non-negative integer"):
+        rejected.validate()
 
 
 def test_accepted_result_rederives_and_rejects_private_token_forgery() -> None:

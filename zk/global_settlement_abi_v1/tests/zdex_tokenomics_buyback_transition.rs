@@ -945,6 +945,100 @@ fn purchase_port_guards_bind_pool_asset_principal_amount_and_exact_quote() {
 }
 
 #[test]
+fn malformed_retained_inputs_reject_as_exact_noops_with_python_parity() {
+    // Arrange / Act / Assert: each malformed retained input maps to the same
+    // public reject family exercised by the Python hostile-object corpus.
+    let mut authority = intent_input(Knobs::default());
+    authority_mut(&mut authority).chain_id.clear();
+    assert_eq!(
+        intent_reject_code(&authority),
+        ZDEXTokenomicsBuybackRejectCodeV1::AUTHORITY_MALFORMED
+    );
+
+    let mut safe_limit = intent_input(Knobs::default());
+    safe_limit.safe_limit_port.route_safe_quote_limit_atoms = (i128::MAX as u128) + 1;
+    assert_eq!(
+        intent_reject_code(&safe_limit),
+        ZDEXTokenomicsBuybackRejectCodeV1::SAFETY_LIMIT_MISMATCH
+    );
+
+    let mut obligation = candidate(intent_input(Knobs::default()));
+    if let ZDEXTokenomicsSpotObligationInputV1::OBLIGATION(value) = &mut obligation.spot_obligation
+    {
+        value.burn_principal.clear();
+    }
+    assert_eq!(
+        reject_code(&obligation),
+        ZDEXTokenomicsBuybackRejectCodeV1::PURCHASE_PORT_MISMATCH
+    );
+}
+
+#[test]
+fn signed_effect_and_u128_supply_boundaries_match_python() {
+    // Arrange / Act / Assert: i128 max remains live, while max+1 fails before
+    // an effect row can be represented.
+    let live_fee = intent_input(Knobs {
+        fee_ingress_atoms: i128::MAX as u128,
+        ..Knobs::default()
+    });
+    assert_eq!(intent(&live_fee).quote_output().amount_atoms, 200);
+
+    let overflow_fee = intent_input(Knobs {
+        fee_ingress_atoms: (i128::MAX as u128) + 1,
+        ..Knobs::default()
+    });
+    assert_eq!(
+        intent_reject_code(&overflow_fee),
+        spend_rejected(
+            ZDEXBuybackSpendRejectCodeV1::FEE_ALLOCATION_REJECTED,
+            Some(ZDEXFeeAllocationRejectCodeV1::EFFECT_WIDTH_EXCEEDED),
+        )
+    );
+
+    // The full u128 supply and epoch-cap boundary must conserve exactly after
+    // the real Spot fixture determines the purchased amount.
+    let boundary = candidate(intent_input(Knobs {
+        live_supply_atoms: u128::MAX,
+        remaining_cap_atoms: u128::MAX,
+        ..Knobs::default()
+    }));
+    let accepted = accepted(&boundary);
+    let burned = accepted.journal().burned_zdex_atoms;
+    assert_eq!(
+        accepted
+            .post_state()
+            .supply
+            .live_supply_atoms
+            .checked_add(burned),
+        Some(u128::MAX)
+    );
+    assert_eq!(
+        accepted
+            .post_state()
+            .supply
+            .remaining_epoch_burn_cap_atoms
+            .checked_add(burned),
+        Some(u128::MAX)
+    );
+    let supply_row = accepted
+        .effects()
+        .asset_conservation
+        .iter()
+        .find(|row| row.authorized_burn_atoms != 0)
+        .expect("burn conservation row");
+    assert_eq!(
+        supply_row
+            .owned_and_custodied_post_atoms
+            .checked_add(burned),
+        Some(supply_row.owned_and_custodied_pre_atoms)
+    );
+    assert_eq!(
+        supply_row.supply_post_atoms.checked_add(burned),
+        Some(supply_row.supply_pre_atoms)
+    );
+}
+
+#[test]
 fn quote_port_v2_is_acyclic_and_reserved_fields_are_absent() {
     // Arrange / Act.
     let result = accepted(&candidate(intent_input(Knobs::default())));
@@ -973,4 +1067,10 @@ fn quote_port_v2_is_acyclic_and_reserved_fields_are_absent() {
     let mut cyclic = port.clone();
     cyclic.producer_quote_post_state_root = cyclic.producer_quote_pre_state_root.clone();
     assert!(cyclic.validate().is_err());
+    let mut zero_amount = port.clone();
+    zero_amount.amount_atoms = 0;
+    assert!(zero_amount.port_root().is_err());
+    let mut same_module = port.clone();
+    same_module.consumer_module_release_id = same_module.producer_module_release_id.clone();
+    assert!(same_module.port_root().is_err());
 }

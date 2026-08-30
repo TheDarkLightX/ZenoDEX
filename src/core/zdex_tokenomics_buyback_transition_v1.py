@@ -152,6 +152,7 @@ class ZDEXTokenomicsSupplyControlStateV1:
     remaining_epoch_burn_cap_atoms: int
 
     def __post_init__(self) -> None:
+        _require_exact_accepted_graph_v1(self)
         _require_root(self.asset_id, name="Tokenomics supply asset id")
         _require_root(self.policy_root, name="Tokenomics supply policy root")
         for name in ("decimals", "precision_epoch", "burn_budget_epoch"):
@@ -169,6 +170,7 @@ class ZDEXTokenomicsSupplyControlStateV1:
         return hash_global_v1("zdex-tokenomics-supply-control-v1", self.to_canonical())
 
     def to_canonical(self) -> dict[str, object]:
+        self.__post_init__()
         return {
             "schema": ZDEX_TOKENOMICS_SUPPLY_CONTROL_SCHEMA_V1,
             "asset_id": self.asset_id,
@@ -196,6 +198,7 @@ class ZDEXTokenomicsBuybackLaneStateV1:
     lp_rebates_state_root: str
 
     def __post_init__(self) -> None:
+        _require_exact_accepted_graph_v1(self)
         if type(self.supply) is not ZDEXTokenomicsSupplyControlStateV1:
             raise TypeError("Tokenomics lane supply must be exact typed data")
         if type(self.fee_allocation_states) is not tuple or any(
@@ -231,6 +234,7 @@ class ZDEXTokenomicsBuybackLaneStateV1:
         return hash_global_v1("zdex-tokenomics-buyback-lane-state-v1", self.to_canonical())
 
     def to_canonical(self) -> dict[str, object]:
+        _require_revalidated_graph_v1(self)
         return {
             "schema": ZDEX_TOKENOMICS_BUYBACK_LANE_STATE_SCHEMA_V1,
             "supply": self.supply,
@@ -253,6 +257,7 @@ class ZDEXTokenomicsBuybackReleaseV1:
     fee_asset_count_cap: int
 
     def __post_init__(self) -> None:
+        _require_exact_accepted_graph_v1(self)
         for name in (
             "tokenomics_module_release_id",
             "spot_module_release_id",
@@ -270,6 +275,7 @@ class ZDEXTokenomicsBuybackReleaseV1:
         return self.fee_asset_count_cap == ZDEX_TOKENOMICS_FEE_ASSET_COUNT_CAP_V1
 
     def to_canonical(self) -> dict[str, object]:
+        self.__post_init__()
         return {
             "schema": ZDEX_TOKENOMICS_BUYBACK_RELEASE_SCHEMA_V1,
             "tokenomics_module_release_id": self.tokenomics_module_release_id,
@@ -295,6 +301,7 @@ class ZDEXTokenomicsProfileAuthorizationV1:
     price_policy_root: str
 
     def __post_init__(self) -> None:
+        _require_exact_accepted_graph_v1(self)
         _require_token(self.chain_id, name="Tokenomics profile chain id")
         for name in (
             "profile_root",
@@ -319,6 +326,7 @@ class ZDEXTokenomicsProfileAuthorizationV1:
         )
 
     def to_canonical(self) -> dict[str, object]:
+        self.__post_init__()
         return {
             "schema": ZDEX_TOKENOMICS_PROFILE_AUTHORIZATION_SCHEMA_V1,
             "profile_root": self.profile_root,
@@ -359,6 +367,7 @@ class ZDEXTokenomicsBuybackAuthorityContextV1:
     profile_authorization: ZDEXTokenomicsProfileAuthorizationV1
 
     def __post_init__(self) -> None:
+        _require_exact_accepted_graph_v1(self)
         _require_token(self.chain_id, name="Tokenomics authority chain id")
         for name in (
             "deployment_root",
@@ -407,6 +416,7 @@ class ZDEXTokenomicsSafeLimitPortV1:
     route_safe_quote_limit_atoms: int
 
     def __post_init__(self) -> None:
+        _require_exact_accepted_graph_v1(self)
         for name in (
             "profile_root",
             "route_release_id",
@@ -430,6 +440,7 @@ class ZDEXTokenomicsSafeLimitPortV1:
             raise ValueError("Tokenomics route safe quote limit must fit a signed effect")
 
     def to_canonical(self) -> dict[str, object]:
+        self.__post_init__()
         return {
             "schema": ZDEX_TOKENOMICS_SAFE_LIMIT_PORT_SCHEMA_V1,
             "profile_root": self.profile_root,
@@ -462,6 +473,8 @@ class ZDEXTokenomicsBuybackIntentInputV1:
             ),
             name="Tokenomics intent input",
         )
+        _require_revalidated_graph_v1(self.pre_state)
+        _require_revalidated_graph_v1(self.safe_limit_port)
 
 
 @dataclass(frozen=True, slots=True)
@@ -472,6 +485,7 @@ class ZDEXTokenomicsBuybackInputV1:
     def __post_init__(self) -> None:
         if type(self.intent_input) is not ZDEXTokenomicsBuybackIntentInputV1:
             raise TypeError("Tokenomics buyback input requires an exact intent input")
+        self.intent_input.__post_init__()
 
 
 @dataclass(frozen=True, slots=True)
@@ -482,6 +496,9 @@ class ZDEXTokenomicsPrivatePortsV1:
     burn_input: ZDEXSpotTerminalObligationV1
 
     def __post_init__(self) -> None:
+        _require_exact_accepted_graph_v1(self)
+        _require_revalidated_graph_v1(self.quote_output)
+        _require_revalidated_graph_v1(self.burn_input)
         _require_exact_types(
             (
                 (self.quote_output, ZDEXAtomicBuybackQuotePortV2),
@@ -498,6 +515,7 @@ class ZDEXTokenomicsPrivatePortsV1:
 
     @property
     def ports_root(self) -> str:
+        self.__post_init__()
         return hash_global_v1(
             "zdex-tokenomics-private-ports-v1",
             {
@@ -551,6 +569,7 @@ class ZDEXTokenomicsBuybackJournalV1:
     remaining_epoch_burn_cap_post_atoms: int
 
     def __post_init__(self) -> None:
+        _require_exact_accepted_graph_v1(self)
         for name in (
             "context_root",
             "pre_state_root",
@@ -622,6 +641,7 @@ class ZDEXTokenomicsBuybackJournalV1:
         )
 
     def to_canonical(self) -> dict[str, object]:
+        self.__post_init__()
         return {
             "context_root": self.context_root,
             "pre_state_root": self.pre_state_root,
@@ -670,6 +690,7 @@ class ZDEXTokenomicsBuybackRejectedV1:
     journal: None = None
 
     def __post_init__(self) -> None:
+        _require_exact_accepted_graph_v1(self)
         if type(self.code) is not ZDEXTokenomicsBuybackRejectCodeV1:
             raise TypeError("Tokenomics buyback reject code is not closed")
         spend_phase = self.code is ZDEXTokenomicsBuybackRejectCodeV1.SPEND_REJECTED
@@ -683,6 +704,10 @@ class ZDEXTokenomicsBuybackRejectedV1:
             raise ValueError("Tokenomics buyback rejection phase codes are inconsistent")
         if self.pre_state is not self.post_state or not self.effects.is_empty:
             raise ValueError("Tokenomics buyback rejection must be an exact no-effect no-op")
+        _require_revalidated_graph_v1(self.pre_state)
+
+    def validate(self) -> None:
+        self.__post_init__()
 
 
 @dataclass(frozen=True, slots=True)
@@ -708,7 +733,11 @@ _ACCEPTED_GRAPH_ENUM_TYPES_V1: Final = frozenset(
     {
         EconomicEffectKindV1,
         LaneIdV1,
+        ZDEXBuybackSpendRejectCodeV1,
+        ZDEXFeeAllocationRejectCodeV1,
         ZDEXFeeDestinationV1,
+        ZDEXTokenomicsBurnRejectCodeV1,
+        ZDEXTokenomicsBuybackRejectCodeV1,
     }
 )
 
@@ -751,6 +780,7 @@ _ACCEPTED_GRAPH_DATACLASS_TYPES_V1: Final = frozenset(
         ZDEXAtomicBuybackQuotePortV2,
         ZDEXTokenomicsPrivatePortsV1,
         ZDEXTokenomicsBuybackJournalV1,
+        ZDEXTokenomicsBuybackRejectedV1,
         _ZDEXTokenomicsIntentFieldsV1,
         _ZDEXTokenomicsBuybackAcceptedFieldsV1,
     }
@@ -791,6 +821,50 @@ def _require_exact_accepted_graph_v1(value: object) -> None:
             active_ids.remove(node_id)
 
     visit(value, 0)
+
+
+def _require_revalidated_graph_v1(value: object) -> None:
+    """Re-run every constructor invariant after proving the graph is inert.
+
+    The exact-shape pass must run first.  It prevents a retained str/int
+    subclass or foreign dataclass from executing behavior inside a nested
+    ``__post_init__``, equality check, or canonical encoder.
+    """
+
+    _require_exact_accepted_graph_v1(value)
+    validated_ids: set[int] = set()
+
+    def visit(node: object) -> None:
+        node_type = type(node)
+        if node_type in _ACCEPTED_GRAPH_LEAF_TYPES_V1:
+            return
+        node_id = id(node)
+        if node_id in validated_ids:
+            return
+        if node_type is tuple:
+            for item in cast(tuple[object, ...], node):
+                visit(item)
+            validated_ids.add(node_id)
+            return
+        dataclass_type = cast(type[_ZDEXTokenomicsBuybackAcceptedFieldsV1], node_type)
+        for field in dataclass_fields(dataclass_type):
+            visit(object.__getattribute__(node, field.name))
+        post_init = getattr(dataclass_type, "__post_init__", None)
+        if post_init is not None:
+            post_init(node)
+        validated_ids.add(node_id)
+
+    visit(value)
+
+
+def _is_revalidated_graph_v1(value: object, expected_type: type[object]) -> bool:
+    if type(value) is not expected_type:
+        return False
+    try:
+        _require_revalidated_graph_v1(value)
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def _exact_accepted_graph_matches_v1(expected: object, supplied: object) -> bool:
@@ -1079,6 +1153,8 @@ def _safe_limit_matches_v1(
     authority: ZDEXTokenomicsBuybackAuthorityContextV1,
 ) -> bool:
     port = candidate.safe_limit_port
+    if not _is_revalidated_graph_v1(port, ZDEXTokenomicsSafeLimitPortV1):
+        return False
     policy = authority.execution_policy
     return (
         port.profile_root == authority.profile_root
@@ -1146,6 +1222,7 @@ def _first_context_reject_v1(
         return ZDEXTokenomicsBuybackRejectCodeV1.RELEASE_MISMATCH
     if not _profile_matches_v1(authority):
         return ZDEXTokenomicsBuybackRejectCodeV1.PROFILE_MISMATCH
+    _require_revalidated_graph_v1(candidate.pre_state)
     if authority.tokenomics_pre_state_root != candidate.pre_state.state_root:
         return ZDEXTokenomicsBuybackRejectCodeV1.STATE_COMMITMENT_MISMATCH
     if not _safe_limit_matches_v1(candidate, authority):
@@ -1281,10 +1358,13 @@ def _derive_intent_v1(
 
     if type(candidate) is not ZDEXTokenomicsBuybackIntentInputV1:
         raise TypeError("Tokenomics intent candidate must be exact typed data")
-    pre_state = candidate.pre_state
-    if type(candidate.authority) is not ZDEXTokenomicsBuybackAuthorityContextV1:
+    pre_state = object.__getattribute__(candidate, "pre_state")
+    if type(pre_state) is not ZDEXTokenomicsBuybackLaneStateV1:
+        raise TypeError("Tokenomics intent pre-state must be exact typed data")
+    authority_input = object.__getattribute__(candidate, "authority")
+    if not _is_revalidated_graph_v1(authority_input, ZDEXTokenomicsBuybackAuthorityContextV1):
         return _reject(ZDEXTokenomicsBuybackRejectCodeV1.AUTHORITY_MALFORMED, pre_state)
-    authority = candidate.authority
+    authority = cast(ZDEXTokenomicsBuybackAuthorityContextV1, authority_input)
     context_reject = _first_context_reject_v1(candidate, authority)
     if context_reject is not None:
         return _reject(context_reject, pre_state)
@@ -1344,7 +1424,7 @@ def _purchase_port_reject_v1(
 ) -> ZDEXTokenomicsBuybackRejectCodeV1 | None:
     """Bind the Spot obligation to the governed pool, assets, port, and exact q."""
 
-    if type(obligation) is not ZDEXSpotTerminalObligationV1:
+    if not _is_revalidated_graph_v1(obligation, ZDEXSpotTerminalObligationV1):
         return ZDEXTokenomicsBuybackRejectCodeV1.PURCHASE_PORT_MISMATCH
     typed = cast(ZDEXSpotTerminalObligationV1, obligation)
     policy = authority.execution_policy
