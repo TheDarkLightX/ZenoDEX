@@ -7,28 +7,29 @@ use zenodex_global_settlement_abi_v1::{
     build_zdex_tokenomics_fee_allocation_module_journal_v1,
     build_zdex_tokenomics_fee_allocation_private_port_v1, candidate_zdex_fee_allocation_policy_v1,
     canonical_bytes_v1, compose_zdex_purchase_burn_route_v1,
-    compose_zdex_tokenomics_fee_allocation_lane_v1, finalize_zdex_atomic_buyback_v1,
-    hash_global_v1, prepare_zdex_atomic_buyback_v1, transition_zdex_buyback_spend_v1,
-    transition_zdex_fee_allocation_v1, verify_governed_zdex_amm_purchase_receipt_v2,
-    verify_governed_zdex_burn_receipt_v1, verify_zdex_amm_purchase_receipt_v2,
-    verify_zdex_buyback_price_authority_v1, verify_zdex_current_authority_v1,
-    verify_zdex_fee_allocation_receipt_v1, verify_zdex_tokenomics_fee_lane_receipt_v1,
-    zdex_amm_purchase_port_schema_root_v1, zdex_burn_port_schema_root_v1,
-    zdex_current_authority_statement_v1, zdex_fee_allocation_port_schema_root_v1,
-    zdex_occurrence_burn_port_v1, zdex_pool_reserve_principal_v1, AbiErrorV1, AbiResultV1,
-    AssetConservationRowV1, AssetSupplyV1, EconomicAmountV1, EconomicCommandOccurrenceV1,
-    EconomicEffectKindV1, EconomicEffectRowV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
-    EconomicProfileSnapshotV1, EvidenceStatusV1, GlobalEconomicEffectPlanV1, GlobalEconomicStateV1,
-    GovernedVerifiedZDEXAMMPurchaseV2, GovernedVerifiedZDEXBurnV1,
-    GovernedZDEXFeeAllocationProfileV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1,
-    LaneIdV1, LaneModuleReleaseV1, LaneRegistryV1, LaneStateRootV1, LaneWriteV1,
-    OracleOccurrenceStateV1, ProfileStatusV1, ReceiptKindV1, ReleaseStatusV1, RootV1,
+    compose_zdex_tokenomics_fee_allocation_lane_v1, derive_zdex_atomic_buyback_lane_ports_v1,
+    finalize_zdex_atomic_buyback_v1, hash_global_v1, prepare_zdex_atomic_buyback_v1,
+    transition_zdex_buyback_spend_v1, transition_zdex_fee_allocation_v1,
+    verify_governed_zdex_amm_purchase_receipt_v2, verify_governed_zdex_burn_receipt_v1,
+    verify_zdex_amm_purchase_receipt_v2, verify_zdex_buyback_price_authority_v1,
+    verify_zdex_current_authority_v1, verify_zdex_fee_allocation_receipt_v1,
+    verify_zdex_tokenomics_fee_lane_receipt_v1, zdex_amm_purchase_port_schema_root_v1,
+    zdex_atomic_buyback_purchased_zdex_flow_root_v1, zdex_atomic_buyback_quote_flow_root_v1,
+    zdex_burn_port_schema_root_v1, zdex_current_authority_statement_v1,
+    zdex_fee_allocation_port_schema_root_v1, zdex_occurrence_burn_port_v1,
+    zdex_pool_reserve_principal_v1, AbiErrorV1, AbiResultV1, AssetConservationRowV1, AssetSupplyV1,
+    EconomicAmountV1, EconomicCommandOccurrenceV1, EconomicEffectKindV1, EconomicEffectRowV1,
+    EconomicPolicyBindingV1, EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, EvidenceStatusV1,
+    GlobalEconomicEffectPlanV1, GlobalEconomicStateV1, GovernedVerifiedZDEXAMMPurchaseV2,
+    GovernedVerifiedZDEXBurnV1, GovernedZDEXFeeAllocationProfileV1, LaneCoordinatorRegistryV1,
+    LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReleaseV1, LaneRegistryV1, LaneStateRootV1,
+    LaneWriteV1, OracleOccurrenceStateV1, ProfileStatusV1, ReceiptKindV1, ReleaseStatusV1, RootV1,
     RouteRegistryV1, RouteReleaseV1, VerifiedZDEXCurrentAuthorityV1, VerifiedZDEXFeeAllocationV1,
     ZDEXAMMPurchaseJournalV2, ZDEXAmountBucketV1, ZDEXAtomicBuybackCandidateV1,
-    ZDEXAtomicBuybackFinalizeResultV1, ZDEXAtomicBuybackPrepareResultV1,
-    ZDEXAtomicBuybackRejectCodeV1, ZDEXAtomicBuybackTokenomicsStateV1,
-    ZDEXBoundLaneSuccinctReceiptVerifierV1, ZDEXBurnJournalV1, ZDEXBurnReceiptCandidateV1,
-    ZDEXBuybackExecutionPolicyV1, ZDEXBuybackOraclePriceOccurrenceV1,
+    ZDEXAtomicBuybackFinalizeResultV1, ZDEXAtomicBuybackLanePortContextV1,
+    ZDEXAtomicBuybackPendingV1, ZDEXAtomicBuybackPrepareResultV1, ZDEXAtomicBuybackRejectCodeV1,
+    ZDEXAtomicBuybackTokenomicsStateV1, ZDEXBoundLaneSuccinctReceiptVerifierV1, ZDEXBurnJournalV1,
+    ZDEXBurnReceiptCandidateV1, ZDEXBuybackExecutionPolicyV1, ZDEXBuybackOraclePriceOccurrenceV1,
     ZDEXBuybackPriceAuthorityCandidateV1, ZDEXBuybackPriceSafetyPolicyV1,
     ZDEXBuybackSpendContextV1, ZDEXBuybackSpendPolicyV1, ZDEXBuybackSpendResultV1,
     ZDEXBuybackSpendStateV1, ZDEXCurrentAuthorityVerifierV1, ZDEXFeeAllocationCommandV1,
@@ -3078,6 +3079,29 @@ fn assert_atomic_prepare_reject(
     assert!(rejected.effects().is_empty());
 }
 
+fn verify_atomic_burn(
+    fixture: &AtomicFixture,
+    pending: &ZDEXAtomicBuybackPendingV1,
+) -> GovernedVerifiedZDEXBurnV1 {
+    let receipt = ZDEXLaneReceiptEnvelopeV1 {
+        receipt_kind: ReceiptKindV1::SUCCINCT,
+        receipt_bytes: b"atomic-lane-port-burn-receipt".to_vec(),
+    };
+    verify_governed_zdex_burn_receipt_v1(
+        ZDEXBurnReceiptCandidateV1 {
+            route_release: &fixture.candidate.route,
+            module_release: &fixture.burn_release,
+            occurrence: &fixture.candidate.occurrence,
+            journal: pending.burn().journal(),
+            effects: pending.burn().effects(),
+            receipt: &receipt,
+        },
+        &fixture.current_authority,
+        &AcceptingVerifier,
+    )
+    .expect("atomic burn receipt must verify")
+}
+
 #[test]
 fn atomic_same_occurrence_buyback_burns_exact_purchase_and_retains_coordination_obligation() {
     // Arrange
@@ -3144,6 +3168,195 @@ fn atomic_same_occurrence_buyback_burns_exact_purchase_and_retains_coordination_
         fixture.candidate.purchase_journal.quote_pool_bucket_id
     );
     assert_eq!(quote_pool_rows[0].delta_atoms, 125);
+}
+
+#[test]
+fn atomic_lane_ports_pair_quote_and_zdex_exactly() {
+    // Arrange
+    let fixture = atomic_fixture();
+    let prepared = prepare_zdex_atomic_buyback_v1(&fixture.candidate).unwrap();
+    let ZDEXAtomicBuybackPrepareResultV1::Pending(pending) = prepared else {
+        panic!("valid atomic candidate must prepare")
+    };
+    let verified_burn = verify_atomic_burn(&fixture, &pending);
+
+    // Act
+    let ports = derive_zdex_atomic_buyback_lane_ports_v1(
+        &fixture.candidate.purchase_journal,
+        pending.burn().journal(),
+        &fixture.candidate.verified_purchase,
+        &verified_burn,
+    )
+    .unwrap();
+
+    // Assert
+    assert_eq!(ports.tokenomics_quote_out_atoms, 125);
+    assert_eq!(ports.tokenomics_quote_out_atoms, ports.spot_quote_in_atoms);
+    assert_eq!(ports.spot_zdex_out_atoms, 40);
+    assert_eq!(ports.spot_zdex_out_atoms, ports.tokenomics_burn_in_atoms);
+    assert_eq!(
+        ports.context.purchase_journal_root,
+        fixture.candidate.purchase_journal.journal_root().unwrap()
+    );
+    assert_eq!(
+        ports.context.burn_journal_root,
+        pending.burn().journal().journal_root().unwrap()
+    );
+    assert!(!ports.binding_root().unwrap().is_zero());
+}
+
+#[test]
+fn atomic_lane_ports_reject_substituted_cross_lane_amount() {
+    // Arrange
+    let fixture = atomic_fixture();
+    let prepared = prepare_zdex_atomic_buyback_v1(&fixture.candidate).unwrap();
+    let ZDEXAtomicBuybackPrepareResultV1::Pending(pending) = prepared else {
+        panic!("valid atomic candidate must prepare")
+    };
+    let verified_burn = verify_atomic_burn(&fixture, &pending);
+    let mut substituted_burn = pending.burn().journal().clone();
+    substituted_burn.authorized_quote_input_atoms += 1;
+
+    // Act / Assert
+    assert_eq!(
+        derive_zdex_atomic_buyback_lane_ports_v1(
+            &fixture.candidate.purchase_journal,
+            &substituted_burn,
+            &fixture.candidate.verified_purchase,
+            &verified_burn,
+        )
+        .expect_err("cross-lane amount substitution must reject"),
+        AbiErrorV1::InvalidBinding("atomic buyback purchase and burn port binding")
+    );
+}
+
+#[test]
+fn atomic_lane_ports_reject_mixed_current_authority_generations() {
+    // Arrange
+    let fixture = atomic_fixture();
+    let prepared = prepare_zdex_atomic_buyback_v1(&fixture.candidate).unwrap();
+    let ZDEXAtomicBuybackPrepareResultV1::Pending(pending) = prepared else {
+        panic!("valid atomic candidate must prepare")
+    };
+    let other_statement = zdex_current_authority_statement_v1(
+        &fixture.profile,
+        fixture.current_authority.authority_generation() + 1,
+        AcceptingVerifier.verifier_binding_root().clone(),
+    )
+    .unwrap();
+    let other_authority = verify_zdex_current_authority_v1(
+        &other_statement,
+        &fixture.profile,
+        &AcceptingCurrentAuthorityVerifier,
+    )
+    .unwrap();
+    let receipt = ZDEXLaneReceiptEnvelopeV1 {
+        receipt_kind: ReceiptKindV1::SUCCINCT,
+        receipt_bytes: b"other-authority-burn".to_vec(),
+    };
+    let other_burn = verify_governed_zdex_burn_receipt_v1(
+        ZDEXBurnReceiptCandidateV1 {
+            route_release: &fixture.candidate.route,
+            module_release: &fixture.burn_release,
+            occurrence: &fixture.candidate.occurrence,
+            journal: pending.burn().journal(),
+            effects: pending.burn().effects(),
+            receipt: &receipt,
+        },
+        &other_authority,
+        &AcceptingVerifier,
+    )
+    .unwrap();
+
+    // Act / Assert
+    assert_eq!(
+        derive_zdex_atomic_buyback_lane_ports_v1(
+            &fixture.candidate.purchase_journal,
+            pending.burn().journal(),
+            &fixture.candidate.verified_purchase,
+            &other_burn,
+        )
+        .expect_err("mixed current-authority generations must reject"),
+        AbiErrorV1::InvalidBinding("atomic buyback purchase and burn port binding")
+    );
+}
+
+#[test]
+fn atomic_lane_port_value_rejects_unpaired_quote_amount() {
+    // Arrange
+    let fixture = atomic_fixture();
+    let prepared = prepare_zdex_atomic_buyback_v1(&fixture.candidate).unwrap();
+    let ZDEXAtomicBuybackPrepareResultV1::Pending(pending) = prepared else {
+        panic!("valid atomic candidate must prepare")
+    };
+    let verified_burn = verify_atomic_burn(&fixture, &pending);
+    let mut ports = derive_zdex_atomic_buyback_lane_ports_v1(
+        &fixture.candidate.purchase_journal,
+        pending.burn().journal(),
+        &fixture.candidate.verified_purchase,
+        &verified_burn,
+    )
+    .unwrap();
+    ports.spot_quote_in_atoms += 1;
+
+    // Act / Assert
+    assert_eq!(
+        ports
+            .validate()
+            .expect_err("unpaired quote-port amount must reject"),
+        AbiErrorV1::InvalidBinding("atomic buyback exact lane-port pairing")
+    );
+}
+
+#[test]
+fn atomic_quote_flow_binds_value_and_has_cross_language_golden_root() {
+    // Arrange
+    let context = ZDEXAtomicBuybackLanePortContextV1 {
+        schema: "zenodex/zdex-atomic-buyback-lane-port-context/v1".to_owned(),
+        authority_head_root: root(1),
+        policy_registry_root: root(2),
+        verifier_binding_root: root(3),
+        profile_root: root(4),
+        route_release_id: root(5),
+        command_occurrence_id: root(6),
+        spot_module_release_id: root(7),
+        tokenomics_module_release_id: root(8),
+        issue_burn_policy_root: root(9),
+        buyback_execution_policy_root: root(10),
+        price_safety_policy_root: root(11),
+        oracle_occurrence_root: root(12),
+        quote_asset_id: root(13),
+        zdex_asset_id: root(14),
+        quote_source_bucket_id: "protocol-fee-buyback-reserve".to_owned(),
+        quote_pool_bucket_id: root(15),
+        zdex_pool_bucket_id: root(16),
+        burn_port_identity_root: root(17),
+        purchase_journal_root: root(18),
+        burn_journal_root: root(19),
+        purchase_leaf_binding_root: root(20),
+        burn_leaf_binding_root: root(21),
+    };
+
+    // Act
+    let exact = zdex_atomic_buyback_quote_flow_root_v1(&context, 125).expect("quote flow root");
+    let adjacent =
+        zdex_atomic_buyback_quote_flow_root_v1(&context, 126).expect("adjacent quote flow root");
+    let purchased = zdex_atomic_buyback_purchased_zdex_flow_root_v1(&context, 40)
+        .expect("purchased-ZDEX flow root");
+    let purchased_adjacent = zdex_atomic_buyback_purchased_zdex_flow_root_v1(&context, 41)
+        .expect("adjacent purchased-ZDEX flow root");
+
+    // Assert: each value changes its role root; Python carries both fixed vectors.
+    assert_ne!(exact, adjacent);
+    assert_ne!(purchased, purchased_adjacent);
+    assert_eq!(
+        exact.to_string(),
+        "0x3c878e7cebc86a73d05daf05ec070436984e3d4e1974517b133e2ba95839ccf6"
+    );
+    assert_eq!(
+        purchased.to_string(),
+        "0x618194d0bca110a088dbc70a2f34cbc585773c5480f2b7fe203c08898feccae4"
+    );
 }
 
 #[test]

@@ -21,6 +21,13 @@ from src.core.global_settlement_types_v1 import (
     GlobalEconomicEffectPlanV1,
     ReleaseStatusV1,
 )
+from src.core.zdex_atomic_buyback_lane_ports_v1 import (
+    ZDEXAtomicBuybackLanePortContextV1,
+    ZDEXAtomicBuybackLanePortsV1,
+    derive_zdex_atomic_buyback_lane_ports_v1,
+    zdex_atomic_buyback_purchased_zdex_flow_root_v1,
+    zdex_atomic_buyback_quote_flow_root_v1,
+)
 from src.core.zdex_atomic_buyback_v1 import (
     ZDEXAtomicBuybackAcceptedV1,
     ZDEXAtomicBuybackCandidateV1,
@@ -439,6 +446,146 @@ def test_bdd_fee_allocation_purchase_and_burn_retains_lane_coordination_obligati
         )
         == 111
     )
+
+
+def test_atomic_lane_ports_pair_quote_and_zdex_exactly() -> None:
+    # Arrange
+    fixture, candidate = _candidate()
+    pending = prepare_zdex_atomic_buyback_v1(candidate)
+    assert isinstance(pending, ZDEXAtomicBuybackPendingV1)
+    verified_burn = _verify_burn(fixture, pending)
+
+    # Act
+    ports = derive_zdex_atomic_buyback_lane_ports_v1(
+        candidate.purchase_journal,
+        pending.burn.journal,
+        candidate.verified_purchase,
+        verified_burn,
+    )
+
+    # Assert
+    assert isinstance(ports, ZDEXAtomicBuybackLanePortsV1)
+    assert ports.tokenomics_quote_out_atoms == ports.spot_quote_in_atoms == 125
+    assert ports.spot_zdex_out_atoms == ports.tokenomics_burn_in_atoms == 111
+    assert ports.context.purchase_journal_root == candidate.purchase_journal.journal_root
+    assert ports.context.burn_journal_root == pending.burn.journal.journal_root
+    assert ports.binding_root != ZERO_ROOT_V1
+
+
+def test_atomic_lane_ports_reject_substituted_cross_lane_amount() -> None:
+    # Arrange
+    fixture, candidate = _candidate()
+    pending = prepare_zdex_atomic_buyback_v1(candidate)
+    assert isinstance(pending, ZDEXAtomicBuybackPendingV1)
+    verified_burn = _verify_burn(fixture, pending)
+    substituted_burn = replace(
+        pending.burn.journal,
+        authorized_quote_input_atoms=pending.burn.journal.authorized_quote_input_atoms + 1,
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="purchase and burn ports do not bind"):
+        derive_zdex_atomic_buyback_lane_ports_v1(
+            candidate.purchase_journal,
+            substituted_burn,
+            candidate.verified_purchase,
+            verified_burn,
+        )
+
+
+def test_atomic_lane_ports_reject_mixed_authority_heads() -> None:
+    # Arrange
+    fixture, candidate = _candidate()
+    pending = prepare_zdex_atomic_buyback_v1(candidate)
+    assert isinstance(pending, ZDEXAtomicBuybackPendingV1)
+    tokenomics_release = fixture.candidate.profile.lane_registry.release_for(
+        pending.route.ordered_lanes[1]
+    )
+    other_head = replace(
+        fixture.authority_head,
+        generation=fixture.authority_head.generation + 1,
+    )
+    other_burn = verify_governed_zdex_burn_receipt_shadow_v1(
+        ZDEXBurnReceiptCandidateV1(
+            fixture.route,
+            tokenomics_release,
+            fixture.candidate.occurrence,
+            pending.burn.journal,
+            burn_effects_v1(pending.burn.journal),
+            ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"other-head-burn"),
+        ),
+        profile=fixture.candidate.profile,
+        authority_head=other_head,
+        receipt_verifier=fixture.receipt_verifier,
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="purchase and burn ports do not bind"):
+        derive_zdex_atomic_buyback_lane_ports_v1(
+            candidate.purchase_journal,
+            pending.burn.journal,
+            candidate.verified_purchase,
+            other_burn,
+        )
+
+
+def test_atomic_lane_port_value_rejects_unpaired_quote_amount() -> None:
+    # Arrange
+    fixture, candidate = _candidate()
+    pending = prepare_zdex_atomic_buyback_v1(candidate)
+    assert isinstance(pending, ZDEXAtomicBuybackPendingV1)
+    verified_burn = _verify_burn(fixture, pending)
+    ports = derive_zdex_atomic_buyback_lane_ports_v1(
+        candidate.purchase_journal,
+        pending.burn.journal,
+        candidate.verified_purchase,
+        verified_burn,
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="quote ports do not pair exactly"):
+        replace(ports, spot_quote_in_atoms=ports.spot_quote_in_atoms + 1)
+
+
+def test_atomic_quote_flow_binds_value_and_has_cross_language_golden_root() -> None:
+    # Arrange
+    roots = tuple("0x" + f"{index:x}".zfill(64) for index in range(1, 22))
+    context = ZDEXAtomicBuybackLanePortContextV1(
+        authority_head_root=roots[0],
+        policy_registry_root=roots[1],
+        verifier_binding_root=roots[2],
+        profile_root=roots[3],
+        route_release_id=roots[4],
+        command_occurrence_id=roots[5],
+        spot_module_release_id=roots[6],
+        tokenomics_module_release_id=roots[7],
+        issue_burn_policy_root=roots[8],
+        buyback_execution_policy_root=roots[9],
+        price_safety_policy_root=roots[10],
+        oracle_occurrence_root=roots[11],
+        quote_asset_id=roots[12],
+        zdex_asset_id=roots[13],
+        quote_source_bucket_id="protocol-fee-buyback-reserve",
+        quote_pool_bucket_id=roots[14],
+        zdex_pool_bucket_id=roots[15],
+        burn_port_identity_root=roots[16],
+        purchase_journal_root=roots[17],
+        burn_journal_root=roots[18],
+        purchase_leaf_binding_root=roots[19],
+        burn_leaf_binding_root=roots[20],
+    )
+
+    # Act
+    exact = zdex_atomic_buyback_quote_flow_root_v1(context, 125)
+    adjacent = zdex_atomic_buyback_quote_flow_root_v1(context, 126)
+    purchased = zdex_atomic_buyback_purchased_zdex_flow_root_v1(context, 40)
+    purchased_adjacent = zdex_atomic_buyback_purchased_zdex_flow_root_v1(context, 41)
+
+    # Assert: each value changes its role root; Rust carries both fixed vectors.
+    assert exact != adjacent
+    assert purchased != purchased_adjacent
+    assert exact == "0x3c878e7cebc86a73d05daf05ec070436984e3d4e1974517b133e2ba95839ccf6"
+    assert purchased == "0x618194d0bca110a088dbc70a2f34cbc585773c5480f2b7fe203c08898feccae4"
 
 
 def test_zero_terminal_root_cannot_be_forged_before_lane_coordination() -> None:

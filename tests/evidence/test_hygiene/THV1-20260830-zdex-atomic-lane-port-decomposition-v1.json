@@ -1,0 +1,133 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260830-zdex-atomic-lane-port-decomposition-v1",
+  "created_date": "2026-08-30",
+  "claim_scope": "Research-only SHADOW evidence for the minimum exact dependency interface between the ZDEX_TOKENOMICS and SPOT_LIQUIDITY lanes in one same-occurrence buy-and-burn. Python and Rust derive two value-carrying private-port pairs from exact purchase and burn journals plus receipt-bound witnesses. Each role root binds its amount and the complete authority, release, policy, Oracle, resource, journal, and leaf context. Amount and authority substitutions reject, and both languages share canonical quote and purchased-ZDEX flow vectors. Lean proves the abstract lane projections recompose the atomic poststate and preserve quote and ZDEX accounting.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "ZDEX-ATOMIC-LANE-QUOTE-PORT-EXACT-PAIR",
+    "ZDEX-ATOMIC-LANE-ZDEX-PORT-EXACT-PAIR",
+    "ZDEX-ATOMIC-LANE-PORT-OCCURRENCE-BINDING",
+    "ZDEX-ATOMIC-LANE-PORT-CURRENT-AUTHORITY-BINDING",
+    "ZDEX-ATOMIC-LANE-DECOMPOSITION-RECOMPOSITION",
+    "ZDEX-ATOMIC-LANE-PORT-PYTHON-RUST-CANONICAL-PARITY"
+  ],
+  "failure_modes": [
+    "tokenomics exports a quote amount different from the amount Spot imports",
+    "Spot exports a purchased ZDEX amount different from the amount tokenomics burns",
+    "a port from another profile, route, occurrence, policy, budget, or journal is substituted",
+    "purchase and burn receipts from different authority generations are mixed",
+    "the abstract lane states cannot be recomposed into the accepted atomic poststate",
+    "Python and Rust derive different identities for the same quote port"
+  ],
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/ZDEXAtomicBuybackTransitionV1.lean",
+      "sha256": "57fc6b3cc46d2c859865ae6ab200dc1e735329db551e4012bccc8650dae1200f"
+    },
+    {
+      "path": "src/core/zdex_atomic_buyback_lane_ports_v1.py",
+      "sha256": "9ede3b8c730546031bb06a42b2d1584aadaacb370da9b02174c2ef7a43ff6ed3"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "f1f95ee075265b013f231bddf2bbd14cc903a9a40681ba80e5da25ebc828ecc1"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_atomic_buyback_lane_ports.rs",
+      "sha256": "7bbd2d76a9bb66a30e83bc66bff8c204909757bfad85426ebd6fd36a032036eb"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_purchase_burn_route.rs",
+      "sha256": "bc4070b66ea360ee5b340a5ef69fe6dc411351b33beafd7b37eb911f4d47142d"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_atomic_buyback_v1.py",
+      "sha256": "75686232892a3ac6d8d2acb9b1c78ff0827236b4ab7efbcadcac699ca2b60c69",
+      "node_ids": [
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_atomic_lane_ports_pair_quote_and_zdex_exactly",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_atomic_lane_ports_reject_substituted_cross_lane_amount",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_atomic_lane_ports_reject_mixed_authority_heads",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_atomic_lane_port_value_rejects_unpaired_quote_amount",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_atomic_quote_flow_binds_value_and_has_cross_language_golden_root"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_zdex_atomic_buyback_lane_decomposition_v1.py",
+      "sha256": "bff27c7f38f15ab72282a1cd16834f3d873e2f6d637df9ede4770eec00c6c4c8",
+      "node_ids": [
+        "tests/formal/test_lean_zdex_atomic_buyback_lane_decomposition_v1.py::test_lane_decomposition_proof_has_exact_port_and_refinement_surface",
+        "tests/formal/test_lean_zdex_atomic_buyback_lane_decomposition_v1.py::test_lane_decomposition_proof_checks_with_pinned_lean"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "mutation",
+    "formal",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each test arranges one exact accepted atomic fixture or one isolated substitution, acts through the public port derivation or pinned Lean checker, and asserts the exact paired result, typed rejection, canonical root, or machine-checked theorem surface."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "This checkpoint derives immutable dependency values and creates no state transition or effects. Invalid construction raises before any lane journal or publication authority exists; the surrounding atomic transition retains separate exact no-op rejection evidence."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "quote_port_pairing",
+      "points": [
+        "exact_equal_positive_amount_accepts",
+        "one_atom_cross_lane_substitution_rejects"
+      ]
+    },
+    {
+      "name": "zdex_port_pairing",
+      "points": [
+        "exact_purchased_amount_equals_burned_amount",
+        "journal_amount_mismatch_rejects"
+      ]
+    },
+    {
+      "name": "canonical_port_identity",
+      "points": [
+        "same_profile_route_occurrence_asset_replays_same_root",
+        "python_and_rust_match_fixed_root"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "increment the Spot quote input after deriving the tokenomics quote output",
+      "killed_by": "tests/core/test_zdex_atomic_buyback_v1.py::test_atomic_lane_port_value_rejects_unpaired_quote_amount"
+    },
+    {
+      "description": "substitute a burn journal carrying a different authorized quote input",
+      "killed_by": "tests/core/test_zdex_atomic_buyback_v1.py::test_atomic_lane_ports_reject_substituted_cross_lane_amount"
+    },
+    {
+      "description": "pair a purchase receipt with a burn receipt from another authority-head generation",
+      "killed_by": "tests/core/test_zdex_atomic_buyback_v1.py::test_atomic_lane_ports_reject_mixed_authority_heads"
+    },
+    {
+      "description": "remove one lane projection from the abstract accepted-state recomposition",
+      "killed_by": "tests/formal/test_lean_zdex_atomic_buyback_lane_decomposition_v1.py::test_lane_decomposition_proof_checks_with_pinned_lean"
+    }
+  ],
+  "nonclaims": [
+    "No Spot or complete tokenomics lane coordinator is implemented by this packet.",
+    "No lane receipt, route receipt, epoch receipt, RISC0 guest, mount, migration, publication, or value-moving authority is established.",
+    "The port derivation validates journal relationships under the existing leaf-verifier premises; it does not independently establish cryptographic receipt validity.",
+    "The Lean proof covers an abstract natural-number decomposition and is not a Python, Rust, RISC0, Tau, Oracle, or runtime refinement theorem.",
+    "The nonzero lane-coordination obligation remains open, and the route remains SHADOW and unmounted."
+  ]
+}

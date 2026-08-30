@@ -272,5 +272,115 @@ theorem nonvacuity_accepts :
         (acceptedEffects nonvacuityCommand) := by
   decide
 
+/-!
+## Lane decomposition
+
+The tokenomics lane owns the fee-backed quote source, ZDEX live supply, and
+burn input. The Spot lane owns the selected pool reserves. Two typed route
+ports carry the exact quote input and purchased ZDEX output between the lanes.
+These statements establish the abstract port-pairing and recomposition
+obligations that concrete coordinators must refine.
+-/
+
+/-- Tokenomics-owned observations after fee spend and exact supply burn. -/
+structure TokenomicsPost where
+  quoteSource : Nat
+  liveSupply : Nat
+  occurrenceConsumed : Bool
+  burnPending : Bool
+  deriving DecidableEq, Repr
+
+/-- Spot-owned selected-pool observations after the exact purchase. -/
+structure SpotPost where
+  quotePool : Nat
+  zdexPool : Nat
+  deriving DecidableEq, Repr
+
+/-- The complete route-port cardinality for one atomic buy-and-burn. -/
+structure RoutePorts where
+  tokenomicsQuoteOut : Nat
+  spotQuoteIn : Nat
+  spotZdexOut : Nat
+  tokenomicsBurnIn : Nat
+  deriving DecidableEq, Repr
+
+/-- Both dependency roles pair by exact amount. -/
+def ExactlyPaired (ports : RoutePorts) : Prop :=
+  ports.tokenomicsQuoteOut = ports.spotQuoteIn ∧
+    ports.spotZdexOut = ports.tokenomicsBurnIn
+
+def tokenomicsPost (state : State) (command : Command) : TokenomicsPost where
+  quoteSource := state.quoteSource - command.quoteSpend
+  liveSupply := state.liveSupply - command.purchasedZdex
+  occurrenceConsumed := true
+  burnPending := false
+
+def spotPost (state : State) (command : Command) : SpotPost where
+  quotePool := state.quotePool + command.quoteSpend
+  zdexPool := state.zdexPool - command.purchasedZdex
+
+def routePorts (command : Command) : RoutePorts where
+  tokenomicsQuoteOut := command.quoteSpend
+  spotQuoteIn := command.quoteSpend
+  spotZdexOut := command.purchasedZdex
+  tokenomicsBurnIn := command.purchasedZdex
+
+/-- Recombine lane-owned observations only after route-port verification. -/
+def recompose (tokenomics : TokenomicsPost) (spot : SpotPost) : State where
+  quoteSource := tokenomics.quoteSource
+  quotePool := spot.quotePool
+  zdexPool := spot.zdexPool
+  liveSupply := tokenomics.liveSupply
+  occurrenceConsumed := tokenomics.occurrenceConsumed
+  burnPending := tokenomics.burnPending
+
+theorem route_ports_exactly_paired (command : Command) :
+    ExactlyPaired (routePorts command) := by
+  simp [ExactlyPaired, routePorts]
+
+theorem decomposition_recomposes_atomic_post (state : State) (command : Command) :
+    recompose (tokenomicsPost state command) (spotPost state command) =
+      acceptedPost state command := by
+  rfl
+
+theorem paired_lane_accounting
+    (state : State) (command : Command)
+    (hAmounts : ValidAmounts state command) :
+    let tokenomics := tokenomicsPost state command
+    let spot := spotPost state command
+    let ports := routePorts command
+    ExactlyPaired ports ∧
+      state.quoteSource + state.quotePool = tokenomics.quoteSource + spot.quotePool ∧
+      spot.zdexPool + ports.spotZdexOut = state.zdexPool ∧
+      tokenomics.liveSupply + ports.tokenomicsBurnIn = state.liveSupply := by
+  rcases hAmounts with ⟨_hQuotePositive, _hZdexPositive,
+    hQuoteFits, hPoolFits, hSupplyFits⟩
+  simp [tokenomicsPost, spotPost, routePorts, ExactlyPaired]
+  omega
+
+theorem accepted_transition_has_exact_lane_decomposition
+    (state post : State) (command : Command) (gates : Gates) (effects : Effects)
+    (hAccepted : transition state command gates = .accepted post effects) :
+    post = recompose (tokenomicsPost state command) (spotPost state command) ∧
+      ExactlyPaired (routePorts command) ∧
+      effects.quoteMoved = (routePorts command).tokenomicsQuoteOut ∧
+      effects.zdexPurchased = (routePorts command).spotZdexOut ∧
+      effects.zdexBurned = (routePorts command).tokenomicsBurnIn := by
+  rw [accepted_iff] at hAccepted
+  rcases hAccepted with ⟨_hGates, _hAmounts, rfl, rfl⟩
+  constructor
+  · exact (decomposition_recomposes_atomic_post state command).symm
+  · simp [ExactlyPaired, routePorts, acceptedEffects]
+
+/-- A concrete paired decomposition keeps the proof surface non-vacuous. -/
+theorem nonvacuity_lane_decomposition :
+    ExactlyPaired (routePorts nonvacuityCommand) ∧
+      recompose
+          (tokenomicsPost nonvacuityState nonvacuityCommand)
+          (spotPost nonvacuityState nonvacuityCommand) =
+        acceptedPost nonvacuityState nonvacuityCommand := by
+  exact ⟨route_ports_exactly_paired nonvacuityCommand,
+    decomposition_recomposes_atomic_post nonvacuityState nonvacuityCommand⟩
+
 end ZDEXAtomicBuybackTransitionV1
 end Proofs

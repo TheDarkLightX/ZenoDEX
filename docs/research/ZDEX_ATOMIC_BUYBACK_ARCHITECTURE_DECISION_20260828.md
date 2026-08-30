@@ -117,7 +117,7 @@ SpotTransition(spot_pre, intent)
 TokenomicsTransition(tokenomics_pre, intent, PurchasedZDEXPort)
   -> tokenomics_post
 
-module-level atomic composition
+route-level atomic candidate
   -> exact effects + nonzero lane-coordination obligation
 
 Spot lane coordinator + Tokenomics lane coordinator
@@ -140,6 +140,50 @@ The ephemeral purchased-ZDEX port cannot be published or stored separately.
 Any failure in purchase validation, burn validation, lane composition, route
 composition, receipt verification, or publication leaves the complete
 economic prestate unchanged.
+
+## Exact lane-port checkpoint
+
+The SHADOW functional core now derives one immutable route-port value from the
+already validated purchase and burn journals. It contains exactly two paired
+dependencies:
+
+```text
+tokenomics_quote_out_atoms = spot_quote_in_atoms = q
+spot_zdex_out_atoms        = tokenomics_burn_in_atoms = p
+```
+
+The value also binds the exact authority-head root, policy registry,
+receipt-verifier binding, profile, route, command occurrence, module releases,
+economic policies, Oracle occurrence, assets, source and pool principals,
+purchase and burn journal roots, and receipt-bound leaf roots. The
+authority-head root commits the authority generation. Each role-specific flow
+root commits its exact transferred amount. Construction rejects a
+cross-journal or cross-authority mismatch in any of those coordinates, the
+transient burn state, or the port identity. Python and Rust share a fixed
+value-carrying quote-flow vector. Lean proves that the abstract lane
+observations recompose the atomic poststate and preserve quote conservation,
+exact Spot output, and exact supply reduction.
+
+This checkpoint establishes the dependency interface only. It does not create
+a lane journal, verify a lane receipt, discharge the nonzero coordination
+obligation, or authorize route or epoch publication. The next coordinator must
+verify complete lane-owned states and module receipts against these exact
+ports.
+
+### Historical purchase-leaf boundary
+
+`ZDEXAMMPurchaseJournalV2` and its receipt verifier remain SHADOW donors. Their
+effect plan contains the tokenomics buyback-reserve debit, both Spot pool
+reserve movements, and the route-transient purchased-ZDEX credit while naming
+only one Spot lane write. That shape cannot serve as a complete Spot module
+proof under the sole-writer map.
+
+The successor Spot leaf must derive a complete Spot lane prestate and poststate
+and expose only the selected-pool transition plus typed route ports. The
+successor tokenomics leaf must own fee allocation, buyback-reserve spending,
+cadence, and exact burn inside one complete tokenomics state. Route composition
+will build the four-row global custody projection after both lane receipts
+verify. No existing purchase receipt is promoted by this decision.
 
 ## ABI boundary for consumed objects
 
@@ -251,11 +295,13 @@ governed purchase and burn witnesses must share one opaque current-authority
 statement that binds the profile, authority generation, policy registry,
 verifier registry, root image, and receipt-verifier binding. Currentness and
 receipt validity remain external verifier-port premises; test verifiers do not
-establish deployment authority. A Spot lane coordinator and a tokenomics
-coordinator that covers the complete atomic state, including fee allocation,
-cadence, and burn, remain incomplete. The existing burn-only tokenomics
-coordinator does not close that obligation. RISC0 guests, runtime-to-theorem
-refinement, migration, durable publication, and all value-movement gates also
-remain incomplete. The ABI V1 global epoch verifier continues to reject
-persistent consumed objects. No production, settlement, release, publication,
-migration, or value-moving authority is claimed.
+establish deployment authority. Typed Python and Rust lane ports now bind the
+exact quote and ZDEX dependency amounts, and Lean proves their abstract
+decomposition. A Spot lane coordinator and a tokenomics coordinator that
+covers the complete atomic state, including fee allocation, cadence, and burn,
+remain incomplete. The existing burn-only tokenomics coordinator does not
+close that obligation. RISC0 guests, runtime-to-theorem refinement, migration,
+durable publication, and all value-movement gates also remain incomplete. The
+ABI V1 global epoch verifier continues to reject persistent consumed objects.
+No production, settlement, release, publication, migration, or value-moving
+authority is claimed.
