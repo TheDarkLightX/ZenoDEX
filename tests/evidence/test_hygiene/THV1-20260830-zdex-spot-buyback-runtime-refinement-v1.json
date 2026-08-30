@@ -1,0 +1,200 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260830-zdex-spot-buyback-runtime-refinement-v1",
+  "created_date": "2026-08-30",
+  "claim_scope": "Research-only SHADOW runtime evidence for one governed SPOT_LIQUIDITY transition in a same-occurrence ZDEX buy-and-burn. Python and Rust derive pool selection, CPMM output, Spot reserve effects, lane write, private ports, journal, and must-burn terminal obligation from exact typed inputs. Fixed vectors share canonical roots. This packet does not authenticate the caller-constructible profile, Oracle snapshot, Tokenomics source receipt-binding root, or current global state.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "ZDEX-SPOT-RUNTIME-DERIVED-POOL-AND-OUTPUT",
+    "ZDEX-SPOT-RUNTIME-REJECT-NOOP",
+    "ZDEX-SPOT-RUNTIME-ARITHMETIC-PRECEDENCE",
+    "ZDEX-SPOT-RUNTIME-SIBLING-PRESERVATION",
+    "ZDEX-SPOT-RUNTIME-EXACT-EFFECT-SHAPE",
+    "ZDEX-SPOT-RUNTIME-PRIVATE-PORT-ROLE-PAIR",
+    "ZDEX-SPOT-RUNTIME-MUST-BURN-OBLIGATION",
+    "ZDEX-SPOT-RUNTIME-EXACT-ACCEPTED-GRAPH",
+    "ZDEX-SPOT-RUNTIME-ASSET-ORDER-PRECEDENCE",
+    "ZDEX-SPOT-RUNTIME-PYTHON-RUST-ROOT-PARITY",
+    "ZDEX-SPOT-RUNTIME-HISTORICAL-RELEASE-ADMISSION"
+  ],
+  "failure_modes": [
+    "a caller supplies purchased ZDEX or substitutes a pool outside the governed canonical state",
+    "a rejected command changes state or exposes effects, ports, a journal, or a terminal obligation",
+    "Oracle cross-product overflow is misclassified after price-policy evaluation",
+    "a sibling pool changes during the selected-pool transition",
+    "an accepted Spot leaf contains extra effects, another lane write, replay consumption, or outbox work",
+    "duplicated or reordered private-port roles produce a usable commitment",
+    "purchased ZDEX is not bound to the exact burn asset, principal, amount, and command occurrence",
+    "an object.__new__ wrapper uses foreign equality, built-in cross-type equality aliases, cycles, or oversized graphs to validate different canonical bytes",
+    "reversed canonical asset ordering drifts from Lean rejection precedence",
+    "Python and Rust commit different bytes for the same accepted transition",
+    "a pool created by an unknown, retired, or revoked module release remains admissible"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_spot_buyback_transition_v1.py",
+      "sha256": "9c960930655475f8d4a9fc3309efc897333a1fa63f60822c41531b01ce1b691b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_spot_buyback_transition.rs",
+      "sha256": "bc05db3936acbd57c41d54861483155ce485b74b3ab23eedb8ccbbca7b92517e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "d18538f57b78475a2c83624fa83bd4a119ec3c9b5c4d764e51fcdc7cc1c70aee"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_spot_buyback_transition.rs",
+      "sha256": "c4a906c2c7ae836b60a3adbd00e8b038b71e37903054a95adb97c162460fcc8e"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZDEXSpotBuybackTransitionV1.lean",
+      "sha256": "e5c2bc35f15afc38cb9f812ac99bd8dc824153ff1b1f2d55845cae550bfa861d"
+    },
+    {
+      "path": "docs/research/ZDEX_ATOMIC_BUYBACK_ARCHITECTURE_DECISION_20260828.md",
+      "sha256": "f27fde29b5bac788b0759db35d3105a757a2473021a9ea10387fc8600cc6726f"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_spot_buyback_transition_v1.py",
+      "sha256": "e563b7a1774358f252442c4679117809c345a3cecaa625ced9ed8cf55e4403a2",
+      "node_ids": [
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_accepts_derived_cpmm_transition_and_freezes_commitment_roots",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_rounding_one_atom_siblings_and_spot_value_conservation",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_generated_accepted_transitions_are_deterministic_and_conserved",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_one_atom_boundary_is_live_under_an_explicit_wide_shadow_envelope",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_reserve_cap_exact_neighbor_accepts_and_successor_rejects",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_fee_basis_point_boundaries_have_exact_first_outcomes",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_pool_count_boundaries_are_exact",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_u64_height_maximum_accepts_and_successor_is_unrepresentable",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_oracle_registry_rejects_a_pending_sibling_occurrence",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_registered_drain_only_sibling_curve_is_preserved",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_revoked_pool_creation_release_is_not_admissible",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_pool_oracle_cross_product_overflow_precedes_price_unsafe",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_each_structural_guard_has_a_mutation_killing_noop",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_release_reject_precedes_profile_and_later_failures",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_reversed_asset_order_is_a_policy_mismatch_before_lane_validation",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_cross_occurrence_substitution_changes_both_flow_identities",
+        "tests/core/test_zdex_spot_buyback_transition_v1.py::test_accepted_result_rederives_and_rejects_private_token_forgery"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py",
+      "sha256": "e526209caee62b549c9fc8d4973941e6c92392f97fc6c0ce88dee692ef73fdc9",
+      "node_ids": [
+        "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_has_closed_command_specific_surface",
+        "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "differential",
+    "mutation",
+    "formal"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange one exact typed candidate, one generated valid candidate, or one isolated semantic mutant, act only through the public transition or commitment method, and assert an exact accepted projection, first reject code, unchanged state and empty effects, deterministic repeated output, conservation, or fixed cross-language root. RIPR propagates pool, amount, authority, arithmetic, and role defects into state or commitment differences that the independent assertions reveal."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every exercised economic reject returns the original Python state object or an equal Rust state value, empty effects, and no accepted ports, journal, or terminal obligation. Malformed wire decoding and durable history are outside this local transition claim."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "amount_fee_and_output",
+      "points": [
+        "zero_or_above_cap_rejects",
+        "one_atom_accepts_under_explicit_wide_shadow_policy",
+        "exact_reserve_cap_accepts_and_one_atom_above_rejects",
+        "rounded_fee_one_atom_accepts",
+        "fee_bps_zero_one_9999_10000_and_10001_have_exact_outcomes",
+        "fee_equal_to_gross_rejects",
+        "zero_output_rejects",
+        "minimum_equal_to_derived_accepts",
+        "minimum_one_above_derived_rejects"
+      ]
+    },
+    {
+      "name": "arithmetic_and_price",
+      "points": [
+        "all admitted intermediates fit_u128_and_signed_effect_width",
+        "u64_height_maximum_accepts_and_successor_is_unrepresentable",
+        "oracle_deviation_cross_product_overflow_rejects_arithmetic_first",
+        "freshness_boundary_accepts_in_formal_model",
+        "one_block_stale_rejects_price_unsafe"
+      ]
+    },
+    {
+      "name": "registry_and_lifecycle",
+      "points": [
+        "canonical_selected_pool_accepts",
+        "pool_count_zero_one_64_and_65_have_exact_outcomes",
+        "duplicate_pool_id_rejects",
+        "inactive_selected_pool_rejects",
+        "registered_drain_only_sibling_curve_accepts",
+        "unregistered_creation_release_rejects",
+        "pending_oracle_registry_sibling_rejects"
+      ]
+    },
+    {
+      "name": "commitment_and_occurrence",
+      "points": [
+        "seven_fixed_python_rust_roots_match",
+        "different_command_occurrence_changes_both_flow_ids",
+        "duplicated_private_port_role_rejects",
+        "foreign_equality_and_builtin_bool_int_or_string_enum_aliases_reject_before_validation",
+        "cyclic_or_oversized_object_new_graphs_reject_with_bounded_typed_failures",
+        "reversed_asset_order_rejects_as_policy_mismatch_in_python_and_rust"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "omit the high-order pool-Oracle deviation products from arithmetic admission",
+      "killed_by": "tests/core/test_zdex_spot_buyback_transition_v1.py::test_pool_oracle_cross_product_overflow_precedes_price_unsafe"
+    },
+    {
+      "description": "allow a pending occurrence elsewhere in the committed Oracle registry",
+      "killed_by": "tests/core/test_zdex_spot_buyback_transition_v1.py::test_oracle_registry_rejects_a_pending_sibling_occurrence"
+    },
+    {
+      "description": "accept a pool whose creating module release is absent from the active-or-draining registry",
+      "killed_by": "tests/core/test_zdex_spot_buyback_transition_v1.py::test_revoked_pool_creation_release_is_not_admissible"
+    },
+    {
+      "description": "remove command occurrence from private-flow commitments",
+      "killed_by": "tests/core/test_zdex_spot_buyback_transition_v1.py::test_cross_occurrence_substitution_changes_both_flow_identities"
+    },
+    {
+      "description": "allow release mismatch to fall through to a later profile failure",
+      "killed_by": "tests/core/test_zdex_spot_buyback_transition_v1.py::test_release_reject_precedes_profile_and_later_failures"
+    },
+    {
+      "description": "use the importable module token, foreign equality, bool/int or string/enum aliases, cycles, or oversized object.__new__ graphs to validate a projection with different canonical bytes",
+      "killed_by": "tests/core/test_zdex_spot_buyback_transition_v1.py::test_accepted_result_rederives_and_rejects_private_token_forgery"
+    },
+    {
+      "description": "omit canonical quote-asset-before-ZDEX ordering from Python or Rust policy admission",
+      "killed_by": "tests/core/test_zdex_spot_buyback_transition_v1.py::test_reversed_asset_order_is_a_policy_mismatch_before_lane_validation"
+    }
+  ],
+  "nonclaims": [
+    "The caller-constructible profile authorization, Oracle registry snapshot, and Tokenomics source receipt-binding root are typed provenance, not deployed cryptographic authority.",
+    "Fixed-vector canonical parity is not a universal Python-Rust-Lean refinement proof.",
+    "The generated property campaign is bounded to 100 deterministic Hypothesis examples and is not exhaustive over the release domain.",
+    "No automated whole-module mutation score has been run; the mutation rows bind explicit semantic mutants to focused killing regressions.",
+    "Lean/runtime correspondence remains open for release-family admission, reserve-principal representation, profile derivation, pool selection, context-root compression, and the stronger pool-creation release registry.",
+    "This command-specific transition does not complete Spot pool creation, generic swaps, routes, batches, LP issue or burn, close, recovery, or migration.",
+    "No Tokenomics consumer transition, lane coordinator, route composer, RISC0 guest, current-head verifier, migration, publisher, settlement, or value-moving authority is established.",
+    "The bounded release parameters remain research fixtures and are not production policy."
+  ]
+}

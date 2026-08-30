@@ -254,6 +254,75 @@ production claims. It does not establish canonical-byte or cryptographic-root
 refinement, Python/Rust parity, RISC0 receipt verification, lane composition,
 global replay consumption, or ZenoLedger publication authority.
 
+### Python/Rust runtime-correspondence checkpoint
+
+The SHADOW Python and Rust cores now implement the bounded Spot transition in
+`src/core/zdex_spot_buyback_transition_v1.py` and
+`zk/global_settlement_abi_v1/src/zdex_spot_buyback_transition.rs`. Both derive
+the governed pool from canonical lane state, derive the exact CPMM output,
+preserve unrelated pools, emit two Spot reserve effects and one Spot lane
+write, and retain the exact purchased amount in a must-burn terminal
+obligation. Rust accepted fields are private. Python accepted values rederive
+the complete projection from their frozen subject during construction and on
+explicit validation. Before either comparison, Python traverses the complete
+subject and accepted projection as a closed exact-type graph, including the
+opaque price witness, under fixed node and depth budgets. It then compares
+every corresponding node by exact runtime type and value. This rejects
+foreign equality behavior, Boolean/integer and string/enum equality aliases,
+cycles, and oversized forged graphs before they can validate a different
+canonical commitment. Python module privacy is not treated as authority.
+Rejected economic transitions preserve the input state and expose empty
+effects. The Python core keeps rejection precedence in one explicit ordered
+phase and separates pool selection, arithmetic, price verification, state
+projection, effects, ports, terminal obligation, and journal construction at
+named invariant boundaries.
+
+The runtimes share fixed roots for the prestate, transition context, poststate,
+effect plan, private ports, terminal obligation, and journal. Boundary evidence
+covers one atom, rounded fees, exact CPMM conservation, guard precedence, and
+overflow in the Oracle-deviation products. It also covers hostile accepted
+wrapper fields and canonical reversed-asset ordering, which rejects as
+`POLICY_MISMATCH` before lane-state validation in Lean, Python, and Rust. A deterministic 100-example
+generated campaign checks accepted-state determinism and conservation over a
+bounded reserve and trade domain. This is bounded differential and property
+evidence. It is not a universal Python/Rust refinement proof.
+
+The Rust transition currently retains a long linear guard-and-projection body
+so the release-defined rejection order remains directly inspectable while the
+shared differential corpus is still incomplete. This is explicit structural
+debt, not a preferred final shape. Splitting it requires before-and-after
+parity for every reject class and every canonical accepted root.
+
+The current Lean and runtime models have several explicit correspondence
+obligations:
+
+- Lean fixes one exact approved release; runtime accepts a bounded,
+  content-committed local release family whose identifiers still require a
+  current-profile verifier.
+- Lean stores reserve principals in each pool definition; runtime derives each
+  reserve principal from the canonical pool identifier and asset.
+- Lean derives a mathematical profile identifier; runtime binds a local
+  caller-constructible profile root and authorization record.
+- Lean checks an explicit selection decomposition; runtime derives the unique
+  selected pool from canonical state.
+- Runtime compresses complete command and dependency coordinates into a
+  cryptographic context root; no factorization or commutation theorem yet maps
+  that root to Lean's injective mathematical encoding.
+- Runtime additionally requires every pool's creating module release in a
+  separate `ACTIVE_NEW` or `DRAIN_ONLY` registry. Lean currently requires only
+  a nonzero creation release identifier.
+
+These degree-of-freedom reductions are fail-closed runtime choices. A successor
+Lean revision or an explicit abstraction/refinement theorem must cover all six
+differences before the implementation is described as an exact Lean
+refinement.
+
+The profile authorization, Oracle registry snapshot, and Tokenomics source
+receipt-binding root remain typed, caller-constructible inputs to this local
+core. They become authority only after a current-head verifier binds them to
+the active global state and exact verified receipts. No such adapter, Spot
+guest, lane receipt, or production verifier is mounted by this checkpoint.
+
 ## ABI boundary for consumed objects
 
 `EconomicCommandOccurrenceV1` already commits `consumed_object_ids`, while the
@@ -368,9 +437,13 @@ establish deployment authority. Typed Python and Rust lane ports now bind the
 exact quote and ZDEX dependency amounts, and Lean proves their abstract
 decomposition. A Spot lane coordinator and a tokenomics coordinator that
 covers the complete atomic state, including fee allocation, cadence, and burn,
-remain incomplete. The existing burn-only tokenomics coordinator does not
-close that obligation. RISC0 guests, runtime-to-theorem refinement, migration,
-durable publication, and all value-movement gates also remain incomplete. The
-ABI V1 global epoch verifier continues to reject persistent consumed objects.
-No production, settlement, release, publication, migration, or value-moving
+remain incomplete. The exact Spot command has bounded Python/Rust differential
+evidence, with the complete Lean/runtime correspondence obligations described
+above.
+The existing burn-only tokenomics coordinator does not close the route
+obligation. Current-head admission, authenticated Tokenomics source receipt,
+RISC0 guests, universal runtime-to-theorem refinement, migration, durable
+publication, and all value-movement gates also remain incomplete. The ABI V1
+global epoch verifier continues to reject persistent consumed objects. No
+production, settlement, release, publication, migration, or value-moving
 authority is claimed.
