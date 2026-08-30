@@ -318,11 +318,11 @@ def _git_blob_bytes_v3(root: Path, blob_sha: str, path: str) -> bytes:
 
 def _tree_source_file_v3(root: Path, commit: str, path: str) -> SourceFileV3:
     entry_path, mode, object_type, blob_sha = _git_tree_entry_v1(root, commit, path)
-    if entry_path != path or mode != "100644" or object_type != "blob":
+    if entry_path != path or mode not in {"100644", "100755"} or object_type != "blob":
         raise ClosureRejectV3(
             "GIT_ENTRY",
             path,
-            "requires one regular non-executable Git blob",
+            "requires one regular Git blob",
         )
     return SourceFileV3(
         path=path,
@@ -347,11 +347,11 @@ def _subject_source_file_v3(
             "current Git entry differs from the Stage-A evidence subject",
         )
     entry_path, mode, object_type, blob_sha = subject_entry
-    if entry_path != path or mode != "100644" or object_type != "blob":
+    if entry_path != path or mode not in {"100644", "100755"} or object_type != "blob":
         raise ClosureRejectV3(
             "GIT_ENTRY",
             path,
-            "requires one regular non-executable Git blob",
+            "requires one regular Git blob",
         )
     data = _read_bounded_regular_file_v1(
         root / path,

@@ -23,6 +23,7 @@ from tools.retired_tau_bridge_closure_v3 import (
     DIRECT_CONSUMER_PATHS_V3,
     EXPECTED_BASELINE_EDGE_ROOT_V3,
     EXPECTED_CURRENT_EDGE_ROOT_V3,
+    EXPECTED_CURRENT_ROUTE_SOURCE_ROOT_V3,
     RESEARCH_OPERATION_IDS_V3,
     SUBJECT_PIN_PATHS_V3,
     ClosureRejectV3,
@@ -188,6 +189,25 @@ def _reject_code(snapshot: SubjectSnapshotV3) -> str:
     return exc_info.value.code
 
 
+def test_source_loaders_accept_pinned_executable_regular_blob() -> None:
+    path = "tools/check_production_promotion_evidence_manifest.py"
+    head = _git_output("rev-parse", "HEAD").decode("ascii").strip()
+
+    baseline = closure_builder._tree_source_file_v3(ROOT, BASELINE_COMMIT_V3, path)
+    subject = closure_builder._subject_source_file_v3(
+        ROOT,
+        captured_head=head,
+        subject_commit=head,
+        path=path,
+    )
+
+    assert _git_output("ls-tree", BASELINE_COMMIT_V3, "--", path).startswith(
+        b"100755 blob "
+    )
+    assert _git_output("ls-tree", head, "--", path).startswith(b"100755 blob ")
+    assert baseline.path == subject.path == path
+
+
 def test_exact_import_projection_and_closed_operation_registry(
     exact_snapshot: SubjectSnapshotV3,
 ) -> None:
@@ -217,6 +237,9 @@ def test_exact_import_projection_and_closed_operation_registry(
     )
     assert projection["baseline_edge_root_sha256"] == EXPECTED_BASELINE_EDGE_ROOT_V3
     assert projection["current_edge_root_sha256"] == EXPECTED_CURRENT_EDGE_ROOT_V3
+    assert projection["current_route_source_root_sha256"] == (
+        EXPECTED_CURRENT_ROUTE_SOURCE_ROOT_V3
+    )
     assert projection["import_classification_counts"] == {
         "QUARANTINED": 0,
         "RESEARCH_ORACLE": 92,
@@ -610,6 +633,33 @@ def test_mounted_route_guard_rejects_post_definition_binding_rewrite(
     )
 
     assert _reject_code(mutated) == code
+
+
+@pytest.mark.parametrize(
+    "appended",
+    (
+        b"\n\ndef _unsafe_rebound_post(self):\n"
+        b"    self.server.vault\n\n"
+        b"HandlerAlias, = (_LocalSignerHttpHandler,)\n"
+        b"HandlerAlias.do_POST = _unsafe_rebound_post\n",
+        b"\n\ndef _unsafe_rebound_post(self):\n"
+        b"    self.server.vault\n\n"
+        b'type.__setattr__(globals()["_LocalSignerHttpHandler"], '
+        b'"do_POST", _unsafe_rebound_post)\n',
+    ),
+    ids=("tuple-alias", "globals-subscript"),
+)
+def test_fixed_route_source_root_rejects_binding_alias_indirection(
+    exact_snapshot: SubjectSnapshotV3,
+    appended: bytes,
+) -> None:
+    mutated = _mutate_subject(
+        exact_snapshot,
+        "tools/zenodex_local_signer.py",
+        lambda data: data + appended,
+    )
+
+    assert _reject_code(mutated) == "CURRENT_ROUTE_SOURCE_SET"
 
 
 def test_api_route_guard_rejects_delete_inserted_before_refusal(

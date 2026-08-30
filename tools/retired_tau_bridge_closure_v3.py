@@ -69,6 +69,9 @@ EXPECTED_BASELINE_SOURCE_ROOT_V3: Final = (
 EXPECTED_CURRENT_SOURCE_ROOT_V3: Final = (
     "a30365fb098360556e5f2fb4bfcb79fce55bf3b55da93ec57f515e0bb4ea2eaf"
 )
+EXPECTED_CURRENT_ROUTE_SOURCE_ROOT_V3: Final = (
+    "770a8b131a3c3d2000cb0dabee66e2c62d6af1100613ceafe8c667fdee046a70"
+)
 
 _SHA1_RE: Final = re.compile(r"^[0-9a-f]{40}$")
 _CLASSIFICATIONS_V3: Final = ("QUARANTINED", "RESEARCH_ORACLE", "REMOVED")
@@ -2327,6 +2330,15 @@ def derive_closure_v3(
     current_source = {path: item.data for path, item in subject.items()}
     _require_plan_and_current_tau(current_source)
     _require_route_witnesses(baseline, subject)
+    current_route_source_root = _manifest_root(
+        _source_manifest(subject, _ROUTE_PIN_PATHS_V3)
+    )
+    if current_route_source_root != EXPECTED_CURRENT_ROUTE_SOURCE_ROOT_V3:
+        _reject(
+            "CURRENT_ROUTE_SOURCE_SET",
+            "route witnesses",
+            current_route_source_root,
+        )
 
     import_rows, projection = _import_dependency_rows(baseline, subject)
     discovery_projection = _require_discovery_closure(
@@ -2375,6 +2387,7 @@ def derive_closure_v3(
                 cast(int, row["size"]) for row in current_direct_manifest
             ),
             "current_source_root_sha256": current_source_root,
+            "current_route_source_root_sha256": current_route_source_root,
             "direct_consumer_path_count": len(DIRECT_CONSUMER_PATHS_V3),
             "direct_consumer_path_set_sha256": DIRECT_CONSUMER_PATH_SET_SHA256_V3,
             "import_classification_counts": import_counts,
