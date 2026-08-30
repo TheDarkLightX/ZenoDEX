@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from ..integration.tau_net_client import bls_pubkey_hex_from_privkey
+from ..integration.bls_intent_signing import bls_pubkey_hex_from_privkey
 from ..state.canonical import canonical_json_bytes, sha256_hex
 from .autotrader_client_policy_surface import (
     AutoTraderClientPolicySurface,

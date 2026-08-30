@@ -375,12 +375,12 @@ def test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_const
     )
     environment = compose["services"]["zenodex-api"]["environment"]
     assert environment["AUTOTRADER_LIVE_API_ENABLED"] == "false"
-    assert environment["AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING"] == "false"
-    assert environment["AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION"] == "false"
-    assert environment["AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED"] == "false"
-    assert environment["AUTOTRADER_LIVE_SUPERVISOR_ENABLED"] == "false"
+    assert "AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING" not in environment
+    assert "AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION" not in environment
+    assert "AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED" not in environment
+    assert "AUTOTRADER_LIVE_SUPERVISOR_ENABLED" not in environment
     assert environment["CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED"] == "false"
-    assert environment["CONFIDENTIAL_SEALED_BID_AUTO_MINE"] == "false"
+    assert "CONFIDENTIAL_SEALED_BID_AUTO_MINE" not in environment
     assert "AUTOTRADER_LIVE_API_ENABLED" not in lifecycle.LOCAL_TESTNET_ENABLED_LANES
 
     lane_fields = {
@@ -412,7 +412,6 @@ def test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_const
 
     class FakeServer:
         autotrader_live_api_enabled: bool
-        confidential_sealed_bid_asset_settlement_submitter: object | None
 
         def __init__(self, address, handler_cls):
             self.address = address
@@ -430,7 +429,10 @@ def test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_const
     assert rc == 0
     assert len(server_instances) == 1
     assert server_instances[0].autotrader_live_api_enabled is False
-    assert server_instances[0].confidential_sealed_bid_asset_settlement_submitter is None
+    assert not hasattr(
+        server_instances[0],
+        "confidential_sealed_bid_asset_settlement_submitter",
+    )
 
 
 def test_local_testnet_profile_quarantines_zusd_tau_wallet_lane() -> None:
@@ -440,8 +442,8 @@ def test_local_testnet_profile_quarantines_zusd_tau_wallet_lane() -> None:
     environment = compose["services"]["zenodex-api"]["environment"]
 
     assert environment["ZUSD_TAU_WALLET_API_ENABLED"] == "false"
-    assert environment["ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING"] == "false"
-    assert environment["ZUSD_TAU_WALLET_AUTO_MINE"] == "false"
+    assert "ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING" not in environment
+    assert "ZUSD_TAU_WALLET_AUTO_MINE" not in environment
     assert "ZUSD_TAU_WALLET_API_ENABLED" not in lifecycle.LOCAL_TESTNET_ENABLED_LANES
 
 

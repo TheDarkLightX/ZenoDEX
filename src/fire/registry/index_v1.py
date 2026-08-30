@@ -21,7 +21,7 @@ from src.fire.verifier.cert_v1 import (
     _require_evidence_level,
     _require_sha256_prefixed,
 )
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+from src.integration.bls_intent_signing import bls_pubkey_hex_from_privkey
 from src.state.canonical import canonical_json_bytes
 
 INDEX_SCHEMA = "zenodex/fire-registry-index/v1"

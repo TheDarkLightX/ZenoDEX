@@ -1665,15 +1665,18 @@ def _attach_api_server_state(httpd: ThreadingHTTPServer, config: ApiServerConfig
             config.perps_wallet_enabled,
             config.zusd_tau_wallet_enabled,
             config.zusd_monetary_wallet_enabled,
+            config.autotrader_live_enabled,
+            config.confidential_sealed_bid_asset_settlement_enabled,
         )
     ):
         refuse_current_local_operator_operation_v1("api_server_state_attachment")
 
     from src.integration.confidential_sealed_bid_api import (  # pylint: disable=import-outside-toplevel
         ConfidentialSealedBidTable,
-        submit_confidential_sealed_bid_local_ledger_settlement,
     )
-    from src.state.confidential_requests import ConfidentialRequestTable  # pylint: disable=import-outside-toplevel
+    from src.state.confidential_requests import (
+        ConfidentialRequestTable,  # pylint: disable=import-outside-toplevel
+    )
 
     httpd.cors_origins = config.cors_origins  # type: ignore[attr-defined]
     httpd.rate_limiter = TokenBucketRateLimiter(rpm=config.rpm, max_buckets=config.max_buckets)  # type: ignore[attr-defined]
@@ -1687,7 +1690,7 @@ def _attach_api_server_state(httpd: ThreadingHTTPServer, config: ApiServerConfig
     httpd.perps_wallet_api_enabled = False  # type: ignore[attr-defined]
     httpd.zusd_tau_wallet_api_enabled = False  # type: ignore[attr-defined]
     httpd.zusd_monetary_wallet_api_enabled = False  # type: ignore[attr-defined]
-    httpd.autotrader_live_api_enabled = config.autotrader_live_enabled  # type: ignore[attr-defined]
+    httpd.autotrader_live_api_enabled = False  # type: ignore[attr-defined]
     httpd.autotrader_execution_keys = set()  # type: ignore[attr-defined]
     httpd.autotrader_supervisor_runs = {}  # type: ignore[attr-defined]
     httpd.autotrader_execution_lock = threading.Lock()  # type: ignore[attr-defined]
@@ -1704,11 +1707,6 @@ def _attach_api_server_state(httpd: ThreadingHTTPServer, config: ApiServerConfig
         state_path=config.confidential_sealed_bid_state_file
     )
     httpd.confidential_sealed_bid_lock = threading.Lock()  # type: ignore[attr-defined]
-    httpd.confidential_sealed_bid_asset_settlement_submitter = (  # type: ignore[attr-defined]
-        submit_confidential_sealed_bid_local_ledger_settlement
-        if config.confidential_sealed_bid_asset_settlement_enabled
-        else None
-    )
 
 
 def _print_api_startup_banner(config: ApiServerConfig) -> None:
@@ -1893,13 +1891,6 @@ class _Handler(BaseHTTPRequestHandler):
     ) -> bool:
         if not path.startswith("/api/perps/"):
             return False
-        if path.startswith("/api/perps/wallet/"):
-            return self._maybe_handle_perps_wallet_api(
-                method=method,
-                path=path,
-                cors_origin=cors_origin,
-                raw_body=raw_body,
-            )
         if not getattr(self.server, "perps_api_enabled", False):
             return False
         if not self._perps_demo_api_allowed():
@@ -1927,138 +1918,26 @@ class _Handler(BaseHTTPRequestHandler):
                 server_host = str(server_address[0])
         return _is_loopback_host(client_host) and _is_loopback_host(server_host)
 
-    def _maybe_handle_perps_wallet_api(
-        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
-    ) -> bool:
-        if not path.startswith("/api/perps/wallet/"):
-            return False
-        if not getattr(self.server, "perps_wallet_api_enabled", False):
-            return False
-        if not self._demo_auth_ok():
-            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
-            return True
-        if self._reject_authenticated_raw_authority_material(
-            raw_body=raw_body,
-            cors_origin=cors_origin,
-        ):
-            return True
-        from src.integration.perps_wallet_api import handle_perps_wallet_request
-
-        status, resp = handle_perps_wallet_request(method, path, raw_body)
-        self._write_json(status, resp, cors_origin=cors_origin)
-        return True
-
     def _maybe_handle_zusd_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
     ) -> bool:
+        _ = (method, cors_origin, raw_body)
         if not path.startswith("/api/zusd/"):
             return False
-        if path.startswith("/api/zusd/monetary/"):
-            return self._maybe_handle_zusd_monetary_wallet_api(
-                method=method,
-                path=path,
-                cors_origin=cors_origin,
-                raw_body=raw_body,
-            )
-        if path.startswith("/api/zusd/wallet/"):
-            return self._maybe_handle_zusd_tau_wallet_api(
-                method=method,
-                path=path,
-                cors_origin=cors_origin,
-                raw_body=raw_body,
-            )
-        # No HTTP exposure for non-wallet /api/zusd/* routes. The wallet and
-        # monetary handlers are retained historical donors; current-profile
-        # startup admission refuses both before server construction. The
-        # in-memory audit-replay scaffold lives at
-        # src/integration/_zusd_audit_replay_state.py and is imported only by
-        # tools/check_* audit harnesses, never served.
+        # All zUSD HTTP bridge modules are retained research oracles. Current
+        # operator startup rejects their modes, and no request can import or
+        # dispatch them through this server.
         return False
-
-    def _maybe_handle_zusd_tau_wallet_api(
-        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
-    ) -> bool:
-        if not path.startswith("/api/zusd/wallet/"):
-            return False
-        if not getattr(self.server, "zusd_tau_wallet_api_enabled", False):
-            return False
-        if not self._demo_auth_ok():
-            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
-            return True
-        if self._reject_authenticated_raw_authority_material(
-            raw_body=raw_body,
-            cors_origin=cors_origin,
-        ):
-            return True
-        from src.integration.zusd_tau_wallet_api import handle_zusd_tau_wallet_request
-
-        status, resp = handle_zusd_tau_wallet_request(method, path, raw_body)
-        self._write_json(status, resp, cors_origin=cors_origin)
-        return True
-
-    def _maybe_handle_zusd_monetary_wallet_api(
-        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
-    ) -> bool:
-        if not path.startswith("/api/zusd/monetary/"):
-            return False
-        if not getattr(self.server, "zusd_monetary_wallet_api_enabled", False):
-            return False
-        if not self._demo_auth_ok():
-            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
-            return True
-        if self._reject_authenticated_raw_authority_material(
-            raw_body=raw_body,
-            cors_origin=cors_origin,
-        ):
-            return True
-        from src.integration.zusd_monetary_wallet_api import handle_zusd_monetary_wallet_request
-
-        status, resp = handle_zusd_monetary_wallet_request(method, path, raw_body)
-        self._write_json(status, resp, cors_origin=cors_origin)
-        return True
 
     def _maybe_handle_autotrader_live_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
     ) -> bool:
+        _ = (method, cors_origin, raw_body)
         if not path.startswith("/api/strategy/autotrader/"):
             return False
-        if not getattr(self.server, "autotrader_live_api_enabled", False):
-            return False
-        if not self._demo_auth_ok():
-            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
-            return True
-        if self._reject_authenticated_raw_authority_material(
-            raw_body=raw_body,
-            cors_origin=cors_origin,
-        ):
-            return True
-        from src.integration.autotrader_live_api import handle_autotrader_live_request
-
-        execution_keys = getattr(self.server, "autotrader_execution_keys", None)  # type: ignore[attr-defined]
-        supervisor_runs = getattr(self.server, "autotrader_supervisor_runs", None)  # type: ignore[attr-defined]
-        execution_lock = getattr(self.server, "autotrader_execution_lock", None)  # type: ignore[attr-defined]
-        if path in {
-            "/api/strategy/autotrader/execute-once",
-            "/api/strategy/autotrader/supervisor/execute",
-        } and execution_lock is not None:
-            with execution_lock:
-                status, resp = handle_autotrader_live_request(
-                    method,
-                    path,
-                    raw_body,
-                    execution_keys=execution_keys,
-                    supervisor_runs=supervisor_runs,
-                )
-        else:
-            status, resp = handle_autotrader_live_request(
-                method,
-                path,
-                raw_body,
-                execution_keys=execution_keys,
-                supervisor_runs=supervisor_runs,
-            )
-        self._write_json(status, resp, cors_origin=cors_origin)
-        return True
+        # The historical handler remains available for research replay only.
+        # Current request dispatch leaves the route unmounted.
+        return False
 
     def _maybe_handle_confidential_attestation_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
@@ -2126,11 +2005,6 @@ class _Handler(BaseHTTPRequestHandler):
         from src.integration.confidential_sealed_bid_api import handle_confidential_sealed_bid_request
 
         table = getattr(self.server, "confidential_sealed_bid_table", None)  # type: ignore[attr-defined]
-        asset_settlement_submitter = getattr(  # type: ignore[attr-defined]
-            self.server,
-            "confidential_sealed_bid_asset_settlement_submitter",
-            None,
-        )
         lock = getattr(self.server, "confidential_sealed_bid_lock", None)  # type: ignore[attr-defined]
         if lock is not None:
             with lock:
@@ -2139,7 +2013,6 @@ class _Handler(BaseHTTPRequestHandler):
                     path,
                     raw_body,
                     table=table,
-                    asset_settlement_submitter=asset_settlement_submitter,
                 )
         else:
             status, resp = handle_confidential_sealed_bid_request(
@@ -2147,7 +2020,6 @@ class _Handler(BaseHTTPRequestHandler):
                 path,
                 raw_body,
                 table=table,
-                asset_settlement_submitter=asset_settlement_submitter,
             )
         self._write_json(status, resp, cors_origin=cors_origin)
         return True

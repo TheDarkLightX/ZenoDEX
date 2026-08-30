@@ -14,11 +14,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.integration.asset_ids import derive_zusd_asset_id
 from src.integration.zeno_ledger_testnet_status import (
     build_testnet_status_v0,
     validate_testnet_status_v0,
 )
-from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from tools.zeno_ledger_make_core_feature_suite import build_core_feature_suite_v0
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_CHAIN_ID,
@@ -64,7 +64,7 @@ def release_test_token_catalog_v0(*, chain_id: str) -> list[dict[str, Any]]:
         {
             "symbol": "zUSD",
             "display_symbol": "zUSD",
-            "asset_id": derive_zusd_tau_asset_id(chain_id=chain_id),
+            "asset_id": derive_zusd_asset_id(chain_id=chain_id),
             "purpose": "collateralized test zUSD minted through the zUSD vault flow",
             "created_through_collateralized_zusd_flow": True,
             "faucet_mint_allowed": False,

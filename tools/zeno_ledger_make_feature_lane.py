@@ -19,6 +19,8 @@ from src.integration.zeno_ledger_v0 import hash_v0, validate_body_v0
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_feature_lane_report.v0"
 MANIFEST_SCHEMA = "zenodex.zeno_ledger.testnet_bundle.v0"
+RETIRED_TAU_APP_STATE_SELECTOR_ERROR = "RETIRED_TAU_APP_STATE_SELECTOR"
+RETIRED_TAU_BRIDGE_COMPANION_SELECTOR_ERROR = "RETIRED_TAU_BRIDGE_COMPANION_SELECTOR"
 PATH_VALUE_FLAGS = {
     "--attestation",
     "--autotrader-state",
@@ -183,13 +185,20 @@ def build_feature_lane_manifest_v0(
     disable_intent_signatures: bool,
     feature_gate_commands: list[list[str]] | None = None,
 ) -> dict[str, Any]:
+    if tau_app_state_path is not None:
+        raise ValueError(RETIRED_TAU_APP_STATE_SELECTOR_ERROR)
+    if (
+        tau_chain_balances_path is not None
+        or tau_chain_id is not None
+        or tau_enable_faucet
+    ):
+        raise ValueError(RETIRED_TAU_BRIDGE_COMPANION_SELECTOR_ERROR)
     profile = dict(_load_json_object(profile_path))
     validate_zeno_ledger_profile_v0(profile)
     mode_count = sum(
         value is not None
         for value in (
             genesis_snapshot_path,
-            tau_app_state_path,
             zusd_state_path,
             perp_state_path,
             oracle_state_path,
@@ -202,16 +211,13 @@ def build_feature_lane_manifest_v0(
     )
     if mode_count != 1:
         raise ValueError(
-            "exactly one of --genesis-snapshot, --tau-app-state, --zusd-state, --perp-state, "
+            "exactly one of --genesis-snapshot, --zusd-state, --perp-state, "
             "--oracle-state, --oracle-reporter-state, --upba-state, --proof-mining-state, "
             "--autotrader-state, or --confidential-state is required"
         )
     genesis: dict[str, Any] | None = None
     if genesis_snapshot_path is not None:
         genesis = dict(_load_json_object(genesis_snapshot_path))
-    tau_app_state_text: str | None = None
-    if tau_app_state_path is not None:
-        tau_app_state_text = tau_app_state_path.read_text(encoding="utf-8")
     zusd_state: dict[str, Any] | None = None
     if zusd_state_path is not None:
         zusd_state = dict(_load_json_object(zusd_state_path))
@@ -236,9 +242,6 @@ def build_feature_lane_manifest_v0(
     confidential_state: dict[str, Any] | None = None
     if confidential_state_path is not None:
         confidential_state = dict(_load_json_object(confidential_state_path))
-    tau_chain_balances: dict[str, Any] | None = None
-    if tau_chain_balances_path is not None:
-        tau_chain_balances = dict(_load_json_object(tau_chain_balances_path))
     bodies = _load_and_validate_bodies(body_paths)
     gates = _validate_feature_gate_commands(feature_gate_commands or [])
     chain_id = str(profile["chain_id"])
@@ -250,7 +253,6 @@ def build_feature_lane_manifest_v0(
     sequencer_set_hash = str(profile["accepted_sequencer_set_hashes"][0])
     profile_out = out_dir / "profile.json"
     genesis_out = out_dir / "genesis_snapshot.json"
-    tau_app_state_out = out_dir / "tau_app_state.json"
     zusd_state_out = out_dir / "zusd_state.json"
     perp_state_out = out_dir / "perp_state.json"
     oracle_state_out = out_dir / "oracle_state.json"
@@ -259,7 +261,6 @@ def build_feature_lane_manifest_v0(
     proof_mining_state_out = out_dir / "proof_mining_state.json"
     autotrader_state_out = out_dir / "autotrader_state.json"
     confidential_state_out = out_dir / "confidential_state.json"
-    tau_chain_balances_out = out_dir / "tau_chain_balances.json"
     bodies_dir = out_dir / "bodies"
     ledger_out_dir = out_dir / "ledger"
     feature_gate_report_path = out_dir / "feature_gate_report.json"
@@ -275,9 +276,6 @@ def build_feature_lane_manifest_v0(
     _write_json(profile_out, profile)
     if genesis is not None:
         _write_json(genesis_out, genesis)
-    if tau_app_state_text is not None:
-        tau_app_state_out.parent.mkdir(parents=True, exist_ok=True)
-        tau_app_state_out.write_text(tau_app_state_text, encoding="utf-8")
     if zusd_state is not None:
         _write_json(zusd_state_out, zusd_state)
     if perp_state is not None:
@@ -294,8 +292,6 @@ def build_feature_lane_manifest_v0(
         _write_json(autotrader_state_out, autotrader_state)
     if confidential_state is not None:
         _write_json(confidential_state_out, confidential_state)
-    if tau_chain_balances is not None:
-        _write_json(tau_chain_balances_out, tau_chain_balances)
 
     run_commands: list[list[str]] = []
     previous_height: int | None = None
@@ -326,17 +322,6 @@ def build_feature_lane_manifest_v0(
                     str(ledger_out_dir / "headers" / f"{previous_height}.json"),
                     "--pre-snapshot",
                     str(ledger_out_dir / "snapshots" / f"{previous_height}.json"),
-                ]
-            )
-        elif tau_app_state_text is not None and index == 0:
-            command.extend(["--tau-app-state", str(tau_app_state_out)])
-        elif tau_app_state_text is not None:
-            command.extend(
-                [
-                    "--prev-header",
-                    str(ledger_out_dir / "headers" / f"{previous_height}.json"),
-                    "--tau-app-state",
-                    str(ledger_out_dir / "app_states" / f"{previous_height}.json"),
                 ]
             )
         elif zusd_state is not None and index == 0:
@@ -427,13 +412,6 @@ def build_feature_lane_manifest_v0(
                     str(ledger_out_dir / "confidential_states" / f"{previous_height}.json"),
                 ]
             )
-        if tau_app_state_text is not None:
-            if tau_chain_id is not None:
-                command.extend(["--tau-chain-id", tau_chain_id])
-            if tau_chain_balances is not None:
-                command.extend(["--tau-chain-balances", str(tau_chain_balances_out)])
-            if tau_enable_faucet:
-                command.append("--tau-enable-faucet")
         if allow_missing_settlement:
             command.append("--allow-missing-settlement")
         if disable_intent_signatures:
@@ -509,8 +487,6 @@ def build_feature_lane_manifest_v0(
         "execution_mode": (
             "snapshot"
             if genesis is not None
-            else "tau_app"
-            if tau_app_state_text is not None
             else "zusd"
             if zusd_state is not None
             else "perp"
@@ -528,10 +504,7 @@ def build_feature_lane_manifest_v0(
             else "confidential"
         ),
         "genesis_snapshot_path": _relativize_optional_path(out_dir, genesis_out if genesis is not None else None),
-        "tau_app_state_path": _relativize_optional_path(
-            out_dir,
-            tau_app_state_out if tau_app_state_text is not None else None,
-        ),
+        "tau_app_state_path": None,
         "zusd_state_path": _relativize_optional_path(out_dir, zusd_state_out if zusd_state is not None else None),
         "perp_state_path": _relativize_optional_path(out_dir, perp_state_out if perp_state is not None else None),
         "oracle_state_path": _relativize_optional_path(out_dir, oracle_state_out if oracle_state is not None else None),
@@ -551,12 +524,9 @@ def build_feature_lane_manifest_v0(
             out_dir,
             confidential_state_out if confidential_state is not None else None,
         ),
-        "tau_chain_balances_path": _relativize_optional_path(
-            out_dir,
-            tau_chain_balances_out if tau_chain_balances is not None else None,
-        ),
-        "tau_chain_id": tau_chain_id,
-        "tau_enable_faucet": bool(tau_enable_faucet),
+        "tau_chain_balances_path": None,
+        "tau_chain_id": None,
+        "tau_enable_faucet": False,
         "body_paths": [_rel(out_dir, path) for path in body_out_paths],
         "ledger_out_dir": _rel(out_dir, ledger_out_dir),
         "run_commands": run_commands,
@@ -579,7 +549,10 @@ def build_feature_lane_manifest_v0(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build a ZenoLedger feature-lane manifest")
+    parser = argparse.ArgumentParser(
+        description="Build a ZenoLedger feature-lane manifest",
+        allow_abbrev=False,
+    )
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--profile", required=True, type=Path)
     parser.add_argument("--genesis-snapshot", type=Path)

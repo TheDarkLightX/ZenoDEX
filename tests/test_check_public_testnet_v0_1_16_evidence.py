@@ -111,7 +111,7 @@ def test_caller_claimed_current_bindings_cannot_override_local_quarantine(tmp_pa
     report = check_evidence_manifest(manifest_path)
 
     assert report["historical_evidence_valid"] is True
-    assert report["current_profile_id"] == "local-testnet-retired-bridge-quarantine-v1"
+    assert report["current_profile_id"] == "local-testnet-retired-bridge-quarantine-v2"
     assert report["current_release_eligible"] is False
     assert report["status"] == "blocked_current_profile"
 

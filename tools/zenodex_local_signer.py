@@ -14,13 +14,15 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.integration.zeno_ledger_v0 import canonical_json_bytes_v0, hash_v0
-from src.integration.zenodex_local_signer import (
+from src.integration.zeno_ledger_v0 import canonical_json_bytes_v0, hash_v0  # noqa: E402
+from src.integration.zenodex_local_signer import (  # noqa: E402
+    RETIRED_TAU_TRANSACTION_SIGNING_ROUTE_ERROR,
     create_local_signer_vault,
     read_local_signer_vault,
     verify_local_signer_dex_signature_receipt,
@@ -180,15 +182,7 @@ def cmd_sign_dex_intent(args: argparse.Namespace) -> int:
 
 
 def cmd_sign_tau_transaction_payload(args: argparse.Namespace) -> int:
-    vault = read_local_signer_vault(args.vault)
-    payload = _read_json_arg(args.payload_json)
-    signed_payload = vault.sign_tau_transaction_payload(
-        passphrase=_read_unlock_passphrase(passphrase_stdin=args.passphrase_stdin),
-        payload=payload,
-        chain_id=args.chain_id,
-    )
-    _print_json(signed_payload)
-    return 0
+    raise ValueError(RETIRED_TAU_TRANSACTION_SIGNING_ROUTE_ERROR)
 
 
 class _LocalSignerHttpHandler(BaseHTTPRequestHandler):
@@ -269,8 +263,8 @@ class _LocalSignerHttpHandler(BaseHTTPRequestHandler):
         if mode != "prompt":
             raise PermissionError("signing_approval_mode_unsupported")
         summary = _approval_summary(kind=kind, chain_id=chain_id, payload=payload)
-        lock = getattr(self.server, "approval_lock")
-        approval_input = getattr(self.server, "approval_input")
+        lock = self.server.approval_lock  # type: ignore[attr-defined]
+        approval_input = self.server.approval_input  # type: ignore[attr-defined]
         with lock:
             print("ZenoDEX local signer approval requested:", file=sys.stderr)
             print(json.dumps(summary, indent=2, sort_keys=True), file=sys.stderr)
@@ -283,8 +277,8 @@ class _LocalSignerHttpHandler(BaseHTTPRequestHandler):
         self._write_options()
 
     def do_GET(self) -> None:
-        vault = getattr(self.server, "vault")
-        chain_id = getattr(self.server, "chain_id")
+        vault = self.server.vault  # type: ignore[attr-defined]
+        chain_id = self.server.chain_id  # type: ignore[attr-defined]
         if self.path == "/health":
             self._write_json(200, {"ok": True, "provider": "zenodex-local-signer-v0"})
             return
@@ -312,9 +306,18 @@ class _LocalSignerHttpHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self._reject_disallowed_origin(require_origin=True):
             return
-        vault = getattr(self.server, "vault")
-        passphrase = getattr(self.server, "passphrase")
-        default_chain_id = getattr(self.server, "chain_id")
+        if urlsplit(self.path).path == "/sign-tau-transaction-payload":
+            self._write_json(
+                410,
+                {
+                    "ok": False,
+                    "error": RETIRED_TAU_TRANSACTION_SIGNING_ROUTE_ERROR,
+                },
+            )
+            return
+        vault = self.server.vault  # type: ignore[attr-defined]
+        passphrase = self.server.passphrase  # type: ignore[attr-defined]
+        default_chain_id = self.server.chain_id  # type: ignore[attr-defined]
         try:
             body = self._read_json_body()
             chain_id = str(body.get("chainId") or body.get("chain_id") or default_chain_id)
@@ -328,7 +331,7 @@ class _LocalSignerHttpHandler(BaseHTTPRequestHandler):
                     200,
                     {
                         "ok": True,
-                        "signerPairingToken": getattr(self.server, "pairing_token"),
+                        "signerPairingToken": self.server.pairing_token,  # type: ignore[attr-defined]
                         "wallet": {
                             "address": vault.public_key,
                             "chainId": chain_id,
@@ -352,20 +355,6 @@ class _LocalSignerHttpHandler(BaseHTTPRequestHandler):
                 )
                 self._write_json(200, {"ok": True, "signature": receipt["signature"], "signature_receipt": receipt})
                 return
-            if self.path == "/sign-tau-transaction-payload":
-                if self._reject_missing_pairing_token():
-                    return
-                payload = body.get("payload")
-                if not isinstance(payload, dict):
-                    raise TypeError("payload must be a JSON object")
-                self._require_approval(kind="tau_transaction", chain_id=chain_id, payload=payload)
-                signed_payload = vault.sign_tau_transaction_payload(
-                    passphrase=passphrase,
-                    payload=payload,
-                    chain_id=chain_id,
-                )
-                self._write_json(200, {"ok": True, "signed_tau_tx_payload": signed_payload})
-                return
             self._write_json(404, {"ok": False, "error": "not_found"})
         except Exception as exc:
             self._write_json(400, {"ok": False, "error": str(exc)})
@@ -380,17 +369,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     passphrase = _read_unlock_passphrase(passphrase_stdin=args.passphrase_stdin)
     chain_id = args.chain_id or vault.chain_id
     # Fail fast on a bad passphrase before binding a local signing endpoint.
-    vault.sign_tau_transaction_payload(
-        passphrase=passphrase,
-        payload={
-            "sender_pubkey": vault.public_key,
-            "sequence_number": 0,
-            "expiration_time": 1,
-            "operations": {},
-            "fee_limit": "0",
-        },
-        chain_id=chain_id,
-    )
+    vault.require_valid_passphrase(passphrase)
     allowed_origins = set(args.cors_origin or ["http://127.0.0.1:5173", "http://localhost:5173"])
     server = ThreadingHTTPServer((args.host, args.port), _LocalSignerHttpHandler)
     server.vault = vault
@@ -456,7 +435,10 @@ def build_parser() -> argparse.ArgumentParser:
     sign.add_argument("--passphrase-stdin", action="store_true")
     sign.set_defaults(func=cmd_sign_dex_intent)
 
-    sign_tau = sub.add_parser("sign-tau-transaction-payload", help="sign an unsigned Tau transaction payload")
+    sign_tau = sub.add_parser(
+        "sign-tau-transaction-payload",
+        help="refuse the retired historical Tau transaction signing route",
+    )
     sign_tau.add_argument("--vault", required=True, type=Path)
     sign_tau.add_argument("--chain-id", required=True)
     sign_tau.add_argument("--payload-json", required=True)

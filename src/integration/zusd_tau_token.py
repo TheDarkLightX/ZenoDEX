@@ -7,7 +7,8 @@ import os
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from ..state.canonical import canonical_hex_fixed_allow_0x, domain_sep_bytes
+from ..state.canonical import canonical_hex_fixed_allow_0x
+from .asset_ids import derive_zusd_asset_id
 from .tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
@@ -72,12 +73,9 @@ def _canonical_asset_id(value: str, *, name: str) -> str:
 
 
 def derive_zusd_tau_asset_id(*, chain_id: str = "tau-net-alpha", symbol: str = "zUSD") -> str:
-    if not isinstance(chain_id, str) or not chain_id.strip():
-        raise ValueError("chain_id must be a non-empty string")
-    if not isinstance(symbol, str) or not symbol.strip():
-        raise ValueError("symbol must be a non-empty string")
-    payload = domain_sep_bytes("dex_asset_id", version=1) + symbol.strip().encode("utf-8") + chain_id.strip().encode("utf-8")
-    return "0x" + hashlib.sha256(payload).hexdigest()
+    """Compatibility export for historical Tau-token callers."""
+
+    return derive_zusd_asset_id(chain_id=chain_id, symbol=symbol)
 
 
 def token_sender_nonce_key(sender_pubkey: str) -> str:

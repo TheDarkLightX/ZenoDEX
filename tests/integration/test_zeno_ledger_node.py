@@ -1213,8 +1213,8 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         static_server.server_close()
 
     assert sync_report["ok"] is True
-    assert sync_report["feature_count"] == 10
-    assert sync_report["downloaded_mirror_count"] == 11
+    assert sync_report["feature_count"] == 9
+    assert sync_report["downloaded_mirror_count"] == 10
 
     peer_attestation = synced_bundle_root / "bootstrap" / "watcher_attestations" / "bootstrap_range_1_5.json"
     node_dir = tmp_path / "node-b"
@@ -1226,7 +1226,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
     )
     assert node_report["ok"] is True
     assert node_report["combined_watcher_count"] == 2
-    assert node_report["covered_feature_count"] == 10
+    assert node_report["covered_feature_count"] == 9
 
     status = load_node_status_v0(node_dir)
     assert status["ok"] is True
@@ -1260,7 +1260,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
 
     join_report = join_public_node_from_config_v0(config_path=join_config_path)
     assert join_report["ok"] is True
-    assert join_report["run_report"]["covered_feature_count"] == 10
+    assert join_report["run_report"]["covered_feature_count"] == 9
 
     peer_node_dir = tmp_path / "node-c"
     shutil.copytree(node_dir, peer_node_dir)
@@ -1559,7 +1559,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert health["ok"] is True
         assert health["node_status_hash"] == status["node_status_hash"]
         assert served_status["node_status_hash"] == status["node_status_hash"]
-        assert features["covered_feature_count"] == 10
+        assert features["covered_feature_count"] == 9
         assert len(tokens["test_token_catalog"]) == 3
         assert tokenomics_status["ok"] is True
         assert tokenomics_status["status"]["current_supply"] == 1_000_000
@@ -1570,7 +1570,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert tokenomics_status["status"]["active_participant_reward_pool_id"] == "active_participant_rewards_pool"
         assert join_network_report["ok"] is True
         assert join_network_report["peer_check"]["ok"] is True
-        assert join_network_report["run_report"]["covered_feature_count"] == 10
+        assert join_network_report["run_report"]["covered_feature_count"] == 9
         assert network["local_tip"]["height"] == 11
         assert network["capabilities"]["submission_forwarding_enabled"] is False
         assert live["live"] is True

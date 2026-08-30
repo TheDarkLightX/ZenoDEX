@@ -8,7 +8,7 @@ from ..core.dex_intent_auth_message import (
     hash_dex_intent_auth_message_v1,
 )
 from ..core.quote_receipts import pool_state_fingerprint
-from ..integration.tau_net_client import sign_dex_intent_for_engine
+from ..integration.bls_intent_signing import sign_dex_intent_for_engine
 from ..state.balances import Amount, AssetId, PubKey
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 from ..state.intents import Intent, IntentKind, SignedIntent

@@ -13,23 +13,19 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.zeno_ledger_make_feature_lane import build_feature_lane_manifest_v0
-from tools.zeno_ledger_make_testnet_bundle import (
-    DEFAULT_ASSET0,
-    DEFAULT_ASSET1,
+from src.integration.zeno_ledger_feature_suite import (  # noqa: E402
+    build_feature_suite_manifest_v0,
+)
+from tools.zeno_ledger_make_feature_lane import (  # noqa: E402
+    build_feature_lane_manifest_v0,
+)
+from tools.zeno_ledger_make_testnet_bundle import (  # noqa: E402
     DEFAULT_CHAIN_ID,
     DEFAULT_SEQUENCER_ID,
     DEFAULT_TIME_MS,
     _body_with_transaction_v0,
-    _root,
     build_testnet_bundle_v0,
 )
-from src.core.dex import DexState
-from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
-from src.state.balances import BalanceTable
-from src.state.lp import LPTable
-
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_core_feature_suite_report.v0"
 
@@ -48,42 +44,6 @@ def _resolve_manifest_path(manifest_path: Path, path_text: object, *, name: str)
     if ".." in path.parts:
         raise ValueError(f"{name} must not escape its manifest root")
     return manifest_path.parent / path
-
-
-def _tau_app_spot_body_v0(*, chain_id: str, time_ms: int, sequencer_id: str) -> dict[str, Any]:
-    sender = "00" * 48
-    tx = {
-        "tx_id": "core-suite-tau-app-create-pool-v0",
-        "block_timestamp": max(0, int(time_ms) // 1000),
-        "tx_sender_pubkey": sender,
-        "operations": {
-            "7": {"mint": [[sender, DEFAULT_ASSET0, 10_000], [sender, DEFAULT_ASSET1, 10_000]]},
-            "5": [
-                {
-                    "module": "TauSwap",
-                    "version": "0.1",
-                    "kind": "CREATE_POOL",
-                    "intent_id": _root("core_suite_tau_app_create_pool_intent", {"chain_id": chain_id}),
-                    "sender_pubkey": sender,
-                    "deadline": 9_999_999_999,
-                    "nonce": 1,
-                    "asset0": DEFAULT_ASSET0,
-                    "asset1": DEFAULT_ASSET1,
-                    "fee_bps": 30,
-                    "amount0": 1000,
-                    "amount1": 2000,
-                }
-            ],
-        },
-    }
-    return _body_with_transaction_v0(
-        chain_id=chain_id,
-        height=1,
-        time_ms=time_ms,
-        sequencer_id=sequencer_id,
-        tx=tx,
-        policy_id="core_suite_tau_app_cutoff_v0",
-    )
 
 
 def _zusd_body_v0(
@@ -290,7 +250,6 @@ def build_core_feature_suite_v0(
     token_symbol: str,
 ) -> dict[str, Any]:
     bootstrap_dir = out_dir / "spot_bootstrap"
-    tau_app_dir = out_dir / "tau_app_bridge_spot"
     zusd_dir = out_dir / "zusd_core"
     perp_dir = out_dir / "perp_core"
     oracle_dir = out_dir / "oracle_core"
@@ -316,44 +275,6 @@ def build_core_feature_suite_v0(
         bootstrap_manifest.get("profile_path"),
         name="bootstrap_manifest.profile_path",
     )
-
-    tau_body_path = tau_app_dir / "source" / "tau_app_spot_body.json"
-    tau_app_state_path = tau_app_dir / "source" / "app_state.json"
-    tau_app_state_path.parent.mkdir(parents=True, exist_ok=True)
-    _empty_dex_snapshot = snapshot_from_state(
-        DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
-    )
-    _write_json(tau_app_state_path, _empty_dex_snapshot.data)
-    _write_json(
-        tau_body_path,
-        _tau_app_spot_body_v0(
-            chain_id=chain_id,
-            time_ms=time_ms,
-            sequencer_id=sequencer_id,
-        ),
-    )
-    tau_lane_report = build_feature_lane_manifest_v0(
-        out_dir=tau_app_dir,
-        profile_path=bootstrap_profile_path,
-        genesis_snapshot_path=None,
-        tau_app_state_path=tau_app_state_path,
-        zusd_state_path=None,
-        perp_state_path=None,
-        oracle_state_path=None,
-        oracle_reporter_state_path=None,
-        upba_state_path=None,
-        proof_mining_state_path=None,
-        autotrader_state_path=None,
-        confidential_state_path=None,
-        tau_chain_balances_path=None,
-        tau_chain_id=chain_id,
-        tau_enable_faucet=True,
-        body_paths=[tau_body_path],
-        module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
-        allow_missing_settlement=True,
-        disable_intent_signatures=True,
-    )
-    tau_manifest_path = Path(str(tau_lane_report["manifest_path"]))
 
     from src.core.zusd import E8, init_state
 
@@ -1279,7 +1200,6 @@ def build_core_feature_suite_v0(
         suite_name="ZenoLedger core feature suite",
         lanes=[
             ("spot_bootstrap", bootstrap_manifest_path),
-            ("tau_app_bridge_spot", tau_manifest_path),
             ("zusd_core", zusd_manifest_path),
             ("perp_core", perp_manifest_path),
             ("oracle_core", oracle_manifest_path),
@@ -1291,7 +1211,6 @@ def build_core_feature_suite_v0(
         ],
         required_features=[
             "spot_bootstrap",
-            "tau_app_bridge_spot",
             "zusd_core",
             "perp_core",
             "oracle_core",
@@ -1312,7 +1231,6 @@ def build_core_feature_suite_v0(
         "feature_suite_hash": suite["feature_suite_hash"],
         "feature_count": suite["feature_count"],
         "spot_bootstrap_manifest_path": str(bootstrap_manifest_path),
-        "tau_app_bridge_manifest_path": str(tau_manifest_path),
         "zusd_core_manifest_path": str(zusd_manifest_path),
         "perp_core_manifest_path": str(perp_manifest_path),
         "oracle_core_manifest_path": str(oracle_manifest_path),

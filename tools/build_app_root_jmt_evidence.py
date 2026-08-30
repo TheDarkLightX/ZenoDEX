@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Build app-root/JMT production-promotion evidence from release replay paths.
 
-This producer tool exercises the three live root paths guarded by the
+This producer tool exercises the two supported live root paths guarded by the
 ``app_root_jmt`` promotion lane:
 
 * plain Dex snapshot root through ``tools.zeno_ledger_node``;
-* Tau app-state wrapper root through the runtime plugin canonicalizer;
 * local block pre-snapshot header root through ``tools.zeno_ledger_run_local``.
 
 It also includes a lane-tamper negative check. The verifier in
@@ -33,15 +32,12 @@ from src.integration.production_promotion_evidence import (  # noqa: E402
     APP_ROOT_JMT_EVIDENCE_SCHEMA_V2,
     attach_production_app_root_jmt_hash_v2,
 )
-from src.integration.tau_testnet_dex_plugin import _canonical_state_and_hash  # noqa: E402
 from src.integration.zeno_ledger_v0 import (  # noqa: E402
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
     compute_dex_snapshot_app_root_v0,
-    compute_tau_app_state_app_root_v0,
     hash_v0,
 )
-from src.integration.zusd_monetary_bridge import init_monetary_state  # noqa: E402
 from src.state.app_root import APP_ROOT_LANE_KINDS  # noqa: E402
 from src.state.balances import BalanceTable  # noqa: E402
 from src.state.lp import LPTable  # noqa: E402
@@ -135,34 +131,6 @@ def _plain_snapshot_check(*, checked_at: int) -> dict[str, Any]:
     }
 
 
-def _tau_wrapper_check(*, checked_at: int) -> dict[str, Any]:
-    canonical, _opaque_app_hash = _canonical_state_and_hash(
-        _base_state(),
-        zusd_monetary_state=init_monetary_state(),
-    )
-    wrapper = json.loads(canonical)
-    observed_root = _bare_root(_state_root_for_state_file_obj_v0(wrapper))
-    recomputed_root = _bare_root(compute_tau_app_state_app_root_v0(wrapper))
-    return {
-        "check_id": "tau-app-state-wrapper",
-        "mode": "tau_app_state_wrapper_live_root",
-        "source_kind": "release_replay",
-        "source_payload": wrapper,
-        "observed_root": observed_root,
-        "recomputed_root": recomputed_root,
-        "source_state_hash": _source_hash(wrapper),
-        "required_lane_kinds": sorted(APP_ROOT_LANE_KINDS),
-        "live_path": (
-            "src/integration/tau_testnet_dex_plugin.py:_canonical_state_and_hash -> "
-            "tools/zeno_ledger_node.py:_state_root_for_state_file_obj_v0"
-        ),
-        "derivation_path": (
-            "src/integration/zeno_ledger_v0.py:compute_tau_app_state_app_root_v0"
-        ),
-        "checked_at": checked_at,
-    }
-
-
 def _local_pre_snapshot_header_check(*, checked_at: int) -> dict[str, Any]:
     snapshot = _base_snapshot()
     with tempfile.TemporaryDirectory(prefix="zenodex-app-root-jmt-") as raw_tmp:
@@ -237,7 +205,6 @@ def build_evidence(*, now: int | None = None) -> dict[str, Any]:
         "required_lane_kinds": sorted(APP_ROOT_LANE_KINDS),
         "live_root_checks": [
             _plain_snapshot_check(checked_at=checked_at),
-            _tau_wrapper_check(checked_at=checked_at),
             _local_pre_snapshot_header_check(checked_at=checked_at),
         ],
         "negative_checks": [_lane_tamper_negative(checked_at=checked_at)],

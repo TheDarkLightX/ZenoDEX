@@ -4,7 +4,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from ..integration.tau_net_client import bls_pubkey_hex_from_privkey
+from ..integration.bls_intent_signing import bls_pubkey_hex_from_privkey
 from ..state.canonical import canonical_json_bytes
 from .strategy_ir import AUTOTRADER_TAU_POLICY_SPECS, StrategyIR, strategy_ir_from_dict
 
