@@ -28,6 +28,9 @@ from src.core.zdex_atomic_buyback_v1 import (
     finalize_zdex_atomic_buyback_v1,
     prepare_zdex_atomic_buyback_v1,
 )
+from src.core.zdex_buyback_price_safety_v1 import (
+    ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
+)
 from src.core.zdex_hyperdeflation_types_v1 import ZDEXHyperdeflationPolicyV1
 from src.core.zdex_purchase_burn_effects_v1 import (
     burn_effects_v1,
@@ -310,6 +313,49 @@ def test_governed_v2_purchase_rejects_profile_mismatched_registry_before_callbac
             ),
             profile=fixture.candidate.profile,
             policy_registry=mismatched_registry,
+            authority_head=fixture.authority_head,
+            receipt_verifier=fixture.receipt_verifier,
+        )
+    assert len(fixture.backend.calls) == calls_before
+
+
+def test_governed_v2_purchase_rejects_substituted_price_policy_before_callback() -> (
+    None
+):
+    # Arrange
+    fixture, legacy_candidate = _candidate()
+    journal = _purchase_journal_v2(fixture, legacy_candidate.purchase_journal)
+    effects = purchase_effects_v2(journal)
+    assert any(
+        binding.policy_kind == ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1
+        for binding in fixture.candidate.policy_registry.bindings
+    )
+    substituted_price_policy = replace(
+        fixture.candidate.price_policy,
+        maximum_oracle_age_blocks=2,
+    )
+    calls_before = len(fixture.backend.calls)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="price policy binding mismatch"):
+        verify_governed_zdex_amm_purchase_receipt_shadow_v2(
+            ZDEXPurchaseReceiptCandidateV2(
+                route_release=fixture.route,
+                module_release=fixture.spot_release,
+                occurrence=fixture.candidate.occurrence,
+                pre_state=fixture.candidate.global_pre_state,
+                execution_policy=fixture.candidate.buyback_policy,
+                price_policy=substituted_price_policy,
+                price_occurrence=_price_occurrence(fixture),
+                journal=journal,
+                effects=effects,
+                receipt=ZDEXLaneReceiptEnvelopeV1(
+                    ReceiptKindV1.SUCCINCT,
+                    b"unregistered-price-policy",
+                ),
+            ),
+            profile=fixture.candidate.profile,
+            policy_registry=fixture.candidate.policy_registry,
             authority_head=fixture.authority_head,
             receipt_verifier=fixture.receipt_verifier,
         )

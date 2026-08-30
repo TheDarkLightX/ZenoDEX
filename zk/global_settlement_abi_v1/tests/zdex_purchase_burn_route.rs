@@ -1211,6 +1211,30 @@ fn versioned_composition_root_and_effects_are_exact() {
 }
 
 #[test]
+fn composition_journal_v3_matches_python_golden_vector() {
+    let journal = zenodex_global_settlement_abi_v1::ZDEXPurchaseBurnRouteCompositionJournalV3 {
+        schema: "zenodex/zdex-purchase-burn-route-composition/v3".to_owned(),
+        route_release_id: root(1),
+        command_occurrence_id: root(2),
+        profile_root: root(3),
+        writer_epoch: 4,
+        ordered_lane_journal_roots: vec![root(5), root(6)],
+        ordered_verified_binding_roots: vec![root(7), root(8)],
+        verified_budget_binding_root: root(9),
+        buyback_execution_policy_root: root(10),
+        price_safety_policy_root: root(11),
+        price_authority_root: root(12),
+        effect_plan_root: root(13),
+        terminal_obligations_root: root(14),
+    };
+
+    assert_eq!(
+        journal.journal_root().expect("V3 journal root").as_str(),
+        "0x8cb4b069d009ba9d2adbcb64e549ae1d3fb0f3986c805ba0eefbc148e178a9e3"
+    );
+}
+
+#[test]
 fn composition_journal_v3_rejects_unknown_fields_and_wrong_cardinality() {
     // Arrange.
     let fixture = fixture();

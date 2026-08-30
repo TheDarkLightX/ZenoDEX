@@ -29,6 +29,9 @@ from src.core.global_settlement_types_v1 import (
     RouteReleaseV1,
     canonical_global_bytes_v1,
 )
+from src.core.zdex_buyback_price_safety_v1 import (
+    ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
+)
 from src.core.zdex_fee_allocation_receipt_verification_v1 import (
     GovernedZDEXFeeAllocationProfileV1,
     VerifiedZDEXFeeAllocationV1,
@@ -148,6 +151,7 @@ def _route_release(
     *,
     dependency_roles: tuple[str, str] = ("AMM_PURCHASE_OUTPUT", "ZDEX_BURN_INPUT"),
     guest_image_id: str = _root(500),
+    oracle_policy_root: str = _root(504),
 ) -> RouteReleaseV1:
     return RouteReleaseV1.build(
         semantic_version="1.0.0-shadow-test",
@@ -163,7 +167,7 @@ def _route_release(
         specification_root=_root(501),
         source_root=_root(502),
         toolchain_root=_root(503),
-        oracle_policy_root=_root(504),
+        oracle_policy_root=oracle_policy_root,
         issue_burn_policy_root=_root(505),
         max_cycles=2_000_000,
         max_journal_bytes=65_536,
@@ -223,6 +227,9 @@ def _governed_shadow_profile(
     allocation_route: RouteReleaseV1,
     policy_root: str,
     buyback_execution_policy_root: str,
+    price_safety_policy_root: str | None = None,
+    verifier_registry_root: str = _root(812),
+    root_image_id: str = _root(811),
 ) -> tuple[EconomicProfileSnapshotV1, EconomicPolicyRegistryV1]:
     releases = []
     for ordinal, lane_id in enumerate(ALL_LANE_IDS_V1, start=1):
@@ -242,8 +249,7 @@ def _governed_shadow_profile(
     route_registry = RouteRegistryV1(
         tuple(sorted((buyback_route, allocation_route), key=lambda route: route.command_kind))
     )
-    policy_registry = EconomicPolicyRegistryV1(
-        (
+    policy_bindings = [
             EconomicPolicyBindingV1(
                 ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
                 PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
@@ -254,6 +260,21 @@ def _governed_shadow_profile(
                 PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
                 policy_root,
             ),
+    ]
+    if price_safety_policy_root is not None:
+        policy_bindings.append(
+            EconomicPolicyBindingV1(
+                ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
+                PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+                price_safety_policy_root,
+            )
+        )
+    policy_registry = EconomicPolicyRegistryV1(
+        tuple(
+            sorted(
+                policy_bindings,
+                key=lambda binding: (binding.policy_kind, binding.command_kind),
+            )
         )
     )
     profile = EconomicProfileSnapshotV1.build(
@@ -262,8 +283,8 @@ def _governed_shadow_profile(
         lane_coordinator_registry=coordinator_registry,
         route_registry=route_registry,
         proof_shape_root=_root(810),
-        root_image_id=_root(811),
-        verifier_registry_root=_root(812),
+        root_image_id=root_image_id,
+        verifier_registry_root=verifier_registry_root,
         migration_registry_root=_root(813),
         policy_registry_root=policy_registry.registry_root,
         terminal_registry_root=_root(814),
@@ -306,6 +327,8 @@ def _purchase_journal(
     quote_supply_atoms: int = 10_000,
     zdex_owned_atoms: int = 1_000,
     zdex_supply_atoms: int = 1_000,
+    quote_pool_pre_atoms: int = 2_000,
+    zdex_pool_pre_atoms: int = 500,
     effect_plan_root: str = _root(900),
 ) -> ZDEXAMMPurchaseJournalV1:
     return ZDEXAMMPurchaseJournalV1(
@@ -338,10 +361,10 @@ def _purchase_journal(
         purchased_zdex_atoms=purchased_atoms,
         quote_source_pre_atoms=1_000,
         quote_source_post_atoms=1_000 - quote_atoms,
-        quote_pool_pre_atoms=2_000,
-        quote_pool_post_atoms=2_000 + quote_atoms,
-        zdex_pool_pre_atoms=500,
-        zdex_pool_post_atoms=500 - purchased_atoms,
+        quote_pool_pre_atoms=quote_pool_pre_atoms,
+        quote_pool_post_atoms=quote_pool_pre_atoms + quote_atoms,
+        zdex_pool_pre_atoms=zdex_pool_pre_atoms,
+        zdex_pool_post_atoms=zdex_pool_pre_atoms - purchased_atoms,
         burn_bucket_pre_atoms=0,
         burn_bucket_post_atoms=purchased_atoms,
         quote_owned_atoms=quote_owned_atoms,

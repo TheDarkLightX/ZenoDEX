@@ -49,6 +49,7 @@ from .zdex_buyback_price_authority_v1 import (
     verify_zdex_buyback_price_authority_v1,
 )
 from .zdex_buyback_price_safety_v1 import (
+    ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
     ZDEXBuybackOraclePriceOccurrenceV1,
     ZDEXBuybackPriceSafetyPolicyV1,
 )
@@ -439,9 +440,8 @@ class _VerifiedZDEXLaneV1:
     def price_safety_policy_root(self) -> str:
         return self._fields.price_safety_policy_root
 
-    @property
-    def binding_root(self) -> str:
-        body: dict[str, object] = {
+    def _leaf_binding_body(self) -> dict[str, object]:
+        return {
             "schema": self._schema,
             "route_release_id": self.route_release_id,
             "module_release_id": self.module_release_id,
@@ -455,15 +455,22 @@ class _VerifiedZDEXLaneV1:
             "receipt_digest": self.receipt_digest,
             "receipt_kind": self.receipt_kind,
         }
+
+    @property
+    def leaf_binding_root(self) -> str:
+        """Return the cross-language leaf root without host authority metadata."""
+
+        return hash_global_v1(self._domain, self._leaf_binding_body())
+
+    @property
+    def binding_root(self) -> str:
+        body = self._leaf_binding_body()
         if self.authority_head_root != ZERO_ROOT_V1 or self.verifier_binding_root != ZERO_ROOT_V1:
             body.update(
                 authority_head_root=self.authority_head_root,
                 verifier_binding_root=self.verifier_binding_root,
             )
-        return hash_global_v1(
-            self._domain,
-            body,
-        )
+        return hash_global_v1(self._domain, body)
 
 
 class VerifiedZDEXAMMPurchaseV1(_VerifiedZDEXLaneV1):
@@ -478,7 +485,7 @@ class VerifiedZDEXAMMPurchaseV2(_VerifiedZDEXLaneV1):
     _domain = "verified-zdex-amm-purchase-v2"
 
     @property
-    def binding_root(self) -> str:
+    def leaf_binding_root(self) -> str:
         if (
             self.price_authority_root == ZERO_ROOT_V1
             or self.price_safety_policy_root == ZERO_ROOT_V1
@@ -501,6 +508,10 @@ class VerifiedZDEXAMMPurchaseV2(_VerifiedZDEXLaneV1):
             "price_safety_policy_root": self.price_safety_policy_root,
         }
         return hash_global_v1(self._domain, body)
+
+    @property
+    def binding_root(self) -> str:
+        return self.leaf_binding_root
 
 
 @dataclass(frozen=True, slots=True)
@@ -1049,8 +1060,14 @@ def verify_governed_zdex_amm_purchase_receipt_shadow_v2(
         policy_kind=ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
         command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
     )
+    price_binding = owned_policy_registry.require_binding(
+        policy_kind=ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
+        command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    )
     if execution_binding.policy_root != owned.execution_policy.policy_root:
         raise ValueError("ZDEX purchase V2 execution policy binding mismatch")
+    if price_binding.policy_root != owned.price_policy.policy_root:
+        raise ValueError("ZDEX purchase V2 price policy binding mismatch")
     if owned.journal.writer_epoch != owned_profile.authority_epoch:
         raise ValueError("ZDEX purchase V2 receipt writer epoch is outside the profile")
     verified = verify_zdex_amm_purchase_receipt_v2(
