@@ -190,6 +190,16 @@ def _reject_code(snapshot: SubjectSnapshotV3) -> str:
     return exc_info.value.code
 
 
+def _assert_builder_failure_authority_none(report: dict[str, object]) -> None:
+    assert report["ok"] is False
+    assert report["artifact_sha256"] == ""
+    assert report["closed_value_movement_gates"] == 0
+    assert report["production_authority"] == "NONE"
+    assert report["release_authority"] == "NONE"
+    assert report["settlement_authority"] == "NONE"
+    assert report["value_movement_authority"] == "NONE"
+
+
 def test_source_loaders_accept_pinned_executable_regular_blob() -> None:
     path = "tools/check_production_promotion_evidence_manifest.py"
     head = _git_output("rev-parse", "HEAD").decode("ascii").strip()
@@ -1591,7 +1601,8 @@ def test_public_checker_rejects_terminal_live_input_change(
     report = closure_checker.check_retired_tau_bridge_closure_v3(tmp_path)
 
     assert report["ok"] is False
-    assert report["findings"][0]["code"] == code
+    findings = cast(list[dict[str, object]], report["findings"])
+    assert findings[0]["code"] == code
 
 
 def test_builder_check_rejects_terminal_artifact_replacement(
@@ -1629,6 +1640,136 @@ def test_builder_check_rejects_terminal_artifact_replacement(
     assert closure_builder.main(["--root", str(tmp_path), "--check"]) == 2
     report = json.loads(capsys.readouterr().out)
     assert report["finding"]["code"] == "STAGE_B_ARTIFACT_CHANGED"
+    _assert_builder_failure_authority_none(report)
+
+
+@pytest.mark.parametrize(
+    ("terminal_snapshot", "code"),
+    (
+        (
+            replace(
+                _empty_snapshot_for_head("1" * 40),
+                subject=SourceSnapshotV3(
+                    commit="a" * 40,
+                    tree="b" * 40,
+                    files=(_source("route.txt", b"changed\n"),),
+                ),
+            ),
+            "WORKTREE_SOURCE_CHANGED",
+        ),
+        (
+            replace(
+                _empty_snapshot_for_head("1" * 40),
+                subject=replace(
+                    _empty_snapshot_for_head("1" * 40).subject,
+                    commit="a" * 40,
+                ),
+                current_discovery=PythonImportDiscoveryV3(
+                    paths=("late_importer.py",),
+                    edges=(),
+                    source_root_sha256="0" * 64,
+                ),
+            ),
+            "CURRENT_DISCOVERY_CHANGED",
+        ),
+    ),
+    ids=("pinned-source", "python-discovery"),
+)
+def test_builder_check_rejects_terminal_live_input_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    terminal_snapshot: SubjectSnapshotV3,
+    code: str,
+) -> None:
+    artifact_path = tmp_path / closure_builder.OUTPUT_PATH
+    artifact_path.parent.mkdir(parents=True)
+    artifact_path.write_bytes(
+        canonical_json_bytes_v3(
+            {"evidence_subject": {"commit": "a" * 40}}
+        )
+    )
+    initial_snapshot = _empty_snapshot_for_head("1" * 40)
+    initial_snapshot = replace(
+        initial_snapshot,
+        subject=replace(initial_snapshot.subject, commit="a" * 40),
+    )
+    snapshots = iter((initial_snapshot, terminal_snapshot))
+    monkeypatch.setattr(
+        closure_builder,
+        "load_subject_snapshot_v3",
+        lambda *_args, **_kwargs: next(snapshots),
+    )
+    monkeypatch.setattr(
+        closure_builder,
+        "check_artifact_v3",
+        lambda *_args: {"ok": True},
+    )
+    monkeypatch.setattr(closure_builder, "_git_head_v1", lambda _root: "1" * 40)
+
+    assert closure_builder.main(["--root", str(tmp_path), "--check"]) == 2
+    report = json.loads(capsys.readouterr().out)
+    assert report["finding"]["code"] == code
+    _assert_builder_failure_authority_none(report)
+
+
+@pytest.mark.parametrize(
+    ("case", "code"),
+    (("root", "ROOT_CHANGED"), ("head", "HEAD_CHANGED")),
+)
+def test_builder_check_rejects_terminal_repository_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    case: str,
+    code: str,
+) -> None:
+    artifact_path = tmp_path / closure_builder.OUTPUT_PATH
+    artifact_path.parent.mkdir(parents=True)
+    artifact_path.write_bytes(
+        canonical_json_bytes_v3(
+            {"evidence_subject": {"commit": "a" * 40}}
+        )
+    )
+    snapshot = _empty_snapshot_for_head("1" * 40)
+    snapshot = replace(
+        snapshot,
+        subject=replace(snapshot.subject, commit="a" * 40),
+    )
+    monkeypatch.setattr(
+        closure_builder,
+        "load_subject_snapshot_v3",
+        lambda *_args, **_kwargs: snapshot,
+    )
+    monkeypatch.setattr(
+        closure_builder,
+        "check_artifact_v3",
+        lambda *_args: {"ok": True},
+    )
+    if case == "root":
+        roots = iter(((1, 2), (3, 4)))
+        monkeypatch.setattr(
+            closure_builder,
+            "_repository_root_identity_v3",
+            lambda _root: next(roots),
+        )
+        monkeypatch.setattr(
+            closure_builder,
+            "_git_head_v1",
+            lambda _root: "1" * 40,
+        )
+    else:
+        heads = iter(("2" * 40,))
+        monkeypatch.setattr(
+            closure_builder,
+            "_git_head_v1",
+            lambda _root: next(heads),
+        )
+
+    assert closure_builder.main(["--root", str(tmp_path), "--check"]) == 2
+    report = json.loads(capsys.readouterr().out)
+    assert report["finding"]["code"] == code
+    _assert_builder_failure_authority_none(report)
 
 
 def test_public_checker_rejects_terminal_root_identity_change(
@@ -1677,7 +1818,8 @@ def test_public_checker_rejects_terminal_root_identity_change(
     report = closure_checker.check_retired_tau_bridge_closure_v3(tmp_path)
 
     assert report["ok"] is False
-    assert report["findings"][0]["code"] == "ROOT_CHANGED"
+    findings = cast(list[dict[str, object]], report["findings"])
+    assert findings[0]["code"] == "ROOT_CHANGED"
 
 
 def test_public_checker_accepts_quiescent_real_stage_pair() -> None:
@@ -1763,7 +1905,8 @@ def test_public_checker_rejects_real_post_semantic_worktree_mutation(
     report = closure_checker.check_retired_tau_bridge_closure_v3(clone)
 
     assert report["ok"] is False
-    assert report["findings"][0]["code"] == code
+    findings = cast(list[dict[str, object]], report["findings"])
+    assert findings[0]["code"] == code
     assert events == ["semantic_acceptance", "worktree_mutation"]
     assert (
         _temp_git_output(clone, "rev-parse", "HEAD").decode("ascii").strip()
