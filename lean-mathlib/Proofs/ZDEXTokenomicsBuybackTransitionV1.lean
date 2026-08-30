@@ -2154,7 +2154,38 @@ theorem state_commitment_mismatch_witness_rejects :
 set_option maxRecDepth 20000 in
 theorem policy_mismatch_witness_rejects :
     firstReject policyMismatchInput = some .policyMismatch := by
-  decide
+  have encodeNats_cons_positive (value : Nat) (rest : List Nat) :
+      0 < encodeNats (value :: rest) := by
+    change 0 < Nat.pair value (encodeNats rest) + 1
+    omega
+  have hProfileRootPositive : 0 < policyMismatchInput.authority.profileRoot := by
+    unfold policyMismatchInput withPolicy makeProfileAuthorization deriveProfileId
+    exact encodeNats_cons_positive _ _
+  have hAuthority : GuardHolds policyMismatchInput .authorityMalformed := by
+    rcases valid_guard nonvacuity_valid .authorityMalformed with
+      ⟨hChain, hDeployment, _, hRoute, hTokenomics, hSpot, hOccurrence,
+        hPreState, hOracleRegistry, hOracleOccurrence, hSpotRelease,
+        hExecutionPolicy, hPricePolicy, hQuoteLimit, hJournal, hReceipt⟩
+    exact ⟨hChain, hDeployment, hProfileRootPositive, hRoute, hTokenomics, hSpot,
+      hOccurrence, hPreState, hOracleRegistry, hOracleOccurrence, hSpotRelease,
+      hExecutionPolicy, hPricePolicy, hQuoteLimit, hJournal, hReceipt⟩
+  have hRelease : GuardHolds policyMismatchInput .releaseMismatch :=
+    valid_guard nonvacuity_valid .releaseMismatch
+  have hProfile : GuardHolds policyMismatchInput .profileMismatch := by
+    refine ⟨makeProfileAuthorization_is_self_consistent _ _ _ _ _ _ _, rfl,
+      rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  have hState : GuardHolds policyMismatchInput .stateCommitmentMismatch :=
+    valid_guard nonvacuity_valid .stateCommitmentMismatch
+  have hPolicy : ¬GuardHolds policyMismatchInput .policyMismatch := by
+    intro hGuard
+    have hBounded := hGuard.1
+    norm_num [FeeAllocationPolicyBounded, FeeAllocationPolicy.assignedBasisPoints,
+      policyMismatchInput, withPolicy, nonvacuityPolicy,
+      basisPointsDenominator] at hBounded
+  unfold firstReject rejectOrder
+  simp only [firstFailing]
+  rw [if_pos hAuthority, if_pos hRelease, if_pos hProfile, if_pos hState,
+    if_neg hPolicy]
 
 set_option maxRecDepth 20000 in
 theorem lane_malformed_witness_rejects :
@@ -2251,9 +2282,10 @@ theorem command_occurrence_separates_the_quote_flow :
 
 /-! ## Exact pairing with the Spot leaf
 
-The two leaves compose only when the tokenomics leaf consumes precisely the
-ports and terminal obligation the Spot leaf produced for the same occurrence.
-Under that hypothesis the paired amounts and source roots agree exactly. -/
+These conditional refinement lemmas derive exact field equalities when the
+tokenomics leaf consumes precisely the ports and terminal obligation produced
+by a Spot input for the same occurrence. They do not construct a jointly valid
+Spot/tokenomics witness or establish receipt-authenticated route composition. -/
 
 theorem route_ports_are_exactly_paired
     {spotInput : Proofs.ZDEXSpotBuybackTransitionV1.Input} {tokenomicsInput : Input}
@@ -2306,7 +2338,8 @@ theorem route_supply_reduction_matches_spot_output
   rw [hPaired]
   exact hSupply
 
-/-- The obligation the Spot leaf issues is discharged with its exact amount. -/
+/-- If both inputs carry the same Spot-issued obligation and purchased flow,
+the derived discharge fields reproduce the exact obligation id and amount. -/
 theorem route_discharges_the_spot_issued_obligation
     {spotInput : Proofs.ZDEXSpotBuybackTransitionV1.Input} {tokenomicsInput : Input}
     (hObligation : tokenomicsInput.obligation =
