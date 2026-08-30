@@ -213,6 +213,9 @@ def _receipt_bindings_match_v2(
         and tokenomics_lane.lane_id is LaneIdV1.ZDEX_TOKENOMICS
         and spot_composition.leaf_binding_root == spot_leaf.binding_root
         and tokenomics_composition.leaf_binding_root == tokenomics_leaf.binding_root
+        and spot_composition.leaf_assumption_root == spot_leaf.assumption_root
+        and tokenomics_composition.leaf_assumption_root
+        == tokenomics_leaf.assumption_root
         and spot_composition.lane_journal.ordered_module_journal_roots
         == (spot_leaf.journal_root,)
         and tokenomics_composition.lane_journal.ordered_module_journal_roots

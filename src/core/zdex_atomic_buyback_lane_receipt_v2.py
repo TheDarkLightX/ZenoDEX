@@ -19,7 +19,7 @@ from .global_economic_authority_head_v1 import (
     GlobalEconomicAuthorityStatusV1,
 )
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
-from .global_economic_proof_v1 import ReceiptKindV1
+from .global_economic_proof_v1 import LaneCompositionJournalV1, ReceiptKindV1
 from .global_economic_refinement_snapshot_v1 import (
     _snapshot_effect_plan_v1,
     _snapshot_lane_journal_v1,
@@ -35,6 +35,10 @@ from .global_settlement_types_v1 import (
 from .zdex_atomic_buyback_lane_coordinator_v2 import (
     ZDEXBuybackLaneCompositionAcceptedV2,
 )
+from .zdex_atomic_buyback_receipt_verification_v2 import (
+    VerifiedZDEXSpotBuybackLeafV2,
+    VerifiedZDEXTokenomicsBuybackLeafV2,
+)
 from .zdex_purchase_burn_receipt_verification_v1 import ZDEXLaneReceiptEnvelopeV1
 
 
@@ -42,15 +46,69 @@ from .zdex_purchase_burn_receipt_verification_v1 import ZDEXLaneReceiptEnvelopeV
 class ZDEXBuybackLaneCoordinatorReceiptCandidateV2:
     profile: EconomicProfileSnapshotV1
     composition: ZDEXBuybackLaneCompositionAcceptedV2
+    verified_leaf: VerifiedZDEXSpotBuybackLeafV2 | VerifiedZDEXTokenomicsBuybackLeafV2
     receipt: ZDEXLaneReceiptEnvelopeV1
 
     def __post_init__(self) -> None:
         if (
             type(self.profile) is not EconomicProfileSnapshotV1
             or type(self.composition) is not ZDEXBuybackLaneCompositionAcceptedV2
+            or type(self.verified_leaf)
+            not in (VerifiedZDEXSpotBuybackLeafV2, VerifiedZDEXTokenomicsBuybackLeafV2)
             or type(self.receipt) is not ZDEXLaneReceiptEnvelopeV1
         ):
             raise TypeError("ZDEX buyback coordinator receipt candidate is not closed")
+
+
+@dataclass(frozen=True, slots=True)
+class _ZDEXBuybackLaneCoordinatorStatementV2:
+    schema: str
+    lane_journal: LaneCompositionJournalV1
+    effect_plan_root: str
+    leaf_assumption_root: str
+    leaf_binding_root: str
+    outstanding_terminal_obligations: tuple[str, ...]
+    discharged_terminal_obligations: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if type(self.schema) is not str or type(self.lane_journal) is not LaneCompositionJournalV1:
+            raise TypeError("ZDEX buyback coordinator statement is not closed")
+        self.lane_journal.__post_init__()
+        for root in (
+            self.effect_plan_root,
+            self.leaf_assumption_root,
+            self.leaf_binding_root,
+            *self.outstanding_terminal_obligations,
+            *self.discharged_terminal_obligations,
+        ):
+            _require_root(root, name="ZDEX buyback coordinator statement root")
+
+    def to_canonical(self) -> dict[str, object]:
+        return {
+            "schema": self.schema,
+            "lane_journal": self.lane_journal,
+            "effect_plan_root": self.effect_plan_root,
+            "leaf_assumption_root": self.leaf_assumption_root,
+            "leaf_binding_root": self.leaf_binding_root,
+            "outstanding_terminal_obligations": self.outstanding_terminal_obligations,
+            "discharged_terminal_obligations": self.discharged_terminal_obligations,
+        }
+
+
+def _coordinator_statement_v2(
+    composition: ZDEXBuybackLaneCompositionAcceptedV2,
+) -> _ZDEXBuybackLaneCoordinatorStatementV2:
+    statement = _ZDEXBuybackLaneCoordinatorStatementV2(
+        "zenodex/zdex-buyback-lane-coordinator-statement/v2",
+        composition.lane_journal,
+        composition.effects.effect_plan_root,
+        composition.leaf_assumption_root,
+        composition.leaf_binding_root,
+        composition.outstanding_terminal_obligations,
+        composition.discharged_terminal_obligations,
+    )
+    statement.__post_init__()
+    return statement
 
 
 def _snapshot_composition_v2(
@@ -220,6 +278,7 @@ def verify_zdex_buyback_lane_coordinator_receipt_shadow_v2(
     candidate.__post_init__()
     profile = snapshot_economic_profile_v1(candidate.profile)
     composition = _snapshot_composition_v2(candidate.composition)
+    verified_leaf = candidate.verified_leaf
     receipt = ZDEXLaneReceiptEnvelopeV1(
         candidate.receipt.receipt_kind,
         candidate.receipt.receipt_bytes,
@@ -228,6 +287,23 @@ def verify_zdex_buyback_lane_coordinator_receipt_shadow_v2(
         raise TypeError("ZDEX buyback coordinator authority head is not closed")
     head = replace(authority_head)
     lane_journal = composition.lane_journal
+    expected_leaf_type = (
+        VerifiedZDEXSpotBuybackLeafV2
+        if lane_journal.lane_id is LaneIdV1.SPOT_LIQUIDITY
+        else VerifiedZDEXTokenomicsBuybackLeafV2
+    )
+    if (
+        type(verified_leaf) is not expected_leaf_type
+        or verified_leaf.profile_root != profile.profile_id
+        or verified_leaf.writer_epoch != profile.authority_epoch
+        or verified_leaf.command_occurrence_id != lane_journal.command_occurrence_id
+        or verified_leaf.journal_root not in lane_journal.ordered_module_journal_roots
+        or verified_leaf.assumption_root != composition.leaf_assumption_root
+        or verified_leaf.binding_root != composition.leaf_binding_root
+        or verified_leaf.authority_head_root != head.authority_root
+        or verified_leaf.verifier_binding_root != receipt_verifier.binding_root
+    ):
+        raise ValueError("ZDEX buyback coordinator leaf lineage mismatch")
     coordinator = profile.lane_coordinator_registry.release_for(lane_journal.lane_id)
     if (
         head.status is not GlobalEconomicAuthorityStatusV1.ACTIVE
@@ -257,7 +333,7 @@ def verify_zdex_buyback_lane_coordinator_receipt_shadow_v2(
         raise ValueError("ZDEX buyback coordinator requires a succinct receipt")
     if not receipt.receipt_bytes:
         raise ValueError("ZDEX buyback coordinator receipt bytes must be nonempty")
-    journal_bytes = canonical_global_bytes_v1(lane_journal)
+    journal_bytes = canonical_global_bytes_v1(_coordinator_statement_v2(composition))
     if len(journal_bytes) > coordinator.max_journal_bytes:
         raise ValueError("ZDEX buyback coordinator journal exceeds its release ceiling")
     receipt_verifier.verify_profile_lane_coordinator_receipt(

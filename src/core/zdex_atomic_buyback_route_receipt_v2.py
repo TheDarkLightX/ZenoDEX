@@ -13,7 +13,7 @@ from .global_economic_authority_head_v1 import (
     GlobalEconomicAuthorityStatusV1,
 )
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
-from .global_economic_proof_v1 import ReceiptKindV1
+from .global_economic_proof_v1 import ReceiptKindV1, RouteCompositionJournalV1
 from .global_economic_refinement_snapshot_v1 import (
     _snapshot_effect_plan_v1,
     _snapshot_route_journal_v1,
@@ -45,6 +45,57 @@ class ZDEXAtomicBuybackRouteReceiptCandidateV2:
             or type(self.receipt) is not ZDEXLaneReceiptEnvelopeV1
         ):
             raise TypeError("ZDEX buyback route receipt candidate is not closed")
+
+
+@dataclass(frozen=True, slots=True)
+class _ZDEXAtomicBuybackRouteStatementV2:
+    schema: str
+    route_journal: RouteCompositionJournalV1
+    ordered_leaf_binding_roots: tuple[str, str]
+    ordered_lane_assumption_roots: tuple[str, str]
+    ordered_lane_binding_roots: tuple[str, str]
+    state_delta_root: str
+    fee_disposition_root: str
+
+    def __post_init__(self) -> None:
+        if type(self.schema) is not str or type(self.route_journal) is not RouteCompositionJournalV1:
+            raise TypeError("ZDEX buyback route statement is not closed")
+        self.route_journal.__post_init__()
+        for root in (
+            *self.ordered_leaf_binding_roots,
+            *self.ordered_lane_assumption_roots,
+            *self.ordered_lane_binding_roots,
+            self.state_delta_root,
+            self.fee_disposition_root,
+        ):
+            _require_root(root, name="ZDEX buyback route statement root")
+
+    def to_canonical(self) -> dict[str, object]:
+        return {
+            "schema": self.schema,
+            "route_journal": self.route_journal,
+            "ordered_leaf_binding_roots": self.ordered_leaf_binding_roots,
+            "ordered_lane_assumption_roots": self.ordered_lane_assumption_roots,
+            "ordered_lane_binding_roots": self.ordered_lane_binding_roots,
+            "state_delta_root": self.state_delta_root,
+            "fee_disposition_root": self.fee_disposition_root,
+        }
+
+
+def _route_statement_v2(
+    composition: ZDEXAtomicBuybackRouteAcceptedV2,
+) -> _ZDEXAtomicBuybackRouteStatementV2:
+    statement = _ZDEXAtomicBuybackRouteStatementV2(
+        "zenodex/zdex-atomic-buyback-route-statement/v2",
+        composition.route_journal,
+        composition.ordered_leaf_binding_roots,
+        composition.ordered_lane_assumption_roots,
+        composition.ordered_lane_binding_roots,
+        composition.state_delta_root,
+        composition.fee_disposition_root,
+    )
+    statement.__post_init__()
+    return statement
 
 
 def _snapshot_route_composition_v2(
@@ -275,7 +326,7 @@ def verify_zdex_atomic_buyback_route_receipt_shadow_v2(
         raise ValueError("ZDEX buyback route requires a succinct receipt")
     if not receipt.receipt_bytes:
         raise ValueError("ZDEX buyback route receipt bytes must be nonempty")
-    journal_bytes = canonical_global_bytes_v1(journal)
+    journal_bytes = canonical_global_bytes_v1(_route_statement_v2(composition))
     if len(journal_bytes) > route.max_journal_bytes:
         raise ValueError("ZDEX buyback route journal exceeds its release ceiling")
     receipt_verifier.verify_profile_route_receipt(

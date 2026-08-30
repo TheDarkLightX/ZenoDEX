@@ -185,6 +185,15 @@ class BoundEconomicReceiptVerifierV1:
         owned_profile = snapshot_economic_profile_v1(profile)
         if type(lane_id) is not LaneIdV1:
             raise TypeError("economic receipt verifier lane id is not closed")
+        if type(expected_module_release_id) is not str:
+            raise TypeError("economic receipt verifier module release id must be exact str")
+        _require_root(
+            expected_module_release_id,
+            name="economic receipt verifier module release id",
+        )
+        if type(expected_image_id) is not str:
+            raise TypeError("economic receipt verifier lane image id must be exact str")
+        _require_root(expected_image_id, name="economic receipt verifier lane image id")
         release = owned_profile.lane_registry.release_for(lane_id)
         if (
             owned_profile.profile_id != authority.profile_root
@@ -228,6 +237,20 @@ class BoundEconomicReceiptVerifierV1:
         owned_profile = snapshot_economic_profile_v1(profile)
         if type(lane_id) is not LaneIdV1:
             raise TypeError("economic receipt verifier coordinator lane is not closed")
+        if type(expected_coordinator_release_id) is not str:
+            raise TypeError(
+                "economic receipt verifier coordinator release id must be exact str"
+            )
+        _require_root(
+            expected_coordinator_release_id,
+            name="economic receipt verifier coordinator release id",
+        )
+        if type(expected_image_id) is not str:
+            raise TypeError("economic receipt verifier coordinator image id must be exact str")
+        _require_root(
+            expected_image_id,
+            name="economic receipt verifier coordinator image id",
+        )
         release = owned_profile.lane_coordinator_registry.release_for(lane_id)
         if (
             owned_profile.profile_id != authority.profile_root
@@ -272,6 +295,15 @@ class BoundEconomicReceiptVerifierV1:
             _bound_receipt_verifier_authority_v1(self)
         )
         owned_profile = snapshot_economic_profile_v1(profile)
+        if type(expected_route_release_id) is not str:
+            raise TypeError("economic receipt verifier route release id must be exact str")
+        _require_root(
+            expected_route_release_id,
+            name="economic receipt verifier route release id",
+        )
+        if type(expected_image_id) is not str:
+            raise TypeError("economic receipt verifier route image id must be exact str")
+        _require_root(expected_image_id, name="economic receipt verifier route image id")
         selected = tuple(
             route
             for route in owned_profile.route_registry.routes

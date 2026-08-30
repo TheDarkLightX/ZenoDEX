@@ -382,6 +382,49 @@ def test_wrong_image_rejects_before_backend_use() -> None:
     assert backend.calls == []
 
 
+def test_hostile_release_identifiers_reject_before_equality_or_backend_use() -> None:
+    # Arrange: Mallory supplies an object whose equality claims every release id.
+    class AlwaysEqual:
+        def __eq__(self, other: object) -> bool:
+            return True
+
+    profile, _ = _profile()
+    bound, backend = _bound()
+    lane = profile.lane_registry.releases[0]
+    coordinator = profile.lane_coordinator_registry.releases[0]
+    route = profile.route_registry.routes[0]
+    hostile = cast(Any, AlwaysEqual())
+
+    # Act / Assert: exact-type checks precede comparison and registry search.
+    with pytest.raises(TypeError, match="module release id must be exact str"):
+        bound.verify_profile_lane_receipt(
+            b"r",
+            profile=profile,
+            lane_id=lane.lane_id,
+            expected_module_release_id=hostile,
+            expected_image_id=lane.guest_image_id,
+            expected_journal_bytes=b"j",
+        )
+    with pytest.raises(TypeError, match="coordinator release id must be exact str"):
+        bound.verify_profile_lane_coordinator_receipt(
+            b"r",
+            profile=profile,
+            lane_id=coordinator.lane_id,
+            expected_coordinator_release_id=hostile,
+            expected_image_id=coordinator.guest_image_id,
+            expected_journal_bytes=b"j",
+        )
+    with pytest.raises(TypeError, match="route release id must be exact str"):
+        bound.verify_profile_route_receipt(
+            b"r",
+            profile=profile,
+            expected_route_release_id=hostile,
+            expected_image_id=route.guest_image_id,
+            expected_journal_bytes=b"j",
+        )
+    assert backend.calls == []
+
+
 def test_wrong_deployment_binding_rejects_before_backend_use() -> None:
     # Arrange: one capability is bound to the profile's exact deployment root.
     manifest = _manifest()

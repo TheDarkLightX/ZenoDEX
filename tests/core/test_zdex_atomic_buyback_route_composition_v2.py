@@ -77,6 +77,7 @@ def _verified_route_candidate() -> tuple[
         ZDEXBuybackLaneCoordinatorReceiptCandidateV2(
             fixture.profile,
             spot_composition,
+            spot_leaf,
             ZDEXLaneReceiptEnvelopeV1(
                 ReceiptKindV1.SUCCINCT,
                 b"spot-coordinator-route",
@@ -89,6 +90,7 @@ def _verified_route_candidate() -> tuple[
         ZDEXBuybackLaneCoordinatorReceiptCandidateV2(
             fixture.profile,
             tokenomics_composition,
+            tokenomics_leaf,
             ZDEXLaneReceiptEnvelopeV1(
                 ReceiptKindV1.SUCCINCT,
                 b"tokenomics-coordinator-route",

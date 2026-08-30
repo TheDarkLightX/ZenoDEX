@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.core.global_economic_proof_v1 import ReceiptKindV1
@@ -13,6 +15,7 @@ from src.core.zdex_atomic_buyback_route_composition_v2 import (
 from src.core.zdex_atomic_buyback_route_receipt_v2 import (
     VerifiedZDEXAtomicBuybackRouteV2,
     ZDEXAtomicBuybackRouteReceiptCandidateV2,
+    _route_statement_v2,
     snapshot_verified_zdex_atomic_buyback_route_v2,
     verify_zdex_atomic_buyback_route_receipt_shadow_v2,
 )
@@ -53,7 +56,7 @@ def test_profile_selected_route_receipt_binds_exact_journal_bytes() -> None:
     assert fixture.backend.calls[-1] == (
         b"route-composer-receipt",
         fixture.route.guest_image_id,
-        canonical_global_bytes_v1(accepted.route_journal),
+        canonical_global_bytes_v1(_route_statement_v2(accepted)),
     )
     assert verified.profile_root == fixture.profile.profile_id
     assert verified.route_release_id == fixture.route.route_release_id
@@ -63,6 +66,32 @@ def test_profile_selected_route_receipt_binds_exact_journal_bytes() -> None:
     assert verified.authority_head_root == fixture.authority_head.authority_root
     assert verified.verifier_binding_root == fixture.receipt_verifier.binding_root
     assert snapshot_verified_zdex_atomic_buyback_route_v2(verified) == accepted
+
+
+@pytest.mark.parametrize(
+    ("field_name", "replacement"),
+    (
+        ("ordered_leaf_binding_roots", ("0x" + "a" * 64, "0x" + "b" * 64)),
+        ("ordered_lane_assumption_roots", ("0x" + "c" * 64, "0x" + "d" * 64)),
+        ("ordered_lane_binding_roots", ("0x" + "e" * 64, "0x" + "f" * 64)),
+        ("state_delta_root", "0x" + "1" * 64),
+        ("fee_disposition_root", "0x" + "2" * 64),
+    ),
+)
+def test_route_receipt_statement_commits_every_authority_bearing_root(
+    field_name: str,
+    replacement: object,
+) -> None:
+    # Arrange
+    _, accepted = _accepted_route()
+    baseline = canonical_global_bytes_v1(_route_statement_v2(accepted))
+
+    # Act
+    mutated = replace(accepted, **{field_name: replacement})
+    changed = canonical_global_bytes_v1(_route_statement_v2(mutated))
+
+    # Assert
+    assert changed != baseline
 
 
 @pytest.mark.parametrize(
