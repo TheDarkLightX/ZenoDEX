@@ -18,6 +18,7 @@ from src.state.jmt import (
     compute_jmt_root,
     decode_jmt_absence_proof,
     decode_jmt_membership_proof,
+    derive_jmt_insert_root,
     empty_hash,
     encode_jmt_absence_proof,
     encode_jmt_membership_proof,
@@ -161,6 +162,18 @@ class _HostilePayload(bytes):
 
     def decode(self, *args, **kwargs):  # type: ignore[no-untyped-def]
         return self._spoofed_text
+
+
+class _HostileRootText(str):
+    def __new__(cls, raw: str, replacement: str) -> "_HostileRootText":
+        obj = str.__new__(cls, raw)
+        obj._replacement = replacement
+        return obj
+
+    def __getitem__(self, key):  # type: ignore[no-untyped-def]
+        if isinstance(key, slice):
+            return self._replacement[key]
+        return super().__getitem__(key)
 
 
 class _BytesProtocolSpoof(bytes):
@@ -780,6 +793,76 @@ def test_jmt_absence_proof_descends_left_internal_branch() -> None:
 
     assert proof.witness_key == _key(0)
     assert verify_jmt_absence(root, query, proof)
+
+
+def test_derive_insert_root_matches_full_rebuild_for_deep_prefix_histories() -> None:
+    # Arrange: adjacent values force Patricia splits as deep as bit 255.
+    ordered_keys = (
+        (0).to_bytes(32, "big"),
+        (1).to_bytes(32, "big"),
+        (2).to_bytes(32, "big"),
+        (1 << 255).to_bytes(32, "big"),
+        ((1 << 256) - 1).to_bytes(32, "big"),
+    )
+    entries: list[tuple[bytes, bytes]] = []
+
+    for index, key in enumerate(ordered_keys, start=1):
+        value = index.to_bytes(32, "big")
+        pre_root = compute_jmt_root(entries)
+        proof = prove_jmt_absence(entries, key)
+
+        # Act.
+        derived_root = derive_jmt_insert_root(pre_root, key, value, proof)
+        entries.append((key, value))
+
+        # Assert.
+        assert derived_root == compute_jmt_root(entries)
+
+
+def test_derive_insert_root_is_insertion_order_independent() -> None:
+    # Arrange.
+    rows = tuple(
+        (index.to_bytes(32, "big"), (10_000 + index).to_bytes(32, "big"))
+        for index in (7, 1, 255, 2, 128, 3)
+    )
+    expected = compute_jmt_root(rows)
+
+    for ordering in (rows, tuple(reversed(rows)), rows[::2] + rows[1::2]):
+        entries: list[tuple[bytes, bytes]] = []
+        derived_root = compute_jmt_root(entries)
+        for key, value in ordering:
+            proof = prove_jmt_absence(entries, key)
+            derived_root = derive_jmt_insert_root(derived_root, key, value, proof)
+            entries.append((key, value))
+
+        # Assert.
+        assert derived_root == expected
+
+
+def test_derive_insert_root_rejects_stale_or_wrong_key_proof() -> None:
+    # Arrange.
+    entries = [(_key(1), b"one")]
+    root = compute_jmt_root(entries)
+    proof = prove_jmt_absence(entries, _key(2))
+
+    # Act / Assert.
+    with pytest.raises(ValueError, match="exact predecessor absence proof"):
+        derive_jmt_insert_root(root, _key(3), b"three", proof)
+    with pytest.raises(ValueError, match="exact predecessor absence proof"):
+        derive_jmt_insert_root(compute_jmt_root(()), _key(2), b"two", proof)
+
+
+def test_derive_insert_root_rejects_hostile_root_text_substitution() -> None:
+    # Arrange: the visible root names an empty tree while slicing attempts to
+    # substitute the authenticated root for a different predecessor.
+    entries = [(_key(1), b"one")]
+    authenticated_root = compute_jmt_root(entries)
+    proof = prove_jmt_absence(entries, _key(2))
+    hostile_root = _HostileRootText(compute_jmt_root(()), authenticated_root)
+
+    # Act / Assert.
+    with pytest.raises(TypeError, match="JMT root text must be exact str"):
+        derive_jmt_insert_root(hostile_root, _key(2), b"two", proof)
 
 
 def test_jmt_is_standalone_and_not_imported_by_current_root_paths() -> None:

@@ -492,7 +492,7 @@ def _fixture() -> _Fixture:
         nonce=9,
         profile_root=profile.profile_id,
         pre_state_root=global_pre_state.state_root,
-        consumed_object_ids=(oracle_occurrence_root,),
+        consumed_object_ids=(),
     )
     fee_context = ZDEXFeeAllocationContextV1(
         occurrence.chain_id,
@@ -716,12 +716,12 @@ def _unfinalized_oracle_mutant(
     return _with_price_authority_pre_state(candidate, pre_state)
 
 
-def _future_oracle_mutant(
+def _oracle_at_command_height_mutant(
     candidate: ZDEXBuybackPriceAuthorityCandidateV1,
 ) -> ZDEXBuybackPriceAuthorityCandidateV1:
     price_occurrence = replace(
         candidate.price_occurrence,
-        observed_height=candidate.occurrence.height + 1,
+        observed_height=candidate.occurrence.height,
     )
     pre_state = replace(
         candidate.pre_state,
@@ -738,7 +738,7 @@ def _future_oracle_mutant(
         rebound,
         occurrence=replace(
             rebound.occurrence,
-            consumed_object_ids=(price_occurrence.occurrence_root,),
+            consumed_object_ids=(),
         ),
         price_occurrence=price_occurrence,
     )
@@ -800,13 +800,6 @@ def test_price_authority_rejects_hostile_scalar_after_candidate_construction() -
         (
             lambda candidate: replace(
                 candidate,
-                occurrence=replace(candidate.occurrence, consumed_object_ids=()),
-            ),
-            ZDEXBuybackPriceAuthorityRejectCodeV1.CONTEXT_MISMATCH,
-        ),
-        (
-            lambda candidate: replace(
-                candidate,
                 expected_quote_reserve_atoms=(
                     candidate.expected_quote_reserve_atoms - 1
                 ),
@@ -818,7 +811,7 @@ def test_price_authority_rejects_hostile_scalar_after_candidate_construction() -
             ZDEXBuybackPriceAuthorityRejectCodeV1.ORACLE_AUTHORITY_MISMATCH,
         ),
         (
-            _future_oracle_mutant,
+            _oracle_at_command_height_mutant,
             ZDEXBuybackPriceAuthorityRejectCodeV1.ORACLE_AUTHORITY_MISMATCH,
         ),
     ),
@@ -839,6 +832,19 @@ def test_price_authority_mutants_reject_before_witness_creation(
     with pytest.raises(ZDEXBuybackPriceAuthorityRejectedV1) as rejected:
         verify_zdex_buyback_price_authority_v1(mutant)
     assert rejected.value.code is expected_code
+
+
+def test_finalized_oracle_is_a_reusable_read_dependency() -> None:
+    fixture = _fixture()
+    candidate = _price_authority_candidate(fixture)
+    candidate = replace(
+        candidate,
+        occurrence=replace(candidate.occurrence, consumed_object_ids=()),
+    )
+
+    verified = verify_zdex_buyback_price_authority_v1(candidate)
+
+    assert verified.price_occurrence_root == _price_occurrence(fixture).occurrence_root
 
 
 def _assert_reject(
@@ -894,7 +900,7 @@ def test_canonical_journal_digest_is_fixed() -> None:
     journal_bytes = canonical_global_bytes_v1(_fixture().candidate.journal)
 
     assert hashlib.sha256(journal_bytes).hexdigest() == (
-        "15fc1d0093129ab31273b9d2d4dc5a1eb8ada41233af59c64e6e5e92b39bd28f"
+        "2fbfc2bf5f34968cdf3204a00c420cd476378a59edb79258fe2ea18a569e03e5"
     )
 
 

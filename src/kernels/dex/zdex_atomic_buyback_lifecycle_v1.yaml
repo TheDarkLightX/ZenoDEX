@@ -17,8 +17,9 @@ meta:
     finalize moves quote atoms from the buyback reserve to the selected pool,
     removes the purchased ZDEX atoms from that pool, reduces ZDEX supply by
     the same amount, closes the pending burn obligation, and consumes the
-    command, fee-budget, and Oracle occurrence tokens together. Preparation,
-    rejection, and discard preserve the full committed projection.
+    command and fee-budget occurrence tokens together. The finalized, fresh,
+    payload-bound Oracle observation is an authenticated reusable read.
+    Preparation, rejection, and discard preserve the full committed projection.
 
     Boolean parameters abstract opaque verifier facts. They are adversarial
     environment choices in this model and are never caller authority in the
@@ -40,8 +41,6 @@ observables:
     - "command_used_1"
     - "budget_used_0"
     - "budget_used_1"
-    - "oracle_used_0"
-    - "oracle_used_1"
     - "pending_spend"
     - "pending_out"
     - "pending_terminal"
@@ -82,8 +81,6 @@ state_vars:
   - { id: "command_used_1", role: "control", type: { kind: "bool" } }
   - { id: "budget_used_0", role: "control", type: { kind: "bool" } }
   - { id: "budget_used_1", role: "control", type: { kind: "bool" } }
-  - { id: "oracle_used_0", role: "control", type: { kind: "bool" } }
-  - { id: "oracle_used_1", role: "control", type: { kind: "bool" } }
 
   # Unpublished local preparation. PENDING is never a publishable economic head.
   - { id: "phase", role: "control", type: { ref: "Phase" } }
@@ -119,8 +116,6 @@ state_vars:
   - { id: "g_pre_command_used_1", role: "control", type: { kind: "bool" } }
   - { id: "g_pre_budget_used_0", role: "control", type: { kind: "bool" } }
   - { id: "g_pre_budget_used_1", role: "control", type: { kind: "bool" } }
-  - { id: "g_pre_oracle_used_0", role: "control", type: { kind: "bool" } }
-  - { id: "g_pre_oracle_used_1", role: "control", type: { kind: "bool" } }
   - { id: "g_occurrence", role: "control", type: { kind: "int", min: 0, max: 1 } }
   - { id: "g_spend", role: "data", type: { kind: "int", min: 0, max: 4 } }
   - { id: "g_out", role: "data", type: { kind: "int", min: 0, max: 4 } }
@@ -140,8 +135,6 @@ init:
   - { var: "command_used_1", expr: { bool: false } }
   - { var: "budget_used_0", expr: { bool: false } }
   - { var: "budget_used_1", expr: { bool: false } }
-  - { var: "oracle_used_0", expr: { bool: false } }
-  - { var: "oracle_used_1", expr: { bool: false } }
   - { var: "phase", expr: { enum: "EMPTY" } }
   - { var: "pending_occurrence", expr: { const: 0 } }
   - { var: "pending_spend", expr: { const: 0 } }
@@ -173,8 +166,6 @@ init:
   - { var: "g_pre_command_used_1", expr: { bool: false } }
   - { var: "g_pre_budget_used_0", expr: { bool: false } }
   - { var: "g_pre_budget_used_1", expr: { bool: false } }
-  - { var: "g_pre_oracle_used_0", expr: { bool: false } }
-  - { var: "g_pre_oracle_used_1", expr: { bool: false } }
   - { var: "g_occurrence", expr: { const: 0 } }
   - { var: "g_spend", expr: { const: 0 } }
   - { var: "g_out", expr: { const: 0 } }
@@ -206,9 +197,7 @@ invariants:
       op: "and"
       args:
         - { op: "=", args: [{ var: "command_used_0" }, { var: "budget_used_0" }] }
-        - { op: "=", args: [{ var: "command_used_0" }, { var: "oracle_used_0" }] }
         - { op: "=", args: [{ var: "command_used_1" }, { var: "budget_used_1" }] }
-        - { op: "=", args: [{ var: "command_used_1" }, { var: "oracle_used_1" }] }
 
   - id: "inv_pending_is_unpublished_and_exact"
     kind: "safety"
@@ -289,8 +278,6 @@ invariants:
             - { op: "=", args: [{ var: "command_used_1" }, { var: "g_pre_command_used_1" }] }
             - { op: "=", args: [{ var: "budget_used_0" }, { var: "g_pre_budget_used_0" }] }
             - { op: "=", args: [{ var: "budget_used_1" }, { var: "g_pre_budget_used_1" }] }
-            - { op: "=", args: [{ var: "oracle_used_0" }, { var: "g_pre_oracle_used_0" }] }
-            - { op: "=", args: [{ var: "oracle_used_1" }, { var: "g_pre_oracle_used_1" }] }
 
   - id: "inv_commit_requires_all_authorities"
     kind: "safety"
@@ -340,14 +327,12 @@ invariants:
                 args:
                   - { var: "command_used_0" }
                   - { var: "budget_used_0" }
-                  - { var: "oracle_used_0" }
                   - { op: "=", args: [{ var: "command_used_1" }, { var: "g_pre_command_used_1" }] }
               else:
                 op: "and"
                 args:
                   - { var: "command_used_1" }
                   - { var: "budget_used_1" }
-                  - { var: "oracle_used_1" }
                   - { op: "=", args: [{ var: "command_used_0" }, { var: "g_pre_command_used_0" }] }
 
   - id: "inv_consumption_monotone"
@@ -391,13 +376,11 @@ actions:
                   args:
                     - { op: "not", args: [{ var: "command_used_0" }] }
                     - { op: "not", args: [{ var: "budget_used_0" }] }
-                    - { op: "not", args: [{ var: "oracle_used_0" }] }
                 else:
                   op: "and"
                   args:
                     - { op: "not", args: [{ var: "command_used_1" }] }
                     - { op: "not", args: [{ var: "budget_used_1" }] }
-                    - { op: "not", args: [{ var: "oracle_used_1" }] }
               - { param: "profile_route_ok" }
               - { param: "pool_assets_ok" }
               - { param: "budget_binding_ok" }
@@ -463,8 +446,6 @@ actions:
       - { var: "g_pre_command_used_1", expr: { var: "command_used_1" } }
       - { var: "g_pre_budget_used_0", expr: { var: "budget_used_0" } }
       - { var: "g_pre_budget_used_1", expr: { var: "budget_used_1" } }
-      - { var: "g_pre_oracle_used_0", expr: { var: "oracle_used_0" } }
-      - { var: "g_pre_oracle_used_1", expr: { var: "oracle_used_1" } }
       - { var: "g_occurrence", expr: { param: "occurrence" } }
       - { var: "g_spend", expr: { param: "spend" } }
       - { var: "g_out", expr: { param: "purchased" } }
@@ -543,18 +524,6 @@ actions:
           args:
             - { var: "budget_used_1" }
             - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 1 }] }] }
-      - var: "oracle_used_0"
-        expr:
-          op: "or"
-          args:
-            - { var: "oracle_used_0" }
-            - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 0 }] }] }
-      - var: "oracle_used_1"
-        expr:
-          op: "or"
-          args:
-            - { var: "oracle_used_1" }
-            - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 1 }] }] }
       - { var: "phase", expr: { op: "ite", cond: *commit_ok, then: { enum: "EMPTY" }, else: { var: "phase" } } }
       - { var: "pending_spend", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_spend" } } }
       - { var: "pending_out", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_out" } } }
@@ -585,8 +554,6 @@ actions:
       - { var: "g_pre_command_used_1", expr: { var: "command_used_1" } }
       - { var: "g_pre_budget_used_0", expr: { var: "budget_used_0" } }
       - { var: "g_pre_budget_used_1", expr: { var: "budget_used_1" } }
-      - { var: "g_pre_oracle_used_0", expr: { var: "oracle_used_0" } }
-      - { var: "g_pre_oracle_used_1", expr: { var: "oracle_used_1" } }
       - { var: "g_occurrence", expr: { var: "pending_occurrence" } }
       - { var: "g_spend", expr: { var: "pending_spend" } }
       - { var: "g_out", expr: { var: "pending_out" } }
@@ -635,8 +602,6 @@ actions:
       - { var: "g_pre_command_used_1", expr: { var: "command_used_1" } }
       - { var: "g_pre_budget_used_0", expr: { var: "budget_used_0" } }
       - { var: "g_pre_budget_used_1", expr: { var: "budget_used_1" } }
-      - { var: "g_pre_oracle_used_0", expr: { var: "oracle_used_0" } }
-      - { var: "g_pre_oracle_used_1", expr: { var: "oracle_used_1" } }
       - { var: "g_spend", expr: { const: 0 } }
       - { var: "g_out", expr: { const: 0 } }
       - { var: "g_burn_receipt_ok", expr: { bool: false } }

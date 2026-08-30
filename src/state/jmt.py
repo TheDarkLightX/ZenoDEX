@@ -74,13 +74,15 @@ def _validate_hash(value: bytes, *, name: str) -> bytes:
 
 
 def _root_bytes(root: str | bytes) -> bytes:
-    if isinstance(root, str):
+    if type(root) is str:
         if not root.startswith("0x") or len(root) != 2 + JMT_HASH_BYTES * 2:
             raise ValueError("JMT root must be a 0x-prefixed 32-byte hex string")
         try:
             return bytes.fromhex(root[2:])
         except ValueError as exc:
             raise ValueError("JMT root must be valid hex") from exc
+    if isinstance(root, str):
+        raise TypeError("JMT root text must be exact str")
     return _validate_hash(root, name="JMT root")
 
 
@@ -89,7 +91,7 @@ def _to_hex(value: bytes) -> str:
 
 
 def _from_hex(value: object, *, nbytes: int | None, name: str) -> bytes:
-    if not isinstance(value, str):
+    if type(value) is not str:
         raise TypeError(f"{name} must be a canonical hex string")
     if not value.startswith("0x"):
         raise ValueError(f"{name} must be a canonical hex string")
@@ -590,3 +592,58 @@ def verify_jmt_absence(
             owned_proof.witness_value,
         )
     return _fold_root(witness_root, owned_proof.siblings) == root_bytes
+
+
+def derive_jmt_insert_root(
+    root: str | bytes,
+    key: bytes,
+    value: bytes,
+    proof: JmtAbsenceProof,
+) -> str:
+    """Derive the exact successor root for insertion of one absent key.
+
+    The absence proof authenticates the predecessor root. The same path then
+    determines the unique Patricia subtree containing the new leaf. No archive
+    or mutable tree object is trusted by this transition.
+    """
+
+    root_bytes = _root_bytes(root)
+    key_bytes = _validate_key(key)
+    value_bytes = _validate_value(value)
+    owned_proof = _snapshot_absence_proof(proof)
+    if not verify_jmt_absence(root_bytes, key_bytes, owned_proof):
+        raise ValueError("JMT insertion requires an exact predecessor absence proof")
+
+    path_depth = len(owned_proof.siblings)
+    inserted_leaf = leaf_hash(key_bytes, value_bytes)
+    if owned_proof.witness_key is None:
+        successor_subtree = inserted_leaf
+    else:
+        witness_key = owned_proof.witness_key
+        witness_value = owned_proof.witness_value
+        if witness_value is None:  # Defensive; the owned type excludes this.
+            raise ValueError("JMT insertion witness value is missing")
+        divergence_depth = path_depth
+        while (
+            divergence_depth < JMT_KEY_BITS
+            and _bit(key_bytes, divergence_depth)
+            == _bit(witness_key, divergence_depth)
+        ):
+            divergence_depth += 1
+        if divergence_depth == JMT_KEY_BITS:
+            raise ValueError("JMT insertion key is already present")
+
+        witness_leaf = leaf_hash(witness_key, witness_value)
+        if _bit(key_bytes, divergence_depth) == 0:
+            successor_subtree = internal_hash(inserted_leaf, witness_leaf)
+        else:
+            successor_subtree = internal_hash(witness_leaf, inserted_leaf)
+
+        for depth in range(divergence_depth - 1, path_depth - 1, -1):
+            empty_sibling = empty_hash(depth + 1)
+            if _bit(key_bytes, depth) == 0:
+                successor_subtree = internal_hash(successor_subtree, empty_sibling)
+            else:
+                successor_subtree = internal_hash(empty_sibling, successor_subtree)
+
+    return _to_hex(_fold_root(successor_subtree, owned_proof.siblings))

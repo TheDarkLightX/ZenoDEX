@@ -2156,7 +2156,7 @@ fn perps_receipt_fixture_with_base(
         base_asset: base_asset.to_owned(),
         quote_asset: "zUSD".to_owned(),
         price_e8,
-        observed_height: 40,
+        observed_height: 41,
     };
     let zero = RootV1::parse(ZERO_ROOT_V1, "perps binding zero root", true).unwrap();
     let global_state = GlobalEconomicStateV1 {
@@ -2187,7 +2187,7 @@ fn perps_receipt_fixture_with_base(
         oracle_occurrences: vec![OracleOccurrenceStateV1 {
             oracle_id: policy.oracle_id.clone(),
             occurrence_root: payload.occurrence_root().unwrap(),
-            observed_height: 40,
+            observed_height: 41,
             finalized: true,
         }],
         replay_state: vec![],
@@ -2211,11 +2211,7 @@ fn perps_receipt_fixture_with_base(
         nonce: 9,
         profile_root: profile.profile_id.clone(),
         pre_state_root: global_state.state_root().unwrap(),
-        consumed_object_ids: if with_position {
-            vec![policy.oracle_id.clone()]
-        } else {
-            vec![]
-        },
+        consumed_object_ids: vec![],
     };
     let authenticated_command = authenticate_occurrence_with_policy_registry(
         &profile,
@@ -2335,7 +2331,7 @@ fn perps_position_withdraw_binds_exact_price_and_succinct_receipt() {
     assert_eq!(verified.expected_image_id(), &release.guest_image_id);
     assert_eq!(
         fixture.module_input.statement_root().unwrap().as_str(),
-        "0xc5a148733e1e90151e0b4a2211d88f9da8936b7ba162bc7613664f8535994672"
+        "0x5380448e82dcbb72189d026b0a1d13d5ac734af537f105ce8bf1d9dbeb0fff7a"
     );
     assert_eq!(
         fixture
@@ -2344,7 +2340,7 @@ fn perps_position_withdraw_binds_exact_price_and_succinct_receipt() {
             .journal_root()
             .unwrap()
             .as_str(),
-        "0x847cd95b5de91325f8094c210b3ab5d3f6d46f759ccbffb3685c62be8e90dcf6"
+        "0xc3cfbf33da4c054e67a445e6c160c596a6a2e6a9b1eb5e2e93f8924ca7bbc62f"
     );
     assert_eq!(
         verified.authenticated_command_binding_root(),
@@ -2681,11 +2677,11 @@ fn perps_lane_coordinator_adds_complete_conservation_and_projection_roots() {
     );
     assert_eq!(
         accepted.effects.effect_plan_root().unwrap().as_str(),
-        "0x53cb336b2b2c28c7cc5d130f1ff75d3e6d1b1dcee25e34adec16e03bceedac61"
+        "0x5cae7d4e468446992b37bf69ecf7172a08091d3d2c7dff547f18a556a8584f26"
     );
     assert_eq!(
         accepted.lane_journal.journal_root().unwrap().as_str(),
-        "0xc1b65ad2a9a2a493f4c6e218a71d638a98c29476fcb91912ccb2f7e46de8810c"
+        "0xb0c2198082ba9a895af3a645ab7b788ab81c5183a1ace6ff5b4a2bcabc8cca1d"
     );
     assert_eq!(accepted.effects.rows, fixture.accepted.effects.rows);
     assert_eq!(accepted.effects.asset_conservation.len(), 1);

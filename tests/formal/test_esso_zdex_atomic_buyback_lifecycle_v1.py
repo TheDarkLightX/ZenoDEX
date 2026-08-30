@@ -24,8 +24,8 @@ MODEL = ROOT / "src" / "kernels" / "dex" / "zdex_atomic_buyback_lifecycle_v1.yam
 PYTHON_CORE = ROOT / "src" / "core" / "zdex_atomic_buyback_v1.py"
 RUST_ROUTE = ROOT / "zk" / "global_settlement_abi_v1" / "src" / "zdex_purchase_burn_route.rs"
 
-RECORDED_IR_HASH = "sha256:46ea44d181b6642a190e3abec290bf0894c33c75ae638779323d7326058d9da0"
-RECORDED_SOURCE_SHA256 = "4399f517ffd087dd214aeefc0b603eb9652faeec3b0255234bd0b81d2a0d660f"
+RECORDED_IR_HASH = "sha256:93cf8517ea75c0cc875595f9a1f0f7775c76695d07e27351666f9951c4373e68"
+RECORDED_SOURCE_SHA256 = "6f230f210dc4bc3b0deb6cc7fc65ee718a1c36152ef59273ed3bc2c68203dd23"
 RECORDED_FINGERPRINT = "6f9bce0d851079b841ef49c86b7296371102c1b339f0f3736619b300c5a20f94"
 RECORDED_ESSO_CODE_HASH = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
 EXPECTED_ACTIONS = {"prepare", "finalize", "discard"}
@@ -110,6 +110,23 @@ def test_model_scope_is_finite_and_claim_ceiling_is_explicit() -> None:
         assert nonclaim in notes
 
 
+def test_oracle_observation_is_a_reusable_authenticated_read() -> None:
+    # Arrange
+    document = _document()
+    state_ids = {row["id"] for row in document["state_vars"]}
+    prepare = next(row for row in document["actions"] if row["id"] == "prepare")
+    prepare_source = json.dumps(prepare, sort_keys=True)
+
+    # Act
+    stale_one_shot_state = {state_id for state_id in state_ids if "oracle_used" in state_id}
+
+    # Assert
+    assert stale_one_shot_state == set()
+    assert '"param": "oracle_finalized"' in prepare_source
+    assert '"param": "oracle_fresh"' in prepare_source
+    assert "authenticated reusable read" in document["meta"]["notes"]
+
+
 def test_model_contract_names_the_runtime_commit_and_reject_obligations() -> None:
     # Arrange
     python_source = PYTHON_CORE.read_text(encoding="utf-8")
@@ -188,6 +205,12 @@ def test_esso_two_solver_replay_is_exact_and_deterministic(tmp_path: Path) -> No
             '- { bool: true }',
             "prepare_above_safe_spend_limit",
             id="prepare_above_safe_spend_limit",
+        ),
+        pytest.param(
+            '- { param: "oracle_fresh" }',
+            '- { bool: true }',
+            "prepare_with_stale_oracle_observation",
+            id="prepare_with_stale_oracle_observation",
         ),
     ),
 )

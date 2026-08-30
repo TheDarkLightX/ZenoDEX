@@ -61,7 +61,7 @@ def _payload(
 
 
 def _authority(payload: GlobalOraclePriceOccurrenceV1):
-    policy = GlobalOracleOccurrencePolicyV1(ORACLE_ID, 1)
+    policy = GlobalOracleOccurrencePolicyV1(ORACLE_ID, 2)
     route = RouteReleaseV1.build(
         semantic_version="1.0.0-price-occurrence-test",
         command_kind="perps_margin_withdraw",
@@ -118,7 +118,7 @@ def _authority(payload: GlobalOraclePriceOccurrenceV1):
         nonce=1,
         profile_root=state.profile_root,
         pre_state_root=state.state_root,
-        consumed_object_ids=(ORACLE_ID,),
+        consumed_object_ids=(),
     )
     return verify_global_oracle_occurrence_authority_v1(
         GlobalOracleOccurrenceAuthorityCandidateV1(

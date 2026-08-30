@@ -100,7 +100,6 @@ fn require_context_v1(
     pre_state_root: &RootV1,
     execution_policy_root: &RootV1,
     price_policy_root: &RootV1,
-    price_occurrence_root: &RootV1,
 ) -> AbiResultV1<RootV1> {
     let expected_height = candidate
         .pre_state
@@ -116,11 +115,6 @@ fn require_context_v1(
         || candidate.occurrence.route_release_id != candidate.route.route_release_id
         || candidate.occurrence.command_kind != candidate.route.command_kind
         || candidate.occurrence.height != expected_height
-        || !candidate
-            .occurrence
-            .consumed_object_ids
-            .iter()
-            .any(|object_id| object_id == price_occurrence_root.as_str())
         || candidate.price_occurrence.oracle_id != candidate.price_policy.oracle_id
         || candidate.price_occurrence.quote_asset_id != candidate.execution_policy.quote_asset_id
         || candidate.price_occurrence.zdex_asset_id != candidate.execution_policy.zdex_asset_id
@@ -148,7 +142,7 @@ fn require_finalized_oracle_v1(
     if !occurrence.finalized
         || occurrence.occurrence_root != *price_occurrence_root
         || occurrence.observed_height != candidate.price_occurrence.observed_height
-        || occurrence.observed_height > candidate.occurrence.height
+        || occurrence.observed_height > candidate.pre_state.height
         || candidate.occurrence.height - occurrence.observed_height
             > candidate.price_policy.maximum_oracle_age_blocks
     {
@@ -210,7 +204,6 @@ pub fn verify_zdex_buyback_price_authority_v1(
         &pre_state_root,
         &execution_policy_root,
         &price_policy_root,
-        &price_occurrence_root,
     )?;
     require_finalized_oracle_v1(&candidate, &price_occurrence_root)?;
     let (quote_reserve_atoms, zdex_reserve_atoms) = require_committed_reserves_v1(&candidate)?;

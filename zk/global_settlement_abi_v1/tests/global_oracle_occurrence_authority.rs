@@ -168,8 +168,8 @@ fn occurrence(
 fn exact_route_boundary_constructs_state_bound_authority() {
     let policy = policy(2);
     let route = route(&policy);
-    let state = state(39, true);
-    let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+    let state = state(40, true);
+    let occurrence = occurrence(&state, &route, vec![]);
 
     let authority =
         verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
@@ -189,8 +189,9 @@ fn exact_route_boundary_constructs_state_bound_authority() {
     assert_eq!(authority.policy_root(), &policy.policy_root().unwrap());
     assert_eq!(authority.oracle_id(), ORACLE_ID);
     assert_eq!(authority.occurrence_root(), &root(501));
-    assert_eq!(authority.observed_height(), 39);
+    assert_eq!(authority.observed_height(), 40);
     assert_eq!(authority.state_height(), 41);
+    assert_eq!(authority.evaluation_height(), 42);
     assert_eq!(authority.observation_age_blocks(), 2);
     assert_eq!(
         policy.policy_root().unwrap().as_str(),
@@ -198,17 +199,17 @@ fn exact_route_boundary_constructs_state_bound_authority() {
     );
     assert_eq!(
         authority.authority_root().unwrap().as_str(),
-        "0xd10e4381d237f3d467672934e0f38513148bd32c067a4853ef66c28a5c271486"
+        "0x00228373028ec566e41b391ee7ee4ab299b510205b54fa1f14d2af0fe0538974"
     );
 }
 
 #[test]
 fn finalized_occurrence_root_binds_one_exact_price_payload() {
-    let policy = policy(1);
+    let policy = policy(2);
     let route = route(&policy);
     let payload = price_payload(6_500_000_000_000);
     let state = state_with_root(40, true, payload.occurrence_root().unwrap());
-    let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+    let occurrence = occurrence(&state, &route, vec![]);
     let authority =
         verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
             pre_state: &state,
@@ -250,11 +251,11 @@ fn finalized_occurrence_root_binds_one_exact_price_payload() {
 
 #[test]
 fn one_field_price_payload_substitutions_reject() {
-    let policy = policy(1);
+    let policy = policy(2);
     let route = route(&policy);
     let payload = price_payload(6_500_000_000_000);
     let state = state_with_root(40, true, payload.occurrence_root().unwrap());
-    let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+    let occurrence = occurrence(&state, &route, vec![]);
     let authority =
         verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
             pre_state: &state,
@@ -293,11 +294,11 @@ fn price_boundaries_reject_zero_and_accept_one_and_u128_max() {
         AbiErrorV1::InvalidBounds("global Oracle price e8")
     );
     for price_e8 in [1, u128::MAX] {
-        let policy = policy(1);
+        let policy = policy(2);
         let route = route(&policy);
         let payload = price_payload(price_e8);
         let state = state_with_root(40, true, payload.occurrence_root().unwrap());
-        let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+        let occurrence = occurrence(&state, &route, vec![]);
         let authority = verify_global_oracle_occurrence_authority_v1(
             GlobalOracleOccurrenceAuthorityCandidateV1 {
                 pre_state: &state,
@@ -320,8 +321,8 @@ fn price_boundaries_reject_zero_and_accept_one_and_u128_max() {
 fn one_block_past_maximum_age_is_rejected() {
     let policy = policy(2);
     let route = route(&policy);
-    let state = state(38, true);
-    let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+    let state = state(39, true);
+    let occurrence = occurrence(&state, &route, vec![]);
 
     let error =
         verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
@@ -339,6 +340,36 @@ fn one_block_past_maximum_age_is_rejected() {
 }
 
 #[test]
+fn command_height_freshness_accepts_one_and_rejects_zero_policy() {
+    let accepted_policy = policy(1);
+    let accepted_route = route(&accepted_policy);
+    let state = state(41, true);
+    let accepted_occurrence = occurrence(&state, &accepted_route, vec![]);
+    let authority =
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &state,
+            route: &accepted_route,
+            occurrence: &accepted_occurrence,
+            policy: &accepted_policy,
+        })
+        .unwrap();
+    assert_eq!(authority.observation_age_blocks(), 1);
+
+    let zero_policy = policy(0);
+    let zero_route = route(&zero_policy);
+    let zero_occurrence = occurrence(&state, &zero_route, vec![]);
+    assert_eq!(
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &state,
+            route: &zero_route,
+            occurrence: &zero_occurrence,
+            policy: &zero_policy,
+        },),
+        Err(AbiErrorV1::InvalidBounds("oracle occurrence freshness"))
+    );
+}
+
+#[test]
 fn future_and_unfinalized_occurrences_are_rejected() {
     let policy = policy(2);
     let route = route(&policy);
@@ -352,7 +383,7 @@ fn future_and_unfinalized_occurrences_are_rejected() {
             AbiErrorV1::InvalidBinding("oracle occurrence finality"),
         ),
     ] {
-        let occurrence = occurrence(&candidate_state, &route, vec![ORACLE_ID.to_owned()]);
+        let occurrence = occurrence(&candidate_state, &route, vec![]);
         let error = verify_global_oracle_occurrence_authority_v1(
             GlobalOracleOccurrenceAuthorityCandidateV1 {
                 pre_state: &candidate_state,
@@ -367,27 +398,35 @@ fn future_and_unfinalized_occurrences_are_rejected() {
 }
 
 #[test]
-fn omitted_consumption_and_missing_state_are_rejected() {
+fn finalized_oracle_is_reusable_while_missing_state_is_rejected() {
     let policy = policy(2);
     let route = route(&policy);
-    let state = state(39, true);
-    let omitted = occurrence(&state, &route, vec![]);
-    let omitted_error =
+    let state = state(40, true);
+    let reusable = occurrence(&state, &route, vec![]);
+    let first =
         verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
             pre_state: &state,
             route: &route,
-            occurrence: &omitted,
+            occurrence: &reusable,
             policy: &policy,
         })
-        .unwrap_err();
+        .unwrap();
+    let second =
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &state,
+            route: &route,
+            occurrence: &reusable,
+            policy: &policy,
+        })
+        .unwrap();
     assert_eq!(
-        omitted_error,
-        AbiErrorV1::InvalidBinding("command route-bound oracle consumption")
+        first.authority_root().unwrap(),
+        second.authority_root().unwrap()
     );
 
     let mut missing = state;
     missing.oracle_occurrences.clear();
-    let missing_occurrence = occurrence(&missing, &route, vec![ORACLE_ID.to_owned()]);
+    let missing_occurrence = occurrence(&missing, &route, vec![]);
     let missing_error =
         verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
             pre_state: &missing,
@@ -407,7 +446,7 @@ fn caller_selected_policy_and_stale_head_are_rejected() {
     let governed_policy = policy(2);
     let route = route(&governed_policy);
     let state = state(38, true);
-    let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+    let occurrence = occurrence(&state, &route, vec![]);
     let caller_policy = policy(3);
     let policy_error =
         verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {

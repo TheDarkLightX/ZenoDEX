@@ -192,7 +192,7 @@ def _economic_reject_code_v2(
 ) -> ZDEXPurchaseBurnRouteRejectCodeV1 | None:
     purchase = candidate.purchase_journal
     budget_root = candidate.buyback_budget_occurrence.occurrence_root
-    expected_consumed = tuple(sorted((budget_root, purchase.oracle_occurrence_root)))
+    expected_consumed = (budget_root,)
     if budget_root == candidate.occurrence.occurrence_id or (
         candidate.occurrence.consumed_object_ids != expected_consumed
     ):

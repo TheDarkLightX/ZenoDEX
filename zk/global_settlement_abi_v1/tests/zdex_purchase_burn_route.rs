@@ -397,7 +397,6 @@ fn occurrence(
     route: &RouteReleaseV1,
     profile: &EconomicProfileSnapshotV1,
     pre_state: &GlobalEconomicStateV1,
-    price_occurrence_root: &RootV1,
 ) -> EconomicCommandOccurrenceV1 {
     EconomicCommandOccurrenceV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
@@ -414,7 +413,7 @@ fn occurrence(
         nonce: 9,
         profile_root: profile.profile_id.clone(),
         pre_state_root: pre_state.state_root().expect("pre-state root"),
-        consumed_object_ids: vec![price_occurrence_root.to_string()],
+        consumed_object_ids: vec![],
     }
 }
 
@@ -734,7 +733,7 @@ fn fixture_with_fee_ingress(fee_ingress_atoms: u128) -> Fixture {
     let price_occurrence_root = price_occurrence
         .occurrence_root()
         .expect("price occurrence root");
-    let mut occurrence = occurrence(&route, &profile, &pre_state, &price_occurrence_root);
+    let mut occurrence = occurrence(&route, &profile, &pre_state);
     let occurrence_id = occurrence.occurrence_id().expect("occurrence id");
     let quote_pool_bucket_id = zdex_pool_reserve_principal_v1(
         &buyback_execution_policy.pool_id,
@@ -890,11 +889,7 @@ fn fixture_with_fee_ingress(fee_ingress_atoms: u128) -> Fixture {
     purchase.buyback_budget_occurrence_root = buyback_budget_occurrence
         .occurrence_root()
         .expect("buyback budget occurrence root");
-    occurrence.consumed_object_ids = vec![
-        purchase.buyback_budget_occurrence_root.to_string(),
-        purchase.oracle_occurrence_root.to_string(),
-    ];
-    occurrence.consumed_object_ids.sort();
+    occurrence.consumed_object_ids = vec![purchase.buyback_budget_occurrence_root.to_string()];
     purchase.command_occurrence_id = occurrence.occurrence_id().expect("bound occurrence id");
     purchase.burn_bucket_id = zdex_occurrence_burn_port_v1(
         &occurrence.profile_root,
@@ -1161,7 +1156,7 @@ fn versioned_composition_root_and_effects_are_exact() {
             .journal_root()
             .expect("composition root")
             .as_str(),
-        "0x0bc8af74e1e016aaf2461c4067f7405b07a243d82916b4807ed7a75fdf6553af"
+        "0xa23c0cf832f65651f10b524262cdef1b66841c5938a35b6fc49b96561ae2bf30"
     );
     assert_eq!(
         composition.buyback_execution_policy_root,
@@ -1177,22 +1172,22 @@ fn versioned_composition_root_and_effects_are_exact() {
         accepted.effects.occurrence_consumptions,
         vec![fixture.occurrence.occurrence_id().expect("occurrence id")]
     );
-    assert_eq!(fixture.occurrence.consumed_object_ids, {
-        let mut expected = vec![
-            fixture
-                .buyback_budget_occurrence
-                .occurrence_root()
-                .expect("budget root")
-                .to_string(),
-            fixture
-                .price_occurrence
-                .occurrence_root()
-                .expect("Oracle price occurrence root")
-                .to_string(),
-        ];
-        expected.sort();
-        expected
-    });
+    assert_eq!(
+        fixture
+            .verified_burn
+            .binding_root()
+            .expect("burn leaf binding")
+            .as_str(),
+        "0x5e7ea7ddc6410b904c73be62e0fc885e3a1832c41ed3ff53f51ef42877e2f92f"
+    );
+    assert_eq!(
+        fixture.occurrence.consumed_object_ids,
+        vec![fixture
+            .buyback_budget_occurrence
+            .occurrence_root()
+            .expect("budget root")
+            .to_string()]
+    );
     assert_eq!(accepted.effects.lane_writes.len(), 1);
     assert_eq!(
         accepted.effects.lane_writes[0].lane_id,
@@ -2068,20 +2063,20 @@ fn exact_oracle_price_payload_substitution_rejects_before_receipt_verifier() {
 }
 
 #[test]
-fn price_authority_rejects_unconsumed_oracle_and_uncommitted_reserve_claims() {
+fn price_authority_allows_oracle_reuse_and_rejects_uncommitted_reserve_claims() {
     let fixture = fixture();
-    let mut occurrence_without_oracle = fixture.occurrence.clone();
-    occurrence_without_oracle.consumed_object_ids = vec![fixture
+    let mut occurrence_with_budget_only = fixture.occurrence.clone();
+    occurrence_with_budget_only.consumed_object_ids = vec![fixture
         .buyback_budget_occurrence
         .occurrence_root()
         .expect("budget root")
         .to_string()];
 
-    let missing_oracle =
+    let reusable_oracle =
         verify_zdex_buyback_price_authority_v1(ZDEXBuybackPriceAuthorityCandidateV1 {
             pre_state: &fixture.pre_state,
             route: &fixture.route,
-            occurrence: &occurrence_without_oracle,
+            occurrence: &occurrence_with_budget_only,
             execution_policy: &fixture.buyback_execution_policy,
             price_policy: &fixture.price_safety_policy,
             price_occurrence: &fixture.price_occurrence,
@@ -2092,10 +2087,14 @@ fn price_authority_rejects_unconsumed_oracle_and_uncommitted_reserve_claims() {
             quote_amount_in_atoms: fixture.purchase.quote_amount_in_atoms,
             purchased_zdex_atoms: fixture.purchase.purchased_zdex_atoms,
         })
-        .expect_err("an unconsumed Oracle occurrence must not create price authority");
-    assert!(missing_oracle
-        .to_string()
-        .contains("ZDEX buyback price authority context"));
+        .expect("a finalized committed Oracle occurrence is a reusable read dependency");
+    assert_eq!(
+        reusable_oracle.price_occurrence_root(),
+        &fixture
+            .price_occurrence
+            .occurrence_root()
+            .expect("Oracle root")
+    );
 
     let reserve_substitution =
         verify_zdex_buyback_price_authority_v1(ZDEXBuybackPriceAuthorityCandidateV1 {
@@ -2140,6 +2139,42 @@ fn price_authority_rejects_unconsumed_oracle_and_uncommitted_reserve_claims() {
         })
         .expect_err("an unfinalized Oracle occurrence must not create price authority");
     assert!(unfinalized
+        .to_string()
+        .contains("ZDEX buyback Oracle occurrence authority"));
+}
+
+#[test]
+fn price_authority_rejects_oracle_observed_at_command_height() {
+    let fixture = fixture();
+    let mut future_price_occurrence = fixture.price_occurrence.clone();
+    future_price_occurrence.observed_height = fixture.occurrence.height;
+    let mut future_state = fixture.pre_state.clone();
+    future_state.oracle_occurrences[0].occurrence_root = future_price_occurrence
+        .occurrence_root()
+        .expect("future Oracle occurrence root");
+    future_state.oracle_occurrences[0].observed_height = future_price_occurrence.observed_height;
+    let mut rebound_occurrence = fixture.occurrence.clone();
+    rebound_occurrence.pre_state_root = future_state
+        .state_root()
+        .expect("future-observation state remains structurally valid");
+
+    let error = verify_zdex_buyback_price_authority_v1(ZDEXBuybackPriceAuthorityCandidateV1 {
+        pre_state: &future_state,
+        route: &fixture.route,
+        occurrence: &rebound_occurrence,
+        execution_policy: &fixture.buyback_execution_policy,
+        price_policy: &fixture.price_safety_policy,
+        price_occurrence: &future_price_occurrence,
+        route_safe_quote_limit_atoms: fixture.purchase.route_safe_quote_limit_atoms,
+        minimum_output_atoms: fixture.purchase.minimum_output_atoms,
+        expected_quote_reserve_atoms: fixture.purchase.quote_pool_pre_atoms,
+        expected_zdex_reserve_atoms: fixture.purchase.zdex_pool_pre_atoms,
+        quote_amount_in_atoms: fixture.purchase.quote_amount_in_atoms,
+        purchased_zdex_atoms: fixture.purchase.purchased_zdex_atoms,
+    })
+    .expect_err("an observation absent from the pre-state must not authorize a command");
+
+    assert!(error
         .to_string()
         .contains("ZDEX buyback Oracle occurrence authority"));
 }

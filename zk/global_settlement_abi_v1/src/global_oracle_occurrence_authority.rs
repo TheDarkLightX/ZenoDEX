@@ -1,7 +1,9 @@
 //! Route-bound Oracle occurrence authority inside an exact global pre-state.
 //!
-//! This checker verifies structural authority only. Profile selection, receipt
-//! verification, and atomic publication remain separate verifier obligations.
+//! Finalized observations are reusable authenticated reads, not single-use
+//! consumed objects. This checker verifies structural authority only. Profile
+//! selection, receipt verification, and atomic publication remain separate
+//! verifier obligations.
 
 use serde::{Deserialize, Serialize};
 
@@ -53,6 +55,7 @@ pub struct GlobalOracleOccurrenceAuthorityV1 {
     occurrence_root: RootV1,
     observed_height: u64,
     state_height: u64,
+    evaluation_height: u64,
     observation_age_blocks: u64,
 }
 
@@ -67,6 +70,7 @@ struct GlobalOracleOccurrenceAuthorityContentV1<'a> {
     occurrence_root: &'a RootV1,
     observed_height: u64,
     state_height: u64,
+    evaluation_height: u64,
     observation_age_blocks: u64,
 }
 
@@ -103,6 +107,10 @@ impl GlobalOracleOccurrenceAuthorityV1 {
         self.state_height
     }
 
+    pub fn evaluation_height(&self) -> u64 {
+        self.evaluation_height
+    }
+
     pub fn observation_age_blocks(&self) -> u64 {
         self.observation_age_blocks
     }
@@ -120,6 +128,7 @@ impl GlobalOracleOccurrenceAuthorityV1 {
                 occurrence_root: &self.occurrence_root,
                 observed_height: self.observed_height,
                 state_height: self.state_height,
+                evaluation_height: self.evaluation_height,
                 observation_age_blocks: self.observation_age_blocks,
             },
         )
@@ -164,15 +173,6 @@ pub fn verify_global_oracle_occurrence_authority_v1(
     let pre_state_root = candidate.pre_state.state_root()?;
     let policy_root = candidate.policy.policy_root()?;
     require_exact_context_v1(&candidate, &pre_state_root, &policy_root)?;
-    if !candidate
-        .occurrence
-        .consumed_object_ids
-        .contains(&candidate.policy.oracle_id)
-    {
-        return Err(AbiErrorV1::InvalidBinding(
-            "command route-bound oracle consumption",
-        ));
-    }
     let occurrence = candidate
         .pre_state
         .oracle_occurrences
@@ -182,8 +182,13 @@ pub fn verify_global_oracle_occurrence_authority_v1(
     if !occurrence.finalized {
         return Err(AbiErrorV1::InvalidBinding("oracle occurrence finality"));
     }
+    if occurrence.observed_height > candidate.pre_state.height {
+        return Err(AbiErrorV1::InvalidBounds(
+            "oracle occurrence observed height",
+        ));
+    }
     let observation_age_blocks = candidate
-        .pre_state
+        .occurrence
         .height
         .checked_sub(occurrence.observed_height)
         .ok_or(AbiErrorV1::InvalidBounds(
@@ -201,6 +206,7 @@ pub fn verify_global_oracle_occurrence_authority_v1(
         occurrence_root: occurrence.occurrence_root.clone(),
         observed_height: occurrence.observed_height,
         state_height: candidate.pre_state.height,
+        evaluation_height: candidate.occurrence.height,
         observation_age_blocks,
     })
 }

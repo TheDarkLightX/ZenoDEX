@@ -73,7 +73,7 @@ def _route(policy: GlobalOracleOccurrencePolicyV1) -> RouteReleaseV1:
 
 def _state(
     *,
-    observed_height: int = 39,
+    observed_height: int = 40,
     finalized: bool = True,
     occurrence_root: str | None = None,
 ) -> GlobalEconomicStateV1:
@@ -107,7 +107,7 @@ def _occurrence(
     state: GlobalEconomicStateV1,
     route: RouteReleaseV1,
     *,
-    consumed_object_ids: tuple[str, ...] = (ORACLE_ID,),
+    consumed_object_ids: tuple[str, ...] = (),
 ) -> EconomicCommandOccurrenceV1:
     return EconomicCommandOccurrenceV1(
         chain_id=state.chain_id,
@@ -145,7 +145,7 @@ def _candidate(
 
 def test_given_exact_route_boundary_when_verified_then_authority_is_state_bound() -> None:
     # Arrange: age two is the policy's exact accepted maximum.
-    candidate = _candidate(state=_state(observed_height=39))
+    candidate = _candidate(state=_state(observed_height=40))
 
     # Act.
     authority = verify_global_oracle_occurrence_authority_v1(candidate)
@@ -157,14 +157,15 @@ def test_given_exact_route_boundary_when_verified_then_authority_is_state_bound(
     assert authority.policy_root == candidate.policy.policy_root
     assert authority.oracle_id == ORACLE_ID
     assert authority.occurrence_root == _root(501)
-    assert authority.observed_height == 39
+    assert authority.observed_height == 40
     assert authority.state_height == 41
+    assert authority.evaluation_height == 42
     assert authority.observation_age_blocks == 2
     assert candidate.policy.policy_root == (
         "0xe9236ce39308b70f6b2e762c8c87a1fda35d384e2a582067be108f693d3fda79"
     )
     assert authority.authority_root == (
-        "0xd10e4381d237f3d467672934e0f38513148bd32c067a4853ef66c28a5c271486"
+        "0x00228373028ec566e41b391ee7ee4ab299b510205b54fa1f14d2af0fe0538974"
     )
     assert current_dispute_status_root_from_global_authority_v1(authority) == (
         "sha256:" + f"{501:064x}"
@@ -172,20 +173,25 @@ def test_given_exact_route_boundary_when_verified_then_authority_is_state_bound(
 
 
 def test_one_block_past_maximum_age_is_rejected() -> None:
-    candidate = _candidate(state=_state(observed_height=38))
+    candidate = _candidate(state=_state(observed_height=39))
 
     with pytest.raises(ValueError, match="oracle occurrence exceeds governed freshness policy"):
         verify_global_oracle_occurrence_authority_v1(candidate)
 
 
-def test_zero_age_policy_accepts_same_height_and_rejects_previous_height() -> None:
-    policy = _policy(max_age_blocks=0)
-    exact = _candidate(state=_state(observed_height=41), policy=policy)
-    stale = _candidate(state=_state(observed_height=40), policy=policy)
+def test_command_height_freshness_boundary_accepts_one_and_rejects_zero_policy() -> None:
+    exact = _candidate(
+        state=_state(observed_height=41),
+        policy=_policy(max_age_blocks=1),
+    )
+    zero_policy = _candidate(
+        state=_state(observed_height=41),
+        policy=_policy(max_age_blocks=0),
+    )
 
-    assert verify_global_oracle_occurrence_authority_v1(exact).observation_age_blocks == 0
+    assert verify_global_oracle_occurrence_authority_v1(exact).observation_age_blocks == 1
     with pytest.raises(ValueError, match="oracle occurrence exceeds governed freshness policy"):
-        verify_global_oracle_occurrence_authority_v1(stale)
+        verify_global_oracle_occurrence_authority_v1(zero_policy)
 
 
 def test_future_observation_is_rejected() -> None:
@@ -202,18 +208,14 @@ def test_unfinalized_occurrence_is_rejected() -> None:
         verify_global_oracle_occurrence_authority_v1(candidate)
 
 
-def test_omitted_consumption_declaration_is_rejected() -> None:
+def test_finalized_oracle_is_a_reusable_state_bound_read_dependency() -> None:
     candidate = _candidate()
-    hostile = replace(
-        candidate,
-        occurrence=_occurrence(candidate.pre_state, candidate.route, consumed_object_ids=()),
-    )
 
-    with pytest.raises(
-        ValueError,
-        match="command does not consume route-bound oracle occurrence",
-    ):
-        verify_global_oracle_occurrence_authority_v1(hostile)
+    first = verify_global_oracle_occurrence_authority_v1(candidate)
+    second = verify_global_oracle_occurrence_authority_v1(candidate)
+
+    assert candidate.occurrence.consumed_object_ids == ()
+    assert first.authority_root == second.authority_root
 
 
 def test_missing_committed_occurrence_is_rejected() -> None:
@@ -281,7 +283,7 @@ def test_current_dispute_status_bridge_rejects_other_oracle_authority() -> None:
     other_occurrence = _occurrence(
         other_state,
         other_route,
-        consumed_object_ids=(other_oracle_id,),
+        consumed_object_ids=(),
     )
     authority = verify_global_oracle_occurrence_authority_v1(
         GlobalOracleOccurrenceAuthorityCandidateV1(

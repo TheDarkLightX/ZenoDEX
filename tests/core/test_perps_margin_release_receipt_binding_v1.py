@@ -391,7 +391,7 @@ def _fixture(
         base_asset,
         QUOTE_ASSET,
         price_e8,
-        40,
+        41,
     )
     perps_state = _perps_state(with_position=with_position, price_e8=price_e8)
     global_state = GlobalEconomicStateV1(
@@ -410,7 +410,7 @@ def _fixture(
             for lane_id in ALL_LANE_IDS_V1
         ),
         oracle_occurrences=(
-            OracleOccurrenceStateV1(ORACLE_ID, payload.occurrence_root, 40, True),
+            OracleOccurrenceStateV1(ORACLE_ID, payload.occurrence_root, 41, True),
         ),
     )
     occurrence = EconomicCommandOccurrenceV1(
@@ -427,7 +427,7 @@ def _fixture(
         nonce=9,
         profile_root=profile.profile_id,
         pre_state_root=global_state.state_root,
-        consumed_object_ids=(ORACLE_ID,) if with_position else (),
+        consumed_object_ids=(),
     )
     authorization = authorizations.authorization_for(
         occurrence,
@@ -569,10 +569,10 @@ def test_position_withdraw_binds_authenticated_command_exact_price_and_receipt()
         fixture.authenticated_command.binding_root
     )
     assert fixture.module_input.statement_root == (
-        "0xc5a148733e1e90151e0b4a2211d88f9da8936b7ba162bc7613664f8535994672"
+        "0x5380448e82dcbb72189d026b0a1d13d5ac734af537f105ce8bf1d9dbeb0fff7a"
     )
     assert fixture.accepted.module_journal.journal_root == (
-        "0x847cd95b5de91325f8094c210b3ab5d3f6d46f759ccbffb3685c62be8e90dcf6"
+        "0xc3cfbf33da4c054e67a445e6c160c596a6a2e6a9b1eb5e2e93f8924ca7bbc62f"
     )
     assert verifier.calls == [
         (

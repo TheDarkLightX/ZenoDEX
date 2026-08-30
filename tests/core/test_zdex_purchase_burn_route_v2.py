@@ -217,6 +217,7 @@ def _fixture_v2(
     purchased_atoms: int = 111,
     minimum_output_atoms: int = 109,
     include_budget_consumption: bool = True,
+    consumed_object_ids_override: tuple[str, ...] | None = None,
 ) -> _RouteFixtureV2:
     spot_release = _lane_release(LaneIdV1.SPOT_LIQUIDITY, 1)
     burn_release = _lane_release(LaneIdV1.ZDEX_TOKENOMICS, 2)
@@ -284,7 +285,7 @@ def _fixture_v2(
         nonce=9,
         profile_root=profile.profile_id,
         pre_state_root=pre_state.state_root,
-        consumed_object_ids=(price_occurrence.occurrence_root,),
+        consumed_object_ids=(),
     )
     legacy_purchase = _purchase_journal(
         route=route,
@@ -306,8 +307,10 @@ def _fixture_v2(
         occurrence=occurrence,
         purchase=legacy_purchase,
     )
-    consumed_object_ids = [price_occurrence.occurrence_root]
-    if include_budget_consumption:
+    consumed_object_ids: list[str] = []
+    if consumed_object_ids_override is not None:
+        consumed_object_ids.extend(consumed_object_ids_override)
+    elif include_budget_consumption:
         consumed_object_ids.append(budget.occurrence_root)
     occurrence = replace(
         occurrence,
@@ -430,7 +433,7 @@ def test_bdd_governed_v3_route_accepts_one_same_occurrence_purchase_and_burn() -
         fixture.candidate.verified_burn.leaf_binding_root
     )
     assert fixture.candidate.verified_burn.leaf_binding_root == (
-        "0xb6ced5fc53035a947e78ea1324ba1c26035b348ef981b0270978abe452e013d7"
+        "0xc9f114b40b73a9e79b4f352e1c939b6685c3155595ce25a9ec9a54b6f48c6a36"
     )
     assert fixture.candidate.verified_burn.leaf_binding_root != (
         fixture.candidate.verified_burn.binding_root
@@ -465,7 +468,7 @@ def test_one_atom_purchase_and_burn_boundary_accepts_without_residue() -> None:
         (_root(9_901), _root(9_902), _root(9_903)),
     ),
 )
-def test_consumed_budget_or_oracle_mutants_reject_without_effects(
+def test_consumed_budget_set_mutants_reject_without_effects(
     consumed_object_ids: tuple[str, ...],
 ) -> None:
     fixture = _fixture_v2()
@@ -486,6 +489,16 @@ def test_consumed_budget_or_oracle_mutants_reject_without_effects(
 
 def test_missing_budget_consumption_rejects_after_fresh_leaf_authentication() -> None:
     fixture = _fixture_v2(include_budget_consumption=False)
+
+    result = compose_zdex_purchase_burn_route_v2(fixture.candidate)
+
+    assert type(result) is ZDEXPurchaseBurnRouteRejectedV1
+    assert result.code is ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH
+    assert result.effects.is_empty
+
+
+def test_foreign_budget_consumption_rejects_after_fresh_leaf_authentication() -> None:
+    fixture = _fixture_v2(consumed_object_ids_override=(_root(9_901),))
 
     result = compose_zdex_purchase_burn_route_v2(fixture.candidate)
 
@@ -520,15 +533,14 @@ def test_raw_purchase_leaf_cannot_substitute_for_governed_admission() -> None:
         )
 
 
-def test_reordered_consumed_objects_are_unrepresentable() -> None:
+def test_duplicate_consumed_objects_are_unrepresentable() -> None:
     fixture = _fixture_v2()
+    object_id = fixture.candidate.occurrence.consumed_object_ids[0]
 
     with pytest.raises(ValueError, match="sorted and unique"):
         replace(
             fixture.candidate.occurrence,
-            consumed_object_ids=tuple(
-                reversed(fixture.candidate.occurrence.consumed_object_ids)
-            ),
+            consumed_object_ids=(object_id, object_id),
         )
 
 

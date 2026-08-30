@@ -219,7 +219,6 @@ def _require_context_v1(
     pre_state_root: str,
     execution_policy_root: str,
     price_policy_root: str,
-    price_occurrence_root: str,
 ) -> str:
     if candidate.pre_state.height == MAX_U64_V1:
         _reject(
@@ -237,7 +236,6 @@ def _require_context_v1(
         or occurrence.route_release_id != candidate.route.route_release_id
         or occurrence.command_kind != candidate.route.command_kind
         or occurrence.height != expected_height
-        or price_occurrence_root not in occurrence.consumed_object_ids
         or candidate.price_occurrence.oracle_id != candidate.price_policy.oracle_id
         or candidate.price_occurrence.quote_asset_id
         != candidate.execution_policy.quote_asset_id
@@ -270,7 +268,7 @@ def _require_finalized_oracle_v1(
         or not occurrence.finalized
         or occurrence.occurrence_root != price_occurrence_root
         or occurrence.observed_height != candidate.price_occurrence.observed_height
-        or occurrence.observed_height > candidate.occurrence.height
+        or occurrence.observed_height > candidate.pre_state.height
         or candidate.occurrence.height - occurrence.observed_height
         > candidate.price_policy.maximum_oracle_age_blocks
     ):
@@ -334,7 +332,6 @@ def verify_zdex_buyback_price_authority_v1(
         pre_state_root=pre_state_root,
         execution_policy_root=execution_policy_root,
         price_policy_root=price_policy_root,
-        price_occurrence_root=price_occurrence_root,
     )
     _require_finalized_oracle_v1(
         candidate,

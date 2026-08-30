@@ -1,10 +1,11 @@
 """Route-bound Oracle occurrence authority for GlobalSettlementABI V1.
 
-The verifier derives authority from an exact global pre-state, a route-bound
-Oracle policy, and the command's explicit consumed-object set.  The returned
-witness grants no publication authority and does not select an active profile
-or verify a proof receipt.  Those checks remain with the route and epoch
-verifiers plus the atomic commit port.
+The verifier derives authority from an exact global pre-state and a route-bound
+Oracle policy. Finalized Oracle observations are reusable authenticated reads;
+they are not single-use consumed objects. The returned witness grants no
+publication authority and does not select an active profile or verify a proof
+receipt. Those checks remain with the route and epoch verifiers plus the atomic
+commit port.
 """
 
 from __future__ import annotations
@@ -98,6 +99,7 @@ class _AuthorityFieldsV1:
     occurrence_root: str
     observed_height: int
     state_height: int
+    evaluation_height: int
     observation_age_blocks: int
 
 
@@ -147,6 +149,10 @@ class GlobalOracleOccurrenceAuthorityV1:
         return _authority_fields_v1(self).state_height
 
     @property
+    def evaluation_height(self) -> int:
+        return _authority_fields_v1(self).evaluation_height
+
+    @property
     def observation_age_blocks(self) -> int:
         return _authority_fields_v1(self).observation_age_blocks
 
@@ -165,6 +171,7 @@ class GlobalOracleOccurrenceAuthorityV1:
                 "occurrence_root": fields.occurrence_root,
                 "observed_height": fields.observed_height,
                 "state_height": fields.state_height,
+                "evaluation_height": fields.evaluation_height,
                 "observation_age_blocks": fields.observation_age_blocks,
             },
         )
@@ -196,6 +203,7 @@ def _snapshot_authority_fields_v1(fields: _AuthorityFieldsV1) -> _AuthorityField
     for name, height_value in (
         ("observed height", fields.observed_height),
         ("state height", fields.state_height),
+        ("evaluation height", fields.evaluation_height),
         ("observation age", fields.observation_age_blocks),
     ):
         if type(height_value) is not int:
@@ -206,7 +214,9 @@ def _snapshot_authority_fields_v1(fields: _AuthorityFieldsV1) -> _AuthorityField
         )
     if fields.observed_height > fields.state_height:
         raise ValueError("global Oracle authority observation is in the future")
-    if fields.observation_age_blocks != fields.state_height - fields.observed_height:
+    if fields.evaluation_height != fields.state_height + 1:
+        raise ValueError("global Oracle authority evaluation height mismatch")
+    if fields.observation_age_blocks != fields.evaluation_height - fields.observed_height:
         raise ValueError("global Oracle authority observation age mismatch")
     return replace(fields)
 
@@ -333,7 +343,7 @@ def _require_exact_context_v1(
 def verify_global_oracle_occurrence_authority_v1(
     candidate: GlobalOracleOccurrenceAuthorityCandidateV1,
 ) -> GlobalOracleOccurrenceAuthorityV1:
-    """Check route policy, exact-head consumption, finality, and freshness."""
+    """Check route policy, exact-head read binding, finality, and freshness."""
 
     if type(candidate) is not GlobalOracleOccurrenceAuthorityCandidateV1:
         raise TypeError("global Oracle authority candidate must be exact typed data")
@@ -342,8 +352,6 @@ def verify_global_oracle_occurrence_authority_v1(
     occurrence = _snapshot_occurrence_v1(candidate.occurrence)
     policy = _snapshot_policy_v1(candidate.policy)
     _require_exact_context_v1(state, route, occurrence, policy)
-    if policy.oracle_id not in occurrence.consumed_object_ids:
-        raise ValueError("command does not consume route-bound oracle occurrence")
     oracle_occurrence = next(
         (
             item
@@ -358,7 +366,7 @@ def verify_global_oracle_occurrence_authority_v1(
         raise ValueError("oracle occurrence is not finalized")
     if oracle_occurrence.observed_height > state.height:
         raise ValueError("oracle occurrence observed height is in the future")
-    observation_age_blocks = state.height - oracle_occurrence.observed_height
+    observation_age_blocks = occurrence.height - oracle_occurrence.observed_height
     if observation_age_blocks > policy.max_observation_age_blocks:
         raise ValueError("oracle occurrence exceeds governed freshness policy")
     fields = _AuthorityFieldsV1(
@@ -370,6 +378,7 @@ def verify_global_oracle_occurrence_authority_v1(
         occurrence_root=oracle_occurrence.occurrence_root,
         observed_height=oracle_occurrence.observed_height,
         state_height=state.height,
+        evaluation_height=occurrence.height,
         observation_age_blocks=observation_age_blocks,
     )
     for field_name in (

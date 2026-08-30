@@ -578,7 +578,7 @@ class GovernedVerifiedZDEXAMMPurchaseV2:
 
     @property
     def leaf_binding_root(self) -> str:
-        return self.verified_leaf.binding_root
+        return self.verified_leaf.leaf_binding_root
 
     @property
     def binding_root(self) -> str:

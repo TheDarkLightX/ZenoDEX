@@ -1,0 +1,248 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260829-zdex-reusable-oracle-jmt-insert-v1",
+  "created_date": "2026-08-29",
+  "claim_scope": "Research-only SHADOW evidence that finalized Oracle observations are reusable state-bound reads, cannot postdate the committed pre-state, and have freshness evaluated at the canonical command occurrence height; the governed ZDEX route consumes only its authenticated fee-budget object; and one absent JMT key has an exact proof-derived successor root. Python and Rust fixed vectors agree, the bounded lifecycle is inductive under Z3 and CVC5, and the V1 epoch verifier still quarantines object-consuming routes pending a GlobalSettlementABI V2 nullifier contract.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GLOBAL-ORACLE-REUSABLE-READ-V1",
+    "GLOBAL-ORACLE-PRE-STATE-CAUSALITY-V1",
+    "GLOBAL-ORACLE-COMMAND-HEIGHT-FRESHNESS-V1",
+    "ZDEX-BUYBACK-EXACT-BUDGET-CONSUMPTION-V1",
+    "ZDEX-BUYBACK-REJECT-NO-EFFECT-V1",
+    "JMT-ABSENT-INSERT-SUCCESSOR-ROOT-V1",
+    "GLOBAL-SETTLEMENT-V1-OBJECT-CONSUMPTION-QUARANTINE"
+  ],
+  "failure_modes": [
+    "a reusable finalized Oracle observation is accidentally consumed and makes unrelated routes unavailable",
+    "an Oracle observation created at the command height is represented as if it existed in the earlier committed pre-state",
+    "freshness is evaluated one block behind the command occurrence and admits a stale observation",
+    "a ZDEX purchase-and-burn omits, duplicates, or substitutes the authenticated fee-budget object",
+    "a rejected route creates value effects or a verifier-owned authority witness",
+    "an absence proof for another key or predecessor root derives an accepted successor root",
+    "a bounded V1 route is mistaken for durable global object-nullifier authority"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_oracle_occurrence_authority_v1.py",
+      "sha256": "18a9d2c0001ba5cbe475bcdc9be9990febd8fd8fb59e9fb24570081b72151db1"
+    },
+    {
+      "path": "src/core/zdex_buyback_price_authority_v1.py",
+      "sha256": "88ea582172df5debf3c1c9cf584ef34d86cad649189787b1419fe9014856344a"
+    },
+    {
+      "path": "src/core/zdex_purchase_burn_receipt_verification_v1.py",
+      "sha256": "7ad42e80770f71fc7fbc90c52bea240218d3dd10ec4793d42e6dc1c4345138b8"
+    },
+    {
+      "path": "src/core/zdex_purchase_burn_route_v2.py",
+      "sha256": "d69a0f992e7e1ad121a09c2b9a33bd15a0cfa5b817d4dbd2803796a3a74fa393"
+    },
+    {
+      "path": "src/kernels/dex/zdex_atomic_buyback_lifecycle_v1.yaml",
+      "sha256": "6f230f210dc4bc3b0deb6cc7fc65ee718a1c36152ef59273ed3bc2c68203dd23"
+    },
+    {
+      "path": "src/state/jmt.py",
+      "sha256": "156fcf6115b8b768e2cc43974a42e4f926756687615559a626ce0546b404ca7f"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_oracle_occurrence_authority.rs",
+      "sha256": "ce4277e65253349ef3893a6e3f4045fba154ca824cf34715bb7aae0173fc48f2"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_buyback_price_authority.rs",
+      "sha256": "f595f97ba326bc3362771c83bb75f008b198618641573f59cb84806bd52f9d5f"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_purchase_burn_route.rs",
+      "sha256": "ca86f33cf3e69d840b3fe0b3fa5e8c4954b80bfc65b79b362979258d0e4a6864"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_oracle_occurrence_authority.rs",
+      "sha256": "7548b8a2c7e374d60e5c60455c8cbe7f853f9bf99a072ddc56110e8137a813d1"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "8de565ee469d54255cf3753c1f908785e7308a6ca9e9af38e3a0e91714b0807b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_purchase_burn_route.rs",
+      "sha256": "365abfd0ae52a64f4089edfceb508f3c9c08908048fb3b4a1edad2a86cf22946"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_perps_margin_release_receipt_binding_v1.py",
+      "sha256": "dd3172ceb42c25110155b8197401afb71ec4f141ecd3625b430396b220db0655",
+      "node_ids": [
+        "tests/core/test_perps_margin_release_receipt_binding_v1.py::test_position_withdraw_binds_authenticated_command_exact_price_and_receipt",
+        "tests/core/test_perps_margin_release_receipt_binding_v1.py::test_caller_selected_price_and_missing_price_authority_reject_before_verifier",
+        "tests/core/test_perps_margin_release_receipt_binding_v1.py::test_flat_deposit_rejects_unexpected_oracle_price_authority",
+        "tests/core/test_perps_margin_release_receipt_binding_v1.py::test_mutated_perps_output_and_wrong_receipt_kind_never_reach_verifier"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_oracle_occurrence_authority_v1.py",
+      "sha256": "4c5ae6fc366407b3875870792d89bc3f5f28d16daae107cdf912b4cbcdaf4890",
+      "node_ids": [
+        "tests/core/test_global_oracle_occurrence_authority_v1.py::test_given_exact_route_boundary_when_verified_then_authority_is_state_bound",
+        "tests/core/test_global_oracle_occurrence_authority_v1.py::test_one_block_past_maximum_age_is_rejected",
+        "tests/core/test_global_oracle_occurrence_authority_v1.py::test_command_height_freshness_boundary_accepts_one_and_rejects_zero_policy",
+        "tests/core/test_global_oracle_occurrence_authority_v1.py::test_finalized_oracle_is_a_reusable_state_bound_read_dependency",
+        "tests/core/test_global_oracle_occurrence_authority_v1.py::test_missing_committed_occurrence_is_rejected"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_oracle_price_occurrence_v1.py",
+      "sha256": "e08e2bf3099b96db5be334edf19504c5699ac44fb226b910efa481ae498b8095",
+      "node_ids": [
+        "tests/core/test_global_oracle_price_occurrence_v1.py::test_given_finalized_root_when_payload_matches_then_exact_price_is_verified",
+        "tests/core/test_global_oracle_price_occurrence_v1.py::test_one_field_payload_substitution_rejects_before_price_authority",
+        "tests/core/test_global_oracle_price_occurrence_v1.py::test_price_e8_boundary_contract"
+      ]
+    },
+    {
+      "path": "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py",
+      "sha256": "cc057693c3d7bd3d99cc1e1d3158fff83fe4c0b17c7010317e014732942f9e9c",
+      "node_ids": [
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_price_authority_binds_exact_committed_state_oracle_and_policy",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_price_authority_mutants_reject_before_witness_creation",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_finalized_oracle_is_a_reusable_read_dependency",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_canonical_journal_digest_is_fixed",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_fake_conditional_and_non_succinct_receipts_reject_before_callback"
+      ]
+    },
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v2.py",
+      "sha256": "c306acd072844ea4464f911392a21a76be6db839c4248d635157deab93eb9236",
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v2.py::test_bdd_governed_v3_route_accepts_one_same_occurrence_purchase_and_burn",
+        "tests/core/test_zdex_purchase_burn_route_v2.py::test_one_atom_purchase_and_burn_boundary_accepts_without_residue",
+        "tests/core/test_zdex_purchase_burn_route_v2.py::test_consumed_budget_set_mutants_reject_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v2.py::test_missing_budget_consumption_rejects_after_fresh_leaf_authentication",
+        "tests/core/test_zdex_purchase_burn_route_v2.py::test_foreign_budget_consumption_rejects_after_fresh_leaf_authentication",
+        "tests/core/test_zdex_purchase_burn_route_v2.py::test_duplicate_consumed_objects_are_unrepresentable",
+        "tests/core/test_zdex_purchase_burn_route_v2.py::test_v3_composition_journal_matches_rust_golden_vector"
+      ]
+    },
+    {
+      "path": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py",
+      "sha256": "d711009eb2770839428a4a45f38c0efe963cc09a9f4e5fbad8f12c8ab1a06a8e",
+      "node_ids": [
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_model_hash_action_set_and_obligations_are_exact",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_oracle_observation_is_a_reusable_authenticated_read",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_two_solver_replay_is_exact_and_deterministic",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples"
+      ]
+    },
+    {
+      "path": "tests/state/test_jmt.py",
+      "sha256": "1e249828f396d624399d7d8b29239b004caec628ab1e270dedba394cd6ef68bb",
+      "node_ids": [
+        "tests/state/test_jmt.py::test_derive_insert_root_matches_full_rebuild_for_deep_prefix_histories",
+        "tests/state/test_jmt.py::test_derive_insert_root_is_insertion_order_independent",
+        "tests/state/test_jmt.py::test_derive_insert_root_rejects_stale_or_wrong_key_proof",
+        "tests/state/test_jmt.py::test_derive_insert_root_rejects_hostile_root_text_substitution",
+        "tests/state/test_jmt.py::test_jmt_is_standalone_and_not_imported_by_current_root_paths"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "property",
+    "differential",
+    "stateful",
+    "mutation",
+    "formal",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact typed state, route, policy, occurrence, proofs, and receipts; act through the production-shaped checker or pure transition; then assert exact roots, reject classes, no-effect behavior, cross-language vectors, and dual-solver verdicts."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Rejected Oracle and ZDEX candidates create no verifier-owned authority or economic effect. Rejected JMT derivations raise before returning a root and mutate no authoritative state. The ESSO noncommit invariant preserves every committed accounting and replay field."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "oracle_age_at_command_height",
+      "points": [
+        "latest_pre_state_observation_has_age_one",
+        "observation_at_command_height_rejects_as_absent_from_pre_state",
+        "exact_maximum_age_accepts",
+        "maximum_plus_one_rejects",
+        "zero_age_policy_rejects_pre_state_observation"
+      ]
+    },
+    {
+      "name": "consumed_budget_set",
+      "points": [
+        "exact_one_budget_object_accepts_in_shadow_route",
+        "missing_budget_rejects",
+        "duplicate_budget_is_unrepresentable",
+        "foreign_object_rejects"
+      ]
+    },
+    {
+      "name": "jmt_absent_insert",
+      "points": [
+        "empty_predecessor",
+        "deepest_bit_divergence",
+        "multiple_insertion_orders",
+        "stale_predecessor_proof_rejects",
+        "wrong_key_proof_rejects"
+      ]
+    },
+    {
+      "name": "bounded_buyback_amount",
+      "points": [
+        "zero_reject_boundary",
+        "one_atom_minimum",
+        "four_atom_model_maximum",
+        "maximum_plus_one_outside_model"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "admit an Oracle observation at command height even though it is absent from the committed pre-state",
+      "killed_by": "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_price_authority_mutants_reject_before_witness_creation"
+    },
+    {
+      "description": "allow the bounded buyback lifecycle to prepare with a stale Oracle observation",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples"
+    },
+    {
+      "description": "omit the exact authenticated fee-budget object while freshly binding every leaf to the command occurrence",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v2.py::test_missing_budget_consumption_rejects_after_fresh_leaf_authentication"
+    },
+    {
+      "description": "substitute a foreign consumed object for the authenticated fee-budget object while freshly binding every leaf to the command occurrence",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v2.py::test_foreign_budget_consumption_rejects_after_fresh_leaf_authentication"
+    },
+    {
+      "description": "substitute one field of the finalized Oracle price payload",
+      "killed_by": "tests/core/test_global_oracle_price_occurrence_v1.py::test_one_field_payload_substitution_rejects_before_price_authority"
+    },
+    {
+      "description": "use hostile root-text slicing to authenticate a different JMT predecessor than the visible root",
+      "killed_by": "tests/state/test_jmt.py::test_derive_insert_root_rejects_hostile_root_text_substitution"
+    }
+  ],
+  "nonclaims": [
+    "The ZDEX purchase-and-burn route remains SHADOW and unmounted.",
+    "GlobalSettlementABI V1 still rejects nonempty consumed-object sets at generic epoch admission and grants no durable object-nullifier authority.",
+    "The JMT insertion helper is standalone reference evidence and is not connected to a guest, verifier, durable store, migration, or publication path.",
+    "The ESSO proof is bounded to two occurrence slots and 0..4-atom movements; its authority booleans are external premises.",
+    "No cryptographic receipt proof, Oracle truth, liveness, economic optimality, production parameter, release, migration, writer, or settlement claim is promoted.",
+    "Passing local tests and cross-language fixed vectors do not establish production readiness or guarantee all value movement."
+  ]
+}

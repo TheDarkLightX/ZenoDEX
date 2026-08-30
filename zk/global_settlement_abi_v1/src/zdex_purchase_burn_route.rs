@@ -605,9 +605,7 @@ fn economic_reject_code_v1(
     let execution_policy = candidate.governed_profile.buyback_execution_policy;
     let price_policy = candidate.governed_profile.price_safety_policy;
     let budget_root = budget.occurrence_root()?;
-    let price_occurrence_root = purchase.oracle_occurrence_root.clone();
-    let mut expected_consumed = vec![budget_root.to_string(), price_occurrence_root.to_string()];
-    expected_consumed.sort();
+    let expected_consumed = vec![budget_root.to_string()];
     if budget_root == candidate.occurrence.occurrence_id()?
         || candidate.occurrence.consumed_object_ids != expected_consumed
     {
