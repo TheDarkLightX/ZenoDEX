@@ -18,6 +18,8 @@ from src.core.global_settlement_types_v1 import (
     ZERO_ROOT_V1,
     EconomicEffectKindV1,
     EconomicPolicyRegistryV1,
+    GlobalEconomicEffectPlanV1,
+    ReleaseStatusV1,
 )
 from src.core.zdex_atomic_buyback_v1 import (
     ZDEXAtomicBuybackAcceptedV1,
@@ -27,6 +29,7 @@ from src.core.zdex_atomic_buyback_v1 import (
     ZDEXAtomicBuybackRejectedV1,
     finalize_zdex_atomic_buyback_v1,
     prepare_zdex_atomic_buyback_v1,
+    zdex_atomic_buyback_lane_coordination_obligation_root_v1,
 )
 from src.core.zdex_buyback_price_safety_v1 import (
     ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
@@ -43,12 +46,12 @@ from src.core.zdex_purchase_burn_receipt_verification_v1 import (
     ZDEXLaneReceiptEnvelopeV1,
     ZDEXPurchaseReceiptCandidateV1,
     ZDEXPurchaseReceiptCandidateV2,
-    verify_governed_zdex_amm_purchase_receipt_shadow_v1,
     verify_governed_zdex_amm_purchase_receipt_shadow_v2,
     verify_governed_zdex_burn_receipt_shadow_v1,
     verify_zdex_amm_purchase_receipt_v2,
 )
 from src.core.zdex_purchase_burn_route_types_v1 import (
+    AMM_POOL_CUSTODY_DOMAIN_V1,
     ZDEXAMMPurchaseJournalV1,
     ZDEXAMMPurchaseJournalV2,
     zdex_occurrence_burn_port_v1,
@@ -128,18 +131,26 @@ def _candidate() -> tuple[_Fixture, ZDEXAtomicBuybackCandidateV1]:
         safety,
     )
     assert isinstance(spend, VerifiedZDEXBuybackSpendV1)
-    purchase = _purchase_journal(fixture, spend)
-    effects = purchase_effects_v1(purchase)
-    verified_purchase = verify_governed_zdex_amm_purchase_receipt_shadow_v1(
-        ZDEXPurchaseReceiptCandidateV1(
-            fixture.route,
-            fixture.spot_release,
-            fixture.candidate.occurrence,
-            purchase,
-            effects,
-            ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"purchase-receipt"),
+    purchase = _purchase_journal_v2(fixture, _purchase_journal(fixture, spend))
+    effects = purchase_effects_v2(purchase)
+    verified_purchase = verify_governed_zdex_amm_purchase_receipt_shadow_v2(
+        ZDEXPurchaseReceiptCandidateV2(
+            route_release=fixture.route,
+            module_release=fixture.spot_release,
+            occurrence=fixture.candidate.occurrence,
+            pre_state=fixture.candidate.global_pre_state,
+            execution_policy=fixture.candidate.buyback_policy,
+            price_policy=fixture.candidate.price_policy,
+            price_occurrence=_price_occurrence(fixture),
+            journal=purchase,
+            effects=effects,
+            receipt=ZDEXLaneReceiptEnvelopeV1(
+                ReceiptKindV1.SUCCINCT,
+                b"purchase-v2-receipt",
+            ),
         ),
         profile=fixture.candidate.profile,
+        policy_registry=fixture.candidate.policy_registry,
         authority_head=fixture.authority_head,
         receipt_verifier=fixture.receipt_verifier,
     )
@@ -186,32 +197,10 @@ def _purchase_journal_v2(
 
 def test_v2_purchase_receipt_binds_exact_price_authority_before_callback() -> None:
     # Arrange
-    fixture, legacy_candidate = _candidate()
-    journal = _purchase_journal_v2(fixture, legacy_candidate.purchase_journal)
-    effects = purchase_effects_v2(journal)
+    fixture, candidate = _candidate()
 
     # Act
-    verified = verify_governed_zdex_amm_purchase_receipt_shadow_v2(
-        ZDEXPurchaseReceiptCandidateV2(
-            route_release=fixture.route,
-            module_release=fixture.spot_release,
-            occurrence=fixture.candidate.occurrence,
-            pre_state=fixture.candidate.global_pre_state,
-            execution_policy=fixture.candidate.buyback_policy,
-            price_policy=fixture.candidate.price_policy,
-            price_occurrence=_price_occurrence(fixture),
-            journal=journal,
-            effects=effects,
-            receipt=ZDEXLaneReceiptEnvelopeV1(
-                ReceiptKindV1.SUCCINCT,
-                b"purchase-v2-receipt",
-            ),
-        ),
-        profile=fixture.candidate.profile,
-        policy_registry=fixture.candidate.policy_registry,
-        authority_head=fixture.authority_head,
-        receipt_verifier=fixture.receipt_verifier,
-    )
+    verified = candidate.verified_purchase
 
     # Assert
     assert verified.price_authority_root != ZERO_ROOT_V1
@@ -224,7 +213,7 @@ def test_v2_purchase_receipt_binds_exact_price_authority_before_callback() -> No
     assert verified.verified_leaf.authority_head_root == ZERO_ROOT_V1
     assert verified.verified_leaf.verifier_binding_root == ZERO_ROOT_V1
     assert verified.leaf_binding_root == (
-        "0x2297c6834d02ce2a84edf4d3e0f08c124baee16085231e1590c4a9f685c96867"
+        "0x4c28917c9a832f1402e19a18575ad6c2d1b689adcb99f598978d2138b10e0466"
     )
 
 
@@ -237,13 +226,13 @@ def test_governed_v2_purchase_rejects_substituted_execution_policy_before_callba
     None
 ):
     # Arrange
-    fixture, legacy_candidate = _candidate()
+    fixture, candidate = _candidate()
     substituted_policy = replace(
         fixture.candidate.buyback_policy,
         pool_definition_root="0x" + "ab" * 32,
     )
     journal = replace(
-        _purchase_journal_v2(fixture, legacy_candidate.purchase_journal),
+        candidate.purchase_journal,
         buyback_execution_policy_root=substituted_policy.policy_root,
     )
     effects = purchase_effects_v2(journal)
@@ -279,8 +268,8 @@ def test_governed_v2_purchase_rejects_profile_mismatched_registry_before_callbac
     None
 ):
     # Arrange
-    fixture, legacy_candidate = _candidate()
-    journal = _purchase_journal_v2(fixture, legacy_candidate.purchase_journal)
+    fixture, candidate = _candidate()
+    journal = candidate.purchase_journal
     effects = purchase_effects_v2(journal)
     first, *remaining = fixture.candidate.policy_registry.bindings
     mismatched_registry = EconomicPolicyRegistryV1(
@@ -323,8 +312,8 @@ def test_governed_v2_purchase_rejects_substituted_price_policy_before_callback()
     None
 ):
     # Arrange
-    fixture, legacy_candidate = _candidate()
-    journal = _purchase_journal_v2(fixture, legacy_candidate.purchase_journal)
+    fixture, candidate = _candidate()
+    journal = candidate.purchase_journal
     effects = purchase_effects_v2(journal)
     assert any(
         binding.policy_kind == ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1
@@ -364,8 +353,8 @@ def test_governed_v2_purchase_rejects_substituted_price_policy_before_callback()
 
 def test_v2_purchase_policy_root_mutant_rejects_before_callback() -> None:
     # Arrange
-    fixture, legacy_candidate = _candidate()
-    journal = _purchase_journal_v2(fixture, legacy_candidate.purchase_journal)
+    fixture, candidate = _candidate()
+    journal = candidate.purchase_journal
     journal = replace(journal, price_safety_policy_root="0x" + "aa" * 32)
     effects = purchase_effects_v2(journal)
     calls_before = len(fixture.backend.calls)
@@ -415,7 +404,9 @@ def _verify_burn(
     )
 
 
-def test_bdd_fee_allocation_purchase_and_burn_close_one_atomic_obligation() -> None:
+def test_bdd_fee_allocation_purchase_and_burn_retains_lane_coordination_obligation() -> (
+    None
+):
     fixture, candidate = _candidate()
 
     pending = prepare_zdex_atomic_buyback_v1(candidate)
@@ -431,7 +422,14 @@ def test_bdd_fee_allocation_purchase_and_burn_close_one_atomic_obligation() -> N
     )
     accepted = finalize_zdex_atomic_buyback_v1(pending, _verify_burn(fixture, pending))
     assert isinstance(accepted, ZDEXAtomicBuybackAcceptedV1)
-    assert accepted.terminal_obligations_root == ZERO_ROOT_V1
+    assert accepted.terminal_obligations_root == (
+        zdex_atomic_buyback_lane_coordination_obligation_root_v1(
+            accepted.post_state,
+            accepted.effects,
+            accepted.burn,
+        )
+    )
+    assert accepted.terminal_obligations_root != ZERO_ROOT_V1
     assert accepted.burn.journal.burned_zdex_atoms == 111
     assert (
         sum(
@@ -441,6 +439,41 @@ def test_bdd_fee_allocation_purchase_and_burn_close_one_atomic_obligation() -> N
         )
         == 111
     )
+
+
+def test_zero_terminal_root_cannot_be_forged_before_lane_coordination() -> None:
+    fixture, candidate = _candidate()
+    pending = prepare_zdex_atomic_buyback_v1(candidate)
+    assert isinstance(pending, ZDEXAtomicBuybackPendingV1)
+    accepted = finalize_zdex_atomic_buyback_v1(pending, _verify_burn(fixture, pending))
+    assert isinstance(accepted, ZDEXAtomicBuybackAcceptedV1)
+
+    with pytest.raises(TypeError, match="verifier-constructed"):
+        ZDEXAtomicBuybackAcceptedV1(object(), object())  # type: ignore[arg-type]
+
+
+def test_direct_accepted_construction_cannot_hide_empty_effects_or_missing_receipt() -> None:
+    fixture, candidate = _candidate()
+    pending = prepare_zdex_atomic_buyback_v1(candidate)
+    assert isinstance(pending, ZDEXAtomicBuybackPendingV1)
+
+    with pytest.raises(TypeError):
+        ZDEXAtomicBuybackAcceptedV1(
+            post_state=pending.post_state,
+            effects=GlobalEconomicEffectPlanV1.empty(),
+            burn=pending.burn,
+            terminal_obligations_root=zdex_atomic_buyback_lane_coordination_obligation_root_v1(
+                pending.post_state,
+                GlobalEconomicEffectPlanV1.empty(),
+                pending.burn,
+            ),
+        )
+
+    verified_burn = _verify_burn(fixture, pending)
+    accepted = finalize_zdex_atomic_buyback_v1(pending, verified_burn)
+    assert isinstance(accepted, ZDEXAtomicBuybackAcceptedV1)
+    assert accepted.verified_burn_binding_root == verified_burn.binding_root
+    assert accepted.pending_binding_root != ZERO_ROOT_V1
 
 
 def test_atomic_effects_uniquely_project_and_refine_the_global_post_state() -> None:
@@ -469,7 +502,7 @@ def test_atomic_effects_uniquely_project_and_refine_the_global_post_state() -> N
         pre_state_root=fixture.candidate.global_pre_state.state_root,
         post_state_root=post_state.state_root,
         effect_plan_root=accepted.effects.effect_plan_root,
-        terminal_obligations_root=ZERO_ROOT_V1,
+        terminal_obligations_root=accepted.terminal_obligations_root,
     )
     refinement = refine_route_global_economic_state_effects_v1(
         GlobalEconomicStateEffectRefinementCandidateV1(
@@ -483,22 +516,85 @@ def test_atomic_effects_uniquely_project_and_refine_the_global_post_state() -> N
 
     assert refinement.pre_state_root == fixture.candidate.global_pre_state.state_root
     assert refinement.post_state_root == post_state.state_root
+    assert route_journal.terminal_obligations_root != ZERO_ROOT_V1
     assert {row.asset: row.amount_atoms for row in post_state.supplies}[
         candidate.purchase_journal.zdex_asset_id
     ] == 889
+    quote_pool_rows = tuple(
+        row
+        for row in post_state.custody
+        if row.asset == candidate.purchase_journal.quote_asset_id
+        and row.custody_domain == AMM_POOL_CUSTODY_DOMAIN_V1
+    )
+    assert tuple((row.owner, row.amount_atoms) for row in quote_pool_rows) == (
+        (candidate.purchase_journal.quote_pool_bucket_id, 1_125),
+    )
 
 
 def test_purchase_amount_substitution_rejects_as_exact_noop() -> None:
     _, candidate = _candidate()
     substituted = replace(
         candidate.purchase_journal,
-        purchased_zdex_atoms=39,
-        zdex_pool_post_atoms=961,
-        burn_bucket_post_atoms=39,
+        purchased_zdex_atoms=110,
+        zdex_pool_post_atoms=890,
+        burn_bucket_post_atoms=110,
     )
     result = prepare_zdex_atomic_buyback_v1(replace(candidate, purchase_journal=substituted))
     assert isinstance(result, ZDEXAtomicBuybackRejectedV1)
     assert result.code is ZDEXAtomicBuybackRejectCodeV1.PURCHASE_MISMATCH
+    assert result.pre_state is result.post_state
+    assert result.effects.is_empty
+
+
+def test_substituted_pool_principal_rejects_as_exact_noop() -> None:
+    _, candidate = _candidate()
+    substituted = replace(
+        candidate.purchase_journal,
+        quote_pool_bucket_id="0x" + "ab" * 32,
+    )
+    substituted_effects = purchase_effects_v2(substituted)
+
+    result = prepare_zdex_atomic_buyback_v1(
+        replace(
+            candidate,
+            purchase_journal=substituted,
+            purchase_effects=substituted_effects,
+        )
+    )
+
+    assert isinstance(result, ZDEXAtomicBuybackRejectedV1)
+    assert result.code is ZDEXAtomicBuybackRejectCodeV1.PURCHASE_MISMATCH
+    assert result.pre_state is result.post_state
+    assert result.effects.is_empty
+
+
+def test_verify_only_route_status_rejects_as_exact_noop() -> None:
+    _, candidate = _candidate()
+    substituted_route = replace(candidate.route, status=ReleaseStatusV1.VERIFY_ONLY)
+
+    result = prepare_zdex_atomic_buyback_v1(
+        replace(candidate, route=substituted_route)
+    )
+
+    assert isinstance(result, ZDEXAtomicBuybackRejectedV1)
+    assert result.code is ZDEXAtomicBuybackRejectCodeV1.ROUTE_MISMATCH
+    assert result.pre_state is result.post_state
+    assert result.effects.is_empty
+
+
+def test_nonempty_consumed_objects_reject_as_exact_noop() -> None:
+    _, candidate = _candidate()
+    substituted_occurrence = replace(
+        candidate.occurrence,
+        consumed_object_ids=("legacy-budget",),
+    )
+
+    result = prepare_zdex_atomic_buyback_v1(
+        replace(candidate, occurrence=substituted_occurrence)
+    )
+
+    assert isinstance(result, ZDEXAtomicBuybackRejectedV1)
+    assert result.code is ZDEXAtomicBuybackRejectCodeV1.ROUTE_MISMATCH
     assert result.pre_state is result.post_state
     assert result.effects.is_empty
 
@@ -509,36 +605,44 @@ def test_legacy_caller_selected_purchase_witness_cannot_enter_atomic_route() -> 
     )
 
     fixture, candidate = _candidate()
+    legacy_journal = _purchase_journal(fixture, candidate.verified_spend)
+    legacy_effects = purchase_effects_v1(legacy_journal)
     legacy = verify_zdex_amm_purchase_receipt_v1(
         ZDEXPurchaseReceiptCandidateV1(
             fixture.route,
             fixture.spot_release,
             fixture.candidate.occurrence,
-            candidate.purchase_journal,
-            candidate.purchase_effects,
+            legacy_journal,
+            legacy_effects,
             ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"legacy"),
         ),
         fixture.backend,
     )
-    result = prepare_zdex_atomic_buyback_v1(replace(candidate, verified_purchase=legacy))
-    assert isinstance(result, ZDEXAtomicBuybackRejectedV1)
-    assert result.code is ZDEXAtomicBuybackRejectCodeV1.PURCHASE_WITNESS_MISMATCH
-    assert result.pre_state is result.post_state
+    with pytest.raises(TypeError, match="exact typed data"):
+        replace(candidate, verified_purchase=legacy)
 
 
 def test_different_current_authority_generation_cannot_mix_with_safety_witness() -> None:
     fixture, candidate = _candidate()
     other_head = replace(fixture.authority_head, generation=1)
-    other_purchase = verify_governed_zdex_amm_purchase_receipt_shadow_v1(
-        ZDEXPurchaseReceiptCandidateV1(
-            fixture.route,
-            fixture.spot_release,
-            fixture.candidate.occurrence,
-            candidate.purchase_journal,
-            candidate.purchase_effects,
-            ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"other-generation"),
+    other_purchase = verify_governed_zdex_amm_purchase_receipt_shadow_v2(
+        ZDEXPurchaseReceiptCandidateV2(
+            route_release=fixture.route,
+            module_release=fixture.spot_release,
+            occurrence=fixture.candidate.occurrence,
+            pre_state=fixture.candidate.global_pre_state,
+            execution_policy=fixture.candidate.buyback_policy,
+            price_policy=fixture.candidate.price_policy,
+            price_occurrence=_price_occurrence(fixture),
+            journal=candidate.purchase_journal,
+            effects=candidate.purchase_effects,
+            receipt=ZDEXLaneReceiptEnvelopeV1(
+                ReceiptKindV1.SUCCINCT,
+                b"other-generation",
+            ),
         ),
         profile=fixture.candidate.profile,
+        policy_registry=fixture.candidate.policy_registry,
         authority_head=other_head,
         receipt_verifier=fixture.receipt_verifier,
     )

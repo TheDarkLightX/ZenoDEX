@@ -1,0 +1,251 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260829-zz-zdex-atomic-buyback-same-occurrence-v1",
+  "created_date": "2026-08-29",
+  "claim_scope": "Research-only SHADOW evidence for one governed same-occurrence ZDEX buy-and-burn module transition. Python and Rust bind an exact governed V2 Spot purchase, combine prior buyback reserve with the current fee allocation, credit only the profile-selected canonical pool principal, burn exactly the received ZDEX, reject nonempty consumed-object tuples in the primary composer and GlobalSettlementABI V1 epoch verifier, and retain a nonzero lane-coordination obligation after the burn receipt. Rust derives and binds the complete tokenomics fee, cadence, and supply state. Its purchase and burn witnesses share one externally verified opaque authority statement covering profile, generation, policy registry, verifier registry, root image, and receipt-verifier binding. Python returns an opaque accepted result that binds the recomputed pending transition and exact burn receipt. Python also demonstrates exact global state/effect refinement for the composed occurrence. Lean proves the abstract transition is total, rejection is an exact no-op, accepted accounting conserves quote value and burns exact output, and lane coordination remains pending. ESSO proves a separate finite commit model only when all modeled lane, global-refinement, and current-authority premises hold.",
+  "change_kind": "bug_fix",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "ZDEX-ATOMIC-BUYBACK-SAME-OCCURRENCE-FEE",
+    "ZDEX-ATOMIC-BUYBACK-GOVERNED-V2-PURCHASE",
+    "ZDEX-ATOMIC-BUYBACK-CANONICAL-POOL-PRINCIPAL",
+    "ZDEX-ATOMIC-BUYBACK-EXACT-RECEIVED-BURN",
+    "ZDEX-ATOMIC-BUYBACK-ABI-V1-NO-CONSUMED-OBJECT",
+    "ZDEX-ATOMIC-BUYBACK-REJECT-IS-NOOP",
+    "ZDEX-ATOMIC-BUYBACK-NONZERO-COORDINATION-OBLIGATION",
+    "ZDEX-ATOMIC-BUYBACK-COMPLETE-TOKENOMICS-STATE",
+    "ZDEX-ATOMIC-BUYBACK-CURRENT-AUTHORITY-GENERATION",
+    "ZDEX-ATOMIC-BUYBACK-OPAQUE-ACCEPTANCE",
+    "GLOBAL-ECONOMIC-FEE-MIRROR-COVERS-NET-ALLOCATION"
+  ],
+  "failure_modes": [
+    "a caller substitutes a pool with the same asset pair or a synthetic fee-funded pool principal",
+    "a legacy V1 purchase witness bypasses the governed V2 execution, price, Oracle, or pool bindings",
+    "a route lifecycle status changes without changing its content-derived route identifier",
+    "a persistent fee-budget object enters the ABI V1 same-occurrence route",
+    "fee allocation plus prior reserve spend produces a pool delta smaller or larger than the canonical post-state delta",
+    "cross-kind state rows cancel while last-write-wins fee mirroring falsely reports a funded allocation",
+    "purchase and burn receipts come from a stale authority generation or an unselected verifier binding",
+    "a caller directly constructs an accepted Python result with empty effects and no verified burn receipt",
+    "tokenomics hidden owned or supply totals diverge from the complete global prestate",
+    "the module reports a zero terminal root before both lane coordinators and global refinement",
+    "a rejected transition exposes a poststate or nonempty effect plan",
+    "Python, Rust, Lean, and ESSO retain the superseded delayed-budget semantics"
+  ],
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/ZDEXAtomicBuybackTransitionV1.lean",
+      "sha256": "1b0e91789b92c4c890bcf7453495e1b6ec510edaa1bb54403196ebdf760268ca"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "e2c4fbe00897a87bb0dc88ea54e8802fd90445519c2c212c456d04353507b652"
+    },
+    {
+      "path": "src/core/zdex_atomic_buyback_v1.py",
+      "sha256": "b25ab86b1d4558a1b407bfd9cc952d0475966fd542874a5f10f01fde9f01b5c8"
+    },
+    {
+      "path": "src/core/zdex_hyperdeflation_route_refinement_v1.py",
+      "sha256": "8f7e85ad51e83153c0447e4d7174e380bf9c3017d9e583f0f3e156412034ca52"
+    },
+    {
+      "path": "src/kernels/dex/zdex_atomic_buyback_lifecycle_v1.yaml",
+      "sha256": "000fe51c99a969ca46719420478bb5f7a99a9fcdc08d8d7f6d32abe7df4b219d"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
+      "sha256": "0028e313ba7f7c42b31ecd6f5aa72194b64e48ab93c589d6f1d02bf0c163af95"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "02f14a7c484e9523d595ec542f13bb4211b6da9455768c78f97950fb5e2db103"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_atomic_buyback.rs",
+      "sha256": "e6aa8ffc602f9c8ea78fc26d0fba6624089e3ea219a256f12398339d564fe0bb"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_atomic_buyback_state.rs",
+      "sha256": "c5b710e471e586e29950a5732f8f656a16817073e0c92049eddc89d92c094566"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_buyback_spend.rs",
+      "sha256": "220d87cac6bc6c6bb39ab902c01943e96400da65ffa3b45a33ec8ca0f0e379ca"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_current_authority.rs",
+      "sha256": "fb84369fc99360c7adc437ac01357d3e4bde177618f7aae55924ae2994c39532"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_purchase_burn_receipt_verification.rs",
+      "sha256": "b057d7add856ab0730bc9913478a1efcb962496a85508e3423ab6c3d504528c2"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_purchase_burn_route.rs",
+      "sha256": "5fe7728744ea469a9317af8d4e9de5a707d321ae0acd6ad2b258f3a1a757aa76"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_economic_state_effect_refinement.rs",
+      "sha256": "d35f0ddad71532b1b0395e7b3276beaa5da94d554c0d4d7d51f77c99230eb467"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_atomic_buyback_state.rs",
+      "sha256": "b30152d617f6e4f11b346dbba04560d290385096a895651277e5d454324259b5"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_purchase_burn_route.rs",
+      "sha256": "234a2cdd893197036e15ed03bf495f54a53111297d7ccc0ad28d6b7acfe18f17"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_economic_state_effect_refinement_v1.py",
+      "sha256": "7a3526092e231c10b8a826b14b98017077abb2b3268121e22b0bd202a3105785",
+      "node_ids": [
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_requires_fee_label_to_mirror_real_value_delta",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_fee_mirror_accepts_netted_destination_increase_and_rejects_predecessor",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_fee_mirror_sums_cross_kind_deltas_before_accepting_allocation"
+      ]
+    },
+    {
+      "path": "tests/core/test_zdex_atomic_buyback_v1.py",
+      "sha256": "cd66965b4863ae661e651f6de2c53eff20024a957b20f4ef294990a72153e236",
+      "node_ids": [
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_bdd_fee_allocation_purchase_and_burn_retains_lane_coordination_obligation",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_zero_terminal_root_cannot_be_forged_before_lane_coordination",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_direct_accepted_construction_cannot_hide_empty_effects_or_missing_receipt",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_atomic_effects_uniquely_project_and_refine_the_global_post_state",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_substituted_pool_principal_rejects_as_exact_noop",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_verify_only_route_status_rejects_as_exact_noop",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_nonempty_consumed_objects_reject_as_exact_noop",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_legacy_caller_selected_purchase_witness_cannot_enter_atomic_route",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_different_current_authority_generation_cannot_mix_with_safety_witness",
+        "tests/core/test_zdex_atomic_buyback_v1.py::test_wrong_burn_witness_rejects_without_exposing_post_state"
+      ]
+    },
+    {
+      "path": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py",
+      "sha256": "61f7d3e240ab738cea78b6f9187e6dc525304beac63e1b1e46c2308bc23a79e3",
+      "node_ids": [
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_model_hash_action_set_and_obligations_are_exact",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_model_scope_is_finite_and_claim_ceiling_is_explicit",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_oracle_observation_is_a_reusable_authenticated_read",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_model_contract_names_the_runtime_commit_and_reject_obligations",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_two_solver_replay_is_exact_and_deterministic",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[purchase_without_exact_supply_burn]",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[commit_without_burn_receipt_authority]",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[commit_without_tokenomics_lane_receipt]",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[prepare_without_profile_route_binding]",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[prepare_above_safe_spend_limit]",
+        "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[prepare_with_stale_oracle_observation]"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_zdex_atomic_buyback_accounting_v1.py",
+      "sha256": "1ac8827ca9357006541b929ef38d1929003a81847ce1141a8f6f2fb357c1d430",
+      "node_ids": [
+        "tests/formal/test_lean_zdex_atomic_buyback_accounting_v1.py::test_atomic_buyback_transition_proof_retains_coordination_obligation",
+        "tests/formal/test_lean_zdex_atomic_buyback_accounting_v1.py::test_atomic_buyback_transition_proof_checks_with_pinned_lean"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "stateful",
+    "mutation",
+    "formal",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each critical regression constructs one exact typed candidate or one isolated substitution, executes the pure transition or formal checker, and observes the exact accepted projection or typed no-effect rejection. The ESSO mutation cases use explicit reach, infect, propagate, and reveal comments."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Python and Rust rejection tests require equal pre/post tokenomics state and an empty effect plan. Lean proves every abstract rejected result derives the input state and empty effects. The ESSO noncommit invariant preserves the complete committed projection."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "consumed_object_count",
+      "points": [
+        "zero_is_required",
+        "one_legacy_budget_object_rejects"
+      ]
+    },
+    {
+      "name": "terminal_obligation",
+      "points": [
+        "nonzero_module_coordination_obligation_is_required",
+        "zero_before_lane_and_global_proof_rejects"
+      ]
+    },
+    {
+      "name": "fee_mirror_delta",
+      "points": [
+        "one_atom_below_allocation_rejects",
+        "exact_allocation_is_admissible",
+        "larger_canonical_net_destination_delta_is_admissible"
+      ]
+    },
+    {
+      "name": "bounded_esso_amount",
+      "points": [
+        "zero_reject_boundary",
+        "one_atom_minimum",
+        "four_atom_model_maximum"
+      ]
+    },
+    {
+      "name": "route_lifecycle",
+      "points": [
+        "shadow_acceptance_surface",
+        "verify_only_status_substitution_rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "leave ZDEX supply unchanged after removing exact purchased output from the pool",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[purchase_without_exact_supply_burn]"
+    },
+    {
+      "description": "permit commit without the exact burn receipt premise",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[commit_without_burn_receipt_authority]"
+    },
+    {
+      "description": "permit commit without the complete tokenomics lane receipt premise",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[commit_without_tokenomics_lane_receipt]"
+    },
+    {
+      "description": "prepare without exact profile and route binding",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[prepare_without_profile_route_binding]"
+    },
+    {
+      "description": "prepare a quote spend above the authenticated safe limit",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[prepare_above_safe_spend_limit]"
+    },
+    {
+      "description": "prepare against a stale Oracle observation",
+      "killed_by": "tests/formal/test_esso_zdex_atomic_buyback_lifecycle_v1.py::test_esso_named_semantic_mutants_produce_counterexamples[prepare_with_stale_oracle_observation]"
+    }
+  ],
+  "nonclaims": [
+    "No Spot lane coordinator or tokenomics coordinator for the complete fee, cadence, and burn state is implemented by this packet.",
+    "No route-composition receipt, epoch receipt, RISC0 guest, durable publisher, mount, migration, release activation, or value-moving authority is established.",
+    "The existing tokenomics coordinator covers a burn-only state shape and cannot discharge this atomic module obligation.",
+    "Python witnesses remain process-local. Test receipt callbacks do not demonstrate cryptographic proof verification.",
+    "The Rust current-authority witness proves exact structural binding under its verifier-port premise. The accepting test verifier does not establish durable currentness or deployed verifier selection.",
+    "The Lean theorem proves an abstract natural-number transition and no Python, Rust, RISC0, Tau, Oracle, or runtime refinement theorem.",
+    "The ESSO result is finite to two occurrence slots and 0..4-atom movements. Its authority booleans are assumptions rather than verified receipt facts.",
+    "Python and Rust share state and leaf golden vectors but do not yet have one full atomic effect-plan and terminal-root parity vector.",
+    "Historical delayed-budget route and evidence packets remain donors and are not the primary route semantics. The Rust result is deprecated and typed HistoricalResearchOnly; the global epoch verifier rejects its consumed object.",
+    "ShapeForge promotion remains blocked until complete lane coordinators and route/global proof composition discharge the nonzero obligation.",
+    "The route remains SHADOW and unmounted; no production, settlement, release, publication, migration, or value-moving claim is promoted."
+  ]
+}

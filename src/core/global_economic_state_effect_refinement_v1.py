@@ -36,7 +36,9 @@ from .global_settlement_types_v1 import (
     FEE_RESIDUE_CONTROL_DOMAIN_V1,
     FEE_RESIDUE_PRINCIPAL_V1,
     MAX_ATOMS_V1,
+    MAX_DELTA_ATOMS_V1,
     MAX_U64_V1,
+    MIN_DELTA_ATOMS_V1,
     EconomicEffectKindV1,
     GlobalEconomicEffectPlanV1,
     GlobalEconomicStateV1,
@@ -235,19 +237,23 @@ def _require_supported_effects_v1(effect_plan: GlobalEconomicEffectPlanV1) -> No
 
 
 def _require_fee_mirror_v1(effect_plan: GlobalEconomicEffectPlanV1) -> None:
-    state_rows = {
-        (row.principal, row.asset, row.custody_domain, row.delta_atoms)
-        for row in effect_plan.rows
-        if row.kind in _STATE_BEARING_FEE_KINDS
-    }
+    state_rows: dict[tuple[str, str, str], int] = {}
     for row in effect_plan.rows:
-        if row.kind is EconomicEffectKindV1.FEE_ALLOCATION and (
-            row.principal,
-            row.asset,
-            row.custody_domain,
-            row.delta_atoms,
-        ) not in state_rows:
-            raise ValueError("economic refinement fee allocation is not mirrored")
+        if row.kind not in _STATE_BEARING_FEE_KINDS:
+            continue
+        key = (row.principal, row.asset, row.custody_domain)
+        total = state_rows.get(key, 0) + row.delta_atoms
+        if not MIN_DELTA_ATOMS_V1 <= total <= MAX_DELTA_ATOMS_V1:
+            raise ValueError("economic refinement fee mirror aggregate overflow")
+        state_rows[key] = total
+    for row in effect_plan.rows:
+        if row.kind is EconomicEffectKindV1.FEE_ALLOCATION:
+            mirrored_delta = state_rows.get(
+                (row.principal, row.asset, row.custody_domain),
+                0,
+            )
+            if mirrored_delta < row.delta_atoms:
+                raise ValueError("economic refinement fee allocation is not mirrored")
     if any(row.fee_charged_atoms == 0 for row in effect_plan.fee_conservation):
         raise ValueError("economic refinement zero fee conservation row is non-canonical")
     residue_effects = {

@@ -430,6 +430,112 @@ def test_refinement_requires_fee_label_to_mirror_real_value_delta() -> None:
         refine_global_economic_state_effects_v1(replace(candidate, effect_plan=wrong))
 
 
+def test_fee_mirror_accepts_netted_destination_increase_and_rejects_predecessor() -> None:
+    # Arrange
+    candidate = _candidate()
+
+    def with_treasury_delta(
+        delta_atoms: int,
+    ) -> GlobalEconomicStateEffectRefinementCandidateV1:
+        alice_delta = -3 - delta_atoms
+        rows = tuple(
+            replace(
+                row,
+                delta_atoms=(
+                    alice_delta if row.principal == "alice" else delta_atoms
+                ),
+            )
+            if row.kind is EconomicEffectKindV1.ACCOUNT_MOVEMENT
+            and row.principal in {"alice", "treasury"}
+            else row
+            for row in candidate.effect_plan.rows
+        )
+        post_state = replace(
+            candidate.post_state,
+            balances=_amounts(
+                ("alice", "USD", "accounts", 100 + alice_delta),
+                ("bob", "USD", "accounts", 10),
+                ("treasury", "USD", "accounts", delta_atoms),
+            ),
+        )
+        return replace(
+            candidate,
+            post_state=post_state,
+            effect_plan=replace(
+                candidate.effect_plan,
+                rows=tuple(sorted(rows, key=lambda row: row.key)),
+            ),
+        )
+
+    aggregate = with_treasury_delta(3)
+    predecessor = with_treasury_delta(1)
+
+    # Act / Assert
+    refine_global_economic_state_effects_v1(aggregate)
+    with pytest.raises(ValueError, match="fee allocation is not mirrored"):
+        refine_global_economic_state_effects_v1(predecessor)
+
+
+def test_fee_mirror_sums_cross_kind_deltas_before_accepting_allocation() -> None:
+    # Arrange: the destination gains ten custody atoms while losing eight
+    # balance atoms under the same economic key. Its net increase is only two.
+    candidate = _candidate()
+    pre_state = replace(
+        candidate.pre_state,
+        balances=_amounts(
+            ("alice", "USD", "accounts", 100),
+            ("treasury", "USD", "accounts", 10),
+        ),
+        supplies=(AssetSupplyV1("USD", 185),),
+    )
+    post_state = replace(
+        candidate.post_state,
+        custody=_amounts(
+            ("burn-bucket", "USD", "protocol-burn", 16),
+            ("escrow", "USD", "strategy-escrow", 5),
+            ("pool", "USD", "amm-pool", 44),
+            ("treasury", "USD", "accounts", 10),
+        ),
+        supplies=(AssetSupplyV1("USD", 188),),
+    )
+    rows = tuple(
+        replace(row, delta_atoms=-8)
+        if row.kind is EconomicEffectKindV1.ACCOUNT_MOVEMENT
+        and row.principal == "treasury"
+        and row.custody_domain == "accounts"
+        else replace(row, delta_atoms=10)
+        if row.kind is EconomicEffectKindV1.FEE_ALLOCATION
+        else row
+        for row in candidate.effect_plan.rows
+    ) + (
+        EconomicEffectRowV1(
+            EconomicEffectKindV1.CUSTODY,
+            "treasury",
+            "USD",
+            "accounts",
+            10,
+        ),
+    )
+    effect_plan = replace(
+        candidate.effect_plan,
+        rows=tuple(sorted(rows, key=lambda row: row.key)),
+        asset_conservation=(AssetConservationRowV1("USD", 185, 188, 185, 188, 7, 4),),
+        fee_conservation=(FeeConservationRowV1("USD", 10, 10, 0),),
+    )
+
+    # Act / Assert: last-write-wins would observe +10 and accept; exact
+    # cross-kind aggregation observes -8 + 10 = +2 and rejects the +10 label.
+    with pytest.raises(ValueError, match="fee allocation is not mirrored"):
+        refine_global_economic_state_effects_v1(
+            replace(
+                candidate,
+                pre_state=pre_state,
+                post_state=post_state,
+                effect_plan=effect_plan,
+            )
+        )
+
+
 def test_refinement_accepts_fee_residue_in_exact_named_reserve() -> None:
     candidate = _fee_residue_candidate()
 

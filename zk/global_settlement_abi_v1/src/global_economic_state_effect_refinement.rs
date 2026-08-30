@@ -144,34 +144,40 @@ fn require_supported_effects_v1(effect_plan: &GlobalEconomicEffectPlanV1) -> Abi
 }
 
 fn require_fee_mirror_v1(effect_plan: &GlobalEconomicEffectPlanV1) -> AbiResultV1<()> {
-    let state_rows = effect_plan
-        .rows
-        .iter()
-        .filter(|row| {
-            matches!(
-                row.kind,
-                EconomicEffectKindV1::ACCOUNT_MOVEMENT
-                    | EconomicEffectKindV1::CUSTODY
-                    | EconomicEffectKindV1::RESERVE
-            )
-        })
-        .map(|row| {
-            (
-                row.principal.as_str(),
-                row.asset.as_str(),
-                row.custody_domain.as_str(),
-                row.delta_atoms,
-            )
-        })
-        .collect::<BTreeSet<_>>();
+    let mut state_rows = BTreeMap::<(&str, &str, &str), i128>::new();
+    for row in &effect_plan.rows {
+        if !matches!(
+            row.kind,
+            EconomicEffectKindV1::ACCOUNT_MOVEMENT
+                | EconomicEffectKindV1::CUSTODY
+                | EconomicEffectKindV1::RESERVE
+        ) {
+            continue;
+        }
+        let key = (
+            row.principal.as_str(),
+            row.asset.as_str(),
+            row.custody_domain.as_str(),
+        );
+        let total = state_rows
+            .get(&key)
+            .copied()
+            .unwrap_or(0)
+            .checked_add(row.delta_atoms)
+            .ok_or(AbiErrorV1::InvalidBounds(
+                "economic refinement fee mirror aggregate",
+            ))?;
+        state_rows.insert(key, total);
+    }
     for row in &effect_plan.rows {
         let key = (
             row.principal.as_str(),
             row.asset.as_str(),
             row.custody_domain.as_str(),
-            row.delta_atoms,
         );
-        if row.kind == EconomicEffectKindV1::FEE_ALLOCATION && !state_rows.contains(&key) {
+        if row.kind == EconomicEffectKindV1::FEE_ALLOCATION
+            && state_rows.get(&key).copied().unwrap_or(0) < row.delta_atoms
+        {
             return Err(AbiErrorV1::InvalidBinding(
                 "economic refinement fee allocation not mirrored",
             ));

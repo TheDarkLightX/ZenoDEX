@@ -99,7 +99,7 @@ compose both lane receipts or authorize settlement by themselves.
 | Fee ingress, fee destinations, and buyback reserve | `ZDEX_TOKENOMICS` lane | Verified global accounting projection |
 | ZDEX live supply and burn controls | `ZDEX_TOKENOMICS` lane | Global supply projection |
 | Purchased ZDEX awaiting same-route burn | Ephemeral typed route port | No durable state |
-| Consumed-object identity | Global settlement verifier | Dedicated canonical nullifier map |
+| Consumed-object identity | Not used by the primary route | Empty occurrence field, checked by the global verifier |
 
 The term `owner` in this table identifies which state machine may update an
 accounting fact. It does not describe legal custody or key control. User assets
@@ -117,11 +117,14 @@ SpotTransition(spot_pre, intent)
 TokenomicsTransition(tokenomics_pre, intent, PurchasedZDEXPort)
   -> tokenomics_post
 
+module-level atomic composition
+  -> exact effects + nonzero lane-coordination obligation
+
 Spot lane coordinator + Tokenomics lane coordinator
-  -> two exact lane journals with zero terminal roots
+  -> two exact lane journals that discharge the module obligation
 
 RouteCompositionJournalV1
-  -> global pre/post roots + canonical effects + zero terminal root
+  -> global pre/post roots + canonical effects + closed route obligation
 
 epoch verifier + compare-and-swap publisher
   -> one atomic commit
@@ -138,42 +141,25 @@ Any failure in purchase validation, burn validation, lane composition, route
 composition, receipt verification, or publication leaves the complete
 economic prestate unchanged.
 
-## ABI V1 consumed-object completion
+## ABI boundary for consumed objects
 
 `EconomicCommandOccurrenceV1` already commits `consumed_object_ids`, while the
-current global verifier quarantines every nonempty value because durable
-single-use state is missing. Before O-008 freezes ABI V1 ownership, complete
-the declared semantics with:
+current global epoch verifier rejects every nonempty value because ABI V1 has
+no durable single-use object state. The primary same-occurrence composer also
+requires an empty tuple and creates no persistent budget object. The older
+delayed-budget Python reference and Rust composer remain historical donors. The
+Rust entry point is deprecated, its result is typed `HistoricalResearchOnly`,
+and neither donor can enter the ABI V1 epoch verifier.
 
-```text
-ConsumedObjectNullifierEntryV1 {
-    object_id,
-    consumer_occurrence_id
-}
-
-GlobalEconomicStateV1 {
-    ...
-    consumed_object_nullifiers: canonical ordered tuple
-}
-```
-
-The verifier derives insertions from accepted command occurrences. Callers do
-not propose arbitrary nullifier writes. The global poststate root commits the
-updated map, and publication applies state, replay, nullifiers, effects,
-receipts, history, and outbox changes in one compare-and-swap transaction.
-
-This completion receives new content-derived verifier, profile, corpus, and
-image identifiers. Existing research receipts retain their historical bytes
-and remain `VERIFY_ONLY`. Once O-008 freezes ABI V1, any foundational change to
-the nullifier representation requires ABI V2.
-
-An empty initial nullifier map is admissible only after evidence establishes
-that no pre-freeze object has live spending authority. Current buyback routes
-remain unmounted and must continue to reject new persistent budget objects.
+Adding durable consumed objects would add a foundational state category and
+invariant. It requires `GlobalSettlementABI V2`, content-derived verifier and
+profile identifiers, explicit amount backing, exact nullifier semantics,
+terminal drain, migration, and publication evidence. Existing V1 research
+receipts retain their historical bytes and remain `VERIFY_ONLY`.
 
 ## Rejected alternatives
 
-### Reusing command replay rows
+### Reusing command replay rows for a future delayed route
 
 The replay relation binds command replay and occurrence identities. Synthetic
 replay identifiers cannot safely represent several consumed objects mapped to
@@ -208,8 +194,7 @@ or treated as authoritative for ZenoDEX semantics.
 
 ## Required negative evidence
 
-1. Reuse the same consumed object in the same epoch, adjacent epochs, delayed
-   epochs, and reordered epochs.
+1. Present any nonempty consumed-object tuple to the ABI V1 primary route.
 2. Omit or duplicate either required lane write.
 3. Debit the buyback reserve without the exact tokenomics poststate.
 4. Change pool reserves without the exact Spot poststate.
@@ -217,7 +202,8 @@ or treated as authoritative for ZenoDEX semantics.
 6. Persist the transient purchased-ZDEX port.
 7. Substitute pool, pool definition, assets, amount, profile, route, releases,
    Oracle occurrence, occurrence identity, prestate, or port order.
-8. Present a nonzero terminal root or disconnected global state chain.
+8. Present a zero module terminal root before both lane coordinators and global
+   refinement discharge the obligation, or disconnect the obligation chain.
 9. Crash before and after publication, retry exactly, race two roots, and use a
    stale compare-and-swap head.
 10. Exercise zero, one atom, maximum neighbors, overflow, dust, residue,
@@ -255,10 +241,21 @@ branch.
 
 ## Claim ceiling
 
-The spend-selection kernel now has Python/Rust canonical-root parity, bounded
-Lean arithmetic and atomic-accounting theorems, and an authenticated SHADOW
-Spot/Oracle adapter. The replacement two-lane route, complete tokenomics lane
-state transition, ABI V1 nullifier completion, RISC0 guests, runtime-to-theorem
-refinement, migration, durable publication, and all value-movement gates remain
-incomplete. No production, settlement, release, publication, migration, or
-value-moving authority is claimed.
+The spend-selection kernel has Python/Rust canonical-root parity, bounded Lean
+arithmetic and atomic-accounting theorems, and an authenticated SHADOW
+Spot/Oracle adapter. Python finalization now returns an opaque accepted witness
+that binds the exact pending transition and verified burn receipt. The Rust
+SHADOW composer derives and binds complete tokenomics pre/post state, canonical
+same-principal pool effects, and a nonzero lane-coordination obligation. Its
+governed purchase and burn witnesses must share one opaque current-authority
+statement that binds the profile, authority generation, policy registry,
+verifier registry, root image, and receipt-verifier binding. Currentness and
+receipt validity remain external verifier-port premises; test verifiers do not
+establish deployment authority. A Spot lane coordinator and a tokenomics
+coordinator that covers the complete atomic state, including fee allocation,
+cadence, and burn, remain incomplete. The existing burn-only tokenomics
+coordinator does not close that obligation. RISC0 guests, runtime-to-theorem
+refinement, migration, durable publication, and all value-movement gates also
+remain incomplete. The ABI V1 global epoch verifier continues to reject
+persistent consumed objects. No production, settlement, release, publication,
+migration, or value-moving authority is claimed.

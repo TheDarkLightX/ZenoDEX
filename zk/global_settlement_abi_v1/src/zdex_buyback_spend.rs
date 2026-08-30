@@ -260,7 +260,7 @@ pub struct ZDEXBuybackSpendAcceptedV1 {
 }
 
 impl ZDEXBuybackSpendAcceptedV1 {
-    fn validate(&self) -> AbiResultV1<()> {
+    pub(crate) fn validate(&self) -> AbiResultV1<()> {
         self.spend_policy.validate()?;
         self.cadence_pre_state.validate()?;
         self.cadence_post_state.validate()?;

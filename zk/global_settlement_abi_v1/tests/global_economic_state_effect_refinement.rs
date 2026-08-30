@@ -578,6 +578,124 @@ fn refinement_matches_python_golden_root() {
 }
 
 #[test]
+fn fee_mirror_accepts_netted_destination_increase_and_rejects_predecessor() {
+    fn case(
+        treasury_delta: i128,
+    ) -> (
+        GlobalEconomicStateV1,
+        GlobalEconomicStateV1,
+        GlobalEconomicEffectPlanV1,
+    ) {
+        let pre = pre_state();
+        let mut post = post_state();
+        let alice_delta = -3 - treasury_delta;
+        post.balances = vec![
+            amount(
+                "alice",
+                "USD",
+                "accounts",
+                u128::try_from(100_i128 + alice_delta).unwrap(),
+            ),
+            amount("bob", "USD", "accounts", 10),
+            amount(
+                "treasury",
+                "USD",
+                "accounts",
+                u128::try_from(treasury_delta).unwrap(),
+            ),
+        ];
+        let mut effects = effect_plan();
+        for row in &mut effects.rows {
+            if row.kind == EconomicEffectKindV1::ACCOUNT_MOVEMENT && row.principal == "alice" {
+                row.delta_atoms = alice_delta;
+            }
+            if row.kind == EconomicEffectKindV1::ACCOUNT_MOVEMENT && row.principal == "treasury" {
+                row.delta_atoms = treasury_delta;
+            }
+        }
+        (pre, post, effects)
+    }
+
+    // Arrange / Act / Assert: an allocation may be a strict subset of one
+    // canonical net destination increase after effect aggregation.
+    let (aggregate_pre, aggregate_post, aggregate_effects) = case(3);
+    refine_global_economic_state_effects_v1(&candidate(
+        &aggregate_pre,
+        &aggregate_post,
+        &aggregate_effects,
+    ))
+    .expect("net destination increase must cover the fee allocation");
+
+    let (predecessor_pre, predecessor_post, predecessor_effects) = case(1);
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&candidate(
+            &predecessor_pre,
+            &predecessor_post,
+            &predecessor_effects,
+        )),
+        Err(AbiErrorV1::InvalidBinding(
+            "economic refinement fee allocation not mirrored"
+        ))
+    ));
+}
+
+#[test]
+fn fee_mirror_sums_cross_kind_deltas_before_accepting_allocation() {
+    // Arrange: the same economic key loses eight balance atoms and gains ten
+    // custody atoms. Its net increase is two, not the last row's ten.
+    let mut pre = pre_state();
+    pre.balances.push(amount("treasury", "USD", "accounts", 10));
+    pre.supplies[0].amount_atoms = 185;
+    let mut post = post_state();
+    post.custody.push(amount("treasury", "USD", "accounts", 10));
+    post.supplies[0].amount_atoms = 188;
+    let mut effects = effect_plan();
+    for row in &mut effects.rows {
+        if row.kind == EconomicEffectKindV1::ACCOUNT_MOVEMENT
+            && row.principal == "treasury"
+            && row.custody_domain == "accounts"
+        {
+            row.delta_atoms = -8;
+        }
+        if row.kind == EconomicEffectKindV1::FEE_ALLOCATION {
+            row.delta_atoms = 10;
+        }
+    }
+    let fee_index = effects
+        .rows
+        .iter()
+        .position(|row| row.kind == EconomicEffectKindV1::FEE_ALLOCATION)
+        .expect("fixture fee row");
+    effects.rows.insert(
+        fee_index,
+        effect(EconomicEffectKindV1::CUSTODY, "treasury", "accounts", 10),
+    );
+    effects.asset_conservation[0] = AssetConservationRowV1 {
+        asset: "USD".to_owned(),
+        owned_and_custodied_pre_atoms: 185,
+        owned_and_custodied_post_atoms: 188,
+        supply_pre_atoms: 185,
+        supply_post_atoms: 188,
+        authorized_issue_atoms: 7,
+        authorized_burn_atoms: 4,
+    };
+    effects.fee_conservation[0] = FeeConservationRowV1 {
+        asset: "USD".to_owned(),
+        fee_charged_atoms: 10,
+        current_allocations_atoms: 10,
+        carried_residue_atoms: 0,
+    };
+
+    // Act / Assert: exact aggregation observes -8 + 10 = +2 and rejects the
+    // forged +10 fee label.
+    assert_eq!(
+        refine_global_economic_state_effects_v1(&candidate(&pre, &post, &effects))
+            .expect_err("cross-kind cancellation must not fund the full fee label"),
+        AbiErrorV1::InvalidBinding("economic refinement fee allocation not mirrored")
+    );
+}
+
+#[test]
 fn refinement_height_progression_kills_static_epoch_and_overflow_mutants() {
     let pre = pre_state();
     let mut wrong_static_post = post_state();

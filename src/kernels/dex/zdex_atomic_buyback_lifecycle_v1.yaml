@@ -9,15 +9,16 @@ meta:
     same-occurrence ZDEX buy-and-burn route. The finite domain has two
     occurrence slots and at most four atoms per movement. It models:
 
-      prepare(validated fee budget + profile-selected purchase)
-      finalize(exact burn receipt + current commit authority)
+      prepare(same-occurrence fee allocation + profile-selected purchase)
+      commit(exact burn receipt + both lane coordinators + global refinement)
       discard(unpublished pending result)
 
-    Only finalize may change committed accounting locations. A successful
-    finalize moves quote atoms from the buyback reserve to the selected pool,
+    Only commit may change committed accounting locations. A successful
+    commit moves quote atoms from the buyback reserve to the selected pool,
     removes the purchased ZDEX atoms from that pool, reduces ZDEX supply by
     the same amount, closes the pending burn obligation, and consumes the
-    command and fee-budget occurrence tokens together. The finalized, fresh,
+    command occurrence exactly once. No persistent fee-budget object exists in
+    this model. The finalized, fresh,
     payload-bound Oracle observation is an authenticated reusable read.
     Preparation, rejection, and discard preserve the full committed projection.
 
@@ -39,8 +40,6 @@ observables:
     - "height"
     - "command_used_0"
     - "command_used_1"
-    - "budget_used_0"
-    - "budget_used_1"
     - "pending_spend"
     - "pending_out"
     - "pending_terminal"
@@ -65,7 +64,7 @@ types:
         - "PREPARED"
         - "PREPARE_REJECTED"
         - "COMMITTED"
-        - "FINALIZE_REJECTED"
+        - "COMMIT_REJECTED"
         - "DISCARDED"
 
 state_vars:
@@ -79,8 +78,6 @@ state_vars:
   - { id: "height", role: "control", type: { kind: "int", min: 0, max: 2 } }
   - { id: "command_used_0", role: "control", type: { kind: "bool" } }
   - { id: "command_used_1", role: "control", type: { kind: "bool" } }
-  - { id: "budget_used_0", role: "control", type: { kind: "bool" } }
-  - { id: "budget_used_1", role: "control", type: { kind: "bool" } }
 
   # Unpublished local preparation. PENDING is never a publishable economic head.
   - { id: "phase", role: "control", type: { ref: "Phase" } }
@@ -98,7 +95,7 @@ state_vars:
   - { id: "pending_burn_cap", role: "data", type: { kind: "int", min: 0, max: 4 } }
   - { id: "pending_profile_route_ok", role: "control", type: { kind: "bool" } }
   - { id: "pending_pool_assets_ok", role: "control", type: { kind: "bool" } }
-  - { id: "pending_budget_binding_ok", role: "control", type: { kind: "bool" } }
+  - { id: "pending_same_occurrence_fee_ok", role: "control", type: { kind: "bool" } }
   - { id: "pending_price_authority_ok", role: "control", type: { kind: "bool" } }
   - { id: "pending_oracle_finalized", role: "control", type: { kind: "bool" } }
   - { id: "pending_oracle_fresh", role: "control", type: { kind: "bool" } }
@@ -114,15 +111,15 @@ state_vars:
   - { id: "g_pre_height", role: "control", type: { kind: "int", min: 0, max: 2 } }
   - { id: "g_pre_command_used_0", role: "control", type: { kind: "bool" } }
   - { id: "g_pre_command_used_1", role: "control", type: { kind: "bool" } }
-  - { id: "g_pre_budget_used_0", role: "control", type: { kind: "bool" } }
-  - { id: "g_pre_budget_used_1", role: "control", type: { kind: "bool" } }
   - { id: "g_occurrence", role: "control", type: { kind: "int", min: 0, max: 1 } }
   - { id: "g_spend", role: "data", type: { kind: "int", min: 0, max: 4 } }
   - { id: "g_out", role: "data", type: { kind: "int", min: 0, max: 4 } }
   - { id: "g_burn_receipt_ok", role: "control", type: { kind: "bool" } }
   - { id: "g_pending_binding_ok", role: "control", type: { kind: "bool" } }
   - { id: "g_commit_authority_current", role: "control", type: { kind: "bool" } }
-  - { id: "g_terminal_close_ok", role: "control", type: { kind: "bool" } }
+  - { id: "g_spot_lane_receipt_ok", role: "control", type: { kind: "bool" } }
+  - { id: "g_tokenomics_lane_receipt_ok", role: "control", type: { kind: "bool" } }
+  - { id: "g_global_refinement_ok", role: "control", type: { kind: "bool" } }
 
 init:
   - { var: "quote_buyback", expr: { const: 4 } }
@@ -133,8 +130,6 @@ init:
   - { var: "height", expr: { const: 0 } }
   - { var: "command_used_0", expr: { bool: false } }
   - { var: "command_used_1", expr: { bool: false } }
-  - { var: "budget_used_0", expr: { bool: false } }
-  - { var: "budget_used_1", expr: { bool: false } }
   - { var: "phase", expr: { enum: "EMPTY" } }
   - { var: "pending_occurrence", expr: { const: 0 } }
   - { var: "pending_spend", expr: { const: 0 } }
@@ -150,7 +145,7 @@ init:
   - { var: "pending_burn_cap", expr: { const: 0 } }
   - { var: "pending_profile_route_ok", expr: { bool: false } }
   - { var: "pending_pool_assets_ok", expr: { bool: false } }
-  - { var: "pending_budget_binding_ok", expr: { bool: false } }
+  - { var: "pending_same_occurrence_fee_ok", expr: { bool: false } }
   - { var: "pending_price_authority_ok", expr: { bool: false } }
   - { var: "pending_oracle_finalized", expr: { bool: false } }
   - { var: "pending_oracle_fresh", expr: { bool: false } }
@@ -164,15 +159,15 @@ init:
   - { var: "g_pre_height", expr: { const: 0 } }
   - { var: "g_pre_command_used_0", expr: { bool: false } }
   - { var: "g_pre_command_used_1", expr: { bool: false } }
-  - { var: "g_pre_budget_used_0", expr: { bool: false } }
-  - { var: "g_pre_budget_used_1", expr: { bool: false } }
   - { var: "g_occurrence", expr: { const: 0 } }
   - { var: "g_spend", expr: { const: 0 } }
   - { var: "g_out", expr: { const: 0 } }
   - { var: "g_burn_receipt_ok", expr: { bool: false } }
   - { var: "g_pending_binding_ok", expr: { bool: false } }
   - { var: "g_commit_authority_current", expr: { bool: false } }
-  - { var: "g_terminal_close_ok", expr: { bool: false } }
+  - { var: "g_spot_lane_receipt_ok", expr: { bool: false } }
+  - { var: "g_tokenomics_lane_receipt_ok", expr: { bool: false } }
+  - { var: "g_global_refinement_ok", expr: { bool: false } }
 
 invariants:
   - id: "inv_quote_conservation"
@@ -191,13 +186,16 @@ invariants:
         - { op: "+", args: [{ var: "zdex_pool" }, { var: "zdex_other" }] }
         - { var: "zdex_supply" }
 
-  - id: "inv_occurrence_resources_consumed_atomically"
+  - id: "inv_pending_does_not_consume_occurrence"
     kind: "safety"
     expr:
-      op: "and"
+      op: "=>"
       args:
-        - { op: "=", args: [{ var: "command_used_0" }, { var: "budget_used_0" }] }
-        - { op: "=", args: [{ var: "command_used_1" }, { var: "budget_used_1" }] }
+        - { op: "=", args: [{ var: "phase" }, { enum: "PENDING" }] }
+        - op: "ite"
+          cond: { op: "=", args: [{ var: "pending_occurrence" }, { const: 0 }] }
+          then: { op: "not", args: [{ var: "command_used_0" }] }
+          else: { op: "not", args: [{ var: "command_used_1" }] }
 
   - id: "inv_pending_is_unpublished_and_exact"
     kind: "safety"
@@ -216,7 +214,7 @@ invariants:
             - { op: "<=", args: [{ var: "pending_out" }, { var: "pending_burn_cap" }] }
             - { var: "pending_profile_route_ok" }
             - { var: "pending_pool_assets_ok" }
-            - { var: "pending_budget_binding_ok" }
+            - { var: "pending_same_occurrence_fee_ok" }
             - { var: "pending_price_authority_ok" }
             - { var: "pending_oracle_finalized" }
             - { var: "pending_oracle_fresh" }
@@ -254,7 +252,7 @@ invariants:
             - { op: "=", args: [{ var: "pending_burn_cap" }, { const: 0 }] }
             - { op: "not", args: [{ var: "pending_profile_route_ok" }] }
             - { op: "not", args: [{ var: "pending_pool_assets_ok" }] }
-            - { op: "not", args: [{ var: "pending_budget_binding_ok" }] }
+            - { op: "not", args: [{ var: "pending_same_occurrence_fee_ok" }] }
             - { op: "not", args: [{ var: "pending_price_authority_ok" }] }
             - { op: "not", args: [{ var: "pending_oracle_finalized" }] }
             - { op: "not", args: [{ var: "pending_oracle_fresh" }] }
@@ -276,8 +274,6 @@ invariants:
             - { op: "=", args: [{ var: "height" }, { var: "g_pre_height" }] }
             - { op: "=", args: [{ var: "command_used_0" }, { var: "g_pre_command_used_0" }] }
             - { op: "=", args: [{ var: "command_used_1" }, { var: "g_pre_command_used_1" }] }
-            - { op: "=", args: [{ var: "budget_used_0" }, { var: "g_pre_budget_used_0" }] }
-            - { op: "=", args: [{ var: "budget_used_1" }, { var: "g_pre_budget_used_1" }] }
 
   - id: "inv_commit_requires_all_authorities"
     kind: "safety"
@@ -290,7 +286,9 @@ invariants:
             - { var: "g_burn_receipt_ok" }
             - { var: "g_pending_binding_ok" }
             - { var: "g_commit_authority_current" }
-            - { var: "g_terminal_close_ok" }
+            - { var: "g_spot_lane_receipt_ok" }
+            - { var: "g_tokenomics_lane_receipt_ok" }
+            - { var: "g_global_refinement_ok" }
 
   - id: "inv_commit_is_exact_atomic_purchase_and_burn"
     kind: "safety"
@@ -326,13 +324,11 @@ invariants:
                 op: "and"
                 args:
                   - { var: "command_used_0" }
-                  - { var: "budget_used_0" }
                   - { op: "=", args: [{ var: "command_used_1" }, { var: "g_pre_command_used_1" }] }
               else:
                 op: "and"
                 args:
                   - { var: "command_used_1" }
-                  - { var: "budget_used_1" }
                   - { op: "=", args: [{ var: "command_used_0" }, { var: "g_pre_command_used_0" }] }
 
   - id: "inv_consumption_monotone"
@@ -354,7 +350,7 @@ actions:
       - { id: "burn_cap", type: { kind: "int", min: 0, max: 4 } }
       - { id: "profile_route_ok", type: { kind: "bool" } }
       - { id: "pool_assets_ok", type: { kind: "bool" } }
-      - { id: "budget_binding_ok", type: { kind: "bool" } }
+      - { id: "same_occurrence_fee_ok", type: { kind: "bool" } }
       - { id: "price_authority_ok", type: { kind: "bool" } }
       - { id: "oracle_finalized", type: { kind: "bool" } }
       - { id: "oracle_fresh", type: { kind: "bool" } }
@@ -372,18 +368,14 @@ actions:
               - op: "ite"
                 cond: { op: "=", args: [{ param: "occurrence" }, { const: 0 }] }
                 then:
-                  op: "and"
-                  args:
-                    - { op: "not", args: [{ var: "command_used_0" }] }
-                    - { op: "not", args: [{ var: "budget_used_0" }] }
+                  op: "not"
+                  args: [{ var: "command_used_0" }]
                 else:
-                  op: "and"
-                  args:
-                    - { op: "not", args: [{ var: "command_used_1" }] }
-                    - { op: "not", args: [{ var: "budget_used_1" }] }
+                  op: "not"
+                  args: [{ var: "command_used_1" }]
               - { param: "profile_route_ok" }
               - { param: "pool_assets_ok" }
-              - { param: "budget_binding_ok" }
+              - { param: "same_occurrence_fee_ok" }
               - { param: "price_authority_ok" }
               - { param: "oracle_finalized" }
               - { param: "oracle_fresh" }
@@ -425,8 +417,8 @@ actions:
         expr: { op: "ite", cond: *prepare_ok, then: { param: "profile_route_ok" }, else: { var: "pending_profile_route_ok" } }
       - var: "pending_pool_assets_ok"
         expr: { op: "ite", cond: *prepare_ok, then: { param: "pool_assets_ok" }, else: { var: "pending_pool_assets_ok" } }
-      - var: "pending_budget_binding_ok"
-        expr: { op: "ite", cond: *prepare_ok, then: { param: "budget_binding_ok" }, else: { var: "pending_budget_binding_ok" } }
+      - var: "pending_same_occurrence_fee_ok"
+        expr: { op: "ite", cond: *prepare_ok, then: { param: "same_occurrence_fee_ok" }, else: { var: "pending_same_occurrence_fee_ok" } }
       - var: "pending_price_authority_ok"
         expr: { op: "ite", cond: *prepare_ok, then: { param: "price_authority_ok" }, else: { var: "pending_price_authority_ok" } }
       - var: "pending_oracle_finalized"
@@ -444,15 +436,15 @@ actions:
       - { var: "g_pre_height", expr: { var: "height" } }
       - { var: "g_pre_command_used_0", expr: { var: "command_used_0" } }
       - { var: "g_pre_command_used_1", expr: { var: "command_used_1" } }
-      - { var: "g_pre_budget_used_0", expr: { var: "budget_used_0" } }
-      - { var: "g_pre_budget_used_1", expr: { var: "budget_used_1" } }
       - { var: "g_occurrence", expr: { param: "occurrence" } }
       - { var: "g_spend", expr: { param: "spend" } }
       - { var: "g_out", expr: { param: "purchased" } }
       - { var: "g_burn_receipt_ok", expr: { bool: false } }
       - { var: "g_pending_binding_ok", expr: { bool: false } }
       - { var: "g_commit_authority_current", expr: { bool: false } }
-      - { var: "g_terminal_close_ok", expr: { bool: false } }
+      - { var: "g_spot_lane_receipt_ok", expr: { bool: false } }
+      - { var: "g_tokenomics_lane_receipt_ok", expr: { bool: false } }
+      - { var: "g_global_refinement_ok", expr: { bool: false } }
     effects:
       decision: { var: "g_decision" }
       published: { bool: false }
@@ -460,12 +452,14 @@ actions:
       zdex_burned: { const: 0 }
       pending_terminal: { var: "pending_terminal" }
 
-  - id: "finalize"
+  - id: "commit"
     params:
       - { id: "burn_receipt_ok", type: { kind: "bool" } }
       - { id: "pending_binding_ok", type: { kind: "bool" } }
       - { id: "commit_authority_current", type: { kind: "bool" } }
-      - { id: "terminal_close_ok", type: { kind: "bool" } }
+      - { id: "spot_lane_receipt_ok", type: { kind: "bool" } }
+      - { id: "tokenomics_lane_receipt_ok", type: { kind: "bool" } }
+      - { id: "global_refinement_ok", type: { kind: "bool" } }
     guard: { bool: true }
     updates:
       - var: "quote_buyback"
@@ -478,10 +472,12 @@ actions:
               - { param: "burn_receipt_ok" }
               - { param: "pending_binding_ok" }
               - { param: "commit_authority_current" }
-              - { param: "terminal_close_ok" }
+              - { param: "spot_lane_receipt_ok" }
+              - { param: "tokenomics_lane_receipt_ok" }
+              - { param: "global_refinement_ok" }
               - { var: "pending_profile_route_ok" }
               - { var: "pending_pool_assets_ok" }
-              - { var: "pending_budget_binding_ok" }
+              - { var: "pending_same_occurrence_fee_ok" }
               - { var: "pending_price_authority_ok" }
               - { var: "pending_oracle_finalized" }
               - { var: "pending_oracle_fresh" }
@@ -512,18 +508,6 @@ actions:
           args:
             - { var: "command_used_1" }
             - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 1 }] }] }
-      - var: "budget_used_0"
-        expr:
-          op: "or"
-          args:
-            - { var: "budget_used_0" }
-            - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 0 }] }] }
-      - var: "budget_used_1"
-        expr:
-          op: "or"
-          args:
-            - { var: "budget_used_1" }
-            - { op: "and", args: [*commit_ok, { op: "=", args: [{ var: "pending_occurrence" }, { const: 1 }] }] }
       - { var: "phase", expr: { op: "ite", cond: *commit_ok, then: { enum: "EMPTY" }, else: { var: "phase" } } }
       - { var: "pending_spend", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_spend" } } }
       - { var: "pending_out", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_out" } } }
@@ -538,12 +522,12 @@ actions:
       - { var: "pending_burn_cap", expr: { op: "ite", cond: *commit_ok, then: { const: 0 }, else: { var: "pending_burn_cap" } } }
       - { var: "pending_profile_route_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_profile_route_ok" } } }
       - { var: "pending_pool_assets_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_pool_assets_ok" } } }
-      - { var: "pending_budget_binding_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_budget_binding_ok" } } }
+      - { var: "pending_same_occurrence_fee_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_same_occurrence_fee_ok" } } }
       - { var: "pending_price_authority_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_price_authority_ok" } } }
       - { var: "pending_oracle_finalized", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_oracle_finalized" } } }
       - { var: "pending_oracle_fresh", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_oracle_fresh" } } }
       - { var: "pending_purchase_receipt_ok", expr: { op: "ite", cond: *commit_ok, then: { bool: false }, else: { var: "pending_purchase_receipt_ok" } } }
-      - { var: "g_decision", expr: { op: "ite", cond: *commit_ok, then: { enum: "COMMITTED" }, else: { enum: "FINALIZE_REJECTED" } } }
+      - { var: "g_decision", expr: { op: "ite", cond: *commit_ok, then: { enum: "COMMITTED" }, else: { enum: "COMMIT_REJECTED" } } }
       - { var: "g_pre_quote_buyback", expr: { var: "quote_buyback" } }
       - { var: "g_pre_quote_pool", expr: { var: "quote_pool" } }
       - { var: "g_pre_zdex_pool", expr: { var: "zdex_pool" } }
@@ -552,15 +536,15 @@ actions:
       - { var: "g_pre_height", expr: { var: "height" } }
       - { var: "g_pre_command_used_0", expr: { var: "command_used_0" } }
       - { var: "g_pre_command_used_1", expr: { var: "command_used_1" } }
-      - { var: "g_pre_budget_used_0", expr: { var: "budget_used_0" } }
-      - { var: "g_pre_budget_used_1", expr: { var: "budget_used_1" } }
       - { var: "g_occurrence", expr: { var: "pending_occurrence" } }
       - { var: "g_spend", expr: { var: "pending_spend" } }
       - { var: "g_out", expr: { var: "pending_out" } }
       - { var: "g_burn_receipt_ok", expr: { param: "burn_receipt_ok" } }
       - { var: "g_pending_binding_ok", expr: { param: "pending_binding_ok" } }
       - { var: "g_commit_authority_current", expr: { param: "commit_authority_current" } }
-      - { var: "g_terminal_close_ok", expr: { param: "terminal_close_ok" } }
+      - { var: "g_spot_lane_receipt_ok", expr: { param: "spot_lane_receipt_ok" } }
+      - { var: "g_tokenomics_lane_receipt_ok", expr: { param: "tokenomics_lane_receipt_ok" } }
+      - { var: "g_global_refinement_ok", expr: { param: "global_refinement_ok" } }
     effects:
       decision: { var: "g_decision" }
       published: { op: "=", args: [{ var: "g_decision" }, { enum: "COMMITTED" }] }
@@ -586,7 +570,7 @@ actions:
       - { var: "pending_burn_cap", expr: { const: 0 } }
       - { var: "pending_profile_route_ok", expr: { bool: false } }
       - { var: "pending_pool_assets_ok", expr: { bool: false } }
-      - { var: "pending_budget_binding_ok", expr: { bool: false } }
+      - { var: "pending_same_occurrence_fee_ok", expr: { bool: false } }
       - { var: "pending_price_authority_ok", expr: { bool: false } }
       - { var: "pending_oracle_finalized", expr: { bool: false } }
       - { var: "pending_oracle_fresh", expr: { bool: false } }
@@ -600,14 +584,14 @@ actions:
       - { var: "g_pre_height", expr: { var: "height" } }
       - { var: "g_pre_command_used_0", expr: { var: "command_used_0" } }
       - { var: "g_pre_command_used_1", expr: { var: "command_used_1" } }
-      - { var: "g_pre_budget_used_0", expr: { var: "budget_used_0" } }
-      - { var: "g_pre_budget_used_1", expr: { var: "budget_used_1" } }
       - { var: "g_spend", expr: { const: 0 } }
       - { var: "g_out", expr: { const: 0 } }
       - { var: "g_burn_receipt_ok", expr: { bool: false } }
       - { var: "g_pending_binding_ok", expr: { bool: false } }
       - { var: "g_commit_authority_current", expr: { bool: false } }
-      - { var: "g_terminal_close_ok", expr: { bool: false } }
+      - { var: "g_spot_lane_receipt_ok", expr: { bool: false } }
+      - { var: "g_tokenomics_lane_receipt_ok", expr: { bool: false } }
+      - { var: "g_global_refinement_ok", expr: { bool: false } }
     effects:
       decision: { var: "g_decision" }
       published: { bool: false }

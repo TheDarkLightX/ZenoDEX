@@ -16,6 +16,7 @@ use crate::release::{
 use crate::zdex_buyback_price_safety::{
     ZDEXBuybackPriceSafetyPolicyV1, ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
 };
+use crate::zdex_current_authority::VerifiedZDEXCurrentAuthorityV1;
 use crate::zdex_fee_allocation_receipt_verification::VerifiedZDEXFeeAllocationV1;
 use crate::zdex_fee_allocation_types::{ZDEXFeeAllocationOccurrenceV1, FEE_BUYBACK_PRINCIPAL_V1};
 use crate::zdex_purchase_burn_receipt_verification::{
@@ -68,6 +69,101 @@ pub struct GovernedZDEXPurchaseBurnRouteV1<'a> {
     burn_coordinator_release: &'a LaneCoordinatorReleaseV1,
     buyback_execution_policy: &'a ZDEXBuybackExecutionPolicyV1,
     price_safety_policy: &'a ZDEXBuybackPriceSafetyPolicyV1,
+}
+
+/// Opaque, owned evidence that the atomic buyback route and its leaf images
+/// were selected by one validated SHADOW profile.
+///
+/// The fields remain private so callers cannot manufacture route authority
+/// from individually valid release records.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GovernedZDEXAtomicBuybackProfileV1 {
+    profile_id: RootV1,
+    authority_epoch: u64,
+    authority_head_root: RootV1,
+    authority_generation: u64,
+    verifier_binding_root: RootV1,
+    policy_registry_root: RootV1,
+    route_release: RouteReleaseV1,
+    purchase_module_release_id: RootV1,
+    purchase_guest_image_id: RootV1,
+    burn_module_release_id: RootV1,
+    burn_guest_image_id: RootV1,
+    buyback_execution_policy_root: RootV1,
+    price_safety_policy_root: RootV1,
+    quote_asset_id: RootV1,
+    zdex_asset_id: RootV1,
+    quote_pool_principal: String,
+    zdex_pool_principal: String,
+}
+
+impl GovernedZDEXAtomicBuybackProfileV1 {
+    pub(crate) fn matches_candidate_v1(
+        &self,
+        route: &RouteReleaseV1,
+        occurrence: &EconomicCommandOccurrenceV1,
+        writer_epoch: u64,
+        buyback_execution_policy_root: &RootV1,
+        price_safety_policy_root: &RootV1,
+    ) -> bool {
+        route == &self.route_release
+            && occurrence.profile_root == self.profile_id
+            && occurrence.route_release_id == self.route_release.route_release_id
+            && occurrence.command_kind == self.route_release.command_kind
+            && writer_epoch == self.authority_epoch
+            && route.module_release_ids
+                == [
+                    self.purchase_module_release_id.clone(),
+                    self.burn_module_release_id.clone(),
+                ]
+            && buyback_execution_policy_root == &self.buyback_execution_policy_root
+            && price_safety_policy_root == &self.price_safety_policy_root
+    }
+
+    pub(crate) fn purchase_guest_image_id(&self) -> &RootV1 {
+        &self.purchase_guest_image_id
+    }
+
+    pub(crate) fn burn_guest_image_id(&self) -> &RootV1 {
+        &self.burn_guest_image_id
+    }
+
+    pub(crate) fn authority_head_root(&self) -> &RootV1 {
+        &self.authority_head_root
+    }
+
+    pub(crate) fn authority_generation(&self) -> u64 {
+        self.authority_generation
+    }
+
+    pub(crate) fn verifier_binding_root(&self) -> &RootV1 {
+        &self.verifier_binding_root
+    }
+
+    pub(crate) fn policy_registry_root(&self) -> &RootV1 {
+        &self.policy_registry_root
+    }
+
+    pub(crate) fn matches_purchase_identity_v1(
+        &self,
+        purchase: &ZDEXAMMPurchaseJournalV2,
+        occurrence: &EconomicCommandOccurrenceV1,
+    ) -> AbiResultV1<bool> {
+        Ok(
+            purchase.buyback_execution_policy_root == self.buyback_execution_policy_root
+                && purchase.price_safety_policy_root == self.price_safety_policy_root
+                && purchase.quote_asset_id == self.quote_asset_id
+                && purchase.zdex_asset_id == self.zdex_asset_id
+                && purchase.quote_pool_bucket_id == self.quote_pool_principal
+                && purchase.zdex_pool_bucket_id == self.zdex_pool_principal
+                && purchase.burn_bucket_id
+                    == zdex_occurrence_burn_port_v1(
+                        &occurrence.profile_root,
+                        &self.route_release.route_release_id,
+                        &occurrence.occurrence_id()?,
+                    )?,
+        )
+    }
 }
 
 fn registered_buyback_route_v1(routes: &RouteRegistryV1) -> AbiResultV1<&RouteReleaseV1> {
@@ -227,6 +323,52 @@ pub fn bind_zdex_purchase_burn_shadow_profile_v1<'a>(
     Ok(governed)
 }
 
+/// Bind the route registries and return an owned, opaque witness suitable for
+/// the same-occurrence atomic functional core.
+pub fn bind_zdex_atomic_buyback_shadow_profile_v1(
+    current_authority: &VerifiedZDEXCurrentAuthorityV1,
+    registries: ZDEXPurchaseBurnRouteProfileRegistriesV1<'_>,
+) -> AbiResultV1<GovernedZDEXAtomicBuybackProfileV1> {
+    let governed = bind_zdex_purchase_burn_shadow_profile_v1(
+        current_authority.profile_root(),
+        current_authority.authority_epoch(),
+        registries,
+    )?;
+    if governed.profile.policy_registry_root != *current_authority.policy_registry_root()
+        || governed.profile.verifier_registry_root != *current_authority.verifier_registry_root()
+        || governed.profile.root_image_id != *current_authority.root_image_id()
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX atomic buyback current authority profile",
+        ));
+    }
+    Ok(GovernedZDEXAtomicBuybackProfileV1 {
+        profile_id: governed.profile.profile_id.clone(),
+        authority_epoch: governed.profile.authority_epoch,
+        authority_head_root: current_authority.authority_head_root().clone(),
+        authority_generation: current_authority.authority_generation(),
+        verifier_binding_root: current_authority.receipt_verifier_binding_root().clone(),
+        policy_registry_root: current_authority.policy_registry_root().clone(),
+        route_release: governed.route_release.clone(),
+        purchase_module_release_id: governed.purchase_module_release.release_id.clone(),
+        purchase_guest_image_id: governed.purchase_module_release.guest_image_id.clone(),
+        burn_module_release_id: governed.burn_module_release.release_id.clone(),
+        burn_guest_image_id: governed.burn_module_release.guest_image_id.clone(),
+        buyback_execution_policy_root: governed.buyback_execution_policy.policy_root()?,
+        price_safety_policy_root: governed.price_safety_policy.policy_root()?,
+        quote_asset_id: governed.buyback_execution_policy.quote_asset_id.clone(),
+        zdex_asset_id: governed.buyback_execution_policy.zdex_asset_id.clone(),
+        quote_pool_principal: zdex_pool_reserve_principal_v1(
+            &governed.buyback_execution_policy.pool_id,
+            &governed.buyback_execution_policy.quote_asset_id,
+        )?,
+        zdex_pool_principal: zdex_pool_reserve_principal_v1(
+            &governed.buyback_execution_policy.pool_id,
+            &governed.buyback_execution_policy.zdex_asset_id,
+        )?,
+    })
+}
+
 pub struct ZDEXPurchaseBurnRouteCandidateV1<'a> {
     pub governed_profile: GovernedZDEXPurchaseBurnRouteV1<'a>,
     pub route_release: &'a RouteReleaseV1,
@@ -242,7 +384,12 @@ pub struct ZDEXPurchaseBurnRouteCandidateV1<'a> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ZDEXPurchaseBurnRouteAcceptedV1 {
+/// Historical delayed-budget research projection.
+///
+/// This value cannot be admitted by the GlobalSettlementABI V1 epoch verifier
+/// because its occurrence consumes a persistent object. It grants no route,
+/// settlement, or publication authority.
+pub struct ZDEXHistoricalPurchaseBurnRouteProjectionV1 {
     pub route_release_id: RootV1,
     pub command_occurrence_id: RootV1,
     pub profile_root: RootV1,
@@ -322,7 +469,7 @@ impl ZDEXPurchaseBurnRouteCompositionJournalV3 {
     }
 }
 
-impl ZDEXPurchaseBurnRouteAcceptedV1 {
+impl ZDEXHistoricalPurchaseBurnRouteProjectionV1 {
     pub fn composition_journal_v3(&self) -> AbiResultV1<ZDEXPurchaseBurnRouteCompositionJournalV3> {
         self.effects.validate()?;
         let journal = ZDEXPurchaseBurnRouteCompositionJournalV3 {
@@ -353,7 +500,7 @@ pub struct ZDEXPurchaseBurnRouteRejectedV1 {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ZDEXPurchaseBurnRouteResultV1 {
-    Accepted(Box<ZDEXPurchaseBurnRouteAcceptedV1>),
+    HistoricalResearchOnly(Box<ZDEXHistoricalPurchaseBurnRouteProjectionV1>),
     Rejected(ZDEXPurchaseBurnRouteRejectedV1),
 }
 
@@ -684,6 +831,9 @@ fn economic_reject_code_v1(
     Ok(None)
 }
 
+#[deprecated(
+    note = "historical delayed-budget research only; GlobalSettlementABI V1 rejects its consumed object"
+)]
 pub fn compose_zdex_purchase_burn_route_v1(
     candidate: ZDEXPurchaseBurnRouteCandidateV1<'_>,
 ) -> AbiResultV1<ZDEXPurchaseBurnRouteResultV1> {
@@ -713,8 +863,8 @@ pub fn compose_zdex_purchase_burn_route_v1(
     let burn = candidate.burn_journal;
     let purchase_root = purchase.journal_root()?;
     let burn_root = burn.journal_root()?;
-    Ok(ZDEXPurchaseBurnRouteResultV1::Accepted(Box::new(
-        ZDEXPurchaseBurnRouteAcceptedV1 {
+    Ok(ZDEXPurchaseBurnRouteResultV1::HistoricalResearchOnly(
+        Box::new(ZDEXHistoricalPurchaseBurnRouteProjectionV1 {
             route_release_id: route_id.clone(),
             command_occurrence_id: occurrence_id.clone(),
             profile_root: candidate.occurrence.profile_root.clone(),
@@ -742,6 +892,6 @@ pub fn compose_zdex_purchase_burn_route_v1(
                 .clone(),
             effects: compose_effects_v1(&candidate, &occurrence_id)?,
             terminal_obligations_root: zdex_tokenomics_complete_lane_obligation_root_v1()?,
-        },
-    )))
+        }),
+    ))
 }

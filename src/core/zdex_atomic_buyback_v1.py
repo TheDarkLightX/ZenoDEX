@@ -17,6 +17,7 @@ from .global_settlement_types_v1 import (
     GlobalEconomicEffectPlanV1,
     LaneIdV1,
     LaneWriteV1,
+    ReleaseStatusV1,
     RouteReleaseV1,
     hash_global_v1,
 )
@@ -43,21 +44,52 @@ from .zdex_hyperdeflation_types_v1 import (
     ZDEXSupplyStateV1,
 )
 from .zdex_hyperdeflation_v1 import transition_zdex_purchase_and_burn_v1
-from .zdex_purchase_burn_effects_v1 import burn_effects_v1, purchase_effects_v1
+from .zdex_purchase_burn_effects_v1 import burn_effects_v1, purchase_effects_v2
 from .zdex_purchase_burn_receipt_verification_v1 import (
-    VerifiedZDEXAMMPurchaseV1,
+    GovernedVerifiedZDEXAMMPurchaseV2,
     VerifiedZDEXBurnV1,
 )
 from .zdex_purchase_burn_route_types_v1 import (
     AMM_POOL_CUSTODY_DOMAIN_V1,
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
     PROTOCOL_BUYBACK_CUSTODY_DOMAIN_V1,
-    ZDEXAMMPurchaseJournalV1,
+    ZDEXAMMPurchaseJournalV2,
+    ZDEXBuybackExecutionPolicyV1,
+    zdex_occurrence_burn_port_v1,
+    zdex_pool_reserve_principal_v1,
 )
 from .zdex_verified_buyback_spend_v1 import VerifiedZDEXBuybackSpendV1
 
 ZDEX_ATOMIC_BUYBACK_PENDING_SCHEMA_V1: Final = "zenodex/zdex-atomic-buyback-pending/v1"
 ZDEX_ATOMIC_BUYBACK_ACCEPTED_SCHEMA_V1: Final = "zenodex/zdex-atomic-buyback-accepted/v1"
+_ACCEPTED_TOKEN = object()
+
+
+def zdex_atomic_buyback_lane_coordination_obligation_root_v1(
+    post_state: ZDEXAtomicBuybackTokenomicsStateV1,
+    effects: GlobalEconomicEffectPlanV1,
+    burn: ZDEXBurnLeafProjectionV1,
+) -> str:
+    """Name the remaining proof obligation after both module leaves verify."""
+
+    if type(post_state) is not ZDEXAtomicBuybackTokenomicsStateV1:
+        raise TypeError("atomic buyback obligation post-state must be exact typed data")
+    if type(effects) is not GlobalEconomicEffectPlanV1:
+        raise TypeError("atomic buyback obligation effects must be exact typed data")
+    if type(burn) is not ZDEXBurnLeafProjectionV1:
+        raise TypeError("atomic buyback obligation burn must be exact typed data")
+    return hash_global_v1(
+        "zdex-atomic-buyback-lane-coordination-obligation-v1",
+        {
+            "schema": ZDEX_ATOMIC_BUYBACK_ACCEPTED_SCHEMA_V1,
+            "command_occurrence_id": burn.journal.command_occurrence_id,
+            "burn_journal_root": burn.journal.journal_root,
+            "effect_plan_root": effects.effect_plan_root,
+            "post_tokenomics_state_root": post_state.state_root,
+            "lane_writes": effects.lane_writes,
+            "requirement": "VERIFIED_COMPLETE_LANE_ROOTS_AND_GLOBAL_REFINEMENT",
+        },
+    )
 
 
 class ZDEXAtomicBuybackRejectCodeV1(str, Enum):
@@ -76,9 +108,9 @@ class ZDEXAtomicBuybackCandidateV1:
     route: RouteReleaseV1
     safety_purchase: VerifiedZDEXBuybackSpotSafetyPurchaseV2
     verified_spend: VerifiedZDEXBuybackSpendV1
-    purchase_journal: ZDEXAMMPurchaseJournalV1
+    purchase_journal: ZDEXAMMPurchaseJournalV2
     purchase_effects: GlobalEconomicEffectPlanV1
-    verified_purchase: VerifiedZDEXAMMPurchaseV1
+    verified_purchase: GovernedVerifiedZDEXAMMPurchaseV2
     hyperdeflation_policy: ZDEXHyperdeflationPolicyV1
 
     def __post_init__(self) -> None:
@@ -87,9 +119,9 @@ class ZDEXAtomicBuybackCandidateV1:
             (self.route, RouteReleaseV1),
             (self.safety_purchase, VerifiedZDEXBuybackSpotSafetyPurchaseV2),
             (self.verified_spend, VerifiedZDEXBuybackSpendV1),
-            (self.purchase_journal, ZDEXAMMPurchaseJournalV1),
+            (self.purchase_journal, ZDEXAMMPurchaseJournalV2),
             (self.purchase_effects, GlobalEconomicEffectPlanV1),
-            (self.verified_purchase, VerifiedZDEXAMMPurchaseV1),
+            (self.verified_purchase, GovernedVerifiedZDEXAMMPurchaseV2),
             (self.hyperdeflation_policy, ZDEXHyperdeflationPolicyV1),
         )
         if any(type(value) is not kind for value, kind in expected):
@@ -117,7 +149,7 @@ class ZDEXAtomicBuybackPendingV1:
     route: RouteReleaseV1
     pre_state: ZDEXAtomicBuybackTokenomicsStateV1
     post_state: ZDEXAtomicBuybackTokenomicsStateV1
-    purchase_journal: ZDEXAMMPurchaseJournalV1
+    purchase_journal: ZDEXAMMPurchaseJournalV2
     burn: ZDEXBurnLeafProjectionV1
     effects: GlobalEconomicEffectPlanV1
     pending_terminal_obligations_root: str
@@ -130,17 +162,84 @@ class ZDEXAtomicBuybackPendingV1:
 
 
 @dataclass(frozen=True, slots=True)
-class ZDEXAtomicBuybackAcceptedV1:
+class _ZDEXAtomicBuybackAcceptedFieldsV1:
+    pre_state: ZDEXAtomicBuybackTokenomicsStateV1
     post_state: ZDEXAtomicBuybackTokenomicsStateV1
     effects: GlobalEconomicEffectPlanV1
     burn: ZDEXBurnLeafProjectionV1
-    terminal_obligations_root: str = ZERO_ROOT_V1
+    verified_burn_binding_root: str
+    pending_binding_root: str
+    terminal_obligations_root: str
 
-    def __post_init__(self) -> None:
-        if self.terminal_obligations_root != ZERO_ROOT_V1:
-            raise ValueError("atomic buyback final result must close terminal obligations")
-        if self.burn.accepted.post_state != self.post_state.tokenomics.supply_state:
+
+class ZDEXAtomicBuybackAcceptedV1:
+    """Opaque module result constructed only after exact burn verification."""
+
+    __slots__ = ("_fields",)
+    _fields: _ZDEXAtomicBuybackAcceptedFieldsV1
+
+    def __init__(
+        self,
+        token: object,
+        fields: _ZDEXAtomicBuybackAcceptedFieldsV1,
+    ) -> None:
+        if token is not _ACCEPTED_TOKEN:
+            raise TypeError("atomic buyback accepted result is verifier-constructed")
+        if type(fields) is not _ZDEXAtomicBuybackAcceptedFieldsV1:
+            raise TypeError("atomic buyback accepted fields are not closed")
+        if fields.effects.is_empty:
+            raise ValueError("atomic buyback accepted effects must be nonempty")
+        if type(fields.verified_burn_binding_root) is not str or (
+            fields.verified_burn_binding_root == ZERO_ROOT_V1
+        ):
+            raise ValueError("atomic buyback accepted burn binding must be nonzero")
+        if type(fields.pending_binding_root) is not str or (
+            fields.pending_binding_root == ZERO_ROOT_V1
+        ):
+            raise ValueError("atomic buyback accepted pending binding must be nonzero")
+        if (
+            fields.terminal_obligations_root
+            != zdex_atomic_buyback_lane_coordination_obligation_root_v1(
+                fields.post_state,
+                fields.effects,
+                fields.burn,
+            )
+        ):
+            raise ValueError("atomic buyback result must retain lane coordination obligation")
+        if fields.burn.accepted.post_state != fields.post_state.tokenomics.supply_state:
             raise ValueError("atomic buyback final supply projection mismatch")
+        object.__setattr__(self, "_fields", fields)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("atomic buyback accepted result is immutable")
+
+    @property
+    def pre_state(self) -> ZDEXAtomicBuybackTokenomicsStateV1:
+        return self._fields.pre_state
+
+    @property
+    def post_state(self) -> ZDEXAtomicBuybackTokenomicsStateV1:
+        return self._fields.post_state
+
+    @property
+    def effects(self) -> GlobalEconomicEffectPlanV1:
+        return self._fields.effects
+
+    @property
+    def burn(self) -> ZDEXBurnLeafProjectionV1:
+        return self._fields.burn
+
+    @property
+    def verified_burn_binding_root(self) -> str:
+        return self._fields.verified_burn_binding_root
+
+    @property
+    def pending_binding_root(self) -> str:
+        return self._fields.pending_binding_root
+
+    @property
+    def terminal_obligations_root(self) -> str:
+        return self._fields.terminal_obligations_root
 
 
 ZDEXAtomicBuybackPrepareResultV1 = ZDEXAtomicBuybackPendingV1 | ZDEXAtomicBuybackRejectedV1
@@ -154,8 +253,25 @@ def _reject(
     return ZDEXAtomicBuybackRejectedV1(code, state, state)
 
 
+def _pending_binding_root_v1(pending: ZDEXAtomicBuybackPendingV1) -> str:
+    return hash_global_v1(
+        "zdex-atomic-buyback-pending-binding-v1",
+        {
+            "schema": ZDEX_ATOMIC_BUYBACK_PENDING_SCHEMA_V1,
+            "command_occurrence_id": pending.occurrence.occurrence_id,
+            "route_release_id": pending.route.route_release_id,
+            "pre_tokenomics_state_root": pending.pre_state.state_root,
+            "post_tokenomics_state_root": pending.post_state.state_root,
+            "purchase_journal_root": pending.purchase_journal.journal_root,
+            "burn_journal_root": pending.burn.journal.journal_root,
+            "effect_plan_root": pending.effects.effect_plan_root,
+            "pending_terminal_obligations_root": pending.pending_terminal_obligations_root,
+        },
+    )
+
+
 def _witness_matches(
-    witness: VerifiedZDEXAMMPurchaseV1 | VerifiedZDEXBurnV1,
+    witness: VerifiedZDEXBurnV1,
     *,
     route: RouteReleaseV1,
     occurrence: EconomicCommandOccurrenceV1,
@@ -182,9 +298,37 @@ def _witness_matches(
     )
 
 
+def _governed_purchase_witness_matches_v2(
+    witness: GovernedVerifiedZDEXAMMPurchaseV2,
+    *,
+    route: RouteReleaseV1,
+    occurrence: EconomicCommandOccurrenceV1,
+    expected_writer_epoch: int,
+    journal_root: str,
+    effect_plan_root: str,
+    safety_purchase: VerifiedZDEXBuybackSpotSafetyPurchaseV2,
+) -> bool:
+    leaf = witness.verified_leaf
+    return (
+        leaf.route_release_id == route.route_release_id
+        and leaf.module_release_id == route.module_release_ids[0]
+        and leaf.command_occurrence_id == occurrence.occurrence_id
+        and leaf.profile_root == occurrence.profile_root
+        and leaf.writer_epoch == expected_writer_epoch
+        and leaf.journal_root == journal_root
+        and leaf.effect_plan_root == effect_plan_root
+        and leaf.receipt_kind is ReceiptKindV1.SUCCINCT
+        and leaf.expected_image_id == safety_purchase.expected_image_id
+        and witness.price_authority_root == safety_purchase.price_authority_root
+        and witness.authority_head_root == safety_purchase.authority_head_root
+        and witness.verifier_binding_root == safety_purchase.verifier_binding_root
+        and witness.policy_registry_root != ZERO_ROOT_V1
+    )
+
+
 def _intermediate_supply_v1(
     state: ZDEXSupplyStateV1,
-    purchase: ZDEXAMMPurchaseJournalV1,
+    purchase: ZDEXAMMPurchaseJournalV2,
 ) -> ZDEXSupplyStateV1 | None:
     if (
         state.live_supply_atoms != purchase.zdex_supply_atoms
@@ -231,13 +375,6 @@ def _fee_funded_purchase_rows_v1(
     if spend_from_new > buyback_allocated:
         raise ValueError("atomic buyback spend exceeds available fee allocation")
     retained_new = buyback_allocated - spend_from_new
-    fee_pool_principal = hash_global_v1(
-        "zdex-buyback-fee-pool-principal-v1",
-        {
-            "command_occurrence_id": candidate.occurrence.occurrence_id,
-            "quote_pool_bucket_id": purchase.quote_pool_bucket_id,
-        },
-    )
     rows: list[EconomicEffectRowV1] = []
     for row in allocation.effects.rows:
         if row.kind is not EconomicEffectKindV1.FEE_ALLOCATION:
@@ -263,7 +400,11 @@ def _fee_funded_purchase_rows_v1(
                 PROTOCOL_BUYBACK_CUSTODY_DOMAIN_V1,
                 retained_new,
             ),
-            (fee_pool_principal, AMM_POOL_CUSTODY_DOMAIN_V1, spend_from_new),
+            (
+                purchase.quote_pool_bucket_id,
+                AMM_POOL_CUSTODY_DOMAIN_V1,
+                spend_from_new,
+            ),
         ):
             if amount == 0:
                 continue
@@ -370,10 +511,15 @@ def prepare_zdex_atomic_buyback_v1(
     purchase = candidate.purchase_journal
     safety = candidate.safety_purchase.journal
     if (
-        candidate.route.command_kind != PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1
+        candidate.route.status is not ReleaseStatusV1.SHADOW
+        or candidate.route.accepts_new_objects
+        or candidate.route.command_kind != PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1
+        or candidate.route.ordered_lanes
+        != (LaneIdV1.SPOT_LIQUIDITY, LaneIdV1.ZDEX_TOKENOMICS)
         or candidate.route.route_release_id != candidate.occurrence.route_release_id
         or candidate.route.module_release_ids[0] != purchase.spot_module_release_id
         or candidate.route.issue_burn_policy_root != candidate.hyperdeflation_policy.policy_root
+        or candidate.occurrence.consumed_object_ids
     ):
         return _reject(ZDEXAtomicBuybackRejectCodeV1.ROUTE_MISMATCH, pre_state)
     if (
@@ -385,6 +531,12 @@ def prepare_zdex_atomic_buyback_v1(
         return _reject(ZDEXAtomicBuybackRejectCodeV1.SPEND_MISMATCH, pre_state)
     available = spend.fee_allocation.post_state.destination_balances[0].allocation_atoms
     fee_post = spend.fee_post_state.destination_balances[0].allocation_atoms
+    execution_policy = ZDEXBuybackExecutionPolicyV1(
+        safety.pool_id,
+        safety.pool_definition_root,
+        safety.quote_asset_id,
+        safety.zdex_asset_id,
+    )
     if (
         purchase.chain_id != candidate.occurrence.chain_id
         or purchase.deployment_root != candidate.occurrence.deployment_root
@@ -392,8 +544,32 @@ def prepare_zdex_atomic_buyback_v1(
         or purchase.route_release_id != candidate.route.route_release_id
         or purchase.command_occurrence_id != candidate.occurrence.occurrence_id
         or purchase.buyback_budget_occurrence_root != spend.intent.intent_root
+        or purchase.buyback_execution_policy_root != execution_policy.policy_root
+        or purchase.price_safety_policy_root != safety.oracle_policy_root
+        or purchase.oracle_occurrence_root != safety.oracle_occurrence_root
+        or purchase.oracle_observed_height != safety.oracle_observed_height
+        or purchase.oracle_quote_numerator_atoms != safety.oracle_quote_numerator_atoms
+        or purchase.oracle_zdex_denominator_atoms != safety.oracle_zdex_denominator_atoms
+        or purchase.route_safe_quote_limit_atoms != safety.route_safe_quote_limit_atoms
+        or purchase.minimum_output_atoms != safety.minimum_output_atoms
         or purchase.quote_asset_id != safety.quote_asset_id
         or purchase.zdex_asset_id != safety.zdex_asset_id
+        or purchase.quote_pool_bucket_id
+        != zdex_pool_reserve_principal_v1(
+            pool_id=safety.pool_id,
+            asset_id=safety.quote_asset_id,
+        )
+        or purchase.zdex_pool_bucket_id
+        != zdex_pool_reserve_principal_v1(
+            pool_id=safety.pool_id,
+            asset_id=safety.zdex_asset_id,
+        )
+        or purchase.burn_bucket_id
+        != zdex_occurrence_burn_port_v1(
+            profile_root=candidate.occurrence.profile_root,
+            route_release_id=candidate.route.route_release_id,
+            command_occurrence_id=candidate.occurrence.occurrence_id,
+        )
         or purchase.quote_amount_in_atoms != spend.intent.quote_spend_atoms
         or purchase.quote_amount_in_atoms != safety.quote_amount_in_atoms
         or purchase.purchased_zdex_atoms != safety.purchased_zdex_atoms
@@ -404,19 +580,17 @@ def prepare_zdex_atomic_buyback_v1(
         or purchase.quote_source_post_atoms != fee_post
         or purchase.quote_owned_atoms != spend.fee_allocation.pre_state.owned_and_custodied_atoms
         or purchase.quote_supply_atoms != spend.fee_allocation.pre_state.supply_atoms
-        or candidate.purchase_effects != purchase_effects_v1(purchase)
+        or candidate.purchase_effects != purchase_effects_v2(purchase)
     ):
         return _reject(ZDEXAtomicBuybackRejectCodeV1.PURCHASE_MISMATCH, pre_state)
-    if not _witness_matches(
+    if not _governed_purchase_witness_matches_v2(
         candidate.verified_purchase,
         route=candidate.route,
         occurrence=candidate.occurrence,
-        module_index=0,
         expected_writer_epoch=safety.writer_epoch,
         journal_root=purchase.journal_root,
         effect_plan_root=candidate.purchase_effects.effect_plan_root,
-        authority_head_root=candidate.safety_purchase.authority_head_root,
-        verifier_binding_root=candidate.safety_purchase.verifier_binding_root,
+        safety_purchase=candidate.safety_purchase,
     ):
         return _reject(
             ZDEXAtomicBuybackRejectCodeV1.PURCHASE_WITNESS_MISMATCH,
@@ -512,9 +686,20 @@ def finalize_zdex_atomic_buyback_v1(
             pending.pre_state,
         )
     return ZDEXAtomicBuybackAcceptedV1(
-        pending.post_state,
-        pending.effects,
-        pending.burn,
+        _ACCEPTED_TOKEN,
+        _ZDEXAtomicBuybackAcceptedFieldsV1(
+            pre_state=pending.pre_state,
+            post_state=pending.post_state,
+            effects=pending.effects,
+            burn=pending.burn,
+            verified_burn_binding_root=verified_burn.binding_root,
+            pending_binding_root=_pending_binding_root_v1(pending),
+            terminal_obligations_root=zdex_atomic_buyback_lane_coordination_obligation_root_v1(
+                pending.post_state,
+                pending.effects,
+                pending.burn,
+            ),
+        ),
     )
 
 
@@ -528,4 +713,5 @@ __all__ = [
     "ZDEXAtomicBuybackRejectedV1",
     "finalize_zdex_atomic_buyback_v1",
     "prepare_zdex_atomic_buyback_v1",
+    "zdex_atomic_buyback_lane_coordination_obligation_root_v1",
 ]

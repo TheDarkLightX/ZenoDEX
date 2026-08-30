@@ -8,6 +8,7 @@ accepted hyperdeflation transition and the exact purchase journal it names.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TypeAlias
 
 from .global_settlement_types_v1 import (
     GlobalEconomicEffectPlanV1,
@@ -19,11 +20,27 @@ from .zdex_purchase_burn_effects_v1 import (
     _ZDEXBurnEffectInputsV1,
     burn_effects_v1,
     purchase_effects_v1,
+    purchase_effects_v2,
 )
 from .zdex_purchase_burn_route_types_v1 import (
     ZDEXAMMPurchaseJournalV1,
+    ZDEXAMMPurchaseJournalV2,
     ZDEXBurnJournalV1,
 )
+
+ZDEXPurchaseJournalForBurnV1: TypeAlias = (
+    ZDEXAMMPurchaseJournalV1 | ZDEXAMMPurchaseJournalV2
+)
+
+
+def _purchase_effects(
+    purchase: ZDEXPurchaseJournalForBurnV1,
+) -> GlobalEconomicEffectPlanV1:
+    if type(purchase) is ZDEXAMMPurchaseJournalV1:
+        return purchase_effects_v1(purchase)
+    if type(purchase) is ZDEXAMMPurchaseJournalV2:
+        return purchase_effects_v2(purchase)
+    raise TypeError("ZDEX burn refinement requires a closed purchase journal")
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,7 +48,7 @@ class ZDEXBurnLeafProjectionV1:
     """Self-recomputing, non-authoritative burn-leaf projection."""
 
     accepted: ZDEXPurchaseAndBurnAcceptedV1
-    purchase_journal: ZDEXAMMPurchaseJournalV1
+    purchase_journal: ZDEXPurchaseJournalForBurnV1
     tokenomics_module_release_id: str
     journal: ZDEXBurnJournalV1
     effects: GlobalEconomicEffectPlanV1
@@ -60,7 +77,10 @@ class ZDEXBurnLeafProjectionV1:
 def _require_exact_types(projection: ZDEXBurnLeafProjectionV1) -> None:
     if type(projection.accepted) is not ZDEXPurchaseAndBurnAcceptedV1:
         raise TypeError("ZDEX burn refinement requires an exact accepted transition")
-    if type(projection.purchase_journal) is not ZDEXAMMPurchaseJournalV1:
+    if type(projection.purchase_journal) not in (
+        ZDEXAMMPurchaseJournalV1,
+        ZDEXAMMPurchaseJournalV2,
+    ):
         raise TypeError("ZDEX burn refinement requires an exact purchase journal")
     if type(projection.tokenomics_module_release_id) is not str:
         raise TypeError("ZDEX burn refinement module release id must be a string")
@@ -72,11 +92,11 @@ def _require_exact_types(projection: ZDEXBurnLeafProjectionV1) -> None:
 
 def _require_refinement_bindings(
     accepted: ZDEXPurchaseAndBurnAcceptedV1,
-    purchase: ZDEXAMMPurchaseJournalV1,
+    purchase: ZDEXPurchaseJournalForBurnV1,
 ) -> None:
     accepted.validate()
     purchase.validate()
-    if purchase.effect_plan_root != purchase_effects_v1(purchase).effect_plan_root:
+    if purchase.effect_plan_root != _purchase_effects(purchase).effect_plan_root:
         raise ValueError("ZDEX purchase effect plan was not recomputed exactly")
     route = accepted.route_context
     burn = accepted.effect.authorized_burn_atoms
@@ -105,7 +125,7 @@ def _require_refinement_bindings(
 
 def _derive_burn_journal_v1(
     accepted: ZDEXPurchaseAndBurnAcceptedV1,
-    purchase: ZDEXAMMPurchaseJournalV1,
+    purchase: ZDEXPurchaseJournalForBurnV1,
     tokenomics_module_release_id: str,
 ) -> ZDEXBurnJournalV1:
     _require_root(
@@ -158,14 +178,17 @@ def _derive_burn_journal_v1(
 
 def refine_zdex_burn_leaf_v1(
     accepted: ZDEXPurchaseAndBurnAcceptedV1,
-    purchase_journal: ZDEXAMMPurchaseJournalV1,
+    purchase_journal: ZDEXPurchaseJournalForBurnV1,
     tokenomics_module_release_id: str,
 ) -> ZDEXBurnLeafProjectionV1:
     """Derive the exact route burn journal and effects from checked values."""
 
     if type(accepted) is not ZDEXPurchaseAndBurnAcceptedV1:
         raise TypeError("ZDEX burn refinement requires an exact accepted transition")
-    if type(purchase_journal) is not ZDEXAMMPurchaseJournalV1:
+    if type(purchase_journal) not in (
+        ZDEXAMMPurchaseJournalV1,
+        ZDEXAMMPurchaseJournalV2,
+    ):
         raise TypeError("ZDEX burn refinement requires an exact purchase journal")
     journal = _derive_burn_journal_v1(
         accepted,

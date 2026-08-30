@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 LEAN_PROJECT = ROOT / "lean-mathlib"
 PROOF = LEAN_PROJECT / "Proofs" / "ZDEXAtomicBuybackAccountingV1.lean"
+TRANSITION_PROOF = LEAN_PROJECT / "Proofs" / "ZDEXAtomicBuybackTransitionV1.lean"
 
 
 def _pinned_lean_executable() -> Path:
@@ -58,6 +59,34 @@ def test_atomic_buyback_accounting_proof_checks_with_pinned_lean() -> None:
 
     subprocess.run(
         [str(lean), str(PROOF)],
+        cwd=LEAN_PROJECT,
+        check=True,
+    )
+
+
+def test_atomic_buyback_transition_proof_retains_coordination_obligation() -> None:
+    source = TRANSITION_PROOF.read_text(encoding="utf-8")
+
+    assert re.search(r"\b(?:sorry|admit|axiom)\b", source) is None
+    for required_declaration in (
+        "def transition",
+        "theorem transition_is_total",
+        "theorem rejected_is_exact_noop",
+        "theorem duplicate_occurrence_rejects_replay",
+        "theorem accepted_safety",
+        "theorem nonvacuity_accepts",
+    ):
+        assert required_declaration in source
+    assert "effects.burnReceiptClosed = true" in source
+    assert "effects.laneCoordinationPending = true" in source
+    assert "Nonclaims:" in source
+
+
+def test_atomic_buyback_transition_proof_checks_with_pinned_lean() -> None:
+    lean = _pinned_lean_executable()
+
+    subprocess.run(
+        [str(lean), str(TRANSITION_PROOF)],
         cwd=LEAN_PROJECT,
         check=True,
     )

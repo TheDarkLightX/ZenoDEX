@@ -10,8 +10,10 @@ Every input has exactly one result. Rejection carries only a closed code; its
 post-state and empty effect summary are derived from the explicit input state.
 Acceptance moves quote atoms into the
 selected pool, removes purchased ZDEX from that pool, burns exactly that
-amount from live supply, consumes the occurrence, and closes the transient
-burn obligation.
+amount from live supply and consumes the occurrence. The abstract module result
+closes the transient burn-receipt obligation while retaining an explicit lane-
+coordination obligation. Only downstream lane and route proofs may close that
+remaining obligation.
 
 Nonclaims: this file does not prove that Python, Rust, RISC0, Tau, a profile,
 an Oracle, or a deployed verifier establishes these abstract gates. It does
@@ -28,7 +30,7 @@ structure Gates where
   routeBound : Bool
   authorityBound : Bool
   oracleFinal : Bool
-  budgetBound : Bool
+  sameOccurrenceFeeBound : Bool
   priceSafe : Bool
   deriving DecidableEq, Repr
 
@@ -53,7 +55,8 @@ structure Effects where
   zdexPurchased : Nat
   zdexBurned : Nat
   occurrenceConsumed : Bool
-  terminalClosed : Bool
+  burnReceiptClosed : Bool
+  laneCoordinationPending : Bool
   deriving DecidableEq, Repr
 
 def Effects.empty : Effects where
@@ -61,13 +64,14 @@ def Effects.empty : Effects where
   zdexPurchased := 0
   zdexBurned := 0
   occurrenceConsumed := false
-  terminalClosed := false
+  burnReceiptClosed := false
+  laneCoordinationPending := false
 
 inductive RejectCode where
   | routeMismatch
   | authorityMismatch
   | oracleMismatch
-  | budgetMismatch
+  | feeBindingMismatch
   | priceUnsafe
   | replay
   | terminalConflict
@@ -93,7 +97,7 @@ def firstReject (state : State) (gates : Gates) : Option RejectCode :=
   if !gates.routeBound then some .routeMismatch
   else if !gates.authorityBound then some .authorityMismatch
   else if !gates.oracleFinal then some .oracleMismatch
-  else if !gates.budgetBound then some .budgetMismatch
+  else if !gates.sameOccurrenceFeeBound then some .feeBindingMismatch
   else if !gates.priceSafe then some .priceUnsafe
   else if state.occurrenceConsumed then some .replay
   else if state.burnPending then some .terminalConflict
@@ -124,7 +128,8 @@ def acceptedEffects (command : Command) : Effects where
   zdexPurchased := command.purchasedZdex
   zdexBurned := command.purchasedZdex
   occurrenceConsumed := true
-  terminalClosed := true
+  burnReceiptClosed := true
+  laneCoordinationPending := true
 
 /-- Total deterministic transition with explicit reject precedence. -/
 def transition (state : State) (command : Command) (gates : Gates) : Result :=
@@ -142,18 +147,18 @@ theorem firstReject_none_iff
       gates.routeBound = true ∧
       gates.authorityBound = true ∧
       gates.oracleFinal = true ∧
-      gates.budgetBound = true ∧
+      gates.sameOccurrenceFeeBound = true ∧
       gates.priceSafe = true ∧
       state.occurrenceConsumed = false ∧
       state.burnPending = false := by
   cases hRoute : gates.routeBound <;>
     cases hAuthority : gates.authorityBound <;>
     cases hOracle : gates.oracleFinal <;>
-    cases hBudget : gates.budgetBound <;>
+    cases hFee : gates.sameOccurrenceFeeBound <;>
     cases hPrice : gates.priceSafe <;>
     cases hReplay : state.occurrenceConsumed <;>
     cases hTerminal : state.burnPending <;>
-    simp [firstReject, hRoute, hAuthority, hOracle, hBudget, hPrice,
+    simp [firstReject, hRoute, hAuthority, hOracle, hFee, hPrice,
       hReplay, hTerminal]
 
 theorem transition_is_total
@@ -181,11 +186,11 @@ theorem duplicate_occurrence_rejects_replay
     (hRoute : gates.routeBound = true)
     (hAuthority : gates.authorityBound = true)
     (hOracle : gates.oracleFinal = true)
-    (hBudget : gates.budgetBound = true)
+    (hFee : gates.sameOccurrenceFeeBound = true)
     (hPrice : gates.priceSafe = true)
     (hReplay : state.occurrenceConsumed = true) :
     transition state command gates = .rejected .replay := by
-  simp [transition, firstReject, hRoute, hAuthority, hOracle, hBudget,
+  simp [transition, firstReject, hRoute, hAuthority, hOracle, hFee,
     hPrice, hReplay]
 
 theorem accepted_iff
@@ -211,7 +216,7 @@ theorem accepted_safety
       (gates.routeBound = true ∧
         gates.authorityBound = true ∧
         gates.oracleFinal = true ∧
-        gates.budgetBound = true ∧
+        gates.sameOccurrenceFeeBound = true ∧
         gates.priceSafe = true ∧
         state.occurrenceConsumed = false ∧
         state.burnPending = false) ∧
@@ -224,7 +229,8 @@ theorem accepted_safety
       post.occurrenceConsumed = true ∧
       post.burnPending = false ∧
       effects.occurrenceConsumed = true ∧
-      effects.terminalClosed = true := by
+      effects.burnReceiptClosed = true ∧
+      effects.laneCoordinationPending = true := by
   rw [accepted_iff] at hAccepted
   rcases hAccepted with ⟨hGates, hAmounts, rfl, rfl⟩
   have hGateFacts := (firstReject_none_iff state gates).mp hGates
@@ -256,7 +262,7 @@ def nonvacuityGates : Gates where
   routeBound := true
   authorityBound := true
   oracleFinal := true
-  budgetBound := true
+  sameOccurrenceFeeBound := true
   priceSafe := true
 
 theorem nonvacuity_accepts :

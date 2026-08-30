@@ -22,17 +22,17 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = ROOT / "src" / "kernels" / "dex" / "zdex_atomic_buyback_lifecycle_v1.yaml"
 PYTHON_CORE = ROOT / "src" / "core" / "zdex_atomic_buyback_v1.py"
-RUST_ROUTE = ROOT / "zk" / "global_settlement_abi_v1" / "src" / "zdex_purchase_burn_route.rs"
+RUST_ROUTE = ROOT / "zk" / "global_settlement_abi_v1" / "src" / "zdex_atomic_buyback.rs"
 
-RECORDED_IR_HASH = "sha256:93cf8517ea75c0cc875595f9a1f0f7775c76695d07e27351666f9951c4373e68"
-RECORDED_SOURCE_SHA256 = "6f230f210dc4bc3b0deb6cc7fc65ee718a1c36152ef59273ed3bc2c68203dd23"
-RECORDED_FINGERPRINT = "6f9bce0d851079b841ef49c86b7296371102c1b339f0f3736619b300c5a20f94"
+RECORDED_IR_HASH = "sha256:ca7af47d90a5b8477d1534a9101e337817436573e2d25b7e2a17c21a8dcbd8a5"
+RECORDED_SOURCE_SHA256 = "000fe51c99a969ca46719420478bb5f7a99a9fcdc08d8d7f6d32abe7df4b219d"
+RECORDED_FINGERPRINT = "d1f8fea9b161d7eb75d74315ed8f370b7e4ab17f555ec6a0d28ea59d354d0459"
 RECORDED_ESSO_CODE_HASH = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
-EXPECTED_ACTIONS = {"prepare", "finalize", "discard"}
+EXPECTED_ACTIONS = {"prepare", "commit", "discard"}
 EXPECTED_INVARIANTS = {
     "inv_quote_conservation",
     "inv_zdex_owned_equals_supply",
-    "inv_occurrence_resources_consumed_atomically",
+    "inv_pending_does_not_consume_occurrence",
     "inv_pending_is_unpublished_and_exact",
     "inv_empty_has_no_pending_value_or_obligation",
     "inv_noncommit_preserves_committed_projection",
@@ -100,6 +100,8 @@ def test_model_scope_is_finite_and_claim_ceiling_is_explicit() -> None:
     # Assert
     assert occurrence_max == 1
     assert amount_max == 4
+    assert not any("budget" in state_id for state_id in state_vars)
+    assert "No persistent fee-budget object exists" in notes
     for nonclaim in (
         "does not prove the booleans",
         "runtime refinement",
@@ -137,7 +139,8 @@ def test_model_contract_names_the_runtime_commit_and_reject_obligations() -> Non
     assert "prepare_zdex_atomic_buyback_v1" in python_source
     assert "finalize_zdex_atomic_buyback_v1" in python_source
     assert "atomic buyback rejection must be an exact no-effect no-op" in python_source
-    assert "compose_zdex_purchase_burn_route_v1" in rust_source
+    assert "prepare_zdex_atomic_buyback_v1" in rust_source
+    assert "finalize_zdex_atomic_buyback_v1" in rust_source
     assert "terminal_obligations_root" in rust_source
     assert "inv_noncommit_preserves_committed_projection" in model_source
     assert "inv_commit_is_exact_atomic_purchase_and_burn" in model_source
@@ -193,6 +196,12 @@ def test_esso_two_solver_replay_is_exact_and_deterministic(tmp_path: Path) -> No
             '- { bool: true }',
             "commit_without_burn_receipt_authority",
             id="commit_without_burn_receipt_authority",
+        ),
+        pytest.param(
+            '- { param: "tokenomics_lane_receipt_ok" }',
+            '- { bool: true }',
+            "commit_without_tokenomics_lane_receipt",
+            id="commit_without_tokenomics_lane_receipt",
         ),
         pytest.param(
             '- { param: "profile_route_ok" }',

@@ -13,6 +13,7 @@ use crate::zdex_buyback_price_authority::{
 use crate::zdex_buyback_price_safety::{
     ZDEXBuybackOraclePriceOccurrenceV1, ZDEXBuybackPriceSafetyPolicyV1,
 };
+use crate::zdex_current_authority::VerifiedZDEXCurrentAuthorityV1;
 use crate::zdex_fee_allocation_types::FEE_BUYBACK_PRINCIPAL_V1;
 use crate::zdex_purchase_burn_effects::{burn_effects_v1, purchase_effects_v1};
 use crate::zdex_purchase_burn_types::{
@@ -32,6 +33,10 @@ pub trait ZDEXLaneSuccinctReceiptVerifierV1 {
         expected_image_id: &RootV1,
         expected_journal_bytes: &[u8],
     ) -> AbiResultV1<()>;
+}
+
+pub trait ZDEXBoundLaneSuccinctReceiptVerifierV1: ZDEXLaneSuccinctReceiptVerifierV1 {
+    fn verifier_binding_root(&self) -> &RootV1;
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -244,6 +249,90 @@ macro_rules! verified_lane_type {
 verified_lane_type!(VerifiedZDEXAMMPurchaseV2, verified_purchase_binding_root_v2);
 verified_lane_type!(VerifiedZDEXBurnV1, verified_burn_binding_root_v1);
 
+macro_rules! governed_verified_lane_type {
+    ($name:ident, $leaf:ty, $domain:literal) => {
+        #[derive(Clone, Debug, Eq, PartialEq)]
+        pub struct $name {
+            leaf: $leaf,
+            authority_head_root: RootV1,
+            authority_generation: u64,
+            policy_registry_root: RootV1,
+            verifier_binding_root: RootV1,
+        }
+
+        impl $name {
+            pub fn leaf(&self) -> &$leaf {
+                &self.leaf
+            }
+
+            pub fn authority_head_root(&self) -> &RootV1 {
+                &self.authority_head_root
+            }
+
+            pub fn authority_generation(&self) -> u64 {
+                self.authority_generation
+            }
+
+            pub fn policy_registry_root(&self) -> &RootV1 {
+                &self.policy_registry_root
+            }
+
+            pub fn verifier_binding_root(&self) -> &RootV1 {
+                &self.verifier_binding_root
+            }
+
+            pub fn binding_root(&self) -> AbiResultV1<RootV1> {
+                #[derive(Serialize)]
+                struct Binding<'a> {
+                    leaf_binding_root: RootV1,
+                    authority_head_root: &'a RootV1,
+                    authority_generation: u64,
+                    policy_registry_root: &'a RootV1,
+                    verifier_binding_root: &'a RootV1,
+                }
+                hash_global_v1(
+                    $domain,
+                    &Binding {
+                        leaf_binding_root: self.leaf.binding_root()?,
+                        authority_head_root: &self.authority_head_root,
+                        authority_generation: self.authority_generation,
+                        policy_registry_root: &self.policy_registry_root,
+                        verifier_binding_root: &self.verifier_binding_root,
+                    },
+                )
+            }
+        }
+    };
+}
+
+governed_verified_lane_type!(
+    GovernedVerifiedZDEXAMMPurchaseV2,
+    VerifiedZDEXAMMPurchaseV2,
+    "governed-verified-zdex-amm-purchase-v2"
+);
+governed_verified_lane_type!(
+    GovernedVerifiedZDEXBurnV1,
+    VerifiedZDEXBurnV1,
+    "governed-verified-zdex-burn-v1"
+);
+
+fn require_current_authority_v1(
+    occurrence: &EconomicCommandOccurrenceV1,
+    writer_epoch: u64,
+    authority: &VerifiedZDEXCurrentAuthorityV1,
+    verifier: &impl ZDEXBoundLaneSuccinctReceiptVerifierV1,
+) -> AbiResultV1<()> {
+    if authority.profile_root() != &occurrence.profile_root
+        || authority.authority_epoch() != writer_epoch
+        || authority.receipt_verifier_binding_root() != verifier.verifier_binding_root()
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX current authority receipt verifier",
+        ));
+    }
+    Ok(())
+}
+
 fn require_route_shape_v1(route: &RouteReleaseV1) -> AbiResultV1<()> {
     route.validate()?;
     if route.status != ReleaseStatusV1::SHADOW {
@@ -425,6 +514,27 @@ pub fn verify_zdex_amm_purchase_receipt_v2(
     }))
 }
 
+pub fn verify_governed_zdex_amm_purchase_receipt_v2(
+    candidate: ZDEXPurchaseReceiptCandidateV2<'_>,
+    authority: &VerifiedZDEXCurrentAuthorityV1,
+    verifier: &impl ZDEXBoundLaneSuccinctReceiptVerifierV1,
+) -> AbiResultV1<GovernedVerifiedZDEXAMMPurchaseV2> {
+    require_current_authority_v1(
+        candidate.occurrence,
+        candidate.journal.writer_epoch,
+        authority,
+        verifier,
+    )?;
+    let leaf = verify_zdex_amm_purchase_receipt_v2(candidate, verifier)?;
+    Ok(GovernedVerifiedZDEXAMMPurchaseV2 {
+        leaf,
+        authority_head_root: authority.authority_head_root().clone(),
+        authority_generation: authority.authority_generation(),
+        policy_registry_root: authority.policy_registry_root().clone(),
+        verifier_binding_root: authority.receipt_verifier_binding_root().clone(),
+    })
+}
+
 pub fn verify_zdex_burn_receipt_v1(
     candidate: ZDEXBurnReceiptCandidateV1<'_>,
     verifier: &impl ZDEXLaneSuccinctReceiptVerifierV1,
@@ -476,6 +586,27 @@ pub fn verify_zdex_burn_receipt_v1(
     }))
 }
 
+pub fn verify_governed_zdex_burn_receipt_v1(
+    candidate: ZDEXBurnReceiptCandidateV1<'_>,
+    authority: &VerifiedZDEXCurrentAuthorityV1,
+    verifier: &impl ZDEXBoundLaneSuccinctReceiptVerifierV1,
+) -> AbiResultV1<GovernedVerifiedZDEXBurnV1> {
+    require_current_authority_v1(
+        candidate.occurrence,
+        candidate.journal.writer_epoch,
+        authority,
+        verifier,
+    )?;
+    let leaf = verify_zdex_burn_receipt_v1(candidate, verifier)?;
+    Ok(GovernedVerifiedZDEXBurnV1 {
+        leaf,
+        authority_head_root: authority.authority_head_root().clone(),
+        authority_generation: authority.authority_generation(),
+        policy_registry_root: authority.policy_registry_root().clone(),
+        verifier_binding_root: authority.receipt_verifier_binding_root().clone(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -494,20 +625,20 @@ mod tests {
                 "0x7930bfefe4715aa91d5e5564d62d01db16f363a2810f3c6f3914ba76866a9053",
             ),
             command_occurrence_id: root(
-                "0x650353795d5ccb8eee0029a9b1bd2a2efd0c94314457f1060b365ee3198800c3",
+                "0x96ba9fc2145f579d8f3fe37d51bc106121b6da3cea6727b047d61f3e6e791515",
             ),
             profile_root: root(
                 "0xf78649ee6f1098e078d3e31b563d9d129c8cacc34df08158718488015ddff828",
             ),
             writer_epoch: 11,
             journal_root: root(
-                "0x1e45b3b2b7610efa2fdbd1d3a80cdcadc84954b45ef8d97d7e9cf1df07768f71",
+                "0x722ca8ffc80528e280a27f6757ae279aa176a9e5aa005fe6de1fc6ab31f77ed9",
             ),
             journal_digest: root(
-                "0x97460cedf0cee0685b28f7f05314b4558235a4e684b2eeedd90c2981ee1ec19f",
+                "0x1c5fb2195d3d70f22eee7e3c65bf47d102bc6d8ade77d66bcf94194c2f20e502",
             ),
             effect_plan_root: root(
-                "0x0b09c25c12998ccbf6c4b553c658e14f1b6441a288c0df05592990b60d4d4135",
+                "0x9f1b3b07ec308297b0cae14fd5384070c5e269ee8806057db95839c24bc00e1d",
             ),
             expected_image_id: root(
                 "0x0000000000000000000000000000000000000000000000000000000000000429",
@@ -517,7 +648,7 @@ mod tests {
             ),
             receipt_kind: ReceiptKindV1::SUCCINCT,
             price_authority_root: Some(root(
-                "0x29919f7e5103b07ba7b61feaf63b56b3fb878c0c087be72f0511f8fad8fbaa09",
+                "0x15ecdaa5390b408ee4439e5f96491fbddf6f1f339249c8135af787b933b7b421",
             )),
             price_safety_policy_root: Some(root(
                 "0x6247a62b46b80561c4f9bb7694a90cfaa514eea6a228e9defd1da392efd4e93a",
@@ -526,7 +657,7 @@ mod tests {
 
         assert_eq!(
             verified_purchase_binding_root_v2(&fields).unwrap().as_str(),
-            "0x2297c6834d02ce2a84edf4d3e0f08c124baee16085231e1590c4a9f685c96867"
+            "0x4c28917c9a832f1402e19a18575ad6c2d1b689adcb99f598978d2138b10e0466"
         );
     }
 }
