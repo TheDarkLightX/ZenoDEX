@@ -1,0 +1,228 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260830-zdex-tokenomics-buyback-runtime-core-v1",
+  "created_date": "2026-08-30",
+  "claim_scope": "Research-only SHADOW runtime evidence for the successor ZDEX_TOKENOMICS leaf of one governed same-occurrence ZDEX buy-and-burn. Python and Rust derive same-occurrence fee allocation from committed ingress, the capped buyback-reserve spend, cadence, the acyclic semantic quote port V2, Spot obligation binding by recomputed flow identities, exact purchased-ZDEX burn under the retained-supply rule and epoch cap, live-supply update, canonical effects, one tokenomics lane write, private ports, and a self-checking journal from exact typed inputs inside one complete bucket-free tokenomics state. Fixed vectors share ten canonical roots across both runtimes and both runtimes compose with the real Spot V1 leaf through placeholder provenance roots. This packet does not authenticate the caller-constructible profile authorization, safe-limit port, Spot obligation context root, or any receipt.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "ZDEX-TOKENOMICS-COMMITTED-INGRESS-FEE-COMMAND",
+    "ZDEX-TOKENOMICS-GOVERNED-SPEND-MINIMUM",
+    "ZDEX-TOKENOMICS-RESERVE-CONSERVATION",
+    "ZDEX-TOKENOMICS-CADENCE-HEIGHT",
+    "ZDEX-TOKENOMICS-ACYCLIC-QUOTE-PORT-V2",
+    "ZDEX-TOKENOMICS-SPOT-OBLIGATION-EXACT-QUOTE",
+    "ZDEX-TOKENOMICS-EXACT-PURCHASED-BURN",
+    "ZDEX-TOKENOMICS-RETAINED-SUPPLY-AND-EPOCH-CAP",
+    "ZDEX-TOKENOMICS-NO-POOL-MIRROR-NO-EPHEMERAL-PORT-ROW",
+    "ZDEX-TOKENOMICS-EXACT-EFFECT-SHAPE",
+    "ZDEX-TOKENOMICS-JOURNAL-COMMITS-PORT-AND-OBLIGATION",
+    "ZDEX-TOKENOMICS-REJECT-NOOP",
+    "ZDEX-TOKENOMICS-FIRST-FAILURE-PRECEDENCE",
+    "ZDEX-TOKENOMICS-EXACT-ACCEPTED-GRAPH",
+    "ZDEX-TOKENOMICS-PYTHON-RUST-ROOT-PARITY"
+  ],
+  "failure_modes": [
+    "a caller supplies a fee budget different from the committed ingress",
+    "the spend exceeds the reserve, the per-command cap, or the route-safe limit, or falls below the governed minimum without rejecting",
+    "the buyback reserve does not satisfy B1 + q = B0 + b",
+    "a command executes inside the cooldown interval or at a regressed height",
+    "the quote port carries a journal or receipt-binding root that can form a hash fixed point with the module journal or verified wrapper",
+    "the Spot leaf ran with a different quote, pool, asset, burn principal, consumer module, or purchased amount than the tokenomics leaf derived",
+    "burned atoms differ from purchased atoms or live supply does not decrease by exactly the burn",
+    "a burn breaches the retained-supply floor or the remaining epoch cap",
+    "the tokenomics state mirrors a Spot pool reserve or persists the ephemeral purchased-ZDEX port",
+    "an accepted leaf emits ACCOUNT_MOVEMENT rows, a second lane write, or a row for the transient burn port",
+    "the journal is detached from H(port), the ports root, the discharged obligation id, or the accepting amounts",
+    "a rejected command changes state or exposes effects, ports, or a journal",
+    "a later guard fires before an earlier declared guard",
+    "an object.__new__ wrapper, hostile equality, cycle, or oversized graph validates a different canonical projection",
+    "Python and Rust commit different bytes for the same accepted transition"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_tokenomics_buyback_transition_v1.py",
+      "sha256": "340439b38a0d4243c07b2a1a6aacb02ca3a3d8b809438e84cb30c8afe9eb6400"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_tokenomics_buyback_transition.rs",
+      "sha256": "3ad3f6e9ffc632e8d0d4017b453024c5c22e1590a7e94521c5216f501613729e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "89c2bea13f7881044c7d09dcd7ad46190bab45f4beb89b21701323edf9f5c6e7"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_tokenomics_buyback_transition.rs",
+      "sha256": "5996db0a08db7ea874e9365e8a4a708f8f2f8c231dc6c9b7362a00a0f6e9225b"
+    },
+    {
+      "path": "docs/research/ZDEX_ATOMIC_BUYBACK_ARCHITECTURE_DECISION_20260828.md",
+      "sha256": "981b32a5cfe12e9395aaa2c29890ab59c20ea43b178ec1ee977b8142d99d8aaf"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py",
+      "sha256": "ddb45a28c64452fe3c47858170eed6f98c55f323614a786f2873777ebc790c01",
+      "node_ids": [
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_accepts_governed_spend_exact_burn_and_freezes_commitment_roots",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_intent_is_exact_prefix_of_accepted_transition",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_ports_pair_exactly_with_the_spot_leaf_and_discharge_its_obligation",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_effect_plan_has_exact_shape_and_no_ephemeral_port_row",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_one_atom_flows_through_both_leaves",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_spend_selection_is_the_governed_minimum",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_minimum_spend_boundary_is_exact",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_fee_ingress_width_boundaries_reject_without_effects",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_fee_ingress_at_signed_effect_maximum_is_live",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_cadence_boundaries_at_height_77_with_interval_5",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_burn_capacity_boundaries_are_exact",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_u64_height_maximum_accepts_and_successor_is_unrepresentable",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_fee_registry_width_boundaries_are_unrepresentable",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_lane_state_rejects_cadence_drift_and_supply_asset_collision",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_each_intent_guard_has_a_mutation_killing_noop",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_each_purchase_port_guard_has_a_mutation_killing_noop",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_release_reject_precedes_profile_and_later_failures",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_spend_reject_precedes_purchase_port_and_burn_failures",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_purchase_port_reject_precedes_burn_failure",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_reversed_asset_order_is_a_policy_mismatch_before_lane_validation",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_cross_occurrence_substitution_changes_both_flow_identities",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_generated_spend_selection_is_deterministic_and_conserved",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_generated_full_transitions_conserve_supply_and_pair_ports",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_two_occurrence_history_carries_the_reserve_and_rejects_replay",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_accepted_result_rederives_and_rejects_private_token_forgery",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_intent_result_rederives_and_rejects_quote_output_forgery",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_rejected_value_cannot_carry_inconsistent_phase_codes",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_fee_policy_share_registry_keeps_hosting_compensation_separate_from_burn",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_quote_port_v2_is_acyclic_and_proof_independent"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "differential",
+    "stateful",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange one exact typed intent input or full candidate, one generated candidate, or one isolated semantic mutant; act only through derive_zdex_tokenomics_buyback_intent_v1, transition_zdex_tokenomics_buyback_v1, or the real Spot leaf; and assert exact amounts, first reject tuples, unchanged state and empty effects, deterministic repeated output, conservation, port pairing, or fixed cross-language roots. RIPR propagates ingress, reserve, cadence, port, obligation, burn-capacity, and role defects into state or commitment differences revealed by independent assertions."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every exercised reject returns the original Python state object or an equal Rust state value, empty effects, and no ports or journal, and kernel-phase rejects carry the exact inner spend and fee codes. Malformed wire decoding and durable history are outside this local transition claim."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "spend_selection",
+      "points": [
+        "safe_limit_124_cap_200_reserve_100_selects_124",
+        "cap_30_selects_30",
+        "reserve_zero_selects_the_25_atom_allocation",
+        "one_atom_safe_limit_selects_one_atom",
+        "minimum_equal_to_spend_accepts",
+        "minimum_one_above_spend_rejects"
+      ]
+    },
+    {
+      "name": "fee_ingress_width",
+      "points": [
+        "zero_ingress_rejects_zero_fee",
+        "i128_maximum_ingress_is_live",
+        "i128_maximum_plus_one_rejects_effect_width"
+      ]
+    },
+    {
+      "name": "cadence",
+      "points": [
+        "elapsed_equal_to_interval_accepts",
+        "elapsed_one_below_interval_rejects_cooldown",
+        "future_last_height_rejects_regression",
+        "u64_height_maximum_accepts_and_successor_is_unrepresentable"
+      ]
+    },
+    {
+      "name": "burn_capacity",
+      "points": [
+        "epoch_cap_equal_to_purchase_accepts",
+        "epoch_cap_one_below_purchase_rejects",
+        "epoch_cap_zero_rejects_cap_reached",
+        "retained_headroom_equal_to_purchase_accepts_at_floor",
+        "retained_headroom_one_below_rejects",
+        "live_supply_one_rejects_floor_reached"
+      ]
+    },
+    {
+      "name": "registry_and_state",
+      "points": [
+        "fee_registry_width_zero_and_65_unrepresentable",
+        "cadence_registry_must_cover_fee_assets",
+        "supply_asset_cannot_be_fee_asset",
+        "decimals_above_policy_maximum_rejects_lane_malformed",
+        "fee_state_policy_root_drift_rejects_selection"
+      ]
+    },
+    {
+      "name": "composition_and_commitment",
+      "points": [
+        "one_atom_flows_through_both_leaves",
+        "ports_pair_exactly_with_spot_flow_amounts_and_principals",
+        "different_command_occurrence_changes_port_root_and_obligation",
+        "ten_fixed_python_rust_roots_match",
+        "quote_port_v2_has_no_journal_or_receipt_field"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "remove the canonical quote-before-ZDEX asset order guard",
+      "killed_by": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_reversed_asset_order_is_a_policy_mismatch_before_lane_validation"
+    },
+    {
+      "description": "allow release mismatch to fall through to a later profile failure",
+      "killed_by": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_release_reject_precedes_profile_and_later_failures"
+    },
+    {
+      "description": "consume the Spot obligation before deriving the governed spend",
+      "killed_by": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_spend_reject_precedes_purchase_port_and_burn_failures"
+    },
+    {
+      "description": "burn before binding the obligation to the governed pool, asset, principal, and amount",
+      "killed_by": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_purchase_port_reject_precedes_burn_failure"
+    },
+    {
+      "description": "omit the exact-q quote-flow recomputation so a Spot run with a different quote is accepted",
+      "killed_by": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_each_purchase_port_guard_has_a_mutation_killing_noop"
+    },
+    {
+      "description": "drop any structural guard, kernel-phase guard, or burn-capacity guard",
+      "killed_by": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_each_intent_guard_has_a_mutation_killing_noop"
+    },
+    {
+      "description": "reintroduce a journal or receipt-binding root into the quote port",
+      "killed_by": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_quote_port_v2_is_acyclic_and_proof_independent"
+    },
+    {
+      "description": "use the importable token, hostile equality, bool aliases, cycles, or oversized object.__new__ graphs to validate a forged projection",
+      "killed_by": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_accepted_result_rederives_and_rejects_private_token_forgery"
+    },
+    {
+      "description": "let a zero-bounty hosting share silently skip the burn instead of rejecting",
+      "killed_by": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_fee_policy_share_registry_keeps_hosting_compensation_separate_from_burn"
+    }
+  ],
+  "nonclaims": [
+    "The profile authorization, safe-limit port, Spot obligation context root, and Spot placeholder provenance roots are typed caller-constructible provenance, not deployed cryptographic authority; no receipt is verified or authenticated inside this leaf.",
+    "Spot V1 still requires source_journal_root and source_receipt_binding_root; a Spot V2 port consuming only the acyclic V2 fields is required work before the two successor leaves compose without placeholders.",
+    "Fixed-vector canonical parity is not a universal Python-Rust refinement proof, and no Lean model exists yet for the tokenomics leaf.",
+    "The generated campaigns are bounded to 100 deterministic Hypothesis examples each and are not exhaustive over the release domain.",
+    "No automated whole-module mutation score has been run; the mutation rows bind explicit semantic mutants to focused killing regressions.",
+    "Fee percentages, spend caps, minimum spend, cadence interval, retained-supply parameters, and epoch burn limits remain research fixtures under UP-01, UP-12, and UP-14; they are not production policy.",
+    "No lane coordinator, route composer, four-row global custody projection, RISC0 guest, current-head verifier, migration, publisher, settlement, or value-moving authority is established.",
+    "The occurrence consumption effect is emitted by the tokenomics leaf and remains a global replay-verifier obligation."
+  ]
+}

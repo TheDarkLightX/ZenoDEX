@@ -323,6 +323,94 @@ core. They become authority only after a current-head verifier binds them to
 the active global state and exact verified receipts. No such adapter, Spot
 guest, lane receipt, or production verifier is mounted by this checkpoint.
 
+### Exact Tokenomics functional-core checkpoint
+
+The SHADOW Python and Rust cores now implement the successor `ZDEX_TOKENOMICS`
+leaf in `src/core/zdex_tokenomics_buyback_transition_v1.py` and
+`zk/global_settlement_abi_v1/src/zdex_tokenomics_buyback_transition.rs`. The
+leaf owns one complete tokenomics state, `ZDEXTokenomicsBuybackLaneStateV1`:
+a bucket-free supply control record (asset, hyperdeflation policy root,
+decimals, precision epoch, live supply, burn budget epoch, remaining epoch burn
+cap), the canonical fee states, one cadence state per fee asset, and the six
+unrelated component roots. The state carries no Spot pool reserve mirror, and
+purchased ZDEX awaiting burn has no durable representation. This follows the
+lane decomposition in `ZDEXAtomicBuybackTransitionV1.lean`, where the
+tokenomics lane owns the fee-backed quote source, live supply, replay, and
+burn-pending observations while the Spot lane owns the selected pool.
+
+Phase A, `derive_zdex_tokenomics_buyback_intent_v1`, runs the ordered guards
+`AUTHORITY_MALFORMED`, `RELEASE_MISMATCH`, `PROFILE_MISMATCH`,
+`STATE_COMMITMENT_MISMATCH`, `SAFETY_LIMIT_MISMATCH`, `POLICY_MISMATCH`,
+`LANE_MALFORMED`, and `SELECTION_MISMATCH`, then reuses the existing fee
+allocation and reserve-spend kernels. The fee command is the committed fee
+ingress of the governed quote asset, so no caller-selected fee budget exists.
+The spend is `q = min(B0 + b, per_command_cap, route_safe_limit)`, cadence
+advances to the consensus height, and the spend-phase effect plan contains the
+allocation rows plus one custody debit of the buyback reserve and no lane
+write. Kernel rejections surface as `SPEND_REJECTED` together with the exact
+inner spend code and fee code, so an invalid phase and code combination is
+unrepresentable.
+
+The phase-A output is the acyclic semantic port `ZDEXAtomicBuybackQuotePortV2`.
+It carries proof-independent producer and consumer module release ids, the
+producer pre and post lane roots, the producer effect-plan root, the amount,
+the pool, the quote asset, the source and destination principals, and the
+profile, route, occurrence, and global pre-state coordinates. It omits journal
+and receipt-binding roots. Independent review established that binding the
+Tokenomics verified-leaf `binding_root` inside the Spot quote port would create
+a hash fixed-point cycle through `private_port_root`, the module journal, the
+receipt, and the verified wrapper. The historical `ZDEXSpotQuoteInputPortV1`
+bytes are preserved unchanged; that port still requires `source_journal_root`
+and `source_receipt_binding_root`, so a Spot V2 port that consumes only the
+acyclic fields is required work before the two successor leaves compose without
+placeholder provenance.
+
+Phase B, `transition_zdex_tokenomics_buyback_v1`, re-derives phase A and binds
+the Spot terminal obligation by recomputing both Spot flow identities from the
+obligation's own context root: the purchased flow must name the governed pool,
+ZDEX asset, pool reserve principal, occurrence-bound burn principal, and the
+purchased amount (`PURCHASE_PORT_MISMATCH`), and the quote flow must name
+exactly the derived `q` (`QUOTE_FLOW_MISMATCH`). The burn uses the existing
+retained-supply arithmetic and the remaining epoch cap; `BURN_REJECTED` carries
+`RETAINED_SUPPLY_FLOOR_REACHED`, `EPOCH_BURN_CAP_REACHED`, or
+`BURN_EXCEEDS_CAPACITY`. The accepted result changes the fee state, cadence,
+live supply, and remaining epoch cap; emits the allocation rows, the reserve
+debit, one `BURN` row, quote and ZDEX conservation rows, the fee conservation
+row, one `ZDEX_TOKENOMICS` lane write, and one occurrence consumption; and
+never emits a row for the ephemeral burn port. The private ports value pairs
+the produced quote port with the consumed obligation. The journal commits the
+context root, the pre, spend-post, and post lane roots, the spend and full
+effect-plan roots, `H(port)`, the ports root, the discharged obligation id, the
+fee occurrence root, the spend intent root, the safety-limit binding root, and
+every amount, and its construction checks `F = b + other + r`,
+`B1 + q = B0 + b`, `purchased = burned`, `live_post + p = live_pre`,
+`retained <= live_post`, and `cap_post + p = cap_pre`. Every rejection returns
+the identical prestate with empty effects and no ports or journal. Python
+accepted and intent values rederive from their frozen subject under the same
+closed exact-type graph discipline as the Spot leaf; Rust accepted fields are
+private.
+
+Evidence covers fixed vectors shared by both runtimes (ten commitment roots),
+composition with the real Spot leaf in both languages, spend-selection and
+burn-capacity boundaries, one-atom flow through both leaves, cadence and fee
+width boundaries, a deterministic 100-example spend-selection campaign and a
+100-example full-transition campaign, a two-occurrence history with replay
+rejection, guard-precedence mutants, obligation substitution mutants, and
+accepted-value forgery. The packet is
+`tests/evidence/test_hygiene/THV1-20260830-zdex-tokenomics-buyback-runtime-core-v1.json`.
+
+The outer route composer, which does not exist yet, must pair the exact
+`H(port)` consumed by Spot with the Tokenomics journal `quote_port_root` and
+`private_ports_root`, pair the Spot terminal obligation id with
+`discharged_obligation_id`, check the Spot consumed port fields against the V2
+port, and bind both lane journals to opaque verified leaf wrappers. The
+safety-limit port, the obligation context root, and the profile authorization
+remain caller-constructible provenance inside this leaf. No receipt is
+verified, no lane coordinator or Lean model exists for the tokenomics leaf, the
+fee, spend, and retained-supply parameters remain unselected research fixtures,
+and no production, settlement, publication, or value-moving authority is
+established.
+
 ## ABI boundary for consumed objects
 
 `EconomicCommandOccurrenceV1` already commits `consumed_object_ids`, while the
@@ -440,6 +528,11 @@ covers the complete atomic state, including fee allocation, cadence, and burn,
 remain incomplete. The exact Spot command has bounded Python/Rust differential
 evidence, with the complete Lean/runtime correspondence obligations described
 above.
+The successor tokenomics leaf now owns fee allocation, reserve spend, cadence,
+the acyclic V2 quote port, exact burn, and supply update in one complete
+state with bounded Python/Rust differential evidence; it verifies no receipt,
+and Spot V1 still consumes two placeholder provenance roots until a Spot V2
+port exists.
 The existing burn-only tokenomics coordinator does not close the route
 obligation. Current-head admission, authenticated Tokenomics source receipt,
 RISC0 guests, universal runtime-to-theorem refinement, migration, durable
