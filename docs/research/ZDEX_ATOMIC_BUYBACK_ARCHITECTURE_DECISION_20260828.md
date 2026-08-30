@@ -185,6 +185,75 @@ cadence, and exact burn inside one complete tokenomics state. Route composition
 will build the four-row global custody projection after both lane receipts
 verify. No existing purchase receipt is promoted by this decision.
 
+### Exact Spot functional-core checkpoint
+
+`ZDEXSpotBuybackTransitionV1.lean` defines the command-specific Spot state
+machine required by the successor leaf. The formal input contains a canonical
+sorted unique pool registry whose siblings may use other registered curves, an
+exact injective mathematical pool identifier, the pool lifecycle state, the
+governed tokenomics quote-input port, and a finalized subject-bound Oracle
+occurrence. Purchased ZDEX is absent from the input authority and is derived by
+the CPMM-v8 exact-in equation. The selected pool alone must use CPMM v8. The
+accepted result changes one selected pool, emits only the two typed Spot pool
+reserve custody deltas and one pre/post-root-bound Spot lane write, exposes
+paired quote and purchased-ZDEX ports, journals the exact state, effect, port,
+release, policy, Oracle, pool, and terminal commitments, and creates a nonzero
+fully context-bound terminal obligation. Rejection returns the exact prestate
+with empty effects, ports, and obligation.
+
+The command imports the existing `ZDEXBuybackPriceSafetyV1` policy and proves
+its local predicate equivalent to that complete price-safety contract. Profile
+authorization commits the exact release, execution and price policies, and the
+governed Oracle provider. The prestate root is tied to the full Spot state. The
+Oracle occurrence must be a final member of a canonical provider-restricted
+registry under the authority-supplied Oracle registry root. The typed quote
+port commits nonzero, distinct Tokenomics source pre/post roots plus its effect,
+journal, and receipt-binding roots. Both flow identifiers include those roots
+and the command occurrence, preventing cross-occurrence aliases in the exact
+mathematical encoding. Admission also requires U64 bounds for epoch and height
+fields, U128 bounds for every fee, CPMM, route-limit, and price-envelope
+intermediate, signed-effect magnitude bounds, and nonzero unrelated Spot roots.
+
+Sibling pools using another curve must name a release in the exact release
+registry with `ACTIVE_NEW` or `DRAIN_ONLY` status. Unknown, retired, or revoked
+curve releases cannot satisfy pool well-formedness. Lean proves injectivity for
+the mathematical state, release, self-consistent profile, Oracle registry,
+flow, and full terminal-obligation commitments. It also proves exact
+selected-pool lookup in the actual post-registry, universal sibling
+preservation, canonical registry preservation, CPMM product nondecrease over
+that looked-up state, and one Spot-local conservation theorem linking reserve
+differences, fee/net identity, custody effects, and both value ports. The
+terminal obligation has the exact `MUST_BURN_PURCHASED_ZDEX` kind, ZDEX supply
+burn domain, Tokenomics consumer, burn asset, burn principal, and amount.
+Accepting fixtures cover a rounded nonzero fee, a one-atom quote, the exact
+Oracle freshness boundary, and a registered sibling curve. Negative witnesses
+cover each ordered reject family plus cross-occurrence substitution,
+unauthorized Oracle provider, invalid Tokenomics source provenance,
+unregistered and revoked curve releases, stale Oracle data, and the first
+height outside U64.
+
+This bounded release fixes `protocol_fee_share_bps = 0`. The complete rounded
+swap fee therefore remains in the pool. A nonzero protocol share would require
+a third typed value port, a named receiver state machine, different reserve
+effects, and a new release. The 3,000,000,000-atom reserve and swap caps are
+also release semantics for this checkpoint; they are not promoted as final
+production economic limits.
+
+The historical purchase journals cannot be refined by relabeling their output
+field. The Python donor vector with `q = 125`, reserves `1000/1000`, zero fee,
+and `p = 111` agrees with exact CPMM rounding. The Rust donor vector with
+`q = 125`, reserves `2000/500`, zero fee, and `p = 40` does not: exact CPMM
+output is `floor(500 * 125 / 2125) = 29`. That vector remains historical
+SHADOW evidence and is invalid for the successor exact-CPMM release.
+
+The Lean checkpoint is an exact mathematical state machine. At source SHA-256
+`e5c2bc35f15afc38cb9f812ac99bd8dc824153ff1b1f2d55845cae550bfa861d`,
+independent read-only review approved it only as the subject for Python/Rust
+refinement and retained a NO-GO for mounting, settlement authority, and
+production claims. It does not establish canonical-byte or cryptographic-root
+refinement, Python/Rust parity, RISC0 receipt verification, lane composition,
+global replay consumption, or ZenoLedger publication authority.
+
 ## ABI boundary for consumed objects
 
 `EconomicCommandOccurrenceV1` already commits `consumed_object_ids`, while the

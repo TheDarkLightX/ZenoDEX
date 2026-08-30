@@ -1,0 +1,190 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260830-zdex-spot-buyback-formal-core-v1",
+  "created_date": "2026-08-30",
+  "claim_scope": "Research-only formal evidence for the command-specific SPOT_LIQUIDITY state machine used by one governed same-occurrence ZDEX buy-and-burn. Lean models an exact pool definition, injective mathematical pool identity, canonical sorted unique heterogeneous-curve registry with release-status admission, typed Tokenomics source provenance, governed Oracle-provider and canonical final-occurrence registry membership, exact reuse of the existing buyback price-safety contract, exact CPMM-v8 output derivation, explicit U64/U128/signed-effect arithmetic admission, zero protocol-fee-share release, Spot-only effects, complete journals and command-occurrence-bound flow identities, ordered typed rejection, actual post-registry selected lookup, universal sibling preservation, Spot-local value conservation, injective mathematical commitments, and a nonzero fully context-bound must-burn terminal obligation.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "ZDEX-SPOT-BUYBACK-DERIVED-OUTPUT",
+    "ZDEX-SPOT-BUYBACK-CANONICAL-POOL-IDENTITY",
+    "ZDEX-SPOT-BUYBACK-UNIVERSAL-SIBLING-PRESERVATION",
+    "ZDEX-SPOT-BUYBACK-ZERO-PROTOCOL-FEE-RELEASE",
+    "ZDEX-SPOT-BUYBACK-SPOT-ONLY-EFFECTS",
+    "ZDEX-SPOT-BUYBACK-EXACT-JOURNAL-BINDING",
+    "ZDEX-SPOT-BUYBACK-MACHINE-WIDTH-ADMISSION",
+    "ZDEX-SPOT-BUYBACK-ACTUAL-POST-LOOKUP",
+    "ZDEX-SPOT-BUYBACK-COMMAND-OCCURRENCE-FLOW-SEPARATION",
+    "ZDEX-SPOT-BUYBACK-GOVERNED-ORACLE-MEMBERSHIP",
+    "ZDEX-SPOT-BUYBACK-REGISTERED-CURVE-STATUS",
+    "ZDEX-SPOT-BUYBACK-TOKENOMICS-SOURCE-PROVENANCE",
+    "ZDEX-SPOT-BUYBACK-MATHEMATICAL-COMMITMENT-INJECTIVITY",
+    "ZDEX-SPOT-BUYBACK-SPOT-LOCAL-CONSERVATION",
+    "ZDEX-SPOT-BUYBACK-REJECT-NOOP",
+    "ZDEX-SPOT-BUYBACK-FIRST-FAILURE-PRECEDENCE",
+    "ZDEX-SPOT-BUYBACK-NONZERO-TERMINAL-OBLIGATION"
+  ],
+  "failure_modes": [
+    "a caller supplies or substitutes the purchased ZDEX amount",
+    "the selected pool definition, asset orientation, lifecycle, or release differs from policy",
+    "a non-selected pool or unrelated Spot commitment changes",
+    "a historical non-CPMM output vector is accepted",
+    "a protocol fee is removed without a typed receiving state machine",
+    "a profile, route, occurrence, pre-root, module release, or Oracle subject is substituted",
+    "a flow from another command occurrence aliases an accepted quote or purchased-output flow",
+    "a self-labeled final Oracle occurrence bypasses the governed provider or committed registry",
+    "an unknown, retired, or revoked sibling curve remains admissible",
+    "a quote port omits or aliases its Tokenomics source transition and receipt provenance",
+    "an unbounded natural-number proof authorizes a machine-width overflow",
+    "a journal, effect-plan root, private-port root, or terminal commitment is detached from the accepted transition",
+    "rejection emits state, custody, lane-write, replay, port, or terminal-obligation effects",
+    "the Spot leaf consumes global replay authority or performs tokenomics burn accounting"
+  ],
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/ZDEXSpotBuybackTransitionV1.lean",
+      "sha256": "e5c2bc35f15afc38cb9f812ac99bd8dc824153ff1b1f2d55845cae550bfa861d"
+    },
+    {
+      "path": "docs/research/ZDEX_ATOMIC_BUYBACK_ARCHITECTURE_DECISION_20260828.md",
+      "sha256": "00980bdd1c0be72641d5ea15a475a817e59b2182fc5e16b44169e12cc263f179"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py",
+      "sha256": "e526209caee62b549c9fc8d4973941e6c92392f97fc6c0ce88dee692ef73fdc9",
+      "node_ids": [
+        "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_has_closed_command_specific_surface",
+        "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "formal"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The source-surface test arranges the exact proof file, acts by reading or typechecking it with the pinned Lean toolchain, and asserts the closed declarations, prohibited placeholders, and conservative nonclaims. RIPR reaches declarations used by transition, infects derived output, admission, state, effects, ports, journals, or obligations, propagates into theorem conclusions or native_decide witnesses, and reveals through failed Lean checking. The primary model oracle is grade 4; runtime refinement remains ungraded."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "rejected_is_exact_noop proves identical formal pre/post state plus empty effects, private ports, and terminal obligation for every rejected transition. Runtime history, receipt, outbox, and durable-state no-op remain unproved."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "quote_amount_and_fee",
+      "points": [
+        "zero_quote_rejects_amount_out_of_range",
+        "one_atom_with_sufficient_depth_and_price_envelope_accepts",
+        "one_atom_with_extreme_reserve_ratio_rejects_zero_output",
+        "fee_equal_to_gross_rejects_fee_consumes_input",
+        "thirty_basis_point_fee_rounds_up_to_one_atom_and_accepts",
+        "accepted_125_atom_zero_fee_vector_derives_111_atoms"
+      ]
+    },
+    {
+      "name": "minimum_output_and_price",
+      "points": [
+        "exact_governed_minimum_accepts",
+        "one_atom_higher_minimum_rejects_minimum_output_mismatch",
+        "subject_bound_price_outside_deviation_rejects_price_unsafe",
+        "oracle_age_equal_to_maximum_accepts",
+        "oracle_age_one_above_maximum_rejects_price_unsafe"
+      ]
+    },
+    {
+      "name": "machine_arithmetic_domain",
+      "points": [
+        "writer_epoch_zero_accepts",
+        "current_height_max_u64_satisfies_arithmetic_guard",
+        "current_height_max_u64_plus_one_rejects_arithmetic_out_of_range",
+        "all_fee_cpmm_route_limit_and_oracle_cross_products_fit_u128",
+        "quote_and_purchased_effect_magnitudes_fit_signed_i127"
+      ]
+    },
+    {
+      "name": "pool_registry_and_lifecycle",
+      "points": [
+        "empty_registry_rejects_lane_malformed",
+        "misplaced_selection_witness_rejects_selection_mismatch",
+        "frozen_pool_rejects_pool_inactive",
+        "registered_drain_only_sibling_curve_accepts",
+        "unregistered_sibling_curve_rejects_lane_malformed",
+        "revoked_sibling_curve_is_not_well_formed",
+        "accepted_transition_preserves_every_other_pool_lookup"
+      ]
+    },
+    {
+      "name": "authority_and_provenance",
+      "points": [
+        "different_command_occurrences_produce_distinct_flow_ids",
+        "unauthorized_oracle_provider_rejects_oracle_mismatch",
+        "aliased_tokenomics_source_pre_post_roots_reject_quote_port_mismatch",
+        "terminal_kind_requires_purchased_zdex_supply_burn"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "replace CPMM-derived purchasedZDEX with an input field",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "remove one authority or subject guard from rejectOrder",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "update a sibling pool or change the selected pool identifier",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "emit tokenomics burn, replay consumption, or another lane write from Spot",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "allow protocol_fee_share_bps to be nonzero in the approved release",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "drop or zero the accepted terminal obligation",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "remove a machine-width intermediate bound or accept max-u64-plus-one height",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "bind a journal to substituted poststate, effects, ports, or terminal data",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "remove command occurrence from either flow commitment",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "accept a self-labeled final occurrence from an unauthorized Oracle provider",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "accept an unregistered or revoked sibling curve release",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    },
+    {
+      "description": "erase the must-burn kind, burn domain, consumer, asset, or principal from the terminal obligation",
+      "killed_by": "tests/formal/test_lean_zdex_spot_buyback_transition_v1.py::test_spot_buyback_proof_checks_with_pinned_lean"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not prove canonical serialization, cryptographic pool IDs or roots, collision resistance, or state-root refinement.",
+    "This packet does not establish Python, Rust, RISC0, Tau, Oracle-runtime, lane-receipt, route-receipt, or ZenoLedger refinement.",
+    "The 3,000,000,000-atom caps and zero protocol-fee share are exact semantics of this bounded candidate release, not final production policy.",
+    "The model covers the Spot-owned transition for one buyback command. It does not prove the complete Spot pool, LP, route, batch, close, recovery, or migration lifecycle.",
+    "No mount, migration, publication, settlement, or value-moving authority is created. The release remains SHADOW and research-only."
+  ]
+}
