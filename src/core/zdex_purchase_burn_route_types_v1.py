@@ -22,6 +22,9 @@ ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1: Final = (
     "zenodex/zdex-buyback-execution-policy/v1"
 )
 ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1: Final = "zdex_buyback_execution_v1"
+ZDEX_AMM_PURCHASE_JOURNAL_SCHEMA_V2: Final = (
+    "zenodex/zdex-amm-purchase-journal/v2"
+)
 AMM_PURCHASE_OUTPUT_ROLE_V1: Final = "AMM_PURCHASE_OUTPUT"
 ZDEX_BURN_INPUT_ROLE_V1: Final = "ZDEX_BURN_INPUT"
 
@@ -299,6 +302,69 @@ class ZDEXAMMPurchaseJournalV1:
 
 
 @dataclass(frozen=True, slots=True)
+class ZDEXAMMPurchaseJournalV2(ZDEXAMMPurchaseJournalV1):
+    """V1 purchase accounting plus exact governed price-authority inputs."""
+
+    buyback_execution_policy_root: str
+    price_safety_policy_root: str
+    oracle_occurrence_root: str
+    oracle_observed_height: int
+    oracle_quote_numerator_atoms: int
+    oracle_zdex_denominator_atoms: int
+    route_safe_quote_limit_atoms: int
+    minimum_output_atoms: int
+
+    def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
+        ZDEXAMMPurchaseJournalV1.validate(self)
+        for field_name in (
+            "buyback_execution_policy_root",
+            "price_safety_policy_root",
+            "oracle_occurrence_root",
+        ):
+            value = getattr(self, field_name)
+            if type(value) is not str:
+                raise TypeError(f"ZDEX purchase V2 {field_name} must be exact str")
+            _require_root(value, name=f"ZDEX purchase V2 {field_name}")
+        _require_nonnegative_int(
+            self.oracle_observed_height,
+            name="ZDEX purchase V2 Oracle observed height",
+        )
+        for field_name in (
+            "oracle_quote_numerator_atoms",
+            "oracle_zdex_denominator_atoms",
+            "route_safe_quote_limit_atoms",
+            "minimum_output_atoms",
+        ):
+            value = _require_atoms_u128(
+                getattr(self, field_name),
+                name=f"ZDEX purchase V2 {field_name}",
+            )
+            if value == 0:
+                raise ValueError(f"ZDEX purchase V2 {field_name} must be positive")
+        if self.quote_amount_in_atoms > self.route_safe_quote_limit_atoms:
+            raise ValueError("ZDEX purchase V2 spend exceeds route-safe limit")
+        if self.purchased_zdex_atoms < self.minimum_output_atoms:
+            raise ValueError("ZDEX purchase V2 output is below minimum")
+
+    def to_canonical(self) -> dict[str, object]:
+        return {
+            **ZDEXAMMPurchaseJournalV1.to_canonical(self),
+            "schema": ZDEX_AMM_PURCHASE_JOURNAL_SCHEMA_V2,
+            "buyback_execution_policy_root": self.buyback_execution_policy_root,
+            "price_safety_policy_root": self.price_safety_policy_root,
+            "oracle_occurrence_root": self.oracle_occurrence_root,
+            "oracle_observed_height": self.oracle_observed_height,
+            "oracle_quote_numerator_atoms": self.oracle_quote_numerator_atoms,
+            "oracle_zdex_denominator_atoms": self.oracle_zdex_denominator_atoms,
+            "route_safe_quote_limit_atoms": self.route_safe_quote_limit_atoms,
+            "minimum_output_atoms": self.minimum_output_atoms,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ZDEXBurnJournalV1:
     """Public output of a checked route-bound ZDEX burn substate transition."""
 
@@ -420,11 +486,13 @@ __all__ = [
     "PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1",
     "PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1",
     "ZDEXAMMPurchaseJournalV1",
+    "ZDEXAMMPurchaseJournalV2",
     "ZDEXBurnJournalV1",
     "ZDEXBuybackExecutionPolicyV1",
     "ZDEXPurchaseBurnRouteRejectCodeV1",
     "ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1",
     "ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1",
+    "ZDEX_AMM_PURCHASE_JOURNAL_SCHEMA_V2",
     "ZDEX_BURN_INPUT_ROLE_V1",
     "ZDEX_SUPPLY_PRINCIPAL_V1",
     "ZERO_ROOT_V1",

@@ -69,6 +69,7 @@ from src.core.zdex_purchase_burn_route_types_v1 import (
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
     ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
     ZDEXAMMPurchaseJournalV1,
+    ZDEXAMMPurchaseJournalV2,
     ZDEXBurnJournalV1,
     ZDEXBuybackExecutionPolicyV1,
     ZDEXPurchaseBurnRouteRejectCodeV1,
@@ -351,6 +352,104 @@ def _purchase_journal(
         post_spot_lane_root=_root(611),
         effect_plan_root=effect_plan_root,
     )
+
+
+def _purchase_journal_v2(
+    purchase: ZDEXAMMPurchaseJournalV1,
+) -> ZDEXAMMPurchaseJournalV2:
+    return ZDEXAMMPurchaseJournalV2(
+        **{
+            field_name: getattr(purchase, field_name)
+            for field_name in purchase.__dataclass_fields__
+        },
+        buyback_execution_policy_root=_root(950),
+        price_safety_policy_root=_root(951),
+        oracle_occurrence_root=_root(952),
+        oracle_observed_height=6,
+        oracle_quote_numerator_atoms=1,
+        oracle_zdex_denominator_atoms=1,
+        route_safe_quote_limit_atoms=purchase.quote_amount_in_atoms,
+        minimum_output_atoms=purchase.purchased_zdex_atoms,
+    )
+
+
+def test_purchase_journal_v2_binds_price_authority_inputs() -> None:
+    # Arrange
+    spot_release = _lane_release(LaneIdV1.SPOT_LIQUIDITY, 1)
+    burn_release = _lane_release(LaneIdV1.ZDEX_TOKENOMICS, 2)
+    route = _route_release(spot_release, burn_release)
+    policy_registry = EconomicPolicyRegistryV1(
+        (
+            EconomicPolicyBindingV1(
+                ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
+                PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+                _root(950),
+            ),
+        )
+    )
+    profile, _ = _governed_shadow_profile(
+        spot_release=spot_release,
+        tokenomics_release=burn_release,
+        buyback_route=route,
+        allocation_route=_allocation_route_release(burn_release),
+        policy_root=candidate_zdex_fee_allocation_policy_v1().policy_root,
+        buyback_execution_policy_root=policy_registry.bindings[0].policy_root,
+    )
+    purchase = _purchase_journal(
+        route=route,
+        spot_release=spot_release,
+        occurrence=_occurrence(route, profile),
+        buyback_pool_id=_root(602),
+    )
+
+    # Act
+    journal = _purchase_journal_v2(purchase)
+
+    # Assert
+    assert journal.to_canonical()["schema"] == "zenodex/zdex-amm-purchase-journal/v2"
+    assert journal.buyback_execution_policy_root == _root(950)
+    assert journal.price_safety_policy_root == _root(951)
+    assert journal.oracle_occurrence_root == _root(952)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    (
+        ("route_safe_quote_limit_atoms", 0),
+        ("minimum_output_atoms", 0),
+        ("oracle_quote_numerator_atoms", 0),
+        ("oracle_zdex_denominator_atoms", 0),
+        ("route_safe_quote_limit_atoms", 124),
+        ("minimum_output_atoms", 41),
+    ),
+)
+def test_purchase_journal_v2_rejects_zero_price_authority_bounds(
+    field_name: str,
+    value: int,
+) -> None:
+    spot_release = _lane_release(LaneIdV1.SPOT_LIQUIDITY, 1)
+    burn_release = _lane_release(LaneIdV1.ZDEX_TOKENOMICS, 2)
+    route = _route_release(spot_release, burn_release)
+    profile, _ = _governed_shadow_profile(
+        spot_release=spot_release,
+        tokenomics_release=burn_release,
+        buyback_route=route,
+        allocation_route=_allocation_route_release(burn_release),
+        policy_root=candidate_zdex_fee_allocation_policy_v1().policy_root,
+        buyback_execution_policy_root=_root(950),
+    )
+    purchase = _purchase_journal(
+        route=route,
+        spot_release=spot_release,
+        occurrence=_occurrence(route, profile),
+        buyback_pool_id=_root(602),
+    )
+
+    with pytest.raises(ValueError):
+        replace(  # type: ignore[arg-type]
+            _purchase_journal_v2(purchase),
+            **{field_name: value},
+        )
 
 
 def _purchase_effects(

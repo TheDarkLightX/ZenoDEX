@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from src.core.global_economic_effect_projector_v1 import (
     project_single_occurrence_global_effects_v1,
 )
@@ -26,16 +28,21 @@ from src.core.zdex_hyperdeflation_types_v1 import ZDEXHyperdeflationPolicyV1
 from src.core.zdex_purchase_burn_effects_v1 import (
     burn_effects_v1,
     purchase_effects_v1,
+    purchase_effects_v2,
 )
 from src.core.zdex_purchase_burn_receipt_verification_v1 import (
     ZDEXBurnReceiptCandidateV1,
     ZDEXLaneReceiptEnvelopeV1,
     ZDEXPurchaseReceiptCandidateV1,
+    ZDEXPurchaseReceiptCandidateV2,
     verify_governed_zdex_amm_purchase_receipt_shadow_v1,
+    verify_governed_zdex_amm_purchase_receipt_shadow_v2,
     verify_governed_zdex_burn_receipt_shadow_v1,
+    verify_zdex_amm_purchase_receipt_v2,
 )
 from src.core.zdex_purchase_burn_route_types_v1 import (
     ZDEXAMMPurchaseJournalV1,
+    ZDEXAMMPurchaseJournalV2,
     zdex_occurrence_burn_port_v1,
     zdex_pool_reserve_principal_v1,
 )
@@ -43,7 +50,12 @@ from src.core.zdex_verified_buyback_spend_v1 import (
     VerifiedZDEXBuybackSpendV1,
     transition_verified_zdex_buyback_spend_shadow_v1,
 )
-from tests.core.test_zdex_buyback_spot_safety_receipt_v1 import _Fixture, _fixture, _verify
+from tests.core.test_zdex_buyback_spot_safety_receipt_v1 import (
+    _Fixture,
+    _fixture,
+    _price_occurrence,
+    _verify,
+)
 
 
 def _purchase_journal(
@@ -139,6 +151,143 @@ def _candidate() -> tuple[_Fixture, ZDEXAtomicBuybackCandidateV1]:
             8,
         ),
     )
+
+
+def _purchase_journal_v2(
+    fixture: _Fixture,
+    purchase: ZDEXAMMPurchaseJournalV1,
+) -> ZDEXAMMPurchaseJournalV2:
+    safety = fixture.candidate.journal
+    draft = ZDEXAMMPurchaseJournalV2(
+        **{
+            field_name: getattr(purchase, field_name)
+            for field_name in purchase.__dataclass_fields__
+        },
+        buyback_execution_policy_root=fixture.candidate.buyback_policy.policy_root,
+        price_safety_policy_root=fixture.candidate.price_policy.policy_root,
+        oracle_occurrence_root=safety.oracle_occurrence_root,
+        oracle_observed_height=safety.oracle_observed_height,
+        oracle_quote_numerator_atoms=safety.oracle_quote_numerator_atoms,
+        oracle_zdex_denominator_atoms=safety.oracle_zdex_denominator_atoms,
+        route_safe_quote_limit_atoms=safety.route_safe_quote_limit_atoms,
+        minimum_output_atoms=safety.minimum_output_atoms,
+    )
+    effects = purchase_effects_v2(draft)
+    return replace(draft, effect_plan_root=effects.effect_plan_root)
+
+
+def test_v2_purchase_receipt_binds_exact_price_authority_before_callback() -> None:
+    # Arrange
+    fixture, legacy_candidate = _candidate()
+    journal = _purchase_journal_v2(fixture, legacy_candidate.purchase_journal)
+    effects = purchase_effects_v2(journal)
+
+    # Act
+    verified = verify_governed_zdex_amm_purchase_receipt_shadow_v2(
+        ZDEXPurchaseReceiptCandidateV2(
+            route_release=fixture.route,
+            module_release=fixture.spot_release,
+            occurrence=fixture.candidate.occurrence,
+            pre_state=fixture.candidate.global_pre_state,
+            execution_policy=fixture.candidate.buyback_policy,
+            price_policy=fixture.candidate.price_policy,
+            price_occurrence=_price_occurrence(fixture),
+            journal=journal,
+            effects=effects,
+            receipt=ZDEXLaneReceiptEnvelopeV1(
+                ReceiptKindV1.SUCCINCT,
+                b"purchase-v2-receipt",
+            ),
+        ),
+        profile=fixture.candidate.profile,
+        policy_registry=fixture.candidate.policy_registry,
+        authority_head=fixture.authority_head,
+        receipt_verifier=fixture.receipt_verifier,
+    )
+
+    # Assert
+    assert verified.price_authority_root != ZERO_ROOT_V1
+    assert verified.price_safety_policy_root == fixture.candidate.price_policy.policy_root
+    assert verified.authority_head_root == fixture.authority_head.authority_root
+    assert verified.verifier_binding_root == fixture.receipt_verifier.binding_root
+    assert verified.policy_registry_root == fixture.candidate.policy_registry.registry_root
+    assert verified.leaf_binding_root == verified.verified_leaf.binding_root
+    assert verified.binding_root != verified.leaf_binding_root
+    assert verified.verified_leaf.authority_head_root == ZERO_ROOT_V1
+    assert verified.verified_leaf.verifier_binding_root == ZERO_ROOT_V1
+
+
+def test_governed_v2_purchase_rejects_substituted_execution_policy_before_callback() -> (
+    None
+):
+    # Arrange
+    fixture, legacy_candidate = _candidate()
+    substituted_policy = replace(
+        fixture.candidate.buyback_policy,
+        pool_definition_root="0x" + "ab" * 32,
+    )
+    journal = replace(
+        _purchase_journal_v2(fixture, legacy_candidate.purchase_journal),
+        buyback_execution_policy_root=substituted_policy.policy_root,
+    )
+    effects = purchase_effects_v2(journal)
+    calls_before = len(fixture.backend.calls)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="execution policy binding mismatch"):
+        verify_governed_zdex_amm_purchase_receipt_shadow_v2(
+            ZDEXPurchaseReceiptCandidateV2(
+                route_release=fixture.route,
+                module_release=fixture.spot_release,
+                occurrence=fixture.candidate.occurrence,
+                pre_state=fixture.candidate.global_pre_state,
+                execution_policy=substituted_policy,
+                price_policy=fixture.candidate.price_policy,
+                price_occurrence=_price_occurrence(fixture),
+                journal=journal,
+                effects=effects,
+                receipt=ZDEXLaneReceiptEnvelopeV1(
+                    ReceiptKindV1.SUCCINCT,
+                    b"substituted-execution-policy",
+                ),
+            ),
+            profile=fixture.candidate.profile,
+            policy_registry=fixture.candidate.policy_registry,
+            authority_head=fixture.authority_head,
+            receipt_verifier=fixture.receipt_verifier,
+        )
+    assert len(fixture.backend.calls) == calls_before
+
+
+def test_v2_purchase_policy_root_mutant_rejects_before_callback() -> None:
+    # Arrange
+    fixture, legacy_candidate = _candidate()
+    journal = _purchase_journal_v2(fixture, legacy_candidate.purchase_journal)
+    journal = replace(journal, price_safety_policy_root="0x" + "aa" * 32)
+    effects = purchase_effects_v2(journal)
+    calls_before = len(fixture.backend.calls)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="journal or effects"):
+        verify_zdex_amm_purchase_receipt_v2(
+            ZDEXPurchaseReceiptCandidateV2(
+                route_release=fixture.route,
+                module_release=fixture.spot_release,
+                occurrence=fixture.candidate.occurrence,
+                pre_state=fixture.candidate.global_pre_state,
+                execution_policy=fixture.candidate.buyback_policy,
+                price_policy=fixture.candidate.price_policy,
+                price_occurrence=_price_occurrence(fixture),
+                journal=journal,
+                effects=effects,
+                receipt=ZDEXLaneReceiptEnvelopeV1(
+                    ReceiptKindV1.SUCCINCT,
+                    b"purchase-v2-mutant",
+                ),
+            ),
+            fixture.backend,
+        )
+    assert len(fixture.backend.calls) == calls_before
 
 
 def _verify_burn(

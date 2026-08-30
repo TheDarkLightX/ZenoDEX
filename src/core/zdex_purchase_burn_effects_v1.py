@@ -19,18 +19,14 @@ from .zdex_purchase_burn_route_types_v1 import (
     PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1,
     ZDEX_SUPPLY_PRINCIPAL_V1,
     ZDEXAMMPurchaseJournalV1,
+    ZDEXAMMPurchaseJournalV2,
     ZDEXBurnJournalV1,
 )
 
 
-def purchase_effects_v1(
-    journal: ZDEXAMMPurchaseJournalV1,
+def _purchase_effects_from_journal_v1(
+    journal: ZDEXAMMPurchaseJournalV1 | ZDEXAMMPurchaseJournalV2,
 ) -> GlobalEconomicEffectPlanV1:
-    """Project the exact two-asset movement proved by the Spot leaf."""
-
-    if type(journal) is not ZDEXAMMPurchaseJournalV1:
-        raise TypeError("ZDEX purchase effects require an exact purchase journal")
-    journal.validate()
     rows = tuple(
         sorted(
             (
@@ -105,6 +101,28 @@ def purchase_effects_v1(
         (journal.command_occurrence_id,),
         (),
     )
+
+
+def purchase_effects_v1(
+    journal: ZDEXAMMPurchaseJournalV1,
+) -> GlobalEconomicEffectPlanV1:
+    """Project the exact two-asset movement proved by a V1 Spot leaf."""
+
+    if type(journal) is not ZDEXAMMPurchaseJournalV1:
+        raise TypeError("ZDEX purchase V1 effects require an exact purchase journal")
+    journal.validate()
+    return _purchase_effects_from_journal_v1(journal)
+
+
+def purchase_effects_v2(
+    journal: ZDEXAMMPurchaseJournalV2,
+) -> GlobalEconomicEffectPlanV1:
+    """Project the same accounting movement from the authority-bound V2 leaf."""
+
+    if type(journal) is not ZDEXAMMPurchaseJournalV2:
+        raise TypeError("ZDEX purchase V2 effects require an exact purchase journal")
+    journal.validate()
+    return _purchase_effects_from_journal_v1(journal)
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,4 +201,4 @@ def burn_effects_v1(journal: ZDEXBurnJournalV1) -> GlobalEconomicEffectPlanV1:
     )
 
 
-__all__ = ["burn_effects_v1", "purchase_effects_v1"]
+__all__ = ["burn_effects_v1", "purchase_effects_v1", "purchase_effects_v2"]
