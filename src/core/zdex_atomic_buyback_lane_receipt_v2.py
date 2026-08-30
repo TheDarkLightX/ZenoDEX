@@ -287,6 +287,11 @@ def verify_zdex_buyback_lane_coordinator_receipt_shadow_v2(
         raise TypeError("ZDEX buyback coordinator authority head is not closed")
     head = replace(authority_head)
     lane_journal = composition.lane_journal
+    if lane_journal.lane_id not in {
+        LaneIdV1.SPOT_LIQUIDITY,
+        LaneIdV1.ZDEX_TOKENOMICS,
+    }:
+        raise ValueError("ZDEX buyback coordinator lane is outside the closed route")
     expected_leaf_type = (
         VerifiedZDEXSpotBuybackLeafV2
         if lane_journal.lane_id is LaneIdV1.SPOT_LIQUIDITY
@@ -297,7 +302,7 @@ def verify_zdex_buyback_lane_coordinator_receipt_shadow_v2(
         or verified_leaf.profile_root != profile.profile_id
         or verified_leaf.writer_epoch != profile.authority_epoch
         or verified_leaf.command_occurrence_id != lane_journal.command_occurrence_id
-        or verified_leaf.journal_root not in lane_journal.ordered_module_journal_roots
+        or lane_journal.ordered_module_journal_roots != (verified_leaf.journal_root,)
         or verified_leaf.assumption_root != composition.leaf_assumption_root
         or verified_leaf.binding_root != composition.leaf_binding_root
         or verified_leaf.authority_head_root != head.authority_root

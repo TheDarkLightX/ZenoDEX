@@ -7,7 +7,11 @@ from dataclasses import replace
 import pytest
 
 from src.core.global_economic_proof_v1 import ReceiptKindV1
-from src.core.global_settlement_types_v1 import LaneIdV1, canonical_global_bytes_v1
+from src.core.global_settlement_types_v1 import (
+    LaneIdV1,
+    LaneWriteV1,
+    canonical_global_bytes_v1,
+)
 from src.core.zdex_atomic_buyback_lane_coordinator_v2 import (
     ZDEXBuybackLaneCompositionAcceptedV2,
     ZDEXSpotBuybackLaneCandidateV2,
@@ -164,6 +168,69 @@ def test_coordinator_rejects_substituted_leaf_assumption_before_backend() -> Non
                 forged,
                 spot_leaf,
                 ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"forged"),
+            ),
+            authority_head=fixture.authority_head,
+            receipt_verifier=fixture.receipt_verifier,
+        )
+    assert len(fixture.backend.calls) == calls_before
+
+
+def test_coordinator_rejects_cross_lane_leaf_admission_before_backend() -> None:
+    # Arrange
+    fixture, _, tokenomics_leaf, _, tokenomics = _compositions()
+    foreign_lane = LaneIdV1.ASSET_TRANSFER
+    foreign_coordinator = fixture.profile.lane_coordinator_registry.release_for(
+        foreign_lane
+    )
+    write = tokenomics.effects.lane_writes[0]
+    effects = replace(
+        tokenomics.effects,
+        lane_writes=(
+            LaneWriteV1(foreign_lane, write.pre_root, write.post_root),
+        ),
+    )
+    journal = replace(
+        tokenomics.lane_journal,
+        lane_id=foreign_lane,
+        coordinator_release_id=foreign_coordinator.coordinator_release_id,
+        effect_plan_root=effects.effect_plan_root,
+    )
+    forged = replace(tokenomics, effects=effects, lane_journal=journal)
+    calls_before = len(fixture.backend.calls)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="outside the closed route"):
+        verify_zdex_buyback_lane_coordinator_receipt_shadow_v2(
+            ZDEXBuybackLaneCoordinatorReceiptCandidateV2(
+                fixture.profile,
+                forged,
+                tokenomics_leaf,
+                ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"cross-lane"),
+            ),
+            authority_head=fixture.authority_head,
+            receipt_verifier=fixture.receipt_verifier,
+        )
+    assert len(fixture.backend.calls) == calls_before
+
+
+def test_coordinator_rejects_extra_unauthenticated_module_root_before_backend() -> None:
+    # Arrange
+    fixture, spot_leaf, _, spot, _ = _compositions()
+    journal = replace(
+        spot.lane_journal,
+        ordered_module_journal_roots=(spot_leaf.journal_root, "0x" + "e" * 64),
+    )
+    forged = replace(spot, lane_journal=journal)
+    calls_before = len(fixture.backend.calls)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="leaf lineage mismatch"):
+        verify_zdex_buyback_lane_coordinator_receipt_shadow_v2(
+            ZDEXBuybackLaneCoordinatorReceiptCandidateV2(
+                fixture.profile,
+                forged,
+                spot_leaf,
+                ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"extra-root"),
             ),
             authority_head=fixture.authority_head,
             receipt_verifier=fixture.receipt_verifier,
