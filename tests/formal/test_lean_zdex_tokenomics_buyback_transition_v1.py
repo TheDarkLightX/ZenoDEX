@@ -78,14 +78,33 @@ def _pinned_lean_executable() -> Path:
     return lean
 
 
+def _cached_dependency_paths(lean: Path) -> tuple[Path, ...]:
+    """Resolve the pinned Lake dependency cache without ambient LEAN_PATH."""
+
+    packages = LEAN_PROJECT / ".lake" / "packages"
+    package_builds = tuple(
+        build
+        for package in sorted(packages.iterdir(), key=lambda path: path.name)
+        if (build := package.resolve() / ".lake" / "build" / "lib" / "lean").is_dir()
+    )
+    if not any((build / "Mathlib.olean").is_file() for build in package_builds):
+        raise RuntimeError("pinned Mathlib build cache is unavailable")
+    toolchain_lib = lean.parent.parent / "lib" / "lean"
+    if not toolchain_lib.is_dir():
+        raise RuntimeError("pinned Lean standard-library cache is unavailable")
+    project_build = LEAN_PROJECT / ".lake" / "build" / "lib" / "lean"
+    return package_builds + ((project_build,) if project_build.is_dir() else ()) + (
+        toolchain_lib,
+    )
+
+
 def _build_dependency_cache(lean: Path, cache: Path) -> dict[str, str]:
     """Compile the imported proof modules with the pinned toolchain."""
 
     (cache / "Proofs").mkdir(parents=True, exist_ok=True)
     env = dict(os.environ)
-    inherited_lean_path = env.get("LEAN_PATH")
     env["LEAN_PATH"] = os.pathsep.join(
-        path for path in (str(cache), inherited_lean_path) if path
+        (str(cache), *(str(path) for path in _cached_dependency_paths(lean)))
     )
     for dependency in DEPENDENCIES:
         subprocess.run(

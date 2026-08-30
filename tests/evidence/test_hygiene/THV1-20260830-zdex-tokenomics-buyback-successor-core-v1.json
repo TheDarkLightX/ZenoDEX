@@ -49,7 +49,7 @@
   "source_pins": [
     {
       "path": "lean-mathlib/Proofs/ZDEXTokenomicsBuybackTransitionV1.lean",
-      "sha256": "c6b4e2cd0604b1009e6a981551808d3bee0ac3bf71be666e19e725075344f4cf"
+      "sha256": "70eef3540b588bffdaf1c3fe12d79b5fd7f3143356c037db819d3fb4d00e915f"
     },
     {
       "path": "lean-mathlib/Proofs/ZDEXSpotBuybackTransitionV1.lean",
@@ -68,7 +68,7 @@
   "test_pins": [
     {
       "path": "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py",
-      "sha256": "7b0488deb03406e518f79062b1fa5b0520dbb26e4842e8cf0155a37f7ab33673",
+      "sha256": "295395864f22c58f760bb899d586b42e4546cf9f6ff9616e3dfadea7d81c20e0",
       "node_ids": [
         "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_has_closed_successor_surface",
         "tests/formal/test_lean_zdex_tokenomics_buyback_transition_v1.py::test_tokenomics_buyback_proof_checks_with_pinned_lean",
