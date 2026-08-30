@@ -1,0 +1,144 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260830-zdex-shared-quote-port-hardening-v2",
+  "created_date": "2026-08-30",
+  "claim_scope": "Research-only SHADOW evidence for one shared acyclic Tokenomics-to-Spot quote port and the retained-input hardening of the bounded Tokenomics buyback leaf. Python and Rust commit the same canonical port root, derive both principals, reject malformed boundaries, and retain exact no-effect rejection and supply conservation. This packet grants no receipt, route, settlement, publication, or value-moving authority.",
+  "change_kind": "bug_fix",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "ZDEX-BUYBACK-SINGLE-QUOTE-PORT-REPRESENTATION-V2",
+    "ZDEX-BUYBACK-QUOTE-PORT-ACYCLIC",
+    "ZDEX-BUYBACK-QUOTE-PORT-DERIVED-PRINCIPALS",
+    "ZDEX-TOKENOMICS-RETAINED-INPUT-REVALIDATION",
+    "ZDEX-TOKENOMICS-REJECT-NOOP",
+    "ZDEX-TOKENOMICS-SUPPLY-CONSERVATION"
+  ],
+  "failure_modes": [
+    "Python and Rust serialize different quote-port coordinates",
+    "a caller independently selects the fee source or pool destination principal",
+    "a journal or receipt root creates a recursive hash dependency",
+    "a retained hostile scalar dispatches attacker equality during validation",
+    "a bool or value above the signed-effect boundary enters an effect",
+    "a malformed rejection hides changed state or effects",
+    "supply or epoch-cap subtraction loses atoms at the u128 boundary"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_atomic_buyback_quote_port_v2.py",
+      "sha256": "73f0a1acdad0753d26c5bddd115f681266e1dadafd83fe1f1ed3a1ef7610d1f1"
+    },
+    {
+      "path": "src/core/zdex_tokenomics_buyback_transition_v1.py",
+      "sha256": "7de4132a23394d7ddd4f45d416de2a59ea8207437d189cf800f9723dc626d4fa"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "4b791e906f5e58ce3fa28aab9fdb2f5d5d59f1e8df099bdc581b47b8a4cbdafa"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_atomic_buyback_quote_port_v2.rs",
+      "sha256": "5c8dd9fcfca0e6d366b964939763eee548497b24a4427475ac4bcf8845b84fbf"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_tokenomics_buyback_transition.rs",
+      "sha256": "47f917a81862f44a423748ed27e05c6a42089fd4307ed14af256a38564a5e453"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_atomic_buyback_quote_port_v2.rs",
+      "sha256": "9baf36b24373860adc120e6bc98d4dfb625c822157232450a30c767d3051aed9"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_tokenomics_buyback_transition.rs",
+      "sha256": "7f1239cbc1fb3b299881832ef84f63706ad732a0e62d28a9c7ee95ec7ec5152c"
+    },
+    {
+      "path": "docs/research/ZDEX_ATOMIC_BUYBACK_ARCHITECTURE_DECISION_20260828.md",
+      "sha256": "4fa304e444ffd2a84772b1f2e8a05a25a5bbed681fc00954dcc105eb7d9f9908"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_atomic_buyback_quote_port_v2.py",
+      "sha256": "8aad815376af82b0d9b9af7cfc34da3305d5a130eac8c46806e7965388d07be8",
+      "node_ids": [
+        "tests/core/test_zdex_atomic_buyback_quote_port_v2.py::test_port_derives_principals_and_excludes_proof_dependent_coordinates",
+        "tests/core/test_zdex_atomic_buyback_quote_port_v2.py::test_port_root_binds_every_stored_coordinate",
+        "tests/core/test_zdex_atomic_buyback_quote_port_v2.py::test_amount_boundaries_accept[1]",
+        "tests/core/test_zdex_atomic_buyback_quote_port_v2.py::test_amount_boundaries_reject[0]",
+        "tests/core/test_zdex_atomic_buyback_quote_port_v2.py::test_retained_hostile_values_fail_before_hashing[updates0]",
+        "tests/core/test_zdex_atomic_buyback_quote_port_v2.py::test_closed_constructor_rejects_unknown_fields"
+      ]
+    },
+    {
+      "path": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py",
+      "sha256": "c3b6a3cf4282929d691b15c88fc635a60d0b3def35833329fc8af702e70bb613",
+      "node_ids": [
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_accepts_governed_spend_exact_burn_and_freezes_commitment_roots",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_one_atom_flows_through_both_leaves",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_generated_full_transitions_conserve_supply_and_pair_ports",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_two_occurrence_history_carries_the_reserve_and_rejects_replay",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_postconstruction_hostile_scalar_rejects_noop_without_equality_dispatch[authority-expected0]",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_u128_supply_and_epoch_cap_maximum_preserve_exact_conservation",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_quote_port_rejects_collapsed_module_roles_after_mutation",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_forged_rejection_cannot_hide_a_non_noop_post_state",
+        "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_quote_port_v2_is_acyclic_and_proof_independent"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "differential",
+    "stateful",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange one exact typed port or transition, act through the public constructor or transition, and assert canonical roots, derived principals, exact effects, or typed no-effect rejection."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Malformed retained transition inputs preserve the identical pre-state and expose empty effects, no ports, and no journal; malformed standalone ports expose no canonical root."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "quote_port_amount",
+      "points": [
+        "one_atom_accepts",
+        "signed_effect_maximum_accepts",
+        "zero_rejects",
+        "signed_effect_maximum_plus_one_rejects"
+      ]
+    },
+    {
+      "name": "retained_transition_inputs",
+      "points": [
+        "exact_str_accepts",
+        "str_subclass_rejects_without_equality_dispatch",
+        "u128_supply_and_epoch_cap_conserve",
+        "signed_effect_maximum_plus_one_rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "store caller-selectable source or destination principals in the shared port",
+      "killed_by": "tests/core/test_zdex_atomic_buyback_quote_port_v2.py::test_port_derives_principals_and_excludes_proof_dependent_coordinates"
+    },
+    {
+      "description": "skip retained-subject revalidation before canonicalization",
+      "killed_by": "tests/core/test_zdex_tokenomics_buyback_transition_v1.py::test_quote_port_rejects_collapsed_module_roles_after_mutation"
+    }
+  ],
+  "nonclaims": [
+    "The shared port is a semantic data contract and does not authenticate either lane receipt.",
+    "Spot V1 still carries historical provenance fields; a genuine successor Spot V2 and outer composer remain required.",
+    "The Tokenomics profile authorization, safe-limit input, and Spot obligation remain caller-constructible SHADOW inputs.",
+    "Bounded tests and fixed Python-Rust roots do not constitute universal refinement or production readiness.",
+    "No RISC0 guest, current-profile verifier, migration, publisher, settlement, or value-moving authority is established."
+  ]
+}

@@ -354,9 +354,11 @@ unrepresentable.
 The phase-A output is the acyclic semantic port `ZDEXAtomicBuybackQuotePortV2`.
 It carries proof-independent producer and consumer module release ids, the
 producer pre and post lane roots, the producer effect-plan root, the amount,
-the pool, the quote asset, the source and destination principals, and the
-profile, route, occurrence, and global pre-state coordinates. It omits journal
-and receipt-binding roots. Independent review established that binding the
+the pool, the quote asset, and the profile, route, occurrence, and global
+pre-state coordinates. The fee-reserve source principal is fixed by the ABI;
+the pool-reserve destination principal is derived from the selected pool and
+quote asset. Neither principal is independently caller-selectable. The port
+omits journal and receipt-binding roots. Independent review established that binding the
 Tokenomics verified-leaf `binding_root` inside the Spot quote port would create
 a hash fixed-point cycle through `private_port_root`, the module journal, the
 receipt, and the verified wrapper. The historical `ZDEXSpotQuoteInputPortV1`
