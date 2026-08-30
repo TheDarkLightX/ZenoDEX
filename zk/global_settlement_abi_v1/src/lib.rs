@@ -59,6 +59,9 @@ pub mod zdex_atomic_buyback_quote_port_v2;
 mod zdex_atomic_buyback_state;
 mod zdex_buyback_price_authority;
 mod zdex_buyback_price_safety;
+// This replay scaffold has no mounted caller while Buyback V2 remains a
+// SHADOW predicate. Its behavior is exercised by module-local counterexamples.
+#[allow(dead_code)]
 mod zdex_buyback_shadow_composer_v2;
 mod zdex_buyback_spend;
 mod zdex_current_authority;
@@ -150,7 +153,11 @@ pub use zdex_atomic_buyback_lane_ports::*;
 pub use zdex_atomic_buyback_state::*;
 pub use zdex_buyback_price_authority::*;
 pub use zdex_buyback_price_safety::*;
-pub use zdex_buyback_shadow_composer_v2::*;
+pub use zdex_buyback_shadow_composer_v2::{
+    validate_route_terminal_claims_v2, validate_shadow_composed_effect_plan_v2,
+    ZDEXBuybackRouteReceiptClaimsV2, ZDEXBuybackRouteTerminalInputV2,
+    ZDEXBuybackRouteTerminalRejectCodeV2, ZDEXBuybackShadowComposerRejectCodeV2,
+};
 pub use zdex_buyback_spend::*;
 pub use zdex_current_authority::*;
 pub use zdex_fee_allocation::*;

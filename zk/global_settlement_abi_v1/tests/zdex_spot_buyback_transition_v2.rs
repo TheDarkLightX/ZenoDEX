@@ -8,8 +8,8 @@ use zenodex_global_settlement_abi_v1::zdex_atomic_buyback_quote_port_v2::{
 };
 use zenodex_global_settlement_abi_v1::{
     effect_plan_from_spot_accepted_v2, terminal_from_spot_accepted_v2,
-    transition_zdex_spot_buyback_v1, transition_zdex_spot_buyback_v2, ReleaseStatusV1, RootV1,
-    ZDEXBuybackExecutionPolicyV1, ZDEXBuybackOraclePriceOccurrenceV1,
+    transition_zdex_spot_buyback_v1, transition_zdex_spot_buyback_v2, AbiErrorV1, ReleaseStatusV1,
+    RootV1, ZDEXBuybackExecutionPolicyV1, ZDEXBuybackOraclePriceOccurrenceV1,
     ZDEXBuybackPriceSafetyPolicyV1, ZDEXSpotBuybackAuthorityContextV1,
     ZDEXSpotBuybackAuthorityContextV2, ZDEXSpotBuybackAuthorityInputV1,
     ZDEXSpotBuybackAuthorityInputV2, ZDEXSpotBuybackInputV1, ZDEXSpotBuybackInputV2,
@@ -282,6 +282,16 @@ fn stale_or_missing_authority_is_an_exact_typed_noop() {
     assert!(rejected.ports().is_none());
     assert!(rejected.journal().is_none());
     assert!(rejected.terminal_obligation().is_none());
+}
+
+#[test]
+fn malformed_authoritative_pre_state_fails_admission_before_typed_rejection() {
+    let mut malformed = candidate();
+    malformed.pre_state.pools[0].pool_id = root(91_001);
+    assert_eq!(
+        transition_zdex_spot_buyback_v2(&malformed),
+        Err(AbiErrorV1::InvalidBinding("Spot V2 state pool identity"))
+    );
 }
 
 #[test]

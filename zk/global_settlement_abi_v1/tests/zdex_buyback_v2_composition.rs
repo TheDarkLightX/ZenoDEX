@@ -1,38 +1,40 @@
 //! End-to-end SHADOW composition evidence for Phase A -> Spot V2 -> Phase B.
 
+use serde::Serialize;
+
 use zenodex_global_settlement_abi_v1::zdex_atomic_buyback_quote_port_v2::{
     ZDEXAtomicBuybackQuotePortV2, ZDEX_ATOMIC_BUYBACK_QUOTE_PORT_SCHEMA_V2,
 };
 use zenodex_global_settlement_abi_v1::{
-    apply_final_composite_once_v2, candidate_zdex_fee_allocation_policy_v1,
-    derive_zdex_tokenomics_buyback_intent_v2, terminal_from_spot_accepted_v2,
-    transition_zdex_spot_buyback_v2, transition_zdex_tokenomics_buyback_v1,
-    transition_zdex_tokenomics_buyback_v2, validate_route_terminal_claims_v2,
+    candidate_zdex_fee_allocation_policy_v1, derive_zdex_tokenomics_buyback_intent_v2,
+    hash_global_v1, terminal_from_spot_accepted_v2, transition_zdex_spot_buyback_v2,
+    transition_zdex_tokenomics_buyback_v1, transition_zdex_tokenomics_buyback_v2,
+    validate_route_terminal_claims_v2, validate_shadow_composed_effect_plan_v2,
     zdex_occurrence_burn_port_v1, zdex_pool_reserve_principal_v1, EconomicEffectKindV1,
-    ReleaseStatusV1, RootV1, ZDEXBuybackExecutionPolicyV1, ZDEXBuybackOraclePriceOccurrenceV1,
-    ZDEXBuybackPriceSafetyPolicyV1, ZDEXBuybackRouteReceiptClaimsV2,
-    ZDEXBuybackRouteTerminalInputV2, ZDEXBuybackRouteTerminalRejectCodeV2,
-    ZDEXBuybackShadowComposerRejectCodeV2, ZDEXBuybackShadowComposerResultV2,
-    ZDEXBuybackShadowComposerStateV2, ZDEXBuybackSpendPolicyV1, ZDEXBuybackSpendStateV1,
-    ZDEXFeeDestinationAmountV1, ZDEXFeeStateV1, ZDEXHyperdeflationPolicyV1,
-    ZDEXSpotBuybackAuthorityContextV1, ZDEXSpotBuybackAuthorityContextV2,
-    ZDEXSpotBuybackAuthorityInputV2, ZDEXSpotBuybackInputV2, ZDEXSpotBuybackReleaseV1,
-    ZDEXSpotBuybackResultV2, ZDEXSpotCurveKindV1, ZDEXSpotFlowIdentityV1, ZDEXSpotFlowIdentityV2,
-    ZDEXSpotFlowRoleV1, ZDEXSpotLaneStateV1, ZDEXSpotOracleOccurrenceV1, ZDEXSpotOracleRegistryV1,
-    ZDEXSpotOracleStatusV1, ZDEXSpotPoolCreationReleaseV1, ZDEXSpotPoolDefinitionV1,
-    ZDEXSpotPoolStatusV1, ZDEXSpotPoolV1, ZDEXSpotPriceEnvelopeV2, ZDEXSpotProfileAuthorizationV1,
-    ZDEXSpotTerminalObligationV1, ZDEXTokenomicsBuybackAuthorityContextV1,
-    ZDEXTokenomicsBuybackAuthorityInputV1, ZDEXTokenomicsBuybackInputV1,
-    ZDEXTokenomicsBuybackInputV2, ZDEXTokenomicsBuybackIntentInputV1,
-    ZDEXTokenomicsBuybackIntentResultV2, ZDEXTokenomicsBuybackLaneStateV1,
-    ZDEXTokenomicsBuybackRejectCodeV2, ZDEXTokenomicsBuybackReleaseV1,
-    ZDEXTokenomicsBuybackResultV1, ZDEXTokenomicsBuybackResultV2,
+    GlobalEconomicEffectPlanV1, LaneIdV1, ReleaseStatusV1, RootV1, ZDEXBuybackExecutionPolicyV1,
+    ZDEXBuybackOraclePriceOccurrenceV1, ZDEXBuybackPriceSafetyPolicyV1,
+    ZDEXBuybackRouteReceiptClaimsV2, ZDEXBuybackRouteTerminalInputV2,
+    ZDEXBuybackRouteTerminalRejectCodeV2, ZDEXBuybackShadowComposerRejectCodeV2,
+    ZDEXBuybackSpendPolicyV1, ZDEXBuybackSpendStateV1, ZDEXFeeDestinationAmountV1, ZDEXFeeStateV1,
+    ZDEXHyperdeflationPolicyV1, ZDEXSpotBuybackAcceptedV2, ZDEXSpotBuybackAuthorityContextV1,
+    ZDEXSpotBuybackAuthorityContextV2, ZDEXSpotBuybackAuthorityInputV2, ZDEXSpotBuybackInputV2,
+    ZDEXSpotBuybackReleaseV1, ZDEXSpotBuybackResultV2, ZDEXSpotCurveKindV1, ZDEXSpotFlowIdentityV1,
+    ZDEXSpotFlowIdentityV2, ZDEXSpotFlowRoleV1, ZDEXSpotLaneStateV1, ZDEXSpotOracleOccurrenceV1,
+    ZDEXSpotOracleRegistryV1, ZDEXSpotOracleStatusV1, ZDEXSpotPoolCreationReleaseV1,
+    ZDEXSpotPoolDefinitionV1, ZDEXSpotPoolStatusV1, ZDEXSpotPoolV1, ZDEXSpotPriceEnvelopeV2,
+    ZDEXSpotProfileAuthorizationV1, ZDEXSpotTerminalObligationV1,
+    ZDEXTokenomicsBuybackAuthorityContextV1, ZDEXTokenomicsBuybackAuthorityInputV1,
+    ZDEXTokenomicsBuybackInputV1, ZDEXTokenomicsBuybackInputV2, ZDEXTokenomicsBuybackIntentInputV1,
+    ZDEXTokenomicsBuybackIntentResultV2, ZDEXTokenomicsBuybackJournalV2,
+    ZDEXTokenomicsBuybackLaneStateV1, ZDEXTokenomicsBuybackRejectCodeV2,
+    ZDEXTokenomicsBuybackReleaseV1, ZDEXTokenomicsBuybackResultV1, ZDEXTokenomicsBuybackResultV2,
     ZDEXTokenomicsProfileAuthorizationV1, ZDEXTokenomicsSafeLimitPortV1,
     ZDEXTokenomicsSpotObligationInputV1, ZDEXTokenomicsSupplyControlStateV1,
-    ZDEXTokenomicsTerminalInputV2, FEE_BUYBACK_PRINCIPAL_V1,
+    ZDEXTokenomicsTerminalInputV2, FEE_BUYBACK_PRINCIPAL_V1, GLOBAL_SETTLEMENT_ABI_V1,
     ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1, ZDEX_BUYBACK_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1,
     ZDEX_BUYBACK_PRICE_SAFETY_POLICY_SCHEMA_V1, ZDEX_BUYBACK_SPEND_POLICY_SCHEMA_V1,
-    ZDEX_BUYBACK_SPEND_STATE_SCHEMA_V1, ZDEX_FEE_DESTINATIONS_V1, ZERO_ROOT_V1,
+    ZDEX_BUYBACK_SPEND_STATE_SCHEMA_V1, ZDEX_FEE_DESTINATIONS_V1,
+    ZDEX_TOKENOMICS_RESEARCH_DRAFT_TRANSITION_JOURNAL_SCHEMA_V2, ZERO_ROOT_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -363,7 +365,7 @@ fn spot_with_phase_a_quote(
     }
 }
 
-fn composed_input() -> ZDEXTokenomicsBuybackInputV2 {
+fn composed_input() -> (ZDEXSpotBuybackAcceptedV2, ZDEXTokenomicsBuybackInputV2) {
     let seed = spot_seed();
     let intent_input = phase_a_input(&seed);
     let ZDEXTokenomicsBuybackIntentResultV2::Accepted(intent) =
@@ -380,17 +382,19 @@ fn composed_input() -> ZDEXTokenomicsBuybackInputV2 {
     else {
         panic!("Spot V2 must accept the Phase-A quote");
     };
-    ZDEXTokenomicsBuybackInputV2 {
-        intent_input,
-        terminal_obligation: ZDEXTokenomicsTerminalInputV2::TERMINAL(Box::new(
-            terminal_from_spot_accepted_v2(&spot_accepted).expect("validated terminal"),
-        )),
-    }
+    let terminal = terminal_from_spot_accepted_v2(&spot_accepted).expect("validated terminal");
+    (
+        *spot_accepted,
+        ZDEXTokenomicsBuybackInputV2 {
+            intent_input,
+            terminal_obligation: ZDEXTokenomicsTerminalInputV2::TERMINAL(Box::new(terminal)),
+        },
+    )
 }
 
 #[test]
 fn phase_a_spot_v2_phase_b_burns_exact_purchased_output_once() {
-    let input = composed_input();
+    let (_, input) = composed_input();
     let ZDEXTokenomicsBuybackResultV2::Accepted(accepted) =
         transition_zdex_tokenomics_buyback_v2(&input).expect("typed Phase B")
     else {
@@ -422,8 +426,41 @@ fn phase_a_spot_v2_phase_b_burns_exact_purchased_output_once() {
 }
 
 #[test]
+fn tokenomics_rust_journal_uses_an_explicit_non_python_research_draft_schema() {
+    assert_eq!(
+        ZDEX_TOKENOMICS_RESEARCH_DRAFT_TRANSITION_JOURNAL_SCHEMA_V2,
+        "zenodex/zdex-tokenomics-buyback-transition-research-draft/v2"
+    );
+    assert_ne!(
+        ZDEX_TOKENOMICS_RESEARCH_DRAFT_TRANSITION_JOURNAL_SCHEMA_V2,
+        "zenodex/zdex-tokenomics-buyback-transition-journal/v2"
+    );
+
+    let (_, input) = composed_input();
+    let ZDEXTokenomicsBuybackResultV2::Accepted(accepted) =
+        transition_zdex_tokenomics_buyback_v2(&input).expect("typed Phase B")
+    else {
+        panic!("composition must accept");
+    };
+    let journal = accepted.journal().expect("research draft journal");
+    let actual_root = journal.journal_root().expect("research draft root");
+    let expected_research_draft_root = tokenomics_journal_root_for_domain(
+        journal,
+        "zdex-tokenomics-buyback-transition-research-draft-v2",
+        ZDEX_TOKENOMICS_RESEARCH_DRAFT_TRANSITION_JOURNAL_SCHEMA_V2,
+    );
+    let legacy_colliding_root = tokenomics_journal_root_for_domain(
+        journal,
+        "zdex-tokenomics-buyback-transition-journal-v2",
+        "zenodex/zdex-tokenomics-buyback-transition-journal/v2",
+    );
+    assert_eq!(actual_root, expected_research_draft_root);
+    assert_ne!(actual_root, legacy_colliding_root);
+}
+
+#[test]
 fn m12_v1_terminal_rewrap_is_rejected_without_a_final_effect_plan() {
-    let mut input = composed_input();
+    let (_, mut input) = composed_input();
     let terminal = match &input.terminal_obligation {
         ZDEXTokenomicsTerminalInputV2::TERMINAL(terminal) => terminal,
         _ => panic!("fixture terminal"),
@@ -455,7 +492,7 @@ fn m12_v1_terminal_rewrap_is_rejected_without_a_final_effect_plan() {
 
 #[test]
 fn malformed_terminal_is_rejected_before_burn() {
-    let mut input = composed_input();
+    let (_, mut input) = composed_input();
     let ZDEXTokenomicsTerminalInputV2::TERMINAL(terminal) = &mut input.terminal_obligation else {
         panic!("fixture terminal");
     };
@@ -474,7 +511,7 @@ fn malformed_terminal_is_rejected_before_burn() {
 
 #[test]
 fn v1_leaf_accepts_a_coherent_caller_constructed_terminal_without_spot_provenance() {
-    let input = composed_input();
+    let (_, input) = composed_input();
     let terminal = terminal_from_input(&input);
     let ZDEXTokenomicsBuybackIntentResultV2::Accepted(phase_a) =
         derive_zdex_tokenomics_buyback_intent_v2(&input.intent_input).expect("phase A")
@@ -588,7 +625,7 @@ fn rebind_terminal_flows(
 
 #[test]
 fn route_rejects_coherent_unauthenticated_terminal_substitution() {
-    let input = composed_input();
+    let (_, input) = composed_input();
     let terminal = terminal_from_input(&input);
     let claims = ZDEXBuybackRouteReceiptClaimsV2::from_terminal(&terminal).expect("claims");
     assert_eq!(
@@ -703,36 +740,215 @@ fn route_rejects_coherent_unauthenticated_terminal_substitution() {
 }
 
 #[test]
-fn publisher_replay_and_phase_a_double_application_are_noops() {
-    let input = composed_input();
+fn exact_two_lane_plan_contains_spot_pool_deltas_and_both_governed_writes() {
+    let (spot_accepted, input) = composed_input();
     let ZDEXTokenomicsBuybackResultV2::Accepted(accepted) =
         transition_zdex_tokenomics_buyback_v2(&input).expect("typed Phase B")
     else {
         panic!("composition must accept");
     };
-    assert!(!accepted
-        .phase_a_effect_plan_is_applicable()
-        .expect("commitment status"));
-    let claims = ZDEXBuybackRouteReceiptClaimsV2::from_terminal(
-        accepted.terminal_obligation().expect("terminal"),
-    )
-    .expect("claims");
-    let state = ZDEXBuybackShadowComposerStateV2::default();
-    let ZDEXBuybackShadowComposerResultV2::Applied(applied) =
-        apply_final_composite_once_v2(&state, &accepted, &claims).expect("composer")
-    else {
-        panic!("first final composite must be staged once");
+    let plan = expected_complete_plan(&spot_accepted, &accepted);
+    assert_eq!(
+        validate_shadow_composed_effect_plan_v2(&spot_accepted, &accepted, &plan)
+            .expect("predicate"),
+        Ok(())
+    );
+    assert_eq!(plan.lane_writes.len(), 2);
+    assert_eq!(plan.lane_writes[0].lane_id, LaneIdV1::SPOT_LIQUIDITY);
+    assert_eq!(plan.lane_writes[1].lane_id, LaneIdV1::ZDEX_TOKENOMICS);
+
+    let spot_effects = spot_accepted.effects().expect("spot effects");
+    assert_eq!(spot_effects.rows.len(), 2);
+    assert!(plan.rows.contains(&spot_effects.rows[0]));
+    assert!(plan.rows.contains(&spot_effects.rows[1]));
+    assert!(spot_effects.rows.iter().any(|row| {
+        row.kind == EconomicEffectKindV1::ACCOUNT_MOVEMENT && row.delta_atoms == 125
+    }));
+    assert!(spot_effects.rows.iter().any(|row| {
+        row.kind == EconomicEffectKindV1::ACCOUNT_MOVEMENT && row.delta_atoms == -111
+    }));
+
+    let mut missing_pool_delta = plan.clone();
+    missing_pool_delta
+        .rows
+        .retain(|row| row != &spot_effects.rows[0]);
+    missing_pool_delta.validate().expect("well-formed mutant");
+    assert_eq!(
+        validate_shadow_composed_effect_plan_v2(&spot_accepted, &accepted, &missing_pool_delta)
+            .expect("predicate"),
+        Err(ZDEXBuybackShadowComposerRejectCodeV2::FINAL_EFFECT_PLAN_MISMATCH)
+    );
+
+    let mut missing_lane_write = plan.clone();
+    missing_lane_write.lane_writes.remove(0);
+    missing_lane_write.validate().expect("well-formed mutant");
+    assert_eq!(
+        validate_shadow_composed_effect_plan_v2(&spot_accepted, &accepted, &missing_lane_write)
+            .expect("predicate"),
+        Err(ZDEXBuybackShadowComposerRejectCodeV2::FINAL_EFFECT_PLAN_MISMATCH)
+    );
+}
+
+#[test]
+fn forged_coherent_terminal_and_claims_cannot_bind_to_the_real_spot_leaf() {
+    let (spot_accepted, input) = composed_input();
+    let mut forged_terminal = terminal_from_input(&input);
+    forged_terminal.purchased_atoms = 110;
+    let zdex_asset = match &input.intent_input.authority {
+        ZDEXTokenomicsBuybackAuthorityInputV1::CONTEXT(authority) => {
+            authority.execution_policy.zdex_asset_id.clone()
+        }
+        _ => panic!("fixture authority"),
     };
-    assert!(!applied.final_effect_plan.is_empty());
-    let ZDEXBuybackShadowComposerResultV2::Rejected(replayed) =
-        apply_final_composite_once_v2(&applied.next_state, &accepted, &claims).expect("composer")
+    let ZDEXTokenomicsBuybackIntentResultV2::Accepted(phase_a) =
+        derive_zdex_tokenomics_buyback_intent_v2(&input.intent_input).expect("phase A")
     else {
-        panic!("replay must be a typed no-op");
+        panic!("phase A must accept");
+    };
+    rebind_terminal_flows(
+        &mut forged_terminal,
+        &phase_a.quote_output().expect("quote").clone(),
+        &zdex_asset,
+    );
+    let forged_claims =
+        ZDEXBuybackRouteReceiptClaimsV2::from_terminal(&forged_terminal).expect("claims");
+    assert_eq!(
+        validate_route_terminal_claims_v2(
+            &forged_claims,
+            &ZDEXBuybackRouteTerminalInputV2::TERMINAL(Box::new(forged_terminal.clone())),
+        )
+        .expect("predicate"),
+        Ok(())
+    );
+
+    let forged_input = ZDEXTokenomicsBuybackInputV2 {
+        intent_input: input.intent_input,
+        terminal_obligation: ZDEXTokenomicsTerminalInputV2::TERMINAL(Box::new(forged_terminal)),
+    };
+    let ZDEXTokenomicsBuybackResultV2::Accepted(forged_tokenomics) =
+        transition_zdex_tokenomics_buyback_v2(&forged_input).expect("typed Phase B")
+    else {
+        panic!("locally coherent forged terminal reaches the research leaf");
     };
     assert_eq!(
-        replayed.code,
-        ZDEXBuybackShadowComposerRejectCodeV2::REPLAYED
+        validate_shadow_composed_effect_plan_v2(
+            &spot_accepted,
+            &forged_tokenomics,
+            &empty_effect_plan(),
+        )
+        .expect("predicate"),
+        Err(ZDEXBuybackShadowComposerRejectCodeV2::CROSS_LANE_BINDING_MISMATCH)
     );
-    assert_eq!(replayed.retained_state, applied.next_state);
-    replayed.validate().expect("exact no-op");
+}
+
+fn expected_complete_plan(
+    spot_accepted: &ZDEXSpotBuybackAcceptedV2,
+    tokenomics_accepted: &zenodex_global_settlement_abi_v1::ZDEXTokenomicsBuybackAcceptedV2,
+) -> GlobalEconomicEffectPlanV1 {
+    let spot_effects = spot_accepted.effects().expect("spot effects");
+    let tokenomics_effects = tokenomics_accepted.effects().expect("tokenomics effects");
+    assert_eq!(spot_effects.lane_writes.len(), 1);
+    assert_eq!(tokenomics_effects.lane_writes.len(), 1);
+    let mut rows = spot_effects.rows.clone();
+    rows.extend(tokenomics_effects.rows.clone());
+    rows.sort_by(|left, right| {
+        (
+            effect_kind_label(left.kind),
+            left.asset.as_str(),
+            left.principal.as_str(),
+            left.custody_domain.as_str(),
+        )
+            .cmp(&(
+                effect_kind_label(right.kind),
+                right.asset.as_str(),
+                right.principal.as_str(),
+                right.custody_domain.as_str(),
+            ))
+    });
+    let plan = GlobalEconomicEffectPlanV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        rows,
+        asset_conservation: tokenomics_effects.asset_conservation.clone(),
+        fee_conservation: tokenomics_effects.fee_conservation.clone(),
+        lane_writes: vec![
+            spot_effects.lane_writes[0].clone(),
+            tokenomics_effects.lane_writes[0].clone(),
+        ],
+        occurrence_consumptions: tokenomics_effects.occurrence_consumptions.clone(),
+        external_outbox_enqueue: Vec::new(),
+    };
+    plan.validate().expect("expected complete plan");
+    plan
+}
+
+fn empty_effect_plan() -> GlobalEconomicEffectPlanV1 {
+    GlobalEconomicEffectPlanV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        rows: Vec::new(),
+        asset_conservation: Vec::new(),
+        fee_conservation: Vec::new(),
+        lane_writes: Vec::new(),
+        occurrence_consumptions: Vec::new(),
+        external_outbox_enqueue: Vec::new(),
+    }
+}
+
+fn tokenomics_journal_root_for_domain(
+    journal: &ZDEXTokenomicsBuybackJournalV2,
+    domain: &str,
+    schema: &str,
+) -> RootV1 {
+    #[derive(Serialize)]
+    struct Canonical<'a> {
+        schema: &'a str,
+        phase_a_context_root: &'a RootV1,
+        quote_port_root: &'a RootV1,
+        terminal_obligation_id: &'a RootV1,
+        pre_state_root: &'a RootV1,
+        spend_post_state_root: &'a RootV1,
+        post_state_root: &'a RootV1,
+        effect_plan_root: &'a RootV1,
+        purchased_zdex_atoms: u128,
+        burned_zdex_atoms: u128,
+        live_supply_pre_atoms: u128,
+        live_supply_post_atoms: u128,
+        retained_supply_atoms: u128,
+        remaining_epoch_burn_cap_pre_atoms: u128,
+        remaining_epoch_burn_cap_post_atoms: u128,
+    }
+    hash_global_v1(
+        domain,
+        &Canonical {
+            schema,
+            phase_a_context_root: &journal.phase_a_context_root,
+            quote_port_root: &journal.quote_port_root,
+            terminal_obligation_id: &journal.terminal_obligation_id,
+            pre_state_root: &journal.pre_state_root,
+            spend_post_state_root: &journal.spend_post_state_root,
+            post_state_root: &journal.post_state_root,
+            effect_plan_root: &journal.effect_plan_root,
+            purchased_zdex_atoms: journal.purchased_zdex_atoms,
+            burned_zdex_atoms: journal.burned_zdex_atoms,
+            live_supply_pre_atoms: journal.live_supply_pre_atoms,
+            live_supply_post_atoms: journal.live_supply_post_atoms,
+            retained_supply_atoms: journal.retained_supply_atoms,
+            remaining_epoch_burn_cap_pre_atoms: journal.remaining_epoch_burn_cap_pre_atoms,
+            remaining_epoch_burn_cap_post_atoms: journal.remaining_epoch_burn_cap_post_atoms,
+        },
+    )
+    .expect("fixed journal hash inputs")
+}
+
+fn effect_kind_label(kind: EconomicEffectKindV1) -> &'static str {
+    match kind {
+        EconomicEffectKindV1::ACCOUNT_MOVEMENT => "ACCOUNT_MOVEMENT",
+        EconomicEffectKindV1::ISSUE => "ISSUE",
+        EconomicEffectKindV1::BURN => "BURN",
+        EconomicEffectKindV1::CUSTODY => "CUSTODY",
+        EconomicEffectKindV1::LIABILITY => "LIABILITY",
+        EconomicEffectKindV1::RESERVE => "RESERVE",
+        EconomicEffectKindV1::FEE_ALLOCATION => "FEE_ALLOCATION",
+        EconomicEffectKindV1::REWARD => "REWARD",
+        EconomicEffectKindV1::SLASH => "SLASH",
+    }
 }

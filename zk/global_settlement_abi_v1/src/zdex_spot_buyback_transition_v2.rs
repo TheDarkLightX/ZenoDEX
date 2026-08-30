@@ -839,6 +839,11 @@ enum ZDEXSpotBuybackDerivationV2 {
 pub fn transition_zdex_spot_buyback_v2(
     candidate: &ZDEXSpotBuybackInputV2,
 ) -> AbiResultV1<ZDEXSpotBuybackResultV2> {
+    // The supplied lane state is authoritative pre-state.  It must clear deep
+    // admission before this transition can construct a typed no-op rejection;
+    // otherwise the rejection would retain an invalid state and violate its
+    // own exact no-op invariant.
+    deep_validate_lane_state_v2(&candidate.pre_state)?;
     let derived = derive_zdex_spot_buyback_v2(candidate)?;
     match derived {
         ZDEXSpotBuybackDerivationV2::Accepted(fields) => Ok(ZDEXSpotBuybackResultV2::Accepted(
@@ -856,7 +861,7 @@ pub fn transition_zdex_spot_buyback_v2(
 fn derive_zdex_spot_buyback_v2(
     candidate: &ZDEXSpotBuybackInputV2,
 ) -> AbiResultV1<ZDEXSpotBuybackDerivationV2> {
-    if candidate.validate_payload().is_err() {
+    if validate_non_authoritative_payload_v2(candidate).is_err() {
         return Ok(ZDEXSpotBuybackDerivationV2::Rejected(
             ZDEXSpotBuybackRejectCodeV2::INPUT_MALFORMED,
         ));
@@ -930,6 +935,11 @@ fn derive_zdex_spot_buyback_v2(
     let fields = build_accepted_fields_v2(candidate, authority, coordinates, &accepted)?;
     fields.validate()?;
     Ok(ZDEXSpotBuybackDerivationV2::Accepted(Box::new(fields)))
+}
+
+fn validate_non_authoritative_payload_v2(candidate: &ZDEXSpotBuybackInputV2) -> AbiResultV1<()> {
+    candidate.quote_port.validate()?;
+    candidate.price_envelope.validate()
 }
 
 fn coordinates_for_v2(

@@ -1,9 +1,11 @@
-//! SHADOW-only Tokenomics V2 terminal leaf.
+//! SHADOW-only Tokenomics V2 research-draft terminal leaf.
 //!
 //! Phase A is rederived from the stable V1 intent kernel.  Its effect plan is
 //! a commitment, never an independently applicable plan.  Phase B consumes a
-//! deeply validated V2 terminal and builds one final composite plan.  This
-//! module proves no Spot provenance and performs no receipt authentication.
+//! deeply validated V2 terminal and builds the Tokenomics component of a final
+//! route plan. This reduced Rust journal intentionally has its own
+//! research-draft schema and hash domain. It does not claim Python/Rust V2
+//! journal parity, Spot provenance, receipt authentication, or settlement authority.
 
 use serde::Serialize;
 
@@ -31,8 +33,8 @@ use crate::zdex_tokenomics_buyback_transition::{
     ZDEXTokenomicsSafeLimitPortV1,
 };
 
-pub const ZDEX_TOKENOMICS_TRANSITION_JOURNAL_SCHEMA_V2: &str =
-    "zenodex/zdex-tokenomics-buyback-transition-journal/v2";
+pub const ZDEX_TOKENOMICS_RESEARCH_DRAFT_TRANSITION_JOURNAL_SCHEMA_V2: &str =
+    "zenodex/zdex-tokenomics-buyback-transition-research-draft/v2";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
@@ -112,6 +114,8 @@ pub fn derive_zdex_tokenomics_buyback_intent_v2(
     }
 }
 
+/// Reduced Rust-only research-draft journal.  Its serialized schema and hash
+/// domain intentionally differ from the complete Python V2 projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ZDEXTokenomicsBuybackJournalV2 {
     pub phase_a_context_root: RootV1,
@@ -186,9 +190,9 @@ impl ZDEXTokenomicsBuybackJournalV2 {
             remaining_epoch_burn_cap_post_atoms: u128,
         }
         hash_global_v1(
-            "zdex-tokenomics-buyback-transition-journal-v2",
+            "zdex-tokenomics-buyback-transition-research-draft-v2",
             &Canonical {
-                schema: ZDEX_TOKENOMICS_TRANSITION_JOURNAL_SCHEMA_V2,
+                schema: ZDEX_TOKENOMICS_RESEARCH_DRAFT_TRANSITION_JOURNAL_SCHEMA_V2,
                 phase_a_context_root: &self.phase_a_context_root,
                 quote_port_root: &self.quote_port_root,
                 terminal_obligation_id: &self.terminal_obligation_id,
