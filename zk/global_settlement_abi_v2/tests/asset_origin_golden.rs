@@ -287,6 +287,44 @@ fn all_python_rejection_vectors_preserve_adjacent_precedence_and_exact_noop() {
 }
 
 #[test]
+fn python_and_rust_accept_the_final_registry_slot_from_the_shared_capacity_vector() {
+    let fixture = fixture();
+    let case = &fixture.rejections["13_registry_capacity_exceeded"];
+    let context: AssetOriginRegistrationContextV2 = typed_vector(&case.context);
+    let mut state: AssetOriginRegistryStateV2 = typed_vector(&case.pre_state);
+    let command: AssetOriginRegistrationCommandV2 = typed_vector(&case.command);
+    state.assets.pop().expect("full capacity vector has rows");
+    let original = state.clone();
+
+    assert_eq!(state.assets.len(), MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2 - 1);
+    let result = transition_asset_origin_registration_v2(&context, &state, &command)
+        .expect("valid final-slot transition must execute");
+    let AssetOriginRegistrationResultV2::Accepted(accepted) = result else {
+        panic!("final registry slot unexpectedly rejected");
+    };
+    assert_eq!(
+        accepted.post_state.assets.len(),
+        MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2
+    );
+    assert!(accepted.post_state.record_for(&command.asset).is_ok());
+    assert_eq!(state, original);
+    assert!(accepted.effects.rows.is_empty());
+    assert!(accepted.effects.asset_conservation.is_empty());
+    assert!(accepted.effects.fee_conservation.is_empty());
+    assert_eq!(accepted.effects.lane_writes.len(), 1);
+    assert_eq!(
+        accepted.effects.lane_writes[0].pre_root,
+        original.state_root().unwrap()
+    );
+    assert_eq!(
+        accepted.effects.lane_writes[0].post_root,
+        accepted.post_state.state_root().unwrap()
+    );
+    assert!(accepted.effects.external_outbox_enqueue.is_empty());
+    assert_eq!(accepted.production_authority(), "NONE");
+}
+
+#[test]
 fn asset_origin_command_decoder_rejects_shape_scalar_and_root_mutants() {
     let fixture = fixture();
     let vectors = &fixture.accepted.vectors;

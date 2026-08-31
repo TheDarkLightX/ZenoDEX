@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from dataclasses import replace
 from typing import cast
 
 import pytest
@@ -106,6 +107,31 @@ def test_all_adjacent_precedence_vectors_reject_as_exact_noops() -> None:
         assert result.effects.is_empty
 
 
+def test_python_accepts_the_final_registry_slot_from_the_shared_capacity_vector() -> None:
+    capacity = _mapping(_mapping(_fixture()["rejections"])["13_registry_capacity_exceeded"])
+    context = decode_asset_origin_registration_context_v2(_vector_bytes(capacity["context"]))
+    full_state = decode_asset_origin_registry_state_v2(_vector_bytes(capacity["pre_state"]))
+    command = decode_asset_origin_registration_command_v2(_vector_bytes(capacity["command"]))
+    state = replace(full_state, assets=full_state.assets[:-1])
+    pre_state_root = state.state_root
+
+    result = transition_asset_origin_registration_v2(context, state, command)
+
+    assert isinstance(result, AssetOriginRegistrationAcceptedV2)
+    assert len(state.assets) == MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2 - 1
+    assert state.state_root == pre_state_root
+    assert len(result.post_state.assets) == MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2
+    assert result.post_state.record_for(command.asset) is not None
+    assert result.effects.rows == ()
+    assert result.effects.asset_conservation == ()
+    assert result.effects.fee_conservation == ()
+    assert len(result.effects.lane_writes) == 1
+    assert result.effects.lane_writes[0].pre_root == pre_state_root
+    assert result.effects.lane_writes[0].post_root == result.post_state.state_root
+    assert result.effects.external_outbox_enqueue == ()
+    assert result.production_authority == "NONE"
+
+
 def test_command_decoder_rejects_field_shape_scalar_and_canonical_mutants() -> None:
     vectors = _mapping(_mapping(_fixture()["accepted"])["vectors"])
     canonical = _mapping(_mapping(vectors["command"])["canonical"])
@@ -152,9 +178,13 @@ def test_state_and_context_decoders_reject_closed_shape_and_order_mutants() -> N
         with pytest.raises(GlobalSettlementCodecErrorV2):
             decode_asset_origin_registry_state_v2(canonical_global_bytes_v2(mutant))
     oversized = copy.deepcopy(state)
-    oversized["assets"] = [copy.deepcopy(cast(list[object], state["assets"])[0])] * (
-        MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2 + 1
-    )
+    valid_row = cast(list[object], state["assets"])[0]
+    oversized_rows = [
+        copy.deepcopy(valid_row)
+        for _ in range(MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2 + 1)
+    ]
+    _mapping(oversized_rows[0])["asset"] = ""
+    oversized["assets"] = oversized_rows
     with pytest.raises(GlobalSettlementCodecErrorV2, match="256-item ceiling"):
         decode_asset_origin_registry_state_v2(canonical_global_bytes_v2(oversized))
     with pytest.raises(GlobalSettlementCodecErrorV2):
