@@ -7,7 +7,9 @@ import pytest
 
 from src.core.asset_origin_registry_types_v2 import (
     ASSET_ORIGIN_REGISTRATION_COMMAND_V2,
+    MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
     AssetOriginKindV2,
+    AssetOriginRecordV2,
     AssetOriginRegistrationAcceptedV2,
     AssetOriginRegistrationCommandV2,
     AssetOriginRegistrationContextV2,
@@ -89,6 +91,18 @@ def _state() -> AssetOriginRegistryStateV2:
     )
 
 
+def _record(command: AssetOriginRegistrationCommandV2) -> AssetOriginRecordV2:
+    return AssetOriginRecordV2(
+        asset=command.asset,
+        origin_kind=command.origin_kind,
+        origin_root=command.origin_root,
+        transfer_policy_root=command.transfer_policy_root,
+        issue_policy_root=command.issue_policy_root,
+        decimals=command.decimals,
+        asset_class=command.asset_class,
+    )
+
+
 def _context(
     state: AssetOriginRegistryStateV2,
     command: AssetOriginRegistrationCommandV2,
@@ -140,6 +154,7 @@ def test_registration_binds_transfer_policy_without_issuing_value() -> None:
     result = transition_asset_origin_registration_v2(context, state, command)
 
     assert isinstance(result, AssetOriginRegistrationAcceptedV2)
+    assert context.occurrence is not None
     assert result.post_state.assets[0].asset == "USD"
     assert result.effects.rows == ()
     assert result.effects.asset_conservation == ()
@@ -342,6 +357,52 @@ def test_duplicate_asset_and_origin_are_distinct_noop_rejections() -> None:
         AssetOriginRegistrationRejectCodeV2.DUPLICATE_ORIGIN,
         first.post_state,
     )
+
+
+def test_registry_capacity_rejects_novel_registration_as_exact_noop() -> None:
+    base = _state()
+    state = AssetOriginRegistryStateV2(
+        module_release_id=base.module_release_id,
+        policy=base.policy,
+        assets=tuple(
+            _record(_command(asset=f"A{index:03d}"))
+            for index in range(MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2)
+        ),
+    )
+    command = _command(asset="ZZZ")
+
+    result = transition_asset_origin_registration_v2(
+        _context(state, command),
+        state,
+        command,
+    )
+
+    assert isinstance(result, AssetOriginRegistrationRejectedV2)
+    _assert_noop(
+        result,
+        AssetOriginRegistrationRejectCodeV2.REGISTRY_CAPACITY_EXCEEDED,
+        state,
+    )
+    assert len(state.assets) == MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2
+
+
+def test_registry_row_bound_precedes_deep_snapshot_validation() -> None:
+    base = _state()
+    invalid = _record(_command(asset="ABC"))
+    object.__setattr__(invalid, "asset", "")
+
+    with pytest.raises(ValueError, match="256-item ceiling"):
+        AssetOriginRegistryStateV2(
+            base.module_release_id,
+            base.policy,
+            (invalid,) * (MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2 + 1),
+        )
+    with pytest.raises(ValueError, match="asset origin asset"):
+        AssetOriginRegistryStateV2(
+            base.module_release_id,
+            base.policy,
+            (invalid,) * MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
+        )
 
 
 def test_native_origin_remains_fail_closed() -> None:

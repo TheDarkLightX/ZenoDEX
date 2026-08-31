@@ -11,7 +11,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::asset_origin_registry::{
     validate_asset_transfer_policy_origin_v2, validate_managed_asset_policy_origin_v2,
 };
-use crate::asset_origin_registry_types::AssetOriginRegistryStateV2;
+use crate::asset_origin_registry_types::{
+    AssetOriginRegistryStateV2, MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
+};
 use crate::asset_transfer_types::{
     AssetTransferContextV2, AssetTransferPolicyV2, AssetTransferStateV2, ACCOUNT_CUSTODY_DOMAIN_V2,
     ASSET_LANE_PRODUCTION_AUTHORITY_V2, ASSET_TRANSFER_MODULE_SCHEMA_V2,
@@ -29,7 +31,7 @@ use crate::state::{AssetSupplyV2, EconomicAmountV2};
 
 pub const ASSET_LANE_STATE_SCHEMA_V2: &str = "zenodex/asset-lane-state/v2";
 pub const ASSET_LANE_PROFILE_AUTHENTICATION_V2: &str = "SHADOW";
-pub const MAX_ASSET_LANE_ASSETS_V2: usize = 256;
+pub const MAX_ASSET_LANE_ASSETS_V2: usize = MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2;
 pub const MAX_ASSET_LANE_BALANCE_ROWS_V2: usize = 4_096;
 pub const MAX_ASSET_LANE_STATE_CANONICAL_BYTES_V2: usize = 1_048_576;
 

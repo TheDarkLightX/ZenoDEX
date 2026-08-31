@@ -184,6 +184,11 @@ fn uniqueness_reject_code(
     {
         return Ok(Some(AssetOriginRegistrationRejectCodeV2::DUPLICATE_ORIGIN));
     }
+    if pre_state.assets.len() >= MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2 {
+        return Ok(Some(
+            AssetOriginRegistrationRejectCodeV2::REGISTRY_CAPACITY_EXCEEDED,
+        ));
+    }
     Ok(None)
 }
 

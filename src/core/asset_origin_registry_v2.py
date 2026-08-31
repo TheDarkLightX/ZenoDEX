@@ -6,6 +6,7 @@ from dataclasses import replace
 
 from .asset_origin_registry_types_v2 import (
     ASSET_ORIGIN_REGISTRATION_COMMAND_V2,
+    MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
     AssetOriginKindV2,
     AssetOriginRecordV2,
     AssetOriginRegistrationAcceptedV2,
@@ -190,6 +191,11 @@ def transition_asset_origin_registration_v2(
         return _reject(AssetOriginRegistrationRejectCodeV2.DUPLICATE_ASSET, owned_state)
     if any(row.origin_root == owned_command.origin_root for row in owned_state.assets):
         return _reject(AssetOriginRegistrationRejectCodeV2.DUPLICATE_ORIGIN, owned_state)
+    if len(owned_state.assets) >= MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2:
+        return _reject(
+            AssetOriginRegistrationRejectCodeV2.REGISTRY_CAPACITY_EXCEEDED,
+            owned_state,
+        )
 
     record = AssetOriginRecordV2(
         asset=owned_command.asset,

@@ -22,6 +22,7 @@ use crate::proof::{EconomicCommandOccurrenceV2, LaneModuleTransitionJournalV2};
 
 pub const ASSET_ORIGIN_REGISTRY_SCHEMA_V2: &str = "zenodex/asset-origin-registry/v2";
 pub const ASSET_ORIGIN_REGISTRATION_COMMAND_V2: &str = "register_asset_origin";
+pub const MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2: usize = 256;
 
 fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
@@ -53,6 +54,7 @@ pub enum AssetOriginRegistrationRejectCodeV2 {
     NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED,
     DUPLICATE_ASSET,
     DUPLICATE_ORIGIN,
+    REGISTRY_CAPACITY_EXCEEDED,
 }
 
 impl AssetOriginRegistrationRejectCodeV2 {
@@ -70,11 +72,12 @@ impl AssetOriginRegistrationRejectCodeV2 {
             Self::NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED => "NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED",
             Self::DUPLICATE_ASSET => "DUPLICATE_ASSET",
             Self::DUPLICATE_ORIGIN => "DUPLICATE_ORIGIN",
+            Self::REGISTRY_CAPACITY_EXCEEDED => "REGISTRY_CAPACITY_EXCEEDED",
         }
     }
 }
 
-pub const ALL_ASSET_ORIGIN_REGISTRATION_REJECT_CODES_V2: [AssetOriginRegistrationRejectCodeV2; 12] = [
+pub const ALL_ASSET_ORIGIN_REGISTRATION_REJECT_CODES_V2: [AssetOriginRegistrationRejectCodeV2; 13] = [
     AssetOriginRegistrationRejectCodeV2::MISSING_OCCURRENCE,
     AssetOriginRegistrationRejectCodeV2::OCCURRENCE_BINDING_MISMATCH,
     AssetOriginRegistrationRejectCodeV2::RELEASE_MISMATCH,
@@ -87,6 +90,7 @@ pub const ALL_ASSET_ORIGIN_REGISTRATION_REJECT_CODES_V2: [AssetOriginRegistratio
     AssetOriginRegistrationRejectCodeV2::NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED,
     AssetOriginRegistrationRejectCodeV2::DUPLICATE_ASSET,
     AssetOriginRegistrationRejectCodeV2::DUPLICATE_ORIGIN,
+    AssetOriginRegistrationRejectCodeV2::REGISTRY_CAPACITY_EXCEEDED,
 ];
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -176,6 +180,9 @@ impl AssetOriginRegistryStateV2 {
         )?;
         self.module_release_id
             .validate("asset origin registry module release", false)?;
+        if self.assets.len() > MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2 {
+            return Err(AbiErrorV2::InvalidBounds("asset origin registry assets"));
+        }
         self.policy.validate()?;
         for row in &self.assets {
             row.validate()?;

@@ -36,6 +36,7 @@ from .global_settlement_types_v2 import (
 
 ASSET_ORIGIN_REGISTRY_SCHEMA_V2: Final = "zenodex/asset-origin-registry/v2"
 ASSET_ORIGIN_REGISTRATION_COMMAND_V2: Final = "register_asset_origin"
+MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2: Final = 256
 
 
 class AssetOriginKindV2(str, Enum):
@@ -56,6 +57,7 @@ class AssetOriginRegistrationRejectCodeV2(str, Enum):
     NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED = "NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED"
     DUPLICATE_ASSET = "DUPLICATE_ASSET"
     DUPLICATE_ORIGIN = "DUPLICATE_ORIGIN"
+    REGISTRY_CAPACITY_EXCEEDED = "REGISTRY_CAPACITY_EXCEEDED"
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -147,6 +149,21 @@ class AssetOriginRegistrationPolicyV2:
         }
 
 
+def _snapshot_registry_rows_v2(
+    rows: tuple[AssetOriginRecordV2, ...],
+) -> tuple[AssetOriginRecordV2, ...]:
+    if len(rows) > MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2:
+        raise ValueError(
+            "asset origin registry rows exceed the "
+            f"{MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2}-item ceiling"
+        )
+    return _snapshot_dataclass_tuple_v2(
+        rows,
+        AssetOriginRecordV2,
+        "asset origin registry rows",
+    )
+
+
 @dataclass(frozen=True)
 class AssetOriginRegistryStateV2:
     __slots__ = ("module_release_id", "_policy", "_assets")
@@ -167,11 +184,7 @@ class AssetOriginRegistryStateV2:
         _OwnedDataclassSnapshotPropertyV2(
             "_assets",
             tuple,
-            lambda rows: _snapshot_dataclass_tuple_v2(
-                rows,
-                AssetOriginRecordV2,
-                "asset origin registry rows",
-            ),
+            _snapshot_registry_rows_v2,
             "asset origin registry rows must be an exact tuple",
         )
     )
@@ -439,6 +452,7 @@ AssetOriginRegistrationResultV2 = (
 __all__ = [
     "ASSET_ORIGIN_REGISTRY_SCHEMA_V2",
     "ASSET_ORIGIN_REGISTRATION_COMMAND_V2",
+    "MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2",
     "AssetOriginKindV2",
     "AssetOriginRegistrationRejectCodeV2",
     "AssetOriginRecordV2",

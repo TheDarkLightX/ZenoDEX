@@ -5,12 +5,13 @@ use serde_json::Value;
 use zenodex_global_settlement_abi_v2::{
     canonical_bytes_v2, decode_canonical_v2, hash_bytes_sha256_v2, hash_global_v2,
     managed_asset_policy_root_v2, transition_asset_origin_registration_v2,
-    validate_asset_transfer_policy_origin_v2, validate_managed_asset_policy_origin_v2,
+    validate_asset_transfer_policy_origin_v2, validate_managed_asset_policy_origin_v2, AbiErrorV2,
     AssetOriginRecordV2, AssetOriginRegistrationCommandV2, AssetOriginRegistrationContextV2,
     AssetOriginRegistrationRejectCodeV2, AssetOriginRegistrationResultV2,
     AssetOriginRegistryStateV2, AssetTransferPolicyV2, EconomicCommandOccurrenceV2,
     GlobalEconomicEffectPlanV2, LaneModuleTransitionJournalV2, ManagedAssetLifecyclePolicyV2,
     RootV2, ValidateCanonicalV2, ALL_ASSET_ORIGIN_REGISTRATION_REJECT_CODES_V2,
+    MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
 };
 
 const GOLDEN: &str =
@@ -229,7 +230,7 @@ fn python_and_rust_share_asset_origin_bytes_roots_policy_bindings_and_transition
         fixture.reject_codes,
         ALL_ASSET_ORIGIN_REGISTRATION_REJECT_CODES_V2.map(|code| code.as_str().to_owned())
     );
-    assert_eq!(fixture.rejections.len(), 12);
+    assert_eq!(fixture.rejections.len(), 13);
     assert_eq!(
         fixture.nonclaims,
         [
@@ -326,6 +327,26 @@ fn asset_origin_command_decoder_rejects_shape_scalar_and_root_mutants() {
         )
         .is_err());
     }
+}
+
+#[test]
+fn asset_origin_registry_bound_precedes_deep_row_validation() {
+    let fixture = fixture();
+    let mut state: AssetOriginRegistryStateV2 =
+        typed_vector(&fixture.accepted.vectors["pre_state"]);
+    let mut invalid = state.assets[0].clone();
+    invalid.asset.clear();
+
+    state.assets = vec![invalid.clone(); MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2];
+    assert_eq!(
+        state.validate(),
+        Err(AbiErrorV2::InvalidToken("asset origin asset"))
+    );
+    state.assets.push(invalid);
+    assert_eq!(
+        state.validate(),
+        Err(AbiErrorV2::InvalidBounds("asset origin registry assets"))
+    );
 }
 
 #[test]

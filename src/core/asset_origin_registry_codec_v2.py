@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .asset_origin_registry_types_v2 import (
     ASSET_ORIGIN_REGISTRY_SCHEMA_V2,
+    MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
     AssetOriginKindV2,
     AssetOriginRecordV2,
     AssetOriginRegistrationCommandV2,
@@ -150,7 +151,13 @@ def _decode_state_object_v2(value: dict[str, object]) -> AssetOriginRegistryStat
     policy = _decode_policy_object_v2(
         _expect_object_v2(value["policy"], name="asset origin policy")
     )
-    rows = _expect_object_list_v2(value["assets"], name="asset origin records")
+    raw_rows = value["assets"]
+    if type(raw_rows) is list and len(raw_rows) > MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2:
+        raise GlobalSettlementCodecErrorV2(
+            "asset origin records exceed the "
+            f"{MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2}-item ceiling"
+        )
+    rows = _expect_object_list_v2(raw_rows, name="asset origin records")
     return _construct_v2(
         lambda: AssetOriginRegistryStateV2(
             module_release_id=_expect_text_v2(

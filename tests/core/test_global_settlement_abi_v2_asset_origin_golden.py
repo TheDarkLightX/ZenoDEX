@@ -16,6 +16,7 @@ from src.core.asset_origin_registry_codec_v2 import (
     encode_asset_origin_registry_state_v2,
 )
 from src.core.asset_origin_registry_types_v2 import (
+    MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
     AssetOriginRegistrationAcceptedV2,
     AssetOriginRegistrationRejectCodeV2,
     AssetOriginRegistrationRejectedV2,
@@ -58,7 +59,7 @@ def test_fixture_scope_reject_registry_and_nonclaims_are_exact() -> None:
     assert fixture["authority"] == "NONE"
     assert fixture["profile_authentication"] == "SHADOW"
     assert fixture["reject_codes"] == [code.value for code in AssetOriginRegistrationRejectCodeV2]
-    assert len(_mapping(fixture["rejections"])) == 12
+    assert len(_mapping(fixture["rejections"])) == 13
     assert fixture["nonclaims"] == [
         "no RISC0 circuit or receipt",
         "no runtime mount or migration",
@@ -150,6 +151,12 @@ def test_state_and_context_decoders_reject_closed_shape_and_order_mutants() -> N
     for mutant in (reversed_rows, old_schema):
         with pytest.raises(GlobalSettlementCodecErrorV2):
             decode_asset_origin_registry_state_v2(canonical_global_bytes_v2(mutant))
+    oversized = copy.deepcopy(state)
+    oversized["assets"] = [copy.deepcopy(cast(list[object], state["assets"])[0])] * (
+        MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2 + 1
+    )
+    with pytest.raises(GlobalSettlementCodecErrorV2, match="256-item ceiling"):
+        decode_asset_origin_registry_state_v2(canonical_global_bytes_v2(oversized))
     with pytest.raises(GlobalSettlementCodecErrorV2):
         decode_asset_origin_registration_context_v2(canonical_global_bytes_v2(missing_occurrence))
     nullable_occurrence = copy.deepcopy(context)

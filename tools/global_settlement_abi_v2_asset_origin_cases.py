@@ -8,6 +8,7 @@ from dataclasses import replace
 
 from src.core.asset_origin_registry_types_v2 import (
     ASSET_ORIGIN_REGISTRATION_COMMAND_V2,
+    MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
     AssetOriginKindV2,
     AssetOriginRecordV2,
     AssetOriginRegistrationCommandV2,
@@ -100,6 +101,27 @@ def _native_command() -> AssetOriginRegistrationCommandV2:
         issue_policy_root=ZERO_ROOT_V2,
         decimals=ASSET_ATOM_DECIMALS_V2,
         asset_class=AssetClassV2.TAU_NATIVE_COIN,
+    )
+
+
+def _capacity_records(
+    command: AssetOriginRegistrationCommandV2,
+    *,
+    duplicate_origin: bool,
+) -> tuple[AssetOriginRecordV2, ...]:
+    return tuple(
+        AssetOriginRecordV2(
+            asset=f"CAP{index:03d}",
+            origin_kind=AssetOriginKindV2.TAU_ORIGINATED,
+            origin_root=(
+                command.origin_root if duplicate_origin and index == 0 else _root(1_000 + index)
+            ),
+            transfer_policy_root=_root(2_000 + index),
+            issue_policy_root=ZERO_ROOT_V2,
+            decimals=ASSET_ATOM_DECIMALS_V2,
+            asset_class=AssetClassV2.REGISTERED_ORDINARY_TOKEN,
+        )
+        for index in range(MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2)
     )
 
 
@@ -257,7 +279,11 @@ def _registry_cases(
     duplicate_asset_state = _state_with(state, assets=(*state.assets, _record_for(command)))
     duplicate_origin_state = _state_with(
         state,
-        assets=(replace(state.assets[0], origin_root=command.origin_root),),
+        assets=_capacity_records(command, duplicate_origin=True),
+    )
+    capacity_state = _state_with(
+        state,
+        assets=_capacity_records(command, duplicate_origin=False),
     )
     return (
         (
@@ -287,6 +313,13 @@ def _registry_cases(
             duplicate_origin_state,
             command,
             AssetOriginRegistrationRejectCodeV2.DUPLICATE_ORIGIN,
+        ),
+        (
+            "13_registry_capacity_exceeded",
+            context,
+            capacity_state,
+            command,
+            AssetOriginRegistrationRejectCodeV2.REGISTRY_CAPACITY_EXCEEDED,
         ),
     )
 

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from .asset_origin_registry_types_v2 import (
+    MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
     AssetOriginRegistryStateV2,
     _snapshot_registry_state_v2,
 )
@@ -49,7 +50,7 @@ from .managed_asset_lifecycle_types_v2 import (
 ASSET_LANE_STATE_SCHEMA_V2: Final = "zenodex/asset-lane-state/v2"
 ASSET_LANE_PRODUCTION_AUTHORITY_V2: Final = "NONE"
 ASSET_LANE_PROFILE_AUTHENTICATION_V2: Final = "SHADOW"
-MAX_ASSET_LANE_ASSETS_V2: Final = 256
+MAX_ASSET_LANE_ASSETS_V2: Final = MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2
 MAX_ASSET_LANE_BALANCE_ROWS_V2: Final = 4_096
 MAX_ASSET_LANE_STATE_CANONICAL_BYTES_V2: Final = 1_048_576
 _UNSET_V2: Final = object()
