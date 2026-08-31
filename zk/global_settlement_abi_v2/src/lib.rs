@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+pub mod asset_lane_coordinator;
+pub mod asset_lane_coordinator_types;
+pub mod asset_lane_state;
 pub mod asset_origin_registry;
 pub mod asset_origin_registry_types;
 pub mod asset_transfer;
@@ -20,6 +23,9 @@ pub mod proof;
 mod signed_atoms;
 pub mod state;
 
+pub use asset_lane_coordinator::transition_asset_lane_v2;
+pub use asset_lane_coordinator_types::*;
+pub use asset_lane_state::*;
 pub use asset_origin_registry::*;
 pub use asset_origin_registry_types::*;
 pub use asset_transfer::transition_asset_transfer_v2;
