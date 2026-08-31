@@ -14,9 +14,12 @@ from urllib.request import Request, urlopen
 import pytest
 
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
-from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_BOOTSTRAP_SENDER
+from tools.zeno_ledger_make_testnet_bundle import (
+    DEFAULT_ASSET0,
+    DEFAULT_ASSET1,
+    DEFAULT_BOOTSTRAP_SENDER,
+)
 from tools.zeno_ledger_node import make_node_http_server_v0, run_node_once_v0
-
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -109,7 +112,9 @@ def live_node(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, Path]:
     assert build_report["ok"] is True
 
     node_dir = tmp_path / "node"
-    peer_attestation = bundle_root / "bootstrap" / "watcher_attestations" / "bootstrap_range_1_5.json"
+    peer_attestation = (
+        bundle_root / "bootstrap" / "watcher_attestations" / "bootstrap_range_1_5.json"
+    )
     node_report = run_node_once_v0(
         bundle_root=bundle_root,
         node_id="ui-live-bridge-node",
@@ -118,12 +123,16 @@ def live_node(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, Path]:
     )
     assert node_report["ok"] is True
 
+    # The browser fixture has no production credential channel. The node
+    # enforces that this explicit unauthenticated mode is loopback-only.
     server = make_node_http_server_v0(
         data_dir=node_dir,
         host="127.0.0.1",
         port=0,
         enable_testnet_intake=True,
         enable_testnet_faucet=True,
+        expose_testnet_faucet_http=True,
+        allow_unauthenticated_testnet_writes=True,
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -144,6 +153,7 @@ def _fund_smoke_sender(node_base_url: str, *, tx_id: str) -> dict[str, object]:
             "amount": 10_000,
             "time_ms": 1_778_740_100_000,
             "tx_id": tx_id,
+            "local_fixture_mode": True,
         },
     )
 
@@ -158,19 +168,27 @@ def test_live_node_serves_ui_pools_and_accepts_ui_swap(live_node: tuple[str, Pat
     pool_rows = pools["pools"]
     assert isinstance(pool_rows, list)
     assert len(pool_rows) >= 1
-    first_pool = pool_rows[0]
-    assert isinstance(first_pool, dict)
-    assert first_pool["token0"] == "tASSET0"
-    assert first_pool["token1"] == "tASSET1"
-    assert first_pool["asset0"] == DEFAULT_ASSET0
+    target_pool = next(
+        (
+            row
+            for row in pool_rows
+            if isinstance(row, dict)
+            and row.get("token0") == "tAGRS"
+            and row.get("token1") == "tZDEX"
+            and row.get("asset0") == DEFAULT_ASSET0
+            and row.get("asset1") == DEFAULT_ASSET1
+        ),
+        None,
+    )
+    assert isinstance(target_pool, dict)
 
     pre_height = _live_height(node_base_url)
     swap_report = _post_url_json(
         f"{node_base_url}/api/swap",
         {
-            "from": "tASSET0",
-            "to": "tASSET1",
-            "poolId": first_pool["pool_id"],
+            "from": "tAGRS",
+            "to": "tZDEX",
+            "poolId": target_pool["pool_id"],
             "amountIn": 100,
             "minAmountOut": 1,
             "senderPubkey": DEFAULT_BOOTSTRAP_SENDER,
