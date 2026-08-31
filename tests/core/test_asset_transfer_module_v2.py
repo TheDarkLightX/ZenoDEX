@@ -169,6 +169,30 @@ def test_transfer_accepts_one_origin_and_occurrence_bound_command() -> None:
     assert result.production_authority == "NONE"
 
 
+@pytest.mark.parametrize(
+    "journal_field",
+    (
+        "private_port_root",
+        "terminal_obligations_root",
+        "oracle_occurrence_plan_root",
+    ),
+)
+def test_transfer_acceptance_rejects_nonzero_external_roots(
+    journal_field: str,
+) -> None:
+    state = _state()
+    command = _command()
+    result = transition_asset_transfer_v2(_context(state, command), state, command)
+    assert isinstance(result, AssetTransferAcceptedV2)
+
+    with pytest.raises(ValueError, match="zero external roots"):
+        AssetTransferAcceptedV2(
+            result.post_state,
+            result.effects,
+            replace(result.module_journal, **{journal_field: _root(journal_field)}),
+        )
+
+
 def test_missing_occurrence_rejects_without_effects() -> None:
     state = _state()
     command = _command()
@@ -457,6 +481,55 @@ def test_state_and_context_own_nested_snapshots() -> None:
     assert state.policies[0].asset_origin_root == _root("origin:USD")
     assert context.occurrence.occurrence_id == occurrence_id
     assert context.occurrence.command_body_hash == command.command_body_hash
+
+
+def test_state_context_and_result_getters_do_not_expose_nested_aliases() -> None:
+    state = _state()
+    command = _command()
+    context = _context(state, command)
+    result = transition_asset_transfer_v2(context, state, command)
+    assert isinstance(result, AssetTransferAcceptedV2)
+    state_root = state.state_root
+    occurrence_id = context.occurrence.occurrence_id
+    result_bytes = canonical_global_bytes_v2(result)
+
+    borrowed_policy = state.policies[0]
+    borrowed_occurrence = context.occurrence
+    borrowed_post_state = result.post_state
+    borrowed_effect = result.effects.rows[0]
+    object.__setattr__(borrowed_policy, "enabled", False)
+    object.__setattr__(borrowed_occurrence, "nonce", 999)
+    object.__setattr__(borrowed_post_state, "module_release_id", _root("mutated-release"))
+    object.__setattr__(borrowed_effect, "delta_atoms", -999)
+
+    assert state.state_root == state_root
+    assert state.policies[0].enabled
+    assert context.occurrence.occurrence_id == occurrence_id
+    assert canonical_global_bytes_v2(result) == result_bytes
+
+
+def test_rejected_result_owns_effect_plan_and_does_not_expose_it() -> None:
+    effects = transition_asset_transfer_v2(
+        _context(_state(), _command()),
+        _state(),
+        _command(),
+    ).effects
+    empty = type(effects).empty()
+    state_root = _state().state_root
+    rejected = AssetTransferRejectedV2(
+        AssetTransferRejectCodeV2.UNKNOWN_COMMAND,
+        state_root,
+        state_root,
+        empty,
+    )
+    rejected_bytes = canonical_global_bytes_v2(rejected)
+
+    object.__setattr__(empty, "rows", effects.rows)
+    borrowed = rejected.effects
+    object.__setattr__(borrowed, "rows", effects.rows)
+
+    assert rejected.effects.is_empty
+    assert canonical_global_bytes_v2(rejected) == rejected_bytes
 
 
 def test_same_inputs_produce_byte_identical_result() -> None:

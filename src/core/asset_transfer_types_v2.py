@@ -13,6 +13,7 @@ from .global_economic_proof_v2 import (
     _snapshot_occurrence_v2,
 )
 from .global_settlement_types_v2 import (
+    ZERO_ROOT_V2,
     AssetSupplyV2,
     EconomicAmountV2,
     GlobalEconomicEffectPlanV2,
@@ -34,6 +35,7 @@ ASSET_TRANSFER_COMMAND_KIND_V2: Final = "asset_transfer"
 ACCOUNT_CUSTODY_DOMAIN_V2: Final = "accounts"
 ASSET_ATOM_DECIMALS_V2: Final = 8
 ASSET_LANE_PRODUCTION_AUTHORITY_V2: Final = "NONE"
+_UNSET_OWNED_VALUE_V2: Final = object()
 
 
 class AssetClassV2(str, Enum):
@@ -69,9 +71,9 @@ def require_asset_class_namespace_v2(asset: str, asset_class: AssetClassV2) -> N
 class AssetTransferRejectCodeV2(str, Enum):
     MISSING_OCCURRENCE = "MISSING_OCCURRENCE"
     OCCURRENCE_BINDING_MISMATCH = "OCCURRENCE_BINDING_MISMATCH"
-    OCCURRENCE_COMMAND_MISMATCH = "OCCURRENCE_COMMAND_MISMATCH"
     RELEASE_MISMATCH = "RELEASE_MISMATCH"
     UNKNOWN_COMMAND = "UNKNOWN_COMMAND"
+    OCCURRENCE_COMMAND_MISMATCH = "OCCURRENCE_COMMAND_MISMATCH"
     UNKNOWN_ASSET = "UNKNOWN_ASSET"
     DISABLED_ASSET = "DISABLED_ASSET"
     UNREGISTERED_ASSET = "UNREGISTERED_ASSET"
@@ -127,55 +129,84 @@ class AssetTransferPolicyV2:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class AssetTransferStateV2:
     module_release_id: str
-    policies: tuple[AssetTransferPolicyV2, ...]
-    balances: tuple[EconomicAmountV2, ...]
-    supplies: tuple[AssetSupplyV2, ...]
+    _policies: tuple[AssetTransferPolicyV2, ...]
+    _balances: tuple[EconomicAmountV2, ...]
+    _supplies: tuple[AssetSupplyV2, ...]
 
-    def __post_init__(self) -> None:
-        for field_name, expected_type in (
-            ("policies", AssetTransferPolicyV2),
-            ("balances", EconomicAmountV2),
-            ("supplies", AssetSupplyV2),
-        ):
-            object.__setattr__(
-                self,
-                field_name,
-                _snapshot_dataclass_tuple_v2(
-                    getattr(self, field_name),
-                    expected_type,
-                    f"asset transfer {field_name}",
-                ),
-            )
+    def __init__(
+        self,
+        module_release_id: str,
+        policies: tuple[AssetTransferPolicyV2, ...] | None = None,
+        balances: tuple[EconomicAmountV2, ...] | None = None,
+        supplies: tuple[AssetSupplyV2, ...] | None = None,
+        *,
+        _policies: tuple[AssetTransferPolicyV2, ...] | None = None,
+        _balances: tuple[EconomicAmountV2, ...] | None = None,
+        _supplies: tuple[AssetSupplyV2, ...] | None = None,
+    ) -> None:
+        selected_policies = policies if policies is not None else _policies
+        selected_balances = balances if balances is not None else _balances
+        selected_supplies = supplies if supplies is not None else _supplies
+        if selected_policies is None or selected_balances is None or selected_supplies is None:
+            raise TypeError("asset transfer state requires all owned tables")
+        object.__setattr__(self, "module_release_id", module_release_id)
+        object.__setattr__(
+            self,
+            "_policies",
+            _snapshot_dataclass_tuple_v2(
+                selected_policies,
+                AssetTransferPolicyV2,
+                "asset transfer policies",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "_balances",
+            _snapshot_dataclass_tuple_v2(
+                selected_balances,
+                EconomicAmountV2,
+                "asset transfer balances",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "_supplies",
+            _snapshot_dataclass_tuple_v2(
+                selected_supplies,
+                AssetSupplyV2,
+                "asset transfer supplies",
+            ),
+        )
         _require_root_v2(
             self.module_release_id,
             name="asset transfer module release id",
         )
         _require_ordered_objects_v2(
-            self.policies,
+            self._policies,
             name="asset transfer policies",
             expected_type=AssetTransferPolicyV2,
             key="asset",
         )
         _require_ordered_objects_v2(
-            self.balances,
+            self._balances,
             name="asset transfer balances",
             expected_type=EconomicAmountV2,
             key="key",
         )
         _require_ordered_objects_v2(
-            self.supplies,
+            self._supplies,
             name="asset transfer supplies",
             expected_type=AssetSupplyV2,
             key="asset",
         )
-        policy_assets = tuple(policy.asset for policy in self.policies)
-        if tuple(supply.asset for supply in self.supplies) != policy_assets:
+        policy_assets = tuple(policy.asset for policy in self._policies)
+        if tuple(supply.asset for supply in self._supplies) != policy_assets:
             raise ValueError("asset transfer policies and supplies must cover the same assets")
         totals = {asset: 0 for asset in policy_assets}
-        for balance in self.balances:
+        for balance in self._balances:
             if balance.custody_domain != ACCOUNT_CUSTODY_DOMAIN_V2:
                 raise ValueError("asset transfer balance has the wrong custody domain")
             if balance.amount_atoms == 0:
@@ -183,9 +214,33 @@ class AssetTransferStateV2:
             if balance.asset not in totals:
                 raise ValueError("asset transfer balance references an unknown asset")
             totals[balance.asset] += balance.amount_atoms
-        for supply in self.supplies:
+        for supply in self._supplies:
             if totals[supply.asset] > supply.amount_atoms:
                 raise ValueError("asset transfer account balances exceed supply")
+
+    @property
+    def policies(self) -> tuple[AssetTransferPolicyV2, ...]:
+        return _snapshot_dataclass_tuple_v2(
+            self._policies,
+            AssetTransferPolicyV2,
+            "asset transfer policies",
+        )
+
+    @property
+    def balances(self) -> tuple[EconomicAmountV2, ...]:
+        return _snapshot_dataclass_tuple_v2(
+            self._balances,
+            EconomicAmountV2,
+            "asset transfer balances",
+        )
+
+    @property
+    def supplies(self) -> tuple[AssetSupplyV2, ...]:
+        return _snapshot_dataclass_tuple_v2(
+            self._supplies,
+            AssetSupplyV2,
+            "asset transfer supplies",
+        )
 
     @property
     def state_root(self) -> str:
@@ -194,14 +249,14 @@ class AssetTransferStateV2:
     def balance_atoms(self, owner: str, asset: str) -> int:
         _require_token_v2(owner, name="asset transfer balance owner")
         _require_token_v2(asset, name="asset transfer balance asset")
-        for row in self.balances:
+        for row in self._balances:
             if row.owner == owner and row.asset == asset:
                 return row.amount_atoms
         return 0
 
     def supply_atoms(self, asset: str) -> int:
         _require_token_v2(asset, name="asset transfer supply asset")
-        for row in self.supplies:
+        for row in self._supplies:
             if row.asset == asset:
                 return row.amount_atoms
         raise ValueError("unknown asset transfer supply")
@@ -216,14 +271,28 @@ class AssetTransferStateV2:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class AssetTransferContextV2:
     writer_epoch: int
     module_release_id: str
     global_pre_state_root: str
-    occurrence: EconomicCommandOccurrenceV2 | None
+    _occurrence: EconomicCommandOccurrenceV2 | None
 
-    def __post_init__(self) -> None:
+    def __init__(
+        self,
+        writer_epoch: int,
+        module_release_id: str,
+        global_pre_state_root: str,
+        occurrence: EconomicCommandOccurrenceV2 | None | object = _UNSET_OWNED_VALUE_V2,
+        *,
+        _occurrence: EconomicCommandOccurrenceV2 | None | object = _UNSET_OWNED_VALUE_V2,
+    ) -> None:
+        selected_occurrence = occurrence if occurrence is not _UNSET_OWNED_VALUE_V2 else _occurrence
+        if selected_occurrence is _UNSET_OWNED_VALUE_V2:
+            raise TypeError("asset transfer context requires an occurrence field")
+        object.__setattr__(self, "writer_epoch", writer_epoch)
+        object.__setattr__(self, "module_release_id", module_release_id)
+        object.__setattr__(self, "global_pre_state_root", global_pre_state_root)
         _require_nonnegative_int_v2(
             self.writer_epoch,
             name="asset transfer context writer epoch",
@@ -236,14 +305,22 @@ class AssetTransferContextV2:
             self.global_pre_state_root,
             name="asset transfer context global pre-state root",
         )
-        if self.occurrence is not None:
-            if type(self.occurrence) is not EconomicCommandOccurrenceV2:
+        if selected_occurrence is not None:
+            if type(selected_occurrence) is not EconomicCommandOccurrenceV2:
                 raise TypeError("asset transfer occurrence must have the exact typed value")
             object.__setattr__(
                 self,
-                "occurrence",
-                _snapshot_occurrence_v2(self.occurrence),
+                "_occurrence",
+                _snapshot_occurrence_v2(selected_occurrence),
             )
+        else:
+            object.__setattr__(self, "_occurrence", None)
+
+    @property
+    def occurrence(self) -> EconomicCommandOccurrenceV2 | None:
+        if self._occurrence is None:
+            return None
+        return _snapshot_occurrence_v2(self._occurrence)
 
     def to_canonical(self) -> dict[str, object]:
         return {
@@ -329,7 +406,12 @@ def _snapshot_asset_transfer_context_v2(
 ) -> AssetTransferContextV2:
     if type(context) is not AssetTransferContextV2:
         raise TypeError("asset transfer context must have the exact typed value")
-    return replace(context, occurrence=context.occurrence)
+    return AssetTransferContextV2(
+        writer_epoch=context.writer_epoch,
+        module_release_id=context.module_release_id,
+        global_pre_state_root=context.global_pre_state_root,
+        occurrence=context.occurrence,
+    )
 
 
 def _snapshot_asset_transfer_command_v2(
@@ -340,54 +422,86 @@ def _snapshot_asset_transfer_command_v2(
     return replace(command)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class AssetTransferAcceptedV2:
-    post_state: AssetTransferStateV2
-    effects: GlobalEconomicEffectPlanV2
-    module_journal: LaneModuleTransitionJournalV2
+    _post_state: AssetTransferStateV2
+    _effects: GlobalEconomicEffectPlanV2
+    _module_journal: LaneModuleTransitionJournalV2
 
-    def __post_init__(self) -> None:
-        if type(self.post_state) is not AssetTransferStateV2:
+    def __init__(
+        self,
+        post_state: AssetTransferStateV2 | None = None,
+        effects: GlobalEconomicEffectPlanV2 | None = None,
+        module_journal: LaneModuleTransitionJournalV2 | None = None,
+        *,
+        _post_state: AssetTransferStateV2 | None = None,
+        _effects: GlobalEconomicEffectPlanV2 | None = None,
+        _module_journal: LaneModuleTransitionJournalV2 | None = None,
+    ) -> None:
+        selected_state = post_state if post_state is not None else _post_state
+        selected_effects = effects if effects is not None else _effects
+        selected_journal = module_journal if module_journal is not None else _module_journal
+        if type(selected_state) is not AssetTransferStateV2:
             raise TypeError("asset transfer accepted state is invalid")
-        if type(self.effects) is not GlobalEconomicEffectPlanV2:
+        if type(selected_effects) is not GlobalEconomicEffectPlanV2:
             raise TypeError("asset transfer accepted effects are invalid")
-        if type(self.module_journal) is not LaneModuleTransitionJournalV2:
+        if type(selected_journal) is not LaneModuleTransitionJournalV2:
             raise TypeError("asset transfer module journal is invalid")
         object.__setattr__(
             self,
-            "post_state",
-            _snapshot_asset_transfer_state_v2(self.post_state),
+            "_post_state",
+            _snapshot_asset_transfer_state_v2(selected_state),
         )
-        object.__setattr__(self, "effects", _snapshot_effect_plan_v2(self.effects))
+        object.__setattr__(self, "_effects", _snapshot_effect_plan_v2(selected_effects))
         object.__setattr__(
             self,
-            "module_journal",
-            _snapshot_module_journal_v2(self.module_journal),
+            "_module_journal",
+            _snapshot_module_journal_v2(selected_journal),
         )
-        if self.effects.is_empty:
+        if self._effects.is_empty:
             raise ValueError("asset transfer acceptance requires nonempty effects")
-        if self.module_journal.lane_id is not LaneIdV2.ASSET_TRANSFER:
+        if self._module_journal.lane_id is not LaneIdV2.ASSET_TRANSFER:
             raise ValueError("asset transfer journal has the wrong lane")
-        if self.module_journal.module_release_id != self.post_state.module_release_id:
+        if self._module_journal.module_release_id != self._post_state.module_release_id:
             raise ValueError("asset transfer journal has the wrong module release")
-        if self.module_journal.post_lane_root != self.post_state.state_root:
+        if self._module_journal.post_lane_root != self._post_state.state_root:
             raise ValueError("asset transfer journal has the wrong post-state root")
-        if self.module_journal.effect_plan_root != self.effects.effect_plan_root:
+        if self._module_journal.effect_plan_root != self._effects.effect_plan_root:
             raise ValueError("asset transfer journal has the wrong effect-plan root")
-        if self.effects.occurrence_consumptions != (self.module_journal.command_occurrence_id,):
+        if self._effects.occurrence_consumptions != (
+            self._module_journal.command_occurrence_id,
+        ):
             raise ValueError("asset transfer effects have the wrong occurrence")
-        if self.effects.lane_writes != (
+        if self._effects.lane_writes != (
             LaneWriteV2(
                 LaneIdV2.ASSET_TRANSFER,
-                self.module_journal.pre_lane_root,
-                self.module_journal.post_lane_root,
+                self._module_journal.pre_lane_root,
+                self._module_journal.post_lane_root,
             ),
         ):
             raise ValueError("asset transfer effects have the wrong exact lane write")
+        if (
+            self._module_journal.private_port_root != ZERO_ROOT_V2
+            or self._module_journal.terminal_obligations_root != ZERO_ROOT_V2
+            or self._module_journal.oracle_occurrence_plan_root != ZERO_ROOT_V2
+        ):
+            raise ValueError("asset transfer leaf must have zero external roots")
+
+    @property
+    def post_state(self) -> AssetTransferStateV2:
+        return _snapshot_asset_transfer_state_v2(self._post_state)
+
+    @property
+    def effects(self) -> GlobalEconomicEffectPlanV2:
+        return _snapshot_effect_plan_v2(self._effects)
+
+    @property
+    def module_journal(self) -> LaneModuleTransitionJournalV2:
+        return _snapshot_module_journal_v2(self._module_journal)
 
     @property
     def receipt_root(self) -> str:
-        return self.module_journal.receipt_root
+        return self._module_journal.receipt_root
 
     @property
     def production_authority(self) -> str:
@@ -402,17 +516,31 @@ class AssetTransferAcceptedV2:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class AssetTransferRejectedV2:
     code: AssetTransferRejectCodeV2
     pre_state_root: str
     post_state_root: str
-    effects: GlobalEconomicEffectPlanV2
+    _effects: GlobalEconomicEffectPlanV2
 
-    def __post_init__(self) -> None:
+    def __init__(
+        self,
+        code: AssetTransferRejectCodeV2,
+        pre_state_root: str,
+        post_state_root: str,
+        effects: GlobalEconomicEffectPlanV2 | None = None,
+        *,
+        _effects: GlobalEconomicEffectPlanV2 | None = None,
+    ) -> None:
+        selected_effects = effects if effects is not None else _effects
+        object.__setattr__(self, "code", code)
+        object.__setattr__(self, "pre_state_root", pre_state_root)
+        object.__setattr__(self, "post_state_root", post_state_root)
         if type(self.code) is not AssetTransferRejectCodeV2:
             raise TypeError("asset transfer reject code is not closed")
-        object.__setattr__(self, "effects", _snapshot_effect_plan_v2(self.effects))
+        if type(selected_effects) is not GlobalEconomicEffectPlanV2:
+            raise TypeError("asset transfer rejected effects are invalid")
+        object.__setattr__(self, "_effects", _snapshot_effect_plan_v2(selected_effects))
         _require_root_v2(self.pre_state_root, name="asset transfer rejected pre-state")
         _require_root_v2(
             self.post_state_root,
@@ -420,8 +548,12 @@ class AssetTransferRejectedV2:
         )
         if self.pre_state_root != self.post_state_root:
             raise ValueError("asset transfer rejection changed the state root")
-        if type(self.effects) is not GlobalEconomicEffectPlanV2 or not self.effects.is_empty:
+        if not self._effects.is_empty:
             raise ValueError("asset transfer rejection carried effects")
+
+    @property
+    def effects(self) -> GlobalEconomicEffectPlanV2:
+        return _snapshot_effect_plan_v2(self._effects)
 
     def to_canonical(self) -> dict[str, object]:
         return {
