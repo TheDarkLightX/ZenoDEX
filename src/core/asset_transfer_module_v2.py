@@ -22,6 +22,9 @@ from .asset_transfer_types_v2 import (
     AssetTransferRejectedV2,
     AssetTransferResultV2,
     AssetTransferStateV2,
+    _snapshot_asset_transfer_command_v2,
+    _snapshot_asset_transfer_context_v2,
+    _snapshot_asset_transfer_state_v2,
 )
 from .global_economic_proof_v2 import LaneModuleTransitionJournalV2
 from .global_settlement_types_v2 import (
@@ -330,16 +333,19 @@ def transition_asset_transfer_v2(
         raise TypeError("asset transfer pre-state must be an exact typed value")
     if type(command) is not AssetTransferCommandV2:
         raise TypeError("asset transfer command must be an exact typed value")
-    prepared = _prepare_transfer(context, pre_state, command)
+    owned_context = _snapshot_asset_transfer_context_v2(context)
+    owned_state = _snapshot_asset_transfer_state_v2(pre_state)
+    owned_command = _snapshot_asset_transfer_command_v2(command)
+    prepared = _prepare_transfer(owned_context, owned_state, owned_command)
     if isinstance(prepared, AssetTransferRejectCodeV2):
-        return _reject(prepared, pre_state)
+        return _reject(prepared, owned_state)
     balances = _post_balances(
-        pre_state,
-        asset=command.asset,
+        owned_state,
+        asset=owned_command.asset,
         deltas=prepared.deltas,
     )
     if isinstance(balances, AssetTransferRejectCodeV2):
-        return _reject(balances, pre_state)
+        return _reject(balances, owned_state)
     return _accept_transfer(prepared, balances)
 
 

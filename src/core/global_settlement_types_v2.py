@@ -10,9 +10,9 @@ release authority.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
-from typing import Final, Mapping, Protocol, runtime_checkable
+from typing import Any, Final, Mapping, Protocol, cast, runtime_checkable
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes
 
@@ -201,6 +201,17 @@ def _require_ordered_objects_v2(
     return items
 
 
+def _snapshot_dataclass_tuple_v2(
+    values: object,
+    expected_type: type[Any],
+    name: str,
+) -> tuple[Any, ...]:
+    items = _require_tuple_v2(values, name=name)
+    if any(type(item) is not expected_type for item in items):
+        raise TypeError(f"{name} must contain exact typed values")
+    return tuple(replace(cast(Any, item)) for item in items)
+
+
 class LaneIdV2(str, Enum):
     ASSET_TRANSFER = "ASSET_TRANSFER"
     SPOT_LIQUIDITY = "SPOT_LIQUIDITY"
@@ -295,6 +306,9 @@ class OracleOccurrenceDeltaV2:
             raise TypeError("Oracle occurrence delta pre-value must be exact")
         if type(self.post_occurrence) is not OracleOccurrenceStateV2:
             raise TypeError("Oracle occurrence delta post-value must be exact")
+        if self.pre_occurrence is not None:
+            object.__setattr__(self, "pre_occurrence", replace(self.pre_occurrence))
+        object.__setattr__(self, "post_occurrence", replace(self.post_occurrence))
         if self.post_occurrence.oracle_id != self.oracle_id:
             raise ValueError("Oracle occurrence delta post identity mismatch")
         if self.pre_occurrence is None:
@@ -324,6 +338,15 @@ class GlobalOracleOccurrencePlanV2:
     deltas: tuple[OracleOccurrenceDeltaV2, ...] = ()
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "deltas",
+            _snapshot_dataclass_tuple_v2(
+                self.deltas,
+                OracleOccurrenceDeltaV2,
+                "global Oracle occurrence plan deltas",
+            ),
+        )
         _require_ordered_objects_v2(
             self.deltas,
             name="global Oracle occurrence plan deltas",
@@ -406,6 +429,9 @@ class TerminalObligationDeltaV2:
             raise TypeError("terminal obligation delta pre-value must be exact")
         if type(self.post_obligation) is not TerminalObligationV2:
             raise TypeError("terminal obligation delta post-value must be exact")
+        if self.pre_obligation is not None:
+            object.__setattr__(self, "pre_obligation", replace(self.pre_obligation))
+        object.__setattr__(self, "post_obligation", replace(self.post_obligation))
         if self.post_obligation.obligation_id != self.obligation_id:
             raise ValueError("terminal obligation delta post identity mismatch")
         if self.pre_obligation is None:
@@ -453,6 +479,15 @@ class GlobalTerminalObligationPlanV2:
     deltas: tuple[TerminalObligationDeltaV2, ...] = ()
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "deltas",
+            _snapshot_dataclass_tuple_v2(
+                self.deltas,
+                TerminalObligationDeltaV2,
+                "global terminal obligation plan deltas",
+            ),
+        )
         _require_ordered_objects_v2(
             self.deltas,
             name="global terminal obligation plan deltas",
@@ -662,6 +697,27 @@ class GlobalEconomicEffectPlanV2:
     external_outbox_enqueue: tuple[ExternalOutboxEnqueueV2, ...]
 
     def __post_init__(self) -> None:
+        for field_name, expected_type in (
+            ("rows", EconomicEffectRowV2),
+            ("asset_conservation", AssetConservationRowV2),
+            ("fee_conservation", FeeConservationRowV2),
+            ("lane_writes", LaneWriteV2),
+            ("external_outbox_enqueue", ExternalOutboxEnqueueV2),
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _snapshot_dataclass_tuple_v2(
+                    getattr(self, field_name),
+                    expected_type,
+                    f"effect plan {field_name}",
+                ),
+            )
+        consumptions = _require_sorted_unique_tokens_v2(
+            self.occurrence_consumptions,
+            name="effect plan occurrence consumptions",
+        )
+        object.__setattr__(self, "occurrence_consumptions", tuple(consumptions))
         self.validate()
 
     def validate(self) -> None:

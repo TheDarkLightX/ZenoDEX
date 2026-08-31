@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Final
 
 from .global_economic_proof_v2 import (
     EconomicCommandOccurrenceV2,
     LaneModuleTransitionJournalV2,
+    _snapshot_module_journal_v2,
+    _snapshot_occurrence_v2,
 )
 from .global_settlement_types_v2 import (
     AssetSupplyV2,
@@ -22,6 +24,7 @@ from .global_settlement_types_v2 import (
     _require_ordered_objects_v2,
     _require_root_v2,
     _require_token_v2,
+    _snapshot_dataclass_tuple_v2,
     hash_economic_command_body_v2,
     hash_global_v2,
 )
@@ -132,6 +135,20 @@ class AssetTransferStateV2:
     supplies: tuple[AssetSupplyV2, ...]
 
     def __post_init__(self) -> None:
+        for field_name, expected_type in (
+            ("policies", AssetTransferPolicyV2),
+            ("balances", EconomicAmountV2),
+            ("supplies", AssetSupplyV2),
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _snapshot_dataclass_tuple_v2(
+                    getattr(self, field_name),
+                    expected_type,
+                    f"asset transfer {field_name}",
+                ),
+            )
         _require_root_v2(
             self.module_release_id,
             name="asset transfer module release id",
@@ -219,8 +236,14 @@ class AssetTransferContextV2:
             self.global_pre_state_root,
             name="asset transfer context global pre-state root",
         )
-        if self.occurrence is not None and type(self.occurrence) is not EconomicCommandOccurrenceV2:
-            raise TypeError("asset transfer occurrence must have the exact typed value")
+        if self.occurrence is not None:
+            if type(self.occurrence) is not EconomicCommandOccurrenceV2:
+                raise TypeError("asset transfer occurrence must have the exact typed value")
+            object.__setattr__(
+                self,
+                "occurrence",
+                _snapshot_occurrence_v2(self.occurrence),
+            )
 
     def to_canonical(self) -> dict[str, object]:
         return {
@@ -273,6 +296,50 @@ class AssetTransferCommandV2:
         return hash_economic_command_body_v2(self.command_kind, self)
 
 
+def _snapshot_effect_plan_v2(
+    effect_plan: GlobalEconomicEffectPlanV2,
+) -> GlobalEconomicEffectPlanV2:
+    if type(effect_plan) is not GlobalEconomicEffectPlanV2:
+        raise TypeError("effect plan must have the exact typed value")
+    return GlobalEconomicEffectPlanV2(
+        rows=effect_plan.rows,
+        asset_conservation=effect_plan.asset_conservation,
+        fee_conservation=effect_plan.fee_conservation,
+        lane_writes=effect_plan.lane_writes,
+        occurrence_consumptions=effect_plan.occurrence_consumptions,
+        external_outbox_enqueue=effect_plan.external_outbox_enqueue,
+    )
+
+
+def _snapshot_asset_transfer_state_v2(
+    state: AssetTransferStateV2,
+) -> AssetTransferStateV2:
+    if type(state) is not AssetTransferStateV2:
+        raise TypeError("asset transfer state must have the exact typed value")
+    return AssetTransferStateV2(
+        module_release_id=state.module_release_id,
+        policies=state.policies,
+        balances=state.balances,
+        supplies=state.supplies,
+    )
+
+
+def _snapshot_asset_transfer_context_v2(
+    context: AssetTransferContextV2,
+) -> AssetTransferContextV2:
+    if type(context) is not AssetTransferContextV2:
+        raise TypeError("asset transfer context must have the exact typed value")
+    return replace(context, occurrence=context.occurrence)
+
+
+def _snapshot_asset_transfer_command_v2(
+    command: AssetTransferCommandV2,
+) -> AssetTransferCommandV2:
+    if type(command) is not AssetTransferCommandV2:
+        raise TypeError("asset transfer command must have the exact typed value")
+    return replace(command)
+
+
 @dataclass(frozen=True, slots=True)
 class AssetTransferAcceptedV2:
     post_state: AssetTransferStateV2
@@ -286,6 +353,17 @@ class AssetTransferAcceptedV2:
             raise TypeError("asset transfer accepted effects are invalid")
         if type(self.module_journal) is not LaneModuleTransitionJournalV2:
             raise TypeError("asset transfer module journal is invalid")
+        object.__setattr__(
+            self,
+            "post_state",
+            _snapshot_asset_transfer_state_v2(self.post_state),
+        )
+        object.__setattr__(self, "effects", _snapshot_effect_plan_v2(self.effects))
+        object.__setattr__(
+            self,
+            "module_journal",
+            _snapshot_module_journal_v2(self.module_journal),
+        )
         if self.effects.is_empty:
             raise ValueError("asset transfer acceptance requires nonempty effects")
         if self.module_journal.lane_id is not LaneIdV2.ASSET_TRANSFER:
@@ -334,6 +412,7 @@ class AssetTransferRejectedV2:
     def __post_init__(self) -> None:
         if type(self.code) is not AssetTransferRejectCodeV2:
             raise TypeError("asset transfer reject code is not closed")
+        object.__setattr__(self, "effects", _snapshot_effect_plan_v2(self.effects))
         _require_root_v2(self.pre_state_root, name="asset transfer rejected pre-state")
         _require_root_v2(
             self.post_state_root,
@@ -372,4 +451,7 @@ __all__ = [
     "AssetTransferAcceptedV2",
     "AssetTransferRejectedV2",
     "AssetTransferResultV2",
+    "_snapshot_asset_transfer_state_v2",
+    "_snapshot_asset_transfer_context_v2",
+    "_snapshot_asset_transfer_command_v2",
 ]

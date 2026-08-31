@@ -6,7 +6,7 @@ authenticate a profile, or authorize publication.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .global_settlement_types_v2 import (
     GLOBAL_SETTLEMENT_ABI_V2,
@@ -177,8 +177,33 @@ class LaneModuleTransitionJournalV2:
         }
 
 
+def _snapshot_occurrence_v2(
+    occurrence: EconomicCommandOccurrenceV2,
+) -> EconomicCommandOccurrenceV2:
+    if type(occurrence) is not EconomicCommandOccurrenceV2:
+        raise TypeError("economic occurrence must have the exact typed value")
+    if type(occurrence.consumed_object_ids) is not tuple or any(
+        type(object_id) is not str for object_id in occurrence.consumed_object_ids
+    ):
+        raise TypeError("occurrence consumed object ids must be exact text")
+    return replace(
+        occurrence,
+        consumed_object_ids=tuple(occurrence.consumed_object_ids),
+    )
+
+
+def _snapshot_module_journal_v2(
+    journal: LaneModuleTransitionJournalV2,
+) -> LaneModuleTransitionJournalV2:
+    if type(journal) is not LaneModuleTransitionJournalV2:
+        raise TypeError("module journal must have the exact typed value")
+    return replace(journal)
+
+
 __all__ = [
     "EconomicCommandOccurrenceV2",
     "LaneModuleTransitionJournalV2",
     "ZERO_ROOT_V2",
+    "_snapshot_occurrence_v2",
+    "_snapshot_module_journal_v2",
 ]

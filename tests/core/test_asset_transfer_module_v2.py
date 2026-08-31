@@ -435,6 +435,30 @@ def test_transition_rejects_subclass_dispatch_before_behavior() -> None:
         transition_asset_transfer_v2(_context(state, command), state, hostile)
 
 
+def test_state_and_context_own_nested_snapshots() -> None:
+    policy = _policy()
+    state = _state(policy=policy)
+    command = _command()
+    occurrence = _context(state, command).occurrence
+    assert occurrence is not None
+    context = AssetTransferContextV2(
+        writer_epoch=5,
+        module_release_id=state.module_release_id,
+        global_pre_state_root=occurrence.pre_state_root,
+        occurrence=occurrence,
+    )
+    state_root = state.state_root
+    occurrence_id = context.occurrence.occurrence_id
+
+    object.__setattr__(policy, "asset_origin_root", _root("mutated-origin"))
+    object.__setattr__(occurrence, "command_body_hash", _root("mutated-command"))
+
+    assert state.state_root == state_root
+    assert state.policies[0].asset_origin_root == _root("origin:USD")
+    assert context.occurrence.occurrence_id == occurrence_id
+    assert context.occurrence.command_body_hash == command.command_body_hash
+
+
 def test_same_inputs_produce_byte_identical_result() -> None:
     state = _state()
     command = _command()

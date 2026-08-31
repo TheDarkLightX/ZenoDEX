@@ -122,6 +122,19 @@ def test_terminal_plan_empty_root_and_bound_are_exact() -> None:
         GlobalTerminalObligationPlanV2(deltas)
 
 
+def test_terminal_plan_owns_nested_delta_snapshots() -> None:
+    post = _obligation()
+    delta = TerminalObligationDeltaV2(post.obligation_id, None, post)
+    plan = GlobalTerminalObligationPlanV2((delta,))
+    root = plan.plan_root
+
+    object.__setattr__(post, "amount_atoms", 99)
+    object.__setattr__(delta.post_obligation, "amount_atoms", 88)
+
+    assert plan.plan_root == root
+    assert plan.deltas[0].post_obligation.amount_atoms == 10
+
+
 def test_oracle_plan_binds_pre_and_post_occurrence() -> None:
     before = _oracle(height=7)
     after = _oracle(height=8)
