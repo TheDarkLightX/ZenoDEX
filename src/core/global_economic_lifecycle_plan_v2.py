@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from .global_economic_state_v2 import (
+from .global_economic_state_ownership_v2 import (
     MAX_GLOBAL_ORACLE_ROWS_V2,
     MAX_GLOBAL_TERMINAL_ROWS_V2,
-    _bounded_tuple,
+    snapshot_global_lifecycle_rows_v2,
 )
 from .global_settlement_types_v2 import (
     GlobalOracleOccurrencePlanV2,
@@ -24,13 +24,13 @@ def derive_global_terminal_obligation_plan_v2(
 ) -> GlobalTerminalObligationPlanV2:
     """Derive the unique nondeleting terminal-registry delta."""
 
-    pre_rows = _bounded_tuple(
+    pre_rows = snapshot_global_lifecycle_rows_v2(
         pre_obligations,
         TerminalObligationV2,
         "pre terminal obligations",
         MAX_GLOBAL_TERMINAL_ROWS_V2,
     )
-    post_rows = _bounded_tuple(
+    post_rows = snapshot_global_lifecycle_rows_v2(
         post_obligations,
         TerminalObligationV2,
         "post terminal obligations",
@@ -65,13 +65,13 @@ def derive_global_oracle_occurrence_plan_v2(
 ) -> GlobalOracleOccurrencePlanV2:
     """Derive the unique nondeleting Oracle-registry delta."""
 
-    pre_rows = _bounded_tuple(
+    pre_rows = snapshot_global_lifecycle_rows_v2(
         pre_occurrences,
         OracleOccurrenceStateV2,
         "pre Oracle occurrences",
         MAX_GLOBAL_ORACLE_ROWS_V2,
     )
-    post_rows = _bounded_tuple(
+    post_rows = snapshot_global_lifecycle_rows_v2(
         post_occurrences,
         OracleOccurrenceStateV2,
         "post Oracle occurrences",

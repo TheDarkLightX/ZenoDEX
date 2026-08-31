@@ -8,10 +8,22 @@ names for protocol accounting locations; they make no legal custody claim.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
-from typing import Final, TypeVar, cast
+from dataclasses import InitVar, dataclass, field
 
+from .global_economic_state_ownership_v2 import (
+    MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V2,
+    MAX_GLOBAL_ORACLE_ROWS_V2,
+    MAX_GLOBAL_OUTBOX_ROWS_V2,
+    MAX_GLOBAL_REPLAY_ROWS_V2,
+    MAX_GLOBAL_SUPPLY_ROWS_V2,
+    MAX_GLOBAL_TERMINAL_ROWS_V2,
+    LaneStateRootV2,
+    OutboxStateV2,
+    OutboxStatusV2,
+    ReplayStateV2,
+    _bounded_tuple,
+    _GlobalEconomicStateGraphViewV2,
+)
 from .global_settlement_types_v2 import (
     ALL_LANE_IDS_V2,
     GLOBAL_SETTLEMENT_ABI_V2,
@@ -19,123 +31,14 @@ from .global_settlement_types_v2 import (
     ZERO_ROOT_V2,
     AssetSupplyV2,
     EconomicAmountV2,
-    LaneIdV2,
     OracleOccurrenceStateV2,
     TerminalObligationV2,
-    _require_bool_v2,
     _require_nonnegative_int_v2,
     _require_ordered_objects_v2,
     _require_root_v2,
     _require_token_v2,
-    _snapshot_dataclass_tuple_v2,
     hash_global_v2,
 )
-
-MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V2: Final = 65_536
-MAX_GLOBAL_SUPPLY_ROWS_V2: Final = 4_096
-MAX_GLOBAL_ORACLE_ROWS_V2: Final = 4_096
-MAX_GLOBAL_REPLAY_ROWS_V2: Final = 65_536
-MAX_GLOBAL_TERMINAL_ROWS_V2: Final = 65_536
-MAX_GLOBAL_OUTBOX_ROWS_V2: Final = 65_536
-
-_T = TypeVar("_T")
-
-
-@dataclass(frozen=True, slots=True, order=True)
-class LaneStateRootV2:
-    lane_id: LaneIdV2
-    module_release_id: str
-    enabled: bool
-    state_root: str
-
-    def __post_init__(self) -> None:
-        if type(self.lane_id) is not LaneIdV2:
-            raise TypeError("lane state root lane is not closed")
-        _require_root_v2(
-            self.module_release_id,
-            name="lane state module release",
-        )
-        _require_bool_v2(self.enabled, name="lane state enabled")
-        _require_root_v2(
-            self.state_root,
-            name="lane state root",
-            allow_zero=True,
-        )
-
-    def to_canonical(self) -> dict[str, object]:
-        return {
-            "lane_id": self.lane_id,
-            "module_release_id": self.module_release_id,
-            "enabled": self.enabled,
-            "state_root": self.state_root,
-        }
-
-
-@dataclass(frozen=True, slots=True, order=True)
-class ReplayStateV2:
-    replay_id: str
-    occurrence_id: str
-
-    def __post_init__(self) -> None:
-        _require_token_v2(self.replay_id, name="replay id")
-        _require_root_v2(self.occurrence_id, name="replay occurrence id")
-
-    def to_canonical(self) -> dict[str, object]:
-        return {
-            "replay_id": self.replay_id,
-            "occurrence_id": self.occurrence_id,
-        }
-
-
-class OutboxStatusV2(str, Enum):
-    PENDING = "PENDING"
-    ACKNOWLEDGED = "ACKNOWLEDGED"
-
-
-@dataclass(frozen=True, slots=True, order=True)
-class OutboxStateV2:
-    effect_id: str
-    destination_id: str
-    payload_hash: str
-    adapter_profile_root: str
-    commit_id: str
-    status: OutboxStatusV2
-
-    def __post_init__(self) -> None:
-        _require_root_v2(self.effect_id, name="outbox effect id")
-        _require_token_v2(self.destination_id, name="outbox destination")
-        if self.destination_id.startswith("zenoledger:"):
-            raise ValueError("same-ledger movement must not enter the external outbox")
-        _require_root_v2(self.payload_hash, name="outbox payload hash")
-        _require_root_v2(
-            self.adapter_profile_root,
-            name="outbox adapter profile root",
-        )
-        _require_root_v2(self.commit_id, name="outbox commit id")
-        if type(self.status) is not OutboxStatusV2:
-            raise TypeError("outbox status is not closed")
-
-    def to_canonical(self) -> dict[str, object]:
-        return {
-            "effect_id": self.effect_id,
-            "destination_id": self.destination_id,
-            "payload_hash": self.payload_hash,
-            "adapter_profile_root": self.adapter_profile_root,
-            "commit_id": self.commit_id,
-            "status": self.status,
-        }
-
-
-def _bounded_tuple(
-    values: object,
-    expected_type: type[_T],
-    name: str,
-    maximum: int,
-) -> tuple[_T, ...]:
-    owned = _snapshot_dataclass_tuple_v2(values, expected_type, name)
-    if len(owned) > maximum:
-        raise ValueError(f"{name} exceeds the ABI V2 bounded shape")
-    return cast(tuple[_T, ...], owned)
 
 
 def _require_sparse_amount_rows(
@@ -162,26 +65,96 @@ def _sum_amounts_by_asset(
     return totals
 
 
-@dataclass(frozen=True, slots=True)
-class GlobalEconomicStateV2:
+@dataclass(frozen=True, slots=True, init=False)
+class GlobalEconomicStateV2(_GlobalEconomicStateGraphViewV2):
     chain_id: str
     deployment_root: str
     writer_epoch: int
     height: int
     profile_root: str
-    lane_roots: tuple[LaneStateRootV2, ...]
-    balances: tuple[EconomicAmountV2, ...] = ()
-    supplies: tuple[AssetSupplyV2, ...] = ()
-    custody: tuple[EconomicAmountV2, ...] = ()
-    liabilities: tuple[EconomicAmountV2, ...] = ()
-    reserves: tuple[EconomicAmountV2, ...] = ()
-    oracle_occurrences: tuple[OracleOccurrenceStateV2, ...] = ()
-    replay_state: tuple[ReplayStateV2, ...] = ()
-    terminal_obligations: tuple[TerminalObligationV2, ...] = ()
+    lane_roots: InitVar[tuple[LaneStateRootV2, ...]] = (
+        _GlobalEconomicStateGraphViewV2.lane_roots
+    )
+    balances: InitVar[tuple[EconomicAmountV2, ...]] = (
+        _GlobalEconomicStateGraphViewV2.balances
+    )
+    supplies: InitVar[tuple[AssetSupplyV2, ...]] = (
+        _GlobalEconomicStateGraphViewV2.supplies
+    )
+    custody: InitVar[tuple[EconomicAmountV2, ...]] = (
+        _GlobalEconomicStateGraphViewV2.custody
+    )
+    liabilities: InitVar[tuple[EconomicAmountV2, ...]] = (
+        _GlobalEconomicStateGraphViewV2.liabilities
+    )
+    reserves: InitVar[tuple[EconomicAmountV2, ...]] = (
+        _GlobalEconomicStateGraphViewV2.reserves
+    )
+    oracle_occurrences: InitVar[tuple[OracleOccurrenceStateV2, ...]] = (
+        _GlobalEconomicStateGraphViewV2.oracle_occurrences
+    )
+    replay_state: InitVar[tuple[ReplayStateV2, ...]] = (
+        _GlobalEconomicStateGraphViewV2.replay_state
+    )
+    terminal_obligations: InitVar[tuple[TerminalObligationV2, ...]] = (
+        _GlobalEconomicStateGraphViewV2.terminal_obligations
+    )
+    outbox: InitVar[tuple[OutboxStateV2, ...]] = (
+        _GlobalEconomicStateGraphViewV2.outbox
+    )
     history_root: str = ZERO_ROOT_V2
-    outbox: tuple[OutboxStateV2, ...] = ()
+    _lane_roots: tuple[LaneStateRootV2, ...] = field(init=False, repr=False)
+    _balances: tuple[EconomicAmountV2, ...] = field(init=False, repr=False)
+    _supplies: tuple[AssetSupplyV2, ...] = field(init=False, repr=False)
+    _custody: tuple[EconomicAmountV2, ...] = field(init=False, repr=False)
+    _liabilities: tuple[EconomicAmountV2, ...] = field(init=False, repr=False)
+    _reserves: tuple[EconomicAmountV2, ...] = field(init=False, repr=False)
+    _oracle_occurrences: tuple[OracleOccurrenceStateV2, ...] = field(
+        init=False,
+        repr=False,
+    )
+    _replay_state: tuple[ReplayStateV2, ...] = field(init=False, repr=False)
+    _terminal_obligations: tuple[TerminalObligationV2, ...] = field(
+        init=False,
+        repr=False,
+    )
+    _outbox: tuple[OutboxStateV2, ...] = field(init=False, repr=False)
 
-    def __post_init__(self) -> None:
+    def __init__(
+        self,
+        chain_id: str,
+        deployment_root: str,
+        writer_epoch: int,
+        height: int,
+        profile_root: str,
+        lane_roots: tuple[LaneStateRootV2, ...],
+        balances: tuple[EconomicAmountV2, ...] = (),
+        supplies: tuple[AssetSupplyV2, ...] = (),
+        custody: tuple[EconomicAmountV2, ...] = (),
+        liabilities: tuple[EconomicAmountV2, ...] = (),
+        reserves: tuple[EconomicAmountV2, ...] = (),
+        oracle_occurrences: tuple[OracleOccurrenceStateV2, ...] = (),
+        replay_state: tuple[ReplayStateV2, ...] = (),
+        terminal_obligations: tuple[TerminalObligationV2, ...] = (),
+        history_root: str = ZERO_ROOT_V2,
+        outbox: tuple[OutboxStateV2, ...] = (),
+    ) -> None:
+        object.__setattr__(self, "chain_id", chain_id)
+        object.__setattr__(self, "deployment_root", deployment_root)
+        object.__setattr__(self, "writer_epoch", writer_epoch)
+        object.__setattr__(self, "height", height)
+        object.__setattr__(self, "profile_root", profile_root)
+        object.__setattr__(self, "history_root", history_root)
+        object.__setattr__(self, "_lane_roots", lane_roots)
+        object.__setattr__(self, "_balances", balances)
+        object.__setattr__(self, "_supplies", supplies)
+        object.__setattr__(self, "_custody", custody)
+        object.__setattr__(self, "_liabilities", liabilities)
+        object.__setattr__(self, "_reserves", reserves)
+        object.__setattr__(self, "_oracle_occurrences", oracle_occurrences)
+        object.__setattr__(self, "_replay_state", replay_state)
+        object.__setattr__(self, "_terminal_obligations", terminal_obligations)
+        object.__setattr__(self, "_outbox", outbox)
         _require_token_v2(self.chain_id, name="global state chain id")
         _require_root_v2(self.deployment_root, name="global state deployment root")
         _require_nonnegative_int_v2(self.writer_epoch, name="global state writer epoch")
@@ -198,19 +171,19 @@ class GlobalEconomicStateV2:
 
     def _own_lane_roots(self) -> None:
         owned = _bounded_tuple(
-            self.lane_roots,
+            object.__getattribute__(self, "_lane_roots"),
             LaneStateRootV2,
             "global state lane roots",
             len(ALL_LANE_IDS_V2),
         )
         if tuple(row.lane_id for row in owned) != ALL_LANE_IDS_V2:
             raise ValueError("global state must commit every ABI V2 lane in canonical order")
-        object.__setattr__(self, "lane_roots", owned)
+        object.__setattr__(self, "_lane_roots", owned)
 
     def _own_economic_tables(self) -> None:
         for field_name in ("balances", "custody", "liabilities", "reserves"):
             owned = _bounded_tuple(
-                getattr(self, field_name),
+                object.__getattribute__(self, f"_{field_name}"),
                 EconomicAmountV2,
                 f"global state {field_name}",
                 MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V2,
@@ -222,9 +195,9 @@ class GlobalEconomicStateV2:
                 key="key",
             )
             _require_sparse_amount_rows(owned, name=f"global state {field_name}")
-            object.__setattr__(self, field_name, owned)
+            object.__setattr__(self, f"_{field_name}", owned)
         supplies = _bounded_tuple(
-            self.supplies,
+            object.__getattribute__(self, "_supplies"),
             AssetSupplyV2,
             "global state supplies",
             MAX_GLOBAL_SUPPLY_ROWS_V2,
@@ -237,7 +210,7 @@ class GlobalEconomicStateV2:
         )
         if any(row.amount_atoms == 0 for row in supplies):
             raise ValueError("global state supplies must contain only nonzero sparse rows")
-        object.__setattr__(self, "supplies", supplies)
+        object.__setattr__(self, "_supplies", supplies)
 
     def _own_control_tables(self) -> None:
         specifications = (
@@ -258,7 +231,7 @@ class GlobalEconomicStateV2:
         )
         for field_name, expected_type, key, maximum in specifications:
             owned = _bounded_tuple(
-                getattr(self, field_name),
+                object.__getattribute__(self, f"_{field_name}"),
                 expected_type,
                 f"global state {field_name}",
                 maximum,
@@ -269,8 +242,9 @@ class GlobalEconomicStateV2:
                 expected_type=expected_type,
                 key=key,
             )
-            object.__setattr__(self, field_name, owned)
-        occurrence_ids = tuple(row.occurrence_id for row in self.replay_state)
+            object.__setattr__(self, f"_{field_name}", owned)
+        replay_state = object.__getattribute__(self, "_replay_state")
+        occurrence_ids = tuple(row.occurrence_id for row in replay_state)
         if len(occurrence_ids) != len(set(occurrence_ids)):
             raise ValueError("global state replay occurrence ids must be unique")
 
@@ -280,18 +254,23 @@ class GlobalEconomicStateV2:
 
     def owned_atoms_by_asset(self) -> dict[str, int]:
         return _sum_amounts_by_asset(
-            (self.balances, self.custody, self.reserves),
+            (
+                object.__getattribute__(self, "_balances"),
+                object.__getattribute__(self, "_custody"),
+                object.__getattribute__(self, "_reserves"),
+            ),
             name="global owned accounting",
         )
 
     def liability_atoms_by_asset(self) -> dict[str, int]:
         return _sum_amounts_by_asset(
-            (self.liabilities,),
+            (object.__getattribute__(self, "_liabilities"),),
             name="global liability",
         )
 
     def supply_atoms_by_asset(self) -> dict[str, int]:
-        return {row.asset: row.amount_atoms for row in self.supplies}
+        supplies = object.__getattribute__(self, "_supplies")
+        return {row.asset: row.amount_atoms for row in supplies}
 
     def to_canonical(self) -> dict[str, object]:
         return {

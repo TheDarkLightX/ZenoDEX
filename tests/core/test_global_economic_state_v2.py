@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import cast
 
 import pytest
 
@@ -26,6 +27,7 @@ from src.core.global_settlement_types_v2 import (
     OracleOccurrenceStateV2,
     TerminalObligationStatusV2,
     TerminalObligationV2,
+    canonical_global_bytes_v2,
 )
 
 
@@ -156,6 +158,119 @@ def test_global_state_root_owns_constructor_inputs() -> None:
     assert state.state_root == root_before
     assert state.lane_roots[0].state_root == _root(101)
     assert state.balances[0].amount_atoms == 7
+
+
+def test_global_state_getters_and_canonical_projection_do_not_expose_backing() -> None:
+    oracle = OracleOccurrenceStateV2("oracle:usd", _root(401), 4, False)
+    replay = ReplayStateV2("replay:a", _root(402))
+    obligation = _obligation(4)
+    outbox = OutboxStateV2(
+        effect_id=_root(403),
+        destination_id="tau:testnet",
+        payload_hash=_root(404),
+        adapter_profile_root=_root(405),
+        commit_id=_root(406),
+        status=OutboxStatusV2.PENDING,
+    )
+    state = _state(
+        oracle_occurrences=(oracle,),
+        replay_state=(replay,),
+        terminal_obligations=(obligation,),
+        outbox=(outbox,),
+    )
+    root_before = state.state_root
+    canonical_before = canonical_global_bytes_v2(state)
+
+    assert root_before == (
+        "0x34d4148cb4721a0a1fc33b0fec09cd343e310b6eddec12462cd129674296beac"
+    )
+
+    object.__setattr__(state.lane_roots[0], "state_root", _root(901))
+    object.__setattr__(state.balances[0], "amount_atoms", 901)
+    object.__setattr__(state.supplies[0], "amount_atoms", 902)
+    object.__setattr__(state.custody[0], "amount_atoms", 903)
+    object.__setattr__(state.liabilities[0], "amount_atoms", 904)
+    object.__setattr__(state.reserves[0], "amount_atoms", 905)
+    object.__setattr__(state.oracle_occurrences[0], "observed_height", 906)
+    object.__setattr__(state.replay_state[0], "occurrence_id", _root(907))
+    object.__setattr__(state.terminal_obligations[0], "amount_atoms", 908)
+    object.__setattr__(state.outbox[0], "payload_hash", _root(909))
+    projected = state.to_canonical()
+    projected_balances = cast(tuple[EconomicAmountV2, ...], projected["balances"])
+    object.__setattr__(projected_balances[0], "amount_atoms", 910)
+
+    assert state.state_root == root_before
+    assert canonical_global_bytes_v2(state) == canonical_before
+    assert state.lane_roots[0].state_root == _root(101)
+    assert state.balances[0].amount_atoms == 7
+    assert state.supplies[0].amount_atoms == 10
+    assert state.custody[0].amount_atoms == 2
+    assert state.liabilities[0].amount_atoms == 1
+    assert state.reserves[0].amount_atoms == 1
+    assert state.oracle_occurrences[0].observed_height == 4
+    assert state.replay_state[0].occurrence_id == _root(402)
+    assert state.terminal_obligations[0].amount_atoms == 4
+    assert state.outbox[0].payload_hash == _root(404)
+
+
+def test_global_state_replace_preserves_owned_graph_and_public_field_updates() -> None:
+    state = _state()
+    minimal = GlobalEconomicStateV2(
+        chain_id="chain:test",
+        deployment_root=_root(201),
+        writer_epoch=3,
+        height=7,
+        profile_root=_root(202),
+        lane_roots=_lane_roots(),
+    )
+
+    unchanged = replace(state)
+    updated = replace(
+        state,
+        balances=(
+            EconomicAmountV2("alice", "asset:usd", "zenoledger:accounts", 8),
+        ),
+    )
+
+    assert unchanged == state
+    assert unchanged.state_root == state.state_root
+    assert replace(minimal) == minimal
+    assert minimal.balances == minimal.terminal_obligations == minimal.outbox == ()
+    assert updated.balances[0].amount_atoms == 8
+    assert updated.state_root != state.state_root
+
+
+def test_lifecycle_derivation_owns_caller_rows() -> None:
+    obligation_before = _obligation(4)
+    obligation_after = _obligation(6)
+    terminal_plan = derive_global_terminal_obligation_plan_v2(
+        (obligation_before,),
+        (obligation_after,),
+    )
+    terminal_root_before = terminal_plan.plan_root
+    oracle_before = OracleOccurrenceStateV2("oracle:usd", _root(411), 4, False)
+    oracle_after = OracleOccurrenceStateV2("oracle:usd", _root(412), 5, True)
+    oracle_plan = derive_global_oracle_occurrence_plan_v2(
+        (oracle_before,),
+        (oracle_after,),
+    )
+    oracle_root_before = oracle_plan.plan_root
+
+    object.__setattr__(obligation_before, "amount_atoms", 100)
+    object.__setattr__(obligation_after, "amount_atoms", 101)
+    object.__setattr__(oracle_before, "observed_height", 100)
+    object.__setattr__(oracle_after, "observed_height", 101)
+
+    assert terminal_plan.plan_root == terminal_root_before
+    assert terminal_plan.deltas[0].pre_obligation == _obligation(4)
+    assert terminal_plan.deltas[0].post_obligation == _obligation(6)
+    assert oracle_plan.plan_root == oracle_root_before
+    assert oracle_plan.deltas[0].pre_occurrence == OracleOccurrenceStateV2(
+        "oracle:usd", _root(411), 4, False
+    )
+    assert oracle_plan.deltas[0].post_occurrence == OracleOccurrenceStateV2(
+        "oracle:usd", _root(412), 5, True
+    )
 
 
 def test_terminal_plan_is_canonical_and_covers_create_update_and_drain() -> None:
