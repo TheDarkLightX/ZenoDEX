@@ -379,6 +379,23 @@ class Intent:
         )
         return fields.get(key, default)
 
+    def get_wire_field(self, key: str, default: Any = None) -> Any:
+        """Return one present field as detached JSON-domain data.
+
+        Committed intent fields stay recursively immutable. Consumers that
+        cross into an exact plain-JSON boundary can use this method instead of
+        broadening the downstream decoder to arbitrary ``Mapping`` objects.
+        """
+
+        if type(key) is not str:
+            raise TypeError("intent field key must be exactly str")
+        fields = _require_owned_intent_fields(
+            object.__getattribute__(self, "fields")
+        )
+        if key not in fields:
+            return default
+        return _thaw_intent_value(fields[key], path=f"intent.fields.{key}")
+
     def with_field(self: _IntentT, key: str, value: object) -> _IntentT:
         """Return a new snapshot with one field replaced."""
 

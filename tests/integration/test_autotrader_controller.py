@@ -966,7 +966,7 @@ def test_autotrader_controller_rejects_intent_amount_type(monkeypatch) -> None: 
         deadline=99,
         sender_pubkey=strategy.owner_pubkey,
     )
-    bad_intent.set_field("amount_in", "bad")
+    bad_intent = bad_intent.with_field("amount_in", "bad")
 
     def _bad(**kwargs):  # type: ignore[no-untyped-def]
         return [bad_intent]

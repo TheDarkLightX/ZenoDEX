@@ -537,7 +537,7 @@ def test_derive_batch_state_support_covers_missing_add_liquidity_pool_and_unknow
         deadline=9999999999,
         fields={},
     )
-    unknown.kind = "UNKNOWN_KIND"
+    object.__setattr__(unknown, "kind", "UNKNOWN_KIND")
 
     support = derive_batch_state_support([missing_pool_add, unknown], pools={})
     assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=(pk,))

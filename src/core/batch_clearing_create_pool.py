@@ -86,7 +86,7 @@ def _parse_create_pool_intent_params(
     amount1 = intent.get_field("amount1")
     created_at = intent.get_field("created_at", 0)
     curve_tag = intent.get_field("curve_tag", None)
-    curve_params = intent.get_field("curve_params", None)
+    curve_params = intent.get_wire_field("curve_params", None)
 
     if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
         return None, _reject_create_pool(intent_id=intent_id, fill_reason="MISSING_PARAMS", error="missing params")

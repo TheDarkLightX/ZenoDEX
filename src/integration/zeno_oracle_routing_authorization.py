@@ -9,8 +9,22 @@ from .zeno_oracle_authorization import check_critical_consumer_authorization, se
 
 
 def protected_swap_query_id(*, kind: str, asset_in: str, asset_out: str) -> str:
+    if kind not in {"exact_in", "exact_out"}:
+        raise ValueError("protected swap query kind must be exact_in or exact_out")
+    if type(asset_in) is not str or not asset_in:
+        raise ValueError("protected swap query asset_in must be a non-empty string")
+    if type(asset_out) is not str or not asset_out:
+        raise ValueError("protected swap query asset_out must be a non-empty string")
     value_kind = "amount_out" if kind == "exact_in" else "amount_in"
-    return f"zenodex.routing.{kind}.{asset_in}.{asset_out}.{value_kind}"
+    return semantic_hash(
+        "zenodex.oracle.query.routing.protected_swap.v1",
+        {
+            "asset_in": asset_in,
+            "asset_out": asset_out,
+            "kind": kind,
+            "value_kind": value_kind,
+        },
+    )
 
 
 def _receipt_body(receipt: Mapping[str, Any]) -> Mapping[str, Any]:

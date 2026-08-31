@@ -6,6 +6,7 @@ import sys
 
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexConfig, DexState
+from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.core.liquidity import create_pool
 from src.core.proof_mining_claims import explicit_proposal_hash
 from src.integration.dex_engine import DexEngineConfig, apply_ops
@@ -22,16 +23,7 @@ def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
     from src.integration.operations import parse_intents
 
     intent = parse_intents({"2": [intent_dict]})[0]
-    return {
-        "module": intent.module,
-        "version": intent.version,
-        "kind": intent.kind.value,
-        "intent_id": intent.intent_id,
-        "sender_pubkey": intent.sender_pubkey,
-        "deadline": intent.deadline,
-        "fields": intent.fields or {},
-        **({"salt": intent.salt} if intent.salt is not None else {}),
-    }
+    return build_dex_intent_signing_dict_v1(intent)
 
 
 def _settlement_commitment_dict_from_settlement(settlement_obj: dict) -> dict:

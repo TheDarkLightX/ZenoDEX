@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from src.state.intents import CreatePoolIntent, Intent, IntentKind, SignedIntent, SwapIntent
@@ -25,11 +27,13 @@ def test_intent_defaults_fields_and_field_helpers() -> None:
     )
     assert intent.fields == {}
     assert intent.get_field("missing", 7) == 7
-    intent.set_field("amount_in", 42)
-    assert intent.get_field("amount_in") == 42
+    updated = intent.with_field("amount_in", 42)
+    assert intent.get_field("amount_in") is None
+    assert updated.get_field("amount_in") == 42
+    assert updated.without_field("amount_in") == intent
 
 
-def test_intent_set_field_recovers_from_none_fields() -> None:
+def test_intent_snapshot_rejects_mutation() -> None:
     intent = Intent(
         module="TauSwap",
         version="0.1",
@@ -39,9 +43,35 @@ def test_intent_set_field_recovers_from_none_fields() -> None:
         deadline=123,
         fields={},
     )
-    intent.fields = None
-    intent.set_field("pool_id", _hex32("b"))
-    assert intent.fields == {"pool_id": _hex32("b")}
+    with pytest.raises(FrozenInstanceError):
+        intent.fields = None  # type: ignore[misc]
+    with pytest.raises(AttributeError):
+        intent.set_field("pool_id", _hex32("b"))  # type: ignore[attr-defined]
+    assert intent.fields == {}
+
+
+def test_intent_get_wire_field_detaches_nested_value() -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_hex32("1"),
+        sender_pubkey=_pubkey("a"),
+        deadline=123,
+        fields={"curve_params": {"p": 2, "route": ["a", "b"]}},
+    )
+
+    detached = intent.get_wire_field("curve_params")
+    detached["p"] = 99
+    detached["route"][0] = "mutated"
+
+    assert intent.get_wire_field("curve_params") == {
+        "p": 2,
+        "route": ["a", "b"],
+    }
+    assert intent.get_wire_field("missing", {"default": True}) == {
+        "default": True
+    }
 
 
 @pytest.mark.parametrize("module", ["", "OtherSwap"])
@@ -383,7 +413,7 @@ def test_signed_intent_accepts_valid_signature() -> None:
             deadline=123,
             fields={},
         ),
-        signature="0x" + "a" * 130,
+        signature="0x" + "a" * 192,
     )
     assert signed.signature.startswith("0x")
 

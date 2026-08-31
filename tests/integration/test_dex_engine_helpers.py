@@ -633,7 +633,10 @@ def test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts() -> 
 
     bad_fields_intent = _swap_intent(intent_id=_iid(2))
     object.__setattr__(bad_fields_intent, "fields", 7)
-    with pytest.raises(TypeError, match="intent.fields must be a dict"):
+    with pytest.raises(
+        TypeError,
+        match="intent.fields must be an exact owned intent snapshot",
+    ):
         _build_signing_payloads([SignedIntentEnvelope(intent=bad_fields_intent)], max_intent_bytes=4096, max_total_intent_bytes=4096)
 
     too_large = _swap_intent(intent_id=_iid(3), fields={"blob": "A" * 5000})
