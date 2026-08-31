@@ -1,0 +1,127 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-o007b-cross-language-sink-closure-v2",
+  "created_date": "2026-08-31",
+  "claim_scope": "Research-only O-007B closure for operation-derived Python, Rust, Tau, shell, Dockerfile, and generated-reference inventory. It binds current O-007A and O-006 evidence, leaves VM-01 OPEN, and grants no authority.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "O007B-LANGUAGE-OPERATION-DEFINITIONS",
+    "O007B-GENERATED-OWNERSHIP-DECLARATIONS",
+    "O007B-DYNAMIC-IMPORT-DECLARATIONS",
+    "O007B-O006-COMMAND-TARGET-CONSISTENCY",
+    "O007B-CROSS-LANGUAGE-WRITER-FAILS-CLOSED",
+    "O007B-ZERO-VM-GATE-AUTHORITY"
+  ],
+  "failure_modes": [
+    "a Rust, Tau, shell, Dockerfile, extensionless-shell, or generated-reference source disappears from the census",
+    "a Rust filesystem alias or Docker directive hides an operation",
+    "generated ownership is confused with a source language or reproducible generator replay",
+    "an unresolved dynamic import is treated as closed reachability",
+    "an O-006 lane or governed-route target drifts from its declared Rust or capability domain",
+    "a receipt mutation promotes VM-01, release readiness, or any authority"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/o007b_cross_language_sink_closure_v2.py",
+      "sha256": "aa2a6bf9667950745167895b50293d14c4b0d95bdd093489bacd0cfb77357c41"
+    },
+    {
+      "path": "tools/build_o007b_cross_language_sink_closure_v2.py",
+      "sha256": "5428c7125ff0f65ad33a2f6b4acf0f929863e3648a70d5f54fc48a5cca0c54a0"
+    },
+    {
+      "path": "tools/check_o007b_cross_language_sink_closure_v2.py",
+      "sha256": "a4d6912f81ce8c1db47b472576d4b8c57bb4d5e01b2612614b49315c979718bb"
+    },
+    {
+      "path": "tools/check_m6_cross_language_value_sinks_v1.py",
+      "sha256": "d569dc9653eb9325bfba1df657e3387296b262418e1108c42327808daad35377"
+    },
+    {
+      "path": "tools/m6_cross_language_sinks/operations.py",
+      "sha256": "5b933b51e56a69dffbc7dbdfe693da0fc1e3f6f048cd9e98344aeabe978a0f5d"
+    },
+    {
+      "path": "tools/m6_cross_language_sinks/inventory.py",
+      "sha256": "6c40b2ed141953c04e4b60f6dc941ec73bda5433aaf020d0e9379ed4cdca66b1"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_m6_cross_language_value_sinks_v1.py",
+      "sha256": "decbd800e7ba1da659bba38eb234818b78a02f916c7a0e18a28b0b243a40acbb",
+      "node_ids": [
+        "tests/test_check_m6_cross_language_value_sinks_v1.py::test_rust_import_alias_writer_is_operation_derived",
+        "tests/test_check_m6_cross_language_value_sinks_v1.py::test_dockerfile_copy_and_entrypoint_have_typed_effect_classes",
+        "tests/test_check_m6_cross_language_value_sinks_v1.py::test_projection_includes_extensionless_shell_and_generated_fire_reference",
+        "tests/test_check_m6_cross_language_value_sinks_v1.py::test_cross_language_writer_alias_mutation_breaks_reviewed_projection"
+      ]
+    },
+    {
+      "path": "tests/test_check_o007b_cross_language_sink_closure_v2.py",
+      "sha256": "1d9b467142dbcda4774e1363b432d17e506b40da22f3a87820afd3c8ab6a7043",
+      "node_ids": [
+        "tests/test_check_o007b_cross_language_sink_closure_v2.py::test_bdd_exact_subject_closes_only_bounded_o007b_gap",
+        "tests/test_check_o007b_cross_language_sink_closure_v2.py::test_recertified_authority_dependency_or_gap_mutant_rejects",
+        "tests/test_check_o007b_cross_language_sink_closure_v2.py::test_current_checker_rejects_cross_language_writer_mutation"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact operation sources or recertified receipt mutants, act through the scanner or checker, and assert typed observations or fail-closed zero-authority rejection."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The projection and receipt are immutable values; rejected source or receipt mutants cannot rewrite the reviewed manifest or grant authority."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "source_language_and_provenance",
+      "points": [
+        "four source-language vocabularies remain explicit",
+        "generated ownership remains a provenance axis",
+        "extensionless shell and Docker directives remain included"
+      ]
+    },
+    {
+      "name": "claim_ceiling",
+      "points": [
+        "VM-01 OPEN accepts",
+        "VM-01 CLOSED rejects",
+        "value-movement authority promotion rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "alias std::fs::rename as an unrelated Rust symbol and call it",
+      "killed_by": "tests/test_check_m6_cross_language_value_sinks_v1.py::test_cross_language_writer_alias_mutation_breaks_reviewed_projection"
+    },
+    {
+      "description": "add an aliased Rust path writer to the current descendant after Stage B",
+      "killed_by": "tests/test_check_o007b_cross_language_sink_closure_v2.py::test_current_checker_rejects_cross_language_writer_mutation"
+    },
+    {
+      "description": "recompute a receipt root after promoting authority, closing VM-01, substituting O-007A, or erasing an unresolved import",
+      "killed_by": "tests/test_check_o007b_cross_language_sink_closure_v2.py::test_recertified_authority_dependency_or_gap_mutant_rejects"
+    }
+  ],
+  "nonclaims": [
+    "Recovery, migration, callback, worker, plugin, administrative, user-story, and terminal closure remain outside O-007B.",
+    "Generated ownership declarations do not prove generator replay or semantic equivalence.",
+    "VM-01 remains OPEN and no runtime, UI, production, release, settlement, verifier, or value-movement authority is established.",
+    "This packet is pinned by the O-007B Stage-A source manifest but does not pin itself."
+  ]
+}
