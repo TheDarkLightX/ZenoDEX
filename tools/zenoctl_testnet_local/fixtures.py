@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from src.integration.autotrader_supervisor_profile import build_autotrader_supervisor_profile_v1
+from src.integration.bls_intent_signing import bls_pubkey_hex_from_privkey
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
     PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
@@ -47,7 +48,6 @@ from src.integration.perps_wallet_encrypted_sss_backup import (
     build_perps_wallet_encrypted_sss_backup_v1,
     build_perps_wallet_encrypted_sss_recipient_keys_v1,
 )
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.integration.zeno_key_manager import (
     KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KeyExecutionEnvironment,

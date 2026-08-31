@@ -221,7 +221,6 @@ _LANE_REQUIREMENTS: Mapping[str, Mapping[str, Any]] = {
         ],
         "external_artifacts": [
             "plain Dex snapshot live-root replay",
-            "Tau app-state wrapper live-root replay",
             "local block pre-snapshot header root replay",
             "lane-tamper negative check showing root mismatch rejection",
         ],

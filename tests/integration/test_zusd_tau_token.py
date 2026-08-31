@@ -5,6 +5,7 @@ import sys
 import pytest
 
 import src.integration.zusd_tau_token as zusd_tau_token
+from src.integration.asset_ids import derive_zusd_asset_id
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.integration.zusd_tau_token import (
     TokenTauReceipt,
@@ -18,7 +19,8 @@ from src.integration.zusd_tau_token import (
 
 def test_zusd_tau_token_identity_helpers_are_stable() -> None:
     asset_id = derive_zusd_tau_asset_id(chain_id="tau-local")
-    assert asset_id == derive_zusd_tau_asset_id(chain_id="tau-local")
+    assert asset_id == "0xa64d446f162831e37fa13cbc0faf1ebac383955127dccf2f676c063de8d0cc61"
+    assert asset_id == derive_zusd_asset_id(chain_id="tau-local")
     assert asset_id.startswith("0x")
     assert len(asset_id) == 66
 
@@ -30,6 +32,9 @@ def test_zusd_tau_token_identity_helpers_are_stable() -> None:
         derive_zusd_tau_asset_id(chain_id="")
     with pytest.raises(ValueError, match="symbol must be a non-empty string"):
         derive_zusd_tau_asset_id(symbol="")
+    with pytest.raises(ValueError, match="chain_id must be a non-empty string"):
+        derive_zusd_asset_id(chain_id=object())  # type: ignore[arg-type]
+    assert derive_zusd_asset_id(chain_id=" tau-local ", symbol=" zUSD ") == asset_id
 
 
 def test_create_tau_token_operation_covers_all_actions_and_validation() -> None:

@@ -10,6 +10,7 @@ from tools.check_production_boundary import (
     CLAIM_PROMOTION_ALLOWED_TARGETS,
     CLAIM_PROMOTION_REQUIRED_NEGATIVES,
     CLAIM_PROMOTION_SCHEMA,
+    PRODUCTION_BOUNDARY_REQUIREMENTS,
     RESEARCH_PROMOTION_BOUNDARY_CONTRACTS,
     RESEARCH_PROMOTION_OBLIGATION_MANIFESTS,
     RESEARCH_PROMOTION_REGISTRY_MANIFEST_PATH,
@@ -19,6 +20,7 @@ from tools.check_production_boundary import (
     THEOREMSEARCH_RETRIEVAL_QUERIES,
     THEOREMSEARCH_RETRIEVAL_REQUIRED_NEGATIVES,
     ResearchPromotionBoundaryContract,
+    _check_retired_tau_bridge_classification,
     audit_production_boundary,
     main,
     research_promotion_control_fixture_digest,
@@ -37,6 +39,18 @@ from tools.check_production_boundary import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_retired_tau_check_has_only_bounded_requirement_credit() -> None:
+    requirements = {
+        row["requirement_id"]: tuple(row["check_ids"])
+        for row in PRODUCTION_BOUNDARY_REQUIREMENTS
+    }
+    check_id = "retired_tau_bridge_classified_without_production_authority"
+
+    assert check_id not in requirements["value_moving_paths_use_safe_profile"]
+    assert check_id not in requirements["no_direct_pure_core_ingress_exposed"]
+    assert requirements["retired_tau_declared_projection_classified"] == (check_id,)
 
 
 def test_cli_reports_a_fail_closed_row_when_the_audit_cannot_execute(
@@ -83,7 +97,7 @@ def test_current_production_boundary_audit_passes() -> None:
         "production_src_has_no_legacy_settlement_profile_literals",
         "direct_settlement_apply_helper_unexposed",
         "api_server_does_not_expose_direct_value_moving_core_ingress",
-        "tau_testnet_dex_plugin_enters_through_dex_engine",
+        "retired_tau_bridge_classified_without_production_authority",
         "supported_runtime_doc_scopes_public_boundary",
         "public_operator_node_preflight_blocks_unsigned_testnet_mutation",
         "research_promotion_schema_registry_research_only",
@@ -96,6 +110,7 @@ def test_current_production_boundary_audit_passes() -> None:
         "no_legacy_settlement_validation_in_production",
         "no_require_settlement_match_false_in_production",
         "no_direct_pure_core_ingress_exposed",
+        "retired_tau_declared_projection_classified",
         "research_promotion_has_no_production_authority",
         "m6_writer_inventory_is_explicit",
     } == requirement_ids
@@ -144,6 +159,86 @@ def test_current_production_boundary_audit_passes() -> None:
     assert writer_evidence["release_ready"] is False
     assert writer_evidence["unmounted_entrypoint_count"] > 0
     assert writer_evidence["writers_without_coverage"] == []
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("production_authority", "GRANTED"),
+        ("release_authority", "GRANTED"),
+        ("settlement_authority", "GRANTED"),
+        ("value_movement_authority", "GRANTED"),
+        ("closed_value_movement_gates", 1),
+        ("current_only_import_edge_count", 1),
+        ("artifact_sha256", ""),
+        ("findings", [{"code": "MUTANT"}]),
+        ("schema", "mutant/schema"),
+    ),
+)
+def test_retired_tau_bridge_check_rejects_authority_or_scope_promotion(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: object,
+) -> None:
+    report: dict[str, object] = {
+        "artifact_sha256": "ab" * 32,
+        "classification_counts": {
+            "QUARANTINED": 46,
+            "RESEARCH_ORACLE": 110,
+            "REMOVED": 44,
+        },
+        "closed_value_movement_gates": 0,
+        "current_only_import_edge_count": 0,
+        "findings": [],
+        "o003b_status": "COMPLETE_ON_STAGE_A_EVIDENCE_SUBJECT",
+        "ok": True,
+        "production_authority": "NONE",
+        "release_authority": "NONE",
+        "schema": "zenodex/retired-tau-bridge-closure-check/v3",
+        "settlement_authority": "NONE",
+        "value_movement_authority": "NONE",
+    }
+    report[field] = value
+    monkeypatch.setattr(
+        "tools.check_retired_tau_bridge_closure_v3.check_retired_tau_bridge_closure_v3",
+        lambda _root: report,
+    )
+
+    check = _check_retired_tau_bridge_classification(ROOT)
+
+    assert check.check_id == (
+        "retired_tau_bridge_classified_without_production_authority"
+    )
+    assert check.ok is False
+
+
+def test_retired_tau_bridge_check_accepts_bounded_nonauthority_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = {
+        "artifact_sha256": "ab" * 32,
+        "classification_counts": {
+            "QUARANTINED": 46,
+            "RESEARCH_ORACLE": 110,
+            "REMOVED": 44,
+        },
+        "closed_value_movement_gates": 0,
+        "current_only_import_edge_count": 0,
+        "findings": [],
+        "o003b_status": "COMPLETE_ON_STAGE_A_EVIDENCE_SUBJECT",
+        "ok": True,
+        "production_authority": "NONE",
+        "release_authority": "NONE",
+        "schema": "zenodex/retired-tau-bridge-closure-check/v3",
+        "settlement_authority": "NONE",
+        "value_movement_authority": "NONE",
+    }
+    monkeypatch.setattr(
+        "tools.check_retired_tau_bridge_closure_v3.check_retired_tau_bridge_closure_v3",
+        lambda _root: report,
+    )
+
+    assert _check_retired_tau_bridge_classification(ROOT).ok is True
 
 
 def test_unsafe_config_literal_scanner_rejects_production_overrides(tmp_path: Path) -> None:

@@ -59,7 +59,8 @@ def test_build_evidence_produces_real_replay_unified_all_lane_root() -> None:
     assert ev["root_system"] == "typed_app_root_jmt_v1"
     assert ev["evidence_kind"] == "live_replay"
     assert set(ev["required_lane_kinds"]) == set(APP_ROOT_LANE_KINDS) == _ALL_LANES
-    assert len(ev["live_root_checks"]) == 3                 # plain / tau-wrapper / local-header
+    assert len(ev["live_root_checks"]) == 2                 # plain / local-header
+    assert all("tau" not in chk["mode"] for chk in ev["live_root_checks"])
     # Each live check carries a re-derivation pair + a source binding from the real path.
     for chk in ev["live_root_checks"]:
         assert chk["observed_root"] == chk["recomputed_root"]
@@ -95,6 +96,27 @@ def test_lane_evaluator_rejects_self_consistent_forged_roots() -> None:
     # Assert
     assert result["ok"] is False
     assert any("evaluator-derived root" in gap for gap in result["gaps"])
+
+
+def test_lane_evaluator_rejects_self_consistent_historical_tau_wrapper_mode() -> None:
+    evidence = deepcopy(build_evidence(now=_PINNED_NOW))
+    evidence.pop("evidence_hash")
+    historical = deepcopy(evidence["live_root_checks"][0])
+    historical["check_id"] = "historical-tau-wrapper"
+    historical["mode"] = "tau_app_state_wrapper_live_root"
+    evidence["live_root_checks"].append(historical)
+    evidence = attach_production_app_root_jmt_hash_v2(evidence)
+
+    result = evaluate_production_app_root_jmt_evidence_v2(
+        evidence,
+        now=_PINNED_NOW,
+    )
+
+    assert result["ok"] is False
+    assert (
+        "live_root_checks[2].mode: unsupported app-root live-root mode"
+        in result["gaps"]
+    )
 
 
 def test_lane_evaluator_rejects_source_payload_hash_drift() -> None:

@@ -23,13 +23,8 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
+from src.integration.bls_intent_signing import sign_dex_intent_for_engine
 from src.integration.dex_engine import _verify_intent_signature_bytes
-from src.integration.tau_net_client import sign_dex_intent_for_engine
-from src.integration.tau_net_client import (
-    encode_tau_operations_for_wire,
-    sign_tau_transaction_payload,
-    verify_tau_transaction_payload_signature,
-)
 from src.integration.zeno_key_manager import (
     IMPORTED_EXISTING_KEY_KEYGEN_METHOD_V0,
     TAU_TESTNET_COMPATIBLE_KEYGEN_METHOD_V0,
@@ -39,12 +34,14 @@ from src.integration.zeno_key_manager import (
 from src.integration.zeno_ledger_v0 import canonical_json_bytes_v0, hash_v0
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
-
 LOCAL_SIGNER_VAULT_SCHEMA_V0 = "zenodex/local_signer/vault/v0"
 LOCAL_SIGNER_PUBLIC_RECEIPT_SCHEMA_V0 = "zenodex/local_signer/public_receipt/v0"
 LOCAL_SIGNER_DEX_SIGNATURE_RECEIPT_SCHEMA_V0 = "zenodex/local_signer/dex_signature_receipt/v0"
 LOCAL_SIGNER_STORAGE_BACKEND_SCRYPT_AESGCM_V0 = "encrypted-local-vault-scrypt-aesgcm-v0"
 LOCAL_SIGNER_PROVIDER_V0 = "zenodex-local-signer-v0"
+RETIRED_TAU_TRANSACTION_SIGNING_ROUTE_ERROR = (
+    "RETIRED_TAU_TRANSACTION_SIGNING_ROUTE"
+)
 
 DEFAULT_SCRYPT_N = 2**14
 DEFAULT_SCRYPT_R = 8
@@ -109,6 +106,10 @@ _PUBLIC_RECEIPT_APPROVAL_MODES_V0 = frozenset({"offline-cli", "prompt", "unatten
 
 class LocalSignerError(RuntimeError):
     pass
+
+
+class RetiredTauTransactionSigningRouteError(LocalSignerError):
+    """Exact refusal for the historical Tau transaction signing surface."""
 
 
 def _require_str(value: object, *, name: str) -> str:
@@ -404,34 +405,17 @@ class LocalSignerVault:
         payload: Mapping[str, Any],
         chain_id: str,
     ) -> dict[str, Any]:
-        chain = _require_str(chain_id, name="chain_id")
-        if chain not in self.allowed_chain_ids:
-            raise PermissionError("chain_id_not_allowed")
-        if not isinstance(payload, Mapping):
-            raise TypeError("payload must be a JSON object")
-        if "signature" in payload:
-            raise ValueError("payload must not already contain signature")
-        sender = validate_tau_bls_public_key(
-            _require_str(payload.get("sender_pubkey"), name="sender_pubkey"),
-            name="sender_pubkey",
+        raise RetiredTauTransactionSigningRouteError(
+            RETIRED_TAU_TRANSACTION_SIGNING_ROUTE_ERROR
         )
-        if sender != self.public_key:
-            raise PermissionError("payload_sender_pubkey_mismatch")
-        operations = payload.get("operations")
-        if not isinstance(operations, Mapping):
-            raise TypeError("operations must be a JSON object")
-        signed_payload: dict[str, Any] = {
-            "sender_pubkey": sender[2:],
-            "sequence_number": _require_nonnegative_int(payload.get("sequence_number"), name="sequence_number"),
-            "expiration_time": _require_nonnegative_int(payload.get("expiration_time"), name="expiration_time"),
-            "operations": encode_tau_operations_for_wire(operations),
-            "fee_limit": str(payload.get("fee_limit", "0")),
-        }
-        private_key_hex = self._unlock_private_key_hex(passphrase)
-        signed_payload["signature"] = sign_tau_transaction_payload(signed_payload, privkey=private_key_hex)
-        if not verify_tau_transaction_payload_signature(signed_payload):
-            raise LocalSignerError("tau transaction signature self-verification failed")
-        return signed_payload
+
+    def require_valid_passphrase(
+        self,
+        passphrase: str | bytes | bytearray,
+    ) -> None:
+        """Unlock once without constructing a historical Tau transaction."""
+
+        self._unlock_private_key_hex(passphrase)
 
 
 def create_local_signer_vault(

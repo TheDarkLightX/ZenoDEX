@@ -60,7 +60,6 @@ from src.integration.live_proof_wrapper import LIVE_PROOF_WRAPPER_ARTIFACT_BINDI
 from src.integration.zeno_ledger_v0 import (
     canonical_json_bytes_v0,
     compute_dex_snapshot_app_root_v0,
-    compute_tau_app_state_app_root_v0,
     hash_v0,
 )
 from src.state.app_root import APP_ROOT_LANE_KINDS
@@ -145,7 +144,6 @@ _MAX_APP_ROOT_SOURCE_PAYLOAD_BYTES: Final = 1_000_000
 _APP_ROOT_REQUIRED_POSITIVE_MODES: Final = frozenset(
     {
         "plain_dex_snapshot_live_root",
-        "tau_app_state_wrapper_live_root",
         "local_block_pre_snapshot_header",
     }
 )
@@ -153,9 +151,6 @@ _APP_ROOT_REQUIRED_NEGATIVE_MUTATIONS: Final = frozenset({"lane_tamper_rejected"
 _APP_ROOT_DERIVATION_PATHS: Final[Mapping[str, str]] = {
     "plain_dex_snapshot_live_root": (
         "src/integration/zeno_ledger_v0.py:compute_dex_snapshot_app_root_v0"
-    ),
-    "tau_app_state_wrapper_live_root": (
-        "src/integration/zeno_ledger_v0.py:compute_tau_app_state_app_root_v0"
     ),
     "local_block_pre_snapshot_header": (
         "src/integration/zeno_ledger_v0.py:compute_dex_snapshot_app_root_v0"
@@ -3706,9 +3701,7 @@ def _rederive_app_root_from_source_payload(
             max_bytes=_MAX_APP_ROOT_SOURCE_PAYLOAD_BYTES,
         )
         source_hash = _app_root_source_payload_hash(source_payload)
-        if mode == "tau_app_state_wrapper_live_root":
-            root = compute_tau_app_state_app_root_v0(source_payload)
-        elif mode in {
+        if mode in {
             "plain_dex_snapshot_live_root",
             "local_block_pre_snapshot_header",
         }:

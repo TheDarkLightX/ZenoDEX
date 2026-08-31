@@ -235,7 +235,6 @@ def render_runtime_config(*, demo_mode: bool = False, extra: dict[str, object] |
         "schema": "zenodex/dex-ui/runtime-default-external-signer/v0",
         "signerSecurityProfile": "native-desktop-loopback-signer-v0",
         "connectUrl": "http://127.0.0.1:8799/public-receipt",
-        "signTauTransactionPayloadUrl": "http://127.0.0.1:8799/sign-tau-transaction-payload",
         "signDexIntentForEngineUrl": "http://127.0.0.1:8799/sign-dex-intent",
     }
     config: dict[str, object] = {

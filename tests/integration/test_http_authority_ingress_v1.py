@@ -175,10 +175,6 @@ def _stop_server(httpd: object, thread: threading.Thread) -> None:
     "path",
     (
         "/api/dex/build_settlement_spot_price_attestation",
-        "/api/perps/wallet/prepare",
-        "/api/zusd/wallet/prepare",
-        "/api/zusd/monetary/prepare",
-        "/api/strategy/autotrader/prepare",
         "/api/confidential/sealed-bid/settle",
     ),
 )

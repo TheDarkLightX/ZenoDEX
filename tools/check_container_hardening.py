@@ -166,7 +166,14 @@ def run_checks() -> list[str]:
     issues: list[str] = []
     _check_main_compose(issues)
     _check_apparmor_overlay(issues)
-    _check_aux_compose(ROOT / "docker-compose.permissionless.yml", "tau-local", issues)
+    permissionless = yaml.safe_load(
+        (ROOT / "docker-compose.permissionless.yml").read_text(encoding="utf-8")
+    )
+    _require(
+        isinstance(permissionless, dict) and permissionless.get("services") == {},
+        "docker-compose.permissionless.yml: retired Tau local-node service must remain absent",
+        issues,
+    )
     _check_aux_compose(ROOT / "docker-compose.chaos.yml", "toxiproxy", issues)
     _check_aux_compose(ROOT / "docker-compose.two-node.yml", "zeno-ledger-two-node-smoke", issues)
     for service in (

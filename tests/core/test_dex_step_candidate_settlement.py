@@ -148,8 +148,9 @@ def _make_snapshot_bound_quote_setup() -> tuple[DexState, list[Intent]]:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.fields.pop("quote_receipt_hash", None)
-    intent.fields.pop("quote_receipt_leg_index", None)
+    intent = intent.without_field("quote_receipt_hash").without_field(
+        "quote_receipt_leg_index"
+    )
 
     balances = BalanceTable()
     balances.set(sender, "A", 10_000)
@@ -165,7 +166,7 @@ def test_dex_config_default_swap_ordering_is_explicitly_greedy_ab_refined() -> N
 
 def test_step_with_candidate_settlement_accepts_valid_candidate() -> None:
     state, intents, pool_id, pk, asset0, asset1 = _make_single_swap_setup()
-    intents[0].set_field("nonce", 1)
+    intents[0] = intents[0].with_field("nonce", 1)
     cfg = DexConfig(settlement_validation="strong_replay")
 
     candidate = compute_settlement(
@@ -205,7 +206,8 @@ def test_step_with_candidate_settlement_accepts_valid_candidate() -> None:
 def test_intent_auth_shape_covers_material_swap_fields_before_candidate_settlement() -> None:
     state, intents, _pool_id, _pk, _asset0, _asset1 = _make_single_swap_setup()
     intent = intents[0]
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
+    intents[0] = intent
     material_fields = {
         "pool_id": intent.fields["pool_id"],
         "asset_in": intent.fields["asset_in"],

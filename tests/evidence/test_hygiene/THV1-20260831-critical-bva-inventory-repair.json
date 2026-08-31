@@ -1,0 +1,172 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-critical-bva-inventory-repair",
+  "created_date": "2026-08-31",
+  "claim_scope": "Critical BVA inventory V1 validates a closed eight-surface inventory, preserves explicit incomplete status, and rejects unsupported production-complete claims unless exact finite source and state-boundary evidence are present.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "BVA-V1-CLOSED-SURFACE-AND-BOUNDARY-UNIVERSE",
+    "BVA-V1-HONEST-INCOMPLETENESS",
+    "BVA-V1-SOURCE-BOUND-COMPLETION",
+    "BVA-V1-UNRESOLVED-BOUNDARY-REJECTION",
+    "BVA-V1-DUPLICATE-KEY-REJECTION"
+  ],
+  "failure_modes": [
+    "the critical gate calls a checker that is absent from the repository",
+    "a required boundary class or mandatory economic surface is silently deleted",
+    "a partial inventory is promoted by changing only production_complete",
+    "a complete claim is detached from its exact finite source model",
+    "a stale source hash or unresolved state boundary is accepted",
+    "duplicate JSON or YAML keys produce an ambiguous accepted interpretation",
+    "evidence escapes the repository or points outside the test tree"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/bva/check_critical_surface_coverage.py",
+      "sha256": "b60018749f104b3350cf0b17d2ebecc6415e5aabd594c0de543b8b42d6aab2a7"
+    },
+    {
+      "path": "tools/bva/critical_surface_coverage_common_v1.py",
+      "sha256": "e7fed7e9b66dab5508668721d280c5fadb7fbad15592f434d75d36da584610a6"
+    },
+    {
+      "path": "tools/bva/critical_surface_source_binding_v1.py",
+      "sha256": "c712eefd98c7a4fc5f2737813bc6f75f0cdc3d811c47ccc8db7ab8453a82de7f"
+    },
+    {
+      "path": "tools/bva/critical_surface_coverage_v1.py",
+      "sha256": "b03cfd82c737a23241b7f24bdc8201e1b8da5871becc8c5c097a4c4612729b5b"
+    },
+    {
+      "path": "tools/bva/critical_surface_coverage_v1.json",
+      "sha256": "27973beaf0926805de9187c7153cfb0bcb115f7dbe9c99a9a7f877d6d373e5bb"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_critical_surface_bva_coverage.py",
+      "sha256": "cf8d07dde43d25da12c23b00d4abdadd16eed0378513427d33ba4401d5f14796",
+      "node_ids": [
+        "tests/test_check_critical_surface_bva_coverage.py::test_default_inventory_is_valid_and_honestly_incomplete",
+        "tests/test_check_critical_surface_bva_coverage.py::test_checker_executes_directly_from_the_repository_gate",
+        "tests/test_check_critical_surface_bva_coverage.py::test_release_mode_fails_closed_while_any_surface_is_partial",
+        "tests/test_check_critical_surface_bva_coverage.py::test_missing_or_reordered_mandatory_surface_rejects",
+        "tests/test_check_critical_surface_bva_coverage.py::test_required_boundary_class_cannot_be_deleted_from_the_universe",
+        "tests/test_check_critical_surface_bva_coverage.py::test_boundary_partition_overlap_rejects",
+        "tests/test_check_critical_surface_bva_coverage.py::test_not_applicable_class_requires_a_reason",
+        "tests/test_check_critical_surface_bva_coverage.py::test_unknown_manifest_field_rejects",
+        "tests/test_check_critical_surface_bva_coverage.py::test_duplicate_json_key_rejects",
+        "tests/test_check_critical_surface_bva_coverage.py::test_evidence_must_be_repo_relative_and_under_tests",
+        "tests/test_check_critical_surface_bva_coverage.py::test_evidence_symlink_rejects_even_when_target_stays_inside_repo",
+        "tests/test_check_critical_surface_bva_coverage.py::test_complete_claim_requires_source_bound_finite_model",
+        "tests/test_check_critical_surface_bva_coverage.py::test_source_bound_complete_surface_accepts_exact_finite_evidence",
+        "tests/test_check_critical_surface_bva_coverage.py::test_source_hash_mutation_rejects_before_coverage_promotion",
+        "tests/test_check_critical_surface_bva_coverage.py::test_unresolved_state_boundary_rejects_complete_surface",
+        "tests/test_check_critical_surface_bva_coverage.py::test_duplicate_yaml_key_rejects_even_when_the_new_hash_is_pinned",
+        "tests/test_check_critical_surface_bva_coverage.py::test_production_complete_flag_cannot_be_asserted_independently"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression constructs one exact inventory mutation, invokes the public checker, and asserts the canonical fail-closed result."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "The checker is read-only and produces no economic successor or external effect."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "surface_inventory",
+      "points": [
+        "all_eight_in_canonical_order",
+        "missing",
+        "reordered"
+      ]
+    },
+    {
+      "name": "completion_state",
+      "points": [
+        "partial",
+        "source_bound_complete",
+        "forged_complete"
+      ]
+    },
+    {
+      "name": "source_binding",
+      "points": [
+        "exact",
+        "stale_hash",
+        "duplicate_yaml_key"
+      ]
+    },
+    {
+      "name": "state_boundary_disposition",
+      "points": [
+        "witnessed",
+        "model_unsat",
+        "unresolved_reject"
+      ]
+    },
+    {
+      "name": "manifest_language",
+      "points": [
+        "closed_schema",
+        "unknown_field",
+        "duplicate_json_key"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "delete a required boundary class from both the universe and every surface partition",
+      "killed_by": "tests/test_check_critical_surface_bva_coverage.py::test_required_boundary_class_cannot_be_deleted_from_the_universe"
+    },
+    {
+      "description": "omit repository import bootstrapping from the direct gate entrypoint",
+      "killed_by": "tests/test_check_critical_surface_bva_coverage.py::test_checker_executes_directly_from_the_repository_gate"
+    },
+    {
+      "description": "reorder mandatory surfaces while retaining all eight identifiers",
+      "killed_by": "tests/test_check_critical_surface_bva_coverage.py::test_missing_or_reordered_mandatory_surface_rejects"
+    },
+    {
+      "description": "promote a surface without a finite source-model binding",
+      "killed_by": "tests/test_check_critical_surface_bva_coverage.py::test_complete_claim_requires_source_bound_finite_model"
+    },
+    {
+      "description": "replace the exact source-model hash after declaring complete coverage",
+      "killed_by": "tests/test_check_critical_surface_bva_coverage.py::test_source_hash_mutation_rejects_before_coverage_promotion"
+    },
+    {
+      "description": "retain an unresolved state-boundary target in a complete surface",
+      "killed_by": "tests/test_check_critical_surface_bva_coverage.py::test_unresolved_state_boundary_rejects_complete_surface"
+    },
+    {
+      "description": "bind test evidence through a repository-local symbolic link",
+      "killed_by": "tests/test_check_critical_surface_bva_coverage.py::test_evidence_symlink_rejects_even_when_target_stays_inside_repo"
+    },
+    {
+      "description": "pin a YAML source whose duplicate action key changes its interpretation",
+      "killed_by": "tests/test_check_critical_surface_bva_coverage.py::test_duplicate_yaml_key_rejects_even_when_the_new_hash_is_pinned"
+    },
+    {
+      "description": "assert production_complete while mandatory surfaces remain partial",
+      "killed_by": "tests/test_check_critical_surface_bva_coverage.py::test_production_complete_flag_cannot_be_asserted_independently"
+    }
+  ],
+  "nonclaims": [
+    "This inventory does not prove that the listed tests establish their named boundary classes.",
+    "All eight surfaces remain partial; this packet does not satisfy --require-complete.",
+    "This packet does not establish mounted runtime coverage, economic safety, M6 completion, ZRPF proof soundness, or production readiness."
+  ]
+}

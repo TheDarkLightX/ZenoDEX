@@ -21,7 +21,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from src.integration.perps_wallet_authority import evaluate_perps_wallet_authority_profile_v1
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+from src.integration.bls_intent_signing import bls_pubkey_hex_from_privkey
 from src.integration.zeno_ledger_signature import validate_bls_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_v0 import hash_v0
 

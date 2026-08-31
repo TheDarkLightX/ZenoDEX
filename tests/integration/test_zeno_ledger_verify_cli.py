@@ -1535,157 +1535,6 @@ def test_run_local_with_snapshot_commits_rejected_transactions(tmp_path: Path) -
     assert verify.returncode == 0, verify.stderr
 
 
-def test_run_local_with_tau_app_state_executes_app_bridge_streams(tmp_path: Path) -> None:
-    sender = "00" * 48
-    asset0 = "0x" + "11" * 32
-    asset1 = "0x" + "22" * 32
-    app_state_path = tmp_path / "app_state.json"
-    app_state_path.write_text("", encoding="utf-8")
-
-    tx = {
-        "tx_id": "tau-app-create-pool",
-        "block_timestamp": 123,
-        "tx_sender_pubkey": sender,
-        "operations": {
-            "7": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]},
-            "5": [
-                {
-                    "module": "TauSwap",
-                    "version": "0.1",
-                    "kind": "CREATE_POOL",
-                    "intent_id": "0x" + "aa" * 32,
-                    "sender_pubkey": sender,
-                    "deadline": 9_999_999_999,
-                    "nonce": 1,
-                    "asset0": asset0,
-                    "asset1": asset1,
-                    "fee_bps": 30,
-                    "amount0": 1000,
-                    "amount1": 2000,
-                }
-            ],
-        },
-    }
-    body_path = tmp_path / "body.json"
-    out_dir = tmp_path / "ledger"
-    _write_json(body_path, _body(1, txs=[tx]))
-
-    proc = _run_local(
-        "--body",
-        str(body_path),
-        "--out-dir",
-        str(out_dir),
-        "--time-ms",
-        "1778730000001",
-        "--tau-app-state",
-        str(app_state_path),
-        "--tau-chain-id",
-        "zeno-ledger-devnet-0",
-        "--tau-enable-faucet",
-        "--allow-missing-settlement",
-        "--disable-intent-signatures",
-        "--sequencer-set-hash",
-        _root("sequencer-set"),
-        "--config-digest",
-        _root("config"),
-        "--module-versions-digest",
-        _root("modules"),
-    )
-
-    assert proc.returncode == 0, proc.stderr
-    payload = json.loads(proc.stdout)
-    assert payload["ok"] is True
-    post_app_state = json.loads(Path(payload["post_app_state_path"]).read_text(encoding="utf-8"))
-    assert isinstance(post_app_state.get("pools"), list)
-    assert len(post_app_state["pools"]) == 1
-    assert Path(payload["receipts_path"]).is_file()
-
-    verify = _run_verify(
-        "--headers-dir",
-        str(out_dir / "headers"),
-        "--bodies-dir",
-        str(out_dir / "bodies"),
-        "--checkpoints-dir",
-        str(out_dir / "checkpoints"),
-        "--from-height",
-        "1",
-        "--to-height",
-        "1",
-    )
-    assert verify.returncode == 0, verify.stderr
-
-
-def test_run_local_with_tau_app_state_commits_app_rejection_receipts(tmp_path: Path) -> None:
-    sender = "00" * 48
-    app_state_path = tmp_path / "app_state.json"
-    app_state_path.write_text("", encoding="utf-8")
-
-    tx = {
-        "tx_id": "tau-app-bad-token-op",
-        "block_timestamp": 123,
-        "tx_sender_pubkey": sender,
-        "operations": {
-            "9": [
-                {
-                    "module": "TauToken",
-                    "action": "transfer",
-                    "asset": "0x" + "11" * 32,
-                    "to_pubkey": sender,
-                    "amount": 1,
-                }
-            ]
-        },
-    }
-    body_path = tmp_path / "body.json"
-    out_dir = tmp_path / "ledger"
-    _write_json(body_path, _body(1, txs=[tx]))
-
-    proc = _run_local(
-        "--body",
-        str(body_path),
-        "--out-dir",
-        str(out_dir),
-        "--time-ms",
-        "1778730000001",
-        "--tau-app-state",
-        str(app_state_path),
-        "--tau-chain-id",
-        "zeno-ledger-devnet-0",
-        "--sequencer-set-hash",
-        _root("sequencer-set"),
-        "--config-digest",
-        _root("config"),
-        "--module-versions-digest",
-        _root("modules"),
-    )
-
-    assert proc.returncode == 0, proc.stderr
-    payload = json.loads(proc.stdout)
-    output_body = json.loads(Path(payload["body_path"]).read_text(encoding="utf-8"))
-    receipts = json.loads(Path(payload["receipts_path"]).read_text(encoding="utf-8"))
-    post_app_state = json.loads(Path(payload["post_app_state_path"]).read_text(encoding="utf-8"))
-
-    assert receipts[0]["accepted"] is False
-    assert receipts[0]["state_changed"] is False
-    assert receipts[0]["error_code"] == "token_op_0_nonce_must_be_a_positive_int"
-    assert output_body["evidence"]["rejection_receipts"][-1] == receipts[0]
-    assert post_app_state.get("pools") == []
-
-    verify = _run_verify(
-        "--headers-dir",
-        str(out_dir / "headers"),
-        "--bodies-dir",
-        str(out_dir / "bodies"),
-        "--checkpoints-dir",
-        str(out_dir / "checkpoints"),
-        "--from-height",
-        "1",
-        "--to-height",
-        "1",
-    )
-    assert verify.returncode == 0, verify.stderr
-
-
 def test_make_testnet_bundle_can_run_and_verify_bootstrap_scenario(tmp_path: Path) -> None:
     bundle_dir = tmp_path / "bundle"
     proc = _run_make_bundle("--out-dir", str(bundle_dir))
@@ -2247,88 +2096,6 @@ def test_make_feature_lane_manifest_relativizes_repo_relative_generated_paths() 
         "--profile",
         "profile.json",
     ]
-
-
-def test_make_feature_lane_manifest_supports_tau_app_bridge_mode(tmp_path: Path) -> None:
-    sender = "00" * 48
-    asset0 = "0x" + "11" * 32
-    asset1 = "0x" + "22" * 32
-    config = _root("feature-lane-config")
-    sequencer = _root("feature-lane-sequencer")
-    modules = _root("feature-lane-modules")
-    source_dir = tmp_path / "source"
-    source_dir.mkdir()
-    profile_path = source_dir / "profile.json"
-    app_state_path = source_dir / "app_state.json"
-    body_path = source_dir / "body.json"
-    out_dir = tmp_path / "tau_feature_lane"
-    app_state_path.write_text("", encoding="utf-8")
-    profile = sample_zeno_sovereign_testnet_profile_v0(
-        chain_id="zeno-ledger-devnet-0",
-        config_digest=config,
-        sequencer_set_hash=sequencer,
-        token_symbol="tZENO",
-        token_asset_id=_root("feature-lane-token"),
-    )
-    tx = {
-        "tx_id": "feature-tau-app-create-pool",
-        "block_timestamp": 123,
-        "tx_sender_pubkey": sender,
-        "operations": {
-            "7": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]},
-            "5": [
-                {
-                    "module": "TauSwap",
-                    "version": "0.1",
-                    "kind": "CREATE_POOL",
-                    "intent_id": "0x" + "92" * 32,
-                    "sender_pubkey": sender,
-                    "deadline": 9_999_999_999,
-                    "nonce": 1,
-                    "asset0": asset0,
-                    "asset1": asset1,
-                    "fee_bps": 30,
-                    "amount0": 1000,
-                    "amount1": 2000,
-                }
-            ],
-        },
-    }
-    _write_json(profile_path, profile)
-    _write_json(body_path, _body(1, txs=[tx]))
-
-    proc = _run_make_feature_lane(
-        "--out-dir",
-        str(out_dir),
-        "--profile",
-        str(profile_path),
-        "--tau-app-state",
-        str(app_state_path),
-        "--tau-chain-id",
-        "zeno-ledger-devnet-0",
-        "--tau-enable-faucet",
-        "--body",
-        str(body_path),
-        "--module-versions-digest",
-        modules,
-        "--allow-missing-settlement",
-        "--disable-intent-signatures",
-    )
-
-    assert proc.returncode == 0, proc.stderr
-    report = json.loads(proc.stdout)
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    assert manifest["execution_mode"] == "tau_app"
-    assert manifest["tau_app_state_path"] == "tau_app_state.json"
-
-    runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
-    assert runner.returncode == 0, runner.stderr
-    runner_report = json.loads(runner.stdout)
-    assert runner_report["ok"] is True
-    post_app_state = json.loads((out_dir / "ledger" / "app_states" / "1.json").read_text(encoding="utf-8"))
-    receipts = json.loads((out_dir / "ledger" / "receipts" / "1.json").read_text(encoding="utf-8"))
-    assert len(post_app_state["pools"]) == 1
-    assert receipts[0]["accepted"] is True
 
 
 def test_make_feature_lane_manifest_supports_perp_mode(tmp_path: Path) -> None:
@@ -3730,14 +3497,15 @@ def test_feature_suite_rejects_missing_required_feature(tmp_path: Path) -> None:
     assert "required feature lanes missing" in report["errors"][0]
 
 
-def test_make_core_feature_suite_runs_spot_and_tau_adapter_lanes(tmp_path: Path) -> None:
+def test_make_core_feature_suite_excludes_retired_tau_adapter_lane(tmp_path: Path) -> None:
     out_dir = tmp_path / "core_suite"
     proc = _run_make_core_feature_suite("--out-dir", str(out_dir))
     assert proc.returncode == 0, proc.stderr
     report = json.loads(proc.stdout)
     assert report["ok"] is True
     assert Path(report["spot_bootstrap_manifest_path"]).is_file()
-    assert Path(report["tau_app_bridge_manifest_path"]).is_file()
+    assert "tau_app_bridge_manifest_path" not in report
+    assert not (out_dir / "tau_app_bridge_spot").exists()
     assert Path(report["zusd_core_manifest_path"]).is_file()
     assert Path(report["perp_core_manifest_path"]).is_file()
     assert Path(report["oracle_core_manifest_path"]).is_file()
@@ -3748,10 +3516,9 @@ def test_make_core_feature_suite_runs_spot_and_tau_adapter_lanes(tmp_path: Path)
     assert Path(report["confidential_core_manifest_path"]).is_file()
 
     suite = json.loads(Path(report["suite_path"]).read_text(encoding="utf-8"))
-    assert suite["feature_count"] == 10
+    assert suite["feature_count"] == 9
     assert [entry["feature_id"] for entry in suite["features"]] == [
         "spot_bootstrap",
-        "tau_app_bridge_spot",
         "zusd_core",
         "perp_core",
         "oracle_core",
@@ -3768,7 +3535,6 @@ def test_make_core_feature_suite_runs_spot_and_tau_adapter_lanes(tmp_path: Path)
     assert runner_report["ok"] is True
     assert runner_report["covered_features"] == [
         "spot_bootstrap",
-        "tau_app_bridge_spot",
         "zusd_core",
         "perp_core",
         "oracle_core",
@@ -3805,11 +3571,8 @@ def test_make_core_feature_suite_runs_spot_and_tau_adapter_lanes(tmp_path: Path)
     )
     assert status_proc.returncode == 0, status_proc.stderr
     status = json.loads(status_path.read_text(encoding="utf-8"))
-    assert status["feature_suite"]["feature_count"] == 10
-    assert status["feature_suite_run"]["covered_feature_count"] == 10
-
-    tau_app_state = json.loads((out_dir / "tau_app_bridge_spot" / "ledger" / "app_states" / "1.json").read_text(encoding="utf-8"))
-    assert len(tau_app_state["pools"]) == 1
+    assert status["feature_suite"]["feature_count"] == 9
+    assert status["feature_suite_run"]["covered_feature_count"] == 9
     zusd_state = json.loads((out_dir / "zusd_core" / "ledger" / "zusd_states" / "4.json").read_text(encoding="utf-8"))
     zusd_receipts = json.loads((out_dir / "zusd_core" / "ledger" / "receipts" / "4.json").read_text(encoding="utf-8"))
     assert zusd_state["debt_e8"] == 100 * 100_000_000
@@ -3924,10 +3687,9 @@ def test_make_public_testnet_bundle_runs_core_features_and_status(tmp_path: Path
     assert proc.returncode == 0, proc.stderr
     report = json.loads(proc.stdout)
     assert report["ok"] is True
-    assert report["covered_feature_count"] == 10
+    assert report["covered_feature_count"] == 9
     assert report["covered_features"] == [
         "spot_bootstrap",
-        "tau_app_bridge_spot",
         "zusd_core",
         "perp_core",
         "oracle_core",
@@ -3955,8 +3717,8 @@ def test_make_public_testnet_bundle_runs_core_features_and_status(tmp_path: Path
 
     status = json.loads(Path(report["testnet_status_path"]).read_text(encoding="utf-8"))
     assert status["network_id"] == "zeno-ledger-devnet-0"
-    assert status["feature_suite"]["feature_count"] == 10
-    assert status["feature_suite_run"]["covered_feature_count"] == 10
+    assert status["feature_suite"]["feature_count"] == 9
+    assert status["feature_suite_run"]["covered_feature_count"] == 9
 
     feature_suite_manifest = json.loads(Path(report["core_suite_path"]).read_text(encoding="utf-8"))
     for feature in feature_suite_manifest["features"]:
@@ -4061,7 +3823,7 @@ def test_operator_rehearsal_replays_copied_public_testnet_bundle(tmp_path: Path)
         "bootstrap-watcher-0",
         "operator-b",
     ]
-    assert combined_status["feature_suite_run"]["covered_feature_count"] == 10
+    assert combined_status["feature_suite_run"]["covered_feature_count"] == 9
 
 
 def test_dual_operator_rehearsal_builds_matching_bundles_and_replays_copy(tmp_path: Path) -> None:
@@ -4082,7 +3844,7 @@ def test_dual_operator_rehearsal_builds_matching_bundles_and_replays_copy(tmp_pa
     assert report["independent_build_match"] is True
     assert report["operator_b_rehearsal_ok"] is True
     assert report["combined_watcher_count"] == 2
-    assert report["covered_feature_count"] == 10
+    assert report["covered_feature_count"] == 9
     assert report["testnet_status_hash"] == report["operator_a2_testnet_status_hash"]
     assert report["mirror_index_hash"] == report["operator_a2_mirror_index_hash"]
     assert report["feature_suite_hash"] == report["operator_a2_feature_suite_hash"]

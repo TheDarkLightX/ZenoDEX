@@ -27,8 +27,13 @@ def build_report(*, repo_root: Path, engine: str, local_node: bool, ipfs: bool) 
     checks.append({"id": "engine", "ok": _tool_present(engine), "engine": engine})
 
     if local_node:
-        checks.append({"id": "tau_testnet_checkout", **_check_file(repo_root / "external" / "tau-testnet" / "server.py")})
-        checks.append({"id": "tau_local_entry", **_check_file(repo_root / "tools" / "run_local_tau_node_container.sh")})
+        checks.append(
+            {
+                "id": "retired_tau_local_node",
+                "ok": False,
+                "reason": "historical Tau application bridge is incompatible and retired",
+            }
+        )
     if ipfs:
         checks.append({"id": "ipfs_cli", "ok": _tool_present("ipfs")})
         checks.append({"id": "ipfs_publish_script", **_check_file(repo_root / "tools" / "publish_ui_ipfs.sh")})

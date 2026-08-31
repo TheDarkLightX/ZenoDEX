@@ -34,11 +34,10 @@ the evaluator, so forged-but-well-formed evidence fails closed.
 
 1. **Evidence schema (`APP_ROOT_JMT_EVIDENCE_SCHEMA_V1` → v2).** Each
    `live_root_checks[i]` a canonical, self-describing `source_payload` (the exact
-   input the named `live_path` consumes) — e.g. the canonical Dex snapshot object
-   for `plain_dex_snapshot_live_root`, the canonical Tau app-state object for
-   `tau_app_state_wrapper_live_root`, and the local-block pre-snapshot inputs for
-   `local_block_pre_snapshot_header`. Keep `source_state_hash` as the canonical
-   hash of `source_payload` (now verifiable, not just asserted).
+   input the named `live_path` consumes), including the canonical Dex snapshot
+   object for `plain_dex_snapshot_live_root` and the local-block pre-snapshot
+   inputs for `local_block_pre_snapshot_header`. Keep `source_state_hash` as the
+   canonical hash of `source_payload` so the value can be verified.
 
 2. **Producer (`build_evidence`).** It computes each root from a real
    source object; attach that object as `source_payload` and set
@@ -46,15 +45,17 @@ the evaluator, so forged-but-well-formed evidence fails closed.
 
 3. **Evaluator.** For each check it: (a) verifies `source_state_hash ==
    canonical_hash(source_payload)`; (b) re-derive the root by calling the SAME
-   real function named in `live_path` (`_state_root_for_state_file_obj_v0` /
-   `compute_tau_app_state_app_root_v0` / the local-block header path) on
-   `source_payload`; (c) require `re_derived == observed_root == recomputed_root`.
+   real function named in `live_path` (`_state_root_for_state_file_obj_v0` or
+   the local-block header path) on `source_payload`; (c) require
+   `re_derived == observed_root == recomputed_root`.
    Reject (fail closed) on any mismatch, unknown `live_path`, or missing payload.
    Keep all existing checks.
 
-   To avoid a hard `tools/` import from the gate, expose the three root functions
-   through a small `src/`-level adapter (or move the canonical root helpers into
-   `src/`) so the evaluator depends only on `src/` code.
+   The former Tau app-state-wrapper mode is historical research-oracle evidence.
+   A future current-Tau versioned ingress adapter needs its own source-bound
+   live-root mode and replay evidence before promotion. To avoid a hard `tools/`
+   import from the gate, expose current root functions through a small `src/`
+   adapter, or move the canonical root helpers into `src/`.
 
 ## Migration
 

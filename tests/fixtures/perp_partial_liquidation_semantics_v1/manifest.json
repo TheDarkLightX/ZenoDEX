@@ -93,7 +93,7 @@
   "source_files": [
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "84680fad18c63d44625b3e2cf315348998f34070b37c4ea15bffe030f518ebb6"
+      "sha256": "64e4b7769dd438f7a80f5335e52f18d4e7eb54188474a40b0b0cd4f7edd3e454"
     },
     {
       "path": "lean-mathlib/Proofs/PerpMarginRoundingSafety.lean",

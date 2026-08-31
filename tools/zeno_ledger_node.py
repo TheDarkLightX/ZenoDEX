@@ -94,7 +94,11 @@ from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_TIME_MS,
 )
 from tools.zeno_ledger_operator_rehearsal import run_operator_rehearsal_v0
-from tools.zeno_ledger_run_local import ZERO_ROOT, build_local_block_v0
+from tools.zeno_ledger_run_local import (
+    RETIRED_TAU_APP_STATE_SELECTOR_ERROR,
+    ZERO_ROOT,
+    build_local_block_v0,
+)
 
 NODE_STATUS_SCHEMA = "zenodex.zeno_ledger.node_status.v0"
 NODE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_report.v0"
@@ -140,6 +144,19 @@ def _is_tau_app_state_obj_v0(obj: Mapping[str, Any]) -> bool:
     return obj.get("schema") == "zenodex/tau_app_state/v1" and isinstance(obj.get("dex_state"), Mapping)
 
 
+def _has_tau_app_state_schema_v0(obj: Mapping[str, Any]) -> bool:
+    return obj.get("schema") == "zenodex/tau_app_state/v1"
+
+
+class _RetiredTauAppStateSelectorError(ValueError):
+    """Typed refusal for a historical wrapper at a current node boundary."""
+
+
+def _require_current_node_state_obj_v0(obj: Mapping[str, Any]) -> None:
+    if _has_tau_app_state_schema_v0(obj):
+        raise _RetiredTauAppStateSelectorError(RETIRED_TAU_APP_STATE_SELECTOR_ERROR)
+
+
 def _dex_snapshot_from_state_file_obj_v0(obj: Mapping[str, Any]) -> Mapping[str, Any]:
     if _is_tau_app_state_obj_v0(obj):
         dex_state = obj.get("dex_state")
@@ -156,10 +173,6 @@ def _state_root_for_live_state_file_v0(path: Path) -> str:
 
 def _state_root_for_state_file_obj_v0(obj: Mapping[str, Any]) -> str:
     if _is_tau_app_state_obj_v0(obj):
-        # Review note, grade A-: hashing the wrapper as an opaque JSON blob let
-        # live roots drift from the typed JMT app-root contract. Use the same
-        # lane assembler as the proof/header bridge so proof mining, zUSD, CLOB,
-        # oracle, vault, and perps are independently committed.
         return compute_tau_app_state_app_root_v0(obj)
     # Review note, grade A-: plain live snapshots carry oracle/vault/perps
     # fields too. The legacy spot root is still available for old proof
@@ -695,6 +708,23 @@ def build_node_status_v0(
     return {**body, "node_status_hash": hash_v0("node_status_v0", body)}
 
 
+def _require_current_bundle_bootstrap_state_v0(bundle_root: Path) -> None:
+    """Reject a historical wrapper before node startup creates local artifacts."""
+
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest_path = _safe_bundle_path(
+        public_manifest.get("bootstrap_manifest_path"),
+        bundle_root=bundle_root,
+        fallback=bundle_root / "bootstrap" / "manifest.json",
+    )
+    bootstrap_root = bootstrap_manifest_path.parent
+    heights = _header_heights(bootstrap_root / "ledger" / "headers")
+    if not heights:
+        return
+    snapshot_path = bootstrap_root / "ledger" / "snapshots" / f"{heights[-1]}.json"
+    _require_current_node_state_obj_v0(_load_json_object(snapshot_path))
+
+
 def run_node_once_v0(
     *,
     bundle_root: Path,
@@ -705,6 +735,7 @@ def run_node_once_v0(
 ) -> dict[str, Any]:
     """Replay a bundle as a node and write node status artifacts."""
 
+    _require_current_bundle_bootstrap_state_v0(bundle_root)
     peers = list(peer_watcher_attestation_paths or [])
     data_dir.mkdir(parents=True, exist_ok=True)
     operator_report = run_operator_rehearsal_v0(
@@ -3993,6 +4024,7 @@ def _validate_live_state_v0(
     snapshot_path = _live_state_file_under_data_dir_v0(
         live_state["latest_snapshot_path"], data_dir=data_dir, field="latest_snapshot_path"
     )
+    _require_current_node_state_obj_v0(_load_json_object(snapshot_path))
 
     header_hash = _live_state_canonical_hash_v0(live_state["latest_header_hash"], field="latest_header_hash")
     app_hash = _live_state_canonical_hash_v0(live_state["latest_app_hash"], field="latest_app_hash")
@@ -4038,7 +4070,11 @@ def _load_live_state_v0(data_dir: Path, *, node_status: Mapping[str, Any] | None
     try:
         live_state = _load_json_object(_latest_live_state_path(data_dir))
         _validate_live_state_v0(live_state, data_dir=data_dir, node_status=node_status)
-    except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
+    except _RetiredTauAppStateSelectorError:
+        raise
+    except ValueError as exc:
+        raise ValueError("live_state_invalid") from exc
+    except (OSError, json.JSONDecodeError, TypeError) as exc:
         raise ValueError("live_state_invalid") from exc
     return live_state
 
@@ -4087,10 +4123,14 @@ def _live_base_paths(*, bundle_root: Path, data_dir: Path, node_status: Mapping[
             + " — writer likely crashed mid-append; resolve before continuing"
         )
     bootstrap_root = bundle_root / "bootstrap"
+    bootstrap_snapshot_path = (
+        bootstrap_root / "ledger" / "snapshots" / f"{latest_height}.json"
+    )
+    _require_current_node_state_obj_v0(_load_json_object(bootstrap_snapshot_path))
     return {
         "latest_height": latest_height,
         "prev_header_path": bootstrap_root / "ledger" / "headers" / f"{latest_height}.json",
-        "pre_snapshot_path": bootstrap_root / "ledger" / "snapshots" / f"{latest_height}.json",
+        "pre_snapshot_path": bootstrap_snapshot_path,
     }
 
 
@@ -4239,8 +4279,7 @@ def _append_dex_transactions_v0_locked(
     chain_id = str(public_manifest["chain_id"])
     pre_state_path = Path(str(base["pre_snapshot_path"]))
     pre_state_obj = _load_json_object(pre_state_path)
-    if _is_tau_app_state_obj_v0(pre_state_obj):
-        raise ValueError("dex batch append requires DEX snapshot state")
+    _require_current_node_state_obj_v0(pre_state_obj)
     pre_snapshot = _dex_snapshot_from_state_file_obj_v0(pre_state_obj)
     dex_config = _local_testnet_tokenomics_dex_config_v0(node_status)
     attached_txs = [
@@ -4355,9 +4394,7 @@ def _validated_dex_batch_transactions_v0(txs: Sequence[Mapping[str, Any]]) -> li
         if not isinstance(tx, Mapping):
             raise TypeError(f"txs[{index}] must be an object")
         tx_obj = dict(tx)
-        operations = tx_obj.get("operations")
-        if isinstance(operations, Mapping) and ("7" in operations or "10" in operations):
-            raise ValueError("dex batch append does not support faucet or tau-app operations")
+        _require_no_retired_tau_operations_v0(tx_obj)
         tx_id = str(tx_obj.get("tx_id", "")).strip()
         if tx_id:
             if tx_id in seen_tx_ids:
@@ -4369,6 +4406,21 @@ def _validated_dex_batch_transactions_v0(txs: Sequence[Mapping[str, Any]]) -> li
     if len(tx_objs) > MAX_EXACT_STALE_ROUTE_ORDER_TXS:
         raise ValueError("live DEX batch tx_count exceeded")
     return tx_objs
+
+
+def _require_no_retired_tau_operations_v0(tx: Mapping[str, Any]) -> None:
+    operations = tx.get("operations")
+    if isinstance(operations, Mapping) and ("7" in operations or "10" in operations):
+        raise ValueError(RETIRED_TAU_APP_STATE_SELECTOR_ERROR)
+
+
+def _require_no_retired_tau_body_operations_v0(body: Mapping[str, Any]) -> None:
+    transactions = body.get("transactions")
+    if not isinstance(transactions, list):
+        return
+    for tx in transactions:
+        if isinstance(tx, Mapping):
+            _require_no_retired_tau_operations_v0(tx)
 
 
 def _tx_batch_from_payload_v0(payload: object) -> list[dict[str, Any]]:
@@ -4406,6 +4458,7 @@ def _append_dex_transaction_v0_locked(
     min_lp_position_age_seconds: int,
     lp_duration_risk_policy: Any | None,
 ) -> dict[str, Any]:
+    _require_no_retired_tau_operations_v0(tx)
     node_status = load_node_status_v0(data_dir)
     bundle_root = Path(str(node_status["bundle_root"]))
     public_manifest = _read_public_manifest(bundle_root)
@@ -4427,6 +4480,7 @@ def _append_dex_transaction_v0_locked(
     chain_id = str(public_manifest["chain_id"])
     pre_state_path = Path(str(base["pre_snapshot_path"]))
     pre_state_obj = _load_json_object(pre_state_path)
+    _require_current_node_state_obj_v0(pre_state_obj)
     pre_snapshot = _dex_snapshot_from_state_file_obj_v0(pre_state_obj)
     dex_config = _local_testnet_tokenomics_dex_config_v0(node_status)
     tx_obj = _attach_tokenomics_buyback_burn_event_v0(
@@ -4450,56 +4504,28 @@ def _append_dex_transaction_v0_locked(
     live_body_path = data_dir / "live_bodies" / f"{height}.json"
     _write_json(live_body_path, body)
     live_ledger_dir = data_dir / "live_ledger"
-    operations = tx_obj.get("operations")
-    use_tau_app_state = _is_tau_app_state_obj_v0(pre_state_obj) or (
-        isinstance(operations, Mapping) and "10" in operations
+    block_report = _build_dex_block_with_tokenomics_buyback_v0(
+        data_dir=data_dir,
+        body_path=live_body_path,
+        out_dir=live_ledger_dir,
+        time_ms=time_ms,
+        pre_snapshot_path=pre_state_path,
+        prev_header_path=Path(str(base["prev_header_path"])),
+        trusted_prev_header_hash=ZERO_ROOT,
+        sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+        data_availability_root=ZERO_ROOT,
+        proof_journal_hash=ZERO_ROOT,
+        config_digest=str(bootstrap_manifest["config_digest"]),
+        module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+        signature_set_root=ZERO_ROOT,
+        allow_missing_settlement=True,
+        require_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=False,
+        protocol_fee_share_bps=dex_config.protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=dex_config.protocol_fee_recipient_pubkey,
+        min_lp_position_age_seconds=min_lp_position_age_seconds,
+        lp_duration_risk_policy=lp_duration_risk_policy,
     )
-    if use_tau_app_state:
-        chain_balances_path = data_dir / "live_chain_balances" / f"{height}.json"
-        _write_json(chain_balances_path, _native_chain_balances_from_snapshot_v0(pre_snapshot))
-        block_report = build_local_block_v0(
-            body_path=live_body_path,
-            out_dir=live_ledger_dir,
-            time_ms=time_ms,
-            tau_app_state_path=pre_state_path,
-            tau_chain_balances_path=chain_balances_path,
-            tau_chain_id=chain_id,
-            prev_header_path=Path(str(base["prev_header_path"])),
-            trusted_prev_header_hash=ZERO_ROOT,
-            sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
-            data_availability_root=ZERO_ROOT,
-            proof_journal_hash=ZERO_ROOT,
-            config_digest=str(bootstrap_manifest["config_digest"]),
-            module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
-            signature_set_root=ZERO_ROOT,
-            allow_missing_settlement=True,
-            require_intent_signatures=True,
-            allow_unsigned_intents_if_tx_sender_matches=False,
-            tau_enable_faucet=isinstance(operations, Mapping) and "7" in operations,
-        )
-    else:
-        block_report = _build_dex_block_with_tokenomics_buyback_v0(
-            data_dir=data_dir,
-            body_path=live_body_path,
-            out_dir=live_ledger_dir,
-            time_ms=time_ms,
-            pre_snapshot_path=pre_state_path,
-            prev_header_path=Path(str(base["prev_header_path"])),
-            trusted_prev_header_hash=ZERO_ROOT,
-            sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
-            data_availability_root=ZERO_ROOT,
-            proof_journal_hash=ZERO_ROOT,
-            config_digest=str(bootstrap_manifest["config_digest"]),
-            module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
-            signature_set_root=ZERO_ROOT,
-            allow_missing_settlement=True,
-            require_intent_signatures=True,
-            allow_unsigned_intents_if_tx_sender_matches=False,
-            protocol_fee_share_bps=dex_config.protocol_fee_share_bps,
-            protocol_fee_recipient_pubkey=dex_config.protocol_fee_recipient_pubkey,
-            min_lp_position_age_seconds=min_lp_position_age_seconds,
-            lp_duration_risk_policy=lp_duration_risk_policy,
-        )
     receipts_path = Path(str(block_report["receipts_path"]))
     receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
     accepted = bool(receipts and isinstance(receipts[0], Mapping) and receipts[0].get("accepted") is True)
@@ -5473,6 +5499,11 @@ def _pull_live_from_peer_v0_locked(
     min_lp_position_age_seconds: int,
     lp_duration_risk_policy: Any | None,
 ) -> dict[str, Any]:
+    node_status = load_node_status_v0(data_dir)
+    bundle_root = Path(str(node_status["bundle_root"]))
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
+    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
     peer_admission = check_peer_status_v0(data_dir=data_dir, peer_urls=[peer_url])
     if peer_admission.get("ok") is not True:
         # Surface enough detail for the follower poll loop to distinguish a
@@ -5492,11 +5523,6 @@ def _pull_live_from_peer_v0_locked(
         }
         raise ValueError(f"peer admission rejected: {json.dumps(diag, sort_keys=True)}")
 
-    node_status = load_node_status_v0(data_dir)
-    bundle_root = Path(str(node_status["bundle_root"]))
-    public_manifest = _read_public_manifest(bundle_root)
-    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
-    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
     local_latest = int(base["latest_height"])
     peer_live = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", "live"))
     if peer_live.get("ok") is not True or peer_live.get("live") is not True:
@@ -5534,6 +5560,7 @@ def _pull_live_from_peer_v0_locked(
     live_ledger_dir = data_dir / "live_ledger"
     for height in range(local_latest + 1, peer_latest + 1):
         peer_body = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/body/{height}"))
+        _require_no_retired_tau_body_operations_v0(peer_body)
         peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
         if _is_faucet_body_v0(peer_body):
             block_report = _build_faucet_block_from_body_v0(
@@ -5901,6 +5928,23 @@ def make_node_http_server_v0(
         raise ValueError("allow_unauthenticated_testnet_writes is only allowed on loopback binds")
 
     root = data_dir.resolve()
+    node_status_path = root / "node_status.json"
+    live_state_path = _latest_live_state_path(root)
+    if live_state_path.is_file() or node_status_path.is_file():
+        node_status = load_node_status_v0(root)
+        try:
+            if live_state_path.is_file():
+                _load_live_state_v0(root, node_status=node_status)
+            else:
+                _require_current_bundle_bootstrap_state_v0(
+                    Path(str(node_status["bundle_root"]))
+                )
+        except _RetiredTauAppStateSelectorError:
+            raise
+        except ValueError:
+            # Existing malformed-state handling remains request-local. This
+            # preflight only closes startup of the retired wrapper.
+            pass
     append_lock = threading.Lock()
     mutation_enabled = enable_testnet_intake or enable_testnet_faucet
     write_auth_required = bool(
@@ -6313,6 +6357,11 @@ def make_node_http_server_v0(
                         self._send_json({"ok": False, "error": "testnet_intake_disabled"}, status=HTTPStatus.FORBIDDEN)
                         return
                     payload = _read_http_json_body(self)
+                    tx_raw = payload.get("tx", payload)
+                    if not isinstance(tx_raw, Mapping):
+                        self._send_json({"ok": False, "error": "tx_must_be_object"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    _require_no_retired_tau_operations_v0(tx_raw)
                     if submit_peer_url:
                         report, peer_status = _post_json_url(
                             urljoin(submit_peer_url.rstrip("/") + "/", "tx"),
@@ -6320,10 +6369,6 @@ def make_node_http_server_v0(
                             bearer_token=submit_peer_auth_token,
                         )
                         self._send_json({**report, "forwarded_to": submit_peer_url}, status=peer_status)
-                        return
-                    tx_raw = payload.get("tx", payload)
-                    if not isinstance(tx_raw, Mapping):
-                        self._send_json({"ok": False, "error": "tx_must_be_object"}, status=HTTPStatus.BAD_REQUEST)
                         return
                     time_ms = payload.get("time_ms")
                     if time_ms is None:
@@ -6367,6 +6412,9 @@ def make_node_http_server_v0(
                         self._send_json({"ok": False, "error": "testnet_intake_disabled"}, status=HTTPStatus.FORBIDDEN)
                         return
                     payload = _read_http_json_body(self)
+                    txs = _tx_batch_from_payload_v0(payload)
+                    for tx in txs:
+                        _require_no_retired_tau_operations_v0(tx)
                     if submit_peer_url:
                         report, peer_status = _post_json_url(
                             urljoin(submit_peer_url.rstrip("/") + "/", "tx/batch"),
@@ -6376,7 +6424,6 @@ def make_node_http_server_v0(
                         self._send_json({**report, "forwarded_to": submit_peer_url}, status=peer_status)
                         return
                     try:
-                        txs = _tx_batch_from_payload_v0(payload)
                         time_ms = _time_ms_from_payload_v0(payload)
                         with append_lock:
                             report = append_dex_transactions_v0(

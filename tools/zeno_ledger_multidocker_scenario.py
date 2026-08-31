@@ -27,7 +27,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_dex_intent_for_engine
+from src.integration.bls_intent_signing import (
+    bls_pubkey_hex_from_privkey,
+    sign_dex_intent_for_engine,
+)
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.pools import compute_pool_id
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0

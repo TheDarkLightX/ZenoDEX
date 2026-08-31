@@ -2,7 +2,6 @@
 #
 # Brings up a real local-testnet stack:
 #   3-node ZenoLedger (bootstrap + writer + forwarder + readonly)
-#   tau-local (local Tau node)
 #   zenodex-oracle (Zeno Oracle dashboard/API)
 #   zenodex-api   (stdlib API with live local lanes enabled)
 #   zenodex-nginx (UI + nginx, only host-exposed service)
@@ -244,58 +243,6 @@ services:
     read_only: true
     tmpfs: *tmpfs
 
-  tau-local:
-    build:
-      context: .
-      dockerfile: .docker/Dockerfile.tau-local
-    image: zenodex/tau-local:local-testnet
-    labels: *local_operator_profile_labels
-    working_dir: /work
-    user: "0:0"
-    entrypoint: []
-    command: ["bash", "tools/run_local_tau_node_container.sh"]
-    environment:
-      TAU_PORT: "65432"
-      TAU_DEX_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
-      TAU_DEX_TOKEN_SYMBOL: ${ZENO_LEDGER_TOKEN_SYMBOL:-ZDEX}
-      TAU_DEX_TOKEN_OPERATOR_PUBKEY: ${TAU_DEX_TOKEN_OPERATOR_PUBKEY:?TAU_DEX_TOKEN_OPERATOR_PUBKEY must be set by the orchestrator}
-      TAU_DEX_ORACLE_PUBKEY: ${TAU_DEX_ORACLE_PUBKEY:?TAU_DEX_ORACLE_PUBKEY must be set by the orchestrator}
-      TAU_DEX_ZUSD_ORACLE_PUBKEY: ${TAU_DEX_ZUSD_ORACLE_PUBKEY:?TAU_DEX_ZUSD_ORACLE_PUBKEY must be set by the orchestrator}
-      TAU_DEX_PROOF_MINING_POOL_PUBKEY: ${TAU_DEX_PROOF_MINING_POOL_PUBKEY:-}
-      TAU_ENABLE_FAUCET: "1"
-      TAU_DEX_FAUCET: "1"
-      TAU_DEX_ALLOW_MISSING_SETTLEMENT: "1"
-      TAU_DEX_CONFIDENTIAL_SEALED_BID_TAU_GUARD: "1"
-      TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH: "1"
-      TAU_BIN_PROFILE: runtime
-      TAU_RUNTIME_BIN: /work/external/tau-lang-bitblasting-prev-eea8fb1f/build-Release/tau
-      TAU_RUNTIME_LIBRARY_PATH: /tau-cvc5-lib
-      TAU_NODE_VENV_DIR: /opt/zenodex-tau-venv
-      TAU_DB_PATH: /data/tau-local.sqlite
-      TAU_FORCE_TEST: "1"
-    volumes:
-      - .:/work
-      - ${TAU_CVC5_LIB_DIR:-/home/trevormoc/.tau/cvc5/dist/lib}:/tau-cvc5-lib:ro
-      - tau-local-testnet-venv:/opt/zenodex-tau-venv
-      - tau-local-testnet-db:/data
-    networks: [zenodex-local-testnet]
-    security_opt: *security_opts
-    cap_drop: *cap_drop
-    pids_limit: 256
-    mem_limit: 768m
-    init: true
-    tmpfs: *tmpfs
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "import os, socket; s=socket.create_connection(('127.0.0.1', int(os.environ.get('TAU_PORT', '65432'))), timeout=2); s.sendall(b'hello version=1\\r\\n'); s.recv(1024); s.close()"
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-
   zenodex-oracle:
     image: zenodex/operator-tools:local
     labels: *local_operator_profile_labels
@@ -334,8 +281,6 @@ services:
     depends_on:
       zeno-ledger-writer:
         condition: service_started
-      tau-local:
-        condition: service_started
     entrypoint: ["python"]
     command:
       - -m
@@ -347,16 +292,9 @@ services:
       ZENODEX_ENV: "local"
       TAU_DEX_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
       TAU_DEX_TOKEN_SYMBOL: ${ZENO_LEDGER_TOKEN_SYMBOL:-ZDEX}
-      ZUSD_TAU_WALLET_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
-      ZUSD_MONETARY_WALLET_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
-      PERPS_WALLET_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
-      AUTOTRADER_LIVE_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
       DEX_API_ENABLED: "true"
       PERPS_API_ENABLED: "false"
       PERPS_WALLET_API_ENABLED: "false"
-      PERPS_WALLET_ALLOW_LOCAL_SIGNING: "false"
-      PERPS_WALLET_AUTO_MINE: "false"
-      PERPS_WALLET_TESTNET_FAUCET_ENABLED: "false"
       TAU_DEX_REQUIRE_LIVE_ZK_PROOF: ${TAU_DEX_REQUIRE_LIVE_ZK_PROOF:-false}
       TAU_DEX_PROOF_VERIFIER_CMD_JSON: ${TAU_DEX_PROOF_VERIFIER_CMD_JSON:-}
       TAU_DEX_PROOF_VERIFIER_TIMEOUT_S: ${TAU_DEX_PROOF_VERIFIER_TIMEOUT_S:-}
@@ -368,38 +306,13 @@ services:
       TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE: ${TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE:-}
       TAU_DEX_PROOF_MINING_POOL_PUBKEY: ${TAU_DEX_PROOF_MINING_POOL_PUBKEY:-}
       ZENO_LEDGER_WRITER_SNAPSHOT_URL: http://zeno-ledger-writer:8787/api/dex/snapshot
-      TAU_DEX_PERP_ORACLE_PUBKEY: ${TAU_DEX_ORACLE_PUBKEY:?TAU_DEX_ORACLE_PUBKEY must be set by the orchestrator}
       ZUSD_API_ENABLED: "false"
       ZUSD_TAU_WALLET_API_ENABLED: "false"
-      ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING: "false"
-      ZUSD_TAU_WALLET_AUTO_MINE: "false"
-      ZUSD_TAU_WALLET_TAU_HOST: "tau-local"
-      ZUSD_TAU_WALLET_TAU_PORT: "65432"
-      ZUSD_TAU_WALLET_TAU_TIMEOUT_S: "10"
       ZUSD_MONETARY_WALLET_API_ENABLED: "false"
-      ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING: "false"
-      ZUSD_MONETARY_WALLET_AUTO_MINE: "false"
-      TAU_DEX_TOKEN_OPERATOR_PUBKEY: ${TAU_DEX_TOKEN_OPERATOR_PUBKEY:?TAU_DEX_TOKEN_OPERATOR_PUBKEY must be set by the orchestrator}
-      TAU_DEX_ORACLE_PUBKEY: ${TAU_DEX_ORACLE_PUBKEY:?TAU_DEX_ORACLE_PUBKEY must be set by the orchestrator}
-      TAU_DEX_ZUSD_ORACLE_PUBKEY: ${TAU_DEX_ZUSD_ORACLE_PUBKEY:?TAU_DEX_ZUSD_ORACLE_PUBKEY must be set by the orchestrator}
-      TAU_DEX_OPERATOR_PUBKEY: ${TAU_DEX_TOKEN_OPERATOR_PUBKEY:?TAU_DEX_TOKEN_OPERATOR_PUBKEY must be set by the orchestrator}
       AUTOTRADER_LIVE_API_ENABLED: "false"
-      AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING: "false"
-      AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION: "false"
-      AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED: "false"
-      AUTOTRADER_LIVE_SUPERVISOR_ENABLED: "false"
-      AUTOTRADER_LIVE_AUTO_MINE: "true"
-      AUTOTRADER_LIVE_TAU_HOST: "tau-local"
-      AUTOTRADER_LIVE_TAU_PORT: "65432"
-      AUTOTRADER_LIVE_TAU_TIMEOUT_S: "10"
-      AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH: /tmp/autotrader_execution_journal.jsonl
       CONFIDENTIAL_ATTESTATION_API_ENABLED: "true"
       CONFIDENTIAL_SEALED_BID_STATE_FILE: /tmp/confidential_sealed_bid_state.json
       CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED: "false"
-      CONFIDENTIAL_SEALED_BID_AUTO_MINE: "false"
-      CONFIDENTIAL_SEALED_BID_TAU_HOST: "tau-local"
-      CONFIDENTIAL_SEALED_BID_TAU_PORT: "65432"
-      CONFIDENTIAL_SEALED_BID_TAU_TIMEOUT_S: "10"
       CONFIDENTIAL_OPERATOR_CONTACT: "https://ops.zenodex.local"
       CONFIDENTIAL_APPROVED_MEASUREMENTS: ${CONFIDENTIAL_APPROVED_MEASUREMENTS:?CONFIDENTIAL_APPROVED_MEASUREMENTS must be set by the orchestrator}
       CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED: "true"
@@ -462,5 +375,3 @@ networks:
 
 volumes:
   zeno-local-testnet-data:
-  tau-local-testnet-venv:
-  tau-local-testnet-db:

@@ -454,7 +454,7 @@ def test_normal_form_places_defensive_unknown_kind_after_known_pool_actions() ->
         deadline=9999999999,
         fields={"pool_id": pool_id},
     )
-    unknown.kind = "UNKNOWN_KIND"  # type: ignore[assignment]
+    object.__setattr__(unknown, "kind", "UNKNOWN_KIND")
 
     normalized = normalize_intents([unknown, swap]).intent_ids
     assert normalized == [swap.intent_id, unknown.intent_id]

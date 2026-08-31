@@ -23,11 +23,12 @@ from src.integration.local_route_quarantine import (
     CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1,
 )
 
+SCHEMA_V4 = "zeno_ledger.local_testnet_manifest.v4"
 SCHEMA_V3 = "zeno_ledger.local_testnet_manifest.v3"
 SCHEMA_V2 = "zeno_ledger.local_testnet_manifest.v2"
 SCHEMA_V1 = "zeno_ledger.local_testnet_manifest.v1"
 SCHEMA_V0 = "zeno_ledger.local_testnet_manifest.v0"
-SUPPORTED_SCHEMAS = frozenset({SCHEMA_V0, SCHEMA_V1, SCHEMA_V2, SCHEMA_V3})
+SUPPORTED_SCHEMAS = frozenset({SCHEMA_V0, SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4})
 MANIFEST_FILENAME = "local_testnet_manifest.json"
 
 _SHA256_HEX_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -131,7 +132,7 @@ def build_manifest(
     be called on the result before persisting."""
     posture = _default_zk_posture() if zk_posture is None else dict(zk_posture)
     return {
-        "schema": SCHEMA_V3,
+        "schema": SCHEMA_V4,
         "compose_project": compose_project_name(out_dir),
         "out_dir": str(canonical_nonsymlink_out_dir(out_dir)),
         "chain_id": chain_id,
@@ -225,9 +226,10 @@ REQUIRED_SERVICE_KEYS = (
     "stdlib_api",
     "writer",
     "oracle",
-    "tau",
 )
-REQUIRED_IMAGE_KEYS = ("operator_tools", "tau_local")
+LEGACY_RETIRED_TAU_SERVICE_KEYS = ("tau",)
+REQUIRED_IMAGE_KEYS = ("operator_tools",)
+LEGACY_RETIRED_TAU_IMAGE_KEYS = ("tau_local",)
 REQUIRED_FIXTURE_KEYS = (
     "key_bundle",
     "oracle_authority_profile",
@@ -266,9 +268,10 @@ def validate_manifest(manifest: object) -> list[str]:
         errors.append(
             f"schema must be one of {sorted(SUPPORTED_SCHEMAS)!r}, got {schema!r}"
         )
-    is_v1_or_later = schema in {SCHEMA_V1, SCHEMA_V2, SCHEMA_V3}
-    is_v2_or_later = schema in {SCHEMA_V2, SCHEMA_V3}
-    is_v3 = schema == SCHEMA_V3
+    is_v1_or_later = schema in {SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4}
+    is_v2_or_later = schema in {SCHEMA_V2, SCHEMA_V3, SCHEMA_V4}
+    is_profile_bound = schema in {SCHEMA_V3, SCHEMA_V4}
+    is_v4 = schema == SCHEMA_V4
 
     project = manifest.get("compose_project", "")
     if not isinstance(project, str) or not _COMPOSE_PROJECT_RE.match(project):
@@ -308,9 +311,14 @@ def validate_manifest(manifest: object) -> list[str]:
     if not isinstance(service_urls, Mapping):
         errors.append("service_urls must be a mapping")
     else:
-        for key in REQUIRED_SERVICE_KEYS:
+        required_service_keys = REQUIRED_SERVICE_KEYS + (
+            () if is_v4 else LEGACY_RETIRED_TAU_SERVICE_KEYS
+        )
+        for key in required_service_keys:
             if key not in service_urls:
                 errors.append(f"service_urls missing required key: {key}")
+        if is_v4 and any(key in service_urls for key in LEGACY_RETIRED_TAU_SERVICE_KEYS):
+            errors.append("v4 service_urls must exclude the retired Tau service")
         for key, value in service_urls.items():
             if not isinstance(value, str) or not value:
                 errors.append(f"service_urls[{key}] must be non-empty string, got {value!r}")
@@ -328,9 +336,14 @@ def validate_manifest(manifest: object) -> list[str]:
     if not isinstance(image_refs, Mapping):
         errors.append("image_refs must be a mapping")
     else:
-        for key in REQUIRED_IMAGE_KEYS:
+        required_image_keys = REQUIRED_IMAGE_KEYS + (
+            () if is_v4 else LEGACY_RETIRED_TAU_IMAGE_KEYS
+        )
+        for key in required_image_keys:
             if key not in image_refs:
                 errors.append(f"image_refs missing required key: {key}")
+        if is_v4 and any(key in image_refs for key in LEGACY_RETIRED_TAU_IMAGE_KEYS):
+            errors.append("v4 image_refs must exclude the retired Tau image")
         for key, value in image_refs.items():
             if not isinstance(value, str) or not value:
                 errors.append(f"image_refs[{key}] must be non-empty string, got {value!r}")
@@ -458,7 +471,7 @@ def validate_manifest(manifest: object) -> list[str]:
             if not strict_artifacts_ready:
                 errors.append("strict zk mode requires verifier and circuit artifact hashes")
 
-    if is_v3:
+    if is_profile_bound:
         for key in V3_REQUIRED_KEYS:
             if key not in manifest:
                 errors.append(f"missing required key: {key}")

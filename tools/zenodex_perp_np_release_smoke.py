@@ -38,12 +38,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.core.dex import DexState  # noqa: E402
-from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot  # noqa: E402
-from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops  # noqa: E402
-from src.integration.tau_net_client import (  # noqa: E402
+from src.integration.bls_intent_signing import (  # noqa: E402
     bls_pubkey_hex_from_privkey,
     sign_perp_op_for_engine,
 )
+from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot  # noqa: E402
+from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops  # noqa: E402
 from src.state.balances import BalanceTable  # noqa: E402
 from src.state.lp import LPTable  # noqa: E402
 

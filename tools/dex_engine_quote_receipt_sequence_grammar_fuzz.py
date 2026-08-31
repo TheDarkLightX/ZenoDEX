@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Deterministic action-grammar explorer for stateful quote-receipt behavior in `dex_engine`.
 
@@ -9,6 +7,8 @@ the interesting branch only appears after a prior successful transition:
 - quote receipt hash and witness requirements fire after earlier success
 - split quote-receipt leg binding and coverage checks fire after an unrelated success
 """
+
+from __future__ import annotations
 
 import argparse
 import copy
@@ -23,18 +23,29 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.agents.intent_signer import create_swap_intent_from_quote_receipt, create_swap_intents_from_quote_receipt
-from src.core.dex import DexState
-from src.core.quote_receipts import make_route_quote_receipt
-from src.core.routing import best_route_exact_in_2hop
-from src.integration.dex_engine import DexEngineConfig, apply_ops
-from src.integration.operations import SignedIntentEnvelope, create_signed_intent_operation
-from src.state.balances import BalanceTable
-from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
+from src.agents.intent_signer import (  # noqa: E402
+    create_swap_intent_from_quote_receipt,
+    create_swap_intents_from_quote_receipt,
+)
+from src.core.dex import DexState  # noqa: E402
+from src.core.quote_receipts import make_route_quote_receipt  # noqa: E402
+from src.core.routing import best_route_exact_in_2hop  # noqa: E402
+from src.integration.dex_engine import DexEngineConfig, apply_ops  # noqa: E402
+from src.integration.operations import (  # noqa: E402
+    SignedIntentEnvelope,
+    create_signed_intent_operation,
+)
+from src.state.balances import BalanceTable  # noqa: E402
+from src.state.lp import LPTable  # noqa: E402
+from src.state.pools import PoolState, PoolStatus  # noqa: E402
+
+RunnerFn = Callable[[object], "SemanticRun"]
 
 
-RunnerFn = Callable[[object], str]
+@dataclass(frozen=True)
+class SemanticRun:
+    outcome_label: str
+    path_tokens: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -76,15 +87,8 @@ class MinimizedWitness:
 class GrammarTarget:
     name: str
     runner: RunnerFn
-    trace_files: tuple[Path, ...]
     cases: tuple[GrammarCase, ...]
 
-
-DEX_ENGINE_FILE = (ROOT_DIR / "src/integration/dex_engine.py").resolve()
-OPERATIONS_FILE = (ROOT_DIR / "src/integration/operations.py").resolve()
-QUOTE_RECEIPTS_FILE = (ROOT_DIR / "src/core/quote_receipts.py").resolve()
-NONCES_FILE = (ROOT_DIR / "src/state/nonces.py").resolve()
-BATCH_CLEARING_FILE = (ROOT_DIR / "src/core/batch_clearing.py").resolve()
 
 SENDER = "0x" + "aa" * 48
 ASSET_A = "A"
@@ -157,33 +161,47 @@ def _payload_fingerprint(payload: object) -> str:
     return json.dumps(_stable_jsonable(payload), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
-def _trace_outcome(*, runner: RunnerFn, payload: object, trace_files: Sequence[Path]) -> tuple[str, str, int]:
-    trace_names = {str(path.resolve()) for path in trace_files}
-    lines: list[str] = []
-    last_loc: str | None = None
-
-    def tracer(frame, event, arg):
-        nonlocal last_loc
-        filename = str(Path(frame.f_code.co_filename).resolve())
-        if event == "call":
-            return tracer if filename in trace_names else None
-        if event == "line":
-            loc = f"{Path(filename).name}:{frame.f_lineno}"
-            if loc != last_loc:
-                lines.append(loc)
-                last_loc = loc
-        return tracer
-
-    previous = sys.gettrace()
+def _trace_outcome(*, runner: RunnerFn, payload: object) -> tuple[str, str, int]:
     try:
-        sys.settrace(tracer)
-        try:
-            outcome = runner(payload)
-        except Exception as exc:  # pragma: no cover
-            outcome = f"{type(exc).__name__}:{exc}"
-    finally:
-        sys.settrace(previous)
-    return outcome, _hash_path(lines), len(lines)
+        run = runner(payload)
+    except Exception as exc:  # pragma: no cover
+        outcome = f"{type(exc).__name__}:{exc}"
+        path_tokens = (f"exception:{outcome}",)
+        return outcome, _hash_path(path_tokens), len(path_tokens)
+    return run.outcome_label, _hash_path(run.path_tokens), len(run.path_tokens)
+
+
+def _spot_state_root(state: DexState) -> str:
+    payload = {
+        "balances": [
+            [owner, asset, amount]
+            for (owner, asset), amount in sorted(state.balances.get_all_balances().items())
+        ],
+        "lp_balances": [
+            [owner, pool_id, amount]
+            for (owner, pool_id), amount in sorted(state.lp_balances.get_all_balances().items())
+        ],
+        "nonces": [[owner, nonce] for owner, nonce in sorted(state.nonces.get_all().items())],
+        "pools": [
+            {
+                "asset0": pool.asset0,
+                "asset1": pool.asset1,
+                "created_at": pool.created_at,
+                "curve_params": pool.curve_params,
+                "curve_tag": pool.curve_tag,
+                "fee_bps": pool.fee_bps,
+                "key": key,
+                "lp_supply": pool.lp_supply,
+                "pool_id": pool.pool_id,
+                "reserve0": pool.reserve0,
+                "reserve1": pool.reserve1,
+                "status": pool.status.value,
+            }
+            for key, pool in sorted(state.pools.items())
+        ],
+    }
+    framed = b"zenodex/dex-engine-quote-receipt-semantic-state/v1\x00" + _payload_fingerprint(payload).encode("utf-8")
+    return hashlib.sha256(framed).hexdigest()
 
 
 def _format_lasts(state: DexState) -> str:
@@ -219,7 +237,7 @@ def _make_direct_ops(
         deadline=9_999_999_999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", nonce)
+    intent = intent.with_field("nonce", nonce)
     env = SignedIntentEnvelope(intent=intent, quote_receipt=receipt if attach_witness else None)
     ops = create_signed_intent_operation([env])
     if hash_override is not None:
@@ -271,7 +289,7 @@ def _make_split_ops(
     return ops
 
 
-def _sequence_outcome(payload: object) -> str:
+def _sequence_outcome(payload: object) -> SemanticRun:
     if not isinstance(payload, dict):
         raise TypeError("payload must be a dict")
     initial_tag = payload.get("initial")
@@ -288,6 +306,7 @@ def _sequence_outcome(payload: object) -> str:
     else:
         raise ValueError(f"unknown initial state: {initial_tag}")
 
+    path_tokens = [f"initial:{initial_tag}:{_spot_state_root(state)}"]
     config = DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False)
     for idx, step in enumerate(steps):
         if not isinstance(step, dict):
@@ -306,10 +325,14 @@ def _sequence_outcome(payload: object) -> str:
             tx_sender_pubkey=tx_sender,
         )
         if not result.ok:
-            return f"reject:step={idx}:{result.error}"
+            outcome = f"reject:step={idx}:{result.error}"
+            path_tokens.append(f"step:{idx}:reject:{result.error}")
+            return SemanticRun(outcome_label=outcome, path_tokens=tuple(path_tokens))
         assert result.state is not None
         state = result.state
-    return f"ok:pools={len(state.pools)}:nonces={_format_lasts(state)}"
+        path_tokens.append(f"step:{idx}:accept:{_spot_state_root(state)}")
+    outcome = f"ok:pools={len(state.pools)}:nonces={_format_lasts(state)}"
+    return SemanticRun(outcome_label=outcome, path_tokens=tuple(path_tokens))
 
 
 def _direct_cases() -> tuple[GrammarCase, ...]:
@@ -384,13 +407,11 @@ TARGETS: tuple[GrammarTarget, ...] = (
     GrammarTarget(
         name="direct_quote_receipt_sequence",
         runner=_sequence_outcome,
-        trace_files=(DEX_ENGINE_FILE, OPERATIONS_FILE, QUOTE_RECEIPTS_FILE, NONCES_FILE, BATCH_CLEARING_FILE),
         cases=_direct_cases(),
     ),
     GrammarTarget(
         name="split_quote_receipt_sequence",
         runner=_sequence_outcome,
-        trace_files=(DEX_ENGINE_FILE, OPERATIONS_FILE, QUOTE_RECEIPTS_FILE, NONCES_FILE, BATCH_CLEARING_FILE),
         cases=_split_cases(),
     ),
 )
@@ -435,7 +456,6 @@ def minimize_case(target_name: str, derivation: str, *, max_rounds: int = 16) ->
     outcome_label, path_id, path_length = _trace_outcome(
         runner=target.runner,
         payload=current,
-        trace_files=target.trace_files,
     )
     original_size = _payload_size(current)
     current_size = original_size
@@ -453,7 +473,6 @@ def minimize_case(target_name: str, derivation: str, *, max_rounds: int = 16) ->
             cand_outcome, cand_path_id, cand_path_length = _trace_outcome(
                 runner=target.runner,
                 payload=candidate,
-                trace_files=target.trace_files,
             )
             if cand_outcome != outcome_label or cand_path_id != path_id:
                 continue
@@ -494,7 +513,6 @@ def explore_target(name: str, *, max_cases: int = 64) -> GrammarTargetReport:
         outcome_label, path_id, path_length = _trace_outcome(
             runner=target.runner,
             payload=case.payload,
-            trace_files=target.trace_files,
         )
         pair = (outcome_label, path_id)
         if pair in seen_pairs:

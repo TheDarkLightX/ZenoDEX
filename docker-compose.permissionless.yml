@@ -1,57 +1,7 @@
-# Optional local-first operator stack.
+# Retired local Tau operator overlay tombstone.
 #
-# Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.permissionless.yml --profile local-node up -d
-#
-# This adds a local Tau Testnet node for operators who want to avoid any managed
-# RPC dependency in the public path.
+# Current Tau is incompatible with the historical application bridge. The
+# former local-node service is deliberately absent. Historical replay tooling
+# remains research-only and cannot be selected through this Compose file.
 
-services:
-  tau-local:
-    profiles: ["local-node"]
-    image: python:3.11-slim-bookworm
-    working_dir: /work
-    command: ["bash", "tools/run_local_tau_node_container.sh"]
-    environment:
-      - TAU_PORT=${TAU_PORT:-65432}
-      - TAU_DEX_CHAIN_ID=${TAU_DEX_CHAIN_ID:-tau-local}
-      - TAU_NODE_VENV_DIR=/opt/zenodex-tau-venv
-      - TAU_DB_PATH=/data/tau-local.sqlite
-      - TAU_ENABLE_FAUCET=${TAU_ENABLE_FAUCET:-0}
-      - TAU_FORCE_TEST=${TAU_FORCE_TEST:-1}
-    volumes:
-      - .:/work
-      - tau-local-venv:/opt/zenodex-tau-venv
-      - tau-local-db:/data
-    ports:
-      - "${TAU_PORT:-65432}:${TAU_PORT:-65432}"
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 256
-    mem_limit: 768m
-    tmpfs:
-      - /tmp:mode=1777,noexec,nosuid,nodev,size=128m
-    init: true
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import os, socket; s=socket.create_connection(('127.0.0.1', int(os.environ.get('TAU_PORT', '65432'))), timeout=2); s.sendall(b'hello version=1\\r\\n'); s.recv(1024); s.close()",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 6
-      start_period: 20s
-    restart: unless-stopped
-    networks:
-      - zenodex-network
-
-volumes:
-  tau-local-venv:
-    driver: local
-  tau-local-db:
-    driver: local
+services: {}

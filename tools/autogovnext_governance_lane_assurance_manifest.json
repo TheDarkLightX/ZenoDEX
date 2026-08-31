@@ -68,7 +68,7 @@
     },
     {
       "path": "tools/zeno_ledger_node.py",
-      "sha256": "baf9c9d00136f06a5ca560132d57e72eeb897b23ae50954265b6eef39013656d"
+      "sha256": "0fd4db61b0a8240a09f83c6aa43cfd4bce2e13fbb708388dca30542a71e81c1b"
     },
     {
       "path": "tests/state/test_app_root.py",
@@ -116,11 +116,11 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "93c96e4741714a11d8b489fea620c42457033b8e226d070f71eb2a2f8db4d699"
+      "sha256": "64e4b7769dd438f7a80f5335e52f18d4e7eb54188474a40b0b0cd4f7edd3e454"
     },
     {
       "path": ".github/workflows/release-integrity.yml",
-      "sha256": "ce7634a37bcdc1aa24d6f7a14ab9efe1cab1efb52c505b9ab625ca473d9b4a4a"
+      "sha256": "c6d3a883d801f8c7f380cfe396d6ae32756930d93faa529cbfcc4b904a567d7b"
     },
     {
       "path": "docs/AUTOGOVNEXT_AND_ZENODEX_PRODUCTION_READINESS_PLAN_2026_06_10.md",
@@ -136,7 +136,7 @@
     },
     {
       "path": "lean-mathlib/Proofs.lean",
-      "sha256": "2b29bba0214ef8889afb48183085a8cee83e096ad7311dae3cc51cd52d92be26"
+      "sha256": "5d92e82777fbd00f0131921f75296af6f72fb5d42795c9b71adba824b37691fd"
     },
     {
       "path": "tools/dex-ui/src/sdk/zenoProofClient.js",

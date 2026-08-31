@@ -94,8 +94,11 @@ Required evidence fields:
 Required positive checks:
 
 - plain Dex snapshot live-root replay;
-- Tau app-state wrapper live-root replay;
 - local block pre-snapshot header root replay.
+
+The historical Tau app-state wrapper remains research-oracle material. Current
+Tau integration requires the versioned ingress adapter selected by the
+whole-program plan before it can supply a new live-root replay mode.
 
 Required negative check:
 
@@ -105,7 +108,7 @@ The evidence must cover `spot`, `oracle`, `vault`, `perps`, `zusd`, `clob`,
 and `proof_mining`. Evidence marked fixture, synthetic, demo, or echo remains
 blocked.
 
-Validator: `evaluate_production_app_root_jmt_evidence_v1`.
+Validator: `evaluate_production_app_root_jmt_evidence_v2`.
 
 ## Oracle Authority
 

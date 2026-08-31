@@ -37,9 +37,8 @@ QUARANTINED_ROUTE_ENVIRONMENT_ALIASES_V1: Final = (
     "zusd_monetary_wallet_enabled",
     "zusd_monetary_api_enabled",
 )
-CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1: Final = "local-testnet-retired-bridge-quarantine-v1"
+CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1: Final = "local-testnet-retired-bridge-quarantine-v2"
 CURRENT_LOCAL_OPERATOR_SERVICE_IMAGES_V1: Final = (
-    ("tau-local", "zenodex/tau-local:local-testnet"),
     ("zeno-ledger-bootstrap", "zenodex/operator-tools:local"),
     ("zeno-ledger-forwarder", "zenodex/operator-tools:local"),
     ("zeno-ledger-readonly", "zenodex/operator-tools:local"),
@@ -60,7 +59,7 @@ _CURRENT_LOCAL_OPERATOR_PROFILE_BODY_V1: Final = {
         name: "false" for name in QUARANTINED_ROUTE_ENVIRONMENT_V1
     },
     "release_eligible": False,
-    "schema": "zenodex.local_operator_profile.v1",
+    "schema": "zenodex.local_operator_profile.v2",
     "vm_gates_closed": [],
 }
 CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1: Final = "sha256:" + hashlib.sha256(
@@ -73,7 +72,8 @@ CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1: Final = "sha256:" + hashlib.sha256(
 ).hexdigest()
 CURRENT_LOCAL_OPERATOR_RELEASE_BLOCKER_V1: Final = (
     "current profile quarantines stream-8 perps, stream-9 zUSD wallet, and stream-11 "
-    "zUSD monetary routes; retained testnet artifacts cannot authorize a current release"
+    "zUSD monetary routes and excludes the retired local Tau node and spot bridge; retained "
+    "testnet artifacts cannot authorize a current release"
 )
 RETIRED_ORIGIN_QUARANTINE_SCHEMA_V1: Final = (
     "zenodex.local_testnet.retired_origin_quarantine.v1"

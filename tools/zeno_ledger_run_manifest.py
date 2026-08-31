@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,28 @@ ROOT = Path(__file__).resolve().parents[1]
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.run_manifest_report.v0"
 MANIFEST_SCHEMA = "zenodex.zeno_ledger.testnet_bundle.v0"
+RETIRED_TAU_APP_STATE_SELECTOR_ERROR = "RETIRED_TAU_APP_STATE_SELECTOR"
+RETIRED_TAU_BRIDGE_EXECUTABLES = frozenset(
+    {
+        "zeno_ledger_make_feature_lane.py",
+        "zeno_ledger_run_local.py",
+    }
+)
+RETIRED_TAU_BRIDGE_MODULES = frozenset(
+    {
+        "tools.zeno_ledger_make_feature_lane",
+        "tools.zeno_ledger_run_local",
+    }
+)
+RETIRED_TAU_BRIDGE_SELECTORS = frozenset(
+    {
+        "--clock-policy-schedule",
+        "--tau-app-state",
+        "--tau-chain-balances",
+        "--tau-chain-id",
+        "--tau-enable-faucet",
+    }
+)
 PATH_VALUE_FLAGS = {
     "--attestation",
     "--autotrader-state",
@@ -76,6 +99,42 @@ def _require_optional_commands(value: object, *, name: str) -> list[list[str]]:
     if not isinstance(value, list):
         raise ValueError(f"{name} must be a list")
     return [_require_command(item, name=f"{name}[{index}]") for index, item in enumerate(value)]
+
+
+def _expanded_static_command(command: Sequence[str]) -> tuple[str, ...]:
+    if (
+        len(command) >= 3
+        and Path(command[0]).name in {"bash", "sh"}
+        and command[1] == "-c"
+    ):
+        try:
+            return tuple(shlex.split(command[2], posix=True))
+        except ValueError:
+            return tuple(command)
+    return tuple(command)
+
+
+def _invokes_retired_tau_bridge_command(command: Sequence[str]) -> bool:
+    tokens = _expanded_static_command(command)
+    if any(Path(token).name in RETIRED_TAU_BRIDGE_EXECUTABLES for token in tokens):
+        return True
+    return any(
+        token == "-m"
+        and index + 1 < len(tokens)
+        and tokens[index + 1] in RETIRED_TAU_BRIDGE_MODULES
+        for index, token in enumerate(tokens)
+    )
+
+
+def _reject_retired_tau_app_state_commands(commands: Sequence[Sequence[str]]) -> None:
+    for command in commands:
+        if not _invokes_retired_tau_bridge_command(command):
+            continue
+        if any(
+            item.partition("=")[0] in RETIRED_TAU_BRIDGE_SELECTORS
+            for item in _expanded_static_command(command)
+        ):
+            raise ValueError(RETIRED_TAU_APP_STATE_SELECTOR_ERROR)
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -153,6 +212,16 @@ def run_manifest_v0(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:
             manifest.get("mirror_index_command"),
             name="mirror_index_command",
         )
+
+    _reject_retired_tau_app_state_commands(
+        [
+            *run_commands,
+            verify_command,
+            *feature_gate_commands,
+            *(() if attest_command is None else (attest_command,)),
+            *(() if mirror_index_command is None else (mirror_index_command,)),
+        ]
+    )
 
     block_reports = []
     for command in run_commands:
@@ -232,7 +301,10 @@ def run_manifest_v0(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Execute and verify a ZenoLedger testnet manifest")
+    parser = argparse.ArgumentParser(
+        description="Execute and verify a ZenoLedger testnet manifest",
+        allow_abbrev=False,
+    )
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
     args = parser.parse_args(argv)

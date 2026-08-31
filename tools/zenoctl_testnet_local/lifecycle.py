@@ -40,6 +40,7 @@ from typing import Any, Callable, Iterator, Literal, Mapping, ParamSpec, TypeVar
 
 import yaml
 
+from src.integration.asset_ids import derive_zusd_asset_id
 from src.integration.local_route_quarantine import (
     CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1,
     CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1,
@@ -51,7 +52,6 @@ from src.integration.local_route_quarantine import (
     parse_retired_origin_quarantine_v1,
     refuse_current_local_operator_operation_v1,
 )
-from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_RELEASE_TESTNET_TOKEN_SYMBOL,
     DEFAULT_TAGRS_ASSET_ID,
@@ -119,7 +119,6 @@ GLOBAL_ZK_MATERIAL_ENV_NAMES = (
 )
 
 OPERATOR_TOOLS_IMAGE = "zenodex/operator-tools:local"
-TAU_LOCAL_IMAGE = "zenodex/tau-local:local-testnet"
 UI_NGINX_IMAGE = "zenodex:local"
 CLOUDFLARED_IMAGE = "cloudflare/cloudflared:latest"
 EXPECTED_LOCAL_TESTNET_SERVICE_IMAGES = dict(
@@ -988,7 +987,7 @@ def _load_local_manifest_snapshot(
     if path_gap is not None:
         _log("quarantine", path_gap)
     if (
-        manifest.get("schema") == mf.SCHEMA_V3
+        manifest.get("schema") == mf.SCHEMA_V4
         and type(raw_lanes) is list
         and all(type(lane) is str for lane in raw_lanes)
         and all(lane in mf.LOCAL_TESTNET_MOUNTABLE_LANES for lane in raw_lanes)
@@ -1012,7 +1011,7 @@ def _load_local_manifest_snapshot(
         f"enabled_lanes contains unmountable lanes: {unmountable_lanes}"
     )
     retired_ownership_proved = (
-        manifest.get("schema") == mf.SCHEMA_V3
+        manifest.get("schema") in {mf.SCHEMA_V3, mf.SCHEMA_V4}
         and type(raw_lanes) is list
         and all(type(lane) is str for lane in raw_lanes)
         and len(raw_lanes) == len(set(raw_lanes))
@@ -1460,8 +1459,6 @@ def _expected_mount_contracts(
         raise ValueError("trusted local Compose volumes must be exact short strings")
     named_volumes = {
         "zeno-local-testnet-data",
-        "tau-local-testnet-venv",
-        "tau-local-testnet-db",
     }
     contracts: list[tuple[str, str, str | None, bool]] = []
     destinations: set[str] = set()
@@ -1894,18 +1891,6 @@ def _quiesce_if_live_project_profile_untrusted(
     return True
 
 
-def _out_dir_is_within_repository(out_dir: Path) -> bool:
-    """Return whether generated secrets would enter tau-local's `/work` mount."""
-
-    selected = out_dir.resolve(strict=False)
-    repository = REPO_ROOT.resolve(strict=True)
-    try:
-        selected.relative_to(repository)
-    except ValueError:
-        return False
-    return True
-
-
 def cmd_up(opts: UpOptions) -> int:
     """Run local admission and startup under one host-global lifecycle lock."""
 
@@ -2018,14 +2003,6 @@ def _cmd_up_under_lock(opts: UpOptions) -> int:
         )
         return 2
 
-    if _out_dir_is_within_repository(paths.out_dir):
-        quiesce_derived_project_once()
-        _log(
-            "quarantine",
-            "output directory is inside the repository mounted read-write by tau-local",
-        )
-        return 2
-
     if existing_manifest is not None:
         if not _manifest_snapshot_path_unchanged(paths, manifest_snapshot):
             _quiesce_retired_route_stack(
@@ -2093,7 +2070,6 @@ def _cmd_up_under_lock(opts: UpOptions) -> int:
         return 2
     fresh_out_stat = os.lstat(paths.out_dir)
     fresh_out_identity = (fresh_out_stat.st_dev, fresh_out_stat.st_ino)
-    cm.check_external_tau_testnet_present(REPO_ROOT)
     cm.check_host_port_free(opts.ui_port)
     zk_posture = _resolve_zk_posture(opts.zk_mode)
     if zk_posture.get("ok") is not True:
@@ -2182,11 +2158,9 @@ def _cmd_up_under_lock(opts: UpOptions) -> int:
                 "stdlib_api": "compose://zenodex-api:8000",
                 "writer": "compose://zeno-ledger-writer:8787",
                 "oracle": "compose://zenodex-oracle:9100",
-                "tau": "compose://tau-local:65432",
             },
             image_refs={
                 "operator_tools": OPERATOR_TOOLS_IMAGE,
-                "tau_local": TAU_LOCAL_IMAGE,
                 "ui_nginx": UI_NGINX_IMAGE,
             },
             enabled_lanes=list(LOCAL_TESTNET_ENABLED_LANES),
@@ -3803,7 +3777,6 @@ def _refresh_existing_runtime_config(path: Path) -> None:
         "schema": "zenodex/dex-ui/runtime-default-external-signer/v0",
         "signerSecurityProfile": "native-desktop-loopback-signer-v0",
         "connectUrl": "http://127.0.0.1:8799/public-receipt",
-        "signTauTransactionPayloadUrl": "http://127.0.0.1:8799/sign-tau-transaction-payload",
         "signDexIntentForEngineUrl": "http://127.0.0.1:8799/sign-dex-intent",
     }
     config.update(
@@ -4337,7 +4310,6 @@ def _seed_api_state(
     chain_id: str,
     tau_rpc_timeout_s: float,
 ) -> dict[str, Any]:
-    _ = (engine, project, env, roles, chain_id, tau_rpc_timeout_s)
     return refuse_current_local_operator_operation_v1("seed_api_state")
 
 
@@ -5341,7 +5313,6 @@ def _materialize_release_native_collateral(
     roles: Mapping[str, Mapping[str, Any]],
     amount_e8: int,
 ) -> dict[str, Any]:
-    _ = (engine, compose_project, env, roles, amount_e8)
     return refuse_current_local_operator_operation_v1("materialize_release_native_collateral")
 
 
@@ -5543,7 +5514,6 @@ def _run_release_flow_smoke(
     compose_project: str,
     env: Mapping[str, str],
 ) -> dict[str, Any]:
-    _ = (ui_base, paths, manifest, engine, compose_project, env)
     return refuse_current_local_operator_operation_v1("release_flow_smoke")
 
 
@@ -5724,7 +5694,7 @@ def _run_release_flow_smoke_historical_donor(
     checks["perps_collateral_deposit"] = {
         "ok": checks["perps_collateral_deposit_alice"]["ok"] and checks["perps_collateral_deposit_bob"]["ok"],
         "accounts": [alice, bob],
-        "quote_asset": derive_zusd_tau_asset_id(chain_id=chain_id),
+        "quote_asset": derive_zusd_asset_id(chain_id=chain_id),
     }
     checks["perps_price_bootstrap"] = _run_perps_wallet_cycle_smoke(
         ui_base=ui_base,
@@ -6108,7 +6078,6 @@ def _run_cloudflare_quick_tunnel(
     paths: mf.ManifestPaths,
     manifest: Mapping[str, Any],
 ) -> int:
-    _ = (opts, paths, manifest)
     return refuse_current_local_operator_operation_v1("cloudflare_quick_tunnel")
 
 
@@ -6336,7 +6305,7 @@ def _build_signed_live_swap_intent(
     to_symbol: str = "tZDEX",
     nonce_override: int | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    from src.integration.tau_net_client import sign_dex_intent_for_engine
+    from src.integration.bls_intent_signing import sign_dex_intent_for_engine
     from src.integration.zeno_ledger_v0 import hash_v0
 
     sender = _role_pubkey(roles, sender_role)
@@ -6547,7 +6516,6 @@ def _zusd_transfer_payload(
     roles: Mapping[str, Mapping[str, Any]],
     deadline: int,
 ) -> dict[str, Any]:
-    _ = (ui_base, roles, deadline)
     return refuse_current_local_operator_operation_v1("zusd_transfer_payload")
 
 
@@ -6631,7 +6599,6 @@ def _run_perps_wallet_cycle_smoke(
     and a settled epoch before the next advance. This smoke publishes a price,
     settles it, then advances once so the browser/UI smoke can publish again.
     """
-    _ = (ui_base, market_id, roles, deadline, zk_required)
     return refuse_current_local_operator_operation_v1("perps_wallet_cycle_smoke")
 
 
@@ -6985,7 +6952,7 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def _tail_service_logs(*, engine: cm.ComposeEngine, project: str, env: dict[str, str]) -> None:
-    for svc in ("tau-local", "zeno-ledger-writer", "zenodex-api", "zenodex-oracle", "zenodex-nginx"):
+    for svc in ("zeno-ledger-writer", "zenodex-api", "zenodex-oracle", "zenodex-nginx"):
         tail = cm.compose_logs(
             engine=engine,
             project_name=project,

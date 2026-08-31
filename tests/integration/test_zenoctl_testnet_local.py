@@ -69,11 +69,9 @@ def _valid_manifest_kwargs(out_dir: Path) -> dict:
             "stdlib_api": "compose://zenodex-api:8000",
             "writer": "compose://zeno-ledger-writer:8787",
             "oracle": "compose://zenodex-oracle:9100",
-            "tau": "compose://tau-local:65432",
         },
         image_refs={
             "operator_tools": "zenodex/operator-tools:local",
-            "tau_local": "zenodex/tau-local:local-testnet",
         },
         enabled_lanes=["DEX_API_ENABLED"],
         fixture_paths={
@@ -104,8 +102,8 @@ def test_manifest_build_validate_roundtrip(tmp_path: Path) -> None:
 
     body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
     assert mf.validate_manifest(body) == []
-    assert body["schema"] == mf.SCHEMA_V3
-    assert body["local_operator_profile_id"] == "local-testnet-retired-bridge-quarantine-v1"
+    assert body["schema"] == mf.SCHEMA_V4
+    assert body["local_operator_profile_id"] == "local-testnet-retired-bridge-quarantine-v2"
     assert body["local_operator_profile_digest"].startswith("sha256:")
     assert body["compose_project"].startswith("zenodex-local-testnet-")
     assert body["writer_token_sha256"].startswith("sha256:")
@@ -551,7 +549,7 @@ def test_missing_manifest_read_commands_quiesce_derived_and_legacy_projects(
     capsys.readouterr()
 
 
-def test_missing_manifest_quiesces_before_fallible_up_preflight(
+def test_missing_manifest_current_up_skips_retired_external_tau_preflight(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -566,19 +564,22 @@ def test_missing_manifest_quiesces_before_fallible_up_preflight(
     )
     monkeypatch.setattr(lc.cm, "inspect_project_containers", lambda **_kwargs: ())
 
-    def fail_external_preflight(_root: Path) -> None:
-        events.append("preflight")
-        raise RuntimeError("simulated external Tau preflight failure")
-
     monkeypatch.setattr(
         lc.cm,
         "check_external_tau_testnet_present",
-        fail_external_preflight,
+        lambda _root: pytest.fail("current startup reached retired Tau preflight"),
+    )
+    monkeypatch.setattr(
+        lc.cm,
+        "check_host_port_free",
+        lambda _port: events.append("current-preflight") or (_ for _ in ()).throw(
+            RuntimeError("stop after retired seam")
+        ),
     )
 
-    with pytest.raises(RuntimeError, match="simulated external Tau"):
+    with pytest.raises(RuntimeError, match="stop after retired seam"):
         lc.cmd_up(lc.UpOptions(out_dir=tmp_path))
-    assert events[:3] == ["quiesce", "quiesce", "preflight"]
+    assert events[:3] == ["quiesce", "quiesce", "current-preflight"]
 
 
 def test_force_up_quiesces_retired_route_and_refuses_unverified_origin_rebuild(
@@ -1290,7 +1291,7 @@ def _live_api_container_snapshot(
     *,
     project: str,
     service: str = "zenodex-api",
-    profile_id: str = "local-testnet-retired-bridge-quarantine-v1",
+    profile_id: str = "local-testnet-retired-bridge-quarantine-v2",
     profile_digest: str,
     image: str = "zenodex/operator-tools:local",
     environment: tuple[tuple[str, str], ...] | None = None,
@@ -2702,6 +2703,8 @@ def test_v2_manifest_is_valid_history_but_retired_for_current_mount(
     body["schema"] = mf.SCHEMA_V2
     body.pop("local_operator_profile_id")
     body.pop("local_operator_profile_digest")
+    body["service_urls"]["tau"] = "compose://tau-local:65432"
+    body["image_refs"]["tau_local"] = "zenodex/tau-local:local-testnet"
     assert mf.validate_manifest(body) == []
     (tmp_path / mf.MANIFEST_FILENAME).write_text(
         json.dumps(body, indent=2, sort_keys=True) + "\n",
@@ -2934,13 +2937,14 @@ def test_release_smoke_without_state_quiesces_without_launch_effects(
         "ok": False,
         "status": "blocked_current_profile",
         "rejection_code": "LOCAL_RELEASE_SMOKE_REQUIRES_QUARANTINED_ROUTES",
-        "current_profile_id": "local-testnet-retired-bridge-quarantine-v1",
+        "current_profile_id": "local-testnet-retired-bridge-quarantine-v2",
         "current_release_eligible": False,
         "authority": "NONE",
         "vm_gates_closed": [],
         "release_blocker": (
             "current profile quarantines stream-8 perps, stream-9 zUSD wallet, "
-            "and stream-11 zUSD monetary routes; retained testnet artifacts "
+            "and stream-11 zUSD monetary routes and excludes the retired local Tau "
+            "node and spot bridge; retained testnet artifacts "
             "cannot authorize a current release"
         ),
         "quarantined_routes": [
@@ -4375,7 +4379,6 @@ def test_runtime_config_has_no_tokens() -> None:
         "schema": "zenodex/dex-ui/runtime-default-external-signer/v0",
         "signerSecurityProfile": "native-desktop-loopback-signer-v0",
         "connectUrl": "http://127.0.0.1:8799/public-receipt",
-        "signTauTransactionPayloadUrl": "http://127.0.0.1:8799/sign-tau-transaction-payload",
         "signDexIntentForEngineUrl": "http://127.0.0.1:8799/sign-dex-intent",
     }
     # No bearer-token-like fields
@@ -4484,7 +4487,6 @@ def test_compose_overlay_has_all_expected_services() -> None:
         "zeno-ledger-writer",
         "zeno-ledger-forwarder",
         "zeno-ledger-readonly",
-        "tau-local",
         "zenodex-oracle",
         "zenodex-api",
         "zenodex-nginx",
@@ -4599,26 +4601,28 @@ def test_compose_overlay_readonly_authenticates_controller_rejection_probe() -> 
     assert "--enable-testnet-intake" not in command
 
 
-def test_compose_overlay_tau_local_enables_balance_patch_for_local_state_bootstrap() -> None:
+def test_compose_overlay_excludes_retired_tau_service_and_bridge_selectors() -> None:
     doc = _load_compose_overlay()
-    env = doc["services"]["tau-local"]["environment"]
-    assert env["TAU_ENABLE_FAUCET"] == "1"
-    assert env["TAU_DEX_FAUCET"] == "1"
-    assert env["TAU_DEX_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-ZDEX}"
-    assert env["TAU_DEX_ALLOW_MISSING_SETTLEMENT"] == "1"
-    assert env["TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH"] == "1"
+    serialized = json.dumps(doc, sort_keys=True)
+
+    assert "tau-local" not in doc["services"]
+    assert "TAU_FORCE_TEST" not in serialized
+    assert "TAU_APP_BRIDGE" not in serialized
+    assert "run_local_tau_node_container" not in serialized
 
 
 def test_compose_overlay_quarantines_retired_perps_and_zusd_monetary_routes() -> None:
     doc = _load_compose_overlay()
     env = doc["services"]["zenodex-api"]["environment"]
     assert env["PERPS_WALLET_API_ENABLED"] == "false"
-    assert env["PERPS_WALLET_ALLOW_LOCAL_SIGNING"] == "false"
-    assert env["PERPS_WALLET_AUTO_MINE"] == "false"
-    assert env["PERPS_WALLET_TESTNET_FAUCET_ENABLED"] == "false"
+    assert env["ZUSD_TAU_WALLET_API_ENABLED"] == "false"
     assert env["ZUSD_MONETARY_WALLET_API_ENABLED"] == "false"
-    assert env["ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING"] == "false"
-    assert env["ZUSD_MONETARY_WALLET_AUTO_MINE"] == "false"
+    assert env["CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED"] == "false"
+    assert "PERPS_WALLET_ALLOW_LOCAL_SIGNING" not in env
+    assert "PERPS_WALLET_AUTO_MINE" not in env
+    assert "PERPS_WALLET_TESTNET_FAUCET_ENABLED" not in env
+    assert "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING" not in env
+    assert "ZUSD_MONETARY_WALLET_AUTO_MINE" not in env
 
 
 def test_quarantined_api_mount_has_no_retired_route_reconstitution_material() -> None:
@@ -4701,10 +4705,11 @@ def test_historical_donor_helpers_refuse_before_any_effect() -> None:
             helper(**kwargs)
 
 
-def test_compose_overlay_autotrader_uses_persistent_execution_journal() -> None:
+def test_compose_overlay_excludes_retired_autotrader_execution_material() -> None:
     doc = _load_compose_overlay()
     env = doc["services"]["zenodex-api"]["environment"]
-    assert env["AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH"] == "/tmp/autotrader_execution_journal.jsonl"
+    assert env["AUTOTRADER_LIVE_API_ENABLED"] == "false"
+    assert "AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH" not in env
 
 
 def test_seed_api_state_rejects_current_profile_before_compose_effect(monkeypatch) -> None:
@@ -4778,13 +4783,16 @@ def test_compose_overlay_requires_orchestrator_env() -> None:
         "ORACLE_HOME_DIR",
         "HOST_UID",
         "HOST_GID",
-        "TAU_DEX_TOKEN_OPERATOR_PUBKEY",
-        "TAU_DEX_ORACLE_PUBKEY",
-        "TAU_DEX_ZUSD_ORACLE_PUBKEY",
         "CONFIDENTIAL_APPROVED_MEASUREMENTS",
         "CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON",
     ):
         assert f"{required}:?" in raw, f"compose overlay must require env {required!r}"
+    for retired in (
+        "TAU_DEX_TOKEN_OPERATOR_PUBKEY",
+        "TAU_DEX_ORACLE_PUBKEY",
+        "TAU_DEX_ZUSD_ORACLE_PUBKEY",
+    ):
+        assert retired not in raw
 
 
 def test_compose_overlay_bind_mount_services_run_as_host_user() -> None:
@@ -5456,7 +5464,7 @@ def test_public_up_without_release_smoke_flag_still_rejects_before_stack_or_tunn
     ]
     report = json.loads(capsys.readouterr().out)
     assert report["status"] == "blocked_current_profile"
-    assert report["current_profile_id"] == "local-testnet-retired-bridge-quarantine-v1"
+    assert report["current_profile_id"] == "local-testnet-retired-bridge-quarantine-v2"
     assert report["current_release_eligible"] is False
     assert report["authority"] == "NONE"
     assert report["vm_gates_closed"] == []
@@ -5622,7 +5630,7 @@ def test_public_host_summary_cannot_describe_blocked_profile_as_ready() -> None:
         {
             "ok": False,
             "status": "blocked_current_profile",
-            "current_profile_id": "local-testnet-retired-bridge-quarantine-v1",
+            "current_profile_id": "local-testnet-retired-bridge-quarantine-v2",
         }
     )
 
@@ -5701,31 +5709,17 @@ def test_reset_allows_dedicated_out_dirs(tmp_path: Path) -> None:
     lc._refuse_unsafe_reset_target(Path.home() / "zen-local-testnet")
 
 
-def test_fresh_up_refuses_output_directory_inside_repository(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The tau-local repository mount must never expose generated fixture secrets."""
+def test_compose_overlay_has_no_repository_read_write_bind() -> None:
+    doc = _load_compose_overlay()
+    volumes = [
+        volume
+        for service in doc["services"].values()
+        for volume in service.get("volumes", ())
+        if isinstance(volume, str)
+    ]
 
-    from tools.zenoctl_testnet_local import lifecycle as lc
-
-    selected = REPO_ROOT / ".o002-hostile-output-must-not-exist"
-    assert not selected.exists()
-    stopped: list[str] = []
-    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
-    monkeypatch.setattr(
-        lc.cm,
-        "compose_down",
-        lambda **kwargs: stopped.append(str(kwargs["project_name"])),
-    )
-    monkeypatch.setattr(
-        lc.cm,
-        "check_external_tau_testnet_present",
-        lambda _root: pytest.fail("repository-contained output reached preflight"),
-    )
-
-    assert lc.cmd_up(lc.UpOptions(out_dir=selected)) == 2
-    assert stopped
-    assert not selected.exists()
+    assert all(volume != ".:/work:rw" for volume in volumes)
+    assert all("external/tau-testnet" not in volume for volume in volumes)
 
 
 def test_fresh_up_rejects_absent_output_replaced_by_symlink_before_reports(

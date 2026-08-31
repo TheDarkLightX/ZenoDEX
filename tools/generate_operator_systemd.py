@@ -6,6 +6,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+RETIRED_LOCAL_NODE_REFUSAL = (
+    "--local-node is unavailable because the historical Tau application bridge is retired"
+)
+
 
 def build_unit(
     *,
@@ -14,9 +18,9 @@ def build_unit(
     engine: str,
     local_node: bool,
 ) -> str:
-    compose_args = ["-f", "docker-compose.yml"]
     if local_node:
-        compose_args.extend(["-f", "docker-compose.permissionless.yml", "--profile", "local-node"])
+        raise ValueError(RETIRED_LOCAL_NODE_REFUSAL)
+    compose_args = ["-f", "docker-compose.yml"]
     compose_joined = " ".join(compose_args)
     cwd = str(repo_root)
     return "\n".join(
@@ -50,6 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--local-node", action="store_true")
     parser.add_argument("--out", required=True)
     args = parser.parse_args(argv)
+
+    if args.local_node:
+        parser.error(RETIRED_LOCAL_NODE_REFUSAL)
 
     repo_root = Path(args.repo_root).resolve()
     out_path = Path(args.out).resolve()

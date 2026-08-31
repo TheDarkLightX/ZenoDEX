@@ -55,7 +55,6 @@ PRODUCTION_BOUNDARY_REQUIREMENTS: tuple[dict[str, Any], ...] = (
             "dex_engine_defaults_fail_closed",
             "core_dex_defaults_use_strong_settlement_profile",
             "named_safe_profiles_force_production_closure",
-            "tau_testnet_dex_plugin_enters_through_dex_engine",
             "public_operator_node_preflight_blocks_unsigned_testnet_mutation",
         ),
     },
@@ -93,7 +92,16 @@ PRODUCTION_BOUNDARY_REQUIREMENTS: tuple[dict[str, Any], ...] = (
         "check_ids": (
             "direct_settlement_apply_helper_unexposed",
             "api_server_does_not_expose_direct_value_moving_core_ingress",
-            "tau_testnet_dex_plugin_enters_through_dex_engine",
+        ),
+    },
+    {
+        "requirement_id": "retired_tau_declared_projection_classified",
+        "objective": (
+            "The declared historical Tau projection is classified without "
+            "production or value-movement authority."
+        ),
+        "check_ids": (
+            "retired_tau_bridge_classified_without_production_authority",
         ),
     },
     {
@@ -974,20 +982,55 @@ def _check_api_server_read_only_boundary(root: Path) -> BoundaryCheck:
     )
 
 
-def _check_tau_testnet_uses_dex_engine_boundary(root: Path) -> BoundaryCheck:
-    path = root / "src/integration/tau_testnet_dex_plugin.py"
-    text = path.read_text(encoding="utf-8")
-    required = ("DexEngineConfig", "apply_ops")
-    forbidden = ("apply_settlement_pure", "apply_settlement(")
-    found_forbidden = [token for token in forbidden if token in text]
-    missing_required = [token for token in required if token not in text]
+def _check_retired_tau_bridge_classification(root: Path) -> BoundaryCheck:
+    from tools.check_retired_tau_bridge_closure_v3 import (
+        check_retired_tau_bridge_closure_v3,
+    )
+    from tools.retired_tau_bridge_closure_v3 import CHECK_SCHEMA_V3
+
+    report = check_retired_tau_bridge_closure_v3(root)
+    counts = report.get("classification_counts")
+    artifact_sha256 = report.get("artifact_sha256")
+    authorities_none = all(
+        report.get(field) == "NONE"
+        for field in (
+            "production_authority",
+            "release_authority",
+            "settlement_authority",
+            "value_movement_authority",
+        )
+    )
+    classifications_present = (
+        type(counts) is dict
+        and all(type(counts.get(name)) is int and counts[name] > 0 for name in ("QUARANTINED", "RESEARCH_ORACLE", "REMOVED"))
+    )
+    ok = (
+        report.get("ok") is True
+        and report.get("schema") == CHECK_SCHEMA_V3
+        and type(artifact_sha256) is str
+        and re.fullmatch(r"[0-9a-f]{64}", artifact_sha256) is not None
+        and report.get("findings") == []
+        and report.get("o003b_status") == "COMPLETE_ON_STAGE_A_EVIDENCE_SUBJECT"
+        and report.get("closed_value_movement_gates") == 0
+        and report.get("current_only_import_edge_count") == 0
+        and authorities_none
+        and classifications_present
+    )
     return BoundaryCheck(
-        check_id="tau_testnet_dex_plugin_enters_through_dex_engine",
-        ok=not found_forbidden and not missing_required,
+        check_id="retired_tau_bridge_classified_without_production_authority",
+        ok=ok,
         evidence=json.dumps(
             {
-                "missing_required": missing_required,
-                "forbidden_tokens_found": found_forbidden,
+                "artifact_sha256": artifact_sha256,
+                "classification_counts": counts,
+                "closed_value_movement_gates": report.get("closed_value_movement_gates"),
+                "current_only_import_edge_count": report.get("current_only_import_edge_count"),
+                "findings": report.get("findings"),
+                "o003b_status": report.get("o003b_status"),
+                "production_authority": report.get("production_authority"),
+                "release_authority": report.get("release_authority"),
+                "settlement_authority": report.get("settlement_authority"),
+                "value_movement_authority": report.get("value_movement_authority"),
             },
             sort_keys=True,
         ),
@@ -1227,7 +1270,7 @@ def audit_production_boundary(root: Path = REPO_ROOT) -> dict[str, Any]:
         _check_no_legacy_settlement_profile_literals(root),
         _check_direct_apply_operations_unexposed(root),
         _check_api_server_read_only_boundary(root),
-        _check_tau_testnet_uses_dex_engine_boundary(root),
+        _check_retired_tau_bridge_classification(root),
         _check_supported_runtime_doc_scope(root),
         _check_public_operator_node_preflight_blocks_unsigned_testnet_mutation(),
         _check_research_promotion_schema_registry_research_only(),

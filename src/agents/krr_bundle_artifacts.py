@@ -16,7 +16,7 @@ from ..integration.autotrader_signals import (
     SignalTrustTier,
     external_signal_observations_from_object,
 )
-from ..integration.tau_net_client import bls_pubkey_hex_from_privkey
+from ..integration.bls_intent_signing import bls_pubkey_hex_from_privkey
 from ..state.canonical import canonical_json_bytes, sha256_hex
 from .policy_artifacts import G2Basic, _parse_privkey_to_int, _require_bls
 

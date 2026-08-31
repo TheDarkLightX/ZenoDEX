@@ -16,23 +16,29 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional
 
-from ..core.dex_intent_auth_message import hash_dex_intent_auth_message_v1
-from ..core.perp_submission_auth_message import hash_perp_op_auth_message_v1
 from ..state.canonical import canonical_json_bytes
-
-try:
-    from py_ecc.bls import G2Basic
-
-    _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
-    G2Basic = None
-    _BLS_AVAILABLE = False
-
-try:
-    # Used only for secret-key validation (range checks).
-    from py_ecc.optimized_bls12_381 import curve_order as _BLS12_381_CURVE_ORDER
-except Exception:  # pragma: no cover - optional dependency
-    _BLS12_381_CURVE_ORDER = None
+from .bls_intent_signing import (
+    BLS12_381_CURVE_ORDER as _BLS12_381_CURVE_ORDER,
+)
+from .bls_intent_signing import (
+    BLS_AVAILABLE as _BLS_AVAILABLE,
+)
+from .bls_intent_signing import (
+    BlsSigningUnavailableError,
+    G2Basic,
+)
+from .bls_intent_signing import (
+    bls_pubkey_hex_from_privkey as _bls_pubkey_hex_from_privkey,
+)
+from .bls_intent_signing import (
+    require_bls as _require_pure_bls,
+)
+from .bls_intent_signing import (
+    sign_dex_intent_for_engine as _sign_dex_intent_for_engine,
+)
+from .bls_intent_signing import (
+    sign_perp_op_for_engine as _sign_perp_op_for_engine,
+)
 
 
 class TauNetRpcError(RuntimeError):
@@ -77,6 +83,10 @@ def tau_rpc_invalid_sequence_numbers(response: object) -> tuple[int, int] | None
 def _require_bls() -> None:
     if not _BLS_AVAILABLE:
         raise TauNetRpcError("py_ecc.bls is required for Tau tx signing (install py-ecc)")
+    try:
+        _require_pure_bls()
+    except BlsSigningUnavailableError as exc:
+        raise TauNetRpcError("py_ecc.bls is required for Tau tx signing (install py-ecc)") from exc
 
 
 def _coerce_nonnegative_int(value: object, *, label: str) -> int:
@@ -96,24 +106,25 @@ def _coerce_nonnegative_int(value: object, *, label: str) -> int:
 
 
 def _parse_privkey_int(privkey: int) -> int:
-    sk = int(privkey)
-    if sk <= 0:
+    """Compatibility parser for the historical Tau transaction client."""
+
+    secret = int(privkey)
+    if secret <= 0:
         raise ValueError("privkey must be positive")
-    if _BLS12_381_CURVE_ORDER is not None and sk >= int(_BLS12_381_CURVE_ORDER):
+    if _BLS12_381_CURVE_ORDER is not None and secret >= int(_BLS12_381_CURVE_ORDER):
         raise ValueError("privkey out of range (must be < BLS12-381 curve order)")
-    return sk
+    return secret
 
 
 def _parse_privkey_bytes(privkey: bytes | bytearray) -> int:
     raw = bytes(privkey)
     if len(raw) != 32:
         raise ValueError("privkey bytes must be length 32")
-    sk = int.from_bytes(raw, byteorder="big", signed=False)
-    return _parse_privkey_int(sk)
+    return _parse_privkey_int(int.from_bytes(raw, byteorder="big", signed=False))
 
 
 def _parse_privkey_hex_32_bytes(hex_str: str, *, label: str) -> bytes:
-    if not re.fullmatch(r"[0-9a-fA-F]+", hex_str or ""):
+    if re.fullmatch(r"[0-9a-fA-F]+", hex_str or "") is None:
         raise ValueError(f"{label} must contain only 0-9a-f")
     raw = bytes.fromhex(hex_str)
     if len(raw) != 32:
@@ -122,25 +133,26 @@ def _parse_privkey_hex_32_bytes(hex_str: str, *, label: str) -> bytes:
 
 
 def _parse_privkey_str(privkey: str) -> int:
-    s = privkey.strip()
-    if not s:
+    value = privkey.strip()
+    if not value:
         raise ValueError("privkey must be non-empty")
-
-    if s.lower().startswith("0x"):
-        raw = _parse_privkey_hex_32_bytes(s[2:], label="privkey hex")
+    if value.lower().startswith("0x"):
+        raw = _parse_privkey_hex_32_bytes(value[2:], label="privkey hex")
         return _parse_privkey_int(int.from_bytes(raw, byteorder="big", signed=False))
-
-    # Accept bare 32-byte hex (64 chars), including digit-only keys.
-    if len(s) == 64 and re.fullmatch(r"[0-9a-fA-F]+", s):
-        return _parse_privkey_int(int.from_bytes(bytes.fromhex(s), byteorder="big", signed=False))
-
-    if re.fullmatch(r"[0-9]+", s):
-        return _parse_privkey_int(int(s, 10))
-
-    raise ValueError("privkey must be 32-byte hex (0x... or 64 hex chars) or a positive integer string")
+    if len(value) == 64 and re.fullmatch(r"[0-9a-fA-F]+", value) is not None:
+        return _parse_privkey_int(
+            int.from_bytes(bytes.fromhex(value), byteorder="big", signed=False)
+        )
+    if re.fullmatch(r"[0-9]+", value) is not None:
+        return _parse_privkey_int(int(value, 10))
+    raise ValueError(
+        "privkey must be 32-byte hex (0x... or 64 hex chars) or a positive integer string"
+    )
 
 
 def _parse_privkey_to_int(privkey: str | int | bytes | bytearray) -> int:
+    if isinstance(privkey, bool):
+        raise TypeError("privkey must be str|int|bytes")
     if isinstance(privkey, int):
         return _parse_privkey_int(privkey)
     if isinstance(privkey, (bytes, bytearray)):
@@ -152,8 +164,7 @@ def _parse_privkey_to_int(privkey: str | int | bytes | bytearray) -> int:
 
 def bls_pubkey_hex_from_privkey(privkey: str | int | bytes | bytearray) -> str:
     _require_bls()
-    sk_int = _parse_privkey_to_int(privkey)
-    return G2Basic.SkToPk(sk_int).hex()
+    return _bls_pubkey_hex_from_privkey(privkey)
 
 
 def _tx_signing_message_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -254,10 +265,7 @@ def sign_dex_intent_for_engine(
     Returns a hex signature string with a `0x` prefix.
     """
     _require_bls()
-    sk_int = _parse_privkey_to_int(privkey)
-    msg_hash = hash_dex_intent_auth_message_v1(intent_dict, chain_id=chain_id)
-    sig_bytes = G2Basic.Sign(sk_int, msg_hash)
-    return "0x" + sig_bytes.hex()
+    return _sign_dex_intent_for_engine(intent_dict, privkey=privkey, chain_id=chain_id)
 
 
 def sign_perp_op_for_engine(
@@ -286,20 +294,13 @@ def sign_perp_op_for_engine(
     Returns a hex signature string with a `0x` prefix.
     """
     _require_bls()
-    sk_int = _parse_privkey_to_int(privkey)
-    if not isinstance(signer_pubkey, str) or not signer_pubkey:
-        raise ValueError("signer_pubkey must be a non-empty string")
-    if not isinstance(nonce, int) or isinstance(nonce, bool) or nonce <= 0:
-        raise ValueError("nonce must be a positive int")
-
-    msg_hash = hash_perp_op_auth_message_v1(
+    return _sign_perp_op_for_engine(
         op_dict,
+        privkey=privkey,
         chain_id=chain_id,
         signer_pubkey=signer_pubkey,
-        nonce=int(nonce),
+        nonce=nonce,
     )
-    sig_bytes = G2Basic.Sign(sk_int, msg_hash)
-    return "0x" + sig_bytes.hex()
 
 
 class TauNetTcpClient:
