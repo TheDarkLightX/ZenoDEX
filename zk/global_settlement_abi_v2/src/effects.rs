@@ -11,15 +11,20 @@ pub use crate::effect_values::{
     FeeConservationRowV2, LaneIdV2, LaneWriteV2, FEE_RESIDUE_CONTROL_DOMAIN_V2,
     FEE_RESIDUE_PRINCIPAL_V2,
 };
+use crate::resource_limits::MAX_CONSUMED_OCCURRENCES_PER_REFINEMENT_V2;
 
 pub const MAX_ECONOMIC_EFFECT_ROWS_PER_PLAN_V2: usize = 4_096;
 pub const MAX_ASSET_CONSERVATION_ROWS_PER_PLAN_V2: usize = 256;
 pub const MAX_FEE_CONSERVATION_ROWS_PER_PLAN_V2: usize = 256;
 pub const MAX_LANE_WRITES_PER_PLAN_V2: usize = 12;
-pub const MAX_OCCURRENCE_CONSUMPTIONS_PER_PLAN_V2: usize = 64;
+pub const MAX_OCCURRENCE_CONSUMPTIONS_PER_PLAN_V2: usize =
+    MAX_CONSUMED_OCCURRENCES_PER_REFINEMENT_V2;
 pub const MAX_EXTERNAL_OUTBOX_ENQUEUES_PER_PLAN_V2: usize = 4_096;
 pub const MAX_ECONOMIC_EFFECT_PLAN_ITEMS_V2: usize = 8_192;
 pub const MAX_ECONOMIC_EFFECT_PLAN_CANONICAL_BYTES_V2: usize = 1_048_576;
+
+const _: [(); MAX_OCCURRENCE_CONSUMPTIONS_PER_PLAN_V2] =
+    [(); MAX_CONSUMED_OCCURRENCES_PER_REFINEMENT_V2];
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

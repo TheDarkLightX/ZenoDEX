@@ -24,8 +24,8 @@ RUST_OUTCOME = ROOT / "zk" / "global_settlement_abi_v2" / "src" / "outcome.rs"
 NAMESPACE = "Proofs.GlobalEconomicRefinementOutcomeV2"
 PINNED_TOOLCHAIN = "leanprover/lean4:v4.27.0"
 PINNED_SOURCES = {
-    PYTHON_OUTCOME: "a0d6b4d6c12f2da81300675f6b923926294bfeade3ddc4ee10bf1374ffef508e",
-    RUST_OUTCOME: "5973d04e50c951c6d98a1ad17f609c5fd2d3060657e6cb74726b4e9830467223",
+    PYTHON_OUTCOME: "953d39c231cd46978d40ea7e06879c9e88fc74ff0564f5873b432e02fb5f11de",
+    RUST_OUTCOME: "4ac6535a809f0c617fcb58a238ca0f22cfa8d09da030eb12bf93f5bafdd805f4",
 }
 
 EXPECTED_WIRE_CODES = (

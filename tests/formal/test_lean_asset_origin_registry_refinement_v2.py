@@ -43,6 +43,9 @@ PYTHON_EFFECT_VALUES = ROOT / "src" / "core" / "global_settlement_effect_values_
 PYTHON_EFFECT_PLAN = ROOT / "src" / "core" / "global_settlement_effect_plan_v2.py"
 PYTHON_PROOF = ROOT / "src" / "core" / "global_economic_proof_v2.py"
 PYTHON_SETTLEMENT_FACADE = ROOT / "src" / "core" / "global_settlement_types_v2.py"
+PYTHON_RESOURCE_LIMITS = (
+    ROOT / "src" / "core" / "global_settlement_resource_limits_v2.py"
+)
 RUST_ASSET_TYPES = (
     ROOT / "zk" / "global_settlement_abi_v2" / "src" / "asset_transfer_types.rs"
 )
@@ -52,25 +55,30 @@ RUST_EFFECT_VALUES = (
 )
 RUST_EFFECT_PLAN = ROOT / "zk" / "global_settlement_abi_v2" / "src" / "effects.rs"
 RUST_PROOF = ROOT / "zk" / "global_settlement_abi_v2" / "src" / "proof.rs"
+RUST_RESOURCE_LIMITS = (
+    ROOT / "zk" / "global_settlement_abi_v2" / "src" / "resource_limits.rs"
+)
 
 NAMESPACE = "Proofs.AssetOriginRegistryRefinementV2"
 PINNED_TOOLCHAIN = "leanprover/lean4:v4.27.0"
 PINNED_SOURCES = {
-    PYTHON_TYPES: "a7612525042a57b0b48eabbca00156aa2fe365f2baebc4f9b50b5ae590176192",
+    PYTHON_TYPES: "45665fa755a0f806474feed0856c9a5b4630bd98a4c9d1d924809b5109587e39",
     PYTHON_TRANSITION: "b1846290fcdf2dc7255e54933ceca076e2ab3f3f07f5c1cf8fca0909bad30659",
-    RUST_TYPES: "fccd9a67ead7df9be9a7d0d7f19e9cd471070594c07fd1fb89559174d68e12f4",
+    RUST_TYPES: "f51dedc44e9546de4216f36a6634e06789273fbaa16d8ce8012d8e4d6829397a",
     RUST_TRANSITION: "0ace78787e46575ea225ba975d164b946dc8cfca44588b5d444cc61e4b34d647",
-    PYTHON_ASSET_TYPES: "345ddc4a414b8526d7e52e53b22cbc987bfa4b9ad3b2573d0aa5ae37c8f74283",
+    PYTHON_ASSET_TYPES: "ec067739d9da4a409347e8525c16188ecfcaad1e6b75172bfe1ca93e17cec40c",
     PYTHON_PRIMITIVES: "11a26694357812e91b398bddc2b6bbec0a93063731ccd5b23818de1d0c0ca01e",
     PYTHON_EFFECT_VALUES: "a366616f8a11f35d5c69d29c91e1d0b8598ac48499eb44d86d8011c73d30fb9a",
     PYTHON_EFFECT_PLAN: "e352b67a13ac22e09d31d5aebf94d10aa7f540ef3149050ed2675854f6b839f0",
-    PYTHON_PROOF: "087b4df5295d82d112d552bac136b66cf0010f078915c29869d7a427fd8d5705",
-    PYTHON_SETTLEMENT_FACADE: "25624adb564c5b0c610638d707a8c09893afb754b3574299eb9a369d6cf73f39",
-    RUST_ASSET_TYPES: "599b478ff18e7270650eddd005c22c2124ceebbe137a029fb7b7fe6e51efe3c2",
+    PYTHON_PROOF: "1ed46aad640fd1e887d228bbace65fc9f2449f6bbb16428a16537b9d9cc95ae4",
+    PYTHON_SETTLEMENT_FACADE: "5c8c94f75f26b32b8b72b1a608600012b5a22152014202616162ed7b30cee58f",
+    PYTHON_RESOURCE_LIMITS: "92c2211d9e1ccc7b0e3f03da8cc0c4cc4ab9d9acba86006c352a7aec43dd06ad",
+    RUST_ASSET_TYPES: "994f3cbc8609444015e61f054c6ce5c57e1d5d9531f29f6f8b1e6afda8a41fc3",
     RUST_CANONICAL: "b17a76d6e8ce5915ba1d250982147dceda0d7368911b396f7ae83fd860216053",
     RUST_EFFECT_VALUES: "2546015b68ddf0197cdf584dcefde8a7d7ae0eb6d77e24f98ba86fb375400f24",
-    RUST_EFFECT_PLAN: "38f4be8275fdabed5b3af792dc9c16292a4ed6b2cd57ee1812afa881c301cf84",
-    RUST_PROOF: "f0fb984ae594284795c1c01a54a6e0dffacd69b4732a2fd7153128ce7a691dce",
+    RUST_EFFECT_PLAN: "031e732c7512a68d577a23be2354ede51b57324c6ee666b93d62b509ded41f7d",
+    RUST_PROOF: "0314ef43cc82bd358c627420d4463d8dc682d9e86138cb57a8fac10371c55781",
+    RUST_RESOURCE_LIMITS: "b3415d5389be553420916477d646ebfaf6b9b6c1e395df445fcab5cf2b448244",
 }
 
 EXPECTED_REJECT_CODES = (
@@ -350,6 +358,19 @@ def _python_constant(source: str, name: str) -> object:
     raise AssertionError(name)
 
 
+def _python_constant_reference(source: str, name: str) -> str:
+    tree = ast.parse(source)
+    for node in tree.body:
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == name
+            and isinstance(node.value, ast.Name)
+        ):
+            return node.value.id
+    raise AssertionError(name)
+
+
 def _python_function_source(source: str, name: str) -> str:
     tree = ast.parse(source)
     function = next(
@@ -607,6 +628,7 @@ def test_modeled_enums_constants_and_effect_shape_are_source_bound() -> None:
     python_types = PYTHON_TYPES.read_text(encoding="utf-8")
     python_asset_types = PYTHON_ASSET_TYPES.read_text(encoding="utf-8")
     python_primitives = PYTHON_PRIMITIVES.read_text(encoding="utf-8")
+    python_resource_limits = PYTHON_RESOURCE_LIMITS.read_text(encoding="utf-8")
     python_transition = _python_function_source(
         PYTHON_TRANSITION.read_text(encoding="utf-8"),
         "transition_asset_origin_registration_v2",
@@ -615,6 +637,7 @@ def test_modeled_enums_constants_and_effect_shape_are_source_bound() -> None:
     rust_asset_types = RUST_ASSET_TYPES.read_text(encoding="utf-8")
     rust_transition = RUST_TRANSITION.read_text(encoding="utf-8")
     rust_canonical = RUST_CANONICAL.read_text(encoding="utf-8")
+    rust_resource_limits = RUST_RESOURCE_LIMITS.read_text(encoding="utf-8")
     lean_source = PROOF.read_text(encoding="utf-8")
 
     assert tuple(
@@ -650,13 +673,21 @@ def test_modeled_enums_constants_and_effect_shape_are_source_bound() -> None:
         rust_types,
         "ASSET_ORIGIN_REGISTRATION_COMMAND_V2",
     ) == '"register_asset_origin"'
-    assert _python_constant(
+    assert _python_constant_reference(
         python_types,
         "MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2",
+    ) == "MAX_ASSETS_PER_ASSET_STATE_V2"
+    assert _python_constant(
+        python_resource_limits,
+        "MAX_ASSETS_PER_ASSET_STATE_V2",
     ) == 256
     assert _rust_const_expression(
         rust_types,
         "MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2",
+    ) == "MAX_ASSETS_PER_ASSET_STATE_V2"
+    assert _rust_const_expression(
+        rust_resource_limits,
+        "MAX_ASSETS_PER_ASSET_STATE_V2",
     ) == "256"
     assert "def maxAssetOriginRegistryAssets : Nat := 256" in lean_source
     assert _python_constant(python_asset_types, "ASSET_ATOM_DECIMALS_V2") == 8

@@ -14,15 +14,19 @@ use crate::asset_transfer_types::{
     ASSET_LANE_PRODUCTION_AUTHORITY_V2,
 };
 use crate::canonical::{
-    hash_economic_command_body_v2, hash_global_v2, validate_schema_v2, validate_token_v2,
-    AbiErrorV2, AbiResultV2, RootV2, ValidateCanonicalV2,
+    canonical_bytes_v2, hash_economic_command_body_v2, hash_global_v2, validate_schema_v2,
+    validate_token_v2, AbiErrorV2, AbiResultV2, RootV2, ValidateCanonicalV2,
 };
 use crate::effects::{GlobalEconomicEffectPlanV2, LaneIdV2, LaneWriteV2};
 use crate::proof::{EconomicCommandOccurrenceV2, LaneModuleTransitionJournalV2};
+use crate::resource_limits::{
+    validate_asset_state_asset_count_v2, validate_rootable_asset_state_canonical_bytes_v2,
+    MAX_ASSETS_PER_ASSET_STATE_V2,
+};
 
 pub const ASSET_ORIGIN_REGISTRY_SCHEMA_V2: &str = "zenodex/asset-origin-registry/v2";
 pub const ASSET_ORIGIN_REGISTRATION_COMMAND_V2: &str = "register_asset_origin";
-pub const MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2: usize = 256;
+pub const MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2: usize = MAX_ASSETS_PER_ASSET_STATE_V2;
 
 fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
@@ -173,6 +177,7 @@ pub struct AssetOriginRegistryStateV2 {
 
 impl AssetOriginRegistryStateV2 {
     pub fn validate(&self) -> AbiResultV2<()> {
+        validate_asset_state_asset_count_v2(self.assets.len(), "asset origin registry assets")?;
         validate_schema_v2(
             &self.schema,
             ASSET_ORIGIN_REGISTRY_SCHEMA_V2,
@@ -180,9 +185,6 @@ impl AssetOriginRegistryStateV2 {
         )?;
         self.module_release_id
             .validate("asset origin registry module release", false)?;
-        if self.assets.len() > MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2 {
-            return Err(AbiErrorV2::InvalidBounds("asset origin registry assets"));
-        }
         self.policy.validate()?;
         for row in &self.assets {
             row.validate()?;
@@ -211,7 +213,10 @@ impl AssetOriginRegistryStateV2 {
         {
             return Err(AbiErrorV2::InvalidBinding("native asset uniqueness"));
         }
-        Ok(())
+        validate_rootable_asset_state_canonical_bytes_v2(
+            canonical_bytes_v2(self)?.len(),
+            "asset origin registry state canonical encoding bytes",
+        )
     }
 
     pub fn state_root(&self) -> AbiResultV2<RootV2> {

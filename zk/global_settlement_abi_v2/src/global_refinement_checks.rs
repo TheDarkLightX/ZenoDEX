@@ -272,25 +272,37 @@ fn require_asset_conservation_v2(
 }
 
 fn require_liability_backing_v2(state: &GlobalEconomicStateV2) -> AbiResultV2<()> {
-    let mut custody = BTreeMap::<&str, u128>::new();
+    state.liability_atoms_by_asset()?;
+    let mut custody = BTreeMap::<(&str, &str), u128>::new();
     for row in &state.custody {
+        let key = (row.asset.as_str(), row.custody_domain.as_str());
         let total = custody
-            .get(row.asset.as_str())
+            .get(&key)
             .copied()
             .unwrap_or(0)
             .checked_add(row.amount_atoms)
             .ok_or(AbiErrorV2::InvalidBounds(
                 "global refinement custody backing total",
             ))?;
-        custody.insert(row.asset.as_str(), total);
+        custody.insert(key, total);
     }
-    if state
-        .liability_atoms_by_asset()?
+    let mut liabilities = BTreeMap::<(&str, &str), u128>::new();
+    for row in &state.liabilities {
+        let key = (row.asset.as_str(), row.custody_domain.as_str());
+        let total = liabilities
+            .get(&key)
+            .copied()
+            .unwrap_or(0)
+            .checked_add(row.amount_atoms)
+            .ok_or(AbiErrorV2::InvalidBounds("global liability"))?;
+        liabilities.insert(key, total);
+    }
+    if liabilities
         .iter()
-        .any(|(asset, amount)| *amount > custody.get(asset.as_str()).copied().unwrap_or(0))
+        .any(|(key, amount)| *amount > custody.get(key).copied().unwrap_or(0))
     {
         return Err(AbiErrorV2::Conservation(
-            "global refinement liabilities exceed accounting backing",
+            "global refinement liabilities exceed same-domain accounting backing",
         ));
     }
     require_open_terminal_liability_coverage_v2(state)

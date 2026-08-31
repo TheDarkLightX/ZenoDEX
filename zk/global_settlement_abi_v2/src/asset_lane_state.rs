@@ -11,9 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::asset_origin_registry::{
     validate_asset_transfer_policy_origin_v2, validate_managed_asset_policy_origin_v2,
 };
-use crate::asset_origin_registry_types::{
-    AssetOriginRegistryStateV2, MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
-};
+use crate::asset_origin_registry_types::AssetOriginRegistryStateV2;
 use crate::asset_transfer_types::{
     AssetTransferContextV2, AssetTransferPolicyV2, AssetTransferStateV2, ACCOUNT_CUSTODY_DOMAIN_V2,
     ASSET_LANE_PRODUCTION_AUTHORITY_V2, ASSET_TRANSFER_MODULE_SCHEMA_V2,
@@ -27,13 +25,19 @@ use crate::managed_asset_lifecycle_types::{
     MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V2,
 };
 use crate::proof::EconomicCommandOccurrenceV2;
+use crate::resource_limits::{
+    validate_asset_state_asset_count_v2, validate_asset_state_balance_row_count_v2,
+    validate_rootable_asset_state_canonical_bytes_v2, MAX_ASSETS_PER_ASSET_STATE_V2,
+    MAX_BALANCE_ROWS_PER_ASSET_STATE_V2, MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2,
+};
 use crate::state::{AssetSupplyV2, EconomicAmountV2};
 
 pub const ASSET_LANE_STATE_SCHEMA_V2: &str = "zenodex/asset-lane-state/v2";
 pub const ASSET_LANE_PROFILE_AUTHENTICATION_V2: &str = "SHADOW";
-pub const MAX_ASSET_LANE_ASSETS_V2: usize = MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2;
-pub const MAX_ASSET_LANE_BALANCE_ROWS_V2: usize = 4_096;
-pub const MAX_ASSET_LANE_STATE_CANONICAL_BYTES_V2: usize = 1_048_576;
+pub const MAX_ASSET_LANE_ASSETS_V2: usize = MAX_ASSETS_PER_ASSET_STATE_V2;
+pub const MAX_ASSET_LANE_BALANCE_ROWS_V2: usize = MAX_BALANCE_ROWS_PER_ASSET_STATE_V2;
+pub const MAX_ASSET_LANE_STATE_CANONICAL_BYTES_V2: usize =
+    MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2;
 
 fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
@@ -57,10 +61,10 @@ pub struct AssetLaneStateV2 {
 
 impl AssetLaneStateV2 {
     pub fn validate(&self) -> AbiResultV2<()> {
+        self.validate_resource_bounds()?;
         validate_schema_v2(&self.schema, ASSET_LANE_STATE_SCHEMA_V2, "asset lane state")?;
         self.module_release_id
             .validate("asset lane module release", false)?;
-        self.validate_resource_bounds()?;
         self.origin_registry.validate()?;
         if self.origin_registry.module_release_id != self.module_release_id {
             return Err(AbiErrorV2::InvalidBinding("asset lane registry release"));
@@ -68,47 +72,27 @@ impl AssetLaneStateV2 {
         self.validate_tables()?;
         self.validate_asset_coverage()?;
         self.validate_owned_supply()?;
-        if canonical_bytes_v2(self)?.len() > MAX_ASSET_LANE_STATE_CANONICAL_BYTES_V2 {
-            return Err(AbiErrorV2::InvalidBounds(
-                "asset lane state canonical encoding bytes",
-            ));
-        }
-        Ok(())
+        validate_rootable_asset_state_canonical_bytes_v2(
+            canonical_bytes_v2(self)?.len(),
+            "asset lane state canonical encoding bytes",
+        )
     }
 
     fn validate_resource_bounds(&self) -> AbiResultV2<()> {
-        let counts = [
-            (
-                "asset lane origin registry assets",
-                self.origin_registry.assets.len(),
-                MAX_ASSET_LANE_ASSETS_V2,
-            ),
-            (
-                "asset lane transfer policies",
-                self.transfer_policies.len(),
-                MAX_ASSET_LANE_ASSETS_V2,
-            ),
-            (
-                "asset lane managed policies",
-                self.managed_policies.len(),
-                MAX_ASSET_LANE_ASSETS_V2,
-            ),
-            (
-                "asset lane balances",
-                self.balances.len(),
-                MAX_ASSET_LANE_BALANCE_ROWS_V2,
-            ),
-            (
-                "asset lane supplies",
-                self.supplies.len(),
-                MAX_ASSET_LANE_ASSETS_V2,
-            ),
-        ];
-        for (field, count, limit) in counts {
-            if count > limit {
-                return Err(AbiErrorV2::InvalidBounds(field));
-            }
-        }
+        validate_asset_state_asset_count_v2(
+            self.origin_registry.assets.len(),
+            "asset lane origin registry assets",
+        )?;
+        validate_asset_state_asset_count_v2(
+            self.transfer_policies.len(),
+            "asset lane transfer policies",
+        )?;
+        validate_asset_state_asset_count_v2(
+            self.managed_policies.len(),
+            "asset lane managed policies",
+        )?;
+        validate_asset_state_balance_row_count_v2(self.balances.len(), "asset lane balances")?;
+        validate_asset_state_asset_count_v2(self.supplies.len(), "asset lane supplies")?;
         Ok(())
     }
 

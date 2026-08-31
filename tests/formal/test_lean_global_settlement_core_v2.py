@@ -50,17 +50,17 @@ PINNED_MODELED_RUNTIME_SOURCES = {
     "src/core/global_settlement_lifecycle_v2.py":
         "56e658e95dab1ffc7ea8c5358683699a9bc985f7910d03bdc3045838215f7796",
     "src/core/global_settlement_types_v2.py":
-        "25624adb564c5b0c610638d707a8c09893afb754b3574299eb9a369d6cf73f39",
+        "5c8c94f75f26b32b8b72b1a608600012b5a22152014202616162ed7b30cee58f",
     "src/core/global_economic_state_v2.py":
         "2948531057e332a301c0cdd278771040a86eda38f34ca839cd1ec196fc75b12e",
     "src/core/global_economic_state_ownership_v2.py":
         "d29ca85f81d19843ffcc46d0d50270b22ef7d4fa5c3502965fd7c9e45369e4e8",
     "src/core/global_economic_proof_v2.py":
-        "087b4df5295d82d112d552bac136b66cf0010f078915c29869d7a427fd8d5705",
+        "1ed46aad640fd1e887d228bbace65fc9f2449f6bbb16428a16537b9d9cc95ae4",
     "src/core/global_economic_refinement_checks_v2.py":
-        "f8084730492024764f9f2f2008e4e04c7c7d28455358885bd4f6c758eb99f1c6",
+        "785643f2ecb7eb66d27b091ee04be0a186cab7c2746244fe4dada36627159d69",
     "src/core/global_economic_state_effect_refinement_v2.py":
-        "4663cbee5ff7485b65bc68e55058bbe49cbc0ddd0c6e2f9c6b9502928c9713b7",
+        "c40b90311f32b304b5c73b6f382e2f7e790312147d9072c91faa9104dac319df",
 }
 
 
@@ -102,6 +102,7 @@ REFINEMENT_THEOREMS = (
     "accepted_extracts_combined_witness",
     "accepted_preserves_owned_supply",
     "accepted_preserves_liability_backing",
+    "accepted_liabilities_use_same_domain_backing",
     "accepted_open_terminal_totals_fit_exact_liability_rows",
     "accepted_fee_credit_and_residue_are_exact",
     "accepted_oracles_do_not_exceed_global_height",
@@ -136,6 +137,7 @@ REFINEMENT_THEOREMS = (
     "oracle_lookup_key_mismatch_rejected",
     "state_bearing_annotation_overflow_rejected",
     "underbacked_claimant_liability_rejected",
+    "cross_domain_custody_cannot_back_liability",
     "undercredited_fee_allocation_rejected",
     "zero_fee_conservation_row_rejected",
     "wrong_fee_residue_location_rejected",
@@ -401,11 +403,16 @@ example : ¬ OracleRegistryKeysMatch oracleKeyMismatchState :=
   oracle_lookup_key_mismatch_rejected
 example : ¬ StateBearingAggregatesFitI128 stateBearingOverflowPlan :=
   state_bearing_annotation_overflow_rejected
-example : ¬ (∀ asset,
-    0 ≤ amountForAsset underbackedLiability asset ∧
-    amountForAsset underbackedLiability asset ≤
-      amountForAsset insufficientCustody asset) :=
+example : ¬ (∀ asset domain,
+    0 ≤ amountForAssetDomain underbackedLiability asset domain ∧
+    amountForAssetDomain underbackedLiability asset domain ≤
+      amountForAssetDomain insufficientCustody asset domain) :=
   underbacked_claimant_liability_rejected
+example : ¬ (∀ asset domain,
+    0 ≤ amountForAssetDomain crossDomainLiability asset domain ∧
+    amountForAssetDomain crossDomainLiability asset domain ≤
+      amountForAssetDomain unrelatedDomainCustody asset domain) :=
+  cross_domain_custody_cannot_back_liability
 example : ¬ AnnotationMirrors undercreditedFeePlan :=
   undercredited_fee_allocation_rejected
 example : ¬ AnnotationMirrors zeroFeeConservationPlan :=

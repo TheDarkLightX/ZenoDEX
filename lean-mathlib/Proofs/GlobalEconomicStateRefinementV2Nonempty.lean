@@ -246,10 +246,10 @@ theorem transfer_global_state_verified :
     · simp [FeeResidueExact, positiveDesignatedResidueFor,
         positiveCarriedResidueFor, transferEffects]
   · simp [ClaimantLiabilitiesBacked, OpenTerminalLiabilitiesCovered,
-      liabilityFor, amountForAsset, openTerminalAmountFor, amountAt,
+      amountForAssetDomain, openTerminalAmountFor, amountAt,
       transferPreState]
   · simp [ClaimantLiabilitiesBacked, OpenTerminalLiabilitiesCovered,
-      liabilityFor, amountForAsset, openTerminalAmountFor, amountAt,
+      amountForAssetDomain, openTerminalAmountFor, amountAt,
       transferPostState]
   · simp [ExactTerminalRefinement, TerminalRegistryRefines,
       TerminalOwningLaneWrites, TerminalLiabilityEffects,

@@ -131,7 +131,7 @@ def build_fixture_v2() -> dict[str, object]:
         lane_roots=pre_lane_roots,
         balances=(EconomicAmountV2("alice", "USD", "accounts", 100),),
         supplies=(AssetSupplyV2("USD", 200),),
-        custody=(EconomicAmountV2("vault", "USD", "vault-custody", 50),),
+        custody=(EconomicAmountV2("vault", "USD", "terminal-liability", 50),),
         liabilities=(
             EconomicAmountV2("alice", "USD", "terminal-liability", 20),
         ),

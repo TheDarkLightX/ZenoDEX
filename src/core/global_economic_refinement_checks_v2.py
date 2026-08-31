@@ -246,12 +246,19 @@ def _require_open_terminal_liability_coverage_v2(
 
 
 def _require_liability_backing_v2(state: GlobalEconomicStateV2) -> None:
-    custody: dict[str, int] = {}
+    state.liability_atoms_by_asset()
+    custody: dict[tuple[str, str], int] = {}
     for row in state.custody:
-        custody[row.asset] = custody.get(row.asset, 0) + row.amount_atoms
-    liabilities = state.liability_atoms_by_asset()
-    if any(amount > custody.get(asset, 0) for asset, amount in liabilities.items()):
-        raise ValueError("global refinement liabilities exceed accounting backing")
+        key = (row.asset, row.custody_domain)
+        custody[key] = custody.get(key, 0) + row.amount_atoms
+    liabilities: dict[tuple[str, str], int] = {}
+    for row in state.liabilities:
+        key = (row.asset, row.custody_domain)
+        liabilities[key] = liabilities.get(key, 0) + row.amount_atoms
+    if any(amount > custody.get(key, 0) for key, amount in liabilities.items()):
+        raise ValueError(
+            "global refinement liabilities exceed same-domain accounting backing"
+        )
     _require_open_terminal_liability_coverage_v2(state)
 
 

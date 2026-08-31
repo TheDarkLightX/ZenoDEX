@@ -1,0 +1,689 @@
+{
+  "authority": "NONE",
+  "fixture_schema": "zenodex/global-settlement-abi-v2-wire-records-golden/v1",
+  "nonclaims": [
+    "no Rust or Lean parity claim",
+    "no proof, receipt, runtime, publisher, migration, or release authority",
+    "no settlement or production authority",
+    "the 1 MiB wire transport ceiling does not constrain GlobalEconomicStateV2 tables"
+  ],
+  "profile_authentication": "SHADOW",
+  "records": {
+    "AssetLaneAcceptedWireV2": {
+      "canonical": {
+        "effects": {
+          "asset_conservation": [
+            {
+              "asset": "USD",
+              "authorized_burn_atoms": 0,
+              "authorized_issue_atoms": 0,
+              "owned_and_custodied_post_atoms": 1000,
+              "owned_and_custodied_pre_atoms": 1000,
+              "supply_post_atoms": 1000,
+              "supply_pre_atoms": 1000
+            }
+          ],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [
+            {
+              "asset": "USD",
+              "carried_residue_atoms": 0,
+              "current_allocations_atoms": 2,
+              "fee_charged_atoms": 2
+            }
+          ],
+          "lane_writes": [
+            {
+              "lane_id": "ASSET_TRANSFER",
+              "post_root": "0x3f03b9c8e8d95c8a5f6b4cae92c3c4b8ab241312ae4201161842a3f6dbb68e3b",
+              "pre_root": "0xd0985d2d344d06d2e4979ccf0b5bb77757ec2af2738ac90602970595968fd808"
+            }
+          ],
+          "occurrence_consumptions": [
+            "0xb5392bba0487ded663b2cff7d98587a48387085054a72437ba0f8b0e2eb17b9d"
+          ],
+          "rows": [
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": -102,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "alice"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 100,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "bob"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "treasury"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "FEE_ALLOCATION",
+              "principal": "treasury"
+            }
+          ],
+          "schema": "zenodex/global-settlement-abi/v2"
+        },
+        "module_journal": {
+          "chain_id": "zeno-v2-asset-lane-golden-chain",
+          "command_occurrence_id": "0xb5392bba0487ded663b2cff7d98587a48387085054a72437ba0f8b0e2eb17b9d",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "effect_plan_root": "0xf82a7896825a7c92a81808c772410bd0e100cb114ca8c4186ca8909f74606a0a",
+          "lane_id": "ASSET_TRANSFER",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "oracle_occurrence_plan_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "post_lane_root": "0x3f03b9c8e8d95c8a5f6b4cae92c3c4b8ab241312ae4201161842a3f6dbb68e3b",
+          "pre_lane_root": "0xd0985d2d344d06d2e4979ccf0b5bb77757ec2af2738ac90602970595968fd808",
+          "private_port_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000008",
+          "receipt_root": "0xeedb39ccba0ffc1641d20197fc45a5e2db6075a4b94eb5411fad154e91aaed94",
+          "schema": "zenodex/global-settlement-abi/v2",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "writer_epoch": 7
+        },
+        "post_state": {
+          "balances": [
+            {
+              "amount_atoms": 898,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 100,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 2,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "managed_policies": [
+            {
+              "asset": "USD",
+              "asset_class": "registered_ordinary_token",
+              "asset_origin_root": "0x0000000000000000000000000000000000000000000000000000000000000006",
+              "atom_decimals": 8,
+              "burn_authorization_root": "0x0000000000000000000000000000000000000000000000000000000000000004",
+              "enabled": true,
+              "issue_authority_subject": "issuer",
+              "issue_authorization_root": "0x0000000000000000000000000000000000000000000000000000000000000005"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "origin_registry": {
+            "assets": [
+              {
+                "asset": "USD",
+                "asset_class": "registered_ordinary_token",
+                "decimals": 8,
+                "issue_policy_root": "0xcd93f1ecce00b67ebcc94d80a959e38c7a84fb6ccbca71c72c053328aa941ca4",
+                "origin_kind": "TAU_ORIGINATED",
+                "origin_root": "0x0000000000000000000000000000000000000000000000000000000000000006",
+                "transfer_policy_root": "0xac439cae4ed579acb4075136f02b712c6b4bdf729ac0030d8690dcc39c74bc94"
+              }
+            ],
+            "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+            "policy": {
+              "allow_native": true,
+              "allow_tau_originated": true,
+              "authority_grant_root": "0x000000000000000000000000000000000000000000000000000000000000000a",
+              "authority_subject": "governance"
+            },
+            "schema": "zenodex/asset-origin-registry/v2"
+          },
+          "schema": "zenodex/asset-lane-state/v2",
+          "supplies": [
+            {
+              "amount_atoms": 1000,
+              "asset": "USD"
+            }
+          ],
+          "transfer_policies": [
+            {
+              "asset": "USD",
+              "asset_class": "registered_ordinary_token",
+              "asset_origin_root": "0x0000000000000000000000000000000000000000000000000000000000000006",
+              "atom_decimals": 8,
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ]
+        },
+        "production_authority": "NONE",
+        "profile_authentication": "SHADOW",
+        "receipt_root": "0xeedb39ccba0ffc1641d20197fc45a5e2db6075a4b94eb5411fad154e91aaed94",
+        "route": "TRANSFER",
+        "source_leaf_journal_root": "0x7ddfb43e9af49772ce649d67116c0e9f97916a4ec5ccd533e25cca56025de149"
+      },
+      "canonical_bytes_sha256": "a0c22f0a11264fe2d6ecefa25b65e8e6341aade5ea1afa0e45d34cc962c4b998"
+    },
+    "AssetLaneContextWireV2": {
+      "canonical": {
+        "global_pre_state_root": "0x0000000000000000000000000000000000000000000000000000000000000007",
+        "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+        "occurrence": {
+          "chain_id": "zeno-v2-asset-lane-golden-chain",
+          "command_body_hash": "0x74244a92cbba0521adc254a16b229903fb209c422eb8786782432cb2ed5e96f3",
+          "command_kind": "asset_transfer",
+          "consumed_object_ids": [],
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000009",
+          "height": 42,
+          "nonce": 1,
+          "op_index": 1,
+          "pre_state_root": "0x0000000000000000000000000000000000000000000000000000000000000007",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000008",
+          "route_release_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "schema": "zenodex/global-settlement-abi/v2",
+          "subject_id": "alice",
+          "tx_index": 2
+        },
+        "writer_epoch": 7
+      },
+      "canonical_bytes_sha256": "dd54eba58ff1e3ed46ce06b5ce457d34b52a5f59e8449e956f30a336bd6754f4"
+    },
+    "AssetLaneRejectedWireV2": {
+      "canonical": {
+        "code": "UNAUTHORIZED_SUBJECT",
+        "effects": {
+          "asset_conservation": [],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [],
+          "lane_writes": [],
+          "occurrence_consumptions": [],
+          "rows": [],
+          "schema": "zenodex/global-settlement-abi/v2"
+        },
+        "post_state_root": "0xd0985d2d344d06d2e4979ccf0b5bb77757ec2af2738ac90602970595968fd808",
+        "pre_state_root": "0xd0985d2d344d06d2e4979ccf0b5bb77757ec2af2738ac90602970595968fd808",
+        "production_authority": "NONE",
+        "profile_authentication": "SHADOW",
+        "route": "TRANSFER"
+      },
+      "canonical_bytes_sha256": "cbccf04d7dcc4fe04f7fc4d5fa9ae8df1255c3784d168c8d00a9db7cbb964447"
+    },
+    "AssetOriginRegistrationAcceptedWireV2": {
+      "canonical": {
+        "effects": {
+          "asset_conservation": [],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [],
+          "lane_writes": [
+            {
+              "lane_id": "ASSET_TRANSFER",
+              "post_root": "0xd1d1ee26aa848456f49e5b16202cd8e626326615914fa403f981ac2926a24b7b",
+              "pre_root": "0x3f5e0d8a59fbfac93739680dbe5c0c07ae03183ccda596a9d49eb912ee109828"
+            }
+          ],
+          "occurrence_consumptions": [
+            "0xca77a32e0a6235e534fdcc75b90c24f78315df15db919ff47d8d8818bce8292f"
+          ],
+          "rows": [],
+          "schema": "zenodex/global-settlement-abi/v2"
+        },
+        "module_journal": {
+          "chain_id": "zeno-v2-asset-origin-golden-chain",
+          "command_occurrence_id": "0xca77a32e0a6235e534fdcc75b90c24f78315df15db919ff47d8d8818bce8292f",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "effect_plan_root": "0x0f08e06eb8144001d875a56684722021b9699d2e311bf0718714c26e99caddf8",
+          "lane_id": "ASSET_TRANSFER",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "oracle_occurrence_plan_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "post_lane_root": "0xd1d1ee26aa848456f49e5b16202cd8e626326615914fa403f981ac2926a24b7b",
+          "pre_lane_root": "0x3f5e0d8a59fbfac93739680dbe5c0c07ae03183ccda596a9d49eb912ee109828",
+          "private_port_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000008",
+          "receipt_root": "0xffc628e9755facaf15a2b64afc84c6fca7fb39395365ba3b5ff8d62f2333e9a8",
+          "schema": "zenodex/global-settlement-abi/v2",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "writer_epoch": 7
+        },
+        "post_state": {
+          "assets": [
+            {
+              "asset": "EUR",
+              "asset_class": "registered_ordinary_token",
+              "decimals": 8,
+              "issue_policy_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "origin_kind": "TAU_ORIGINATED",
+              "origin_root": "0x0000000000000000000000000000000000000000000000000000000000000014",
+              "transfer_policy_root": "0x0000000000000000000000000000000000000000000000000000000000000015"
+            },
+            {
+              "asset": "USD",
+              "asset_class": "registered_ordinary_token",
+              "decimals": 8,
+              "issue_policy_root": "0xcd93f1ecce00b67ebcc94d80a959e38c7a84fb6ccbca71c72c053328aa941ca4",
+              "origin_kind": "TAU_ORIGINATED",
+              "origin_root": "0x0000000000000000000000000000000000000000000000000000000000000006",
+              "transfer_policy_root": "0xac439cae4ed579acb4075136f02b712c6b4bdf729ac0030d8690dcc39c74bc94"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policy": {
+            "allow_native": true,
+            "allow_tau_originated": true,
+            "authority_grant_root": "0x0000000000000000000000000000000000000000000000000000000000000004",
+            "authority_subject": "governance"
+          },
+          "schema": "zenodex/asset-origin-registry/v2"
+        },
+        "production_authority": "NONE"
+      },
+      "canonical_bytes_sha256": "1ced980b62cbe5f2e1818fbfbf32741b42e1f4bf9ad78c349b2b2c7ce467142a"
+    },
+    "AssetOriginRegistrationRejectedWireV2": {
+      "canonical": {
+        "code": "UNAUTHORIZED_SUBJECT",
+        "effects": {
+          "asset_conservation": [],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [],
+          "lane_writes": [],
+          "occurrence_consumptions": [],
+          "rows": [],
+          "schema": "zenodex/global-settlement-abi/v2"
+        },
+        "post_state_root": "0x3f5e0d8a59fbfac93739680dbe5c0c07ae03183ccda596a9d49eb912ee109828",
+        "pre_state_root": "0x3f5e0d8a59fbfac93739680dbe5c0c07ae03183ccda596a9d49eb912ee109828"
+      },
+      "canonical_bytes_sha256": "7cca28e6c9e5defb3837a4cd1a0b6b404cf0c204fdb4de25be28869757a7620e"
+    },
+    "GlobalEconomicRefinementAcceptedWireV2": {
+      "canonical": {
+        "production_authority": "NONE",
+        "witness": {
+          "effect_plan_root": "0x5c50fbfd4790996f77c5c31fc2dd4eff4c36a136bf00145ba65c480375590efd",
+          "oracle_plan_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "post_state_root": "0xae67029123bc9ee912a8fee0512b1ef924549a330d379a9d1a9c2a0790d48d67",
+          "pre_state_root": "0xae67029123bc9ee912a8fee0512b1ef924549a330d379a9d1a9c2a0790d48d67",
+          "production_authority": "NONE",
+          "refinement_root": "0x4860d9ee6d955151fb040ad85894d3bb5cea5daf5d2a7de69ee12baa85182263",
+          "state_delta_root": "0xa13733f92d2f7459b1cd88ded21d84c68c68f24046f4c06f1326f095b2f2fd81",
+          "terminal_plan_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "canonical_bytes_sha256": "57b4d276b35cbb18447d80664d9b28763043a4b6eeff00b7cc987df7aba0b4c9"
+    },
+    "GlobalEconomicRefinementRejectedWireV2": {
+      "canonical": {
+        "consumed_occurrences": [],
+        "effect_plan": {
+          "asset_conservation": [],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [],
+          "lane_writes": [],
+          "occurrence_consumptions": [],
+          "rows": [],
+          "schema": "zenodex/global-settlement-abi/v2"
+        },
+        "oracle_plan": {
+          "deltas": [],
+          "schema": "zenodex/global-settlement-abi/v2"
+        },
+        "outbox": [],
+        "post_state_root": "0xae67029123bc9ee912a8fee0512b1ef924549a330d379a9d1a9c2a0790d48d67",
+        "pre_state_root": "0xae67029123bc9ee912a8fee0512b1ef924549a330d379a9d1a9c2a0790d48d67",
+        "production_authority": "NONE",
+        "reject_code": "EXTERNAL_OUTBOX_REQUIRES_PUBLISHER",
+        "terminal_plan": {
+          "deltas": [],
+          "schema": "zenodex/global-settlement-abi/v2"
+        }
+      },
+      "canonical_bytes_sha256": "7f7935ede4d037d17b23e443c61cf1ca3e633faeba646c4c5a45b65a1958b2f3"
+    },
+    "GlobalEconomicStateEffectRefinementCandidateWireV2": {
+      "canonical": {
+        "consumed_occurrences": [],
+        "effect_plan": {
+          "asset_conservation": [],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [],
+          "lane_writes": [],
+          "occurrence_consumptions": [],
+          "rows": [],
+          "schema": "zenodex/global-settlement-abi/v2"
+        },
+        "oracle_plan": {
+          "deltas": [],
+          "schema": "zenodex/global-settlement-abi/v2"
+        },
+        "post_state": {
+          "balances": [],
+          "chain_id": "zeno-v2-wire-records",
+          "custody": [],
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "height": 1,
+          "history_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "lane_roots": [
+            {
+              "enabled": true,
+              "lane_id": "ASSET_TRANSFER",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000a",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000064"
+            },
+            {
+              "enabled": true,
+              "lane_id": "SPOT_LIQUIDITY",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000b",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000065"
+            },
+            {
+              "enabled": true,
+              "lane_id": "FARM_INCENTIVES",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000c",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000066"
+            },
+            {
+              "enabled": true,
+              "lane_id": "ZDEX_TOKENOMICS",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000d",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000067"
+            },
+            {
+              "enabled": true,
+              "lane_id": "ZUSD_MONETARY",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000e",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000068"
+            },
+            {
+              "enabled": true,
+              "lane_id": "PERPS_MARKET",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000f",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000069"
+            },
+            {
+              "enabled": true,
+              "lane_id": "ORACLE_MARKET",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000010",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006a"
+            },
+            {
+              "enabled": true,
+              "lane_id": "SEALED_AUCTION",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000011",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006b"
+            },
+            {
+              "enabled": true,
+              "lane_id": "STRATEGY_ESCROW",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000012",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006c"
+            },
+            {
+              "enabled": true,
+              "lane_id": "PROOF_REWARDS",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000013",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006d"
+            },
+            {
+              "enabled": false,
+              "lane_id": "EXTERNAL_CUSTODY",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000014",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006e"
+            },
+            {
+              "enabled": true,
+              "lane_id": "GOVERNANCE_MIGRATION",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000015",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006f"
+            }
+          ],
+          "liabilities": [],
+          "oracle_occurrences": [],
+          "outbox": [],
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "replay_state": [],
+          "reserves": [],
+          "schema": "zenodex/global-settlement-abi/v2",
+          "supplies": [],
+          "terminal_obligations": [],
+          "writer_epoch": 1
+        },
+        "pre_state": {
+          "balances": [],
+          "chain_id": "zeno-v2-wire-records",
+          "custody": [],
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "height": 1,
+          "history_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "lane_roots": [
+            {
+              "enabled": true,
+              "lane_id": "ASSET_TRANSFER",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000a",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000064"
+            },
+            {
+              "enabled": true,
+              "lane_id": "SPOT_LIQUIDITY",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000b",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000065"
+            },
+            {
+              "enabled": true,
+              "lane_id": "FARM_INCENTIVES",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000c",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000066"
+            },
+            {
+              "enabled": true,
+              "lane_id": "ZDEX_TOKENOMICS",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000d",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000067"
+            },
+            {
+              "enabled": true,
+              "lane_id": "ZUSD_MONETARY",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000e",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000068"
+            },
+            {
+              "enabled": true,
+              "lane_id": "PERPS_MARKET",
+              "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000000f",
+              "state_root": "0x0000000000000000000000000000000000000000000000000000000000000069"
+            },
+            {
+              "enabled": true,
+              "lane_id": "ORACLE_MARKET",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000010",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006a"
+            },
+            {
+              "enabled": true,
+              "lane_id": "SEALED_AUCTION",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000011",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006b"
+            },
+            {
+              "enabled": true,
+              "lane_id": "STRATEGY_ESCROW",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000012",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006c"
+            },
+            {
+              "enabled": true,
+              "lane_id": "PROOF_REWARDS",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000013",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006d"
+            },
+            {
+              "enabled": false,
+              "lane_id": "EXTERNAL_CUSTODY",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000014",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006e"
+            },
+            {
+              "enabled": true,
+              "lane_id": "GOVERNANCE_MIGRATION",
+              "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000015",
+              "state_root": "0x000000000000000000000000000000000000000000000000000000000000006f"
+            }
+          ],
+          "liabilities": [],
+          "oracle_occurrences": [],
+          "outbox": [],
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "replay_state": [],
+          "reserves": [],
+          "schema": "zenodex/global-settlement-abi/v2",
+          "supplies": [],
+          "terminal_obligations": [],
+          "writer_epoch": 1
+        },
+        "terminal_plan": {
+          "deltas": [],
+          "schema": "zenodex/global-settlement-abi/v2"
+        }
+      },
+      "canonical_bytes_sha256": "48711794db861f32439933e6b66edff0c4054ad79f34514c25fdaabca8498db4"
+    },
+    "GlobalEconomicStateEffectRefinementWireV2": {
+      "canonical": {
+        "effect_plan_root": "0x5c50fbfd4790996f77c5c31fc2dd4eff4c36a136bf00145ba65c480375590efd",
+        "oracle_plan_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "post_state_root": "0xae67029123bc9ee912a8fee0512b1ef924549a330d379a9d1a9c2a0790d48d67",
+        "pre_state_root": "0xae67029123bc9ee912a8fee0512b1ef924549a330d379a9d1a9c2a0790d48d67",
+        "production_authority": "NONE",
+        "refinement_root": "0x4860d9ee6d955151fb040ad85894d3bb5cea5daf5d2a7de69ee12baa85182263",
+        "state_delta_root": "0xa13733f92d2f7459b1cd88ded21d84c68c68f24046f4c06f1326f095b2f2fd81",
+        "terminal_plan_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "canonical_bytes_sha256": "a96f9ee01321c8c5799794064942e95957db7a8128a7163011a3218ecbaf3bfa"
+    },
+    "ManagedAssetLifecycleAcceptedWireV2": {
+      "canonical": {
+        "effects": {
+          "asset_conservation": [
+            {
+              "asset": "USD",
+              "authorized_burn_atoms": 0,
+              "authorized_issue_atoms": 50,
+              "owned_and_custodied_post_atoms": 1050,
+              "owned_and_custodied_pre_atoms": 1000,
+              "supply_post_atoms": 1050,
+              "supply_pre_atoms": 1000
+            }
+          ],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [],
+          "lane_writes": [
+            {
+              "lane_id": "ASSET_TRANSFER",
+              "post_root": "0xa1895f1a7d6c901a098e4f85e7bfed0b730361c25933656c3ecdf095458269d2",
+              "pre_root": "0x35d52de67b5b0dc306f70bbd83f69ec107542ff1f2376797cb5c1829ea0b56e2"
+            }
+          ],
+          "occurrence_consumptions": [
+            "0x88664a357aa43412885b0e58ea8e59825f68bb577312b1bf1a83f9c6f9e7b9e4"
+          ],
+          "rows": [
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 50,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "alice"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 50,
+              "kind": "ISSUE",
+              "principal": "alice"
+            }
+          ],
+          "schema": "zenodex/global-settlement-abi/v2"
+        },
+        "module_journal": {
+          "chain_id": "zeno-v2-asset-lane-golden-chain",
+          "command_occurrence_id": "0x88664a357aa43412885b0e58ea8e59825f68bb577312b1bf1a83f9c6f9e7b9e4",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "effect_plan_root": "0x2cf06eb38942311501bd75c5490cedcfd19b69bb422140e68b225d127811ed8b",
+          "lane_id": "ASSET_TRANSFER",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "oracle_occurrence_plan_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "post_lane_root": "0xa1895f1a7d6c901a098e4f85e7bfed0b730361c25933656c3ecdf095458269d2",
+          "pre_lane_root": "0x35d52de67b5b0dc306f70bbd83f69ec107542ff1f2376797cb5c1829ea0b56e2",
+          "private_port_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000008",
+          "receipt_root": "0x5bcacad1bfa950ff2dc4951819bc75c07f02213aab2c042c8aba674aa0b060d3",
+          "schema": "zenodex/global-settlement-abi/v2",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "writer_epoch": 7
+        },
+        "post_state": {
+          "balances": [
+            {
+              "amount_atoms": 1050,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "asset_class": "registered_ordinary_token",
+              "asset_origin_root": "0x0000000000000000000000000000000000000000000000000000000000000006",
+              "atom_decimals": 8,
+              "burn_authorization_root": "0x0000000000000000000000000000000000000000000000000000000000000004",
+              "enabled": true,
+              "issue_authority_subject": "issuer",
+              "issue_authorization_root": "0x0000000000000000000000000000000000000000000000000000000000000005"
+            }
+          ],
+          "schema": "zenodex/managed-asset-lifecycle-module/v2",
+          "supplies": [
+            {
+              "amount_atoms": 1050,
+              "asset": "USD"
+            }
+          ]
+        },
+        "production_authority": "NONE",
+        "receipt_root": "0x5bcacad1bfa950ff2dc4951819bc75c07f02213aab2c042c8aba674aa0b060d3"
+      },
+      "canonical_bytes_sha256": "e20b97297488c63416ed1ff89fe16018742c03dcf74155b623e88fcf7547f9ce"
+    },
+    "ManagedAssetLifecycleRejectedWireV2": {
+      "canonical": {
+        "code": "AUTHORIZATION_ROOT_MISMATCH",
+        "effects": {
+          "asset_conservation": [],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [],
+          "lane_writes": [],
+          "occurrence_consumptions": [],
+          "rows": [],
+          "schema": "zenodex/global-settlement-abi/v2"
+        },
+        "oracle_occurrence_plan_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "post_state_root": "0x35d52de67b5b0dc306f70bbd83f69ec107542ff1f2376797cb5c1829ea0b56e2",
+        "pre_state_root": "0x35d52de67b5b0dc306f70bbd83f69ec107542ff1f2376797cb5c1829ea0b56e2",
+        "production_authority": "NONE",
+        "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "canonical_bytes_sha256": "5c2fc4884ef19153e7fec644f80d1afe04d42ac40b1c05dc6e6baf557b9a83cd"
+    }
+  }
+}

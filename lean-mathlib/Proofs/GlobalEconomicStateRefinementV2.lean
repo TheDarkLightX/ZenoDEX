@@ -84,6 +84,11 @@ def amountAt (rows : List AmountRow) (owner : Principal) (asset : Asset)
 def amountForAsset (rows : List AmountRow) (asset : Asset) : Int :=
   (rows.map fun row => if row.asset = asset then row.amountAtoms else 0).sum
 
+def amountForAssetDomain (rows : List AmountRow) (asset : Asset)
+    (domain : AccountingLocation) : Int :=
+  (rows.map fun row =>
+    if row.asset = asset ∧ row.custodyDomain = domain then row.amountAtoms else 0).sum
+
 def supplyFor (rows : List SupplyRow) (asset : Asset) : Int :=
   (rows.map fun row => if row.asset = asset then row.amountAtoms else 0).sum
 
@@ -258,12 +263,13 @@ def ReplayOccurrenceIdsInjective (state : GlobalState) : Prop :=
 def OwnedMatchesSupply (state : GlobalState) : Prop :=
   ∀ asset, ownedFor state asset = supplyFor state.supplies asset
 
-/-- Claimant-addressed liability rows are aggregated by asset and must fit
-inside the asset's accounting-location total, matching the live global check. -/
+/-- Claimant-addressed liability rows are aggregated by asset and accounting
+domain and must fit inside custody in that same domain. -/
 def ClaimantLiabilitiesBacked (state : GlobalState) : Prop :=
-  (∀ asset,
-    0 ≤ liabilityFor state asset ∧
-    liabilityFor state asset ≤ amountForAsset state.custody asset) ∧
+  (∀ asset domain,
+    0 ≤ amountForAssetDomain state.liabilities asset domain ∧
+    amountForAssetDomain state.liabilities asset domain ≤
+      amountForAssetDomain state.custody asset domain) ∧
   OpenTerminalLiabilitiesCovered state
 
 def SparseAmountRowsAdmitted (rows : List AmountRow) : Prop :=
@@ -666,6 +672,14 @@ theorem accepted_preserves_liability_backing {pre : GlobalState}
     (accepted : Accepted pre) : ClaimantLiabilitiesBacked accepted.post :=
   accepted.verified.liabilitiesPost
 
+theorem accepted_liabilities_use_same_domain_backing {pre : GlobalState}
+    (accepted : Accepted pre) :
+    ∀ asset domain,
+      0 ≤ amountForAssetDomain accepted.post.liabilities asset domain ∧
+      amountForAssetDomain accepted.post.liabilities asset domain ≤
+        amountForAssetDomain accepted.post.custody asset domain :=
+  accepted.verified.liabilitiesPost.1
+
 theorem accepted_open_terminal_totals_fit_exact_liability_rows {pre : GlobalState}
     (accepted : Accepted pre) : OpenTerminalLiabilitiesCovered accepted.post :=
   accepted.verified.liabilitiesPost.2
@@ -833,10 +847,10 @@ theorem static_global_state_verified :
   · simp [OwnedMatchesSupply, ownedFor, amountForAsset, supplyFor,
       staticGlobalState]
   · simp [ClaimantLiabilitiesBacked, OpenTerminalLiabilitiesCovered,
-      liabilityFor, amountForAsset, openTerminalAmountFor, amountAt,
+      amountForAssetDomain, openTerminalAmountFor, amountAt,
       staticGlobalState]
   · simp [ClaimantLiabilitiesBacked, OpenTerminalLiabilitiesCovered,
-      liabilityFor, amountForAsset, openTerminalAmountFor, amountAt,
+      amountForAssetDomain, openTerminalAmountFor, amountAt,
       staticGlobalState]
   · simp [ExactTerminalRefinement, TerminalRegistryRefines, terminalLookup,
       TerminalOwningLaneWrites, TerminalLiabilityEffects,
@@ -1047,16 +1061,32 @@ def underbackedLiability : List AmountRow :=
   [⟨"alice", "ZUSD", "zenoledger:claims", 5⟩]
 
 def insufficientCustody : List AmountRow :=
-  [⟨"reserve", "ZUSD", "zenoledger:reserve", 4⟩]
+  [⟨"reserve", "ZUSD", "zenoledger:claims", 4⟩]
 
 theorem underbacked_claimant_liability_rejected :
-    ¬ (∀ asset,
-      0 ≤ amountForAsset underbackedLiability asset ∧
-      amountForAsset underbackedLiability asset ≤
-        amountForAsset insufficientCustody asset) := by
+    ¬ (∀ asset domain,
+      0 ≤ amountForAssetDomain underbackedLiability asset domain ∧
+      amountForAssetDomain underbackedLiability asset domain ≤
+        amountForAssetDomain insufficientCustody asset domain) := by
   intro backed
-  have bound := (backed "ZUSD").2
+  have bound := (backed "ZUSD" "zenoledger:claims").2
   change (5 : Int) ≤ 4 at bound
+  omega
+
+def crossDomainLiability : List AmountRow :=
+  [⟨"alice", "ZUSD", "zenoledger:claims", 4⟩]
+
+def unrelatedDomainCustody : List AmountRow :=
+  [⟨"reserve", "ZUSD", "zenoledger:reserve", 4⟩]
+
+theorem cross_domain_custody_cannot_back_liability :
+    ¬ (∀ asset domain,
+      0 ≤ amountForAssetDomain crossDomainLiability asset domain ∧
+      amountForAssetDomain crossDomainLiability asset domain ≤
+        amountForAssetDomain unrelatedDomainCustody asset domain) := by
+  intro backed
+  have bound := (backed "ZUSD" "zenoledger:claims").2
+  change (4 : Int) ≤ 0 at bound
   omega
 
 def undercreditedFeePlan : EffectPlan :=

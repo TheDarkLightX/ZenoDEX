@@ -94,6 +94,63 @@ fn golden_candidate_returns_existing_opaque_witness() {
 }
 
 #[test]
+fn cross_domain_liability_backing_is_an_exact_no_op_reject() {
+    let same_domain = scenario();
+    assert!(matches!(
+        refine_global_economic_state_effects_outcome_v2(&same_domain.candidate())
+            .expect("deterministic outcome"),
+        GlobalEconomicRefinementOutcomeV2::Accepted(_)
+    ));
+
+    let mut cross_domain = scenario();
+    for row in &mut cross_domain.pre_state.custody {
+        row.custody_domain = "unrelated-custody".to_owned();
+    }
+    for row in &mut cross_domain.post_state.custody {
+        row.custody_domain = "unrelated-custody".to_owned();
+    }
+    cross_domain.pre_state.validate().expect("valid pre-state");
+    cross_domain
+        .post_state
+        .validate()
+        .expect("valid post-state");
+    let before = cross_domain.clone();
+    let pre_root = cross_domain.pre_state.state_root().expect("pre-state root");
+
+    let outcome = refine_global_economic_state_effects_outcome_v2(&cross_domain.candidate())
+        .expect("deterministic rejection");
+
+    let GlobalEconomicRefinementOutcomeV2::Rejected(rejected) = outcome else {
+        panic!("cross-domain custody must not back a liability");
+    };
+    assert_eq!(
+        rejected.reject_code(),
+        GlobalEconomicRefinementRejectCodeV2::LIABILITIES_EXCEED_BACKING
+    );
+    assert_eq!(rejected.pre_state_root(), &pre_root);
+    assert_eq!(rejected.post_state_root(), &pre_root);
+    assert_eq!(rejected.effect_plan(), GlobalEconomicEffectPlanV2::empty());
+    assert_eq!(
+        rejected.terminal_plan(),
+        GlobalTerminalObligationPlanV2::empty()
+    );
+    assert_eq!(
+        rejected.oracle_plan(),
+        GlobalOracleOccurrencePlanV2::empty()
+    );
+    assert!(rejected.consumed_occurrences().is_empty());
+    assert!(rejected.outbox().is_empty());
+    assert_eq!(rejected.production_authority(), "NONE");
+    assert_eq!(cross_domain, before);
+    assert_eq!(
+        classify_global_economic_refinement_error_v2(&AbiErrorV2::Conservation(
+            "global refinement liabilities exceed same-domain accounting backing",
+        )),
+        GlobalEconomicRefinementRejectCodeV2::LIABILITIES_EXCEED_BACKING
+    );
+}
+
+#[test]
 fn representative_reject_is_exact_no_op_and_does_not_mutate_candidate() {
     let mut candidate_values = scenario();
     candidate_values

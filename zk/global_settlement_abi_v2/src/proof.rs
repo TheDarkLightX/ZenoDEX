@@ -5,6 +5,7 @@ use crate::canonical::{
     AbiResultV2, RootV2, ValidateCanonicalV2, GLOBAL_SETTLEMENT_ABI_V2,
 };
 use crate::effects::LaneIdV2;
+use crate::resource_limits::validate_consumed_object_id_count_v2;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -28,6 +29,10 @@ pub struct EconomicCommandOccurrenceV2 {
 
 impl EconomicCommandOccurrenceV2 {
     pub fn validate(&self) -> AbiResultV2<()> {
+        validate_consumed_object_id_count_v2(
+            self.consumed_object_ids.len(),
+            "occurrence consumed object ids",
+        )?;
         validate_schema_v2(
             &self.schema,
             GLOBAL_SETTLEMENT_ABI_V2,

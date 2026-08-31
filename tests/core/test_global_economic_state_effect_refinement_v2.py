@@ -34,6 +34,7 @@ from src.core.global_settlement_types_v2 import (
     ALL_LANE_IDS_V2,
     FEE_RESIDUE_CONTROL_DOMAIN_V2,
     FEE_RESIDUE_PRINCIPAL_V2,
+    MAX_ATOMS_V2,
     ZERO_ROOT_V2,
     AssetConservationRowV2,
     AssetSupplyV2,
@@ -496,7 +497,7 @@ def test_liability_must_be_backed_even_for_a_static_candidate() -> None:
     state = _global_state(
         lane_roots=_lane_roots(),
         balances=(EconomicAmountV2("alice", "USD", "accounts", 7),),
-        custody=(EconomicAmountV2("vault", "USD", "backing", 3),),
+        custody=(EconomicAmountV2("vault", "USD", "claims", 3),),
         liabilities=(EconomicAmountV2("alice", "USD", "claims", 4),),
         supplies=(AssetSupplyV2("USD", 10),),
     )
@@ -513,6 +514,30 @@ def test_liability_must_be_backed_even_for_a_static_candidate() -> None:
         refine_global_economic_state_effects_v2(candidate)
 
 
+def test_liability_total_overflow_across_domains_fails_before_backing() -> None:
+    state = _global_state(
+        lane_roots=_lane_roots(),
+        balances=(EconomicAmountV2("carol", "EUR", "accounts", 1),),
+        custody=(),
+        liabilities=(
+            EconomicAmountV2("alice", "USD", "claims-a", MAX_ATOMS_V2),
+            EconomicAmountV2("bob", "USD", "claims-b", 1),
+        ),
+        supplies=(AssetSupplyV2("EUR", 1),),
+    )
+    candidate = GlobalEconomicStateEffectRefinementCandidateV2(
+        state,
+        state,
+        GlobalEconomicEffectPlanV2.empty(),
+        (),
+        GlobalTerminalObligationPlanV2.empty(),
+        GlobalOracleOccurrencePlanV2.empty(),
+    )
+
+    with pytest.raises(ValueError, match="global liability total"):
+        refine_global_economic_state_effects_v2(candidate)
+
+
 def test_open_terminal_amount_must_fit_its_exact_liability_row() -> None:
     obligation = TerminalObligationV2(
         obligation_id="perps:alice:one",
@@ -526,7 +551,7 @@ def test_open_terminal_amount_must_fit_its_exact_liability_row() -> None:
     state = _global_state(
         lane_roots=_lane_roots(),
         balances=(EconomicAmountV2("alice", "USD", "accounts", 6),),
-        custody=(EconomicAmountV2("vault", "USD", "backing", 4),),
+        custody=(EconomicAmountV2("vault", "USD", "claims", 4),),
         liabilities=(EconomicAmountV2("alice", "USD", "claims", 2),),
         supplies=(AssetSupplyV2("USD", 10),),
         terminal_obligations=(obligation,),
@@ -576,7 +601,7 @@ def test_terminal_plan_requires_exact_liability_effect_and_backing() -> None:
     perps_pre_root = _root(301)
     pre = _global_state(
         lane_roots=_lane_roots({LaneIdV2.PERPS_MARKET: perps_pre_root}),
-        custody=(EconomicAmountV2("vault", "USD", "claims-backing", 10),),
+        custody=(EconomicAmountV2("vault", "USD", "claims", 10),),
         supplies=(AssetSupplyV2("USD", 10),),
     )
     occurrence = _occurrence(

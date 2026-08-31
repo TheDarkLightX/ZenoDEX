@@ -1,8 +1,8 @@
 {
   "authority": "NONE",
-  "expected_refinement_root": "0xa1e426251e6fd7a57c17a30a3cfad18cafd0ed77dac1da18a62dc184e15aa668",
+  "expected_refinement_root": "0xf5fc87572f402ee310c1913d27af924cbf7e764cc05e606d93b141620e018db6",
   "expected_replay_id": "0x71a39fa0d26357597216ac1ffe0588d2d02cd42c03b5413bce925c91aa7b9623",
-  "expected_state_delta_root": "0x2d9f34457202f3511e2075f88b9d5fd7ca4f52b5c46b043c4be86f2fdae601eb",
+  "expected_state_delta_root": "0xc57b03254a79b937855975e91695d4dfb229415d281b11e9ae3867a6d9334a65",
   "fixture_schema": "zenodex/global-settlement-abi-v2-global-core-golden/v1",
   "nonclaims": [
     "RISC0",
@@ -45,7 +45,7 @@
           }
         ],
         "occurrence_consumptions": [
-          "0x4121b3a02af7c2cbb8f2892a6340c5d6e917c131eee2550b31bc8ef117fd1d77"
+          "0xc58a82d43e462ad6a0334f33fbbcc93d8d9a826f3f5131b825d8a51debf5f6c0"
         ],
         "rows": [
           {
@@ -72,8 +72,8 @@
         ],
         "schema": "zenodex/global-settlement-abi/v2"
       },
-      "canonical_bytes_sha256": "c30af83844d4d342d23162ed467335cb5012624fd8c0508fa4fc207fd5951622",
-      "expected_root": "0x4f1bb05cdeddba8f75094b613a23aa8549940df1e6a1ab777910b44e280e72c2"
+      "canonical_bytes_sha256": "99bf97cfcfc29d1f0413f80b7c494ad48a0d64cf5444e29c6cd8d3d913980514",
+      "expected_root": "0xf2b2347ddd57a7dc30190b359754ad21eddabf8b799cb5581ba852d7408bafe3"
     },
     "occurrence": {
       "canonical": {
@@ -86,15 +86,15 @@
         "height": 8,
         "nonce": 9,
         "op_index": 1,
-        "pre_state_root": "0x6e90a4565009dfe984024f857af634460eb5a457a573130ff222254834b4748e",
+        "pre_state_root": "0x045561a198ef34a0ce4b44d7f243ca3bbc1548f4e3dcce26f9d51168e8f6ea7b",
         "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000192",
         "route_release_id": "0x0000000000000000000000000000000000000000000000000000000000000194",
         "schema": "zenodex/global-settlement-abi/v2",
         "subject_id": "alice",
         "tx_index": 2
       },
-      "canonical_bytes_sha256": "8a3c8edc7669eec19a1a681722c7bf40706b2d7130535f7af55fdabf3f3b1bea",
-      "expected_root": "0x4121b3a02af7c2cbb8f2892a6340c5d6e917c131eee2550b31bc8ef117fd1d77"
+      "canonical_bytes_sha256": "7931df9143fe9ea8ad598a0c153f6c936caab4bad2ebf0d9fe15875efd17cd83",
+      "expected_root": "0xc58a82d43e462ad6a0334f33fbbcc93d8d9a826f3f5131b825d8a51debf5f6c0"
     },
     "oracle_plan": {
       "canonical": {
@@ -141,7 +141,7 @@
           {
             "amount_atoms": 50,
             "asset": "USD",
-            "custody_domain": "vault-custody",
+            "custody_domain": "terminal-liability",
             "owner": "vault"
           }
         ],
@@ -242,7 +242,7 @@
         "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000192",
         "replay_state": [
           {
-            "occurrence_id": "0x4121b3a02af7c2cbb8f2892a6340c5d6e917c131eee2550b31bc8ef117fd1d77",
+            "occurrence_id": "0xc58a82d43e462ad6a0334f33fbbcc93d8d9a826f3f5131b825d8a51debf5f6c0",
             "replay_id": "0x71a39fa0d26357597216ac1ffe0588d2d02cd42c03b5413bce925c91aa7b9623"
           }
         ],
@@ -274,8 +274,8 @@
         ],
         "writer_epoch": 4
       },
-      "canonical_bytes_sha256": "509ba4265bffc39a4c280111735724ee8089506a03de66f40fd7a5c2e60654fe",
-      "expected_root": "0xa332f13a9a3d979c1109f17c60fc53394ef1be8d0a9b97757ebc736b435897f5"
+      "canonical_bytes_sha256": "1052522f46cd2da7ff4d865816047e2a43941ed38fd9a76f7d8afb603f6f1806",
+      "expected_root": "0x97e072637ccfd2b85edd4424a5a03985034f6e0ad6427ecb3f13d685697a0a7a"
     },
     "pre_state": {
       "canonical": {
@@ -292,7 +292,7 @@
           {
             "amount_atoms": 50,
             "asset": "USD",
-            "custody_domain": "vault-custody",
+            "custody_domain": "terminal-liability",
             "owner": "vault"
           }
         ],
@@ -420,8 +420,8 @@
         ],
         "writer_epoch": 4
       },
-      "canonical_bytes_sha256": "f4912ee206a4568ae514c280cbd410e162b5d03d744a503b856e9f6da3f6c8d2",
-      "expected_root": "0x6e90a4565009dfe984024f857af634460eb5a457a573130ff222254834b4748e"
+      "canonical_bytes_sha256": "e225176ef73a662f66b51c88f26828f49e32d338123f7034d876d3e88adfa180",
+      "expected_root": "0x045561a198ef34a0ce4b44d7f243ca3bbc1548f4e3dcce26f9d51168e8f6ea7b"
     },
     "terminal_plan": {
       "canonical": {

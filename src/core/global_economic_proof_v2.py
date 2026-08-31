@@ -8,6 +8,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from .global_settlement_resource_limits_v2 import (
+    MAX_CONSUMED_OBJECT_IDS_PER_OCCURRENCE_V2,
+    require_raw_tuple_ceiling_v2,
+)
 from .global_settlement_types_v2 import (
     GLOBAL_SETTLEMENT_ABI_V2,
     ZERO_ROOT_V2,
@@ -17,6 +21,10 @@ from .global_settlement_types_v2 import (
     _require_sorted_unique_tokens_v2,
     _require_token_v2,
     hash_global_v2,
+)
+
+MAX_ECONOMIC_COMMAND_OCCURRENCE_CONSUMED_OBJECT_IDS_V2 = (
+    MAX_CONSUMED_OBJECT_IDS_PER_OCCURRENCE_V2
 )
 
 
@@ -38,6 +46,11 @@ class EconomicCommandOccurrenceV2:
     consumed_object_ids: tuple[str, ...]
 
     def __post_init__(self) -> None:
+        require_raw_tuple_ceiling_v2(
+            self.consumed_object_ids,
+            name="occurrence consumed object ids",
+            ceiling=MAX_CONSUMED_OBJECT_IDS_PER_OCCURRENCE_V2,
+        )
         _require_token_v2(self.chain_id, name="occurrence chain id")
         _require_root_v2(self.deployment_root, name="occurrence deployment root")
         _require_nonnegative_int_v2(self.height, name="occurrence height")
@@ -204,6 +217,8 @@ __all__ = [
     "EconomicCommandOccurrenceV2",
     "LaneModuleTransitionJournalV2",
     "ZERO_ROOT_V2",
+    "MAX_CONSUMED_OBJECT_IDS_PER_OCCURRENCE_V2",
+    "MAX_ECONOMIC_COMMAND_OCCURRENCE_CONSUMED_OBJECT_IDS_V2",
     "_snapshot_occurrence_v2",
     "_snapshot_module_journal_v2",
 ]

@@ -33,8 +33,8 @@ NAMESPACE = "Proofs.GlobalEconomicStateRefinementV2Nonempty"
 PINNED_TOOLCHAIN = "leanprover/lean4:v4.27.0"
 PINNED_SOURCES = {
     CORE: "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4",
-    REFINEMENT: "85448be52a0ad003a953e12f46b558face3650282ac238c8ac7bb8a002a55867",
-    NONEMPTY: "c02b66009daf07c318161fcf4e3de73b8322f8c650560e7276ec7efc8f756058",
+    REFINEMENT: "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1",
+    NONEMPTY: "b62aef117f9eac23905b943f98e0b692b90535e8031762e41d76464ffa9858ce",
 }
 THEOREMS = (
     "transfer_pre_quantities_admitted",

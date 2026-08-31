@@ -20,6 +20,12 @@ from .global_economic_proof_v2 import (
     _snapshot_module_journal_v2,
     _snapshot_occurrence_v2,
 )
+from .global_settlement_resource_limits_v2 import (
+    MAX_ASSETS_PER_ASSET_STATE_V2,
+    MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2,
+    require_raw_tuple_ceiling_v2,
+    require_rootable_asset_state_bytes_v2,
+)
 from .global_settlement_types_v2 import (
     ZERO_ROOT_V2,
     GlobalEconomicEffectPlanV2,
@@ -30,13 +36,17 @@ from .global_settlement_types_v2 import (
     _require_root_v2,
     _require_token_v2,
     _snapshot_dataclass_tuple_v2,
+    canonical_global_bytes_v2,
     hash_economic_command_body_v2,
     hash_global_v2,
 )
 
 ASSET_ORIGIN_REGISTRY_SCHEMA_V2: Final = "zenodex/asset-origin-registry/v2"
 ASSET_ORIGIN_REGISTRATION_COMMAND_V2: Final = "register_asset_origin"
-MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2: Final = 256
+MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2: Final = MAX_ASSETS_PER_ASSET_STATE_V2
+MAX_ASSET_ORIGIN_REGISTRY_STATE_CANONICAL_BYTES_V2: Final = (
+    MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2
+)
 
 
 class AssetOriginKindV2(str, Enum):
@@ -152,11 +162,11 @@ class AssetOriginRegistrationPolicyV2:
 def _snapshot_registry_rows_v2(
     rows: tuple[AssetOriginRecordV2, ...],
 ) -> tuple[AssetOriginRecordV2, ...]:
-    if len(rows) > MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2:
-        raise ValueError(
-            "asset origin registry rows exceed the "
-            f"{MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2}-item ceiling"
-        )
+    require_raw_tuple_ceiling_v2(
+        rows,
+        name="asset origin registry rows",
+        ceiling=MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
+    )
     return _snapshot_dataclass_tuple_v2(
         rows,
         AssetOriginRecordV2,
@@ -202,6 +212,10 @@ class AssetOriginRegistryStateV2:
             raise ValueError("asset origin roots must be unique")
         if sum(row.origin_kind is AssetOriginKindV2.NATIVE for row in self._assets) > 1:
             raise ValueError("only one native asset may be registered")
+        require_rootable_asset_state_bytes_v2(
+            canonical_global_bytes_v2(self.to_canonical()),
+            name="asset origin registry state",
+        )
 
     @property
     def state_root(self) -> str:
@@ -453,6 +467,7 @@ __all__ = [
     "ASSET_ORIGIN_REGISTRY_SCHEMA_V2",
     "ASSET_ORIGIN_REGISTRATION_COMMAND_V2",
     "MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2",
+    "MAX_ASSET_ORIGIN_REGISTRY_STATE_CANONICAL_BYTES_V2",
     "AssetOriginKindV2",
     "AssetOriginRegistrationRejectCodeV2",
     "AssetOriginRecordV2",

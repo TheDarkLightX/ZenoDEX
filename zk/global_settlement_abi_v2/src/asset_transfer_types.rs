@@ -3,11 +3,15 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::canonical::{
-    hash_economic_command_body_v2, hash_global_v2, validate_schema_v2, validate_token_v2,
-    AbiErrorV2, AbiResultV2, RootV2, ValidateCanonicalV2,
+    canonical_bytes_v2, hash_economic_command_body_v2, hash_global_v2, validate_schema_v2,
+    validate_token_v2, AbiErrorV2, AbiResultV2, RootV2, ValidateCanonicalV2,
 };
 use crate::effects::{GlobalEconomicEffectPlanV2, LaneIdV2, LaneWriteV2};
 use crate::proof::{EconomicCommandOccurrenceV2, LaneModuleTransitionJournalV2};
+use crate::resource_limits::{
+    validate_asset_state_asset_count_v2, validate_asset_state_balance_row_count_v2,
+    validate_rootable_asset_state_canonical_bytes_v2,
+};
 use crate::state::{AssetSupplyV2, EconomicAmountV2};
 
 pub const ASSET_TRANSFER_MODULE_SCHEMA_V2: &str = "zenodex/asset-transfer-module/v2";
@@ -71,6 +75,50 @@ pub enum AssetTransferRejectCodeV2 {
     BALANCE_OVERFLOW,
 }
 
+impl AssetTransferRejectCodeV2 {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::MISSING_OCCURRENCE => "MISSING_OCCURRENCE",
+            Self::OCCURRENCE_BINDING_MISMATCH => "OCCURRENCE_BINDING_MISMATCH",
+            Self::RELEASE_MISMATCH => "RELEASE_MISMATCH",
+            Self::UNKNOWN_COMMAND => "UNKNOWN_COMMAND",
+            Self::OCCURRENCE_COMMAND_MISMATCH => "OCCURRENCE_COMMAND_MISMATCH",
+            Self::UNKNOWN_ASSET => "UNKNOWN_ASSET",
+            Self::DISABLED_ASSET => "DISABLED_ASSET",
+            Self::UNREGISTERED_ASSET => "UNREGISTERED_ASSET",
+            Self::ASSET_ORIGIN_MISMATCH => "ASSET_ORIGIN_MISMATCH",
+            Self::NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED => "NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED",
+            Self::UNAUTHORIZED_SUBJECT => "UNAUTHORIZED_SUBJECT",
+            Self::SELF_TRANSFER => "SELF_TRANSFER",
+            Self::ZERO_AMOUNT => "ZERO_AMOUNT",
+            Self::FEE_LIMIT_EXCEEDED => "FEE_LIMIT_EXCEEDED",
+            Self::EFFECT_DELTA_OVERFLOW => "EFFECT_DELTA_OVERFLOW",
+            Self::INSUFFICIENT_BALANCE => "INSUFFICIENT_BALANCE",
+            Self::BALANCE_OVERFLOW => "BALANCE_OVERFLOW",
+        }
+    }
+}
+
+pub const ALL_ASSET_TRANSFER_REJECT_CODES_V2: [AssetTransferRejectCodeV2; 17] = [
+    AssetTransferRejectCodeV2::MISSING_OCCURRENCE,
+    AssetTransferRejectCodeV2::OCCURRENCE_BINDING_MISMATCH,
+    AssetTransferRejectCodeV2::RELEASE_MISMATCH,
+    AssetTransferRejectCodeV2::UNKNOWN_COMMAND,
+    AssetTransferRejectCodeV2::OCCURRENCE_COMMAND_MISMATCH,
+    AssetTransferRejectCodeV2::UNKNOWN_ASSET,
+    AssetTransferRejectCodeV2::DISABLED_ASSET,
+    AssetTransferRejectCodeV2::UNREGISTERED_ASSET,
+    AssetTransferRejectCodeV2::ASSET_ORIGIN_MISMATCH,
+    AssetTransferRejectCodeV2::NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED,
+    AssetTransferRejectCodeV2::UNAUTHORIZED_SUBJECT,
+    AssetTransferRejectCodeV2::SELF_TRANSFER,
+    AssetTransferRejectCodeV2::ZERO_AMOUNT,
+    AssetTransferRejectCodeV2::FEE_LIMIT_EXCEEDED,
+    AssetTransferRejectCodeV2::EFFECT_DELTA_OVERFLOW,
+    AssetTransferRejectCodeV2::INSUFFICIENT_BALANCE,
+    AssetTransferRejectCodeV2::BALANCE_OVERFLOW,
+];
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AssetTransferPolicyV2 {
@@ -116,6 +164,9 @@ pub struct AssetTransferStateV2 {
 
 impl AssetTransferStateV2 {
     pub fn validate(&self) -> AbiResultV2<()> {
+        validate_asset_state_asset_count_v2(self.policies.len(), "asset transfer policies")?;
+        validate_asset_state_asset_count_v2(self.supplies.len(), "asset transfer supplies")?;
+        validate_asset_state_balance_row_count_v2(self.balances.len(), "asset transfer balances")?;
         validate_schema_v2(
             &self.schema,
             ASSET_TRANSFER_MODULE_SCHEMA_V2,
@@ -147,7 +198,11 @@ impl AssetTransferStateV2 {
         for supply in &self.supplies {
             supply.validate()?;
         }
-        self.validate_balances()
+        self.validate_balances()?;
+        validate_rootable_asset_state_canonical_bytes_v2(
+            canonical_bytes_v2(self)?.len(),
+            "asset transfer state canonical encoding bytes",
+        )
     }
 
     fn validate_balances(&self) -> AbiResultV2<()> {

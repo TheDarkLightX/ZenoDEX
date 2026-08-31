@@ -482,7 +482,7 @@ pub fn classify_global_economic_refinement_error_v2(
             Code::CUSTODY_BACKING_TOTAL_OVERFLOW
         }
         InvalidBounds("global liability") => Code::LIABILITY_TOTAL_OVERFLOW,
-        Conservation("global refinement liabilities exceed accounting backing") => {
+        Conservation("global refinement liabilities exceed same-domain accounting backing") => {
             Code::LIABILITIES_EXCEED_BACKING
         }
         InvalidBounds("global refinement open terminal obligation total") => {

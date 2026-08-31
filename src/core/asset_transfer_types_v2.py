@@ -12,6 +12,13 @@ from .global_economic_proof_v2 import (
     _snapshot_module_journal_v2,
     _snapshot_occurrence_v2,
 )
+from .global_settlement_resource_limits_v2 import (
+    MAX_ASSETS_PER_ASSET_STATE_V2,
+    MAX_BALANCE_ROWS_PER_ASSET_STATE_V2,
+    MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2,
+    require_raw_tuple_ceiling_v2,
+    require_rootable_asset_state_bytes_v2,
+)
 from .global_settlement_types_v2 import (
     ZERO_ROOT_V2,
     AssetSupplyV2,
@@ -26,6 +33,7 @@ from .global_settlement_types_v2 import (
     _require_root_v2,
     _require_token_v2,
     _snapshot_dataclass_tuple_v2,
+    canonical_global_bytes_v2,
     hash_economic_command_body_v2,
     hash_global_v2,
 )
@@ -35,6 +43,11 @@ ASSET_TRANSFER_COMMAND_KIND_V2: Final = "asset_transfer"
 ACCOUNT_CUSTODY_DOMAIN_V2: Final = "accounts"
 ASSET_ATOM_DECIMALS_V2: Final = 8
 ASSET_LANE_PRODUCTION_AUTHORITY_V2: Final = "NONE"
+MAX_ASSET_TRANSFER_ASSETS_V2: Final = MAX_ASSETS_PER_ASSET_STATE_V2
+MAX_ASSET_TRANSFER_BALANCE_ROWS_V2: Final = MAX_BALANCE_ROWS_PER_ASSET_STATE_V2
+MAX_ASSET_TRANSFER_STATE_CANONICAL_BYTES_V2: Final = (
+    MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2
+)
 _UNSET_OWNED_VALUE_V2: Final = object()
 
 
@@ -152,6 +165,21 @@ class AssetTransferStateV2:
         selected_supplies = supplies if supplies is not None else _supplies
         if selected_policies is None or selected_balances is None or selected_supplies is None:
             raise TypeError("asset transfer state requires all owned tables")
+        require_raw_tuple_ceiling_v2(
+            selected_policies,
+            name="asset transfer policies",
+            ceiling=MAX_ASSET_TRANSFER_ASSETS_V2,
+        )
+        require_raw_tuple_ceiling_v2(
+            selected_balances,
+            name="asset transfer balances",
+            ceiling=MAX_ASSET_TRANSFER_BALANCE_ROWS_V2,
+        )
+        require_raw_tuple_ceiling_v2(
+            selected_supplies,
+            name="asset transfer supplies",
+            ceiling=MAX_ASSET_TRANSFER_ASSETS_V2,
+        )
         object.__setattr__(self, "module_release_id", module_release_id)
         object.__setattr__(
             self,
@@ -217,6 +245,10 @@ class AssetTransferStateV2:
         for supply in self._supplies:
             if totals[supply.asset] > supply.amount_atoms:
                 raise ValueError("asset transfer account balances exceed supply")
+        require_rootable_asset_state_bytes_v2(
+            canonical_global_bytes_v2(self.to_canonical()),
+            name="asset transfer state",
+        )
 
     @property
     def policies(self) -> tuple[AssetTransferPolicyV2, ...]:
@@ -573,6 +605,9 @@ __all__ = [
     "ACCOUNT_CUSTODY_DOMAIN_V2",
     "ASSET_ATOM_DECIMALS_V2",
     "ASSET_LANE_PRODUCTION_AUTHORITY_V2",
+    "MAX_ASSET_TRANSFER_ASSETS_V2",
+    "MAX_ASSET_TRANSFER_BALANCE_ROWS_V2",
+    "MAX_ASSET_TRANSFER_STATE_CANONICAL_BYTES_V2",
     "AssetClassV2",
     "require_asset_class_namespace_v2",
     "AssetTransferRejectCodeV2",

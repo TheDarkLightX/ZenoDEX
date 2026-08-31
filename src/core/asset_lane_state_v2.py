@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from typing import Final
 
 from .asset_origin_registry_types_v2 import (
-    MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2,
     AssetOriginRegistryStateV2,
     _snapshot_registry_state_v2,
 )
@@ -28,6 +27,13 @@ from .asset_transfer_types_v2 import (
 from .global_economic_proof_v2 import (
     EconomicCommandOccurrenceV2,
     _snapshot_occurrence_v2,
+)
+from .global_settlement_resource_limits_v2 import (
+    MAX_ASSETS_PER_ASSET_STATE_V2,
+    MAX_BALANCE_ROWS_PER_ASSET_STATE_V2,
+    MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2,
+    require_raw_tuple_ceiling_v2,
+    require_rootable_asset_state_bytes_v2,
 )
 from .global_settlement_types_v2 import (
     ZERO_ROOT_V2,
@@ -50,9 +56,11 @@ from .managed_asset_lifecycle_types_v2 import (
 ASSET_LANE_STATE_SCHEMA_V2: Final = "zenodex/asset-lane-state/v2"
 ASSET_LANE_PRODUCTION_AUTHORITY_V2: Final = "NONE"
 ASSET_LANE_PROFILE_AUTHENTICATION_V2: Final = "SHADOW"
-MAX_ASSET_LANE_ASSETS_V2: Final = MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2
-MAX_ASSET_LANE_BALANCE_ROWS_V2: Final = 4_096
-MAX_ASSET_LANE_STATE_CANONICAL_BYTES_V2: Final = 1_048_576
+MAX_ASSET_LANE_ASSETS_V2: Final = MAX_ASSETS_PER_ASSET_STATE_V2
+MAX_ASSET_LANE_BALANCE_ROWS_V2: Final = MAX_BALANCE_ROWS_PER_ASSET_STATE_V2
+MAX_ASSET_LANE_STATE_CANONICAL_BYTES_V2: Final = (
+    MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2
+)
 _UNSET_V2: Final = object()
 
 
@@ -96,6 +104,26 @@ class AssetLaneStateV2:
         balances: tuple[EconomicAmountV2, ...],
         supplies: tuple[AssetSupplyV2, ...],
     ) -> None:
+        require_raw_tuple_ceiling_v2(
+            transfer_policies,
+            name="asset lane transfer policies",
+            ceiling=MAX_ASSET_LANE_ASSETS_V2,
+        )
+        require_raw_tuple_ceiling_v2(
+            managed_policies,
+            name="asset lane managed policies",
+            ceiling=MAX_ASSET_LANE_ASSETS_V2,
+        )
+        require_raw_tuple_ceiling_v2(
+            balances,
+            name="asset lane balances",
+            ceiling=MAX_ASSET_LANE_BALANCE_ROWS_V2,
+        )
+        require_raw_tuple_ceiling_v2(
+            supplies,
+            name="asset lane supplies",
+            ceiling=MAX_ASSET_LANE_ASSETS_V2,
+        )
         if type(origin_registry) is not AssetOriginRegistryStateV2:
             raise TypeError("asset lane origin registry must be exact")
         object.__setattr__(self, "module_release_id", module_release_id)
@@ -141,11 +169,10 @@ class AssetLaneStateV2:
         self._validate_table_shapes()
         transfer_assets = self._validate_asset_coverage()
         self._validate_owned_supply(transfer_assets)
-        if (
-            len(canonical_global_bytes_v2(self.to_canonical()))
-            > MAX_ASSET_LANE_STATE_CANONICAL_BYTES_V2
-        ):
-            raise ValueError("asset lane state exceeds its canonical-byte ceiling")
+        require_rootable_asset_state_bytes_v2(
+            canonical_global_bytes_v2(self.to_canonical()),
+            name="asset lane state",
+        )
 
     def _validate_table_shapes(self) -> None:
         tables = (
@@ -393,6 +420,14 @@ class AssetLaneContextV2:
             self.global_pre_state_root,
             self.occurrence,
         )
+
+    def to_canonical(self) -> dict[str, object]:
+        return {
+            "writer_epoch": self.writer_epoch,
+            "module_release_id": self.module_release_id,
+            "global_pre_state_root": self.global_pre_state_root,
+            "occurrence": self.occurrence,
+        }
 
 
 def _snapshot_asset_lane_context_v2(context: AssetLaneContextV2) -> AssetLaneContextV2:

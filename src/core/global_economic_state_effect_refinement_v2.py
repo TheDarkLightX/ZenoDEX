@@ -29,12 +29,20 @@ from .global_economic_state_v2 import (
     ReplayStateV2,
     snapshot_global_economic_state_v2,
 )
+from .global_settlement_resource_limits_v2 import (
+    MAX_CONSUMED_OCCURRENCES_PER_REFINEMENT_V2,
+    require_raw_tuple_ceiling_v2,
+)
 from .global_settlement_types_v2 import (
     MAX_U64_V2,
     GlobalEconomicEffectPlanV2,
     GlobalOracleOccurrencePlanV2,
     GlobalTerminalObligationPlanV2,
     hash_global_v2,
+)
+
+MAX_GLOBAL_ECONOMIC_REFINEMENT_CONSUMED_OCCURRENCES_V2: Final = (
+    MAX_CONSUMED_OCCURRENCES_PER_REFINEMENT_V2
 )
 
 GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_SCHEMA_V2: Final = (
@@ -80,6 +88,13 @@ class GlobalEconomicStateEffectRefinementCandidateV2:
         )
         selected_terminal = terminal_plan if terminal_plan is not None else _terminal_plan
         selected_oracle = oracle_plan if oracle_plan is not None else _oracle_plan
+        if type(selected_occurrences) is not tuple:
+            raise TypeError("global refinement occurrences must be an exact typed tuple")
+        require_raw_tuple_ceiling_v2(
+            selected_occurrences,
+            name="global refinement consumed occurrences",
+            ceiling=MAX_CONSUMED_OCCURRENCES_PER_REFINEMENT_V2,
+        )
         if type(selected_pre) is not GlobalEconomicStateV2:
             raise TypeError("global refinement pre-state must be exact")
         if type(selected_post) is not GlobalEconomicStateV2:
@@ -97,8 +112,12 @@ class GlobalEconomicStateEffectRefinementCandidateV2:
         if type(selected_effects) is not GlobalEconomicEffectPlanV2:
             raise TypeError("global refinement effect plan must be exact")
         owned_effects = cast(GlobalEconomicEffectPlanV2, selected_effects)
-        object.__setattr__(self, "_effect_plan", replace(owned_effects))
-        if type(selected_occurrences) is not tuple or any(
+        object.__setattr__(
+            self,
+            "_effect_plan",
+            replace(owned_effects),
+        )
+        if any(
             type(item) is not EconomicCommandOccurrenceV2
             for item in selected_occurrences
         ):
@@ -303,6 +322,11 @@ def refine_global_economic_state_effects_v2(
 
     if type(candidate) is not GlobalEconomicStateEffectRefinementCandidateV2:
         raise TypeError("global refinement candidate must be exact")
+    require_raw_tuple_ceiling_v2(
+        candidate._consumed_occurrences,
+        name="global refinement consumed occurrences",
+        ceiling=MAX_CONSUMED_OCCURRENCES_PER_REFINEMENT_V2,
+    )
     snapshot = replace(candidate)
     if snapshot.effect_plan.external_outbox_enqueue:
         raise ValueError("global refinement external outbox requires the O-009 publisher")
@@ -361,6 +385,8 @@ def refine_global_economic_state_effects_v2(
 __all__ = [
     "GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_SCHEMA_V2",
     "GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_AUTHORITY_V2",
+    "MAX_CONSUMED_OCCURRENCES_PER_REFINEMENT_V2",
+    "MAX_GLOBAL_ECONOMIC_REFINEMENT_CONSUMED_OCCURRENCES_V2",
     "GlobalEconomicStateEffectRefinementCandidateV2",
     "GlobalEconomicStateEffectRefinementV2",
     "refine_global_economic_state_effects_v2",

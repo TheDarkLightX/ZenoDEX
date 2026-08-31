@@ -20,6 +20,7 @@ from src.core.global_economic_refinement_outcome_v2 import (
     refine_global_economic_state_effects_outcome_v2,
 )
 from src.core.global_economic_state_effect_refinement_v2 import (
+    MAX_GLOBAL_ECONOMIC_REFINEMENT_CONSUMED_OCCURRENCES_V2,
     GlobalEconomicStateEffectRefinementCandidateV2,
     GlobalEconomicStateEffectRefinementV2,
 )
@@ -73,6 +74,35 @@ def _candidate(
         state,
         state,
         GlobalEconomicEffectPlanV2.empty() if effect_plan is None else effect_plan,
+        (),
+        GlobalTerminalObligationPlanV2.empty(),
+        GlobalOracleOccurrencePlanV2.empty(),
+    )
+
+
+def _liability_backing_candidate(
+    *,
+    custody_domain: str,
+    liability_domain: str,
+) -> GlobalEconomicStateEffectRefinementCandidateV2:
+    template = _static_state()
+    state = GlobalEconomicStateV2(
+        chain_id=template.chain_id,
+        deployment_root=template.deployment_root,
+        writer_epoch=template.writer_epoch,
+        height=template.height,
+        profile_root=template.profile_root,
+        lane_roots=template.lane_roots,
+        balances=(EconomicAmountV2("alice", "USD", "accounts", 6),),
+        supplies=(AssetSupplyV2("USD", 10),),
+        custody=(EconomicAmountV2("vault", "USD", custody_domain, 4),),
+        liabilities=(EconomicAmountV2("alice", "USD", liability_domain, 4),),
+        history_root=template.history_root,
+    )
+    return GlobalEconomicStateEffectRefinementCandidateV2(
+        state,
+        state,
+        GlobalEconomicEffectPlanV2.empty(),
         (),
         GlobalTerminalObligationPlanV2.empty(),
         GlobalOracleOccurrencePlanV2.empty(),
@@ -164,6 +194,44 @@ def test_static_candidate_returns_existing_checker_result() -> None:
     assert outcome.witness.pre_state_root == candidate.pre_state.state_root
     assert outcome.witness.post_state_root == candidate.pre_state.state_root
     assert outcome.production_authority == GLOBAL_ECONOMIC_REFINEMENT_OUTCOME_AUTHORITY_V2
+
+
+def test_liability_backing_requires_same_asset_and_accounting_domain() -> None:
+    same_domain = _liability_backing_candidate(
+        custody_domain="claims",
+        liability_domain="claims",
+    )
+    assert isinstance(
+        refine_global_economic_state_effects_outcome_v2(same_domain),
+        GlobalEconomicRefinementAcceptedV2,
+    )
+
+    cross_domain = _liability_backing_candidate(
+        custody_domain="unrelated-custody",
+        liability_domain="claims",
+    )
+    before = _candidate_snapshot(cross_domain)
+    pre_root = cross_domain.pre_state.state_root
+
+    outcome = refine_global_economic_state_effects_outcome_v2(cross_domain)
+
+    assert isinstance(outcome, GlobalEconomicRefinementRejectedV2)
+    assert outcome.reject_code is (
+        GlobalEconomicRefinementRejectCodeV2.LIABILITIES_EXCEED_BACKING
+    )
+    assert outcome.pre_state_root == outcome.post_state_root == pre_root
+    assert outcome.effect_plan == GlobalEconomicEffectPlanV2.empty()
+    assert outcome.terminal_plan == GlobalTerminalObligationPlanV2.empty()
+    assert outcome.oracle_plan == GlobalOracleOccurrencePlanV2.empty()
+    assert outcome.consumed_occurrences == ()
+    assert outcome.outbox == ()
+    assert outcome.production_authority == "NONE"
+    assert _candidate_snapshot(cross_domain) == before
+    assert classify_global_economic_refinement_error_v2(
+        ValueError(
+            "global refinement liabilities exceed same-domain accounting backing"
+        )
+    ) is GlobalEconomicRefinementRejectCodeV2.LIABILITIES_EXCEED_BACKING
 
 
 def test_signed_state_delta_overflow_matches_rust_reject_code() -> None:
@@ -432,3 +500,51 @@ def test_wrapper_preserves_exact_candidate_type_boundary() -> None:
         refine_global_economic_state_effects_outcome_v2(
             cast(GlobalEconomicStateEffectRefinementCandidateV2, object())
         )
+
+
+def test_over_limit_consumed_occurrences_map_to_malformed_candidate_exact_noop() -> None:
+    pre_state = _static_state()
+    occurrences = tuple(
+        EconomicCommandOccurrenceV2(
+            chain_id=pre_state.chain_id,
+            deployment_root=pre_state.deployment_root,
+            height=pre_state.height + 1,
+            tx_index=0,
+            op_index=index,
+            command_kind="occurrence-bound-probe",
+            command_body_hash=_root(7_000 + index),
+            route_release_id=_root(8_000 + index),
+            subject_id=f"subject-{index}",
+            grant_root=_root(9_000 + index),
+            nonce=index,
+            profile_root=pre_state.profile_root,
+            pre_state_root=pre_state.state_root,
+            consumed_object_ids=(),
+        )
+        for index in range(MAX_GLOBAL_ECONOMIC_REFINEMENT_CONSUMED_OCCURRENCES_V2 + 1)
+    )
+    candidate = GlobalEconomicStateEffectRefinementCandidateV2(
+        pre_state,
+        pre_state,
+        GlobalEconomicEffectPlanV2.empty(),
+        (),
+        GlobalTerminalObligationPlanV2.empty(),
+        GlobalOracleOccurrencePlanV2.empty(),
+    )
+    # The constructor rejects raw 65-item inputs before it snapshots state.
+    # Mutating this otherwise-valid candidate exercises the defensive refiner
+    # guard retained for legacy or tampered caller-constructed values.
+    object.__setattr__(candidate, "_consumed_occurrences", occurrences)
+    before = _candidate_snapshot(candidate)
+
+    outcome = refine_global_economic_state_effects_outcome_v2(candidate)
+
+    assert isinstance(outcome, GlobalEconomicRefinementRejectedV2)
+    assert outcome.reject_code is GlobalEconomicRefinementRejectCodeV2.MALFORMED_CANDIDATE
+    assert outcome.pre_state_root == outcome.post_state_root == pre_state.state_root
+    assert outcome.effect_plan.is_empty
+    assert outcome.terminal_plan == GlobalTerminalObligationPlanV2.empty()
+    assert outcome.oracle_plan == GlobalOracleOccurrencePlanV2.empty()
+    assert outcome.consumed_occurrences == ()
+    assert outcome.outbox == ()
+    assert _candidate_snapshot(candidate) == before

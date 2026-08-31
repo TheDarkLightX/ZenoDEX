@@ -88,6 +88,9 @@ ALL_GLOBAL_ECONOMIC_REFINEMENT_REJECT_CODES_V2: Final = tuple(
 )
 
 _CODE_BY_VALIDATION_MESSAGE_V2: Final = {
+    "global refinement consumed occurrences exceeds its 64-item ceiling": (
+        GlobalEconomicRefinementRejectCodeV2.MALFORMED_CANDIDATE
+    ),
     "global refinement external outbox requires the O-009 publisher": (
         GlobalEconomicRefinementRejectCodeV2.EXTERNAL_OUTBOX_REQUIRES_PUBLISHER
     ),
@@ -157,7 +160,7 @@ _CODE_BY_VALIDATION_MESSAGE_V2: Final = {
     "global liability total exceeds unsigned 128-bit bounds": (
         GlobalEconomicRefinementRejectCodeV2.LIABILITY_TOTAL_OVERFLOW
     ),
-    "global refinement liabilities exceed accounting backing": (
+    "global refinement liabilities exceed same-domain accounting backing": (
         GlobalEconomicRefinementRejectCodeV2.LIABILITIES_EXCEED_BACKING
     ),
     "global refinement open terminal obligation total overflows": (

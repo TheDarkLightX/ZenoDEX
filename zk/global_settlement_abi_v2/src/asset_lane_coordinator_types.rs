@@ -92,33 +92,9 @@ impl AssetLaneRejectCodeV2 {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Coordinator(code) => code.as_str(),
-            Self::Transfer(code) => asset_transfer_reject_code_str(code),
+            Self::Transfer(code) => code.as_str(),
             Self::ManagedLifecycle(code) => code.as_str(),
         }
-    }
-}
-
-const fn asset_transfer_reject_code_str(code: AssetTransferRejectCodeV2) -> &'static str {
-    match code {
-        AssetTransferRejectCodeV2::MISSING_OCCURRENCE => "MISSING_OCCURRENCE",
-        AssetTransferRejectCodeV2::OCCURRENCE_BINDING_MISMATCH => "OCCURRENCE_BINDING_MISMATCH",
-        AssetTransferRejectCodeV2::RELEASE_MISMATCH => "RELEASE_MISMATCH",
-        AssetTransferRejectCodeV2::UNKNOWN_COMMAND => "UNKNOWN_COMMAND",
-        AssetTransferRejectCodeV2::OCCURRENCE_COMMAND_MISMATCH => "OCCURRENCE_COMMAND_MISMATCH",
-        AssetTransferRejectCodeV2::UNKNOWN_ASSET => "UNKNOWN_ASSET",
-        AssetTransferRejectCodeV2::DISABLED_ASSET => "DISABLED_ASSET",
-        AssetTransferRejectCodeV2::UNREGISTERED_ASSET => "UNREGISTERED_ASSET",
-        AssetTransferRejectCodeV2::ASSET_ORIGIN_MISMATCH => "ASSET_ORIGIN_MISMATCH",
-        AssetTransferRejectCodeV2::NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED => {
-            "NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED"
-        }
-        AssetTransferRejectCodeV2::UNAUTHORIZED_SUBJECT => "UNAUTHORIZED_SUBJECT",
-        AssetTransferRejectCodeV2::SELF_TRANSFER => "SELF_TRANSFER",
-        AssetTransferRejectCodeV2::ZERO_AMOUNT => "ZERO_AMOUNT",
-        AssetTransferRejectCodeV2::FEE_LIMIT_EXCEEDED => "FEE_LIMIT_EXCEEDED",
-        AssetTransferRejectCodeV2::EFFECT_DELTA_OVERFLOW => "EFFECT_DELTA_OVERFLOW",
-        AssetTransferRejectCodeV2::INSUFFICIENT_BALANCE => "INSUFFICIENT_BALANCE",
-        AssetTransferRejectCodeV2::BALANCE_OVERFLOW => "BALANCE_OVERFLOW",
     }
 }
 

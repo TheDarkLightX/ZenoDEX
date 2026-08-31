@@ -7,8 +7,8 @@ use zenodex_global_settlement_abi_v2::{
     AssetSupplyV2, EconomicAmountV2, EconomicCommandOccurrenceV2, EconomicEffectKindV2,
     EconomicEffectRowV2, ExternalOutboxEnqueueV2, FeeConservationRowV2, GlobalEconomicEffectPlanV2,
     GlobalEconomicStateEffectRefinementCandidateV2, GlobalEconomicStateV2,
-    GlobalOracleOccurrencePlanV2, GlobalTerminalObligationPlanV2, RootV2, ValidateCanonicalV2,
-    FEE_RESIDUE_CONTROL_DOMAIN_V2, FEE_RESIDUE_PRINCIPAL_V2,
+    GlobalOracleOccurrencePlanV2, GlobalTerminalObligationPlanV2, LaneIdV2, LaneWriteV2, RootV2,
+    ValidateCanonicalV2, ALL_LANE_IDS_V2, FEE_RESIDUE_CONTROL_DOMAIN_V2, FEE_RESIDUE_PRINCIPAL_V2,
 };
 
 const GOLDEN: &str =
@@ -133,6 +133,109 @@ fn exact_global_refinement_accepts_only_the_complete_candidate() {
         disabled_error.contains("global refinement disabled lane write"),
         "{disabled_error}"
     );
+}
+
+#[test]
+fn liabilities_require_same_asset_and_accounting_domain_backing() {
+    let coherent = scenario();
+    assert!(refine_global_economic_state_effects_v2(&coherent.candidate()).is_ok());
+
+    let mut cross_domain = scenario();
+    for row in &mut cross_domain.pre_state.custody {
+        row.custody_domain = "unrelated-custody".to_owned();
+    }
+    for row in &mut cross_domain.post_state.custody {
+        row.custody_domain = "unrelated-custody".to_owned();
+    }
+    assert!(cross_domain.pre_state.validate().is_ok());
+    assert!(cross_domain.post_state.validate().is_ok());
+    let error = refine_global_economic_state_effects_v2(&cross_domain.candidate())
+        .expect_err("cross-domain custody must not back a liability")
+        .to_string();
+    assert!(
+        error.contains("global refinement liabilities exceed same-domain accounting backing"),
+        "{error}"
+    );
+}
+
+#[test]
+fn liability_total_overflow_across_domains_fails_before_backing() {
+    let mut overflow = scenario();
+    overflow.pre_state.liabilities.push(EconomicAmountV2 {
+        owner: "zz-overflow".to_owned(),
+        asset: "USD".to_owned(),
+        custody_domain: "other-claims".to_owned(),
+        amount_atoms: u128::MAX,
+    });
+    overflow.post_state.liabilities.push(EconomicAmountV2 {
+        owner: "zz-overflow".to_owned(),
+        asset: "USD".to_owned(),
+        custody_domain: "other-claims".to_owned(),
+        amount_atoms: u128::MAX,
+    });
+    assert!(overflow.pre_state.validate().is_ok());
+    assert!(overflow.post_state.validate().is_ok());
+    let error = refine_global_economic_state_effects_v2(&overflow.candidate())
+        .expect_err("cross-domain liability aggregate overflow must fail")
+        .to_string();
+    assert!(error.contains("global liability"), "{error}");
+}
+
+#[test]
+fn common_global_relation_reconciles_each_declared_lane() {
+    for (index, lane) in ALL_LANE_IDS_V2.iter().copied().enumerate() {
+        let mut candidate = scenario();
+        let lane_index = candidate
+            .pre_state
+            .lane_roots
+            .iter()
+            .position(|row| row.lane_id == lane)
+            .expect("declared lane");
+        if lane == LaneIdV2::EXTERNAL_CUSTODY {
+            candidate.pre_state.lane_roots[lane_index].enabled = true;
+            candidate.post_state.lane_roots[lane_index].enabled = true;
+        }
+        let pre_root = candidate.pre_state.lane_roots[lane_index]
+            .state_root
+            .clone();
+        if candidate.post_state.lane_roots[lane_index].state_root == pre_root {
+            let post_root = RootV2::parse(
+                format!("0x{:064x}", 1_200 + index),
+                "all-lane post root",
+                false,
+            )
+            .expect("root");
+            candidate.post_state.lane_roots[lane_index].state_root = post_root.clone();
+            candidate.effect_plan.lane_writes.push(LaneWriteV2 {
+                lane_id: lane,
+                pre_root,
+                post_root,
+            });
+            candidate
+                .effect_plan
+                .lane_writes
+                .sort_by_key(|row| row.lane_id);
+        }
+        candidate.occurrences[0].pre_state_root = candidate
+            .pre_state
+            .state_root()
+            .expect("all-lane pre-state root");
+        let occurrence_id = candidate.occurrences[0]
+            .occurrence_id()
+            .expect("all-lane occurrence id");
+        candidate.effect_plan.occurrence_consumptions = vec![occurrence_id.clone()];
+        candidate.post_state.replay_state[0].occurrence_id = occurrence_id;
+        assert!(
+            candidate.effect_plan.validate().is_ok(),
+            "{}",
+            lane.as_str()
+        );
+        assert!(
+            refine_global_economic_state_effects_v2(&candidate.candidate()).is_ok(),
+            "{}",
+            lane.as_str()
+        );
+    }
 }
 
 #[test]

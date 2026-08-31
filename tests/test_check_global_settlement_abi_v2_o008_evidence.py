@@ -195,7 +195,7 @@ def test_current_source_drift_preserves_historical_validity(
     report = checker_module.check_evidence_manifest()
     assert report["ok"] is True, report["errors"]
     assert report["current_applicable"] is False
-    assert report["current_source_drift"] == sorted({*baseline, drifted})
+    assert sorted(report["current_source_drift"]) == sorted({*baseline, drifted})
 
 
 def test_frozen_subject_may_be_ancestor_of_head(

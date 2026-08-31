@@ -11,11 +11,15 @@ use crate::asset_transfer_types::{
     ASSET_ATOM_DECIMALS_V2,
 };
 use crate::canonical::{
-    hash_economic_command_body_v2, hash_global_v2, validate_schema_v2, validate_token_v2,
-    AbiErrorV2, AbiResultV2, RootV2, ValidateCanonicalV2,
+    canonical_bytes_v2, hash_economic_command_body_v2, hash_global_v2, validate_schema_v2,
+    validate_token_v2, AbiErrorV2, AbiResultV2, RootV2, ValidateCanonicalV2,
 };
 use crate::effects::{GlobalEconomicEffectPlanV2, LaneIdV2, LaneWriteV2};
 use crate::proof::{EconomicCommandOccurrenceV2, LaneModuleTransitionJournalV2};
+use crate::resource_limits::{
+    validate_asset_state_asset_count_v2, validate_asset_state_balance_row_count_v2,
+    validate_rootable_asset_state_canonical_bytes_v2,
+};
 use crate::state::{AssetSupplyV2, EconomicAmountV2};
 
 pub const MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V2: &str =
@@ -186,6 +190,9 @@ pub struct ManagedAssetLifecycleStateV2 {
 
 impl ManagedAssetLifecycleStateV2 {
     pub fn validate(&self) -> AbiResultV2<()> {
+        validate_asset_state_asset_count_v2(self.policies.len(), "managed asset policies")?;
+        validate_asset_state_asset_count_v2(self.supplies.len(), "managed asset supplies")?;
+        validate_asset_state_balance_row_count_v2(self.balances.len(), "managed asset balances")?;
         validate_schema_v2(
             &self.schema,
             MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V2,
@@ -217,7 +224,11 @@ impl ManagedAssetLifecycleStateV2 {
         for supply in &self.supplies {
             supply.validate()?;
         }
-        self.validate_balances()
+        self.validate_balances()?;
+        validate_rootable_asset_state_canonical_bytes_v2(
+            canonical_bytes_v2(self)?.len(),
+            "managed asset lifecycle state canonical encoding bytes",
+        )
     }
 
     fn validate_balances(&self) -> AbiResultV2<()> {

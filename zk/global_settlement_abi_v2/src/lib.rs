@@ -20,8 +20,10 @@ pub mod managed_asset_lifecycle;
 pub mod managed_asset_lifecycle_types;
 pub mod outcome;
 pub mod proof;
+pub mod resource_limits;
 mod signed_atoms;
 pub mod state;
+pub mod wire_records;
 
 pub use asset_lane_coordinator::transition_asset_lane_v2;
 pub use asset_lane_coordinator_types::*;
@@ -39,4 +41,6 @@ pub use managed_asset_lifecycle::transition_managed_asset_lifecycle_v2;
 pub use managed_asset_lifecycle_types::*;
 pub use outcome::*;
 pub use proof::*;
+pub use resource_limits::*;
 pub use state::*;
+pub use wire_records::*;

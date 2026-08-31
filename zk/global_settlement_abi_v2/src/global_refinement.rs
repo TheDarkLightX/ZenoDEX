@@ -11,6 +11,7 @@ use crate::global_refinement_lifecycle::{
 use crate::global_state::{GlobalEconomicStateV2, ReplayStateV2};
 use crate::lifecycle::{GlobalOracleOccurrencePlanV2, GlobalTerminalObligationPlanV2};
 use crate::proof::EconomicCommandOccurrenceV2;
+use crate::resource_limits::validate_consumed_occurrence_count_v2;
 
 pub const GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_SCHEMA_V2: &str =
     "zenodex/global-economic-state-effect-refinement/v2";
@@ -35,6 +36,17 @@ struct StateDeltaContentV2<'a> {
     replay_insertions: &'a [ReplayStateV2],
     terminal_plan_root: &'a RootV2,
     oracle_plan_root: &'a RootV2,
+}
+
+#[derive(Serialize)]
+struct RefinementContentV2<'a> {
+    schema: &'static str,
+    pre_state_root: &'a RootV2,
+    post_state_root: &'a RootV2,
+    effect_plan_root: &'a RootV2,
+    terminal_plan_root: &'a RootV2,
+    oracle_plan_root: &'a RootV2,
+    state_delta_root: &'a RootV2,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -77,26 +89,73 @@ impl GlobalEconomicStateEffectRefinementV2 {
     }
 
     pub fn refinement_root(&self) -> AbiResultV2<RootV2> {
-        #[derive(Serialize)]
-        struct RefinementContentV2<'a> {
-            schema: &'static str,
-            pre_state_root: &'a RootV2,
-            post_state_root: &'a RootV2,
-            effect_plan_root: &'a RootV2,
-            terminal_plan_root: &'a RootV2,
-            oracle_plan_root: &'a RootV2,
-            state_delta_root: &'a RootV2,
+        Self::refinement_root_for_fields(
+            &self.pre_state_root,
+            &self.post_state_root,
+            &self.effect_plan_root,
+            &self.terminal_plan_root,
+            &self.oracle_plan_root,
+            &self.state_delta_root,
+        )
+    }
+
+    pub(crate) fn validate_wire_observables(
+        pre_state_root: &RootV2,
+        post_state_root: &RootV2,
+        effect_plan_root: &RootV2,
+        terminal_plan_root: &RootV2,
+        oracle_plan_root: &RootV2,
+        state_delta_root: &RootV2,
+        production_authority: &str,
+        refinement_root: &RootV2,
+    ) -> AbiResultV2<()> {
+        pre_state_root.validate("global refinement wire pre-state root", false)?;
+        post_state_root.validate("global refinement wire post-state root", false)?;
+        effect_plan_root.validate("global refinement wire effect-plan root", false)?;
+        terminal_plan_root.validate("global refinement wire terminal-plan root", true)?;
+        oracle_plan_root.validate("global refinement wire Oracle-plan root", true)?;
+        state_delta_root.validate("global refinement wire state-delta root", false)?;
+        refinement_root.validate("global refinement wire refinement root", false)?;
+        if production_authority != GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_AUTHORITY_V2 {
+            return Err(AbiErrorV2::InvalidBinding(
+                "global refinement wire production authority",
+            ));
         }
+        if refinement_root
+            != &Self::refinement_root_for_fields(
+                pre_state_root,
+                post_state_root,
+                effect_plan_root,
+                terminal_plan_root,
+                oracle_plan_root,
+                state_delta_root,
+            )?
+        {
+            return Err(AbiErrorV2::InvalidBinding(
+                "global refinement wire refinement root",
+            ));
+        }
+        Ok(())
+    }
+
+    fn refinement_root_for_fields(
+        pre_state_root: &RootV2,
+        post_state_root: &RootV2,
+        effect_plan_root: &RootV2,
+        terminal_plan_root: &RootV2,
+        oracle_plan_root: &RootV2,
+        state_delta_root: &RootV2,
+    ) -> AbiResultV2<RootV2> {
         hash_global_v2(
             "global-economic-state-effect-refinement-v2",
             &RefinementContentV2 {
                 schema: GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_SCHEMA_V2,
-                pre_state_root: &self.pre_state_root,
-                post_state_root: &self.post_state_root,
-                effect_plan_root: &self.effect_plan_root,
-                terminal_plan_root: &self.terminal_plan_root,
-                oracle_plan_root: &self.oracle_plan_root,
-                state_delta_root: &self.state_delta_root,
+                pre_state_root,
+                post_state_root,
+                effect_plan_root,
+                terminal_plan_root,
+                oracle_plan_root,
+                state_delta_root,
             },
         )
     }
@@ -289,6 +348,10 @@ fn require_replay_refinement_v2(
 fn validate_refinement_candidate_v2(
     candidate: &GlobalEconomicStateEffectRefinementCandidateV2<'_>,
 ) -> AbiResultV2<Vec<ReplayStateV2>> {
+    validate_consumed_occurrence_count_v2(
+        candidate.consumed_occurrences.len(),
+        "global refinement consumed occurrences",
+    )?;
     candidate.pre_state.validate()?;
     candidate.post_state.validate()?;
     candidate.effect_plan.validate()?;

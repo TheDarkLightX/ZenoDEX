@@ -15,6 +15,13 @@ from .global_economic_proof_v2 import (
     EconomicCommandOccurrenceV2,
     _snapshot_occurrence_v2,
 )
+from .global_settlement_resource_limits_v2 import (
+    MAX_ASSETS_PER_ASSET_STATE_V2,
+    MAX_BALANCE_ROWS_PER_ASSET_STATE_V2,
+    MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2,
+    require_raw_tuple_ceiling_v2,
+    require_rootable_asset_state_bytes_v2,
+)
 from .global_settlement_types_v2 import (
     AssetSupplyV2,
     EconomicAmountV2,
@@ -24,10 +31,18 @@ from .global_settlement_types_v2 import (
     _require_root_v2,
     _require_token_v2,
     _snapshot_dataclass_tuple_v2,
+    canonical_global_bytes_v2,
     hash_global_v2,
 )
 
 MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V2: Final = "zenodex/managed-asset-lifecycle-module/v2"
+MAX_MANAGED_ASSET_LIFECYCLE_ASSETS_V2: Final = MAX_ASSETS_PER_ASSET_STATE_V2
+MAX_MANAGED_ASSET_LIFECYCLE_BALANCE_ROWS_V2: Final = (
+    MAX_BALANCE_ROWS_PER_ASSET_STATE_V2
+)
+MAX_MANAGED_ASSET_LIFECYCLE_STATE_CANONICAL_BYTES_V2: Final = (
+    MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2
+)
 _UNSET_OWNED_VALUE_V2: Final = object()
 
 ManagedAssetClassV2: TypeAlias = AssetClassV2
@@ -120,8 +135,21 @@ class ManagedAssetLifecycleStateV2:
         selected_supplies = supplies if supplies is not None else _supplies
         if selected_policies is None or selected_balances is None or selected_supplies is None:
             raise TypeError("managed asset state requires all owned tables")
-        if type(selected_policies) is not tuple:
-            raise TypeError("managed asset policies must be an exact tuple")
+        require_raw_tuple_ceiling_v2(
+            selected_policies,
+            name="managed asset policies",
+            ceiling=MAX_MANAGED_ASSET_LIFECYCLE_ASSETS_V2,
+        )
+        require_raw_tuple_ceiling_v2(
+            selected_balances,
+            name="managed asset balances",
+            ceiling=MAX_MANAGED_ASSET_LIFECYCLE_BALANCE_ROWS_V2,
+        )
+        require_raw_tuple_ceiling_v2(
+            selected_supplies,
+            name="managed asset supplies",
+            ceiling=MAX_MANAGED_ASSET_LIFECYCLE_ASSETS_V2,
+        )
         object.__setattr__(self, "module_release_id", module_release_id)
         _require_root_v2(self.module_release_id, name="managed asset module release id")
         object.__setattr__(
@@ -178,6 +206,10 @@ class ManagedAssetLifecycleStateV2:
         for supply in self._supplies:
             if totals[supply.asset] > supply.amount_atoms:
                 raise ValueError("managed asset balances exceed supply")
+        require_rootable_asset_state_bytes_v2(
+            canonical_global_bytes_v2(self.to_canonical()),
+            name="managed asset state",
+        )
 
     @property
     def policies(self) -> tuple[ManagedAssetLifecyclePolicyV2, ...]:
@@ -313,6 +345,9 @@ def _snapshot_context_v2(
 __all__ = [
     "ACCOUNT_CUSTODY_DOMAIN_V2",
     "MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V2",
+    "MAX_MANAGED_ASSET_LIFECYCLE_ASSETS_V2",
+    "MAX_MANAGED_ASSET_LIFECYCLE_BALANCE_ROWS_V2",
+    "MAX_MANAGED_ASSET_LIFECYCLE_STATE_CANONICAL_BYTES_V2",
     "ManagedAssetClassV2",
     "ManagedAssetLifecyclePolicyV2",
     "ManagedAssetLifecycleStateV2",
