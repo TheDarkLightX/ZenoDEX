@@ -193,7 +193,7 @@ def test_attached_quote_receipt_mismatch_rejects_before_nonce_and_settlement_com
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
     ops["2"][0]["amount_in"] = int(ops["2"][0]["amount_in"]) + 1
 
@@ -255,7 +255,7 @@ def test_missing_attached_quote_receipt_rejects_before_nonce_and_settlement_comp
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent)])
 
     balances = BalanceTable()

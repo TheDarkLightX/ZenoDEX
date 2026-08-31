@@ -78,6 +78,16 @@ def _make_supported_batch() -> tuple[list[Intent], Settlement, dict[str, object]
     return intents, settlement, pools, balances
 
 
+def _replace_first_intent_field(
+    intents: list[Intent],
+    _settlement: Settlement,
+    *,
+    key: str,
+    value: object,
+) -> None:
+    intents[0] = intents[0].with_field(key, value)
+
+
 def test_batch_auction_witness_replays_supported_exact_in_batch() -> None:
     intents, settlement, _pools, _balances = _make_supported_batch()
 
@@ -187,11 +197,16 @@ def test_batch_auction_witness_skips_mixed_direction_or_special_fill_reason() ->
     [
         lambda intents, settlement: intents.clear(),
         lambda intents, settlement: settlement.included_intents.pop(),
-        lambda intents, settlement: intents[0].fields.__setitem__("pool_id", ""),
-        lambda intents, settlement: intents[0].fields.__setitem__("asset_in", ""),
-        lambda intents, settlement: intents[0].fields.__setitem__("asset_out", ASSET0),
-        lambda intents, settlement: intents[0].fields.__setitem__("amount_in", 0),
-        lambda intents, settlement: intents[0].fields.__setitem__("min_amount_out", -1),
+        lambda intents, settlement: _replace_first_intent_field(intents, settlement, key="pool_id", value=""),
+        lambda intents, settlement: _replace_first_intent_field(intents, settlement, key="asset_in", value=""),
+        lambda intents, settlement: _replace_first_intent_field(intents, settlement, key="asset_out", value=ASSET0),
+        lambda intents, settlement: _replace_first_intent_field(intents, settlement, key="amount_in", value=0),
+        lambda intents, settlement: _replace_first_intent_field(
+            intents,
+            settlement,
+            key="min_amount_out",
+            value=-1,
+        ),
         lambda intents, settlement: settlement.included_intents.__setitem__(0, (intents[0].intent_id, FillAction.REJECT)),
         lambda intents, settlement: settlement.fills.pop(),
         lambda intents, settlement: setattr(settlement.fills[0], "action", FillAction.REJECT),
@@ -211,7 +226,10 @@ def test_batch_auction_witness_skips_batches_outside_notional_domain() -> None:
     assert replay_supported_batch_auction_exact_in_witness(intents=intents, settlement=settlement) is None
 
     intents, settlement, _pools, _balances = _make_supported_batch()
-    intents[0].fields["min_amount_out"] = int(intents[0].get_field("amount_in")) + int(intents[1].get_field("amount_in")) + 1
+    intents[0] = intents[0].with_field(
+        "min_amount_out",
+        int(intents[0].get_field("amount_in")) + int(intents[1].get_field("amount_in")) + 1,
+    )
     assert replay_supported_batch_auction_exact_in_witness(intents=intents, settlement=settlement) is None
 
 

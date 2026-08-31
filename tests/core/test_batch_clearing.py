@@ -2059,12 +2059,13 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     weird_intent = Intent(
         module="TauSwap",
         version="0.1",
-        kind="MYSTERY_KIND",
+        kind=IntentKind.ADD_LIQUIDITY,
         intent_id=_iid(1016),
         sender_pubkey=pk,
         deadline=9999999999,
         fields={"pool_id": pool_id},
     )
+    object.__setattr__(weird_intent, "kind", "MYSTERY_KIND")
     try:
         _apply_filled_intent_to_locals(
             intent=weird_intent,
@@ -2131,15 +2132,18 @@ def test_process_swap_intent_reject_matrix_and_helper_paths(monkeypatch) -> None
     reserves = (pool.reserve0, pool.reserve1)
 
     def _swap_intent(intent_id: str, kind: object, fields: dict[str, object]) -> Intent:
-        return Intent(
+        intent = Intent(
             module="TauSwap",
             version="0.1",
-            kind=kind,
+            kind=kind if type(kind) is IntentKind else IntentKind.SWAP_EXACT_IN,
             intent_id=intent_id,
             sender_pubkey=pk,
             deadline=9999999999,
             fields=fields,
         )
+        if type(kind) is not IntentKind:
+            object.__setattr__(intent, "kind", kind)
+        return intent
 
     assert _process_swap_intent(
         _swap_intent(_iid(1101), IntentKind.SWAP_EXACT_IN, {"asset_in": 7, "asset_out": asset1}),
@@ -2267,15 +2271,18 @@ def test_process_liquidity_intent_reject_matrix_and_helper_paths(monkeypatch) ->
     lp_balances.set(pk, pool_id, lp_minted)
 
     def _liq_intent(intent_id: str, kind: object, fields: dict[str, object]) -> Intent:
-        return Intent(
+        intent = Intent(
             module="TauSwap",
             version="0.1",
-            kind=kind,
+            kind=kind if type(kind) is IntentKind else IntentKind.ADD_LIQUIDITY,
             intent_id=intent_id,
             sender_pubkey=pk,
             deadline=9999999999,
             fields={"pool_id": pool_id, **fields},
         )
+        if type(kind) is not IntentKind:
+            object.__setattr__(intent, "kind", kind)
+        return intent
 
     assert _process_liquidity_intent(
         _liq_intent(_iid(1112), IntentKind.ADD_LIQUIDITY, {"amount0_desired": 100}),
@@ -3436,12 +3443,13 @@ def test_get_limit_price_exact_out_zero_and_unknown_kind() -> None:
     unknown = Intent(
         module="TauSwap",
         version="0.1",
-        kind="MYSTERY_KIND",
+        kind=IntentKind.ADD_LIQUIDITY,
         intent_id=_iid(1363),
         sender_pubkey="0x" + "11" * 48,
         deadline=9999999999,
         fields={},
     )
+    object.__setattr__(unknown, "kind", "MYSTERY_KIND")
     assert _get_limit_price(unknown) == 0
 
 
@@ -3508,12 +3516,13 @@ def test_order_swaps_optimal_ab_bounded_skips_unknown_kind_in_objective_loop() -
     unknown = Intent(
         module="TauSwap",
         version="0.1",
-        kind="MYSTERY_KIND",
+        kind=IntentKind.ADD_LIQUIDITY,
         intent_id=_iid(1369),
         sender_pubkey=pk,
         deadline=9999999999,
         fields={"asset_in": asset0, "asset_out": asset1},
     )
+    object.__setattr__(unknown, "kind", "MYSTERY_KIND")
     exact_out = Intent(
         module="TauSwap",
         version="0.1",

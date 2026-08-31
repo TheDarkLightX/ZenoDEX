@@ -937,7 +937,7 @@ def _validate_protected_swap_oracle_authorizations(
     require_authorization: bool,
 ) -> Optional[str]:
     for env in signed_intents:
-        auth = env.intent.get_field("oracle_authorization")
+        auth = env.intent.get_wire_field("oracle_authorization")
         if auth is None and not require_authorization:
             continue
         if env.intent.kind.value not in {"SWAP_EXACT_IN", "SWAP_EXACT_OUT"}:

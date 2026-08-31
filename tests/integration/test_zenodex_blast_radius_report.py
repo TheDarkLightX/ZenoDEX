@@ -245,7 +245,7 @@ def test_build_blast_radius_report_marks_attached_quote_receipt_witness_as_full(
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     operations = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     report = build_blast_radius_report(
@@ -316,7 +316,7 @@ def test_build_blast_radius_report_keeps_invalid_attached_quote_receipt_witness_
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     operations = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=bad_receipt)])
 
     report = build_blast_radius_report(
@@ -509,9 +509,9 @@ def test_build_blast_radius_report_flags_duplicate_split_quote_receipt_leg() -> 
         sender_pubkey=intents[0].sender_pubkey,
         deadline=intents[0].deadline,
         salt=intents[0].salt,
-        fields=dict(intents[0].fields or {}),
+        fields=intents[0].to_wire_fields(),
     )
-    duplicate_intent.set_field("nonce", 99)
+    duplicate_intent = duplicate_intent.with_field("nonce", 99)
     report = build_blast_radius_report(
         operations=create_signed_intent_operation(
             [

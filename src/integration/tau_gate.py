@@ -226,7 +226,7 @@ def validate_settlement_swaps(
                 amount1 = intent.get_field("amount1")
                 created_at = intent.get_field("created_at", 0)
                 curve_tag = intent.get_field("curve_tag", None)
-                curve_params = intent.get_field("curve_params", None)
+                curve_params = intent.get_wire_field("curve_params", None)
                 if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
                     return False, f"CREATE_POOL missing params for intent {intent.intent_id}"
                 pool_id, pool_state, _lp_minted = create_pool(

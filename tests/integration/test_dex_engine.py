@@ -635,7 +635,7 @@ def test_engine_accepts_matching_attached_quote_receipt_witness() -> None:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     balances = BalanceTable()
@@ -736,7 +736,7 @@ def test_engine_rejects_attached_quote_receipt_hash_mismatch() -> None:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
     ops["2"][0]["quote_receipt_hash"] = "0xdeadbeef"
 
@@ -785,8 +785,9 @@ def test_engine_rejects_quote_bound_intent_without_leg_index() -> None:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
-    intent.fields.pop("quote_receipt_leg_index", None)
+    intent = intent.with_field("nonce", 1).without_field(
+        "quote_receipt_leg_index"
+    )
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     balances = BalanceTable()
@@ -833,7 +834,7 @@ def test_engine_rejects_quote_bound_intent_without_attached_receipt_witness() ->
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent)])
 
     balances = BalanceTable()
@@ -943,7 +944,7 @@ def test_engine_rejects_bool_quote_receipt_leg_index() -> None:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
     ops["2"][0]["quote_receipt_leg_index"] = True
 
@@ -1119,8 +1120,8 @@ def test_engine_scopes_quote_receipt_leg_indices_per_receipt_hash() -> None:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent_a.set_field("nonce", 1)
-    intent_b.set_field("nonce", 2)
+    intent_a = intent_a.with_field("nonce", 1)
+    intent_b = intent_b.with_field("nonce", 2)
     ops = create_signed_intent_operation(
         [
             SignedIntentEnvelope(intent=intent_a, quote_receipt=receipt_a),

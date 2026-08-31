@@ -425,8 +425,9 @@ def test_validate_operations_requires_explicit_opt_in_for_snapshot_bound_quote_b
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.fields.pop("quote_receipt_hash", None)
-    intent.fields.pop("quote_receipt_leg_index", None)
+    intent = intent.without_field("quote_receipt_hash").without_field(
+        "quote_receipt_leg_index"
+    )
 
     settlement = compute_settlement(
         intents=[intent],

@@ -12,8 +12,8 @@ from tools.dex_engine_quote_receipt_sequence_grammar_fuzz import (
     ASSET_C,
     ASSET_D,
     DIRECT_POOLS,
-    SPLIT_POOLS,
     SENDER,
+    SPLIT_POOLS,
     _direct_state,
     _make_direct_ops,
     _make_split_ops,
@@ -22,7 +22,6 @@ from tools.dex_engine_quote_receipt_sequence_grammar_fuzz import (
     explore_target,
     minimize_case,
 )
-
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
@@ -200,9 +199,9 @@ def test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_c
     witness = minimize_case("direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail")
     assert "invalid quote receipt:" in witness.outcome_label
     assert "verifier_error='pool_snapshot_mismatch'" in witness.outcome_label
-    assert witness.path_id == "0311706736ae49d4"
-    assert witness.original_size == 6819
-    assert witness.minimized_size == 4556
+    assert witness.path_id == "b2a6ed9c365b8a4e"
+    assert witness.original_size == 7149
+    assert witness.minimized_size == 4776
     assert witness.original_size > witness.minimized_size
     assert isinstance(witness.payload, dict)
     assert witness.payload["initial"] == "direct"
@@ -231,9 +230,9 @@ def test_dex_engine_quote_receipt_sequence_minimizer_cli_emits_expected_schema()
     assert witness["target"] == "direct_quote_receipt_sequence"
     assert witness["derivation"] == "DirectSeq->ValidThenStaleSamePoolWithDeadTail"
     assert "invalid quote receipt:" in witness["outcome_label"]
-    assert witness["path_id"] == "0311706736ae49d4"
-    assert witness["original_size"] == 6819
-    assert witness["minimized_size"] == 4556
+    assert witness["path_id"] == "b2a6ed9c365b8a4e"
+    assert witness["original_size"] == 7149
+    assert witness["minimized_size"] == 4776
 
 
 def test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg_projection() -> None:
@@ -241,11 +240,25 @@ def test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg
     assert "intent does not match quote receipt leg:" in witness.outcome_label
     assert "leg_index=1" in witness.outcome_label
     assert "pool_id='p1'" in witness.outcome_label
-    assert witness.path_id == "6a6a33fcc4806851"
-    assert witness.original_size == 10523
-    assert witness.minimized_size == 10523
+    assert witness.path_id == "57c72ad2ed6ad3ca"
+    assert witness.original_size == 10853
+    assert witness.minimized_size == 10853
     assert isinstance(witness.payload, dict)
     assert witness.payload["initial"] == "split"
     steps = witness.payload["steps"]
     assert isinstance(steps, list)
     assert len(steps) == 2
+
+
+def test_dex_engine_quote_receipt_sequence_path_ids_do_not_use_interpreter_line_tracing(monkeypatch) -> None:
+    def reject_interpreter_trace(*_args: object) -> None:
+        raise AssertionError("semantic path IDs must not use interpreter line tracing")
+
+    monkeypatch.setattr(sys, "settrace", reject_interpreter_trace)
+    direct = minimize_case("direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail")
+    split = minimize_case("split_quote_receipt_sequence", "SplitSeq->WarmupThenSplitSwappedLegIndices")
+
+    assert direct.path_id == "b2a6ed9c365b8a4e"
+    assert direct.path_length == 3
+    assert split.path_id == "57c72ad2ed6ad3ca"
+    assert split.path_length == 3
