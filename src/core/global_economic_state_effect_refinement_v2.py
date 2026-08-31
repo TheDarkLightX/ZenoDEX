@@ -9,7 +9,7 @@ It verifies no proof and grants no publication or settlement authority.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Final
+from typing import Final, cast
 
 from .global_economic_proof_v2 import (
     EconomicCommandOccurrenceV2,
@@ -41,45 +41,101 @@ GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_AUTHORITY_V2: Final = "NONE"
 _REFINEMENT_TOKEN_V2 = object()
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class GlobalEconomicStateEffectRefinementCandidateV2:
-    pre_state: GlobalEconomicStateV2
-    post_state: GlobalEconomicStateV2
-    effect_plan: GlobalEconomicEffectPlanV2
-    consumed_occurrences: tuple[EconomicCommandOccurrenceV2, ...]
-    terminal_plan: GlobalTerminalObligationPlanV2
-    oracle_plan: GlobalOracleOccurrencePlanV2
+    _pre_state: GlobalEconomicStateV2
+    _post_state: GlobalEconomicStateV2
+    _effect_plan: GlobalEconomicEffectPlanV2
+    _consumed_occurrences: tuple[EconomicCommandOccurrenceV2, ...]
+    _terminal_plan: GlobalTerminalObligationPlanV2
+    _oracle_plan: GlobalOracleOccurrencePlanV2
 
-    def __post_init__(self) -> None:
+    def __init__(
+        self,
+        pre_state: GlobalEconomicStateV2 | None = None,
+        post_state: GlobalEconomicStateV2 | None = None,
+        effect_plan: GlobalEconomicEffectPlanV2 | None = None,
+        consumed_occurrences: tuple[EconomicCommandOccurrenceV2, ...] | None = None,
+        terminal_plan: GlobalTerminalObligationPlanV2 | None = None,
+        oracle_plan: GlobalOracleOccurrencePlanV2 | None = None,
+        *,
+        _pre_state: GlobalEconomicStateV2 | None = None,
+        _post_state: GlobalEconomicStateV2 | None = None,
+        _effect_plan: GlobalEconomicEffectPlanV2 | None = None,
+        _consumed_occurrences: tuple[EconomicCommandOccurrenceV2, ...] | None = None,
+        _terminal_plan: GlobalTerminalObligationPlanV2 | None = None,
+        _oracle_plan: GlobalOracleOccurrencePlanV2 | None = None,
+    ) -> None:
+        selected_pre = pre_state if pre_state is not None else _pre_state
+        selected_post = post_state if post_state is not None else _post_state
+        selected_effects = effect_plan if effect_plan is not None else _effect_plan
+        selected_occurrences = (
+            consumed_occurrences
+            if consumed_occurrences is not None
+            else _consumed_occurrences
+        )
+        selected_terminal = terminal_plan if terminal_plan is not None else _terminal_plan
+        selected_oracle = oracle_plan if oracle_plan is not None else _oracle_plan
+        if type(selected_pre) is not GlobalEconomicStateV2:
+            raise TypeError("global refinement pre-state must be exact")
+        if type(selected_post) is not GlobalEconomicStateV2:
+            raise TypeError("global refinement post-state must be exact")
         object.__setattr__(
             self,
-            "pre_state",
-            snapshot_global_economic_state_v2(self.pre_state),
+            "_pre_state",
+            snapshot_global_economic_state_v2(selected_pre),
         )
         object.__setattr__(
             self,
-            "post_state",
-            snapshot_global_economic_state_v2(self.post_state),
+            "_post_state",
+            snapshot_global_economic_state_v2(selected_post),
         )
-        if type(self.effect_plan) is not GlobalEconomicEffectPlanV2:
+        if type(selected_effects) is not GlobalEconomicEffectPlanV2:
             raise TypeError("global refinement effect plan must be exact")
-        object.__setattr__(self, "effect_plan", replace(self.effect_plan))
-        if type(self.consumed_occurrences) is not tuple or any(
+        owned_effects = cast(GlobalEconomicEffectPlanV2, selected_effects)
+        object.__setattr__(self, "_effect_plan", replace(owned_effects))
+        if type(selected_occurrences) is not tuple or any(
             type(item) is not EconomicCommandOccurrenceV2
-            for item in self.consumed_occurrences
+            for item in selected_occurrences
         ):
             raise TypeError("global refinement occurrences must be an exact typed tuple")
         object.__setattr__(
             self,
-            "consumed_occurrences",
-            tuple(_snapshot_occurrence_v2(item) for item in self.consumed_occurrences),
+            "_consumed_occurrences",
+            tuple(_snapshot_occurrence_v2(item) for item in selected_occurrences),
         )
-        if type(self.terminal_plan) is not GlobalTerminalObligationPlanV2:
+        if type(selected_terminal) is not GlobalTerminalObligationPlanV2:
             raise TypeError("global refinement terminal plan must be exact")
-        if type(self.oracle_plan) is not GlobalOracleOccurrencePlanV2:
+        if type(selected_oracle) is not GlobalOracleOccurrencePlanV2:
             raise TypeError("global refinement Oracle plan must be exact")
-        object.__setattr__(self, "terminal_plan", replace(self.terminal_plan))
-        object.__setattr__(self, "oracle_plan", replace(self.oracle_plan))
+        owned_terminal = cast(GlobalTerminalObligationPlanV2, selected_terminal)
+        owned_oracle = cast(GlobalOracleOccurrencePlanV2, selected_oracle)
+        object.__setattr__(self, "_terminal_plan", replace(owned_terminal))
+        object.__setattr__(self, "_oracle_plan", replace(owned_oracle))
+
+    @property
+    def pre_state(self) -> GlobalEconomicStateV2:
+        return snapshot_global_economic_state_v2(self._pre_state)
+
+    @property
+    def post_state(self) -> GlobalEconomicStateV2:
+        return snapshot_global_economic_state_v2(self._post_state)
+
+    @property
+    def effect_plan(self) -> GlobalEconomicEffectPlanV2:
+        return replace(self._effect_plan)
+
+    @property
+    def consumed_occurrences(self) -> tuple[EconomicCommandOccurrenceV2, ...]:
+        return tuple(_snapshot_occurrence_v2(item) for item in self._consumed_occurrences)
+
+    @property
+    def terminal_plan(self) -> GlobalTerminalObligationPlanV2:
+        return replace(self._terminal_plan)
+
+    @property
+    def oracle_plan(self) -> GlobalOracleOccurrencePlanV2:
+        return replace(self._oracle_plan)
 
 
 @dataclass(frozen=True, slots=True)

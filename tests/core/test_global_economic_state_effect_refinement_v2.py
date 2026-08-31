@@ -217,6 +217,25 @@ def test_asset_transfer_refines_exact_global_state_and_effects() -> None:
     assert witness.production_authority == GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_AUTHORITY_V2
 
 
+def test_refinement_candidate_getters_do_not_expose_authoritative_aliases() -> None:
+    candidate = _asset_transfer_candidate()
+    pre_root = candidate.pre_state.state_root
+    effect_root = candidate.effect_plan.effect_plan_root
+    occurrence_id = candidate.consumed_occurrences[0].occurrence_id
+
+    borrowed_pre = candidate.pre_state
+    borrowed_effects = candidate.effect_plan
+    borrowed_occurrence = candidate.consumed_occurrences[0]
+    object.__setattr__(borrowed_pre, "profile_root", _root(280))
+    object.__setattr__(borrowed_effects, "lane_writes", ())
+    object.__setattr__(borrowed_occurrence, "nonce", 999)
+
+    assert candidate.pre_state.state_root == pre_root
+    assert candidate.effect_plan.effect_plan_root == effect_root
+    assert candidate.consumed_occurrences[0].occurrence_id == occurrence_id
+    assert replace(candidate) == candidate
+
+
 def test_zero_occurrence_static_state_has_one_exact_refinement() -> None:
     state = _global_state(lane_roots=_lane_roots())
     candidate = GlobalEconomicStateEffectRefinementCandidateV2(
