@@ -240,6 +240,8 @@ def _require_lane_refinement_v2(
         for lane in pre
         if pre[lane].state_root != post[lane].state_root
     }
+    if any(not pre[lane].enabled for lane in changed):
+        raise ValueError("global refinement disabled lane write")
     writes = {row.lane_id: row for row in effect_plan.lane_writes}
     if set(writes) != changed:
         raise ValueError("global refinement lane write coverage mismatch")
