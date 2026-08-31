@@ -721,6 +721,77 @@ fn profile() -> (
     )
 }
 
+#[test]
+fn profile_rejects_route_command_absent_from_selected_lane_release() {
+    let (mut profile, mut lanes, coordinators, _) = profile();
+    let asset_release = lanes
+        .releases
+        .iter_mut()
+        .find(|release| release.lane_id == LaneIdV1::ASSET_TRANSFER)
+        .expect("asset release must exist");
+    asset_release
+        .command_variants
+        .retain(|command| command != ASSET_TRANSFER_COMMAND_KIND_V1);
+    let release_content = json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "lane_id": asset_release.lane_id,
+        "state_schema_root": asset_release.state_schema_root,
+        "command_variants": asset_release.command_variants,
+        "terminal_command_variants": asset_release.terminal_command_variants,
+        "guest_image_id": asset_release.guest_image_id,
+        "specification_root": asset_release.specification_root,
+        "source_root": asset_release.source_root,
+        "toolchain_root": asset_release.toolchain_root,
+        "terminal_coverage_root": asset_release.terminal_coverage_root,
+        "migration_compatibility_root": asset_release.migration_compatibility_root,
+        "max_cycles": asset_release.max_cycles,
+        "max_journal_bytes": asset_release.max_journal_bytes,
+    });
+    asset_release.release_id =
+        hash_global_v1("global-lane-module-release-content-v1", &release_content).unwrap();
+    asset_release.validate().unwrap();
+
+    let release_id = asset_release.release_id.clone();
+    let routes = RouteRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        routes: [
+            ASSET_TRANSFER_COMMAND_KIND_V1,
+            MANAGED_ASSET_BURN_COMMAND_KIND_V1,
+            MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+        ]
+        .iter()
+        .enumerate()
+        .map(|(index, command)| route(command, index as u64, &release_id))
+        .collect(),
+    };
+
+    profile.lane_registry_root = lanes.registry_root().unwrap();
+    profile.route_registry_root = routes.registry_root().unwrap();
+    let profile_content = json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "authority_epoch": profile.authority_epoch,
+        "lane_registry_root": profile.lane_registry_root,
+        "lane_coordinator_registry_root": profile.lane_coordinator_registry_root,
+        "route_registry_root": profile.route_registry_root,
+        "proof_shape_root": profile.proof_shape_root,
+        "root_image_id": profile.root_image_id,
+        "verifier_registry_root": profile.verifier_registry_root,
+        "migration_registry_root": profile.migration_registry_root,
+        "policy_registry_root": profile.policy_registry_root,
+        "terminal_registry_root": profile.terminal_registry_root,
+    });
+    profile.profile_id =
+        hash_global_v1("global-economic-profile-content-v1", &profile_content).unwrap();
+    profile.validate().unwrap();
+
+    assert_eq!(
+        profile.validate_registries(&lanes, &coordinators, &routes),
+        Err(AbiErrorV1::InvalidBinding(
+            "route command absent from lane release"
+        ))
+    );
+}
+
 fn asset_profile_snapshot(
     lanes: &LaneRegistryV1,
     coordinators: &LaneCoordinatorRegistryV1,

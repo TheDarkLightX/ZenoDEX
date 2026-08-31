@@ -959,6 +959,11 @@ fn validate_profile_route_bindings_v1(
             if &release.release_id != release_id {
                 return Err(AbiErrorV1::InvalidBinding("route module release"));
             }
+            if !release.command_variants.contains(&route.command_kind) {
+                return Err(AbiErrorV1::InvalidBinding(
+                    "route command absent from lane release",
+                ));
+            }
             if route.status == ReleaseStatusV1::ACTIVE_NEW
                 && (release.status != ReleaseStatusV1::ACTIVE_NEW || !release.accepts_new_objects)
             {

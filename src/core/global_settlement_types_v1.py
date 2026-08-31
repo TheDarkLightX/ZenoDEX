@@ -1055,6 +1055,8 @@ class EconomicProfileSnapshotV1:
                 coordinator_release = self.lane_coordinator_registry.release_for(lane_id)
                 if lane_release.release_id != release_id:
                     raise ValueError("route module release does not match profile lane registry")
+                if route.command_kind not in lane_release.command_variants:
+                    raise ValueError("route command is absent from selected lane release")
                 if route.status is ReleaseStatusV1.ACTIVE_NEW and (
                     lane_release.status is not ReleaseStatusV1.ACTIVE_NEW
                     or not lane_release.accepts_new_objects
