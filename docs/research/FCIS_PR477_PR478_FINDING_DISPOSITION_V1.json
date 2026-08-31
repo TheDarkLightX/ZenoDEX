@@ -18,7 +18,9 @@
     "pr478_current_head": "6dbb9b36237d982515777caae04a296d0ebac040",
     "successor_base": "484f09a528d5a7f2aff99e9d0b50b67d95ae3b42",
     "successor_implementation": "efcf1ca1f496343e984c1ccdfa813b3eab8de3ed",
-    "successor_implementation_tree": "4ee98361f6b98a68f3e9bcc767ea1de92829c625"
+    "successor_implementation_tree": "4ee98361f6b98a68f3e9bcc767ea1de92829c625",
+    "successor_gate_compatibility": "c50985e92730f5d99da5cb0ac10dc679d6b23d54",
+    "successor_gate_compatibility_tree": "561f246ea18e798e812ce176e824b05eb853c5b0"
   },
   "source_artifacts": [
     {
@@ -32,6 +34,34 @@
     {
       "path": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py",
       "sha256": "a8378a6fe331a68bfb5bdc795376f6d20d6bf333203cfbb71c3b5a6a61c34bd3"
+    },
+    {
+      "path": "tests/core/test_asset_transfer_policy_membership_v1.py",
+      "sha256": "59b666baefd97feabbc1e046448217555f560823552b604a5f65855717dd3dde"
+    },
+    {
+      "path": "tests/core/test_managed_asset_policy_membership_v1.py",
+      "sha256": "fff03f23adad7b615275b068ba63f5c5d9bddecd4cddd7bfb3b23265c95933e2"
+    },
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "62d36ef53efccc4fa6eb4a082616b6b6fedd5c2dc65703469e386165e7f44251"
+    },
+    {
+      "path": "tests/test_runtime_disaster_discovery.py",
+      "sha256": "558b208d862a13c3260ce945da10c4b943015c879365afe2410cf5ec603db7d5"
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_primitives_v1.py",
+      "sha256": "e73b9d67a6f81ceaef0052ad76e2a55ed879b86be010df344868c60cddd9cc3f"
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_registry_v1.json",
+      "sha256": "558e6598439e3b0ad84acc1782d8ad3c3eb101ca4fc846db4c4e80f473ca478d"
+    },
+    {
+      "path": "tests/evidence/test_hygiene/THV1-20260830-global-settlement-rejection-precedence-v1.json",
+      "sha256": "ac238acf6b9b2fbcf6807deffb71f41819cbae805ad515b352f4a3edbb7c2e21"
     }
   ],
   "dispositions": {
@@ -134,17 +164,45 @@
   ],
   "evidence": {
     "new_counterexamples": 8,
-    "focused_shared_tests_passed": 292,
+    "focused_shared_tests_passed": 1337,
+    "focused_shared_tests_deselected": 1,
+    "affected_test_files_passed": 218,
+    "runtime_disaster_discovery_tests_passed": 192,
+    "rejection_precedence_regressions_passed": 7,
+    "inherited_base_failure": {
+      "node_id": "tests/core/test_perps_margin_lane_coordinator_v1.py::test_withdraw_refines_candidate_rows_into_complete_conservation",
+      "successor_base": "484f09a528d5a7f2aff99e9d0b50b67d95ae3b42",
+      "classification": "PRESENT_AT_SUCCESSOR_BASE_OUTSIDE_PR_DIFF",
+      "expected_effect_plan_root": "0x53cb336b2b2c28c7cc5d130f1ff75d3e6d1b1dcee25e34adec16e03bceedac61",
+      "actual_effect_plan_root": "0x5cae7d4e468446992b37bf69ecf7172a08091d3d2c7dff547f18a556a8584f26"
+    },
     "rust_global_settlement_abi_suite": "PASS",
-    "test_hygiene_packet": "THV1-20260830-global-settlement-exact-ownership-v1",
-    "test_hygiene_gate": "PASS_3_CRITICAL_PATHS_8_DECLARED_NODES",
+    "test_hygiene_packets": [
+      "THV1-20260830-global-settlement-exact-ownership-v1",
+      "THV1-20260830-global-settlement-rejection-precedence-v1"
+    ],
+    "test_hygiene_gate": "PASS_6_CRITICAL_PATHS_15_DECLARED_NODES",
     "ruff_check": "PASS",
     "ruff_format_changed_tests": "PASS",
     "ruff_format_inherited_source_baseline": "NOT_CLEAN_NO_BULK_REFORMAT",
     "strict_mypy": "PASS",
     "python_compile": "PASS",
     "diff_check": "PASS",
-    "remote_ci": "INITIAL_FAILURE_MISSING_HYGIENE_PACKET; LOCAL_REPAIR_PASS; EXACT_HEAD_RERUN_PENDING"
+    "remote_ci": "LIVE_EXTERNAL_QUERY_REQUIRED",
+    "observed_remote_ci_failures": [
+      {
+        "run_id": 33350595043,
+        "head": "d0d2a7ca97829d6ba06d2b6e9a562a7d85594410",
+        "failed_step": "Enforce diff-aware test hygiene evidence",
+        "disposition": "REPAIRED_BY_CURRENT_HYGIENE_PACKET"
+      },
+      {
+        "run_id": 33350792610,
+        "head": "da50cdb539ba294dcdab2ee1fdcec728a4e38487",
+        "failed_step": "Check Unicode source safety",
+        "disposition": "REPAIRED_LOCALLY_PENDING_EXACT_HEAD_HOSTED_REPLAY"
+      }
+    ]
   },
   "nonclaims": [
     "No finding is rewritten or closed on the historical PR 477 or PR 478 heads.",

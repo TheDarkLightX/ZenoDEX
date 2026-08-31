@@ -25,10 +25,24 @@ def test_disposition_is_complete_disjoint_and_research_only() -> None:
     assert payload["status"] == "RESEARCH_ONLY_EXACT_SUCCESSOR_DISPOSITION"
     assert "remains OPEN" in payload["classification_scope"]
     assert set(payload["authority"].values()) == {"NONE"}
-    assert payload["evidence"]["remote_ci"] == (
-        "INITIAL_FAILURE_MISSING_HYGIENE_PACKET; LOCAL_REPAIR_PASS; EXACT_HEAD_RERUN_PENDING"
+    assert payload["evidence"]["remote_ci"] == "LIVE_EXTERNAL_QUERY_REQUIRED"
+    observed_failures = payload["evidence"]["observed_remote_ci_failures"]
+    assert [row["run_id"] for row in observed_failures] == [33350595043, 33350792610]
+    assert [row["head"] for row in observed_failures] == [
+        "d0d2a7ca97829d6ba06d2b6e9a562a7d85594410",
+        "da50cdb539ba294dcdab2ee1fdcec728a4e38487",
+    ]
+    assert payload["evidence"]["test_hygiene_gate"] == ("PASS_6_CRITICAL_PATHS_15_DECLARED_NODES")
+    assert payload["evidence"]["focused_shared_tests_passed"] == 1337
+    assert payload["evidence"]["focused_shared_tests_deselected"] == 1
+    assert payload["evidence"]["affected_test_files_passed"] == 218
+    assert payload["evidence"]["runtime_disaster_discovery_tests_passed"] == 192
+    assert payload["evidence"]["rejection_precedence_regressions_passed"] == 7
+    assert (
+        payload["evidence"]["inherited_base_failure"]["successor_base"]
+        == (payload["subjects"]["successor_base"])
     )
-    assert payload["evidence"]["test_hygiene_gate"] == ("PASS_3_CRITICAL_PATHS_8_DECLARED_NODES")
+    assert len(payload["evidence"]["test_hygiene_packets"]) == 2
     assert payload["successor_open_gaps"]
 
 

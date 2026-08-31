@@ -15,6 +15,8 @@ The exact successor implementation is:
 base:   484f09a528d5a7f2aff99e9d0b50b67d95ae3b42
 commit: efcf1ca1f496343e984c1ccdfa813b3eab8de3ed
 tree:   4ee98361f6b98a68f3e9bcc767ea1de92829c625
+gate-compatibility commit: c50985e92730f5d99da5cb0ac10dc679d6b23d54
+gate-compatibility tree:   561f246ea18e798e812ce176e824b05eb853c5b0
 ```
 
 The implementation enforces exact primitive, exact tuple, exact nested-record,
@@ -71,24 +73,39 @@ eight now pass.
 ## Evidence
 
 ```text
-focused and shared Python tests: 292 passed
+focused shared Python closure:    1,337 passed, 1 deselected
+affected Python test files:       218 passed
+runtime-disaster test suite:      192 passed
 new FCIS counterexamples:         8 passed
+rejection-precedence regressions: 7 passed
 Rust GlobalSettlementABI suite:   passed
-test-hygiene gate:                3 critical paths, 8 nodes passed
+test-hygiene gate:                6 critical paths, 15 nodes passed
 Ruff:                             passed
 Ruff format, changed tests:       passed
 Ruff format, inherited sources:   baseline not clean; no bulk rewrite
 strict mypy:                      passed
 Python compilation:               passed
 git diff --check:                 passed
-remote CI:                        initial missing-packet failure; rerun pending
+remote CI:                        live external evidence; query exact PR head
 ```
 
-The first hosted `critical-quality` run rejected the candidate because
+Hosted run `33350595043` at `d0d2a7ca...` rejected the candidate because
 `global_economic_refinement_snapshot_v1.py` lacked current diff-aware hygiene
 evidence. `THV1-20260830-global-settlement-exact-ownership-v1` now pins both
-source files and the eight counterexample nodes. The identical local gate
-passes; the repaired exact-head hosted rerun remains external evidence.
+source files and the eight counterexample nodes.
+
+Hosted run `33350792610` at `da50cdb5...` passed that gate and then rejected
+two literal invisible Unicode source characters inherited from the integration
+base. The successor expresses the same hostile-input checks through explicit
+`\\u200b` and `\\ufeff` escapes and regenerates the disaster-discovery source
+pin through the contract's recorded command. Current hosted status is live
+external evidence and must be queried for the exact PR head.
+
+The single deselected shared-closure node is
+`test_withdraw_refines_candidate_rows_into_complete_conservation`. Its stale
+effect-plan golden root fails identically at successor base `484f09a5...` and
+at this successor. It is inherited evidence debt outside the PR diff, not a
+passing result and not repaired by this successor.
 
 ## Remaining successor gaps
 
