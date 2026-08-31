@@ -165,9 +165,9 @@
       "path": "tools/runtime_disaster_discovery_primitives_v1.py",
       "role": "CHECKER_SOURCE",
       "git_mode": "100644",
-      "blob_oid": "5359e0447e1b3fb6ad947125837a75ac6b36bfce",
-      "sha256": "28fd4a90a0747039915d1bb630d1f817949b3f30c6ef58b81aa99f276125b554",
-      "byte_size": 15920
+      "blob_oid": "2126b54d4112a7e61740626cb2c3447596131eb6",
+      "sha256": "e73b9d67a6f81ceaef0052ad76e2a55ed879b86be010df344868c60cddd9cc3f",
+      "byte_size": 15923
     },
     {
       "path": "tools/runtime_disaster_discovery_registry_v1.py",
