@@ -58,9 +58,9 @@ PINNED_MODELED_RUNTIME_SOURCES = {
     "src/core/global_economic_proof_v2.py":
         "087b4df5295d82d112d552bac136b66cf0010f078915c29869d7a427fd8d5705",
     "src/core/global_economic_refinement_checks_v2.py":
-        "f83537358ccd64848236078f319720983d6214168c0953b6022a472a7b4ebe17",
+        "f8084730492024764f9f2f2008e4e04c7c7d28455358885bd4f6c758eb99f1c6",
     "src/core/global_economic_state_effect_refinement_v2.py":
-        "d413bd19f610c52891daf1a6442b5cd731025f201a5cc8cdeabb585101b39843",
+        "4663cbee5ff7485b65bc68e55058bbe49cbc0ddd0c6e2f9c6b9502928c9713b7",
 }
 
 

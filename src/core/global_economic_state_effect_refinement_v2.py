@@ -1,9 +1,13 @@
 """Exact global state/effect refinement for GlobalSettlementABI V2.
 
-The checker owns and compares one candidate epoch endpoint.  It creates an
-opaque structural witness only after lane roots, economic rows, per-asset
+The checker owns and compares one candidate epoch endpoint.  It creates a
+checker-result value only after lane roots, economic rows, per-asset
 conservation, replay, terminal liabilities, and Oracle occurrences agree.
 It verifies no proof and grants no publication or settlement authority.
+
+The underscore token is an API-discipline boundary, not adversarial isolation
+from hostile code in the same Python process.  The result carries authority
+``NONE``; authoritative admission requires a separate verifier boundary.
 """
 
 from __future__ import annotations
@@ -149,7 +153,7 @@ class _RefinementFieldsV2:
 
 
 class GlobalEconomicStateEffectRefinementV2:
-    """Opaque witness constructed only by the exact refinement checker."""
+    """API-conventional checker result carrying no verifier authority."""
 
     _fields: _RefinementFieldsV2
     __slots__ = ("_fields",)
@@ -295,7 +299,7 @@ def _require_replay_refinement_v2(
 def refine_global_economic_state_effects_v2(
     candidate: GlobalEconomicStateEffectRefinementCandidateV2,
 ) -> GlobalEconomicStateEffectRefinementV2:
-    """Return an opaque witness after exact global V2 reconciliation."""
+    """Return a checker result after exact global V2 reconciliation."""
 
     if type(candidate) is not GlobalEconomicStateEffectRefinementCandidateV2:
         raise TypeError("global refinement candidate must be exact")

@@ -44,11 +44,16 @@ def _state_table_deltas_v2(
 ) -> dict[tuple[str, str, str], int]:
     pre = _amount_map_v2(pre_rows)
     post = _amount_map_v2(post_rows)
-    return {
-        key: post.get(key, 0) - pre.get(key, 0)
-        for key in pre.keys() | post.keys()
-        if post.get(key, 0) != pre.get(key, 0)
-    }
+    deltas: dict[tuple[str, str, str], int] = {}
+    for key in sorted(pre.keys() | post.keys()):
+        delta = post.get(key, 0) - pre.get(key, 0)
+        if not MIN_DELTA_ATOMS_V2 <= delta <= MAX_DELTA_ATOMS_V2:
+            raise ValueError(
+                "global refinement signed state delta exceeds signed 128-bit bounds"
+            )
+        if delta:
+            deltas[key] = delta
+    return deltas
 
 
 def _effect_deltas_v2(
