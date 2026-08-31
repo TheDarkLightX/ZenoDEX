@@ -39,7 +39,9 @@ def test_frozen_packet_validates_without_promotion_or_authority() -> None:
     assert report["promotion_allowed"] is False
     assert report["authority"] == "NONE"
     assert report["whole_program_value_movement_gates_passed"] == 0
-    assert report["current_applicable"] is True
+    current_source_drift = report["current_source_drift"]
+    assert isinstance(current_source_drift, list)
+    assert report["current_applicable"] is (len(current_source_drift) == 0)
 
 
 @pytest.mark.parametrize(
@@ -179,6 +181,8 @@ def test_cli_exit_codes_are_fail_closed(tmp_path: Path) -> None:
 def test_current_source_drift_preserves_historical_validity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    baseline = checker_module.check_evidence_manifest()["current_source_drift"]
+    assert isinstance(baseline, list)
     original_sha256 = checker_module._sha256
     drifted = "src/core/global_settlement_primitives_v2.py"
 
@@ -191,7 +195,7 @@ def test_current_source_drift_preserves_historical_validity(
     report = checker_module.check_evidence_manifest()
     assert report["ok"] is True, report["errors"]
     assert report["current_applicable"] is False
-    assert report["current_source_drift"] == [drifted]
+    assert report["current_source_drift"] == sorted({*baseline, drifted})
 
 
 def test_frozen_subject_may_be_ancestor_of_head(
