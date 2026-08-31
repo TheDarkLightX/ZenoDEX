@@ -1,0 +1,304 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-o003b-retired-tau-bridge-current-head",
+  "created_date": "2026-08-31",
+  "claim_scope": "Research-only O-003B evidence that the admitted historical Tau bridge surface is classified, removed or quarantined at current startup and attachment seams, and retained only as explicitly named research oracles. The packet binds exact current source and test bytes and grants no production, release, settlement, or value-movement authority.",
+  "change_kind": "bug_fix",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "O003B-HISTORICAL-TAU-ROUTES-REFUSE-BEFORE-EFFECTS",
+    "O003B-CURRENT-IMPORT-GRAPH-EXCLUDES-RETIRED-BRIDGE",
+    "O003B-DEPENDENCY-PROJECTION-IS-CLOSED",
+    "O003B-SHARED-BLS-UTILITY-FAILS-CLOSED",
+    "O003B-CERTIFICATE-GRANTS-NO-AUTHORITY"
+  ],
+  "failure_modes": [
+    "a historical bridge route becomes reachable through startup, HTTP, CLI, compose, generated operator, or direct attachment",
+    "a dependency is omitted, duplicated, reclassified, or contaminated by a current-only import edge",
+    "a retired route performs a read, write, signer, network, subprocess, or durable effect before rejection",
+    "a BLS backend initialization fault is misclassified as an absent optional dependency",
+    "a closure certificate claims production or value-movement authority",
+    "the Stage B certificate is not an add-only child of its exact Stage A evidence subject"
+  ],
+  "source_pins": [
+    {
+      "path": "src/agents/autotrader_client_policy_bundle.py",
+      "sha256": "3ef05dfae02238b2af7b6499ba0640e7c3d75f0f0e9edfb9362f9fa03309cfc2"
+    },
+    {
+      "path": "src/agents/intent_signer.py",
+      "sha256": "773afbf49eb668004ed995fe1555e391b954e59770b02e541fc466f550d2dda5"
+    },
+    {
+      "path": "src/agents/krr_bundle_artifacts.py",
+      "sha256": "420629c4036df2073b2ebec72d4358476afa2820a92b6c14d6c361d627d086d9"
+    },
+    {
+      "path": "src/agents/policy_artifacts.py",
+      "sha256": "e0c6ebf00b9d701d0a2dfa7ae3f315b12e017e51ea03900603ece519f7a14624"
+    },
+    {
+      "path": "src/agents/zenograph_fact_pack.py",
+      "sha256": "ea08b8aa4d24d038600faef7175d7a01e963c0e7f89b3fbaa2113b9b09c6087a"
+    },
+    {
+      "path": "src/fire/registry/index_v1.py",
+      "sha256": "404c66363e7339b544dfb2110e32f22af1a7d9ffb532bfa5d8abada7bed2d8fe"
+    },
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "8043ee569a6292b8b1bb35fffb287c09160c2179b2372a4ff3ab91e42070d4d2"
+    },
+    {
+      "path": "src/integration/asset_ids.py",
+      "sha256": "8be53c6694d26013716241342ef09a7a04c498813bf0fcb339b2e7cb9d0fa74e"
+    },
+    {
+      "path": "src/integration/bls_intent_signing.py",
+      "sha256": "dc8440fd4418868bcc5ba45452efda876daf33e2eb575d0e3d62ebde25e4bfa0"
+    },
+    {
+      "path": "src/integration/confidential_sealed_bid_api.py",
+      "sha256": "16ec85b540c96a6b99fc4ef0910f7cff7efe8cf848adbdab8b218673a9372bad"
+    },
+    {
+      "path": "src/integration/local_route_quarantine.py",
+      "sha256": "ea2d8749ec3b6680aa9fefef354479c0871430486680b1486bbac97dbab7c2cd"
+    },
+    {
+      "path": "src/integration/perps_wallet_encrypted_sss_backup.py",
+      "sha256": "2f68f06299455037633133f54a2007ed87d522b0fde36ad50f235c95764c8506"
+    },
+    {
+      "path": "src/integration/production_promotion_evidence.py",
+      "sha256": "4e352447f6da39fc5f5db2e6eacac153d09b85318c6a8abff96fa0a9ed56c74a"
+    },
+    {
+      "path": "src/integration/tau_net_client.py",
+      "sha256": "1a9e93d1e03a6be5c414c0057ccc451538ac97d5d949fd34edf73086bb7f0421"
+    },
+    {
+      "path": "src/integration/zenodex_local_signer.py",
+      "sha256": "3bdc8825c6a02b91bc0b30e17d032b0f40b31cfe8c3f74c8931efd0895995600"
+    },
+    {
+      "path": "src/integration/zusd_tau_token.py",
+      "sha256": "b38fcc5297a2f46f2620c41475a3a17e21df1e6f20a2ad59fe3224ceb3db9f23"
+    },
+    {
+      "path": "tests/integration/test_zeno_ledger_verify_cli.py",
+      "sha256": "787929f2971b31ecef7aa3c63791765c0105b431ae24f86bc142f819fe20bbcd"
+    },
+    {
+      "path": "tests/integration/test_zeno_ledger_node.py",
+      "sha256": "0c7e18dfecf956aa93801be09274f8688c851a6f771bde33b43de11da17d7ea0"
+    },
+    {
+      "path": "tools/check_container_hardening.py",
+      "sha256": "c5beff0bdfcb96bff91fda96f38654ab4912d53c139aa0f81e081148b7a009a3"
+    },
+    {
+      "path": "tools/check_production_boundary.py",
+      "sha256": "9ddef1c9567dca8b6b5bd30afc24bc3bd2808d1ecd8447f5f032756cf3265722"
+    },
+    {
+      "path": "tools/check_production_promotion_evidence_manifest.py",
+      "sha256": "6601cff7669c5d30aeeb5f6501ad43c01d55347a77721a6675c2aa660fb63240"
+    },
+    {
+      "path": "tools/check_retired_tau_bridge_closure_v3.py",
+      "sha256": "11433312f0fba7186f5626e6fd162faa955902dffe04f147ec437315b42cb9f2"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_api_server_main.py",
+      "sha256": "370753a3645243f51ccd2ba25b5f72194697583ef66f753281c7061668ac8a71",
+      "node_ids": [
+        "tests/integration/test_api_server_main.py::test_given_retired_route_alias_when_api_starts_then_preflight_rejects_before_config",
+        "tests/integration/test_api_server_main.py::test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_construction",
+        "tests/integration/test_api_server_main.py::test_local_testnet_profile_quarantines_zusd_tau_wallet_lane"
+      ]
+    },
+    {
+      "path": "tests/integration/test_app_root_jmt_promotion_lane.py",
+      "sha256": "022750d29f8a183c13ca4eb24d6e63a053208a22ac7477df195c80c36d7b56bd",
+      "node_ids": [
+        "tests/integration/test_app_root_jmt_promotion_lane.py::test_build_evidence_produces_real_replay_unified_all_lane_root",
+        "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_self_consistent_historical_tau_wrapper_mode"
+      ]
+    },
+    {
+      "path": "tests/integration/test_bls_intent_signing.py",
+      "sha256": "991f2679b0d490571d61f240ea1b21454226eeb7023f4164d9e7e908ee600f2d",
+      "node_ids": [
+        "tests/integration/test_bls_intent_signing.py::test_pure_signing_matches_fixed_vector_and_independent_bls_call",
+        "tests/integration/test_bls_intent_signing.py::test_pure_signing_matches_retired_tau_client_compatibility_exports",
+        "tests/integration/test_bls_intent_signing.py::test_current_operator_import_roots_do_not_load_retired_tau_bridge_modules",
+        "tests/integration/test_bls_intent_signing.py::test_bls_backend_initialization_fault_is_not_misclassified_as_optional_absence"
+      ]
+    },
+    {
+      "path": "tests/integration/test_http_authority_ingress_v1.py",
+      "sha256": "1b2fbc0d8b35ac435e3b6e67524c26177ee55314aed49a8b5a71022caaa13680",
+      "node_ids": [
+        "tests/integration/test_http_authority_ingress_v1.py::test_mounted_post_choke_point_rejects_nested_raw_key_before_dispatch"
+      ]
+    },
+    {
+      "path": "tests/integration/test_retired_tau_bridge_startup_refusal_v2.py",
+      "sha256": "b378987806ed5577ac3b6b6a0d1c087915ed211258fe819a9dc7b1379afa8a60",
+      "node_ids": [
+        "tests/integration/test_retired_tau_bridge_startup_refusal_v2.py::test_given_all_lifecycle_historical_donors_when_called_then_refuse_before_effects",
+        "tests/integration/test_retired_tau_bridge_startup_refusal_v2.py::test_given_direct_asset_settlement_attachment_when_called_then_rejects_before_state_effects",
+        "tests/integration/test_retired_tau_bridge_startup_refusal_v2.py::test_given_direct_autotrader_attachment_when_called_then_rejects_before_state_effects",
+        "tests/integration/test_retired_tau_bridge_startup_refusal_v2.py::test_given_retired_http_paths_when_requested_then_modules_stay_unloaded_and_routes_are_absent",
+        "tests/integration/test_retired_tau_bridge_startup_refusal_v2.py::test_given_persisted_tau_wrapper_when_any_public_node_writer_runs_then_exact_reject_has_no_authoritative_effect",
+        "tests/integration/test_retired_tau_bridge_startup_refusal_v2.py::test_given_retired_stream_when_batch_appends_then_reject_precedes_node_reads",
+        "tests/integration/test_retired_tau_bridge_startup_refusal_v2.py::test_given_direct_retired_tau_signing_call_then_typed_reject_precedes_vault_access",
+        "tests/integration/test_retired_tau_bridge_startup_refusal_v2.py::test_given_retired_tau_state_cli_selector_then_exact_json_rejects_before_paths"
+      ]
+    },
+    {
+      "path": "tests/integration/test_zenoctl_compose_quiescence.py",
+      "sha256": "61fcca874a6dfc001cffe5d64250ce76e3223efc7d340f001407ee37dddbb48d",
+      "node_ids": [
+        "tests/integration/test_zenoctl_compose_quiescence.py::test_inspect_project_containers_decodes_owned_typed_snapshot"
+      ]
+    },
+    {
+      "path": "tests/integration/test_zenoctl_testnet_local.py",
+      "sha256": "9f99791d088bfc904acadf42dd2fbdcbd4b7d71d3d2fd62627d185a2a581acfb",
+      "node_ids": [
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_build_validate_roundtrip",
+        "tests/integration/test_zenoctl_testnet_local.py::test_missing_manifest_current_up_skips_retired_external_tau_preflight",
+        "tests/integration/test_zenoctl_testnet_local.py::test_compose_overlay_excludes_retired_tau_service_and_bridge_selectors",
+        "tests/integration/test_zenoctl_testnet_local.py::test_compose_overlay_excludes_retired_autotrader_execution_material",
+        "tests/integration/test_zenoctl_testnet_local.py::test_compose_overlay_has_no_repository_read_write_bind"
+      ]
+    },
+    {
+      "path": "tests/integration/test_zusd_tau_token.py",
+      "sha256": "22be6f7479e057a0da60ce08547e3cf63f6b537669ab8a61e57fb3d23937f966",
+      "node_ids": [
+        "tests/integration/test_zusd_tau_token.py::test_zusd_tau_token_identity_helpers_are_stable"
+      ]
+    },
+    {
+      "path": "tests/test_check_production_boundary.py",
+      "sha256": "c2cfb9ff0657f319e673c05a7a03b55196e22b7ea000acc483049c2aceeddc50",
+      "node_ids": [
+        "tests/test_check_production_boundary.py::test_retired_tau_check_has_only_bounded_requirement_credit",
+        "tests/test_check_production_boundary.py::test_retired_tau_bridge_check_rejects_authority_or_scope_promotion",
+        "tests/test_check_production_boundary.py::test_retired_tau_bridge_check_accepts_bounded_nonauthority_report"
+      ]
+    },
+    {
+      "path": "tests/test_check_public_testnet_v0_1_16_evidence.py",
+      "sha256": "1e4247249d29e10445875de994f7884ca7f8e62f9807e49fcd7d6cb46090fc6d",
+      "node_ids": [
+        "tests/test_check_public_testnet_v0_1_16_evidence.py::test_caller_claimed_current_bindings_cannot_override_local_quarantine"
+      ]
+    },
+    {
+      "path": "tests/test_check_retired_tau_bridge_closure_v3.py",
+      "sha256": "11a989e56babd70cb2329d573bccc1f1aba4e56f16ec42ede098a3a1a05e775b",
+      "node_ids": [
+        "tests/test_check_retired_tau_bridge_closure_v3.py::test_certificate_is_canonical_deterministic_and_authority_free",
+        "tests/test_check_retired_tau_bridge_closure_v3.py::test_new_absolute_relative_and_module_imports_fail_with_exact_code",
+        "tests/test_check_retired_tau_bridge_closure_v3.py::test_route_guard_rejects_mutation_inserted_before_refusal",
+        "tests/test_check_retired_tau_bridge_closure_v3.py::test_artifact_rejects_missing_quarantine_witness",
+        "tests/test_check_retired_tau_bridge_closure_v3.py::test_artifact_rejects_any_authority_promotion",
+        "tests/test_check_retired_tau_bridge_closure_v3.py::test_stage_b_topology_accepts_exact_single_artifact_commit",
+        "tests/test_check_retired_tau_bridge_closure_v3.py::test_stage_b_topology_rejects_extra_tree_delta"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "stateful",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Pinned tests arrange exact disabled or hostile route inputs, act through public startup, attachment, lifecycle, signing, checker, or operator seams, and assert deterministic refusal, absence, parity, or authority-free certificates."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Historical-route rejection tests assert that filesystem, network, subprocess, vault, signer, server, state, receipt, and publication effects remain absent before returning a typed refusal."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "retired_route_encoding",
+      "points": [
+        "exact_disabled_accepts",
+        "exact_enabled_rejects",
+        "alias_enabled_rejects",
+        "parsed_enabled_rejects",
+        "hostile_noncanonical_value_rejects"
+      ]
+    },
+    {
+      "name": "dependency_projection",
+      "points": [
+        "zero_dependencies_rejects",
+        "exact_200_dependencies_accepts",
+        "missing_row_rejects",
+        "duplicate_row_rejects",
+        "current_only_import_edge_rejects"
+      ]
+    },
+    {
+      "name": "optional_bls_backend",
+      "points": [
+        "import_absence_is_optional",
+        "bls_module_initialization_fault_propagates",
+        "optimized_curve_initialization_fault_propagates"
+      ]
+    },
+    {
+      "name": "certificate_authority",
+      "points": [
+        "all_authority_fields_none_accepts",
+        "one_promoted_authority_field_rejects",
+        "one_closed_value_movement_gate_rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "allow a new absolute, relative, or module import edge to the retired bridge",
+      "killed_by": "tests/test_check_retired_tau_bridge_closure_v3.py::test_new_absolute_relative_and_module_imports_fail_with_exact_code"
+    },
+    {
+      "description": "allow an observable operation before a historical route refusal",
+      "killed_by": "tests/test_check_retired_tau_bridge_closure_v3.py::test_route_guard_rejects_mutation_inserted_before_refusal"
+    },
+    {
+      "description": "treat a broken BLS backend as an absent optional dependency",
+      "killed_by": "tests/integration/test_bls_intent_signing.py::test_bls_backend_initialization_fault_is_not_misclassified_as_optional_absence"
+    },
+    {
+      "description": "permit a certificate to claim production or value-movement authority",
+      "killed_by": "tests/test_check_retired_tau_bridge_closure_v3.py::test_artifact_rejects_any_authority_promotion"
+    },
+    {
+      "description": "accept an extra file beside the add-only Stage B certificate",
+      "killed_by": "tests/test_check_retired_tau_bridge_closure_v3.py::test_stage_b_topology_rejects_extra_tree_delta"
+    }
+  ],
+  "nonclaims": [
+    "The dependency projection is bounded to the admitted historical Tau bridge surface and is not a deployment-complete no-bypass proof.",
+    "The retained research oracles have no runtime, settlement, publication, release, or value-moving authority.",
+    "The BLS parity vectors do not establish external key custody, signer authenticity, or cryptographic library correctness.",
+    "The modified legacy test_zeno_ledger_verify_cli.py is source-pinned only because the admitted head lacks src.integration.zeno_ledger_watcher_quorum and that test module cannot collect; the dedicated O-003B refusal and checker suites provide the executable closure evidence.",
+    "The modified legacy test_zeno_ledger_node.py is source-pinned only because its affected full-node synchronization test remains a strict expected failure over an unsigned historical fixture; it is not counted as passing O-003B evidence.",
+    "The closure checker and bounded mutations do not close any of the twelve value-movement gates.",
+    "O-004 and every later whole-program obligation remain separate dependency-ordered work."
+  ]
+}
