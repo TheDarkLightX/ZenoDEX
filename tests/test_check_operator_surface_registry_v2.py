@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -262,3 +263,40 @@ def test_builder_and_checker_reject_non_regular_committed_or_checkout_sources(
     report = check_operator_surface_registry_v2(valid_repo)
     assert report["ok"] is False
     assert _finding_code(report) == "ARTIFACT_WORKTREE_TYPE"
+
+
+def test_direct_cli_build_check_and_registry_check_roundtrip(tmp_path: Path) -> None:
+    repo = _subject_repo(tmp_path)
+    builder = repo / "tools/build_operator_surface_registry_v2.py"
+    checker = repo / "tools/check_operator_surface_registry_v2.py"
+
+    built = subprocess.run(
+        (sys.executable, str(builder), "--root", str(repo)),
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert built.returncode == 0, built.stderr
+    _commit(repo, "stage-b operator registry artifact")
+
+    checked_build = subprocess.run(
+        (sys.executable, str(builder), "--root", str(repo), "--check"),
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert checked_build.returncode == 0, checked_build.stderr
+
+    checked_registry = subprocess.run(
+        (sys.executable, str(checker), "--root", str(repo)),
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert checked_registry.returncode == 0, checked_registry.stderr
+    report = json.loads(checked_registry.stdout)
+    assert report["ok"] is True
+    assert report["authority"] == registry.NO_AUTHORITY_V2

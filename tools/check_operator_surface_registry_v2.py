@@ -4,9 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
-from tools.operator_surface_registry_v2 import canonical_json_bytes_v2, check_registry_v2
+sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.operator_surface_registry_v2 import (  # noqa: E402
+    canonical_json_bytes_v2,
+    check_registry_v2,
+)
 
 
 def check_operator_surface_registry_v2(root: Path) -> dict[str, object]:
