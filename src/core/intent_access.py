@@ -93,7 +93,7 @@ def _created_pool_id(intent: Intent) -> Optional[str]:
     if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
         return None
     curve_tag = intent.get_field("curve_tag", None)
-    curve_params = intent.get_field("curve_params", None)
+    curve_params = intent.get_wire_field("curve_params", None)
     try:
         curve_tag_norm, curve_params_norm = normalize_curve_config(
             curve_tag=curve_tag,

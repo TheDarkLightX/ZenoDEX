@@ -200,9 +200,9 @@ def test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_c
     witness = minimize_case("direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail")
     assert "invalid quote receipt:" in witness.outcome_label
     assert "verifier_error='pool_snapshot_mismatch'" in witness.outcome_label
-    assert witness.path_id == "0311706736ae49d4"
-    assert witness.original_size == 6819
-    assert witness.minimized_size == 4556
+    assert witness.path_id == "2af5cd2a1653e725"
+    assert witness.original_size == 7149
+    assert witness.minimized_size == 4776
     assert witness.original_size > witness.minimized_size
     assert isinstance(witness.payload, dict)
     assert witness.payload["initial"] == "direct"
@@ -231,9 +231,9 @@ def test_dex_engine_quote_receipt_sequence_minimizer_cli_emits_expected_schema()
     assert witness["target"] == "direct_quote_receipt_sequence"
     assert witness["derivation"] == "DirectSeq->ValidThenStaleSamePoolWithDeadTail"
     assert "invalid quote receipt:" in witness["outcome_label"]
-    assert witness["path_id"] == "0311706736ae49d4"
-    assert witness["original_size"] == 6819
-    assert witness["minimized_size"] == 4556
+    assert witness["path_id"] == "2af5cd2a1653e725"
+    assert witness["original_size"] == 7149
+    assert witness["minimized_size"] == 4776
 
 
 def test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg_projection() -> None:
@@ -241,9 +241,9 @@ def test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg
     assert "intent does not match quote receipt leg:" in witness.outcome_label
     assert "leg_index=1" in witness.outcome_label
     assert "pool_id='p1'" in witness.outcome_label
-    assert witness.path_id == "6a6a33fcc4806851"
-    assert witness.original_size == 10523
-    assert witness.minimized_size == 10523
+    assert witness.path_id == "05ca7081d1509ea6"
+    assert witness.original_size == 10853
+    assert witness.minimized_size == 10853
     assert isinstance(witness.payload, dict)
     assert witness.payload["initial"] == "split"
     steps = witness.payload["steps"]

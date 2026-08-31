@@ -219,7 +219,7 @@ def _make_direct_ops(
         deadline=9_999_999_999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", nonce)
+    intent = intent.with_field("nonce", nonce)
     env = SignedIntentEnvelope(intent=intent, quote_receipt=receipt if attach_witness else None)
     ops = create_signed_intent_operation([env])
     if hash_override is not None:

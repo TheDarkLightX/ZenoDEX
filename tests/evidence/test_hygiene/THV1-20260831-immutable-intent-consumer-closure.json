@@ -1,0 +1,311 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-immutable-intent-consumer-closure",
+  "created_date": "2026-08-31",
+  "claim_scope": "Immutable Intent snapshots expose explicit detached JSON projections at exact consumer boundaries; pool-curve, Oracle, proof-signing, support-root, and blast-radius consumers preserve their prior semantics without reintroducing mutable aliases.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "INTENT-V1-TRANSITIVE-IMMUTABILITY",
+    "INTENT-V1-DETACHED-COMPOSITE-PROJECTION",
+    "POOL-CURVE-V1-IMMUTABLE-INTENT-REFINEMENT",
+    "ORACLE-ROUTING-V1-HASHED-QUERY-IDENTITY",
+    "ACCEPTANCE-TCB-V1-EXACT-SIGNING-PROJECTION"
+  ],
+  "failure_modes": [
+    "a recursively frozen curve_params object is rejected by an exact plain-dict curve decoder",
+    "support derivation omits an in-batch non-CPMM pool because its immutable curve parameters cannot be normalized",
+    "a protected-swap Oracle authorization is rejected before typed verification because the consumer passes a frozen nested mapping",
+    "a human-readable routing query identity violates the economic-envelope SHA-256 identity contract",
+    "proof commitment JSON retains a private frozen Intent mapping",
+    "diagnostic blast-radius logic silently misses nonce and quote-receipt fields on immutable snapshots",
+    "legacy tests mutate an admitted Intent after construction and thereby test an impossible state",
+    "the stateful quote-receipt explorer calls the removed mutable Intent API and never reaches its intended stale-receipt paths"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/batch_clearing_create_pool.py",
+      "sha256": "2010830fa6002bdccb2f9214253a731081805cef7929ebc90761443d21ca618d"
+    },
+    {
+      "path": "src/core/intent_access.py",
+      "sha256": "d9499293d08570a69b89d1e84c4438c9e631dfe98d4d8f39439bdfa1dcd0b553"
+    },
+    {
+      "path": "src/core/settlement_replay_create_pool.py",
+      "sha256": "a9822bf73acfd9cca21a08b4480b65b2c3d91c66dd28f030b0fbf7c889f48469"
+    },
+    {
+      "path": "src/integration/dex_engine.py",
+      "sha256": "0fa79bbc8bd9d301448a2fd694461cd005486886b6557ca6f45fd5a7adb1dcf3"
+    },
+    {
+      "path": "src/integration/tau_gate.py",
+      "sha256": "c7dfb2daa12a30e116ec2cb37b5d690ef434aa34abc56af944aeca14a31a424f"
+    },
+    {
+      "path": "src/integration/zeno_oracle_routing_authorization.py",
+      "sha256": "4e7764694ba802322790356741adebf23b41572f7f0e8a7e209ac899b06fbe60"
+    },
+    {
+      "path": "src/state/intents.py",
+      "sha256": "7cf7e76edfb1e6c1a51d237c12923a770521d34e6e180f18a35134387d20f3cc"
+    },
+    {
+      "path": "src/state/support_root.py",
+      "sha256": "c8c3becc58ee196ee31e0bd0c03acf0b81b541f694feae76ab6c0e162aa42608"
+    },
+    {
+      "path": "tools/zenodex_blast_radius_report.py",
+      "sha256": "0d6bca091b91ec6af76f4eb8024bc605eeb4fd509e0b5e0be18a6560918ee9b9"
+    },
+    {
+      "path": "tools/dex_engine_quote_receipt_sequence_grammar_fuzz.py",
+      "sha256": "20ed1b7de3fecd96d5dc368290b1d9d278d74d530a0c9ddd51dcfc9c379bb2d9"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_batch_auction_settler_v1_witness.py",
+      "sha256": "c0015db373c721afbb6c00a4bb73abf286feee6e1f3ee7e62518c0bd50b1b53f",
+      "node_ids": [
+        "tests/core/test_batch_auction_settler_v1_witness.py::test_batch_auction_witness_skips_unsupported_or_malformed_batches",
+        "tests/core/test_batch_auction_settler_v1_witness.py::test_batch_auction_witness_skips_batches_outside_notional_domain"
+      ]
+    },
+    {
+      "path": "tests/core/test_batch_clearing.py",
+      "sha256": "4d7959c539863bbfacf116ec352b6cd3a7ee84979e31981cbd5e9922eb14a11a",
+      "node_ids": [
+        "tests/core/test_batch_clearing.py::test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths",
+        "tests/core/test_batch_clearing.py::test_process_swap_intent_reject_matrix_and_helper_paths",
+        "tests/core/test_batch_clearing.py::test_process_liquidity_intent_reject_matrix_and_helper_paths",
+        "tests/core/test_batch_clearing.py::test_get_limit_price_exact_out_zero_and_unknown_kind",
+        "tests/core/test_batch_clearing.py::test_order_swaps_optimal_ab_bounded_skips_unknown_kind_in_objective_loop"
+      ]
+    },
+    {
+      "path": "tests/core/test_dex_step_candidate_settlement.py",
+      "sha256": "328290487797760ec4436480f2b869b63849c89e315700e41ca2917c9af0e359",
+      "node_ids": [
+        "tests/core/test_dex_step_candidate_settlement.py::test_step_with_candidate_settlement_accepts_valid_candidate",
+        "tests/core/test_dex_step_candidate_settlement.py::test_intent_auth_shape_covers_material_swap_fields_before_candidate_settlement"
+      ]
+    },
+    {
+      "path": "tests/core/test_intent_normal_form.py",
+      "sha256": "c3391efb7af4e2e0ba6c35980696bcd97571406a70bfb045e374a294d0080215",
+      "node_ids": [
+        "tests/core/test_intent_normal_form.py::test_normal_form_places_defensive_unknown_kind_after_known_pool_actions"
+      ]
+    },
+    {
+      "path": "tests/core/test_settlement_strong_validator.py",
+      "sha256": "3445bb287d6dcf27790b0a3b3b31d252832296736e72b4da79bf7c5212f76266",
+      "node_ids": [
+        "tests/core/test_settlement_strong_validator.py::test_strong_validator_rejects_unsupported_intent_kind",
+        "tests/core/test_settlement_strong_validator.py::test_strong_validator_rejects_create_pool_field_and_fill_failures"
+      ]
+    },
+    {
+      "path": "tests/core/test_support_root.py",
+      "sha256": "f3364bbbce369fdf5555c83724e54ac22e82e02155b8cb1807d75ccb532818fb",
+      "node_ids": [
+        "tests/core/test_support_root.py::test_support_root_uses_live_curve_config_for_add_liquidity_into_new_pool",
+        "tests/core/test_support_root.py::test_derive_batch_state_support_covers_missing_add_liquidity_pool_and_unknown_kind",
+        "tests/core/test_support_root.py::test_support_root_changes_when_curve_configuration_changes"
+      ]
+    },
+    {
+      "path": "tests/integration/test_autotrader_controller.py",
+      "sha256": "8ce07faaf4041737fa7025dbc0a1eb15e09bad7e6d30dbc992fe8cfeed6ecd44",
+      "node_ids": [
+        "tests/integration/test_autotrader_controller.py::test_autotrader_controller_rejects_intent_amount_type"
+      ]
+    },
+    {
+      "path": "tests/integration/test_dex_engine.py",
+      "sha256": "c99c5785aff041cf78004b0f171289650c0f70241ebb531b6bbde4fe63fc3715",
+      "node_ids": [
+        "tests/integration/test_dex_engine.py::test_engine_accepts_matching_attached_quote_receipt_witness",
+        "tests/integration/test_dex_engine.py::test_engine_rejects_attached_quote_receipt_hash_mismatch",
+        "tests/integration/test_dex_engine.py::test_engine_rejects_quote_bound_intent_without_leg_index",
+        "tests/integration/test_dex_engine.py::test_engine_rejects_quote_bound_intent_without_attached_receipt_witness",
+        "tests/integration/test_dex_engine.py::test_engine_rejects_bool_quote_receipt_leg_index",
+        "tests/integration/test_dex_engine.py::test_engine_scopes_quote_receipt_leg_indices_per_receipt_hash"
+      ]
+    },
+    {
+      "path": "tests/integration/test_dex_engine_anomaly.py",
+      "sha256": "0c77da1afc08b36509fc1df518192da9eb689441eaaf8b02eced57c5de9f37f6",
+      "node_ids": [
+        "tests/integration/test_dex_engine_anomaly.py::test_attached_quote_receipt_mismatch_rejects_before_nonce_and_settlement_compute",
+        "tests/integration/test_dex_engine_anomaly.py::test_missing_attached_quote_receipt_rejects_before_nonce_and_settlement_compute"
+      ]
+    },
+    {
+      "path": "tests/integration/test_dex_engine_helpers.py",
+      "sha256": "83de0d5ac3165fe51ff7ae58b3de2e52a26bbaec528a3a9dbc4e995dc58257e8",
+      "node_ids": [
+        "tests/integration/test_dex_engine_helpers.py::test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts"
+      ]
+    },
+    {
+      "path": "tests/integration/test_dex_engine_protected_swap_oracle_authorization.py",
+      "sha256": "c8ea1529ac54ed7d61af6b917a6546e70c3ed7002e8d8021a553865dd82c215f",
+      "node_ids": [
+        "tests/integration/test_dex_engine_protected_swap_oracle_authorization.py::test_protected_swap_requires_oracle_authorization_when_configured",
+        "tests/integration/test_dex_engine_protected_swap_oracle_authorization.py::test_protected_swap_accepts_matching_typed_oracle_authorization",
+        "tests/integration/test_dex_engine_protected_swap_oracle_authorization.py::test_protected_swap_rejects_authorization_for_wrong_quote_value",
+        "tests/integration/test_dex_engine_protected_swap_oracle_authorization.py::test_protected_swap_rejects_authorization_for_wrong_receipt_context",
+        "tests/integration/test_dex_engine_protected_swap_oracle_authorization.py::test_protected_swap_rejects_expired_authorization",
+        "tests/integration/test_dex_engine_protected_swap_oracle_authorization.py::test_protected_swap_rejects_stale_but_unexpired_authorization"
+      ]
+    },
+    {
+      "path": "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py",
+      "sha256": "74b9a6fd7698cded5aba5bdf411e2c8c40b8d604f2d189c67518b6f584a4f8d2",
+      "node_ids": [
+        "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_direct_paths_are_stable",
+        "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_targets_are_covered_and_deterministic",
+        "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_changing_path",
+        "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg_projection"
+      ]
+    },
+    {
+      "path": "tests/integration/test_proof_verifier.py",
+      "sha256": "1b5c441383b1168118e53e10592d221e7a673291ea3536431fe03ea318a4f7c9",
+      "node_ids": [
+        "tests/integration/test_proof_verifier.py::test_engine_accepts_proof_when_commitments_match_and_verifier_ok",
+        "tests/integration/test_proof_verifier.py::test_engine_proof_binding_is_fail_closed_on_batch_commitment_mismatch"
+      ]
+    },
+    {
+      "path": "tests/integration/test_quote_receipt_intents.py",
+      "sha256": "637643f940ed6896526554a57aaf2b5083476db35de9ade894c31287670e9970",
+      "node_ids": [
+        "tests/integration/test_quote_receipt_intents.py::test_receipt_derived_intent_rejects_when_pool_snapshot_has_drifted"
+      ]
+    },
+    {
+      "path": "tests/integration/test_validation_uses_strong_settlement_gate.py",
+      "sha256": "6f56d008350ce218a242aa9de27a905ce5047e82e3972ae3cac4f4429140096d",
+      "node_ids": [
+        "tests/integration/test_validation_uses_strong_settlement_gate.py::test_validate_operations_requires_explicit_opt_in_for_snapshot_bound_quote_binding"
+      ]
+    },
+    {
+      "path": "tests/integration/test_zeno_oracle_routing_authorization.py",
+      "sha256": "ec19b98c7598599632b0ccf7cb092f7b21e1141f410b388107483dc29a68af35",
+      "node_ids": [
+        "tests/integration/test_zeno_oracle_routing_authorization.py::test_protected_swap_query_id_is_canonical_hash_and_binds_direction",
+        "tests/integration/test_zeno_oracle_routing_authorization.py::test_protected_swap_query_id_rejects_noncanonical_components"
+      ]
+    },
+    {
+      "path": "tests/integration/test_zenodex_blast_radius_report.py",
+      "sha256": "7c81b90c0f5b35ecc61ea576133161badb5f6cad30986c5126d41674fcc8f090",
+      "node_ids": [
+        "tests/integration/test_zenodex_blast_radius_report.py::test_build_blast_radius_report_uses_snapshot_for_exact_scope",
+        "tests/integration/test_zenodex_blast_radius_report.py::test_build_blast_radius_report_marks_attached_quote_receipt_witness_as_full",
+        "tests/integration/test_zenodex_blast_radius_report.py::test_build_blast_radius_report_keeps_invalid_attached_quote_receipt_witness_partial"
+      ]
+    },
+    {
+      "path": "tests/state/test_intents.py",
+      "sha256": "b189fead613499a4a5f8eb1de3ed17f4403eb13f2e680c9b5d348828397066e5",
+      "node_ids": [
+        "tests/state/test_intents.py::test_intent_defaults_fields_and_field_helpers",
+        "tests/state/test_intents.py::test_intent_snapshot_rejects_mutation",
+        "tests/state/test_intents.py::test_intent_get_wire_field_detaches_nested_value",
+        "tests/state/test_intents.py::test_signed_intent_accepts_valid_signature"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each repaired consumer is exercised from an exact immutable Intent through the real parser, core, verifier, or diagnostic boundary and asserts the complete success or typed rejection outcome."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Mutation attempts reject on the original frozen snapshot; quote, Oracle, and candidate-settlement rejection tests retain unchanged nonce and state behavior."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "nested_field_representation",
+      "points": [
+        "constructor_owned_frozen_object",
+        "detached_plain_json_object",
+        "foreign_mapping_rejected"
+      ]
+    },
+    {
+      "name": "pool_curve",
+      "points": [
+        "cpmm_empty_params",
+        "non_cpmm_nested_params",
+        "invalid_curve_params_reject"
+      ]
+    },
+    {
+      "name": "oracle_query_identity",
+      "points": [
+        "exact_in_hash",
+        "exact_out_hash",
+        "reversed_asset_pair_hash"
+      ]
+    },
+    {
+      "name": "quote_binding",
+      "points": [
+        "complete_witness",
+        "missing_leg",
+        "invalid_witness"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "pass the recursively frozen curve_params mapping directly into the exact plain-dict curve decoder",
+      "killed_by": "tests/core/test_support_root.py::test_support_root_uses_live_curve_config_for_add_liquidity_into_new_pool"
+    },
+    {
+      "description": "return the internally owned nested field instead of a recursively detached JSON value",
+      "killed_by": "tests/state/test_intents.py::test_intent_get_wire_field_detaches_nested_value"
+    },
+    {
+      "description": "derive a protected-swap query identity as a human-readable token rather than a canonical SHA-256 reference",
+      "killed_by": "tests/integration/test_zeno_oracle_routing_authorization.py::test_protected_swap_query_id_is_canonical_hash_and_binds_direction"
+    },
+    {
+      "description": "pass a private frozen Intent mapping into proof-commitment JSON",
+      "killed_by": "tests/integration/test_proof_verifier.py::test_engine_accepts_proof_when_commitments_match_and_verifier_ok"
+    },
+    {
+      "description": "recognize nonce and quote-receipt fields only when Intent fields are a mutable dict",
+      "killed_by": "tests/integration/test_zenodex_blast_radius_report.py::test_build_blast_radius_report_marks_attached_quote_receipt_witness_as_full"
+    },
+    {
+      "description": "mutate an admitted Intent in place when constructing a malformed batch-auction witness candidate",
+      "killed_by": "tests/core/test_batch_auction_settler_v1_witness.py::test_batch_auction_witness_skips_unsupported_or_malformed_batches"
+    },
+    {
+      "description": "call the removed mutable Intent API while constructing a stateful quote-receipt sequence",
+      "killed_by": "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_direct_paths_are_stable"
+    }
+  ],
+  "nonclaims": [
+    "This packet proves no cryptographic Oracle authenticity, Tau availability, datastore durability, mounted no-bypass property, or production readiness.",
+    "The defensive unknown-kind tests use object.__setattr__ only to exercise unreachable downstream guards; admitted Intent construction rejects unknown kinds.",
+    "Acceptance-TCB and bounded regression evidence do not prove complete global value safety or close M6.",
+    "The blast-radius report remains diagnostic evidence and carries no settlement authority."
+  ]
+}

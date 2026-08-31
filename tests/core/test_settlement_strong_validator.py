@@ -3584,12 +3584,13 @@ def test_strong_validator_rejects_unsupported_intent_kind() -> None:
     weird_intent = Intent(
         module="TauSwap",
         version="0.1",
-        kind="MYSTERY_KIND",
+        kind=IntentKind.ADD_LIQUIDITY,
         intent_id=_iid(916),
         sender_pubkey="0x" + "11" * 48,
         deadline=9999999999,
         fields={"pool_id": pool_id},
     )
+    object.__setattr__(weird_intent, "kind", "MYSTERY_KIND")
     settlement = Settlement(
         module="TauSwap",
         version="0.1",

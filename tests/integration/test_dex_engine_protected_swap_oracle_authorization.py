@@ -39,7 +39,7 @@ def _state_and_intent(*, sender: str, block_timestamp: int = 42):
         deadline=9_999_999_999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     balances = BalanceTable()
     balances.set(sender, "A", 10_000)
     balances.set(sender, "B", 0)
@@ -109,7 +109,7 @@ def test_protected_swap_requires_oracle_authorization_when_configured() -> None:
 def test_protected_swap_accepts_matching_typed_oracle_authorization() -> None:
     sender = "0x" + "aa" * 48
     state, intent, receipt, runtime = _state_and_intent(sender=sender)
-    intent.set_field("oracle_authorization", _authorization_for(runtime))
+    intent = intent.with_field("oracle_authorization", _authorization_for(runtime))
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     res = apply_ops(
@@ -130,7 +130,13 @@ def test_protected_swap_accepts_matching_typed_oracle_authorization() -> None:
 def test_protected_swap_rejects_authorization_for_wrong_quote_value() -> None:
     sender = "0x" + "aa" * 48
     state, intent, receipt, runtime = _state_and_intent(sender=sender)
-    intent.set_field("oracle_authorization", _authorization_for(runtime, value_e8=int(runtime["runtime_value_e8"]) + 1))
+    intent = intent.with_field(
+        "oracle_authorization",
+        _authorization_for(
+            runtime,
+            value_e8=int(runtime["runtime_value_e8"]) + 1,
+        ),
+    )
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     res = apply_ops(
@@ -155,7 +161,7 @@ def test_protected_swap_rejects_authorization_for_wrong_receipt_context() -> Non
     state, intent, receipt, runtime = _state_and_intent(sender=sender)
     auth = _authorization_for(runtime)
     auth["authorization"]["pre_state_hash"] = semantic_hash("test.wrong-routing-pre-state", {"intent_id": intent.intent_id})
-    intent.set_field("oracle_authorization", auth)
+    intent = intent.with_field("oracle_authorization", auth)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     res = apply_ops(
@@ -178,7 +184,10 @@ def test_protected_swap_rejects_authorization_for_wrong_receipt_context() -> Non
 def test_protected_swap_rejects_expired_authorization() -> None:
     sender = "0x" + "aa" * 48
     state, intent, receipt, runtime = _state_and_intent(sender=sender)
-    intent.set_field("oracle_authorization", _authorization_for(runtime, expires_at_epoch=1))
+    intent = intent.with_field(
+        "oracle_authorization",
+        _authorization_for(runtime, expires_at_epoch=1),
+    )
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     res = apply_ops(
@@ -201,7 +210,14 @@ def test_protected_swap_rejects_expired_authorization() -> None:
 def test_protected_swap_rejects_stale_but_unexpired_authorization() -> None:
     sender = "0x" + "aa" * 48
     state, intent, receipt, runtime = _state_and_intent(sender=sender)
-    intent.set_field("oracle_authorization", _authorization_for(runtime, observed_epoch=1, expires_at_epoch=42))
+    intent = intent.with_field(
+        "oracle_authorization",
+        _authorization_for(
+            runtime,
+            observed_epoch=1,
+            expires_at_epoch=42,
+        ),
+    )
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     res = apply_ops(

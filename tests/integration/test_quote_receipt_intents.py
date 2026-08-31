@@ -240,7 +240,7 @@ def test_receipt_derived_intent_rejects_when_pool_snapshot_has_drifted() -> None
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
 
     balances = BalanceTable()
     balances.set(sender, "A", 10_000)

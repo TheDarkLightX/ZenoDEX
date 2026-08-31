@@ -74,7 +74,7 @@ def _create_pool_intent_fields(intent: Intent) -> _CreatePoolIntentFields:
         amount1=intent.get_field("amount1"),
         created_at=intent.get_field("created_at", 0),
         curve_tag=intent.get_field("curve_tag", None),
-        curve_params=intent.get_field("curve_params", None),
+        curve_params=intent.get_wire_field("curve_params", None),
     )
 
 
