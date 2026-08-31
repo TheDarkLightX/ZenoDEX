@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod asset_origin_registry;
+pub mod asset_origin_registry_types;
 pub mod asset_transfer;
 pub mod asset_transfer_types;
 pub mod canonical;
@@ -18,6 +20,8 @@ pub mod proof;
 mod signed_atoms;
 pub mod state;
 
+pub use asset_origin_registry::*;
+pub use asset_origin_registry_types::*;
 pub use asset_transfer::transition_asset_transfer_v2;
 pub use asset_transfer_types::*;
 pub use canonical::*;
