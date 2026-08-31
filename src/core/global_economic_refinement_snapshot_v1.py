@@ -84,6 +84,8 @@ def _snapshot_dataclass_tuple_v1(
 
 
 def _snapshot_state_v1(state: GlobalEconomicStateV1) -> GlobalEconomicStateV1:
+    if type(state) is not GlobalEconomicStateV1:
+        raise TypeError("economic refinement state must have the exact typed value")
     tuple_fields = frozenset(
         {
             "lane_roots",
@@ -145,6 +147,8 @@ def _snapshot_state_v1(state: GlobalEconomicStateV1) -> GlobalEconomicStateV1:
 def _snapshot_effect_plan_v1(
     effect_plan: GlobalEconomicEffectPlanV1,
 ) -> GlobalEconomicEffectPlanV1:
+    if type(effect_plan) is not GlobalEconomicEffectPlanV1:
+        raise TypeError("economic refinement effect plan must have the exact typed value")
     _require_exact_dataclass_scalars_v1(
         effect_plan,
         name="effect plan",
@@ -237,6 +241,8 @@ def _snapshot_epoch_certificate_v1(
 def _snapshot_occurrence_v1(
     occurrence: EconomicCommandOccurrenceV1,
 ) -> EconomicCommandOccurrenceV1:
+    if type(occurrence) is not EconomicCommandOccurrenceV1:
+        raise TypeError("economic refinement occurrence must have the exact typed value")
     _require_exact_dataclass_scalars_v1(
         occurrence,
         name="consumed occurrence",
@@ -257,6 +263,8 @@ def _snapshot_occurrence_v1(
 def _snapshot_lane_journal_v1(
     journal: LaneCompositionJournalV1,
 ) -> LaneCompositionJournalV1:
+    if type(journal) is not LaneCompositionJournalV1:
+        raise TypeError("economic refinement lane journal must have the exact typed value")
     _require_exact_dataclass_scalars_v1(
         journal,
         name="lane journal",
@@ -277,6 +285,8 @@ def _snapshot_lane_journal_v1(
 def _snapshot_route_journal_v1(
     journal: RouteCompositionJournalV1,
 ) -> RouteCompositionJournalV1:
+    if type(journal) is not RouteCompositionJournalV1:
+        raise TypeError("economic refinement route journal must have the exact typed value")
     _require_exact_dataclass_scalars_v1(
         journal,
         name="route journal",

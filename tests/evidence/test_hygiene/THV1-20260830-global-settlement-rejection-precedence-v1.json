@@ -1,0 +1,118 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260830-global-settlement-rejection-precedence-v1",
+  "created_date": "2026-08-30",
+  "claim_scope": "Research-only evidence that behavior-bearing subclasses are rejected at the earliest exact-ownership boundary and remain rejected if deliberately injected after construction. The tests preserve callback non-execution and point-of-use revalidation without weakening the GlobalSettlementABI V1 ownership rule.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSV1-FCIS-EARLIEST-EXACT-OWNERSHIP-REJECT",
+    "GSV1-FCIS-POST-CONSTRUCTION-REVALIDATION",
+    "GSV1-FCIS-HOSTILE-HOOK-NONEXECUTION"
+  ],
+  "failure_modes": [
+    "a test constructs a forbidden subclass and accidentally treats earlier rejection as a regression",
+    "a policy or registry subclass executes its canonical projection before exact-type admission",
+    "post-construction corruption reaches membership, receipt verification, or a verifier callback",
+    "a hostile root or token subclass influences equality or canonical identity"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "2ac00d75fc90aa408cd4ac0a33895edd70d875916dd19469c3a98c0fe84058d5"
+    },
+    {
+      "path": "src/core/global_economic_refinement_snapshot_v1.py",
+      "sha256": "0ab017a4fd6eee81e85bfeda3a829b34c78edb2b9af95d0959f1059be0469bb7"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_asset_transfer_policy_membership_v1.py",
+      "sha256": "59b666baefd97feabbc1e046448217555f560823552b604a5f65855717dd3dde",
+      "node_ids": [
+        "tests/core/test_asset_transfer_policy_membership_v1.py::test_hostile_registry_and_member_subclasses_cannot_advertise_the_governed_roots",
+        "tests/core/test_asset_transfer_policy_membership_v1.py::test_hostile_text_bool_and_int_scalars_reject_before_membership",
+        "tests/core/test_asset_transfer_policy_membership_v1.py::test_retained_candidate_alias_mutations_are_rejected_at_the_snapshot"
+      ]
+    },
+    {
+      "path": "tests/core/test_managed_asset_policy_membership_v1.py",
+      "sha256": "fff03f23adad7b615275b068ba63f5c5d9bddecd4cddd7bfb3b23265c95933e2",
+      "node_ids": [
+        "tests/core/test_managed_asset_policy_membership_v1.py::test_hostile_registry_and_member_subclasses_cannot_advertise_the_governed_root",
+        "tests/core/test_managed_asset_policy_membership_v1.py::test_retained_candidate_alias_mutations_are_rejected_at_the_snapshot"
+      ]
+    },
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "62d36ef53efccc4fa6eb4a082616b6b6fedd5c2dc65703469e386165e7f44251",
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_rejects_hostile_scalar_before_callback",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_burn_receipt_rejects_hostile_route_scalar_before_callback"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each node arranges one exact valid object and one behavior-bearing subclass, attempts either direct admission or deliberate post-construction corruption, and asserts the exact early rejection plus hook or callback non-execution where observable."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "These are constructor, snapshot, membership, and receipt-admission boundaries. They reject before an authoritative transition or external effect plan can be produced; the shared transition suite separately checks rejected-transition no-op behavior."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "injection_time",
+      "points": [
+        "subclass supplied to the constructor",
+        "subclass injected after construction and before point-of-use snapshot"
+      ]
+    },
+    {
+      "name": "hostile_shape",
+      "points": [
+        "scalar subclass",
+        "registry subclass",
+        "registry-member subclass",
+        "nested journal scalar subclass"
+      ]
+    },
+    {
+      "name": "authority_boundary",
+      "points": [
+        "policy membership",
+        "release-route binding",
+        "receipt verification",
+        "verifier callback"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "restore subtype-permitting policy and registry admission",
+      "killed_by": "tests/core/test_asset_transfer_policy_membership_v1.py::test_hostile_registry_and_member_subclasses_cannot_advertise_the_governed_roots"
+    },
+    {
+      "description": "omit point-of-use scalar revalidation after retained-object corruption",
+      "killed_by": "tests/core/test_managed_asset_policy_membership_v1.py::test_retained_candidate_alias_mutations_are_rejected_at_the_snapshot"
+    },
+    {
+      "description": "dispatch a receipt verifier callback before owning its nested journal scalars",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_rejects_hostile_scalar_before_callback"
+    }
+  ],
+  "nonclaims": [
+    "This packet grants no production, settlement, release, migration, proof-receipt, or value-moving authority.",
+    "Earlier rejection changes error precedence for forbidden caller-constructed subclass values only; valid exact-value canonical bytes are unchanged.",
+    "This evidence does not close the generic canonicalizable registry, traversal budget, local lane ownership, sole-publisher, durability, or no-bypass gaps.",
+    "Passing the hygiene gate establishes only current source/test binding and execution of the declared nodes."
+  ]
+}
