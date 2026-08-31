@@ -19,17 +19,17 @@ shape.
 Identifiers and root payloads are abstract strings assumed to have crossed the
 typed runtime decode boundary.  `ValidState` and `ValidCommand` expose the
 runtime-relevant structural subdomain used by these theorems: ordered unique
-assets, unique origins, native uniqueness, fixed record decimals, and native
-kind/class consistency.  Token and root syntax, protected asset namespaces,
-integer representation bounds, canonical JSON, and cryptographic hashes or
-their recomputation remain outside the model.  Python/Rust/Lean execution equivalence
-remains outside the model.  Registry authentication, mounting, settlement,
-migration, release, and production authority also remain outside the model.  The
-aggregate coordinator's 256-asset admission cap and all other resource bounds
-are also omitted.  Thus the list-general preservation theorem does not imply
-unbounded runtime acceptance.  The paired source-pin test makes drift in the
-reviewed Python and Rust source surface visible and does not constitute a
-universal refinement proof.
+assets, unique origins, native uniqueness, fixed record decimals, native
+kind/class consistency, and the shared 256-record registry ceiling.  Token and
+root syntax, protected asset namespaces, integer representation bounds,
+canonical JSON, cryptographic hashes or their recomputation, and all other resource bounds
+remain outside the model.  Python/Rust/Lean execution equivalence
+remains outside the model.  Registry authentication, mounting,
+settlement, migration, release, and production authority also remain outside
+the model.  The list-general lemmas are abstract; acceptance is capacity-gated
+and does not imply unbounded runtime acceptance.  The paired source-pin test
+makes drift in the reviewed Python and Rust source surface visible and does not
+constitute a universal refinement proof.
 -/
 
 namespace Proofs
@@ -42,6 +42,7 @@ abbrev CommandKind := String
 
 def registrationCommandKind : CommandKind := "register_asset_origin"
 def assetAtomDecimals : Nat := 8
+def maxAssetOriginRegistryAssets : Nat := 256
 def zeroRoot : Root := "0x0000000000000000000000000000000000000000000000000000000000000000"
 def productionAuthority : String := "NONE"
 
@@ -72,6 +73,7 @@ inductive RejectCode where
   | nativeAssetAccountingUnimplemented
   | duplicateAsset
   | duplicateOrigin
+  | registryCapacityExceeded
   deriving DecidableEq, Repr
 
 def RejectCode.code : RejectCode → String
@@ -87,6 +89,7 @@ def RejectCode.code : RejectCode → String
   | .nativeAssetAccountingUnimplemented => "NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED"
   | .duplicateAsset => "DUPLICATE_ASSET"
   | .duplicateOrigin => "DUPLICATE_ORIGIN"
+  | .registryCapacityExceeded => "REGISTRY_CAPACITY_EXCEEDED"
 
 def RejectCode.rank : RejectCode → Nat
   | .missingOccurrence => 0
@@ -101,18 +104,20 @@ def RejectCode.rank : RejectCode → Nat
   | .nativeAssetAccountingUnimplemented => 9
   | .duplicateAsset => 10
   | .duplicateOrigin => 11
+  | .registryCapacityExceeded => 12
 
 def allRejectCodes : List RejectCode :=
   [ .missingOccurrence, .occurrenceBindingMismatch, .releaseMismatch,
     .unknownCommand, .occurrenceCommandMismatch, .unauthorizedSubject,
     .grantMismatch, .decimalScaleMismatch, .disabledOriginKind,
-    .nativeAssetAccountingUnimplemented, .duplicateAsset, .duplicateOrigin ]
+    .nativeAssetAccountingUnimplemented, .duplicateAsset, .duplicateOrigin,
+    .registryCapacityExceeded ]
 
 def hasDuplicateCode : List RejectCode → Bool
   | [] => false
   | code :: rest => rest.contains code || hasDuplicateCode rest
 
-theorem all_reject_codes_length : allRejectCodes.length = 12 := rfl
+theorem all_reject_codes_length : allRejectCodes.length = 13 := rfl
 
 theorem all_reject_codes_wire_order :
     allRejectCodes.map RejectCode.code =
@@ -120,7 +125,7 @@ theorem all_reject_codes_wire_order :
         "UNKNOWN_COMMAND", "OCCURRENCE_COMMAND_MISMATCH", "UNAUTHORIZED_SUBJECT",
         "GRANT_MISMATCH", "DECIMAL_SCALE_MISMATCH", "DISABLED_ORIGIN_KIND",
         "NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED", "DUPLICATE_ASSET",
-        "DUPLICATE_ORIGIN" ] := rfl
+        "DUPLICATE_ORIGIN", "REGISTRY_CAPACITY_EXCEEDED" ] := rfl
 
 theorem all_reject_codes_complete (code : RejectCode) : code ∈ allRejectCodes := by
   cases code <;> decide
@@ -271,6 +276,7 @@ structure ValidState (state : State) : Prop where
   originUnique : UniqueOrigins state.assets
   nativeUnique : NativeUnique state.assets
   recordsValid : ∀ row ∈ state.assets, ValidRecord row
+  capacity : state.assets.length ≤ maxAssetOriginRegistryAssets
 
 instance validStateDecidable (state : State) : Decidable (ValidState state) := by
   letI : Decidable (StrictAssetOrder state.assets) := by
@@ -284,10 +290,12 @@ instance validStateDecidable (state : State) : Decidable (ValidState state) := b
     infer_instance
   exact decidable_of_iff
     (StrictAssetOrder state.assets ∧ UniqueOrigins state.assets ∧
-      NativeUnique state.assets ∧ List.Forall ValidRecord state.assets)
-    ⟨fun h => ⟨h.1, h.2.1, h.2.2.1, List.forall_iff_forall_mem.mp h.2.2.2⟩,
+      NativeUnique state.assets ∧ List.Forall ValidRecord state.assets ∧
+      state.assets.length ≤ maxAssetOriginRegistryAssets)
+    ⟨fun h => ⟨h.1, h.2.1, h.2.2.1, List.forall_iff_forall_mem.mp h.2.2.2.1,
+        h.2.2.2.2⟩,
       fun h => ⟨h.assetOrder, h.originUnique, h.nativeUnique,
-        List.forall_iff_forall_mem.mpr h.recordsValid⟩⟩
+        List.forall_iff_forall_mem.mpr h.recordsValid, h.capacity⟩⟩
 
 def insertRecord (record : Record) : List Record → List Record
   | [] => [record]
@@ -454,6 +462,7 @@ def guardPasses (ctx : Context) (pre : State) (command : Command) : RejectCode �
   | .nativeAssetAccountingUnimplemented => command.originKind ≠ .native
   | .duplicateAsset => ¬ hasAsset pre command.asset
   | .duplicateOrigin => ¬ hasOrigin pre command.originRoot
+  | .registryCapacityExceeded => pre.assets.length < maxAssetOriginRegistryAssets
 
 instance guardPassesDecidable (ctx : Context) (pre : State) (command : Command) :
     DecidablePred (guardPasses ctx pre command)
@@ -480,6 +489,8 @@ instance guardPassesDecidable (ctx : Context) (pre : State) (command : Command) 
       (Decidable (¬ hasAsset pre command.asset))
   | .duplicateOrigin => inferInstanceAs
       (Decidable (¬ hasOrigin pre command.originRoot))
+  | .registryCapacityExceeded => inferInstanceAs
+      (Decidable (pre.assets.length < maxAssetOriginRegistryAssets))
 
 def firstFailing (g : RejectCode → Prop) [DecidablePred g] :
     List RejectCode → Option RejectCode
@@ -684,6 +695,37 @@ def populatedState (record : Record) : State := {
   assets := [record]
 }
 
+def capacityKey (index : Nat) : String :=
+  String.ofList (List.replicate (index + 1) 'a')
+
+def capacityWitnessRecord (index : Nat) : Record where
+  asset := capacityKey index
+  originKind := .tauOriginated
+  originRoot := capacityKey index
+  transferPolicyRoot := opaqueRootA
+  issuePolicyRoot := zeroRoot
+  decimals := assetAtomDecimals
+  assetClass := .registeredOrdinaryToken
+
+def capacityWitnessRows : List Record :=
+  (List.range maxAssetOriginRegistryAssets).map capacityWitnessRecord
+
+def capacityWitnessState : State := {
+  witnessState with
+  assets := capacityWitnessRows
+}
+
+def capacityWitnessCommand : Command := {
+  witnessCommand with
+  asset := String.ofList ['b']
+  originRoot := String.ofList ['c']
+}
+
+def capacityDuplicateOriginCommand : Command := {
+  capacityWitnessCommand with
+  originRoot := capacityKey 0
+}
+
 def disabledTauState : State := {
   witnessState with
   policy := { witnessPolicy with allowTauOriginated := false }
@@ -723,24 +765,191 @@ def rejectWitnessContext : RejectCode → Context
   | .nativeAssetAccountingUnimplemented => contextWith nativeWitnessCommand
   | .duplicateAsset => witnessContext
   | .duplicateOrigin => witnessContext
+  | .registryCapacityExceeded => witnessContext
 
 def rejectWitnessState : RejectCode → State
   | .disabledOriginKind => disabledTauState
   | .duplicateAsset => populatedState duplicateAssetRecord
   | .duplicateOrigin => populatedState duplicateOriginRecord
+  | .registryCapacityExceeded => capacityWitnessState
   | _ => witnessState
 
 def rejectWitnessCommand : RejectCode → Command
   | .unknownCommand => unknownCommand
   | .decimalScaleMismatch => decimalMismatchCommand
   | .nativeAssetAccountingUnimplemented => nativeWitnessCommand
+  | .registryCapacityExceeded => capacityWitnessCommand
   | _ => witnessCommand
+
+theorem replicate_a_lt_of_lt {n m : Nat} (h : n < m) :
+    List.replicate n 'a' < List.replicate m 'a' := by
+  induction n generalizing m with
+  | zero =>
+      cases m with
+      | zero => simp at h
+      | succ m => simp [List.replicate_succ]
+  | succ n ih =>
+      cases m with
+      | zero => simp at h
+      | succ m =>
+          simp only [List.replicate_succ, List.cons_lt_cons_self]
+          exact ih (Nat.lt_of_succ_lt_succ h)
+
+theorem capacity_key_lt {n m : Nat} (h : n < m) : capacityKey n < capacityKey m := by
+  rw [String.lt_iff_toList_lt]
+  simp only [capacityKey, String.toList_ofList]
+  exact replicate_a_lt_of_lt (Nat.add_lt_add_right h 1)
+
+theorem capacity_key_injective : Function.Injective capacityKey := by
+  intro n m same
+  have sameLength := congrArg String.length same
+  simpa [capacityKey] using sameLength
+
+theorem capacity_witness_state_valid :
+    ValidState capacityWitnessState ∧
+      capacityWitnessState.assets.length = maxAssetOriginRegistryAssets := by
+  constructor
+  · exact {
+      assetOrder := by
+        simp only [StrictAssetOrder, capacityWitnessState, capacityWitnessRows,
+          List.pairwise_map]
+        exact List.pairwise_lt_range.imp (fun h => capacity_key_lt h)
+      originUnique := by
+        simpa [UniqueOrigins, capacityWitnessState, capacityWitnessRows,
+          capacityWitnessRecord] using
+            (List.nodup_range.map capacity_key_injective)
+      nativeUnique := by
+        unfold NativeUnique nativeCount
+        simp only [capacityWitnessState, capacityWitnessRows, List.countP_map]
+        change List.countP (fun _ : Nat => false)
+          (List.range maxAssetOriginRegistryAssets) ≤ 1
+        simp
+      recordsValid := by
+        intro row rowMem
+        simp only [capacityWitnessState, capacityWitnessRows, List.mem_map] at rowMem
+        rcases rowMem with ⟨index, _, rfl⟩
+        simp [ValidRecord, kindClassConsistent, capacityWitnessRecord, assetAtomDecimals]
+      capacity := by
+        simp [capacityWitnessState, capacityWitnessRows, maxAssetOriginRegistryAssets]
+  }
+  · simp [capacityWitnessState, capacityWitnessRows, maxAssetOriginRegistryAssets]
+
+theorem capacity_key_ne_witness_asset (index : Nat) :
+    capacityKey index ≠ capacityWitnessCommand.asset := by
+  intro same
+  change String.ofList (List.replicate (index + 1) 'a') = String.ofList ['b'] at same
+  have sameList := String.ofList_injective same
+  simp [List.replicate_succ] at sameList
+
+theorem capacity_key_ne_witness_origin (index : Nat) :
+    capacityKey index ≠ capacityWitnessCommand.originRoot := by
+  intro same
+  change String.ofList (List.replicate (index + 1) 'a') = String.ofList ['c'] at same
+  have sameList := String.ofList_injective same
+  simp [List.replicate_succ] at sameList
+
+theorem capacity_witness_has_no_asset :
+    ¬ hasAsset capacityWitnessState capacityWitnessCommand.asset := by
+  rintro ⟨row, rowMem, sameAsset⟩
+  simp only [capacityWitnessState, capacityWitnessRows, List.mem_map] at rowMem
+  rcases rowMem with ⟨index, _, rfl⟩
+  exact capacity_key_ne_witness_asset index sameAsset
+
+theorem capacity_witness_has_no_origin :
+    ¬ hasOrigin capacityWitnessState capacityWitnessCommand.originRoot := by
+  rintro ⟨row, rowMem, sameOrigin⟩
+  simp only [capacityWitnessState, capacityWitnessRows, List.mem_map] at rowMem
+  rcases rowMem with ⟨index, _, rfl⟩
+  exact capacity_key_ne_witness_origin index sameOrigin
+
+theorem capacity_witness_has_origin_zero :
+    hasOrigin capacityWitnessState (capacityKey 0) := by
+  refine ⟨capacityWitnessRecord 0, ?_, rfl⟩
+  change capacityWitnessRecord 0 ∈ capacityWitnessRows
+  rw [capacityWitnessRows]
+  exact List.mem_map.mpr ⟨0, by simp [maxAssetOriginRegistryAssets], rfl⟩
+
+theorem capacity_witness_reject_code :
+    rejectCode witnessContext capacityWitnessState capacityWitnessCommand =
+      some .registryCapacityExceeded := by
+  apply exact_reject_precedence
+  · simpa only [guardPasses, capacity_witness_state_valid.2] using
+      (Nat.lt_irrefl maxAssetOriginRegistryAssets)
+  · intro earlier _ earlierRank
+    cases earlier with
+    | missingOccurrence => decide
+    | occurrenceBindingMismatch => decide
+    | releaseMismatch => decide
+    | unknownCommand => decide
+    | occurrenceCommandMismatch => decide
+    | unauthorizedSubject => decide
+    | grantMismatch => decide
+    | decimalScaleMismatch => decide
+    | disabledOriginKind => decide
+    | nativeAssetAccountingUnimplemented => decide
+    | duplicateAsset =>
+        simpa only [guardPasses] using capacity_witness_has_no_asset
+    | duplicateOrigin =>
+        simpa only [guardPasses] using capacity_witness_has_no_origin
+    | registryCapacityExceeded =>
+        simp [RejectCode.rank] at earlierRank
+
+theorem capacity_duplicate_origin_reject_code :
+    rejectCode witnessContext capacityWitnessState capacityDuplicateOriginCommand =
+      some .duplicateOrigin := by
+  apply exact_reject_precedence
+  · change ¬ (¬ hasOrigin capacityWitnessState (capacityKey 0))
+    exact fun absent => absent capacity_witness_has_origin_zero
+  · intro earlier _ earlierRank
+    cases earlier with
+    | missingOccurrence => decide
+    | occurrenceBindingMismatch => decide
+    | releaseMismatch => decide
+    | unknownCommand => decide
+    | occurrenceCommandMismatch => decide
+    | unauthorizedSubject => decide
+    | grantMismatch => decide
+    | decimalScaleMismatch => decide
+    | disabledOriginKind => decide
+    | nativeAssetAccountingUnimplemented => decide
+    | duplicateAsset =>
+        simpa only [guardPasses, capacityDuplicateOriginCommand] using
+          capacity_witness_has_no_asset
+    | duplicateOrigin => simp [RejectCode.rank] at earlierRank
+    | registryCapacityExceeded => simp [RejectCode.rank] at earlierRank
+
+theorem full_capacity_rejection_witness :
+    ValidState capacityWitnessState ∧ ValidCommand capacityWitnessCommand ∧
+      capacityWitnessState.assets.length = maxAssetOriginRegistryAssets ∧
+      transition witnessContext capacityWitnessState capacityWitnessCommand = .rejected {
+        code := .registryCapacityExceeded
+        pre := capacityWitnessState
+        post := capacityWitnessState
+        effects := .empty
+      } := by
+  refine ⟨capacity_witness_state_valid.1, by decide,
+    capacity_witness_state_valid.2, ?_⟩
+  simp [transition, capacity_witness_reject_code]
 
 theorem every_reject_code_reachable_on_valid_domain (code : RejectCode) :
     ValidState (rejectWitnessState code) ∧ ValidCommand (rejectWitnessCommand code) ∧
       rejectCode (rejectWitnessContext code) (rejectWitnessState code)
         (rejectWitnessCommand code) = some code := by
-  cases code <;> decide
+  cases code with
+  | missingOccurrence => decide
+  | occurrenceBindingMismatch => decide
+  | releaseMismatch => decide
+  | unknownCommand => decide
+  | occurrenceCommandMismatch => decide
+  | unauthorizedSubject => decide
+  | grantMismatch => decide
+  | decimalScaleMismatch => decide
+  | disabledOriginKind => decide
+  | nativeAssetAccountingUnimplemented => decide
+  | duplicateAsset => decide
+  | duplicateOrigin => decide
+  | registryCapacityExceeded =>
+      exact ⟨capacity_witness_state_valid.1, by decide, capacity_witness_reject_code⟩
 
 def nextRejectCode : RejectCode → Option RejectCode
   | .missingOccurrence => some .occurrenceBindingMismatch
@@ -754,7 +963,8 @@ def nextRejectCode : RejectCode → Option RejectCode
   | .disabledOriginKind => some .nativeAssetAccountingUnimplemented
   | .nativeAssetAccountingUnimplemented => some .duplicateAsset
   | .duplicateAsset => some .duplicateOrigin
-  | .duplicateOrigin => none
+  | .duplicateOrigin => some .registryCapacityExceeded
+  | .registryCapacityExceeded => none
 
 def adjacentFailureContext : RejectCode → Context
   | .missingOccurrence => { witnessContext with occurrence := none }
@@ -795,6 +1005,7 @@ def adjacentFailureState : RejectCode → State
   | .disabledOriginKind => disabledNativeState
   | .nativeAssetAccountingUnimplemented => populatedState (commandRecord nativeWitnessCommand)
   | .duplicateAsset => populatedState (commandRecord witnessCommand)
+  | .duplicateOrigin => capacityWitnessState
   | _ => witnessState
 
 def adjacentFailureCommand : RejectCode → Command
@@ -804,6 +1015,7 @@ def adjacentFailureCommand : RejectCode → Command
   | .decimalScaleMismatch => decimalMismatchCommand
   | .disabledOriginKind => nativeWitnessCommand
   | .nativeAssetAccountingUnimplemented => nativeWitnessCommand
+  | .duplicateOrigin => capacityDuplicateOriginCommand
   | _ => witnessCommand
 
 theorem adjacent_double_failure_precedence (earlier : RejectCode) :
@@ -818,7 +1030,28 @@ theorem adjacent_double_failure_precedence (earlier : RejectCode) :
           (adjacentFailureCommand earlier) later ∧
         rejectCode (adjacentFailureContext earlier) (adjacentFailureState earlier)
           (adjacentFailureCommand earlier) = some earlier := by
-  cases earlier <;> simp only [nextRejectCode] <;> decide
+  cases earlier with
+  | missingOccurrence => simp only [nextRejectCode]; decide
+  | occurrenceBindingMismatch => simp only [nextRejectCode]; decide
+  | releaseMismatch => simp only [nextRejectCode]; decide
+  | unknownCommand => simp only [nextRejectCode]; decide
+  | occurrenceCommandMismatch => simp only [nextRejectCode]; decide
+  | unauthorizedSubject => simp only [nextRejectCode]; decide
+  | grantMismatch => simp only [nextRejectCode]; decide
+  | decimalScaleMismatch => simp only [nextRejectCode]; decide
+  | disabledOriginKind => simp only [nextRejectCode]; decide
+  | nativeAssetAccountingUnimplemented => simp only [nextRejectCode]; decide
+  | duplicateAsset => simp only [nextRejectCode]; decide
+  | duplicateOrigin =>
+      simp only [nextRejectCode]
+      refine ⟨capacity_witness_state_valid.1, by decide, ?_, ?_,
+        capacity_duplicate_origin_reject_code⟩
+      · change ¬ (¬ hasOrigin capacityWitnessState (capacityKey 0))
+        exact fun absent => absent capacity_witness_has_origin_zero
+      · change ¬ (capacityWitnessState.assets.length < maxAssetOriginRegistryAssets)
+        rw [capacity_witness_state_valid.2]
+        exact Nat.lt_irrefl _
+  | registryCapacityExceeded => trivial
 
 theorem rejected_is_exact_noop {ctx : Context} {pre : State} {command : Command}
     {rejected : Rejected} (h : transition ctx pre command = .rejected rejected) :
@@ -932,6 +1165,8 @@ theorem accepted_preserves_valid_state {ctx : Context} {pre : State} {command : 
     simpa [guardPasses] using allPass .duplicateOrigin (by decide)
   have decimal : command.decimals = assetAtomDecimals := by
     simpa [guardPasses] using allPass .decimalScaleMismatch (by decide)
+  have belowCapacity : pre.assets.length < maxAssetOriginRegistryAssets := by
+    simpa [guardPasses] using allPass .registryCapacityExceeded (by decide)
   have tau := (accepted_requires_authority_and_tau_origin h).1
   have freshAsset : ∀ row ∈ pre.assets, row.asset ≠ command.asset := by
     intro row rowMem sameAsset
@@ -960,6 +1195,9 @@ theorem accepted_preserves_valid_state {ctx : Context} {pre : State} {command : 
       simpa [postState] using
         insertRecord_preserves_record_validity (commandRecord command) pre.assets
           newRecordValid preValid.recordsValid
+    capacity := by
+      rw [post_assets_length]
+      exact belowCapacity
   }
 
 theorem accepted_preserves_registry_invariants {ctx : Context} {pre : State}

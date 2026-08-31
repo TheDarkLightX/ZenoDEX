@@ -1,10 +1,11 @@
 """Source-pinned formal gate for the V2 asset-origin registry model.
 
-The Lean model covers the exact 12-code protocol rejection order on an explicit
+The Lean model covers the exact 13-code protocol rejection order on an explicit
 valid-state/valid-command domain, rejection no-op behavior, deterministic
 record insertion and invariant preservation, and the authority-free typed
-accepted effect shape.  Python and Rust source hashes plus deterministic
-semantic extractors reopen this review when the modeled source surface changes.
+accepted effect shape, including the shared 256-record capacity boundary.
+Python and Rust source hashes plus deterministic semantic extractors reopen
+this review when the modeled source surface changes.
 
 This is bounded evidence.  It grants no codec or hash equivalence, runtime
 mount, migration, settlement, release, or production authority.
@@ -18,8 +19,8 @@ import os
 import re
 import shutil
 import subprocess
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypedDict
 
 import pytest
 
@@ -54,10 +55,10 @@ RUST_PROOF = ROOT / "zk" / "global_settlement_abi_v2" / "src" / "proof.rs"
 NAMESPACE = "Proofs.AssetOriginRegistryRefinementV2"
 PINNED_TOOLCHAIN = "leanprover/lean4:v4.27.0"
 PINNED_SOURCES = {
-    PYTHON_TYPES: "b41118756ca47b3287cb862e1ea5bd3dffa6248759c6ac7b548d9b87747466e1",
-    PYTHON_TRANSITION: "30a94b99eda4c395b5510fb11bf295171399290f3db72112092a42eb00850be4",
-    RUST_TYPES: "4d6bd2a4b64b48c02bd8f5d9cc7bf911a50832cd2d4642d4c97abf7197bd436d",
-    RUST_TRANSITION: "0aa6a0c8c6450b23599d88514e24e068930f5354abbf1cf90001466dcb0804d8",
+    PYTHON_TYPES: "a7612525042a57b0b48eabbca00156aa2fe365f2baebc4f9b50b5ae590176192",
+    PYTHON_TRANSITION: "b1846290fcdf2dc7255e54933ceca076e2ab3f3f07f5c1cf8fca0909bad30659",
+    RUST_TYPES: "fccd9a67ead7df9be9a7d0d7f19e9cd471070594c07fd1fb89559174d68e12f4",
+    RUST_TRANSITION: "0ace78787e46575ea225ba975d164b946dc8cfca44588b5d444cc61e4b34d647",
     PYTHON_ASSET_TYPES: "345ddc4a414b8526d7e52e53b22cbc987bfa4b9ad3b2573d0aa5ae37c8f74283",
     PYTHON_PRIMITIVES: "11a26694357812e91b398bddc2b6bbec0a93063731ccd5b23818de1d0c0ca01e",
     PYTHON_EFFECT_VALUES: "a366616f8a11f35d5c69d29c91e1d0b8598ac48499eb44d86d8011c73d30fb9a",
@@ -84,6 +85,7 @@ EXPECTED_REJECT_CODES = (
     "NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED",
     "DUPLICATE_ASSET",
     "DUPLICATE_ORIGIN",
+    "REGISTRY_CAPACITY_EXCEEDED",
 )
 
 EXPECTED_ORIGIN_KINDS = ("NATIVE", "TAU_ORIGINATED")
@@ -119,6 +121,18 @@ DECLARATIONS = (
     ("theorem", "acceptance_witness"),
     ("theorem", "native_registration_rejection_witness"),
     ("theorem", "acceptance_witness_on_valid_domain"),
+    ("theorem", "replicate_a_lt_of_lt"),
+    ("theorem", "capacity_key_lt"),
+    ("theorem", "capacity_key_injective"),
+    ("theorem", "capacity_witness_state_valid"),
+    ("theorem", "capacity_key_ne_witness_asset"),
+    ("theorem", "capacity_key_ne_witness_origin"),
+    ("theorem", "capacity_witness_has_no_asset"),
+    ("theorem", "capacity_witness_has_no_origin"),
+    ("theorem", "capacity_witness_has_origin_zero"),
+    ("theorem", "capacity_witness_reject_code"),
+    ("theorem", "capacity_duplicate_origin_reject_code"),
+    ("theorem", "full_capacity_rejection_witness"),
     ("theorem", "every_reject_code_reachable_on_valid_domain"),
     ("theorem", "adjacent_double_failure_precedence"),
     ("theorem", "rejected_is_exact_noop"),
@@ -138,10 +152,11 @@ DECLARATIONS = (
 ALLOWED_STANDARD_AXIOMS = frozenset({"propext", "Quot.sound", "Classical.choice"})
 
 
-class CompiledPacket(TypedDict):
+@dataclass(frozen=True, slots=True)
+class CompiledPacket:
     root: Path
     lean: Path
-    environment: dict[str, str]
+    environment: dict[str, str] = field(repr=False)
 
 
 def _sha256(path: Path) -> str:
@@ -246,7 +261,7 @@ def compiled_packet(tmp_path_factory: pytest.TempPathFactory) -> CompiledPacket:
     assert result.stdout.strip() == ""
     assert result.stderr.strip() == ""
     assert module_output.is_file()
-    return {"root": build_root, "lean": lean, "environment": environment}
+    return CompiledPacket(root=build_root, lean=lean, environment=environment)
 
 
 def _python_enum_entries(source: str, class_name: str) -> tuple[tuple[str, str], ...]:
@@ -556,6 +571,15 @@ def test_modeled_enums_constants_and_effect_shape_are_source_bound() -> None:
         rust_types,
         "ASSET_ORIGIN_REGISTRATION_COMMAND_V2",
     ) == '"register_asset_origin"'
+    assert _python_constant(
+        python_types,
+        "MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2",
+    ) == 256
+    assert _rust_const_expression(
+        rust_types,
+        "MAX_ASSET_ORIGIN_REGISTRY_ASSETS_V2",
+    ) == "256"
+    assert "def maxAssetOriginRegistryAssets : Nat := 256" in lean_source
     assert _python_constant(python_asset_types, "ASSET_ATOM_DECIMALS_V2") == 8
     assert _rust_const_expression(rust_asset_types, "ASSET_ATOM_DECIMALS_V2") == "8"
     assert _python_constant(python_asset_types, "ASSET_LANE_PRODUCTION_AUTHORITY_V2") == (
@@ -630,9 +654,21 @@ def test_modeled_enums_constants_and_effect_shape_are_source_bound() -> None:
 def test_proof_declaration_surface_is_closed_and_model_compiles(
     compiled_packet: CompiledPacket,
 ) -> None:
-    del compiled_packet
+    assert "environment" not in repr(compiled_packet)
     source = PROOF.read_text(encoding="utf-8")
     assert _proof_declarations(source) == DECLARATIONS
+
+
+def test_compiled_packet_repr_cannot_disclose_environment_values() -> None:
+    packet = CompiledPacket(
+        root=Path("bounded-build-root"),
+        lean=Path("pinned-lean"),
+        environment={"FORMAL_GATE_SECRET": "environment-secret-sentinel"},
+    )
+    rendered = repr(packet)
+    assert "environment" not in rendered
+    assert "FORMAL_GATE_SECRET" not in rendered
+    assert "environment-secret-sentinel" not in rendered
 
 
 def test_model_has_no_unproved_placeholders() -> None:
@@ -661,12 +697,12 @@ def test_every_proof_declaration_uses_only_standard_axioms(
     )
     result = subprocess.run(
         [
-            str(compiled_packet["lean"]),
+            str(compiled_packet.lean),
             "-DwarningAsError=true",
             str(probe),
         ],
         cwd=ROOT,
-        env=compiled_packet["environment"],
+        env=compiled_packet.environment,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -692,7 +728,8 @@ def test_claim_ceiling_stays_explicit() -> None:
         "cryptographic hashes",
         "Python/Rust/Lean execution equivalence",
         "universal refinement proof",
-        "256-asset admission cap",
+        "shared 256-record registry ceiling",
+        "all other resource bounds",
         "unbounded runtime acceptance",
         "mounting",
         "settlement",
