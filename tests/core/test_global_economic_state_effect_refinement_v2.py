@@ -38,6 +38,7 @@ from src.core.global_settlement_types_v2 import (
     EconomicAmountV2,
     EconomicEffectKindV2,
     EconomicEffectRowV2,
+    ExternalOutboxEnqueueV2,
     GlobalEconomicEffectPlanV2,
     GlobalOracleOccurrencePlanV2,
     GlobalTerminalObligationPlanV2,
@@ -216,6 +217,58 @@ def test_asset_transfer_refines_exact_global_state_and_effects() -> None:
     assert witness.production_authority == GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_AUTHORITY_V2
 
 
+def test_zero_occurrence_static_state_has_one_exact_refinement() -> None:
+    state = _global_state(lane_roots=_lane_roots())
+    candidate = GlobalEconomicStateEffectRefinementCandidateV2(
+        state,
+        state,
+        GlobalEconomicEffectPlanV2.empty(),
+        (),
+        GlobalTerminalObligationPlanV2.empty(),
+        GlobalOracleOccurrencePlanV2.empty(),
+    )
+
+    witness = refine_global_economic_state_effects_v2(candidate)
+
+    assert witness.pre_state_root == witness.post_state_root == state.state_root
+
+
+def test_zero_occurrence_change_and_external_outbox_fail_closed() -> None:
+    state = _global_state(lane_roots=_lane_roots())
+    with pytest.raises(ValueError, match="zero-occurrence"):
+        refine_global_economic_state_effects_v2(
+            GlobalEconomicStateEffectRefinementCandidateV2(
+                state,
+                replace(state, height=state.height + 1),
+                GlobalEconomicEffectPlanV2.empty(),
+                (),
+                GlobalTerminalObligationPlanV2.empty(),
+                GlobalOracleOccurrencePlanV2.empty(),
+            )
+        )
+
+    candidate = _asset_transfer_candidate()
+    outbox_effects = GlobalEconomicEffectPlanV2(
+        rows=candidate.effect_plan.rows,
+        asset_conservation=candidate.effect_plan.asset_conservation,
+        fee_conservation=candidate.effect_plan.fee_conservation,
+        lane_writes=candidate.effect_plan.lane_writes,
+        occurrence_consumptions=candidate.effect_plan.occurrence_consumptions,
+        external_outbox_enqueue=(
+            ExternalOutboxEnqueueV2(
+                _root(260),
+                "external:test",
+                _root(261),
+                _root(262),
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match="O-009 publisher"):
+        refine_global_economic_state_effects_v2(
+            replace(candidate, effect_plan=outbox_effects)
+        )
+
+
 def test_fee_owner_sender_alias_retains_exact_global_refinement() -> None:
     candidate = _asset_transfer_candidate(fee_owner="alice")
 
@@ -275,6 +328,81 @@ def test_global_refinement_mutants_fail_closed(
     mutated = mutation(candidate)  # type: ignore[operator]
     with pytest.raises(ValueError, match=message):
         refine_global_economic_state_effects_v2(mutated)
+
+
+def test_supply_and_conservation_coverage_mutants_fail_closed() -> None:
+    candidate = _asset_transfer_candidate()
+    with pytest.raises(ValueError, match="supply issue/burn"):
+        refine_global_economic_state_effects_v2(
+            replace(
+                candidate,
+                post_state=replace(
+                    candidate.post_state,
+                    supplies=(AssetSupplyV2("USD", 99),),
+                ),
+            )
+        )
+    without_conservation = GlobalEconomicEffectPlanV2(
+        rows=candidate.effect_plan.rows,
+        asset_conservation=(),
+        fee_conservation=candidate.effect_plan.fee_conservation,
+        lane_writes=candidate.effect_plan.lane_writes,
+        occurrence_consumptions=candidate.effect_plan.occurrence_consumptions,
+        external_outbox_enqueue=(),
+    )
+    with pytest.raises(ValueError, match="conservation asset coverage"):
+        refine_global_economic_state_effects_v2(
+            replace(candidate, effect_plan=without_conservation)
+        )
+
+
+def test_liability_must_be_backed_even_for_a_static_candidate() -> None:
+    state = _global_state(
+        lane_roots=_lane_roots(),
+        balances=(EconomicAmountV2("alice", "USD", "accounts", 7),),
+        custody=(EconomicAmountV2("vault", "USD", "backing", 3),),
+        liabilities=(EconomicAmountV2("alice", "USD", "claims", 4),),
+        supplies=(AssetSupplyV2("USD", 10),),
+    )
+    candidate = GlobalEconomicStateEffectRefinementCandidateV2(
+        state,
+        state,
+        GlobalEconomicEffectPlanV2.empty(),
+        (),
+        GlobalTerminalObligationPlanV2.empty(),
+        GlobalOracleOccurrencePlanV2.empty(),
+    )
+
+    with pytest.raises(ValueError, match="liabilities exceed"):
+        refine_global_economic_state_effects_v2(candidate)
+
+
+def test_consumed_occurrence_context_and_height_are_exact() -> None:
+    candidate = _asset_transfer_candidate()
+    original = candidate.consumed_occurrences[0]
+    mutated = replace(original, profile_root=_root(270))
+    effects = GlobalEconomicEffectPlanV2(
+        rows=candidate.effect_plan.rows,
+        asset_conservation=candidate.effect_plan.asset_conservation,
+        fee_conservation=candidate.effect_plan.fee_conservation,
+        lane_writes=candidate.effect_plan.lane_writes,
+        occurrence_consumptions=(mutated.occurrence_id,),
+        external_outbox_enqueue=(),
+    )
+    post = replace(
+        candidate.post_state,
+        replay_state=(ReplayStateV2(mutated.replay_id, mutated.occurrence_id),),
+    )
+
+    with pytest.raises(ValueError, match="occurrence context"):
+        refine_global_economic_state_effects_v2(
+            replace(
+                candidate,
+                post_state=post,
+                effect_plan=effects,
+                consumed_occurrences=(mutated,),
+            )
+        )
 
 
 def test_terminal_plan_requires_exact_liability_effect_and_backing() -> None:
