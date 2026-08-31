@@ -1,0 +1,115 @@
+{
+  "schema": "zenodex/critical-bva-coverage/v1",
+  "production_complete": false,
+  "notes": "Inventory evidence only. Every surface remains partial and is a release blocker under --require-complete. BVA evidence is bounded test evidence, not a correctness proof or mounted-runtime claim.",
+  "required_boundary_classes": [
+    "numeric_lower_triplet",
+    "numeric_upper_triplet",
+    "exact_type_aliases",
+    "absent_null_malformed",
+    "empty_singleton_max_size",
+    "cross_field_mixed_predicates",
+    "reject_is_noop",
+    "runtime_spec_parity",
+    "stateful_sequence",
+    "resource_bounds"
+  ],
+  "surfaces": [
+    {
+      "id": "spot_swap_and_fees",
+      "status": "partial",
+      "inventory_complete": false,
+      "commands": ["swap_exact_in", "swap_exact_out", "route_exact_in", "route_exact_out", "capture_protocol_fee"],
+      "authoritative_fields": ["amounts", "reserves", "fees_bps", "slippage", "route_hops", "fee_recipient"],
+      "covered_boundary_classes": ["numeric_lower_triplet", "numeric_upper_triplet", "exact_type_aliases", "cross_field_mixed_predicates", "reject_is_noop", "runtime_spec_parity"],
+      "missing_boundary_classes": ["absent_null_malformed", "empty_singleton_max_size", "stateful_sequence", "resource_bounds"],
+      "not_applicable_boundary_classes": [],
+      "not_applicable_reasons": {},
+      "evidence": ["tests/core/test_fees_bva.py", "tests/core/test_dex_step_core_v2_ml_bva_parity.py", "tests/kernels/test_cpmm_swap_v8_ml_bva_cases.py"]
+    },
+    {
+      "id": "liquidity",
+      "status": "partial",
+      "inventory_complete": false,
+      "commands": ["create_pool", "add_liquidity", "remove_liquidity"],
+      "authoritative_fields": ["reserve_amounts", "lp_supply", "lp_amount", "minimum_amounts", "duration_risk_metadata"],
+      "covered_boundary_classes": ["numeric_lower_triplet", "numeric_upper_triplet", "exact_type_aliases", "cross_field_mixed_predicates", "reject_is_noop", "runtime_spec_parity"],
+      "missing_boundary_classes": ["absent_null_malformed", "empty_singleton_max_size", "stateful_sequence", "resource_bounds"],
+      "not_applicable_boundary_classes": [],
+      "not_applicable_reasons": {},
+      "evidence": ["tests/kernels/test_lp_mint_v8_ml_bva_cases.py", "tests/kernels/test_lp_ratio_calculator_v7_ml_bva_cases.py", "tests/state/test_lp.py"]
+    },
+    {
+      "id": "perpetuals",
+      "status": "partial",
+      "inventory_complete": false,
+      "commands": ["advance_epoch", "publish_clearing_price", "settle_epoch", "deposit_collateral", "withdraw_collateral", "set_position", "clear_breaker", "apply_funding", "deposit_insurance", "apply_insurance_claim"],
+      "authoritative_fields": ["epoch", "phase", "oracle", "margin", "position", "collateral", "funding", "insurance", "liquidation"],
+      "covered_boundary_classes": ["numeric_lower_triplet", "numeric_upper_triplet", "exact_type_aliases", "cross_field_mixed_predicates", "reject_is_noop", "runtime_spec_parity", "resource_bounds"],
+      "missing_boundary_classes": ["absent_null_malformed", "empty_singleton_max_size", "stateful_sequence"],
+      "not_applicable_boundary_classes": [],
+      "not_applicable_reasons": {},
+      "evidence": ["tests/core/test_perp_v2/test_engine_boundary_bva.py", "tests/core/test_perp_v4_parity.py", "tests/core/test_perp_epoch_native_strictness.py", "tests/kernels/test_perp_epoch_isolated_v3_ml_bva_cases.py"]
+    },
+    {
+      "id": "zusd",
+      "status": "partial",
+      "inventory_complete": false,
+      "commands": ["open_trove", "add_collateral", "withdraw_collateral", "borrow", "repay", "close_trove", "redeem", "liquidate", "stability_deposit", "stability_withdraw", "claim_surplus"],
+      "authoritative_fields": ["collateral", "debt", "price_e8", "mcr_bps", "ccr_bps", "fees", "gas_compensation", "stability_pool", "redemption_prefix"],
+      "covered_boundary_classes": ["exact_type_aliases", "cross_field_mixed_predicates", "reject_is_noop", "stateful_sequence"],
+      "missing_boundary_classes": ["numeric_lower_triplet", "numeric_upper_triplet", "absent_null_malformed", "empty_singleton_max_size", "runtime_spec_parity", "resource_bounds"],
+      "not_applicable_boundary_classes": [],
+      "not_applicable_reasons": {},
+      "evidence": ["tests/core/test_zusd.py", "tests/core/test_zusd_multi.py", "tests/core/test_zusd_shutdown_freeze.py"]
+    },
+    {
+      "id": "oracle",
+      "status": "partial",
+      "inventory_complete": false,
+      "commands": ["register_reporter", "stake", "submit_value", "aggregate", "open_dispute", "resolve_dispute", "reward", "slash", "consumer_admit"],
+      "authoritative_fields": ["price", "epoch", "freshness", "quorum", "stake", "dispute_window", "reward", "slash", "source_identity"],
+      "covered_boundary_classes": ["numeric_lower_triplet", "numeric_upper_triplet", "exact_type_aliases", "cross_field_mixed_predicates", "reject_is_noop"],
+      "missing_boundary_classes": ["absent_null_malformed", "empty_singleton_max_size", "runtime_spec_parity", "stateful_sequence", "resource_bounds"],
+      "not_applicable_boundary_classes": [],
+      "not_applicable_reasons": {},
+      "evidence": ["tests/core/test_oracle_freshness_bva.py", "tests/integration/test_oracle_authorization_semantic_binding.py"]
+    },
+    {
+      "id": "zeno_ledger_and_proof",
+      "status": "partial",
+      "inventory_complete": false,
+      "commands": ["produce_block", "verify_range", "verify_midchain_anchor", "verify_checkpoint", "admit_recursive_proof", "attest_watcher_quorum", "claim_proof_reward"],
+      "authoritative_fields": ["height", "range", "chain_id", "pre_root", "post_root", "trusted_anchor", "quorum", "proof_count", "proof_size", "receipt_binding"],
+      "covered_boundary_classes": ["absent_null_malformed", "empty_singleton_max_size", "cross_field_mixed_predicates", "reject_is_noop", "stateful_sequence"],
+      "missing_boundary_classes": ["numeric_lower_triplet", "numeric_upper_triplet", "exact_type_aliases", "runtime_spec_parity", "resource_bounds"],
+      "not_applicable_boundary_classes": [],
+      "not_applicable_reasons": {},
+      "evidence": ["tests/integration/test_zeno_ledger_v0.py", "tests/test_check_zeno_ledger_light_client_checkpoint.py"]
+    },
+    {
+      "id": "keys",
+      "status": "partial",
+      "inventory_complete": false,
+      "commands": ["generate", "import_public", "sign", "rotate", "revoke", "recover"],
+      "authoritative_fields": ["key_id", "public_key", "metadata", "policy_scope", "epoch_window", "version", "guardian_threshold", "recovery_delay"],
+      "covered_boundary_classes": ["exact_type_aliases", "absent_null_malformed", "cross_field_mixed_predicates", "reject_is_noop", "stateful_sequence"],
+      "missing_boundary_classes": ["numeric_lower_triplet", "numeric_upper_triplet", "empty_singleton_max_size", "runtime_spec_parity", "resource_bounds"],
+      "not_applicable_boundary_classes": [],
+      "not_applicable_reasons": {},
+      "evidence": ["tests/integration/test_zeno_key_manager.py", "tests/integration/test_zeno_key_manager_v0.py"]
+    },
+    {
+      "id": "fire_and_zenocover",
+      "status": "partial",
+      "inventory_complete": false,
+      "commands": ["instantiate_cover", "post_custody", "verify_claim", "settle_claim", "consume_nullifier", "withdraw_reserve"],
+      "authoritative_fields": ["holder_posted", "writer_posted", "holder_delta", "writer_delta", "balances", "instance_hash", "nullifier_set", "reserve"],
+      "covered_boundary_classes": ["absent_null_malformed", "cross_field_mixed_predicates", "reject_is_noop", "stateful_sequence"],
+      "missing_boundary_classes": ["numeric_lower_triplet", "numeric_upper_triplet", "exact_type_aliases", "empty_singleton_max_size", "runtime_spec_parity", "resource_bounds"],
+      "not_applicable_boundary_classes": [],
+      "not_applicable_reasons": {},
+      "evidence": ["tests/kernels/test_fire_proof_tree_cert_assert_guards.py", "tests/kernels/test_fire_cert_assert_guards.py", "tests/formal/test_lean_zenocover_payout_cap.py"]
+    }
+  ]
+}
