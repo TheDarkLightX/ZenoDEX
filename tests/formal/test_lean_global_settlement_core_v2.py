@@ -479,6 +479,9 @@ def test_claim_ceiling_and_scope_are_explicit() -> None:
         "bounds each Oracle observation by global height",
         "makes every open terminal amount positive",
         "exact claimant/asset/accounting-location liability row",
+        "collection and byte resource ceilings",
+        "private snapshot ownership",
+        "exception classes and precedence",
     )
     for phrase in required:
         assert phrase.lower() in source.lower(), phrase

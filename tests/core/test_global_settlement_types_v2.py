@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import replace
-from typing import cast
+from pathlib import Path
 
 import pytest
 
@@ -173,16 +174,18 @@ def test_terminal_plan_empty_root_and_bound_are_exact() -> None:
 
 
 def test_terminal_plan_checks_bound_before_deep_delta_validation() -> None:
-    invalid_at_limit = cast(
-        tuple[TerminalObligationDeltaV2, ...],
-        (object(),) * MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2,
+    invalid = TerminalObligationDeltaV2(
+        "obligation:invalid",
+        None,
+        _obligation("obligation:invalid"),
     )
-    invalid_above_limit = cast(
-        tuple[TerminalObligationDeltaV2, ...],
-        (object(),) * (MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2 + 1),
+    object.__setattr__(invalid, "obligation_id", "")
+    invalid_at_limit = (invalid,) * MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2
+    invalid_above_limit = (invalid,) * (
+        MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2 + 1
     )
 
-    with pytest.raises(TypeError, match="must contain exact typed values"):
+    with pytest.raises(ValueError, match="terminal obligation delta id must not be empty"):
         GlobalTerminalObligationPlanV2(invalid_at_limit)
     with pytest.raises(ValueError, match="64-item ceiling"):
         GlobalTerminalObligationPlanV2(invalid_above_limit)
@@ -338,19 +341,49 @@ def test_oracle_plan_empty_root_and_bound_are_exact() -> None:
 
 
 def test_oracle_plan_checks_bound_before_deep_delta_validation() -> None:
-    invalid_at_limit = cast(
-        tuple[OracleOccurrenceDeltaV2, ...],
-        (object(),) * MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2,
+    invalid = OracleOccurrenceDeltaV2(
+        "oracle:invalid",
+        None,
+        _oracle("oracle:invalid"),
     )
-    invalid_above_limit = cast(
-        tuple[OracleOccurrenceDeltaV2, ...],
-        (object(),) * (MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2 + 1),
+    object.__setattr__(invalid, "oracle_id", "")
+    invalid_at_limit = (invalid,) * MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2
+    invalid_above_limit = (invalid,) * (
+        MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2 + 1
     )
 
-    with pytest.raises(TypeError, match="must contain exact typed values"):
+    with pytest.raises(ValueError, match="Oracle occurrence delta id must not be empty"):
         GlobalOracleOccurrencePlanV2(invalid_at_limit)
     with pytest.raises(ValueError, match="64-item ceiling"):
         GlobalOracleOccurrencePlanV2(invalid_above_limit)
+
+
+def test_python_and_rust_lifecycle_plan_limits_are_frozen_and_equal() -> None:
+    expected = {
+        "MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2": 64,
+        "MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2": 64,
+    }
+    assert {
+        "MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2": (
+            MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2
+        ),
+        "MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2": (
+            MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2
+        ),
+    } == expected
+
+    rust_source = (
+        Path(__file__).resolve().parents[2]
+        / "zk/global_settlement_abi_v2/src/lifecycle.rs"
+    ).read_text(encoding="utf-8")
+    rust_limits = {
+        name: int(value.replace("_", ""))
+        for name, value in re.findall(
+            r"pub const (MAX_[A-Z0-9_]+_PER_PLAN_V2): usize = ([0-9_]+);",
+            rust_source,
+        )
+    }
+    assert {name: rust_limits[name] for name in expected} == expected
 
 
 def test_plan_dataclass_replace_preserves_canonical_values_and_private_ownership() -> None:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import replace
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -10,7 +12,12 @@ from src.core.global_economic_lifecycle_plan_v2 import (
     derive_global_terminal_obligation_plan_v2,
 )
 from src.core.global_economic_state_v2 import (
+    MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V2,
+    MAX_GLOBAL_ORACLE_ROWS_V2,
+    MAX_GLOBAL_OUTBOX_ROWS_V2,
+    MAX_GLOBAL_REPLAY_ROWS_V2,
     MAX_GLOBAL_SUPPLY_ROWS_V2,
+    MAX_GLOBAL_TERMINAL_ROWS_V2,
     GlobalEconomicStateRootV2,
     GlobalEconomicStateV2,
     LaneStateRootV2,
@@ -158,19 +165,47 @@ def test_global_state_rejects_future_oracle_observations() -> None:
 
 
 def test_global_state_checks_table_bound_before_deep_row_validation() -> None:
-    invalid_at_limit = cast(
-        tuple[AssetSupplyV2, ...],
-        (object(),) * MAX_GLOBAL_SUPPLY_ROWS_V2,
-    )
-    invalid_above_limit = cast(
-        tuple[AssetSupplyV2, ...],
-        (object(),) * (MAX_GLOBAL_SUPPLY_ROWS_V2 + 1),
-    )
+    invalid = AssetSupplyV2("asset:invalid", 1)
+    object.__setattr__(invalid, "asset", "")
+    invalid_at_limit = (invalid,) * MAX_GLOBAL_SUPPLY_ROWS_V2
+    invalid_above_limit = (invalid,) * (MAX_GLOBAL_SUPPLY_ROWS_V2 + 1)
 
-    with pytest.raises(TypeError, match="must contain exact typed values"):
+    with pytest.raises(ValueError, match="supply asset must not be empty"):
         _state(supplies=invalid_at_limit)
     with pytest.raises(ValueError, match="global state supplies exceeds.*bounded shape"):
         _state(supplies=invalid_above_limit)
+
+
+def test_python_and_rust_global_collection_limits_are_frozen_and_equal() -> None:
+    expected = {
+        "MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V2": 65_536,
+        "MAX_GLOBAL_ORACLE_ROWS_V2": 4_096,
+        "MAX_GLOBAL_OUTBOX_ROWS_V2": 65_536,
+        "MAX_GLOBAL_REPLAY_ROWS_V2": 65_536,
+        "MAX_GLOBAL_SUPPLY_ROWS_V2": 4_096,
+        "MAX_GLOBAL_TERMINAL_ROWS_V2": 65_536,
+    }
+    assert {
+        "MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V2": MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V2,
+        "MAX_GLOBAL_ORACLE_ROWS_V2": MAX_GLOBAL_ORACLE_ROWS_V2,
+        "MAX_GLOBAL_OUTBOX_ROWS_V2": MAX_GLOBAL_OUTBOX_ROWS_V2,
+        "MAX_GLOBAL_REPLAY_ROWS_V2": MAX_GLOBAL_REPLAY_ROWS_V2,
+        "MAX_GLOBAL_SUPPLY_ROWS_V2": MAX_GLOBAL_SUPPLY_ROWS_V2,
+        "MAX_GLOBAL_TERMINAL_ROWS_V2": MAX_GLOBAL_TERMINAL_ROWS_V2,
+    } == expected
+
+    rust_source = (
+        Path(__file__).resolve().parents[2]
+        / "zk/global_settlement_abi_v2/src/global_state.rs"
+    ).read_text(encoding="utf-8")
+    rust_limits = {
+        name: int(value.replace("_", ""))
+        for name, value in re.findall(
+            r"pub const (MAX_GLOBAL_[A-Z0-9_]+): usize = ([0-9_]+);",
+            rust_source,
+        )
+    }
+    assert {name: rust_limits[name] for name in expected} == expected
 
 
 def test_global_state_root_owns_constructor_inputs() -> None:
