@@ -10,6 +10,7 @@ from src.core.global_economic_lifecycle_plan_v2 import (
     derive_global_terminal_obligation_plan_v2,
 )
 from src.core.global_economic_state_v2 import (
+    MAX_GLOBAL_SUPPLY_ROWS_V2,
     GlobalEconomicStateRootV2,
     GlobalEconomicStateV2,
     LaneStateRootV2,
@@ -75,7 +76,7 @@ def _state(**overrides: object) -> GlobalEconomicStateV2:
         "outbox": (),
     }
     values.update(overrides)
-    return GlobalEconomicStateV2(**values)  # type: ignore[arg-type]
+    return GlobalEconomicStateV2(**values)
 
 
 def _obligation(
@@ -154,6 +155,22 @@ def test_global_state_rejects_future_oracle_observations() -> None:
                 OracleOccurrenceStateV2("oracle:future", _root(303), 8, False),
             ),
         )
+
+
+def test_global_state_checks_table_bound_before_deep_row_validation() -> None:
+    invalid_at_limit = cast(
+        tuple[AssetSupplyV2, ...],
+        (object(),) * MAX_GLOBAL_SUPPLY_ROWS_V2,
+    )
+    invalid_above_limit = cast(
+        tuple[AssetSupplyV2, ...],
+        (object(),) * (MAX_GLOBAL_SUPPLY_ROWS_V2 + 1),
+    )
+
+    with pytest.raises(TypeError, match="must contain exact typed values"):
+        _state(supplies=invalid_at_limit)
+    with pytest.raises(ValueError, match="global state supplies exceeds.*bounded shape"):
+        _state(supplies=invalid_above_limit)
 
 
 def test_global_state_root_owns_constructor_inputs() -> None:
@@ -346,5 +363,5 @@ def test_outbox_state_has_closed_status_and_commit_binding() -> None:
             payload_hash=_root(502),
             adapter_profile_root=_root(503),
             commit_id=_root(504),
-            status="PENDING",  # type: ignore[arg-type]
+            status="PENDING",
         )

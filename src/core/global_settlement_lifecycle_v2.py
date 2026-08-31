@@ -101,6 +101,7 @@ class GlobalOracleOccurrencePlanV2:
             OracleOccurrenceDeltaV2,
             "global Oracle occurrence plan deltas",
             empty_default=True,
+            item_ceiling=MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2,
         )
     )
 
@@ -245,6 +246,7 @@ class GlobalTerminalObligationPlanV2:
             TerminalObligationDeltaV2,
             "global terminal obligation plan deltas",
             empty_default=True,
+            item_ceiling=MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2,
         )
     )
 

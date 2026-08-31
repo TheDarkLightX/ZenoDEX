@@ -15,6 +15,7 @@ from .global_settlement_types_v2 import (
     _require_bool_v2,
     _require_root_v2,
     _require_token_v2,
+    _require_tuple_v2,
     _snapshot_dataclass_tuple_v2,
 )
 
@@ -119,9 +120,10 @@ def _bounded_tuple(
     name: str,
     maximum: int,
 ) -> tuple[_T, ...]:
-    owned = _snapshot_dataclass_tuple_v2(values, expected_type, name)
-    if len(owned) > maximum:
+    items = _require_tuple_v2(values, name=name)
+    if len(items) > maximum:
         raise ValueError(f"{name} exceeds the ABI V2 bounded shape")
+    owned = _snapshot_dataclass_tuple_v2(items, expected_type, name)
     return cast(tuple[_T, ...], owned)
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import cast
 
 import pytest
 
@@ -167,8 +168,24 @@ def test_terminal_plan_empty_root_and_bound_are_exact() -> None:
         )
         for index in range(MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2 + 1)
     )
-    with pytest.raises(ValueError, match="bounded shape"):
+    with pytest.raises(ValueError, match="64-item ceiling"):
         GlobalTerminalObligationPlanV2(deltas)
+
+
+def test_terminal_plan_checks_bound_before_deep_delta_validation() -> None:
+    invalid_at_limit = cast(
+        tuple[TerminalObligationDeltaV2, ...],
+        (object(),) * MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2,
+    )
+    invalid_above_limit = cast(
+        tuple[TerminalObligationDeltaV2, ...],
+        (object(),) * (MAX_TERMINAL_OBLIGATION_DELTAS_PER_PLAN_V2 + 1),
+    )
+
+    with pytest.raises(TypeError, match="must contain exact typed values"):
+        GlobalTerminalObligationPlanV2(invalid_at_limit)
+    with pytest.raises(ValueError, match="64-item ceiling"):
+        GlobalTerminalObligationPlanV2(invalid_above_limit)
 
 
 def test_terminal_plan_owns_nested_delta_snapshots() -> None:
@@ -316,8 +333,24 @@ def test_oracle_plan_empty_root_and_bound_are_exact() -> None:
         )
         for index in range(MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2 + 1)
     )
-    with pytest.raises(ValueError, match="bounded shape"):
+    with pytest.raises(ValueError, match="64-item ceiling"):
         GlobalOracleOccurrencePlanV2(deltas)
+
+
+def test_oracle_plan_checks_bound_before_deep_delta_validation() -> None:
+    invalid_at_limit = cast(
+        tuple[OracleOccurrenceDeltaV2, ...],
+        (object(),) * MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2,
+    )
+    invalid_above_limit = cast(
+        tuple[OracleOccurrenceDeltaV2, ...],
+        (object(),) * (MAX_ORACLE_OCCURRENCE_DELTAS_PER_PLAN_V2 + 1),
+    )
+
+    with pytest.raises(TypeError, match="must contain exact typed values"):
+        GlobalOracleOccurrencePlanV2(invalid_at_limit)
+    with pytest.raises(ValueError, match="64-item ceiling"):
+        GlobalOracleOccurrencePlanV2(invalid_above_limit)
 
 
 def test_plan_dataclass_replace_preserves_canonical_values_and_private_ownership() -> None:
