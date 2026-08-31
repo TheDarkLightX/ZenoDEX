@@ -8,8 +8,9 @@ This file is a source-pinned abstract model of the rejection order and
 accepted-state shape of
 `transition_asset_origin_registration_v2` in the Python and Rust V2 SHADOW
 cores.  On the explicit `ValidState` and `ValidCommand` domain, a successful
-transition inserts one Tau-originated asset record while preserving strict
-asset order and the registry uniqueness invariants.  It consumes the bound
+transition inserts one Tau-originated asset record while preserving the module
+release identifier, exact registration policy, strict asset order, and the
+registry uniqueness invariants.  It consumes the bound
 occurrence once, writes the typed ASSET_TRANSFER lane from the supplied opaque
 pre-state-root observation to the supplied opaque post-state-root observation,
 and emits no value, outbox, private-port, terminal-obligation, or Oracle-plan
@@ -966,6 +967,42 @@ def nextRejectCode : RejectCode → Option RejectCode
   | .duplicateOrigin => some .registryCapacityExceeded
   | .registryCapacityExceeded => none
 
+def rejectSuccessorEdges : List (RejectCode × RejectCode) :=
+  [ (.missingOccurrence, .occurrenceBindingMismatch),
+    (.occurrenceBindingMismatch, .releaseMismatch),
+    (.releaseMismatch, .unknownCommand),
+    (.unknownCommand, .occurrenceCommandMismatch),
+    (.occurrenceCommandMismatch, .unauthorizedSubject),
+    (.unauthorizedSubject, .grantMismatch),
+    (.grantMismatch, .decimalScaleMismatch),
+    (.decimalScaleMismatch, .disabledOriginKind),
+    (.disabledOriginKind, .nativeAssetAccountingUnimplemented),
+    (.nativeAssetAccountingUnimplemented, .duplicateAsset),
+    (.duplicateAsset, .duplicateOrigin),
+    (.duplicateOrigin, .registryCapacityExceeded) ]
+
+theorem next_reject_code_iff_rank_successor (current successor : RejectCode) :
+    nextRejectCode current = some successor ↔
+      successor.rank = current.rank + 1 := by
+  cases current <;> cases successor <;> decide
+
+theorem next_reject_code_iff_mem_successor_edges (current successor : RejectCode) :
+    nextRejectCode current = some successor ↔
+      (current, successor) ∈ rejectSuccessorEdges := by
+  cases current <;> cases successor <;> decide
+
+theorem reject_successor_edges_exact_coverage :
+    rejectSuccessorEdges = allRejectCodes.zip allRejectCodes.tail ∧
+      rejectSuccessorEdges.length = allRejectCodes.length - 1 ∧
+      rejectSuccessorEdges.length = 12 ∧ rejectSuccessorEdges.Nodup ∧
+      ∀ current successor,
+        (current, successor) ∈ rejectSuccessorEdges ↔
+          successor.rank = current.rank + 1 := by
+  refine ⟨rfl, rfl, rfl, by decide, ?_⟩
+  intro current successor
+  exact (next_reject_code_iff_mem_successor_edges current successor).symm.trans
+    (next_reject_code_iff_rank_successor current successor)
+
 def adjacentFailureContext : RejectCode → Context
   | .missingOccurrence => { witnessContext with occurrence := none }
   | .occurrenceBindingMismatch => {
@@ -1065,6 +1102,23 @@ theorem rejected_is_exact_noop {ctx : Context} {pre : State} {command : Command}
       simp only [and_self]
     · contradiction
 
+theorem rejected_carries_exact_selector {ctx : Context} {pre : State}
+    {command : Command} {rejected : Rejected}
+    (h : transition ctx pre command = .rejected rejected) :
+    rejectCode ctx pre command = some rejected.code := by
+  simp only [transition] at h
+  split at h
+  · cases h
+    assumption
+  · rename_i selectorNone
+    have allPass :=
+      (firstFailing_eq_none_iff (guardPasses ctx pre command) allRejectCodes).mp
+        selectorNone
+    have occurrencePresent := allPass .missingOccurrence (by decide)
+    cases occurrenceEq : ctx.occurrence with
+    | none => exact False.elim (occurrencePresent occurrenceEq)
+    | some occurrence => simp [occurrenceEq] at h
+
 theorem accepted_has_exact_effect_shape {ctx : Context} {pre : State} {command : Command}
     {accepted : Accepted} (h : transition ctx pre command = .accepted accepted) :
     accepted.post = postState pre command ∧
@@ -1091,6 +1145,19 @@ theorem accepted_has_exact_effect_shape {ctx : Context} {pre : State} {command :
       cases h
       exact ⟨rfl, rfl, occurrence, occurrenceEq, rfl, rfl, rfl, rfl, rfl,
         rfl, rfl, rfl, rfl⟩
+
+theorem accepted_preserves_module_release_id_and_exact_policy
+    {ctx : Context} {pre : State}
+    {command : Command} {accepted : Accepted}
+    (h : transition ctx pre command = .accepted accepted) :
+    accepted.post.moduleReleaseId = pre.moduleReleaseId ∧
+      accepted.post.policy = pre.policy ∧
+      accepted.post.policy.authoritySubject = pre.policy.authoritySubject ∧
+      accepted.post.policy.authorityGrantRoot = pre.policy.authorityGrantRoot ∧
+      accepted.post.policy.allowNative = pre.policy.allowNative ∧
+      accepted.post.policy.allowTauOriginated = pre.policy.allowTauOriginated := by
+  rw [(accepted_has_exact_effect_shape h).1]
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem accepted_reject_code_is_none {ctx : Context} {pre : State} {command : Command}
     {accepted : Accepted} (h : transition ctx pre command = .accepted accepted) :

@@ -2,8 +2,9 @@
 
 The Lean model covers the exact 13-code protocol rejection order on an explicit
 valid-state/valid-command domain, rejection no-op behavior, deterministic
-record insertion and invariant preservation, and the authority-free typed
-accepted effect shape, including the shared 256-record capacity boundary.
+record insertion, exact release/policy preservation, exact rejection selection,
+successor-order coverage, and the authority-free typed accepted effect shape,
+including the shared 256-record capacity boundary.
 Python and Rust source hashes plus deterministic semantic extractors reopen
 this review when the modeled source surface changes.
 
@@ -134,9 +135,14 @@ DECLARATIONS = (
     ("theorem", "capacity_duplicate_origin_reject_code"),
     ("theorem", "full_capacity_rejection_witness"),
     ("theorem", "every_reject_code_reachable_on_valid_domain"),
+    ("theorem", "next_reject_code_iff_rank_successor"),
+    ("theorem", "next_reject_code_iff_mem_successor_edges"),
+    ("theorem", "reject_successor_edges_exact_coverage"),
     ("theorem", "adjacent_double_failure_precedence"),
     ("theorem", "rejected_is_exact_noop"),
+    ("theorem", "rejected_carries_exact_selector"),
     ("theorem", "accepted_has_exact_effect_shape"),
+    ("theorem", "accepted_preserves_module_release_id_and_exact_policy"),
     ("theorem", "accepted_reject_code_is_none"),
     ("theorem", "accepted_all_guards_pass"),
     ("theorem", "accepted_consumes_exact_occurrence"),
@@ -150,6 +156,31 @@ DECLARATIONS = (
 )
 
 ALLOWED_STANDARD_AXIOMS = frozenset({"propext", "Quot.sound", "Classical.choice"})
+
+SEMANTIC_MUTATIONS = (
+    (
+        "accepted_policy_authority_subject_rewrite",
+        "  policy := pre.policy\n",
+        '  policy := { pre.policy with authoritySubject := "mutated-authority" }\n',
+        "accepted_preserves_module_release_id_and_exact_policy",
+    ),
+    (
+        "rejected_non_capacity_code_remap",
+        "      code := code\n",
+        (
+            "      code :=\n"
+            "        if code = .registryCapacityExceeded then code "
+            "else .missingOccurrence\n"
+        ),
+        "rejected_carries_exact_selector",
+    ),
+    (
+        "missing_occurrence_successor_skip",
+        "  | .missingOccurrence => some .occurrenceBindingMismatch\n",
+        "  | .missingOccurrence => some .unauthorizedSubject\n",
+        "next_reject_code_iff_rank_successor",
+    ),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -455,6 +486,54 @@ def _axiom_reports(output: str) -> tuple[tuple[str, frozenset[str]], ...]:
     return tuple(reports)
 
 
+def _compile_lean_file(
+    compiled_packet: CompiledPacket,
+    source: Path,
+) -> subprocess.CompletedProcess[str]:
+    command = [str(compiled_packet.lean), "-DwarningAsError=true"]
+    command.append(str(source))
+    return subprocess.run(
+        command,
+        cwd=ROOT,
+        env=compiled_packet.environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+
+
+def _declaration_line_span(source: str, theorem: str) -> tuple[int, int]:
+    declaration = _required_match(
+        rf"^theorem {re.escape(theorem)}(?=\s|:)",
+        source,
+    )
+    start = source.count("\n", 0, declaration.start()) + 1
+    following = re.search(
+        r"^(?:def|theorem|lemma|structure|inductive|instance)\s+",
+        source[declaration.end() :],
+        re.MULTILINE,
+    )
+    end_offset = (
+        len(source)
+        if following is None
+        else declaration.end() + following.start()
+    )
+    end = source.count("\n", 0, end_offset) + 1
+    return start, end
+
+
+def _lean_diagnostic_lines(output: str, source: Path) -> tuple[int, ...]:
+    return tuple(
+        int(line)
+        for line in re.findall(
+            rf"{re.escape(str(source))}:(\d+):\d+: (?:error|warning):",
+            output,
+        )
+    )
+
+
 def test_modeled_python_and_rust_sources_are_exactly_pinned() -> None:
     for path, expected in PINNED_SOURCES.items():
         assert path.is_file(), path
@@ -657,6 +736,96 @@ def test_proof_declaration_surface_is_closed_and_model_compiles(
     assert "environment" not in repr(compiled_packet)
     source = PROOF.read_text(encoding="utf-8")
     assert _proof_declarations(source) == DECLARATIONS
+
+
+def test_load_bearing_semantic_theorem_signatures_compile(
+    compiled_packet: CompiledPacket,
+    tmp_path: Path,
+) -> None:
+    probe = tmp_path / "AssetOriginRegistryRefinementV2Signatures.lean"
+    probe.write_text(
+        """import Proofs.AssetOriginRegistryRefinementV2
+
+open Proofs.AssetOriginRegistryRefinementV2
+
+example {ctx : Context} {pre : State} {command : Command} {accepted : Accepted}
+    (h : transition ctx pre command = .accepted accepted) :
+    accepted.post.moduleReleaseId = pre.moduleReleaseId ∧
+      accepted.post.policy = pre.policy ∧
+      accepted.post.policy.authoritySubject = pre.policy.authoritySubject ∧
+      accepted.post.policy.authorityGrantRoot = pre.policy.authorityGrantRoot ∧
+      accepted.post.policy.allowNative = pre.policy.allowNative ∧
+      accepted.post.policy.allowTauOriginated = pre.policy.allowTauOriginated :=
+  accepted_preserves_module_release_id_and_exact_policy h
+
+example {ctx : Context} {pre : State} {command : Command} {rejected : Rejected}
+    (h : transition ctx pre command = .rejected rejected) :
+    rejectCode ctx pre command = some rejected.code :=
+  rejected_carries_exact_selector h
+
+example (current successor : RejectCode) :
+    nextRejectCode current = some successor ↔
+      successor.rank = current.rank + 1 :=
+  next_reject_code_iff_rank_successor current successor
+
+example (current successor : RejectCode) :
+    nextRejectCode current = some successor ↔
+      (current, successor) ∈ rejectSuccessorEdges :=
+  next_reject_code_iff_mem_successor_edges current successor
+
+example :
+    rejectSuccessorEdges = allRejectCodes.zip allRejectCodes.tail ∧
+      rejectSuccessorEdges.length = allRejectCodes.length - 1 ∧
+      rejectSuccessorEdges.length = 12 ∧ rejectSuccessorEdges.Nodup ∧
+      ∀ current successor,
+        (current, successor) ∈ rejectSuccessorEdges ↔
+          successor.rank = current.rank + 1 :=
+  reject_successor_edges_exact_coverage
+""",
+        encoding="utf-8",
+    )
+    result = _compile_lean_file(compiled_packet, probe)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == ""
+    assert result.stderr.strip() == ""
+
+
+@pytest.mark.parametrize(
+    ("mutation_name", "original", "replacement", "load_bearing_theorem"),
+    SEMANTIC_MUTATIONS,
+    ids=tuple(mutation[0] for mutation in SEMANTIC_MUTATIONS),
+)
+def test_semantic_mutations_fail_inside_load_bearing_theorem(
+    compiled_packet: CompiledPacket,
+    tmp_path: Path,
+    mutation_name: str,
+    original: str,
+    replacement: str,
+    load_bearing_theorem: str,
+) -> None:
+    source = PROOF.read_text(encoding="utf-8")
+    assert source.count(original) == 1, mutation_name
+    mutated_source = source.replace(original, replacement)
+    theorem_start, theorem_end = _declaration_line_span(
+        mutated_source,
+        load_bearing_theorem,
+    )
+    mutant = tmp_path / f"AssetOriginRegistryRefinementV2_{mutation_name}.lean"
+    mutant.write_text(mutated_source, encoding="utf-8")
+
+    result = _compile_lean_file(
+        compiled_packet,
+        mutant,
+    )
+    diagnostics = result.stdout + result.stderr
+    assert result.returncode != 0, mutation_name
+    error_lines = _lean_diagnostic_lines(diagnostics, mutant)
+    assert any(theorem_start <= line < theorem_end for line in error_lines), (
+        mutation_name,
+        load_bearing_theorem,
+        error_lines,
+        diagnostics,
+    )
 
 
 def test_compiled_packet_repr_cannot_disclose_environment_values() -> None:
