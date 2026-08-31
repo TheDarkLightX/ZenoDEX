@@ -185,7 +185,7 @@ def decode_strict_json(data: bytes, *, name: str, max_bytes: int) -> JsonValue:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise reject(RejectCodeV1.JSON_ENCODING, f"{name}: {exc.reason}") from exc
-    if text.startswith("﻿"):
+    if text.startswith("\ufeff"):
         raise reject(RejectCodeV1.JSON_ENCODING, f"{name}: byte order mark")
     try:
         value = json.loads(
