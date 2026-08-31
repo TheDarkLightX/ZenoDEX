@@ -75,7 +75,7 @@ def _require_bool(value: object, *, name: str) -> bool:
 
 
 def _require_token(value: object, *, name: str) -> str:
-    if not isinstance(value, str):
+    if type(value) is not str:
         raise TypeError(f"{name} must be a string")
     if not value:
         raise ValueError(f"{name} must not be empty")
@@ -87,7 +87,7 @@ def _require_token(value: object, *, name: str) -> str:
 
 
 def _require_root(value: object, *, name: str, allow_zero: bool = False) -> str:
-    if not isinstance(value, str):
+    if type(value) is not str:
         raise TypeError(f"{name} must be a string")
     if len(value) != 66 or not value.startswith("0x") or value != value.lower():
         raise ValueError(f"{name} must be canonical lowercase 0x-prefixed 32-byte hex")
@@ -101,28 +101,37 @@ def _require_root(value: object, *, name: str, allow_zero: bool = False) -> str:
 
 
 def _canonical_value(value: object) -> object:
+    if value is None or type(value) in {bool, int, str}:
+        return value
     if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, _Canonicalizable):
-        return _canonical_value(value.to_canonical())
-    if isinstance(value, tuple | list):
+        return _canonical_value(value.value)
+    if isinstance(value, bool | int | str):
+        raise TypeError("canonical scalar subclasses are unsupported")
+    if type(value) is tuple or type(value) is list:
         return [_canonical_value(item) for item in value]
-    if isinstance(value, Mapping):
-        if any(not isinstance(key, str) for key in value):
+    if isinstance(value, tuple | list):
+        raise TypeError("canonical sequence subclasses are unsupported")
+    if type(value) is dict:
+        if any(type(key) is not str for key in value):
             raise TypeError("canonical mapping keys must be strings")
         return {
             key: _canonical_value(item)
             for key, item in sorted(value.items(), key=lambda pair: pair[0])
         }
-    if value is None or type(value) in {bool, int, str}:
-        return value
-    raise TypeError(f"unsupported canonical value type: {type(value).__name__}")
+    if isinstance(value, Mapping):
+        raise TypeError("canonical mapping subclasses are unsupported")
+    if isinstance(value, _Canonicalizable):
+        return _canonical_value(value.to_canonical())
+    raise TypeError("unsupported canonical value type")
 
 
 def canonical_global_bytes_v1(value: object) -> bytes:
     """Encode a typed ABI value as deterministic canonical JSON."""
 
-    return canonical_json_bytes(_canonical_value(value))
+    encoded: object = canonical_json_bytes(_canonical_value(value))
+    if type(encoded) is not bytes:
+        raise TypeError("canonical encoder returned an invalid value")
+    return encoded
 
 
 def hash_global_v1(domain: str, value: object) -> str:
@@ -172,7 +181,7 @@ def hash_economic_command_body_v1(command_kind: str, command: object) -> str:
 
 
 def _require_tuple(value: object, *, name: str) -> tuple[object, ...]:
-    if not isinstance(value, tuple):
+    if type(value) is not tuple:
         raise TypeError(f"{name} must be a tuple")
     return value
 
@@ -266,9 +275,9 @@ class ProfileStatusV1(str, Enum):
 
 def _evidence_tuple(values: object, *, name: str) -> tuple[EvidenceStatusV1, ...]:
     items = _require_tuple(values, name=name)
-    if any(not isinstance(item, EvidenceStatusV1) for item in items):
+    if any(type(item) is not EvidenceStatusV1 for item in items):
         raise TypeError(f"{name} contains an unknown status")
-    statuses = tuple(item for item in items if isinstance(item, EvidenceStatusV1))
+    statuses = tuple(item for item in items if type(item) is EvidenceStatusV1)
     expected = tuple(sorted(set(statuses), key=lambda item: item.value))
     if statuses != expected:
         raise ValueError(f"{name} must be sorted and unique")
@@ -296,7 +305,7 @@ class LaneModuleReleaseV1:
     evidence_statuses: tuple[EvidenceStatusV1, ...] = ()
 
     def __post_init__(self) -> None:
-        if not isinstance(self.lane_id, LaneIdV1):
+        if type(self.lane_id) is not LaneIdV1:
             raise TypeError("lane release lane_id is not closed")
         _require_root(self.release_id, name="lane release id")
         _require_token(self.semantic_version, name="lane semantic version")
@@ -323,7 +332,7 @@ class LaneModuleReleaseV1:
             raise ValueError("lane max_cycles exceeds ABI V1 ceiling")
         if self.max_journal_bytes > MAX_JOURNAL_BYTES_V1:
             raise ValueError("lane max_journal_bytes exceeds ABI V1 ceiling")
-        if not isinstance(self.status, ReleaseStatusV1):
+        if type(self.status) is not ReleaseStatusV1:
             raise TypeError("lane release status is not closed")
         _require_bool(self.accepts_new_objects, name="lane accepts_new_objects")
         evidence = _evidence_tuple(self.evidence_statuses, name="lane evidence statuses")
@@ -364,7 +373,9 @@ class LaneModuleReleaseV1:
         accepts_new_objects: bool,
         evidence_statuses: tuple[EvidenceStatusV1, ...] = (),
     ) -> LaneModuleReleaseV1:
-        body = cls._content_body(
+        if cls is not LaneModuleReleaseV1:
+            raise TypeError("lane release factory requires the exact declared type")
+        body = LaneModuleReleaseV1._content_body(
             lane_id=lane_id,
             state_schema_root=state_schema_root,
             command_variants=command_variants,
@@ -378,7 +389,7 @@ class LaneModuleReleaseV1:
             max_cycles=max_cycles,
             max_journal_bytes=max_journal_bytes,
         )
-        return cls(
+        return LaneModuleReleaseV1(
             lane_id=lane_id,
             release_id=hash_global_v1("global-lane-module-release-content-v1", body),
             semantic_version=semantic_version,
@@ -452,7 +463,7 @@ class LaneRegistryV1:
 
     def __post_init__(self) -> None:
         _require_tuple(self.releases, name="lane registry releases")
-        if any(not isinstance(item, LaneModuleReleaseV1) for item in self.releases):
+        if any(type(item) is not LaneModuleReleaseV1 for item in self.releases):
             raise TypeError("lane registry contains an invalid release")
         actual = tuple(item.lane_id for item in self.releases)
         if actual != ALL_LANE_IDS_V1:
@@ -463,7 +474,7 @@ class LaneRegistryV1:
         return hash_global_v1("global-lane-registry-v1", self.to_canonical())
 
     def release_for(self, lane_id: LaneIdV1) -> LaneModuleReleaseV1:
-        if not isinstance(lane_id, LaneIdV1):
+        if type(lane_id) is not LaneIdV1:
             raise ValueError("unknown lane id")
         return self.releases[ALL_LANE_IDS_V1.index(lane_id)]
 
@@ -488,7 +499,7 @@ class LaneCoordinatorReleaseV1:
     evidence_statuses: tuple[EvidenceStatusV1, ...] = ()
 
     def __post_init__(self) -> None:
-        if not isinstance(self.lane_id, LaneIdV1):
+        if type(self.lane_id) is not LaneIdV1:
             raise TypeError("lane coordinator lane_id is not closed")
         _require_root(self.coordinator_release_id, name="lane coordinator release id")
         _require_token(self.semantic_version, name="lane coordinator semantic version")
@@ -506,7 +517,7 @@ class LaneCoordinatorReleaseV1:
             raise ValueError("lane coordinator max_cycles exceeds ABI V1 ceiling")
         if self.max_journal_bytes > MAX_JOURNAL_BYTES_V1:
             raise ValueError("lane coordinator max_journal_bytes exceeds ABI V1 ceiling")
-        if not isinstance(self.status, ReleaseStatusV1):
+        if type(self.status) is not ReleaseStatusV1:
             raise TypeError("lane coordinator release status is not closed")
         _require_bool(self.accepts_new_objects, name="lane coordinator accepts_new_objects")
         evidence = _evidence_tuple(
@@ -546,7 +557,9 @@ class LaneCoordinatorReleaseV1:
         accepts_new_objects: bool,
         evidence_statuses: tuple[EvidenceStatusV1, ...] = (),
     ) -> LaneCoordinatorReleaseV1:
-        body = cls._content_body(
+        if cls is not LaneCoordinatorReleaseV1:
+            raise TypeError("lane coordinator factory requires the exact declared type")
+        body = LaneCoordinatorReleaseV1._content_body(
             lane_id=lane_id,
             coordinator_schema_root=coordinator_schema_root,
             guest_image_id=guest_image_id,
@@ -556,7 +569,7 @@ class LaneCoordinatorReleaseV1:
             max_cycles=max_cycles,
             max_journal_bytes=max_journal_bytes,
         )
-        return cls(
+        return LaneCoordinatorReleaseV1(
             lane_id=lane_id,
             coordinator_release_id=hash_global_v1(
                 "global-lane-coordinator-release-content-v1",
@@ -621,7 +634,7 @@ class LaneCoordinatorRegistryV1:
 
     def __post_init__(self) -> None:
         _require_tuple(self.releases, name="lane coordinator registry releases")
-        if any(not isinstance(item, LaneCoordinatorReleaseV1) for item in self.releases):
+        if any(type(item) is not LaneCoordinatorReleaseV1 for item in self.releases):
             raise TypeError("lane coordinator registry contains an invalid release")
         actual = tuple(item.lane_id for item in self.releases)
         if actual != ALL_LANE_IDS_V1:
@@ -634,7 +647,7 @@ class LaneCoordinatorRegistryV1:
         return hash_global_v1("global-lane-coordinator-registry-v1", self.to_canonical())
 
     def release_for(self, lane_id: LaneIdV1) -> LaneCoordinatorReleaseV1:
-        if not isinstance(lane_id, LaneIdV1):
+        if type(lane_id) is not LaneIdV1:
             raise ValueError("unknown lane id")
         return self.releases[ALL_LANE_IDS_V1.index(lane_id)]
 
@@ -670,7 +683,7 @@ class RouteReleaseV1:
         _require_tuple(self.ordered_lanes, name="route ordered lanes")
         if not 1 <= len(self.ordered_lanes) <= MAX_ROUTE_MODULES_V1:
             raise ValueError("route must consume between one and eight module receipts")
-        if any(not isinstance(item, LaneIdV1) for item in self.ordered_lanes):
+        if any(type(item) is not LaneIdV1 for item in self.ordered_lanes):
             raise TypeError("route contains an unknown lane")
         if len(set(self.ordered_lanes)) != len(self.ordered_lanes):
             raise ValueError("route lanes must be unique")
@@ -702,7 +715,7 @@ class RouteReleaseV1:
             raise ValueError("route max_cycles exceeds ABI V1 ceiling")
         if self.max_journal_bytes > MAX_JOURNAL_BYTES_V1:
             raise ValueError("route max_journal_bytes exceeds ABI V1 ceiling")
-        if not isinstance(self.status, ReleaseStatusV1):
+        if type(self.status) is not ReleaseStatusV1:
             raise TypeError("route release status is not closed")
         _require_bool(self.accepts_new_objects, name="route accepts_new_objects")
         evidence = _evidence_tuple(self.evidence_statuses, name="route evidence statuses")
@@ -739,7 +752,9 @@ class RouteReleaseV1:
         accepts_new_objects: bool,
         evidence_statuses: tuple[EvidenceStatusV1, ...] = (),
     ) -> RouteReleaseV1:
-        body = cls._content_body(
+        if cls is not RouteReleaseV1:
+            raise TypeError("route release factory requires the exact declared type")
+        body = RouteReleaseV1._content_body(
             command_kind=command_kind,
             ordered_lanes=ordered_lanes,
             module_release_ids=module_release_ids,
@@ -754,7 +769,7 @@ class RouteReleaseV1:
             max_cycles=max_cycles,
             max_journal_bytes=max_journal_bytes,
         )
-        return cls(
+        return RouteReleaseV1(
             route_release_id=hash_global_v1("global-route-release-content-v1", body),
             semantic_version=semantic_version,
             command_kind=command_kind,
@@ -831,7 +846,7 @@ class RouteRegistryV1:
 
     def __post_init__(self) -> None:
         _require_tuple(self.routes, name="route registry routes")
-        if any(not isinstance(item, RouteReleaseV1) for item in self.routes):
+        if any(type(item) is not RouteReleaseV1 for item in self.routes):
             raise TypeError("route registry contains an invalid release")
         keys = tuple(item.command_kind for item in self.routes)
         if keys != tuple(sorted(set(keys))):
@@ -939,11 +954,11 @@ class EconomicProfileSnapshotV1:
     def __post_init__(self) -> None:
         _require_root(self.profile_id, name="economic profile id")
         _require_nonnegative_int(self.authority_epoch, name="profile authority epoch")
-        if not isinstance(self.lane_registry, LaneRegistryV1):
+        if type(self.lane_registry) is not LaneRegistryV1:
             raise TypeError("profile lane registry is invalid")
-        if not isinstance(self.lane_coordinator_registry, LaneCoordinatorRegistryV1):
+        if type(self.lane_coordinator_registry) is not LaneCoordinatorRegistryV1:
             raise TypeError("profile lane coordinator registry is invalid")
-        if not isinstance(self.route_registry, RouteRegistryV1):
+        if type(self.route_registry) is not RouteRegistryV1:
             raise TypeError("profile route registry is invalid")
         for field_name in (
             "proof_shape_root",
@@ -954,7 +969,7 @@ class EconomicProfileSnapshotV1:
             "terminal_registry_root",
         ):
             _require_root(getattr(self, field_name), name=f"profile {field_name}")
-        if not isinstance(self.status, ProfileStatusV1):
+        if type(self.status) is not ProfileStatusV1:
             raise TypeError("profile status is not closed")
         if self.profile_id != self.derived_profile_id:
             raise ValueError("profile_id is not the exact content-derived id")
@@ -978,7 +993,9 @@ class EconomicProfileSnapshotV1:
         terminal_registry_root: str,
         status: ProfileStatusV1,
     ) -> EconomicProfileSnapshotV1:
-        body = cls._content_body(
+        if cls is not EconomicProfileSnapshotV1:
+            raise TypeError("economic profile factory requires the exact declared type")
+        body = EconomicProfileSnapshotV1._content_body(
             authority_epoch=authority_epoch,
             lane_registry_root=lane_registry.registry_root,
             lane_coordinator_registry_root=lane_coordinator_registry.registry_root,
@@ -990,7 +1007,7 @@ class EconomicProfileSnapshotV1:
             policy_registry_root=policy_registry_root,
             terminal_registry_root=terminal_registry_root,
         )
-        return cls(
+        return EconomicProfileSnapshotV1(
             profile_id=hash_global_v1("global-economic-profile-content-v1", body),
             authority_epoch=authority_epoch,
             lane_registry=lane_registry,
@@ -1100,7 +1117,7 @@ class LaneStateRootV1:
     state_root: str
 
     def __post_init__(self) -> None:
-        if not isinstance(self.lane_id, LaneIdV1):
+        if type(self.lane_id) is not LaneIdV1:
             raise TypeError("lane state root lane_id is not closed")
         _require_root(self.module_release_id, name="lane state module release id")
         _require_bool(self.enabled, name="lane state enabled")
@@ -1206,12 +1223,12 @@ class TerminalObligationV1:
 
     def __post_init__(self) -> None:
         _require_token(self.obligation_id, name="terminal obligation id")
-        if not isinstance(self.lane_id, LaneIdV1):
+        if type(self.lane_id) is not LaneIdV1:
             raise TypeError("terminal obligation lane is not closed")
         _require_token(self.claimant, name="terminal obligation claimant")
         _require_token(self.asset, name="terminal obligation asset")
         _require_atoms_u128(self.amount_atoms, name="terminal obligation amount")
-        if not isinstance(self.status, TerminalObligationStatusV1):
+        if type(self.status) is not TerminalObligationStatusV1:
             raise TypeError("terminal obligation status is not closed")
 
     def to_canonical(self) -> dict[str, object]:
@@ -1243,7 +1260,7 @@ class OutboxStateV1:
         _require_token(self.destination_id, name="outbox destination id")
         _require_root(self.payload_hash, name="outbox payload hash")
         _require_root(self.commit_id, name="outbox commit id")
-        if not isinstance(self.status, OutboxStatusV1):
+        if type(self.status) is not OutboxStatusV1:
             raise TypeError("outbox status is not closed")
 
     def to_canonical(self) -> dict[str, object]:
@@ -1264,7 +1281,7 @@ def _require_ordered_objects(
     key: str,
 ) -> tuple[object, ...]:
     items = _require_tuple(values, name=name)
-    if any(not isinstance(item, expected_type) for item in items):
+    if any(type(item) is not expected_type for item in items):
         raise TypeError(f"{name} contains an invalid value")
     keys = tuple(getattr(item, key) for item in items)
     if keys != tuple(sorted(set(keys))):
@@ -1298,7 +1315,7 @@ class GlobalEconomicStateV1:
         _require_nonnegative_int(self.height, name="global state height")
         _require_root(self.profile_root, name="global state profile root")
         _require_tuple(self.lane_roots, name="global state lane roots")
-        if any(not isinstance(item, LaneStateRootV1) for item in self.lane_roots):
+        if any(type(item) is not LaneStateRootV1 for item in self.lane_roots):
             raise TypeError("global state contains an invalid lane root")
         if tuple(item.lane_id for item in self.lane_roots) != ALL_LANE_IDS_V1:
             raise ValueError("global state must commit every ABI V1 lane in canonical order")
@@ -1386,9 +1403,16 @@ class GlobalEconomicStateRootV1:
 
     @classmethod
     def from_state(cls, state: GlobalEconomicStateV1) -> GlobalEconomicStateRootV1:
-        if not isinstance(state, GlobalEconomicStateV1):
+        if cls is not GlobalEconomicStateRootV1:
+            raise TypeError("state root factory requires the exact declared type")
+        if type(state) is not GlobalEconomicStateV1:
             raise TypeError("state root source must be GlobalEconomicStateV1")
-        return cls(state.state_root, state.profile_root, state.writer_epoch, state.height)
+        return GlobalEconomicStateRootV1(
+            state.state_root,
+            state.profile_root,
+            state.writer_epoch,
+            state.height,
+        )
 
     def to_canonical(self) -> dict[str, object]:
         return {
@@ -1405,9 +1429,9 @@ def validate_global_state_profile_v1(
 ) -> None:
     """Reject state/profile drift at verifier and publication boundaries."""
 
-    if not isinstance(state, GlobalEconomicStateV1):
+    if type(state) is not GlobalEconomicStateV1:
         raise TypeError("state must be GlobalEconomicStateV1")
-    if not isinstance(profile, EconomicProfileSnapshotV1):
+    if type(profile) is not EconomicProfileSnapshotV1:
         raise TypeError("profile must be EconomicProfileSnapshotV1")
     if state.profile_root != profile.profile_id:
         raise ValueError("global state profile root mismatch")
@@ -1446,7 +1470,7 @@ class EconomicEffectRowV1:
     delta_atoms: int
 
     def __post_init__(self) -> None:
-        if not isinstance(self.kind, EconomicEffectKindV1):
+        if type(self.kind) is not EconomicEffectKindV1:
             raise TypeError("economic effect kind is not closed")
         _require_token(self.principal, name="economic effect principal")
         _require_token(self.asset, name="economic effect asset")
@@ -1551,7 +1575,7 @@ class LaneWriteV1:
     post_root: str
 
     def __post_init__(self) -> None:
-        if not isinstance(self.lane_id, LaneIdV1):
+        if type(self.lane_id) is not LaneIdV1:
             raise TypeError("lane write lane is not closed")
         _require_root(self.pre_root, name="lane write pre-root", allow_zero=True)
         _require_root(self.post_root, name="lane write post-root", allow_zero=True)
@@ -1685,7 +1709,9 @@ class GlobalEconomicEffectPlanV1:
 
     @classmethod
     def empty(cls) -> GlobalEconomicEffectPlanV1:
-        return cls((), (), (), (), (), ())
+        if cls is not GlobalEconomicEffectPlanV1:
+            raise TypeError("effect plan factory requires the exact declared type")
+        return GlobalEconomicEffectPlanV1((), (), (), (), (), ())
 
     def to_canonical(self) -> dict[str, object]:
         return {
@@ -1732,7 +1758,7 @@ class LaneTransitionAcceptedV1:
                 name=f"accepted transition {field_name}",
                 allow_zero=field_name == "private_ports_root",
             )
-        if not isinstance(self.effects, GlobalEconomicEffectPlanV1):
+        if type(self.effects) is not GlobalEconomicEffectPlanV1:
             raise TypeError("accepted transition effects are invalid")
         _require_ordered_objects(
             self.terminal_obligations,
@@ -1761,13 +1787,13 @@ class LaneTransitionRejectedV1:
     effects: GlobalEconomicEffectPlanV1
 
     def __post_init__(self) -> None:
-        if not isinstance(self.code, LaneTransitionRejectCodeV1):
+        if type(self.code) is not LaneTransitionRejectCodeV1:
             raise TypeError("lane transition reject code is not closed")
         _require_root(self.pre_state_root, name="rejected transition pre-state root")
         _require_root(self.post_state_root, name="rejected transition post-state root")
         if self.pre_state_root != self.post_state_root:
             raise ValueError("rejected transition must preserve the exact pre-state root")
-        if not isinstance(self.effects, GlobalEconomicEffectPlanV1) or not self.effects.is_empty:
+        if type(self.effects) is not GlobalEconomicEffectPlanV1 or not self.effects.is_empty:
             raise ValueError("rejected transition must carry the empty effect plan")
 
     @classmethod
@@ -1776,7 +1802,14 @@ class LaneTransitionRejectedV1:
         code: LaneTransitionRejectCodeV1,
         pre_state_root: str,
     ) -> LaneTransitionRejectedV1:
-        return cls(code, pre_state_root, pre_state_root, GlobalEconomicEffectPlanV1.empty())
+        if cls is not LaneTransitionRejectedV1:
+            raise TypeError("lane rejection factory requires the exact declared type")
+        return LaneTransitionRejectedV1(
+            code,
+            pre_state_root,
+            pre_state_root,
+            GlobalEconomicEffectPlanV1.empty(),
+        )
 
     def to_canonical(self) -> dict[str, object]:
         return {

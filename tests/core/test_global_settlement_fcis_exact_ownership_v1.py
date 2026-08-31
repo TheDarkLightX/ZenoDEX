@@ -1,0 +1,328 @@
+from __future__ import annotations
+
+import pytest
+
+from src.core.global_economic_refinement_snapshot_v1 import (
+    _snapshot_effect_plan_v1,
+    _snapshot_state_v1,
+)
+from src.core.global_settlement_types_v1 import (
+    EconomicEffectKindV1,
+    EconomicEffectRowV1,
+    EconomicProfileSnapshotV1,
+    GlobalEconomicEffectPlanV1,
+    GlobalEconomicStateRootV1,
+    GlobalEconomicStateV1,
+    LaneCoordinatorReleaseV1,
+    LaneModuleReleaseV1,
+    LaneStateRootV1,
+    LaneTransitionAcceptedV1,
+    LaneTransitionRejectCodeV1,
+    LaneTransitionRejectedV1,
+    RouteReleaseV1,
+    _require_root,
+    _require_token,
+    canonical_global_bytes_v1,
+)
+from tests.core.test_global_settlement_abi_v1 import _profile, _root, _state
+
+
+class _BehaviorBearingString(str):
+    encode_called = False
+    startswith_called = False
+
+    def encode(self, *args: object, **kwargs: object) -> bytes:
+        type(self).encode_called = True
+        return super().encode(*args, **kwargs)
+
+    def startswith(self, *args: object, **kwargs: object) -> bool:
+        type(self).startswith_called = True
+        return super().startswith(*args, **kwargs)
+
+
+class _BehaviorBearingMapping(dict[str, object]):
+    iteration_called = False
+
+    def items(self):  # type: ignore[no-untyped-def]
+        type(self).iteration_called = True
+        return super().items()
+
+
+class _BehaviorBearingSequence(list[object]):
+    iteration_called = False
+
+    def __iter__(self):  # type: ignore[no-untyped-def]
+        type(self).iteration_called = True
+        return super().__iter__()
+
+
+class _BehaviorBearingLaneStateRoot(LaneStateRootV1):
+    canonical_called = False
+
+    def to_canonical(self) -> dict[str, object]:
+        type(self).canonical_called = True
+        return {"forged": True}
+
+
+class _BehaviorBearingEffectRow(EconomicEffectRowV1):
+    key_called = False
+
+    @property
+    def key(self) -> tuple[str, str, str, str]:
+        type(self).key_called = True
+        return super().key
+
+
+class _BehaviorBearingState(GlobalEconomicStateV1):
+    pass
+
+
+class _BehaviorBearingEffectPlan(GlobalEconomicEffectPlanV1):
+    pass
+
+
+class _BehaviorBearingStateRoot(GlobalEconomicStateRootV1):
+    pass
+
+
+class _BehaviorBearingRejection(LaneTransitionRejectedV1):
+    pass
+
+
+class _BehaviorBearingLaneRelease(LaneModuleReleaseV1):
+    pass
+
+
+class _BehaviorBearingCoordinatorRelease(LaneCoordinatorReleaseV1):
+    pass
+
+
+class _BehaviorBearingRouteRelease(RouteReleaseV1):
+    pass
+
+
+class _BehaviorBearingProfile(EconomicProfileSnapshotV1):
+    pass
+
+
+def _reset_hooks() -> None:
+    _BehaviorBearingString.encode_called = False
+    _BehaviorBearingString.startswith_called = False
+    _BehaviorBearingMapping.iteration_called = False
+    _BehaviorBearingSequence.iteration_called = False
+    _BehaviorBearingLaneStateRoot.canonical_called = False
+    _BehaviorBearingEffectRow.key_called = False
+
+
+def test_scalar_subclasses_reject_before_behavior_runs() -> None:
+    _reset_hooks()
+
+    with pytest.raises(TypeError, match="must be a string"):
+        _require_token(_BehaviorBearingString("alice"), name="subject")
+    with pytest.raises(TypeError, match="must be a string"):
+        _require_root(_BehaviorBearingString(_root(1)), name="root")
+
+    assert not _BehaviorBearingString.encode_called
+    assert not _BehaviorBearingString.startswith_called
+
+
+def test_canonical_encoder_rejects_mapping_subclass_before_iteration() -> None:
+    _reset_hooks()
+
+    with pytest.raises(
+        TypeError,
+        match="canonical mapping subclasses are unsupported",
+    ) as exc_info:
+        canonical_global_bytes_v1(_BehaviorBearingMapping({"value": 1}))
+
+    assert not _BehaviorBearingMapping.iteration_called
+    assert _BehaviorBearingMapping.__name__ not in str(exc_info.value)
+
+
+def test_canonical_encoder_rejects_sequence_subclass_before_iteration() -> None:
+    _reset_hooks()
+
+    with pytest.raises(TypeError, match="canonical sequence subclasses are unsupported"):
+        canonical_global_bytes_v1(_BehaviorBearingSequence([1]))
+
+    assert not _BehaviorBearingSequence.iteration_called
+
+
+def test_global_state_rejects_nested_subclass_before_projection() -> None:
+    _reset_hooks()
+    profile, _ = _profile()
+    state = _state(profile, height=1)
+    source = state.lane_roots[0]
+    hostile = _BehaviorBearingLaneStateRoot(
+        source.lane_id,
+        source.module_release_id,
+        source.enabled,
+        source.state_root,
+    )
+
+    with pytest.raises(TypeError, match="invalid lane root"):
+        GlobalEconomicStateV1(
+            chain_id=state.chain_id,
+            deployment_root=state.deployment_root,
+            writer_epoch=state.writer_epoch,
+            height=state.height,
+            profile_root=state.profile_root,
+            lane_roots=(hostile, *state.lane_roots[1:]),
+            balances=state.balances,
+            supplies=state.supplies,
+            custody=state.custody,
+            liabilities=state.liabilities,
+            reserves=state.reserves,
+            oracle_occurrences=state.oracle_occurrences,
+            replay_state=state.replay_state,
+            terminal_obligations=state.terminal_obligations,
+            history_root=state.history_root,
+            outbox=state.outbox,
+        )
+
+    assert not _BehaviorBearingLaneStateRoot.canonical_called
+
+
+def test_effect_plan_rejects_nested_subclass_before_key_access() -> None:
+    _reset_hooks()
+    hostile = _BehaviorBearingEffectRow(
+        EconomicEffectKindV1.ACCOUNT_MOVEMENT,
+        "alice",
+        "USD",
+        "ledger",
+        1,
+    )
+
+    with pytest.raises(TypeError, match="contains an invalid value"):
+        GlobalEconomicEffectPlanV1((hostile,), (), (), (), (), ())
+
+    assert not _BehaviorBearingEffectRow.key_called
+
+
+def test_snapshot_boundaries_reject_outer_subclasses() -> None:
+    profile, _ = _profile()
+    state = _state(profile, height=1)
+    hostile_state = _BehaviorBearingState(
+        state.chain_id,
+        state.deployment_root,
+        state.writer_epoch,
+        state.height,
+        state.profile_root,
+        state.lane_roots,
+        state.balances,
+        state.supplies,
+        state.custody,
+        state.liabilities,
+        state.reserves,
+        state.oracle_occurrences,
+        state.replay_state,
+        state.terminal_obligations,
+        state.history_root,
+        state.outbox,
+    )
+    hostile_plan = _BehaviorBearingEffectPlan((), (), (), (), (), ())
+
+    with pytest.raises(TypeError, match="state must have the exact typed value"):
+        _snapshot_state_v1(hostile_state)
+    with pytest.raises(TypeError, match="effect plan must have the exact typed value"):
+        _snapshot_effect_plan_v1(hostile_plan)
+
+
+def test_accepted_transition_rejects_effect_plan_subclass() -> None:
+    hostile_plan = _BehaviorBearingEffectPlan((), (), (), (), (), ())
+
+    with pytest.raises(TypeError, match="effects are invalid"):
+        LaneTransitionAcceptedV1(
+            command_occurrence_id=_root(1),
+            pre_state_root=_root(2),
+            post_state_root=_root(3),
+            effects=hostile_plan,
+            private_ports_root=_root(4),
+            receipt_root=_root(5),
+            terminal_obligations=(),
+        )
+
+
+def test_closed_factories_reject_subclass_dispatch() -> None:
+    profile, route = _profile()
+    state = _state(profile, height=1)
+    lane_release = profile.lane_registry.releases[0]
+    coordinator_release = profile.lane_coordinator_registry.releases[0]
+
+    with pytest.raises(TypeError, match="state root factory requires"):
+        _BehaviorBearingStateRoot.from_state(state)
+    with pytest.raises(TypeError, match="effect plan factory requires"):
+        _BehaviorBearingEffectPlan.empty()
+    with pytest.raises(TypeError, match="lane rejection factory requires"):
+        _BehaviorBearingRejection.reject(
+            LaneTransitionRejectCodeV1.UNKNOWN_COMMAND,
+            state.state_root,
+        )
+    with pytest.raises(TypeError, match="lane release factory requires"):
+        _BehaviorBearingLaneRelease.build(
+            lane_id=lane_release.lane_id,
+            semantic_version=lane_release.semantic_version,
+            state_schema_root=lane_release.state_schema_root,
+            command_variants=lane_release.command_variants,
+            terminal_command_variants=lane_release.terminal_command_variants,
+            guest_image_id=lane_release.guest_image_id,
+            specification_root=lane_release.specification_root,
+            source_root=lane_release.source_root,
+            toolchain_root=lane_release.toolchain_root,
+            terminal_coverage_root=lane_release.terminal_coverage_root,
+            migration_compatibility_root=lane_release.migration_compatibility_root,
+            max_cycles=lane_release.max_cycles,
+            max_journal_bytes=lane_release.max_journal_bytes,
+            status=lane_release.status,
+            accepts_new_objects=lane_release.accepts_new_objects,
+            evidence_statuses=lane_release.evidence_statuses,
+        )
+    with pytest.raises(TypeError, match="lane coordinator factory requires"):
+        _BehaviorBearingCoordinatorRelease.build(
+            lane_id=coordinator_release.lane_id,
+            semantic_version=coordinator_release.semantic_version,
+            coordinator_schema_root=coordinator_release.coordinator_schema_root,
+            guest_image_id=coordinator_release.guest_image_id,
+            specification_root=coordinator_release.specification_root,
+            source_root=coordinator_release.source_root,
+            toolchain_root=coordinator_release.toolchain_root,
+            max_cycles=coordinator_release.max_cycles,
+            max_journal_bytes=coordinator_release.max_journal_bytes,
+            status=coordinator_release.status,
+            accepts_new_objects=coordinator_release.accepts_new_objects,
+            evidence_statuses=coordinator_release.evidence_statuses,
+        )
+    with pytest.raises(TypeError, match="route release factory requires"):
+        _BehaviorBearingRouteRelease.build(
+            semantic_version=route.semantic_version,
+            command_kind=route.command_kind,
+            ordered_lanes=route.ordered_lanes,
+            module_release_ids=route.module_release_ids,
+            dependency_roles=route.dependency_roles,
+            port_schema_roots=route.port_schema_roots,
+            guest_image_id=route.guest_image_id,
+            specification_root=route.specification_root,
+            source_root=route.source_root,
+            toolchain_root=route.toolchain_root,
+            oracle_policy_root=route.oracle_policy_root,
+            issue_burn_policy_root=route.issue_burn_policy_root,
+            max_cycles=route.max_cycles,
+            max_journal_bytes=route.max_journal_bytes,
+            status=route.status,
+            accepts_new_objects=route.accepts_new_objects,
+            evidence_statuses=route.evidence_statuses,
+        )
+    with pytest.raises(TypeError, match="economic profile factory requires"):
+        _BehaviorBearingProfile.build(
+            authority_epoch=profile.authority_epoch,
+            lane_registry=profile.lane_registry,
+            lane_coordinator_registry=profile.lane_coordinator_registry,
+            route_registry=profile.route_registry,
+            proof_shape_root=profile.proof_shape_root,
+            root_image_id=profile.root_image_id,
+            verifier_registry_root=profile.verifier_registry_root,
+            migration_registry_root=profile.migration_registry_root,
+            policy_registry_root=profile.policy_registry_root,
+            terminal_registry_root=profile.terminal_registry_root,
+            status=profile.status,
+        )
