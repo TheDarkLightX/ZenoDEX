@@ -31,6 +31,7 @@ from .global_settlement_types_v2 import (
     LaneWriteV2,
     hash_global_v2,
 )
+from .managed_asset_lifecycle_types_v2 import ManagedAssetLifecyclePolicyV2
 
 
 def _reject(
@@ -81,6 +82,42 @@ def validate_asset_transfer_policy_origin_v2(
         raise ValueError("asset transfer policy identity does not match its origin")
     if record.transfer_policy_root != asset_transfer_policy_root_v2(owned_policy):
         raise ValueError("asset transfer policy root does not match its origin")
+    return record
+
+
+def managed_asset_policy_root_v2(policy: ManagedAssetLifecyclePolicyV2) -> str:
+    """Commit one exact V2 managed issue/burn policy."""
+
+    if type(policy) is not ManagedAssetLifecyclePolicyV2:
+        raise TypeError("managed asset policy must have the exact V2 type")
+    return hash_global_v2("managed-asset-lifecycle-policy-v2", replace(policy))
+
+
+def validate_managed_asset_policy_origin_v2(
+    registry: AssetOriginRegistryStateV2,
+    policy: ManagedAssetLifecyclePolicyV2,
+) -> AssetOriginRecordV2:
+    """Bind a generic managed-asset policy to one governed origin row."""
+
+    owned_registry = _snapshot_registry_state_v2(registry)
+    if type(policy) is not ManagedAssetLifecyclePolicyV2:
+        raise TypeError("managed asset policy must have the exact V2 type")
+    owned_policy = replace(policy)
+    record = owned_registry.record_for(owned_policy.asset)
+    if record is None:
+        raise ValueError("managed asset policy has no registered origin")
+    if owned_policy.asset_origin_root is None:
+        raise ValueError("managed asset policy origin is absent")
+    if (
+        record.asset_class is not owned_policy.asset_class
+        or record.origin_root != owned_policy.asset_origin_root
+        or record.decimals != owned_policy.atom_decimals
+    ):
+        raise ValueError("managed asset policy identity does not match its origin")
+    if record.issue_policy_root == ZERO_ROOT_V2:
+        raise ValueError("managed asset issue policy is disabled at its origin")
+    if record.issue_policy_root != managed_asset_policy_root_v2(owned_policy):
+        raise ValueError("managed asset issue policy root does not match its origin")
     return record
 
 
@@ -217,5 +254,7 @@ def transition_asset_origin_registration_v2(
 __all__ = [
     "asset_transfer_policy_root_v2",
     "validate_asset_transfer_policy_origin_v2",
+    "managed_asset_policy_root_v2",
+    "validate_managed_asset_policy_origin_v2",
     "transition_asset_origin_registration_v2",
 ]

@@ -17,8 +17,10 @@ from src.core.asset_origin_registry_types_v2 import (
     AssetOriginRegistryStateV2,
 )
 from src.core.asset_origin_registry_v2 import (
+    managed_asset_policy_root_v2,
     transition_asset_origin_registration_v2,
     validate_asset_transfer_policy_origin_v2,
+    validate_managed_asset_policy_origin_v2,
 )
 from src.core.asset_transfer_types_v2 import (
     ASSET_ATOM_DECIMALS_V2,
@@ -27,6 +29,7 @@ from src.core.asset_transfer_types_v2 import (
 )
 from src.core.global_economic_proof_v2 import EconomicCommandOccurrenceV2
 from src.core.global_settlement_types_v2 import ZERO_ROOT_V2, hash_global_v2
+from src.core.managed_asset_lifecycle_types_v2 import ManagedAssetLifecyclePolicyV2
 
 
 def _root(label: str) -> str:
@@ -52,6 +55,7 @@ def _command(
     asset_class: AssetClassV2 = AssetClassV2.REGISTERED_ORDINARY_TOKEN,
     origin_root: str | None = None,
     transfer_policy_root: str | None = None,
+    issue_policy_root: str = ZERO_ROOT_V2,
 ) -> AssetOriginRegistrationCommandV2:
     selected_transfer_policy_root = transfer_policy_root
     if selected_transfer_policy_root is None:
@@ -66,7 +70,7 @@ def _command(
         origin_kind=origin_kind,
         origin_root=origin_root or _root(f"origin:{asset}"),
         transfer_policy_root=selected_transfer_policy_root,
-        issue_policy_root=ZERO_ROOT_V2,
+        issue_policy_root=issue_policy_root,
         decimals=ASSET_ATOM_DECIMALS_V2,
         asset_class=asset_class,
     )
@@ -152,6 +156,32 @@ def test_registration_binds_transfer_policy_without_issuing_value() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "root_field",
+    (
+        "private_port_root",
+        "terminal_obligations_root",
+        "oracle_occurrence_plan_root",
+    ),
+)
+def test_accepted_registration_requires_zero_external_roots(root_field: str) -> None:
+    state = _state()
+    command = _command()
+    result = transition_asset_origin_registration_v2(
+        _context(state, command),
+        state,
+        command,
+    )
+    assert isinstance(result, AssetOriginRegistrationAcceptedV2)
+
+    with pytest.raises(ValueError, match="unrelated plan"):
+        AssetOriginRegistrationAcceptedV2(
+            result.post_state,
+            result.effects,
+            replace(result.module_journal, **{root_field: _root(root_field)}),
+        )
+
+
 def test_transfer_policy_drift_fails_registry_admission() -> None:
     state = _state()
     command = _command()
@@ -166,6 +196,37 @@ def test_transfer_policy_drift_fails_registry_admission() -> None:
         validate_asset_transfer_policy_origin_v2(
             result.post_state,
             replace(_transfer_policy(), transfer_fee_atoms=3),
+        )
+
+
+def test_managed_issue_policy_is_bound_to_the_same_origin_record() -> None:
+    managed_policy = ManagedAssetLifecyclePolicyV2(
+        asset="USD",
+        asset_class=AssetClassV2.REGISTERED_ORDINARY_TOKEN,
+        asset_origin_root=_root("origin:USD"),
+        atom_decimals=ASSET_ATOM_DECIMALS_V2,
+        issue_authority_subject="issuer",
+        issue_authorization_root=_root("managed-issue"),
+        burn_authorization_root=_root("managed-burn"),
+        enabled=True,
+    )
+    state = _state()
+    command = _command(issue_policy_root=managed_asset_policy_root_v2(managed_policy))
+    result = transition_asset_origin_registration_v2(
+        _context(state, command),
+        state,
+        command,
+    )
+    assert isinstance(result, AssetOriginRegistrationAcceptedV2)
+
+    assert validate_managed_asset_policy_origin_v2(
+        result.post_state,
+        managed_policy,
+    ) == result.post_state.assets[0]
+    with pytest.raises(ValueError, match="issue policy root"):
+        validate_managed_asset_policy_origin_v2(
+            result.post_state,
+            replace(managed_policy, enabled=False),
         )
 
 

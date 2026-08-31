@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from typing import Final
+from typing import ClassVar, Final
 
+from .asset_origin_registry_ownership_v2 import _OwnedDataclassSnapshotPropertyV2
 from .asset_transfer_types_v2 import (
     ASSET_ATOM_DECIMALS_V2,
     ASSET_LANE_PRODUCTION_AUTHORITY_V2,
@@ -146,36 +147,47 @@ class AssetOriginRegistrationPolicyV2:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class AssetOriginRegistryStateV2:
+    __slots__ = ("module_release_id", "_policy", "_assets")
+
+    _policy: ClassVar[AssetOriginRegistrationPolicyV2]
+    _assets: ClassVar[tuple[AssetOriginRecordV2, ...]]
+
     module_release_id: str
-    policy: AssetOriginRegistrationPolicyV2
-    assets: tuple[AssetOriginRecordV2, ...]
+    policy: AssetOriginRegistrationPolicyV2 = (
+        _OwnedDataclassSnapshotPropertyV2(  # type: ignore[assignment]
+            "_policy",
+            AssetOriginRegistrationPolicyV2,
+            replace,
+            "asset origin registration policy must be exact",
+        )
+    )
+    assets: tuple[AssetOriginRecordV2, ...] = (
+        _OwnedDataclassSnapshotPropertyV2(  # type: ignore[assignment]
+            "_assets",
+            tuple,
+            lambda rows: _snapshot_dataclass_tuple_v2(
+                rows,
+                AssetOriginRecordV2,
+                "asset origin registry rows",
+            ),
+            "asset origin registry rows must be an exact tuple",
+        )
+    )
 
     def __post_init__(self) -> None:
         _require_root_v2(
             self.module_release_id,
             name="asset origin registry module release",
         )
-        if type(self.policy) is not AssetOriginRegistrationPolicyV2:
-            raise TypeError("asset origin registration policy must be exact")
-        object.__setattr__(self, "policy", replace(self.policy))
-        object.__setattr__(
-            self,
-            "assets",
-            _snapshot_dataclass_tuple_v2(
-                self.assets,
-                AssetOriginRecordV2,
-                "asset origin registry rows",
-            ),
-        )
-        assets = tuple(row.asset for row in self.assets)
+        assets = tuple(row.asset for row in self._assets)
         if assets != tuple(sorted(set(assets))):
             raise ValueError("asset origin registry rows must be ordered and unique")
-        origins = tuple(row.origin_root for row in self.assets)
+        origins = tuple(row.origin_root for row in self._assets)
         if len(origins) != len(set(origins)):
             raise ValueError("asset origin roots must be unique")
-        if sum(row.origin_kind is AssetOriginKindV2.NATIVE for row in self.assets) > 1:
+        if sum(row.origin_kind is AssetOriginKindV2.NATIVE for row in self._assets) > 1:
             raise ValueError("only one native asset may be registered")
 
     @property
@@ -184,7 +196,7 @@ class AssetOriginRegistryStateV2:
 
     def record_for(self, asset: str) -> AssetOriginRecordV2 | None:
         _require_token_v2(asset, name="asset origin registry lookup")
-        row = next((row for row in self.assets if row.asset == asset), None)
+        row = next((row for row in self._assets if row.asset == asset), None)
         return None if row is None else replace(row)
 
     def to_canonical(self) -> dict[str, object]:
@@ -196,12 +208,29 @@ class AssetOriginRegistryStateV2:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class AssetOriginRegistrationContextV2:
+    __slots__ = (
+        "writer_epoch",
+        "module_release_id",
+        "global_pre_state_root",
+        "_occurrence",
+    )
+
+    _occurrence: ClassVar[EconomicCommandOccurrenceV2 | None]
+
     writer_epoch: int
     module_release_id: str
     global_pre_state_root: str
-    occurrence: EconomicCommandOccurrenceV2 | None
+    occurrence: EconomicCommandOccurrenceV2 | None = (
+        _OwnedDataclassSnapshotPropertyV2(
+            "_occurrence",
+            EconomicCommandOccurrenceV2,
+            _snapshot_occurrence_v2,
+            "asset origin registration occurrence must be exact",
+            allow_none=True,
+        )
+    )
 
     def __post_init__(self) -> None:
         _require_nonnegative_int_v2(
@@ -216,14 +245,6 @@ class AssetOriginRegistrationContextV2:
             self.global_pre_state_root,
             name="asset origin registration global pre-state root",
         )
-        if self.occurrence is not None:
-            if type(self.occurrence) is not EconomicCommandOccurrenceV2:
-                raise TypeError("asset origin registration occurrence must be exact")
-            object.__setattr__(
-                self,
-                "occurrence",
-                _snapshot_occurrence_v2(self.occurrence),
-            )
 
     def to_canonical(self) -> dict[str, object]:
         return {
@@ -317,51 +338,62 @@ def _snapshot_registration_command_v2(
     return replace(command)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class AssetOriginRegistrationAcceptedV2:
-    post_state: AssetOriginRegistryStateV2
-    effects: GlobalEconomicEffectPlanV2
-    module_journal: LaneModuleTransitionJournalV2
+    __slots__ = ("_post_state", "_effects", "_module_journal")
+
+    _post_state: ClassVar[AssetOriginRegistryStateV2]
+    _effects: ClassVar[GlobalEconomicEffectPlanV2]
+    _module_journal: ClassVar[LaneModuleTransitionJournalV2]
+
+    post_state: AssetOriginRegistryStateV2 = (
+        _OwnedDataclassSnapshotPropertyV2(  # type: ignore[assignment]
+            "_post_state",
+            AssetOriginRegistryStateV2,
+            _snapshot_registry_state_v2,
+            "asset origin accepted state must be exact",
+        )
+    )
+    effects: GlobalEconomicEffectPlanV2 = (
+        _OwnedDataclassSnapshotPropertyV2(
+            "_effects",
+            GlobalEconomicEffectPlanV2,
+            _snapshot_effect_plan_v2,
+            "asset origin accepted effects must be exact",
+        )
+    )
+    module_journal: LaneModuleTransitionJournalV2 = (
+        _OwnedDataclassSnapshotPropertyV2(
+            "_module_journal",
+            LaneModuleTransitionJournalV2,
+            _snapshot_module_journal_v2,
+            "asset origin accepted journal must be exact",
+        )
+    )
 
     def __post_init__(self) -> None:
-        if type(self.post_state) is not AssetOriginRegistryStateV2:
-            raise TypeError("asset origin accepted state must be exact")
-        if type(self.effects) is not GlobalEconomicEffectPlanV2:
-            raise TypeError("asset origin accepted effects must be exact")
-        if type(self.module_journal) is not LaneModuleTransitionJournalV2:
-            raise TypeError("asset origin accepted journal must be exact")
-        object.__setattr__(
-            self,
-            "post_state",
-            _snapshot_registry_state_v2(self.post_state),
-        )
-        object.__setattr__(self, "effects", _snapshot_effect_plan_v2(self.effects))
-        object.__setattr__(
-            self,
-            "module_journal",
-            _snapshot_module_journal_v2(self.module_journal),
-        )
-        if self.effects.rows or self.effects.asset_conservation or self.effects.fee_conservation:
+        if self._effects.rows or self._effects.asset_conservation or self._effects.fee_conservation:
             raise ValueError("asset origin registration created an economic value effect")
-        if self.module_journal.lane_id is not LaneIdV2.ASSET_TRANSFER:
+        if self._module_journal.lane_id is not LaneIdV2.ASSET_TRANSFER:
             raise ValueError("asset origin registration journal has the wrong lane")
-        if self.module_journal.post_lane_root != self.post_state.state_root:
+        if self._module_journal.post_lane_root != self._post_state.state_root:
             raise ValueError("asset origin registration journal has the wrong post root")
-        if self.module_journal.effect_plan_root != self.effects.effect_plan_root:
+        if self._module_journal.effect_plan_root != self._effects.effect_plan_root:
             raise ValueError("asset origin registration journal has the wrong effect root")
-        if self.effects.occurrence_consumptions != (self.module_journal.command_occurrence_id,):
+        if self._effects.occurrence_consumptions != (self._module_journal.command_occurrence_id,):
             raise ValueError("asset origin registration effects have the wrong occurrence")
-        if self.effects.lane_writes != (
+        if self._effects.lane_writes != (
             LaneWriteV2(
                 LaneIdV2.ASSET_TRANSFER,
-                self.module_journal.pre_lane_root,
-                self.module_journal.post_lane_root,
+                self._module_journal.pre_lane_root,
+                self._module_journal.post_lane_root,
             ),
         ):
             raise ValueError("asset origin registration effects have the wrong lane write")
         if (
-            self.module_journal.terminal_obligations_root != ZERO_ROOT_V2
-            or self.module_journal.oracle_occurrence_plan_root != ZERO_ROOT_V2
+            self._module_journal.private_port_root != ZERO_ROOT_V2
+            or self._module_journal.terminal_obligations_root != ZERO_ROOT_V2
+            or self._module_journal.oracle_occurrence_plan_root != ZERO_ROOT_V2
         ):
             raise ValueError("asset origin registration created an unrelated plan")
 
@@ -370,20 +402,30 @@ class AssetOriginRegistrationAcceptedV2:
         return ASSET_LANE_PRODUCTION_AUTHORITY_V2
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class AssetOriginRegistrationRejectedV2:
+    __slots__ = ("code", "pre_state_root", "post_state_root", "_effects")
+
+    _effects: ClassVar[GlobalEconomicEffectPlanV2]
+
     code: AssetOriginRegistrationRejectCodeV2
     pre_state_root: str
     post_state_root: str
-    effects: GlobalEconomicEffectPlanV2
+    effects: GlobalEconomicEffectPlanV2 = (
+        _OwnedDataclassSnapshotPropertyV2(
+            "_effects",
+            GlobalEconomicEffectPlanV2,
+            _snapshot_effect_plan_v2,
+            "asset origin rejected effects must be exact",
+        )
+    )
 
     def __post_init__(self) -> None:
         if type(self.code) is not AssetOriginRegistrationRejectCodeV2:
             raise TypeError("asset origin registration reject code must be exact")
         _require_root_v2(self.pre_state_root, name="asset origin rejected pre root")
         _require_root_v2(self.post_state_root, name="asset origin rejected post root")
-        object.__setattr__(self, "effects", _snapshot_effect_plan_v2(self.effects))
-        if self.pre_state_root != self.post_state_root or not self.effects.is_empty:
+        if self.pre_state_root != self.post_state_root or not self._effects.is_empty:
             raise ValueError("asset origin registration rejection must be an exact no-op")
 
 
