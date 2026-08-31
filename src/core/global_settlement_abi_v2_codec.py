@@ -1,4 +1,4 @@
-"""Closed canonical decoder for the initial GlobalSettlementABI V2 leaf.
+"""Closed canonical decoder for the bounded GlobalSettlementABI V2 leaves.
 
 The codec accepts only exact canonical JSON bytes and exact field sets.  It is
 an untrusted decode edge: decoded mappings are converted immediately into the
@@ -25,6 +25,13 @@ from .global_settlement_types_v2 import (
     AssetSupplyV2,
     EconomicAmountV2,
     canonical_global_bytes_v2,
+)
+from .managed_asset_lifecycle_types_v2 import (
+    MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V2,
+    ManagedAssetLifecycleCommandV2,
+    ManagedAssetLifecycleContextV2,
+    ManagedAssetLifecyclePolicyV2,
+    ManagedAssetLifecycleStateV2,
 )
 
 MAX_GLOBAL_SETTLEMENT_CODEC_BYTES_V2: Final = 1_048_576
@@ -196,6 +203,75 @@ def _decode_asset_transfer_command_object_v2(
     )
 
 
+_MANAGED_COMMAND_FIELDS_V2 = frozenset(
+    {
+        "command_kind",
+        "asset",
+        "asset_class",
+        "asset_origin_root",
+        "atom_decimals",
+        "authorization_root",
+        "account_owner",
+        "amount_atoms",
+    }
+)
+
+
+def _decode_managed_asset_lifecycle_command_object_v2(
+    value: dict[str, object],
+) -> ManagedAssetLifecycleCommandV2:
+    _expect_fields_v2(
+        value,
+        _MANAGED_COMMAND_FIELDS_V2,
+        name="managed asset lifecycle command",
+    )
+
+    def build() -> ManagedAssetLifecycleCommandV2:
+        asset_class_text = _expect_text_v2(
+            value["asset_class"],
+            name="managed asset lifecycle command class",
+        )
+        try:
+            asset_class = AssetClassV2(asset_class_text)
+        except ValueError as exc:
+            raise GlobalSettlementCodecErrorV2(
+                "managed asset lifecycle command class is unknown"
+            ) from exc
+        return ManagedAssetLifecycleCommandV2(
+            command_kind=_expect_text_v2(
+                value["command_kind"],
+                name="managed asset lifecycle command kind",
+            ),
+            asset=_expect_text_v2(
+                value["asset"],
+                name="managed asset lifecycle command asset",
+            ),
+            asset_class=asset_class,
+            asset_origin_root=_expect_optional_text_v2(
+                value["asset_origin_root"],
+                name="managed asset lifecycle command origin root",
+            ),
+            atom_decimals=_expect_nonnegative_integer_v2(
+                value["atom_decimals"],
+                name="managed asset lifecycle command atom decimals",
+            ),
+            authorization_root=_expect_optional_text_v2(
+                value["authorization_root"],
+                name="managed asset lifecycle command authorization root",
+            ),
+            account_owner=_expect_text_v2(
+                value["account_owner"],
+                name="managed asset lifecycle command account owner",
+            ),
+            amount_atoms=_expect_nonnegative_integer_v2(
+                value["amount_atoms"],
+                name="managed asset lifecycle command amount",
+            ),
+        )
+
+    return _construct_v2(build)
+
+
 _OCCURRENCE_FIELDS_V2 = frozenset(
     {
         "schema",
@@ -321,6 +397,35 @@ def _decode_asset_transfer_context_object_v2(
     )
 
 
+def _decode_managed_asset_lifecycle_context_object_v2(
+    value: dict[str, object],
+) -> ManagedAssetLifecycleContextV2:
+    _expect_fields_v2(value, _CONTEXT_FIELDS_V2, name="managed asset lifecycle context")
+    occurrence_value = value["occurrence"]
+    occurrence = (
+        None
+        if occurrence_value is None
+        else _decode_occurrence_object_v2(_expect_object_v2(occurrence_value, name="occurrence"))
+    )
+    return _construct_v2(
+        lambda: ManagedAssetLifecycleContextV2(
+            writer_epoch=_expect_nonnegative_integer_v2(
+                value["writer_epoch"],
+                name="managed asset lifecycle context writer epoch",
+            ),
+            module_release_id=_expect_text_v2(
+                value["module_release_id"],
+                name="managed asset lifecycle context module release",
+            ),
+            global_pre_state_root=_expect_text_v2(
+                value["global_pre_state_root"],
+                name="managed asset lifecycle context global pre-state root",
+            ),
+            occurrence=occurrence,
+        )
+    )
+
+
 _POLICY_FIELDS_V2 = frozenset(
     {
         "asset",
@@ -368,6 +473,75 @@ def _decode_policy_object_v2(value: dict[str, object]) -> AssetTransferPolicyV2:
             atom_decimals=_expect_nonnegative_integer_v2(
                 value["atom_decimals"],
                 name="asset transfer policy atom decimals",
+            ),
+        )
+
+    return _construct_v2(build)
+
+
+_MANAGED_POLICY_FIELDS_V2 = frozenset(
+    {
+        "asset",
+        "asset_class",
+        "asset_origin_root",
+        "atom_decimals",
+        "issue_authority_subject",
+        "issue_authorization_root",
+        "burn_authorization_root",
+        "enabled",
+    }
+)
+
+
+def _decode_managed_asset_lifecycle_policy_object_v2(
+    value: dict[str, object],
+) -> ManagedAssetLifecyclePolicyV2:
+    _expect_fields_v2(
+        value,
+        _MANAGED_POLICY_FIELDS_V2,
+        name="managed asset lifecycle policy",
+    )
+
+    def build() -> ManagedAssetLifecyclePolicyV2:
+        asset_class_text = _expect_text_v2(
+            value["asset_class"],
+            name="managed asset lifecycle policy class",
+        )
+        try:
+            asset_class = AssetClassV2(asset_class_text)
+        except ValueError as exc:
+            raise GlobalSettlementCodecErrorV2(
+                "managed asset lifecycle policy class is unknown"
+            ) from exc
+        return ManagedAssetLifecyclePolicyV2(
+            asset=_expect_text_v2(
+                value["asset"],
+                name="managed asset lifecycle policy asset",
+            ),
+            asset_class=asset_class,
+            asset_origin_root=_expect_optional_text_v2(
+                value["asset_origin_root"],
+                name="managed asset lifecycle policy origin root",
+            ),
+            atom_decimals=_expect_nonnegative_integer_v2(
+                value["atom_decimals"],
+                name="managed asset lifecycle policy atom decimals",
+            ),
+            issue_authority_subject=_expect_optional_text_v2(
+                value["issue_authority_subject"],
+                name="managed asset lifecycle policy issue authority subject",
+            ),
+            issue_authorization_root=_expect_optional_text_v2(
+                value["issue_authorization_root"],
+                name="managed asset lifecycle policy issue authorization root",
+            ),
+            burn_authorization_root=_expect_optional_text_v2(
+                value["burn_authorization_root"],
+                name="managed asset lifecycle policy burn authorization root",
+            ),
+            enabled=_expect_boolean_v2(
+                value["enabled"],
+                name="managed asset lifecycle policy enabled",
             ),
         )
 
@@ -445,6 +619,40 @@ def _decode_asset_transfer_state_object_v2(
     )
 
 
+def _decode_managed_asset_lifecycle_state_object_v2(
+    value: dict[str, object],
+) -> ManagedAssetLifecycleStateV2:
+    _expect_fields_v2(value, _STATE_FIELDS_V2, name="managed asset lifecycle state")
+    if value["schema"] != MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V2:
+        raise GlobalSettlementCodecErrorV2("managed asset lifecycle state schema is not V2")
+    policy_values = _expect_object_list_v2(
+        value["policies"],
+        name="managed asset lifecycle policies",
+    )
+    balance_values = _expect_object_list_v2(
+        value["balances"],
+        name="managed asset lifecycle balances",
+    )
+    supply_values = _expect_object_list_v2(
+        value["supplies"],
+        name="managed asset lifecycle supplies",
+    )
+    return _construct_v2(
+        lambda: ManagedAssetLifecycleStateV2(
+            module_release_id=_expect_text_v2(
+                value["module_release_id"],
+                name="managed asset lifecycle module release id",
+            ),
+            policies=tuple(
+                _decode_managed_asset_lifecycle_policy_object_v2(row)
+                for row in policy_values
+            ),
+            balances=tuple(_decode_amount_object_v2(row) for row in balance_values),
+            supplies=tuple(_decode_supply_object_v2(row) for row in supply_values),
+        )
+    )
+
+
 def decode_asset_transfer_command_v2(raw: bytes) -> AssetTransferCommandV2:
     return _decode_asset_transfer_command_object_v2(_load_canonical_object_v2(raw))
 
@@ -455,6 +663,24 @@ def decode_asset_transfer_context_v2(raw: bytes) -> AssetTransferContextV2:
 
 def decode_asset_transfer_state_v2(raw: bytes) -> AssetTransferStateV2:
     return _decode_asset_transfer_state_object_v2(_load_canonical_object_v2(raw))
+
+
+def decode_managed_asset_lifecycle_command_v2(
+    raw: bytes,
+) -> ManagedAssetLifecycleCommandV2:
+    return _decode_managed_asset_lifecycle_command_object_v2(_load_canonical_object_v2(raw))
+
+
+def decode_managed_asset_lifecycle_context_v2(
+    raw: bytes,
+) -> ManagedAssetLifecycleContextV2:
+    return _decode_managed_asset_lifecycle_context_object_v2(_load_canonical_object_v2(raw))
+
+
+def decode_managed_asset_lifecycle_state_v2(
+    raw: bytes,
+) -> ManagedAssetLifecycleStateV2:
+    return _decode_managed_asset_lifecycle_state_object_v2(_load_canonical_object_v2(raw))
 
 
 def encode_asset_transfer_command_v2(value: AssetTransferCommandV2) -> bytes:
@@ -475,13 +701,43 @@ def encode_asset_transfer_state_v2(value: AssetTransferStateV2) -> bytes:
     return canonical_global_bytes_v2(value)
 
 
+def encode_managed_asset_lifecycle_command_v2(
+    value: ManagedAssetLifecycleCommandV2,
+) -> bytes:
+    if type(value) is not ManagedAssetLifecycleCommandV2:
+        raise GlobalSettlementCodecErrorV2("managed asset lifecycle command must be exact V2")
+    return canonical_global_bytes_v2(value)
+
+
+def encode_managed_asset_lifecycle_context_v2(
+    value: ManagedAssetLifecycleContextV2,
+) -> bytes:
+    if type(value) is not ManagedAssetLifecycleContextV2:
+        raise GlobalSettlementCodecErrorV2("managed asset lifecycle context must be exact V2")
+    return canonical_global_bytes_v2(value)
+
+
+def encode_managed_asset_lifecycle_state_v2(
+    value: ManagedAssetLifecycleStateV2,
+) -> bytes:
+    if type(value) is not ManagedAssetLifecycleStateV2:
+        raise GlobalSettlementCodecErrorV2("managed asset lifecycle state must be exact V2")
+    return canonical_global_bytes_v2(value)
+
+
 __all__ = [
     "MAX_GLOBAL_SETTLEMENT_CODEC_BYTES_V2",
     "GlobalSettlementCodecErrorV2",
     "decode_asset_transfer_command_v2",
     "decode_asset_transfer_context_v2",
     "decode_asset_transfer_state_v2",
+    "decode_managed_asset_lifecycle_command_v2",
+    "decode_managed_asset_lifecycle_context_v2",
+    "decode_managed_asset_lifecycle_state_v2",
     "encode_asset_transfer_command_v2",
     "encode_asset_transfer_context_v2",
     "encode_asset_transfer_state_v2",
+    "encode_managed_asset_lifecycle_command_v2",
+    "encode_managed_asset_lifecycle_context_v2",
+    "encode_managed_asset_lifecycle_state_v2",
 ]

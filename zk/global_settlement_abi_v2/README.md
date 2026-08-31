@@ -1,17 +1,18 @@
 # GlobalSettlementABI V2 research mirror
 
 This crate mirrors the research-only Python GlobalSettlementABI V2
-asset-transfer functional core and shared O-008 global core. It provides
-deterministic typed validation, canonical hashing, a pure asset-transfer
-transition, bounded global effect plans, Oracle and terminal lifecycle plans,
-all 12 lane-state commitments, bounded global economic state, and exact
-state/effect/replay/lifecycle refinement. Python/Rust golden vectors bind the
-shared canonical bytes and roots.
+asset-transfer and managed issue/self-burn functional cores plus the shared
+O-008 global core. It provides deterministic typed validation, canonical
+hashing, pure leaf transitions, bounded global effect plans, Oracle and
+terminal lifecycle plans, all 12 lane-state commitments, bounded global
+economic state, and exact state/effect/replay/lifecycle refinement. Source-
+generated Python/Rust golden vectors bind the managed command, occurrence,
+context, pre/post state, effects, journal, receipt, canonical bytes, and roots.
 
 It does not mount a runtime route, verify a RISC0 receipt, authenticate the
-policy snapshot, implement migration or publisher admission, or grant
-settlement or publication authority. Managed issue/burn is outside this
-crate's current parity scope. Its production authority is `NONE`.
+policy snapshot, implement the origin registry or aggregate asset coordinator,
+decode result envelopes, implement migration or publisher admission, or grant
+settlement or publication authority. Its production authority is `NONE`.
 
 The closed decoder caps raw canonical input at 1,048,576 bytes. Effect plans
 also share the Python per-field, 8,192 aggregate-item, and 1 MiB canonical-byte

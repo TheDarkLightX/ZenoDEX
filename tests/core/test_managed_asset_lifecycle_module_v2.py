@@ -360,6 +360,62 @@ def test_width_supply_and_balance_boundaries_reject_without_mutation() -> None:
     )
 
 
+def test_burn_disabled_rejects_as_an_exact_noop() -> None:
+    state = _state(policy=_policy(burn_root=None))
+    command = _command(
+        command_kind=MANAGED_ASSET_BURN_COMMAND_KIND_V2,
+        authorization_root=None,
+    )
+
+    _assert_noop(
+        transition_managed_asset_lifecycle_v2(
+            _context(command=command, subject="alice", grant=_root(6)),
+            state,
+            command,
+        ),
+        state,
+        ManagedAssetLifecycleRejectCodeV2.BURN_DISABLED,
+    )
+
+
+def test_burn_rejects_when_supply_exists_but_owner_balance_is_insufficient() -> None:
+    state = _state(
+        balances=(EconomicAmountV2("alice", "USD", "accounts", 1),),
+        supply_atoms=10,
+    )
+    command = _command(
+        command_kind=MANAGED_ASSET_BURN_COMMAND_KIND_V2,
+        amount_atoms=2,
+        authorization_root=_root(6),
+    )
+
+    _assert_noop(
+        transition_managed_asset_lifecycle_v2(
+            _context(command=command, subject="alice", grant=_root(6)),
+            state,
+            command,
+        ),
+        state,
+        ManagedAssetLifecycleRejectCodeV2.INSUFFICIENT_BALANCE,
+    )
+
+
+def test_reserved_decimal_and_balance_overflow_codes_are_invariant_unreachable() -> None:
+    with pytest.raises(ValueError, match="decimals must equal 8"):
+        _command(atom_decimals=7)
+
+    state = _state(
+        balances=(EconomicAmountV2("alice", "USD", "accounts", MAX_ATOMS_V2),),
+        supply_atoms=MAX_ATOMS_V2,
+    )
+    command = _command(amount_atoms=1)
+    _assert_noop(
+        transition_managed_asset_lifecycle_v2(_context(command=command), state, command),
+        state,
+        ManagedAssetLifecycleRejectCodeV2.SUPPLY_OVERFLOW,
+    )
+
+
 def test_snapshots_reject_subclasses_and_do_not_retain_policy_aliases() -> None:
     policy = _policy()
     state = _state(policy=policy)
