@@ -320,17 +320,32 @@ impl AssetOriginRegistrationAcceptedV2 {
         if !self.effects.rows.is_empty()
             || !self.effects.asset_conservation.is_empty()
             || !self.effects.fee_conservation.is_empty()
-            || self.module_journal.lane_id != LaneIdV2::ASSET_TRANSFER
+        {
+            return Err(AbiErrorV2::InvalidBinding(
+                "asset origin registration created an economic value effect",
+            ));
+        }
+        if !self.effects.external_outbox_enqueue.is_empty() {
+            return Err(AbiErrorV2::InvalidBinding(
+                "asset origin registration created an external outbox effect",
+            ));
+        }
+        if self.module_journal.lane_id != LaneIdV2::ASSET_TRANSFER
             || self.module_journal.post_lane_root != self.post_state.state_root()?
             || self.module_journal.effect_plan_root != self.effects.effect_plan_root()?
             || self.effects.occurrence_consumptions
                 != vec![self.module_journal.command_occurrence_id.clone()]
             || self.effects.lane_writes != vec![expected_lane_write]
-            || !self.module_journal.private_port_root.is_zero()
+        {
+            return Err(AbiErrorV2::InvalidBinding("asset origin accepted bindings"));
+        }
+        if !self.module_journal.private_port_root.is_zero()
             || !self.module_journal.terminal_obligations_root.is_zero()
             || !self.module_journal.oracle_occurrence_plan_root.is_zero()
         {
-            return Err(AbiErrorV2::InvalidBinding("asset origin accepted bindings"));
+            return Err(AbiErrorV2::InvalidBinding(
+                "asset origin registration created an unrelated plan",
+            ));
         }
         Ok(())
     }

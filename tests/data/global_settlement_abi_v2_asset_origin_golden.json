@@ -217,7 +217,7 @@
   "python_source_sha256": {
     "src/core/asset_origin_registry_codec_v2.py": "3756548329311c6a18038cc01a456e548d423234867a35cc7ae7d043416adceb",
     "src/core/asset_origin_registry_ownership_v2.py": "590a1cf44bf39c588e4d53305aa4a23dad3308ab6ba3b54ef219d701e2adb6dc",
-    "src/core/asset_origin_registry_types_v2.py": "9b1a0cdde0909dd1c1729804277b34805f4877e849a1e3e897540053643b23e4",
+    "src/core/asset_origin_registry_types_v2.py": "b41118756ca47b3287cb862e1ea5bd3dffa6248759c6ac7b548d9b87747466e1",
     "src/core/asset_origin_registry_v2.py": "30a94b99eda4c395b5510fb11bf295171399290f3db72112092a42eb00850be4",
     "tools/global_settlement_abi_v2_asset_origin_cases.py": "b8132406fb434ba0e8a91774d8e46e1770a5b60fe1bb557119188ce96cadc35c"
   },

@@ -156,7 +156,7 @@ class AssetOriginRegistryStateV2:
 
     module_release_id: str
     policy: AssetOriginRegistrationPolicyV2 = (
-        _OwnedDataclassSnapshotPropertyV2(  # type: ignore[assignment]
+        _OwnedDataclassSnapshotPropertyV2(
             "_policy",
             AssetOriginRegistrationPolicyV2,
             replace,
@@ -164,7 +164,7 @@ class AssetOriginRegistryStateV2:
         )
     )
     assets: tuple[AssetOriginRecordV2, ...] = (
-        _OwnedDataclassSnapshotPropertyV2(  # type: ignore[assignment]
+        _OwnedDataclassSnapshotPropertyV2(
             "_assets",
             tuple,
             lambda rows: _snapshot_dataclass_tuple_v2(
@@ -347,7 +347,7 @@ class AssetOriginRegistrationAcceptedV2:
     _module_journal: ClassVar[LaneModuleTransitionJournalV2]
 
     post_state: AssetOriginRegistryStateV2 = (
-        _OwnedDataclassSnapshotPropertyV2(  # type: ignore[assignment]
+        _OwnedDataclassSnapshotPropertyV2(
             "_post_state",
             AssetOriginRegistryStateV2,
             _snapshot_registry_state_v2,
@@ -374,6 +374,8 @@ class AssetOriginRegistrationAcceptedV2:
     def __post_init__(self) -> None:
         if self._effects.rows or self._effects.asset_conservation or self._effects.fee_conservation:
             raise ValueError("asset origin registration created an economic value effect")
+        if self._effects.external_outbox_enqueue:
+            raise ValueError("asset origin registration created an external outbox effect")
         if self._module_journal.lane_id is not LaneIdV2.ASSET_TRANSFER:
             raise ValueError("asset origin registration journal has the wrong lane")
         if self._module_journal.post_lane_root != self._post_state.state_root:
