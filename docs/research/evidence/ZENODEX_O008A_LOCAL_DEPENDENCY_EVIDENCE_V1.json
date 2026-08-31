@@ -1,0 +1,110 @@
+{
+  "schema": "zenodex/o008a-local-dependency-evidence/v1",
+  "status": "SOURCE_CAPTURE_NO_AUTHORITY",
+  "captured_at_utc": "2026-08-31T17:04:24Z",
+  "capture_method": "READ_ONLY_LOCAL_OFFLINE_EXTRACTION_NO_NETWORK_NO_BUILD",
+  "rustsec_database": {
+    "commit": "b331df68b3ed0e99594d259040bdcb9de3c7c8a4",
+    "tree": "9d8b8f98f2a77b15c764b9f811f947f84f59767d",
+    "license_summary": "RustSec code and data are CC0 except advisory records explicitly attributed to GHSA under CC-BY-4.0.",
+    "records": [
+      {
+        "id": "RUSTSEC-2023-0071",
+        "package": "rsa",
+        "record_path": "crates/rsa/RUSTSEC-2023-0071.md",
+        "record_sha256": "8538ebf5d6ad7c749a63dd43a725ea0000aff574cfddecc8e4ef52736831328a",
+        "patched_versions": [],
+        "title": "Marvin Attack: potential key recovery through timing sidechannels"
+      },
+      {
+        "id": "RUSTSEC-2025-0055",
+        "package": "tracing-subscriber",
+        "record_path": "crates/tracing-subscriber/RUSTSEC-2025-0055.md",
+        "record_sha256": "f037813f8b45c1acb9216db77bd15493cd6e69bc25d9f9a96ab45303a2c8407c",
+        "patched_versions": [">=0.3.20"],
+        "title": "Logging user input may result in poisoning logs with ANSI escape sequences"
+      }
+    ]
+  },
+  "locally_cached_crate_manifests": [
+    {
+      "package": "risc0-build",
+      "version": "3.0.6",
+      "cargo_toml_sha256": "058fb5edf7963d7cf0e52cd2b5eedb358af08830cef457877682c93c03c9b7d5",
+      "relevant_dependency": {"package": "rzup", "requirement": "0.5.2", "default_features": false}
+    },
+    {
+      "package": "rzup",
+      "version": "0.5.2",
+      "cargo_toml_sha256": "b0e27ac3f4e4b92da43789cdfea4cebdab624608e87814a5cc8e765ed810ef1e",
+      "relevant_dependency": {"package": "rsa", "requirement": "0.9"}
+    },
+    {
+      "package": "ark-relations",
+      "version": "0.5.1",
+      "cargo_toml_sha256": "3b6d7a63a6fc48149583d79065f269e6374d34e3ef959896a719570c9f6b3469",
+      "relevant_dependency": {"package": "tracing-subscriber", "requirement": "0.2", "optional": true, "activated_by_feature": "std"}
+    }
+  ],
+  "historical_candidate_evidence": {
+    "candidate_commit": "202838c8d1d9e868f47cac4c0227544b981813ff",
+    "raw_bundle_filename": "o008a-risc0-build-host-qualification-v2.raw.json",
+    "raw_bundle_file_sha256": "a8e04934a6ed4125a9ba4a0146888ee1bd2a41c05a0c2b88c274fb1dfafc0d0c",
+    "bundle_payload_sha256": "2a3c91e1e32667afed8d40f0d64f6e5585150bfe5824ea5a79bb42d804a0172d",
+    "audit_report_sha256": "c1dde1f912dc34a98e63ae93737460d0252cae7175506cfa88afb3fd851fb4a8",
+    "advisory_database_manifest_sha256": "bfabbe6e59c824bdb63167a40eceeb85047f56307f939d333f3d2a3b1c061944",
+    "run_resource_observations": [
+      {
+        "label": "A",
+        "target_size_bytes": 2308631131,
+        "max_command_cumulative_child_peak_rss_upper_bound_bytes": 9835958272,
+        "proof_elapsed_nanoseconds": 860100219454,
+        "before_free_tmpfs_bytes": 18303782912,
+        "after_free_tmpfs_bytes": 15927472128,
+        "before_available_memory_bytes": 19008901120,
+        "after_available_memory_bytes": 19450368000
+      },
+      {
+        "label": "B",
+        "target_size_bytes": 2308631135,
+        "max_command_cumulative_child_peak_rss_upper_bound_bytes": 9836879872,
+        "proof_elapsed_nanoseconds": 947493851846,
+        "before_free_tmpfs_bytes": 17998946304,
+        "after_free_tmpfs_bytes": 15766614016,
+        "before_available_memory_bytes": 17875816448,
+        "after_available_memory_bytes": 20605997056
+      }
+    ]
+  },
+  "resource_snapshot": {
+    "root_free_bytes": 4551852032,
+    "tmpfs_free_bytes": 15716003840,
+    "available_memory_bytes": 24725020672,
+    "tmpfs_path": "/dev/shm",
+    "observed_apparent_sizes_bytes": {
+      "retained_target": 2099544274,
+      "calibration_target": 2416145521,
+      "qualification_home": 3319589869,
+      "vendor_tree": 314253369,
+      "external_evidence": 294995039,
+      "audit_evidence": 2774034,
+      "frozen_manifests": 3221376
+    },
+    "semantics": "VOLATILE_SINGLE_HOST_OBSERVATION_FOR_BOUNDED_FEASIBILITY_ONLY"
+  },
+  "authority": {
+    "build_host_authority": "NONE",
+    "migration_authority": "NONE",
+    "production_authority": "NONE",
+    "release_authority": "NONE",
+    "settlement_authority": "NONE",
+    "value_movement_authority": "NONE",
+    "verifier_authority": "NONE"
+  },
+  "nonclaims": [
+    "This capture does not rerun cargo-audit, Cargo, RISC0, or any build.",
+    "The historical bundle does not apply to the current source closure.",
+    "A volatile resource observation does not reserve resources or authorize a build.",
+    "Source hashes preserve provenance identifiers; this normalized capture is not a substitute for independent advisory database custody."
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-o008a-dependency-policy-blocker-v1",
+  "created_date": "2026-08-31",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "claim_scope": "Source-bound O-008A dependency-policy blocker on canonical r8. It preserves two RustSec findings, rejects the stale qualification candidate, calibrates bounded resource feasibility, grants no authority, and does not complete qualification.",
+  "invariant_ids": [
+    "O008A-BLOCKER-EXACT-ADMITTED-PLAN",
+    "O008A-BLOCKER-RISC0-3-0-6-CLOSURE",
+    "O008A-BLOCKER-TWO-RUSTSEC-FINDINGS",
+    "O008A-BLOCKER-STALE-CANDIDATE-REJECTION",
+    "O008A-BLOCKER-CALIBRATED-RESOURCE-FLOOR",
+    "O008A-BLOCKER-ZERO-AUTHORITY"
+  ],
+  "failure_modes": [
+    "one advisory is removed or converted into an implicit exception",
+    "the stale 202838c8 candidate is accepted for the current source closure",
+    "resource minima are reduced to the historical 50 MiB disk or 128 MiB memory placeholders",
+    "TMPDIR or mutable build paths can spill onto the nearly full root filesystem",
+    "a blocker artifact promotes qualification, dependency safety, proof validity, release, or production authority",
+    "Stage B changes any path other than the canonical artifact"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/o008a_dependency_policy_blocker_v1.py",
+      "sha256": "aa1e0a14ad7ec26a16baa7d8c2a5cd178715844d5bba4fc35c0aaec8a1ea2971"
+    },
+    {
+      "path": "tools/check_o008a_dependency_policy_blocker_v1.py",
+      "sha256": "4fa869c3609a6178f1d46da88ac818b612fe56eafd41927f67b3080a9b645519"
+    },
+    {
+      "path": "docs/research/evidence/ZENODEX_O008A_LOCAL_DEPENDENCY_EVIDENCE_V1.json",
+      "sha256": "4f2a24f0aff5aee4c0a625832e65f3060c8162673727dc41d6ea981431b9f763"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_o008a_dependency_policy_blocker_v1.py",
+      "sha256": "acd743413e0b7c5600134371dd08aab95c34f51be0ded1687667b0d9865486c5",
+      "node_ids": [
+        "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_bdd_given_exact_stage_a_when_projected_then_o008a_remains_blocked",
+        "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_lock_and_local_evidence_bind_both_incompatible_advisories",
+        "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_stale_candidate_is_rejected_against_exact_current_closure",
+        "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_resource_feasibility_uses_calibrated_exact_byte_arithmetic",
+        "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_source_manifest_covers_the_complete_governed_rust_closure",
+        "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_mutation_advisory_removal_is_rejected",
+        "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_mutation_authority_promotion_is_rejected",
+        "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_mutation_stale_candidate_acceptance_is_rejected",
+        "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_mutation_resource_budget_understatement_is_rejected",
+        "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_stage_lifecycle_requires_artifact_only_stage_b"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "remove RUSTSEC-2025-0055 from the exact advisory set",
+      "killed_by": "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_mutation_advisory_removal_is_rejected"
+    },
+    {
+      "description": "promote release authority from NONE",
+      "killed_by": "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_mutation_authority_promotion_is_rejected"
+    },
+    {
+      "description": "accept stale candidate 202838c8 for the current closure",
+      "killed_by": "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_mutation_stale_candidate_acceptance_is_rejected"
+    },
+    {
+      "description": "restore the historical understated resource minima",
+      "killed_by": "tests/test_check_o008a_dependency_policy_blocker_v1.py::test_mutation_resource_budget_understatement_is_rejected"
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "boundary",
+    "negative_regression",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange the exact Stage A projection or one-defect mutation, act through the pure validator or public checker, and assert the exact blocked result or typed rejection code."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The model consumes immutable committed bytes and returns a typed rejection. It executes no network, Cargo, build, cleanup, settlement, release, or value-moving effect."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "dependency_policy",
+      "points": [
+        "both exact advisories remain visible and block qualification",
+        "removal of either advisory rejects",
+        "authority or dependency-safety promotion rejects"
+      ]
+    },
+    {
+      "name": "resource_budget",
+      "points": [
+        "calibrated 4 GiB reuse and 7 GiB isolated tmpfs floors accept",
+        "50 MiB tmpfs or 128 MiB memory placeholders reject",
+        "non-/dev/shm temporary storage rejects"
+      ]
+    }
+  ],
+  "nonclaims": [
+    "No build was run and no build receipt was qualified.",
+    "No dependency-safety or proof-validity claim is made.",
+    "Resource observations are volatile feasibility inputs and do not reserve capacity.",
+    "No release, production, verifier, settlement, migration, or value-movement authority is granted."
+  ]
+}
