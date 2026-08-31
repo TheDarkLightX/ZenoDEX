@@ -1,0 +1,113 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-o007b-cross-language-sink-closure-v3",
+  "created_date": "2026-08-31",
+  "claim_scope": "Research-only O-007B V3 current-subject restage for the reviewed cross-language sink inventory. It preserves V2 bytes, leaves VM-01 OPEN, and grants no authority.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "O007B-V3-EXACT-BASE-TOPOLOGY",
+    "O007B-V3-V2-BYTE-PRESERVATION",
+    "O007B-V3-CURRENT-PROJECTION-BINDING",
+    "O007B-V3-EXACT-DYNAMIC-AND-UNRESOLVED-COUNTS",
+    "O007B-V3-CROSS-LANGUAGE-WRITER-FAILS-CLOSED",
+    "O007B-V3-ZERO-VM-GATE-AUTHORITY"
+  ],
+  "failure_modes": [
+    "the V3 source stage is based on a subject other than the exact O-008A blocker base",
+    "an original V2 source or artifact byte is changed while restaging V3",
+    "a current Rust, Tau, shell, Dockerfile, or generated-reference source differs from the reviewed projection",
+    "dynamic or unresolved import counts are erased or silently promoted",
+    "a new aliased cross-language writer survives the reviewed manifest",
+    "a recertified artifact promotes VM-01, release readiness, or any authority"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/o007b_cross_language_sink_closure_v3.py",
+      "sha256": "8c839420f6d28e783999ef6c32829a30377c9201371d6070dd88b32843e79451"
+    },
+    {
+      "path": "tools/build_o007b_cross_language_sink_closure_v3.py",
+      "sha256": "813e9248ea584c131fa2dfa5204d99265cddd728bcda766e1147b6b5c4360eab"
+    },
+    {
+      "path": "tools/check_o007b_cross_language_sink_closure_v3.py",
+      "sha256": "e480411de1cc8890614e7c57273dcc245469bbba24f17df212b4bef1a58d7032"
+    },
+    {
+      "path": "tools/m6_cross_language_value_sink_manifest_v3.json",
+      "sha256": "349f080bf3b6b938bce0b15753ed0c94cc8a746c6cb5e9e80df0c3f0ab9df707"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_o007b_cross_language_sink_closure_v3.py",
+      "sha256": "e6eca7378a27ba4ad1bf355015bdc8af18f62593a563050f6b057f1bd73e59e7",
+      "node_ids": [
+        "tests/test_check_o007b_cross_language_sink_closure_v3.py::test_bdd_exact_current_subject_closes_only_bounded_o007b_gap",
+        "tests/test_check_o007b_cross_language_sink_closure_v3.py::test_recertified_authority_count_or_root_mutant_rejects",
+        "tests/test_check_o007b_cross_language_sink_closure_v3.py::test_reviewed_manifest_rejects_changed_projection",
+        "tests/test_check_o007b_cross_language_sink_closure_v3.py::test_current_checker_rejects_new_cross_language_writer"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact receipt or source mutants, act through the pure model or public checker, and assert typed fail-closed observations with zero authority."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Rejected projection and artifact mutants cannot rewrite the reviewed manifest, alter V2 evidence, or grant authority."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "current_subject_counts",
+      "points": [
+        "14 dynamic import declarations accept",
+        "13 dynamic import declarations reject",
+        "4 unresolved imports accept",
+        "0 unresolved imports reject",
+        "935 candidate sources and 362 unmediated occurrences remain explicit"
+      ]
+    },
+    {
+      "name": "claim_ceiling",
+      "points": [
+        "VM-01 OPEN accepts",
+        "VM-01 CLOSED rejects",
+        "value-movement authority promotion rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "recompute the artifact root after changing authority, dependency identity, count, projection root, predecessor identity, or operation-delta count",
+      "killed_by": "tests/test_check_o007b_cross_language_sink_closure_v3.py::test_recertified_authority_count_or_root_mutant_rejects"
+    },
+    {
+      "description": "change a reviewed operation count while retaining the reviewed manifest",
+      "killed_by": "tests/test_check_o007b_cross_language_sink_closure_v3.py::test_reviewed_manifest_rejects_changed_projection"
+    },
+    {
+      "description": "add an aliased Rust filesystem writer after artifact publication",
+      "killed_by": "tests/test_check_o007b_cross_language_sink_closure_v3.py::test_current_checker_rejects_new_cross_language_writer"
+    }
+  ],
+  "nonclaims": [
+    "Recovery, migration, callback, worker, plugin, administrative, user-story, and terminal closure remain outside O-007B.",
+    "Generated ownership declarations do not prove generator replay or semantic equivalence.",
+    "The unchanged operation projection does not prove semantic equivalence of the four changed Rust files.",
+    "VM-01 remains OPEN and no runtime, UI, production, release, settlement, verifier, or value-movement authority is established.",
+    "This packet is pinned by the O-007B V3 Stage-A source manifest and does not pin itself."
+  ]
+}
