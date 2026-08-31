@@ -1,0 +1,171 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-o007c-indirect-sink-closure-v1",
+  "created_date": "2026-08-31",
+  "claim_scope": "Research-only O-007C V1 source-bound indirect sink dispositions. VM-01 remains OPEN, mounted worker and migration entrypoints remain explicit blockers, and no authority is granted.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "O007C-EXACT-BASE-TWO-STAGE-TOPOLOGY",
+    "O007C-O007A-O007B-BYTE-PRESERVATION",
+    "O007C-CLOSED-INDIRECT-SINK-DISPOSITIONS",
+    "O007C-DYNAMIC-TARGET-SOURCE-BINDING",
+    "O007C-EVIDENCE-DERIVED-WORKER-MIGRATION-BLOCKERS",
+    "O007C-INDIRECT-WRITER-MUTATION-FAILS-CLOSED",
+    "O007C-ZERO-VM-GATE-AUTHORITY"
+  ],
+  "failure_modes": [
+    "Stage A is based on a subject other than the exact O-007B V3 artifact commit",
+    "an O-007A, O-007B V2, or O-007B V3 source or artifact byte changes",
+    "a discovered unresolved, literal, or static-registry declaration lacks an exact disposition",
+    "a dynamic call binds a descriptive module-name argument instead of its mechanism-specific target argument",
+    "resolved dynamic targets are emitted with noncanonical order or duplication",
+    "a new unresolved dynamic declaration or O-007A gap inherits an exclusion",
+    "a dynamic target escapes the repository, becomes a symlink, is missing, or changes digest",
+    "a mounted worker or migration launcher appears while the fixed blocker remains",
+    "an indirect Python writer survives the reviewed registry",
+    "a recertified artifact promotes VM-01, release readiness, or any authority"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/o007c_indirect_sink_closure_v1.py",
+      "sha256": "945b02513f46a99f7f080de042f97f4674e2bd5fe2cc0fa0f4be35d18ec78df9"
+    },
+    {
+      "path": "tools/build_o007c_indirect_sink_closure_v1.py",
+      "sha256": "27ba204aa9872cfcc0dce997448a5bfd33d56e23f693689ea9d571c68b1305ef"
+    },
+    {
+      "path": "tools/check_o007c_indirect_sink_closure_v1.py",
+      "sha256": "60ca086e6538d7b0aecef1a85e283b83bee1bbf0b6c2117c2f268b9162744af1"
+    },
+    {
+      "path": "tools/check_m6_indirect_value_sinks_v1.py",
+      "sha256": "d1852fcf7769a9fcacf2dd93762f7838e371acb51b48133fefedab642fa9f553"
+    },
+    {
+      "path": "tools/m6_indirect_value_sinks/inventory.py",
+      "sha256": "19af23a786e254b5d589c37a3ce3650bde54584a87323032c3afea26c999caca"
+    },
+    {
+      "path": "tools/m6_indirect_value_sink_registry_v1.json",
+      "sha256": "e4abbb7177a69041c64a6f23649edaf6e3bc86d2681c6d6e5d13eb8c14992a46"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_m6_indirect_value_sinks_v1.py",
+      "sha256": "9255fd5a9e6228eac91516c85a9d886a4034726f06745bd923561ab8a785f583",
+      "node_ids": [
+        "tests/test_check_m6_indirect_value_sinks_v1.py::test_dynamic_call_extraction_binds_the_mechanism_specific_target_argument",
+        "tests/test_check_m6_indirect_value_sinks_v1.py::test_closed_disposition_maps_reject_unknown_rows",
+        "tests/test_check_m6_indirect_value_sinks_v1.py::test_exact_disposition_completeness_rejects_missing_derived_row",
+        "tests/test_check_m6_indirect_value_sinks_v1.py::test_target_boundaries_and_digest_fail_closed",
+        "tests/test_check_m6_indirect_value_sinks_v1.py::test_registry_decoder_rejects_noncanonical_resolved_target_order",
+        "tests/test_check_m6_indirect_value_sinks_v1.py::test_reviewed_registry_has_exact_closed_disposition_sets",
+        "tests/test_check_m6_indirect_value_sinks_v1.py::test_public_report_closes_rows_with_evidence_derived_blockers"
+      ]
+    },
+    {
+      "path": "tests/test_check_o007c_indirect_sink_closure_v1.py",
+      "sha256": "576e33fd5f4886fae978bd9aa0819b903b770f6688ea222ecc0009481074a76b",
+      "node_ids": [
+        "tests/test_check_o007c_indirect_sink_closure_v1.py::test_bdd_closure_preserves_authority_ceiling_and_explicit_blockers",
+        "tests/test_check_o007c_indirect_sink_closure_v1.py::test_recertified_authority_dependency_count_or_unknown_mutant_rejects",
+        "tests/test_check_o007c_indirect_sink_closure_v1.py::test_current_checker_rejects_path_write_bytes_alias_mutant"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact registry, target, artifact, or source mutants, act through public checkers, and assert typed fail-closed observations with zero authority."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Rejected registry and artifact mutants cannot rewrite the reviewed registry, alter predecessor evidence, or grant authority."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "candidate_scope",
+      "points": [
+        "nine exact evidence tools are excluded",
+        "an unrelated tools path remains in scope",
+        "workspace minus nine exact exclusions equals reviewed scope"
+      ]
+    },
+    {
+      "name": "dynamic_and_gap_dispositions",
+      "points": [
+        "all 61 discovered declarations have an exact disposition identity",
+        "13 exact target-set closures accept",
+        "31 exact research or checker exclusions accept",
+        "7 derived local literals, 9 derived external literals, and 1 derived static registry accept",
+        "a missing derived literal disposition rejects",
+        "spec_from_file_location binds location rather than the descriptive module name",
+        "literal external tau remains explicitly dispositioned",
+        "an unknown dynamic declaration rejects",
+        "all 26 O-007A gaps have an exact typed disposition",
+        "an unknown O-007A gap rejects"
+      ]
+    },
+    {
+      "name": "target_binding",
+      "points": [
+        "contained regular blob with matching digest accepts",
+        "target escape, symlink, missing blob, and digest mismatch reject"
+      ]
+    },
+    {
+      "name": "claim_ceiling",
+      "points": [
+        "VM-01 OPEN accepts",
+        "VM-01 CLOSED rejects",
+        "value-movement authority promotion rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "introduce an unresolved declaration or gap outside the exact disposition maps",
+      "killed_by": "tests/test_check_m6_indirect_value_sinks_v1.py::test_closed_disposition_maps_reject_unknown_rows"
+    },
+    {
+      "description": "omit a derived literal disposition from the exact discovered declaration identity set",
+      "killed_by": "tests/test_check_m6_indirect_value_sinks_v1.py::test_exact_disposition_completeness_rejects_missing_derived_row"
+    },
+    {
+      "description": "reverse a multi-target dynamic disposition after emission",
+      "killed_by": "tests/test_check_m6_indirect_value_sinks_v1.py::test_registry_decoder_rejects_noncanonical_resolved_target_order"
+    },
+    {
+      "description": "escape, symlink, remove, or change a dynamic target blob",
+      "killed_by": "tests/test_check_m6_indirect_value_sinks_v1.py::test_target_boundaries_and_digest_fail_closed"
+    },
+    {
+      "description": "alias Path.write_bytes inside M6OutboxDeliveryPortV1._invoke_transport while O-007A and O-007B remain applicable",
+      "killed_by": "tests/test_check_o007c_indirect_sink_closure_v1.py::test_current_checker_rejects_path_write_bytes_alias_mutant"
+    },
+    {
+      "description": "recompute the artifact root after changing authority, dependency identity, inventory count, or an unknown field",
+      "killed_by": "tests/test_check_o007c_indirect_sink_closure_v1.py::test_recertified_authority_dependency_count_or_unknown_mutant_rejects"
+    }
+  ],
+  "nonclaims": [
+    "The bounded inventory does not establish runtime reachability, sole-publisher closure, terminal workflow closure, or production durability.",
+    "Source-bound research exclusions do not establish semantic harmlessness.",
+    "Dynamic target pins do not prove generator replay or behavioral equivalence.",
+    "Mounted outbox worker and migration entrypoints remain absent from the decoded launcher closure.",
+    "VM-01 remains OPEN and no runtime, UI, production, release, settlement, migration, verifier, or value-movement authority is established.",
+    "This packet is pinned by the O-007C Stage-A source manifest and does not pin itself."
+  ]
+}
