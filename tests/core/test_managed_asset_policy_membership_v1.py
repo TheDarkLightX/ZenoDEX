@@ -71,9 +71,7 @@ _FIXED_RELEASE_REGISTRY_ROOT_V1 = (
 _OTHER_RELEASE_REGISTRY_ROOT_V1 = (
     "0x155c41281d66c0d34d6d1d2443468a264f123801944cab0174b683001c6ce86a"
 )
-_FIXTURE_REGISTRY_ROOT_V1 = (
-    "0xba06d1d7425a1dff6633b077ad7da33eb7ff681a8623607e9cbda353d87c2879"
-)
+_FIXTURE_REGISTRY_ROOT_V1 = "0xba06d1d7425a1dff6633b077ad7da33eb7ff681a8623607e9cbda353d87c2879"
 # Governed issue/burn routes own the registry root as issue_burn_policy_root;
 # the Rust route-binding suite asserts the same route release and profile ids.
 _GOVERNED_BURN_ROUTE_RELEASE_ID_V1 = (
@@ -82,9 +80,7 @@ _GOVERNED_BURN_ROUTE_RELEASE_ID_V1 = (
 _GOVERNED_ISSUE_ROUTE_RELEASE_ID_V1 = (
     "0x13a98232cd5861c444fc022c3419967dc488f99ad636202599621f586344962f"
 )
-_GOVERNED_PROFILE_ID_V1 = (
-    "0x8f65206657c02a3677706d7835b94da55e653c45d04abf035e4acd9fdc7a12bd"
-)
+_GOVERNED_PROFILE_ID_V1 = "0x8f65206657c02a3677706d7835b94da55e653c45d04abf035e4acd9fdc7a12bd"
 _ROUTE_POLICY_ROOT_MISMATCH = "route issue/burn policy root mismatch"
 _InputEdit = Callable[
     [ManagedAssetLifecycleLaneModuleInputV1],
@@ -102,9 +98,7 @@ def _registry(
     module_release_id: str | None = None,
 ) -> ManagedAssetPolicyRegistryV1:
     return ManagedAssetPolicyRegistryV1(
-        support._asset_transfer_release_id_v1()
-        if module_release_id is None
-        else module_release_id,
+        support._asset_transfer_release_id_v1() if module_release_id is None else module_release_id,
         policies,
     )
 
@@ -377,9 +371,7 @@ def test_binding_absent_for_the_command_kind_rejects() -> None:
     burn = _execute(governance, _BURN)
 
     # Act / Assert
-    assert _bind(governance, issue).route_release_id == (
-        governance.routes[_ISSUE].route_release_id
-    )
+    assert _bind(governance, issue).route_release_id == (governance.routes[_ISSUE].route_release_id)
     with pytest.raises(ValueError, match="binding is absent from the governed registry"):
         _bind(governance, burn)
 
@@ -464,10 +456,13 @@ def test_route_release_check_remains_independent_of_registry_membership() -> Non
     )
 
     # Act / Assert: membership passes and the release-route binding still fails closed.
-    assert require_managed_asset_policy_membership_v1(
-        asset_policy_registry=governance.asset_policy_registry,
-        module_input=executed.module_input,
-    ) == support._managed_asset_policy_v1()
+    assert (
+        require_managed_asset_policy_membership_v1(
+            asset_policy_registry=governance.asset_policy_registry,
+            module_input=executed.module_input,
+        )
+        == support._managed_asset_policy_v1()
+    )
     with pytest.raises(ValueError, match="release-route module release mismatch"):
         _bind(governance, executed)
     assert governance.profile.lane_registry.release_for(LaneIdV1.ASSET_TRANSFER).release_id != (
@@ -573,30 +568,35 @@ def test_hostile_registry_and_member_subclasses_cannot_advertise_the_governed_ro
         def registry_root(self) -> str:
             return governed_root
 
+    hook_calls: list[str] = []
+
     class MimickingPolicy(ManagedAssetLifecyclePolicyV1):
         def to_canonical(self) -> dict[str, object]:
+            hook_calls.append("to_canonical")
             return support._managed_asset_policy_v1().to_canonical()
 
     advertising = AdvertisingRegistry(
         governance.asset_policy_registry.module_release_id,
         (rogue_member,),
     )
-    mimicking = _registry(
-        (
-            MimickingPolicy(
-                asset=rogue_member.asset,
-                asset_class=rogue_member.asset_class,
-                issue_authority_subject=rogue_member.issue_authority_subject,
-                issue_policy_root=rogue_member.issue_policy_root,
-                burn_policy_root=rogue_member.burn_policy_root,
-                enabled=rogue_member.enabled,
-            ),
-        )
+    mimicking_policy = MimickingPolicy(
+        asset=rogue_member.asset,
+        asset_class=rogue_member.asset_class,
+        issue_authority_subject=rogue_member.issue_authority_subject,
+        issue_policy_root=rogue_member.issue_policy_root,
+        burn_policy_root=rogue_member.burn_policy_root,
+        enabled=rogue_member.enabled,
     )
-    assert advertising.registry_root == governed_root
-    assert mimicking.registry_root == governed_root
+    with pytest.raises(TypeError, match="policies contains an invalid value"):
+        _registry((mimicking_policy,))
+    assert hook_calls == []
 
-    # Act / Assert: neither hostile shape reaches membership comparison.
+    mimicking = _registry((rogue_member,))
+    object.__setattr__(mimicking, "policies", (mimicking_policy,))
+    assert advertising.registry_root == governed_root
+
+    # Act / Assert: neither constructor admission nor point-of-use revalidation
+    # executes the hostile member's canonical projection.
     with pytest.raises(TypeError, match="requires exact typed inputs"):
         ManagedAssetLifecycleReleaseRouteBindingCandidateV1(
             governance.profile,
@@ -627,6 +627,7 @@ def test_hostile_registry_and_member_subclasses_cannot_advertise_the_governed_ro
                 asset_policy_registry=mimicking,
             )
         )
+    assert hook_calls == []
 
 
 def test_binding_and_receipt_candidates_reject_untyped_registries() -> None:
@@ -729,9 +730,7 @@ def test_membership_is_content_bound_not_identity_bound() -> None:
         executed.module_input,
         pre_state=replace(
             executed.module_input.pre_state,
-            policies=tuple(
-                replace(policy) for policy in executed.module_input.pre_state.policies
-            ),
+            policies=tuple(replace(policy) for policy in executed.module_input.pre_state.policies),
         ),
     )
 
@@ -785,10 +784,13 @@ def test_wrong_route_issue_burn_policy_root_rejects_before_any_witness(
     # carries a stale route-owned issue/burn policy root.
     governance = support._managed_governance_v1(route_issue_burn_policy_root=_root(511))
     executed = _execute(governance, command_kind)
-    assert require_managed_asset_policy_membership_v1(
-        asset_policy_registry=governance.asset_policy_registry,
-        module_input=executed.module_input,
-    ) == support._managed_asset_policy_v1()
+    assert (
+        require_managed_asset_policy_membership_v1(
+            asset_policy_registry=governance.asset_policy_registry,
+            module_input=executed.module_input,
+        )
+        == support._managed_asset_policy_v1()
+    )
 
     # Act / Assert
     with pytest.raises(ValueError, match=_ROUTE_POLICY_ROOT_MISMATCH):
@@ -912,20 +914,29 @@ def test_retained_candidate_alias_mutations_are_rejected_at_the_snapshot() -> No
         __hash__ = str.__hash__
 
     hostile_occurrence = AdvertisingOccurrence(
-        **{field.name: getattr(executed.occurrence, field.name) for field in fields(executed.occurrence)}
+        **{
+            field.name: getattr(executed.occurrence, field.name)
+            for field in fields(executed.occurrence)
+        }
     )
-    hostile_bindings = EconomicPolicyRegistryV1(
-        tuple(
-            replace(binding, policy_root=MimickingRoot(_root(999)))
-            if binding.policy_kind == MANAGED_ASSET_POLICY_KIND_V1
-            else binding
-            for binding in governance.policy_registry.bindings
-        )
+    hostile_binding_rows = tuple(
+        replace(binding) for binding in governance.policy_registry.bindings
     )
+    hostile_binding = next(
+        binding
+        for binding in hostile_binding_rows
+        if binding.policy_kind == MANAGED_ASSET_POLICY_KIND_V1
+    )
+    object.__setattr__(hostile_binding, "policy_root", MimickingRoot(_root(999)))
+    hostile_bindings = EconomicPolicyRegistryV1(hostile_binding_rows)
     mutations = (
         ("occurrence", hostile_occurrence, "occurrence must have the exact typed value"),
-        ("profile", SimpleNamespace(**vars_of(governance.profile)), "snapshot must have the exact typed value"),
-        ("policy_registry", hostile_bindings, "must be an exact primitive"),
+        (
+            "profile",
+            SimpleNamespace(**vars_of(governance.profile)),
+            "snapshot must have the exact typed value",
+        ),
+        ("policy_registry", hostile_bindings, "economic policy root must be a string"),
     )
 
     for field_name, hostile_value, message in mutations:
@@ -940,7 +951,7 @@ def test_retained_candidate_alias_mutations_are_rejected_at_the_snapshot() -> No
         # Act / Assert: every alias mutation fails at the one owned snapshot.
         with pytest.raises(TypeError, match=message):
             bind_managed_asset_lifecycle_lane_output_to_release_route_v1(candidate)
-    with pytest.raises(TypeError, match="must be an exact primitive"):
+    with pytest.raises(TypeError, match="economic policy root must be a string"):
         snapshot_exact_economic_policy_registry_v1(hostile_bindings)
 
 

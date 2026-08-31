@@ -666,7 +666,7 @@ def test_duplicate_and_alias_predicate_ids_reject(ids: list[str], code: RejectCo
 
 @pytest.mark.parametrize(
     "bad_id",
-    ["pred a", "pred_a ", "pr\u0435d_a", "", "-pred", "pred\u200b"],
+    ["pred a", "pred_a ", "prеd_a", "", "-pred", "pred\u200b"],
 )
 def test_whitespace_confusable_and_malformed_ids_reject(bad_id: str) -> None:
     # Arrange

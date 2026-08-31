@@ -250,16 +250,16 @@ def _governed_shadow_profile(
         tuple(sorted((buyback_route, allocation_route), key=lambda route: route.command_kind))
     )
     policy_bindings = [
-            EconomicPolicyBindingV1(
-                ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
-                PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
-                buyback_execution_policy_root,
-            ),
-            EconomicPolicyBindingV1(
-                ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
-                PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
-                policy_root,
-            ),
+        EconomicPolicyBindingV1(
+            ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
+            PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+            buyback_execution_policy_root,
+        ),
+        EconomicPolicyBindingV1(
+            ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
+            PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
+            policy_root,
+        ),
     ]
     if price_safety_policy_root is not None:
         policy_bindings.append(
@@ -582,15 +582,11 @@ def _burn_journal(
         buyback_budget_occurrence_root=purchase.buyback_budget_occurrence_root,
         authorized_quote_input_atoms=purchase.quote_amount_in_atoms,
         purchase_occurrence_root=(
-            purchase.journal_root
-            if purchase_occurrence_root is None
-            else purchase_occurrence_root
+            purchase.journal_root if purchase_occurrence_root is None else purchase_occurrence_root
         ),
         route_context_root=_root(619),
         zdex_asset_id=purchase.zdex_asset_id,
-        burn_bucket_id=(
-            purchase.burn_bucket_id if burn_bucket_id is None else burn_bucket_id
-        ),
+        burn_bucket_id=(purchase.burn_bucket_id if burn_bucket_id is None else burn_bucket_id),
         burned_zdex_atoms=burned,
         burn_bucket_pre_atoms=burned,
         burn_bucket_post_atoms=0,
@@ -672,8 +668,7 @@ def _buyback_budget(
         fee_ingress_atoms=committed_fee_ingress_atoms,
         unallocated_reserve_atoms=0,
         destination_balances=tuple(
-            ZDEXFeeDestinationAmountV1(destination, 0)
-            for destination in ZDEX_FEE_DESTINATIONS_V1
+            ZDEXFeeDestinationAmountV1(destination, 0) for destination in ZDEX_FEE_DESTINATIONS_V1
         ),
         owned_and_custodied_atoms=purchase.quote_owned_atoms,
         supply_atoms=purchase.quote_supply_atoms,
@@ -1089,15 +1084,11 @@ def test_alternative_governed_route_rejects_without_effects() -> None:
         expected_authority_epoch=profile.authority_epoch,
         profile=profile,
         policy_registry=candidate.governed_profile._fields.policy_registry,
-        buyback_execution_policy=(
-            candidate.governed_profile._fields.buyback_execution_policy
-        ),
+        buyback_execution_policy=(candidate.governed_profile._fields.buyback_execution_policy),
     )
 
     # Act
-    result = compose_zdex_purchase_burn_route_v1(
-        replace(candidate, governed_profile=foreign)
-    )
+    result = compose_zdex_purchase_burn_route_v1(replace(candidate, governed_profile=foreign))
 
     # Assert
     _assert_no_effect_reject(
@@ -1173,23 +1164,19 @@ def test_verified_leaves_compose_shadow_effects_with_open_coordinator_obligation
 
     result = compose_zdex_purchase_burn_route_v1(candidate)
 
-    assert result.effects.occurrence_consumptions == (
-        candidate.occurrence.occurrence_id,
-    )
+    assert result.effects.occurrence_consumptions == (candidate.occurrence.occurrence_id,)
     assert candidate.occurrence.consumed_object_ids == (
         candidate.buyback_budget_occurrence.occurrence_root,
     )
-    assert tuple(row.lane_id for row in result.effects.lane_writes) == (
-        LaneIdV1.SPOT_LIQUIDITY,
+    assert tuple(row.lane_id for row in result.effects.lane_writes) == (LaneIdV1.SPOT_LIQUIDITY,)
+    assert (
+        sum(
+            -row.delta_atoms for row in result.effects.rows if row.kind is EconomicEffectKindV1.BURN
+        )
+        == candidate.purchase_journal.purchased_zdex_atoms
     )
-    assert sum(
-        -row.delta_atoms
-        for row in result.effects.rows
-        if row.kind is EconomicEffectKindV1.BURN
-    ) == candidate.purchase_journal.purchased_zdex_atoms
     assert all(
-        row.principal != candidate.purchase_journal.burn_bucket_id
-        for row in result.effects.rows
+        row.principal != candidate.purchase_journal.burn_bucket_id for row in result.effects.rows
     )
     assert result.effects.external_outbox_enqueue == ()
     assert result.terminal_obligations_root == (
@@ -1361,9 +1348,7 @@ def test_unbound_buyback_budget_occurrence_rejects_without_effects(
 
 
 def test_buyback_budget_cannot_be_redirected_to_another_source() -> None:
-    candidate = _verified_fixture(
-        purchase_overrides={"quote_source_bucket_id": "account:alice"}
-    )
+    candidate = _verified_fixture(purchase_overrides={"quote_source_bucket_id": "account:alice"})
 
     result = compose_zdex_purchase_burn_route_v1(candidate)
 
@@ -1580,9 +1565,7 @@ def test_fee_receipt_callback_cannot_rebind_verified_bytes() -> None:
     )
 
     # Assert
-    assert verified.receipt_digest == (
-        "0x" + hashlib.sha256(authenticated_receipt).hexdigest()
-    )
+    assert verified.receipt_digest == ("0x" + hashlib.sha256(authenticated_receipt).hexdigest())
     assert verified.receipt_digest != (
         "0x" + hashlib.sha256(candidate.receipt.receipt_bytes).hexdigest()
     )
@@ -1646,12 +1629,10 @@ def test_fee_receipt_callback_cannot_mutate_owned_witness_bindings() -> None:
 def test_fee_receipt_rejects_hostile_scalar_before_callback() -> None:
     # Arrange
     candidate, governed = _fee_receipt_candidate_fixture()
-    candidate = replace(
-        candidate,
-        journal=replace(
-            candidate.journal,
-            fee_asset_id=_HostileRoot(candidate.journal.fee_asset_id),
-        ),
+    object.__setattr__(
+        candidate.journal,
+        "fee_asset_id",
+        _HostileRoot(candidate.journal.fee_asset_id),
     )
     verifier = _Verifier()
 
@@ -1841,8 +1822,7 @@ def test_imported_python_token_cannot_authorize_shifted_allocation() -> None:
         candidate.verified_buyback_budget._fields,
         journal_root=shifted_budget.occurrence_root,
         journal_digest=(
-            "0x"
-            + hashlib.sha256(canonical_global_bytes_v1(shifted_budget)).hexdigest()
+            "0x" + hashlib.sha256(canonical_global_bytes_v1(shifted_budget)).hexdigest()
         ),
     )
     forged_witness = VerifiedZDEXFeeAllocationV1(
@@ -1938,13 +1918,9 @@ def test_receipt_verifier_sees_exact_release_image_and_canonical_journal() -> No
     )
 
     assert len(verifier.calls) == 1
-    assert verifier.calls[0][1] == _lane_release(
-        LaneIdV1.SPOT_LIQUIDITY, 1
-    ).guest_image_id
+    assert verifier.calls[0][1] == _lane_release(LaneIdV1.SPOT_LIQUIDITY, 1).guest_image_id
     assert verified.journal_root == candidate.purchase_journal.journal_root
-    assert verifier.calls[0][2] == canonical_global_bytes_v1(
-        candidate.purchase_journal
-    )
+    assert verifier.calls[0][2] == canonical_global_bytes_v1(candidate.purchase_journal)
 
 
 def test_purchase_receipt_callback_cannot_redirect_authenticated_effects() -> None:
@@ -2064,12 +2040,14 @@ def test_burn_receipt_rejects_hostile_route_scalar_before_callback() -> None:
         fixture.route_release,
         _lane_release(LaneIdV1.ZDEX_TOKENOMICS, 2),
         fixture.occurrence,
-        replace(
-            fixture.burn_journal,
-            route_release_id=_HostileRoot(fixture.burn_journal.route_release_id),
-        ),
+        fixture.burn_journal,
         fixture.burn_effects,
         ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"hostile-scalar"),
+    )
+    object.__setattr__(
+        candidate.journal,
+        "route_release_id",
+        _HostileRoot(candidate.journal.route_release_id),
     )
     verifier = _Verifier()
 
@@ -2135,9 +2113,7 @@ def test_active_release_cannot_cross_the_shadow_only_admission_boundary() -> Non
         candidate.route_release,
         status=ReleaseStatusV1.ACTIVE_NEW,
         accepts_new_objects=True,
-        evidence_statuses=tuple(
-            sorted(REQUIRED_ACTIVE_EVIDENCE_V1, key=lambda item: item.value)
-        ),
+        evidence_statuses=tuple(sorted(REQUIRED_ACTIVE_EVIDENCE_V1, key=lambda item: item.value)),
     )
     assert all(isinstance(item, EvidenceStatusV1) for item in active_route.evidence_statuses)
     verifier = _Verifier()
@@ -2191,12 +2167,30 @@ def test_quote_debit_mutant_rejects_before_receipt_verification() -> None:
 @pytest.mark.parametrize(
     ("burn_overrides", "expected"),
     (
-        ({"burned_zdex_atoms": 39, "zdex_owned_post_atoms": 961, "zdex_supply_post_atoms": 961}, ZDEXPurchaseBurnRouteRejectCodeV1.AMOUNT_MISMATCH),
-        ({"burn_bucket_id": "protocol:other-burn"}, ZDEXPurchaseBurnRouteRejectCodeV1.BURN_BUCKET_MISMATCH),
-        ({"purchase_occurrence_root": _root(999)}, ZDEXPurchaseBurnRouteRejectCodeV1.PURCHASE_OCCURRENCE_MISMATCH),
-        ({"authorized_quote_input_atoms": 124}, ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH),
-        ({"buyback_budget_occurrence_root": _root(998)}, ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH),
-        ({"zdex_owned_pre_atoms": 999, "zdex_owned_post_atoms": 959}, ZDEXPurchaseBurnRouteRejectCodeV1.CONSERVATION_HISTORY_DISCONNECTED),
+        (
+            {"burned_zdex_atoms": 39, "zdex_owned_post_atoms": 961, "zdex_supply_post_atoms": 961},
+            ZDEXPurchaseBurnRouteRejectCodeV1.AMOUNT_MISMATCH,
+        ),
+        (
+            {"burn_bucket_id": "protocol:other-burn"},
+            ZDEXPurchaseBurnRouteRejectCodeV1.BURN_BUCKET_MISMATCH,
+        ),
+        (
+            {"purchase_occurrence_root": _root(999)},
+            ZDEXPurchaseBurnRouteRejectCodeV1.PURCHASE_OCCURRENCE_MISMATCH,
+        ),
+        (
+            {"authorized_quote_input_atoms": 124},
+            ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH,
+        ),
+        (
+            {"buyback_budget_occurrence_root": _root(998)},
+            ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH,
+        ),
+        (
+            {"zdex_owned_pre_atoms": 999, "zdex_owned_post_atoms": 959},
+            ZDEXPurchaseBurnRouteRejectCodeV1.CONSERVATION_HISTORY_DISCONNECTED,
+        ),
         ({"zdex_asset_id": _root(997)}, ZDEXPurchaseBurnRouteRejectCodeV1.ASSET_MISMATCH),
     ),
 )
@@ -2237,9 +2231,7 @@ def test_wrong_dependency_role_shape_cannot_authenticate_purchase() -> None:
 
 def test_verified_leaf_for_another_journal_cannot_be_substituted() -> None:
     candidate = _verified_fixture()
-    foreign = _verified_fixture(
-        burn_overrides={"authorized_quote_input_atoms": 124}
-    )
+    foreign = _verified_fixture(burn_overrides={"authorized_quote_input_atoms": 124})
     substituted = replace(candidate, verified_burn=foreign.verified_burn)
 
     result = compose_zdex_purchase_burn_route_v1(substituted)
@@ -2587,9 +2579,7 @@ def _fee_lane_receipt_fixture(
         writer_epoch=occurrence.writer_epoch,
         coordinator_release_id=coordinator.coordinator_release_id,
         allocation_route_release_id=occurrence.allocation_route_release_id,
-        authorized_buyback_route_release_id=(
-            occurrence.authorized_buyback_route_release_id
-        ),
+        authorized_buyback_route_release_id=(occurrence.authorized_buyback_route_release_id),
         tokenomics_module_release_id=occurrence.tokenomics_module_release_id,
         command_occurrence_id=occurrence.command_occurrence_id,
         policy_root=occurrence.policy_root,
@@ -2625,9 +2615,7 @@ def _fee_lane_receipt_fixture(
 def test_profile_selected_fee_leaf_and_coordinator_bind_complete_lane() -> None:
     # Arrange
     candidate, governed = _fee_lane_receipt_fixture()
-    composed = compose_zdex_tokenomics_fee_allocation_lane_v1(
-        candidate.lane_candidate
-    )
+    composed = compose_zdex_tokenomics_fee_allocation_lane_v1(candidate.lane_candidate)
     assert type(composed) is ZDEXTokenomicsLaneCompositionAcceptedV1
     verifier = _Verifier()
     assert (
@@ -2647,14 +2635,11 @@ def test_profile_selected_fee_leaf_and_coordinator_bind_complete_lane() -> None:
     assert verified.profile_root == fields.profile.profile_id
     assert verified.route_release_id == fields.allocation_route.route_release_id
     assert verified.module_release_id == fields.module_release.release_id
-    assert (
-        verified.coordinator_release_id
-        == fields.coordinator_release.coordinator_release_id
-    )
+    assert verified.coordinator_release_id == fields.coordinator_release.coordinator_release_id
     assert verified.pre_lane_root == candidate.lane_candidate.pre_state.state_root
     assert verified.post_lane_root == candidate.lane_candidate.post_state.state_root
     assert verified.binding_root == (
-            "0x5a0edace975c58c0954cdaa2f73d72594b6d8e256e6ccc796daa75ba38cf6654"
+        "0x5a0edace975c58c0954cdaa2f73d72594b6d8e256e6ccc796daa75ba38cf6654"
     )
     assert verifier.calls == [
         (
@@ -2758,9 +2743,7 @@ def test_fee_coordinator_rejects_hostile_release_scalar_before_callback() -> Non
 def test_unrelated_lane_root_substitution_requires_a_new_exact_receipt() -> None:
     # Arrange
     candidate, governed = _fee_lane_receipt_fixture()
-    original = compose_zdex_tokenomics_fee_allocation_lane_v1(
-        candidate.lane_candidate
-    )
+    original = compose_zdex_tokenomics_fee_allocation_lane_v1(candidate.lane_candidate)
     assert type(original) is ZDEXTokenomicsLaneCompositionAcceptedV1
     verifier = _ExactVerifier(
         candidate.receipt.receipt_bytes,

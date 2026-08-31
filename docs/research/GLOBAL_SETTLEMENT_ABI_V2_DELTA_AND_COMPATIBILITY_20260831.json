@@ -1,0 +1,109 @@
+{
+  "schema": "zenodex/global-settlement-abi-v2-delta-and-compatibility/v1",
+  "status": "RESEARCH_ONLY_V2_DESIGN_ADMITTED_FOR_IMPLEMENTATION",
+  "authority": {
+    "production": "NONE",
+    "settlement": "NONE",
+    "release": "NONE",
+    "value_movement": "NONE"
+  },
+  "subject": {
+    "plan_commit": "c52c71d01a3edf3e298a840d41345abdc2d6d26d",
+    "plan_admission_commit": "c0fb36c62b20293ebc54fc530f3dfe2e8046576d",
+    "implementation_base": "8703d9676fefff67d3a8ab4d32aebe03892f2ab3",
+    "v1_route_command_closure": "281821e63e8af1ac3cd0c9dcbb207951aa653a0b",
+    "frozen_v1_golden_sha256": "9e2b233076a0724635dffb3d7f06f1cb26b7b4ac3c79b3ae4f02420e5877c9e4",
+    "preserved_donor_archive_sha256": "476505123bd4b188828ccd014e961a9ef250553a5c4d60e6e9d8b070c97d1373"
+  },
+  "trigger": {
+    "classification": "BREAKING_FOUNDATIONAL_INVARIANT_CHANGE",
+    "reasons": [
+      "asset class origin and decimal identity",
+      "complete authenticated occurrence ownership",
+      "terminal liability domain ownership",
+      "bounded Oracle occurrence delta plan",
+      "accepted effect occurrence and lane-write binding"
+    ]
+  },
+  "v1_policy": {
+    "canonical_bytes": "FROZEN",
+    "field_sets": "FROZEN",
+    "hash_domains": "FROZEN",
+    "golden_fixture": "FROZEN",
+    "decode_and_replay": "RETAINED",
+    "accept_v2_fields": false
+  },
+  "v2_policy": {
+    "schema": "zenodex/global-settlement-abi/v2",
+    "independent_hash_domains": true,
+    "unknown_fields": "REJECT",
+    "profile_selects_one_major": true,
+    "mixed_version_routes": "REJECT_NO_ADAPTER_ADMITTED",
+    "initial_release_status": "SHADOW"
+  },
+  "typed_delta": [
+    {
+      "owner": "asset_origin_registry_v2",
+      "fields": ["asset_class", "asset_origin_root", "atom_decimals"]
+    },
+    {
+      "owner": "economic_command_occurrence_v2",
+      "fields": [
+        "chain_id",
+        "deployment_root",
+        "height",
+        "tx_index",
+        "op_index",
+        "command_kind",
+        "command_body_hash",
+        "route_release_id",
+        "subject_id",
+        "grant_root",
+        "nonce",
+        "profile_root",
+        "pre_state_root",
+        "consumed_object_ids"
+      ]
+    },
+    {
+      "owner": "terminal_obligation_v2",
+      "fields_added": ["liability_domain"]
+    },
+    {
+      "owner": "global_oracle_occurrence_plan_v2",
+      "fields": ["ordered_occurrence_deltas", "plan_root"]
+    },
+    {
+      "owner": "module_lane_route_journals_v2",
+      "fields_added": ["oracle_occurrence_plan_root"]
+    }
+  ],
+  "migration_requirements": [
+    "exact source and target profile state and writer epoch roots",
+    "governed origin binding for every retained asset",
+    "liability domain witness for every open terminal obligation",
+    "per asset supply and owned custody conservation",
+    "replay nullifier terminal Oracle history and outbox continuity",
+    "complete object classification",
+    "V1 source verifier acceptance and V2 target verifier acceptance"
+  ],
+  "missing_evidence_policy": "REJECT_WITHOUT_INFERENCE",
+  "activation": {
+    "before_mount_rollback": "discard V2 candidate and continue V1",
+    "after_v2_commit": "forward migration only",
+    "required_before_authority": [
+      "Python Rust codec and transition parity",
+      "source pinned formal refinement",
+      "RISC0 image and receipt evidence",
+      "migration continuity",
+      "sole publisher and no bypass",
+      "exact subject release review"
+    ]
+  },
+  "nonclaims": [
+    "This artifact does not implement V2.",
+    "This artifact does not authorize migration or value movement.",
+    "The preserved donor is not cross language parity evidence.",
+    "No mixed V1 V2 route adapter exists."
+  ]
+}

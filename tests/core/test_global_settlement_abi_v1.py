@@ -509,6 +509,78 @@ def _profile(
     return profile, route
 
 
+def test_profile_rejects_route_command_absent_from_selected_lane_release() -> None:
+    releases = list(
+        _module_release(lane_id, ordinal)
+        for ordinal, lane_id in enumerate(ALL_LANE_IDS_V1, start=1)
+    )
+    asset_index = ALL_LANE_IDS_V1.index(LaneIdV1.ASSET_TRANSFER)
+    selected = releases[asset_index]
+    releases[asset_index] = LaneModuleReleaseV1.build(
+        lane_id=selected.lane_id,
+        semantic_version=selected.semantic_version,
+        state_schema_root=selected.state_schema_root,
+        command_variants=("different_command",),
+        terminal_command_variants=("different_command",),
+        guest_image_id=selected.guest_image_id,
+        specification_root=selected.specification_root,
+        source_root=selected.source_root,
+        toolchain_root=selected.toolchain_root,
+        terminal_coverage_root=selected.terminal_coverage_root,
+        migration_compatibility_root=selected.migration_compatibility_root,
+        max_cycles=selected.max_cycles,
+        max_journal_bytes=selected.max_journal_bytes,
+        status=selected.status,
+        accepts_new_objects=selected.accepts_new_objects,
+        evidence_statuses=selected.evidence_statuses,
+    )
+    lane_registry = LaneRegistryV1(tuple(releases))
+    coordinator_registry = LaneCoordinatorRegistryV1(
+        tuple(
+            _coordinator_release(lane_id, ordinal)
+            for ordinal, lane_id in enumerate(ALL_LANE_IDS_V1, start=1)
+        )
+    )
+    route = RouteReleaseV1.build(
+        semantic_version="1.0.0",
+        command_kind=ASSET_TRANSFER_COMMAND_KIND_V1,
+        ordered_lanes=(LaneIdV1.ASSET_TRANSFER,),
+        module_release_ids=(releases[asset_index].release_id,),
+        dependency_roles=("VALUE_OWNER",),
+        port_schema_roots=(_root(400),),
+        guest_image_id=_root(403),
+        specification_root=_root(404),
+        source_root=_root(405),
+        toolchain_root=_root(406),
+        oracle_policy_root=_root(401),
+        issue_burn_policy_root=_root(402),
+        max_cycles=2_000_000,
+        max_journal_bytes=131_072,
+        status=ReleaseStatusV1.ACTIVE_NEW,
+        accepts_new_objects=True,
+        evidence_statuses=_active_evidence(),
+    )
+    policy_registry = _policy_registry_for_route_v1(route)
+
+    with pytest.raises(
+        ValueError,
+        match="route command is absent from selected lane release",
+    ):
+        EconomicProfileSnapshotV1.build(
+            authority_epoch=7,
+            lane_registry=lane_registry,
+            lane_coordinator_registry=coordinator_registry,
+            route_registry=RouteRegistryV1((route,)),
+            proof_shape_root=_root(410),
+            root_image_id=_root(411),
+            verifier_registry_root=_root(412),
+            migration_registry_root=_root(413),
+            policy_registry_root=policy_registry.registry_root,
+            terminal_registry_root=_root(415),
+            status=ProfileStatusV1.ACTIVE,
+        )
+
+
 # Exact policy registry committed by ``_profile`` for each profile id, so the
 # governed transfer binder can be handed the registry the profile commits
 # without re-threading every source manifest through the module fixtures.

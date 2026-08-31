@@ -122,17 +122,11 @@ _OTHER_RELEASE_ASSET_POLICY_ROOT_V1 = (
 _OTHER_RELEASE_FEE_POLICY_ROOT_V1 = (
     "0xeaacbb1844aa90baaf68c76b8710c0aa4d7f05bd0d174d9bb17186a850a0e907"
 )
-_FIXTURE_ASSET_POLICY_ROOT_V1 = (
-    "0x410c0a5f51ec3b51ee53bf95eae3c11df09004bbe60be9b04a45f106c823fda7"
-)
-_FIXTURE_FEE_POLICY_ROOT_V1 = (
-    "0xeb173aa23a9cbcb7db7e08d255068789dc081a056cac27f51cafa389b966dbd1"
-)
+_FIXTURE_ASSET_POLICY_ROOT_V1 = "0x410c0a5f51ec3b51ee53bf95eae3c11df09004bbe60be9b04a45f106c823fda7"
+_FIXTURE_FEE_POLICY_ROOT_V1 = "0xeb173aa23a9cbcb7db7e08d255068789dc081a056cac27f51cafa389b966dbd1"
 # The governed transfer profile commits both bindings; the Rust route-binding
 # suite asserts the same profile and route release ids.
-_GOVERNED_PROFILE_ID_V1 = (
-    "0x96b4fff45570fc2da3f522030cc06bb140390a99cb1fba7986a34cb11a9f298c"
-)
+_GOVERNED_PROFILE_ID_V1 = "0x96b4fff45570fc2da3f522030cc06bb140390a99cb1fba7986a34cb11a9f298c"
 _GOVERNED_TRANSFER_ROUTE_RELEASE_ID_V1 = (
     "0x2bba8b7eaf9df0e6d28b0f27933995a1872be2c41fed5a7b5ea0ee3f8ba01b1d"
 )
@@ -159,9 +153,7 @@ def _registry(
     module_release_id: str | None = None,
 ) -> AssetTransferPolicyRegistryV1:
     return AssetTransferPolicyRegistryV1(
-        support._asset_transfer_release_id_v1()
-        if module_release_id is None
-        else module_release_id,
+        support._asset_transfer_release_id_v1() if module_release_id is None else module_release_id,
         policies,
     )
 
@@ -404,7 +396,9 @@ def test_fee_policy_substitution_rejects_before_any_witness_or_verifier() -> Non
     # while retaining both opaque registry roots and the authenticated command.
     governance = support._transfer_governance_v1()
     honest = _execute(governance)
-    executed = _execute(governance, edit=_with_state_policy(_policy(fee_owner="mallory", transfer_fee_atoms=1)))
+    executed = _execute(
+        governance, edit=_with_state_policy(_policy(fee_owner="mallory", transfer_fee_atoms=1))
+    )
     assert executed.accepted.post_state.balance_atoms("mallory", "USD") == 1
     assert executed.module_input.asset_policy_registry_root == (
         honest.module_input.asset_policy_registry_root
@@ -770,10 +764,13 @@ def test_route_release_check_remains_independent_of_registry_membership() -> Non
 
     # Act / Assert: membership passes on its own and governed binding still
     # fails closed on the profile-selected release.
-    assert require_asset_transfer_policy_membership_v1(
-        asset_policy_registry=governance.asset_policy_registry,
-        module_input=executed.module_input,
-    ) == _policy()
+    assert (
+        require_asset_transfer_policy_membership_v1(
+            asset_policy_registry=governance.asset_policy_registry,
+            module_input=executed.module_input,
+        )
+        == _policy()
+    )
     with pytest.raises(ValueError, match="not the profile-selected release"):
         _bind(governance, executed)
 
@@ -824,7 +821,9 @@ def test_enablement_mutation_rejects_at_membership() -> None:
                 executed.occurrence,
                 executed.module_input,
                 executed.accepted,
-                _bind(support._transfer_governance_v1(), _execute(support._transfer_governance_v1())),
+                _bind(
+                    support._transfer_governance_v1(), _execute(support._transfer_governance_v1())
+                ),
                 LaneModuleReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"disabled-member"),
             ),
             verifier,
@@ -984,7 +983,9 @@ def test_stale_roots_after_policy_rotation_reject_before_any_witness(
     assert verifier.calls == []
 
 
-def test_old_profile_authentication_with_coherent_rotated_policy_rejects_before_witness_or_verifier() -> None:
+def test_old_profile_authentication_with_coherent_rotated_policy_rejects_before_witness_or_verifier() -> (
+    None
+):
     # Arrange: P1 coherently owns the rotated fee policy, roots, input and
     # accepted output. Mallory splices P0's authenticated occurrence ID into
     # that P1 context while retaining the P0 occurrence and witness.
@@ -1083,30 +1084,31 @@ def test_hostile_registry_and_member_subclasses_cannot_advertise_the_governed_ro
         def fee_policy_root(self) -> str:
             return governed.fee_policy_root
 
+    hook_calls: list[str] = []
+
     class MimickingPolicy(AssetTransferPolicyV1):
         def to_canonical(self) -> dict[str, object]:
+            hook_calls.append("to_canonical")
             return _policy().to_canonical()
 
     advertising = AdvertisingRegistry(governed.module_release_id, (rogue_member,))
-    mimicking = _registry(
-        (
-            MimickingPolicy(
-                rogue_member.asset,
-                rogue_member.fee_owner,
-                rogue_member.transfer_fee_atoms,
-                rogue_member.enabled,
-            ),
-        )
+    mimicking_policy = MimickingPolicy(
+        rogue_member.asset,
+        rogue_member.fee_owner,
+        rogue_member.transfer_fee_atoms,
+        rogue_member.enabled,
     )
+    with pytest.raises(TypeError, match="policies contains an invalid value"):
+        _registry((mimicking_policy,))
+    assert hook_calls == []
+
+    mimicking = _registry((rogue_member,))
+    object.__setattr__(mimicking, "policies", (mimicking_policy,))
     assert advertising.asset_policy_root == governed.asset_policy_root
     assert advertising.fee_policy_root == governed.fee_policy_root
-    # The roots commit explicit exact fields, so a canonical-encoding override
-    # cannot advertise the governed fee root; the exact-type guard rejects the
-    # subclass before any comparison regardless.
-    assert mimicking.fee_policy_root != governed.fee_policy_root
-    assert mimicking.asset_policy_root == governed.asset_policy_root
 
-    # Act / Assert: neither hostile shape reaches membership comparison.
+    # Act / Assert: neither constructor admission nor point-of-use revalidation
+    # executes the hostile member's canonical projection.
     with pytest.raises(TypeError, match="requires exact typed inputs"):
         AssetTransferReleaseRouteBindingCandidateV1(
             governance.profile,
@@ -1137,6 +1139,7 @@ def test_hostile_registry_and_member_subclasses_cannot_advertise_the_governed_ro
                 asset_policy_registry=mimicking,
             )
         )
+    assert hook_calls == []
 
 
 def test_hostile_text_bool_and_int_scalars_reject_before_membership() -> None:
@@ -1162,12 +1165,26 @@ def test_hostile_text_bool_and_int_scalars_reject_before_membership() -> None:
 
         __hash__ = str.__hash__
 
-    hostile_owner = _registry((AssetTransferPolicyV1("USD", MimickingOwner("mallory"), 2, True),))
+    with pytest.raises(TypeError, match="fee owner must be a string"):
+        AssetTransferPolicyV1("USD", MimickingOwner("mallory"), 2, True)
+    with pytest.raises(TypeError, match="module release must be a string"):
+        AssetTransferPolicyRegistryV1(
+            MimickingRoot(support._asset_transfer_release_id_v1()),
+            (_policy(),),
+        )
+
+    hostile_owner_policy = AssetTransferPolicyV1("USD", "treasury", 2, True)
+    object.__setattr__(hostile_owner_policy, "fee_owner", MimickingOwner("mallory"))
+    hostile_owner = _registry((hostile_owner_policy,))
     hostile_release = AssetTransferPolicyRegistryV1(
-        MimickingRoot(support._asset_transfer_release_id_v1()),
+        support._asset_transfer_release_id_v1(),
         (_policy(),),
     )
-    assert hostile_release.module_release_id == _root(999)
+    object.__setattr__(
+        hostile_release,
+        "module_release_id",
+        MimickingRoot(support._asset_transfer_release_id_v1()),
+    )
 
     # Act / Assert
     with pytest.raises(TypeError, match="must be an exact primitive"):
@@ -1241,7 +1258,9 @@ def test_receipt_candidate_registry_substitution_never_reaches_the_verifier() ->
         bound,
         LaneModuleReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"substituted-registry"),
     )
-    object.__setattr__(candidate, "asset_policy_registry", _registry((_policy(transfer_fee_atoms=1),)))
+    object.__setattr__(
+        candidate, "asset_policy_registry", _registry((_policy(transfer_fee_atoms=1),))
+    )
     verifier = support._RecordingModuleReceiptVerifier()
 
     # Act / Assert
@@ -1540,24 +1559,33 @@ def test_retained_candidate_alias_mutations_are_rejected_at_the_snapshot() -> No
         __hash__ = str.__hash__
 
     hostile_occurrence = AdvertisingOccurrence(
-        **{field.name: getattr(executed.occurrence, field.name) for field in fields(executed.occurrence)}
+        **{
+            field.name: getattr(executed.occurrence, field.name)
+            for field in fields(executed.occurrence)
+        }
     )
-    hostile_bindings = EconomicPolicyRegistryV1(
-        tuple(
-            replace(binding, policy_root=MimickingRoot(_root(999)))
-            if binding.policy_kind in _TRANSFER_POLICY_KINDS
-            else binding
-            for binding in governance.policy_registry.bindings
-        )
+    hostile_binding_rows = tuple(
+        replace(binding) for binding in governance.policy_registry.bindings
     )
+    hostile_binding = next(
+        binding for binding in hostile_binding_rows if binding.policy_kind in _TRANSFER_POLICY_KINDS
+    )
+    object.__setattr__(hostile_binding, "policy_root", MimickingRoot(_root(999)))
+    hostile_bindings = EconomicPolicyRegistryV1(hostile_binding_rows)
+    hostile_policy = AssetTransferPolicyV1("USD", "treasury", 2, True)
+    object.__setattr__(hostile_policy, "fee_owner", MimickingRoot("treasury"))
     hostile_registry = AssetTransferPolicyRegistryV1(
         governance.asset_policy_registry.module_release_id,
-        (AssetTransferPolicyV1("USD", MimickingRoot("treasury"), 2, True),),
+        (hostile_policy,),
     )
     mutations = (
         ("occurrence", hostile_occurrence, "occurrence must have the exact typed value"),
-        ("profile", SimpleNamespace(**_vars_of(governance.profile)), "snapshot must have the exact typed value"),
-        ("policy_registry", hostile_bindings, "must be an exact primitive"),
+        (
+            "profile",
+            SimpleNamespace(**_vars_of(governance.profile)),
+            "snapshot must have the exact typed value",
+        ),
+        ("policy_registry", hostile_bindings, "economic policy root must be a string"),
         ("asset_policy_registry", hostile_registry, "must be an exact primitive"),
     )
 
@@ -1573,7 +1601,7 @@ def test_retained_candidate_alias_mutations_are_rejected_at_the_snapshot() -> No
         # Act / Assert: every alias mutation fails at the one owned snapshot.
         with pytest.raises(TypeError, match=message):
             bind_asset_transfer_lane_output_to_release_route_v1(candidate)
-    with pytest.raises(TypeError, match="must be an exact primitive"):
+    with pytest.raises(TypeError, match="economic policy root must be a string"):
         snapshot_exact_economic_policy_registry_v1(hostile_bindings)
 
 

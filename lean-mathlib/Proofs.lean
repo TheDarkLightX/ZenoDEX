@@ -29,6 +29,7 @@ import Proofs.ABTransitionGroupCompression
 import Proofs.ArbitrageCertificate
 import Proofs.AssetTransferRefinementV1
 import Proofs.AssetTransferRefinementV1Challenge
+import Proofs.AssetTransferRefinementV2
 import Proofs.AsynchronousIntentSettlement
 import Proofs.AtomicCrossMarginHealth
 import Proofs.AutotraderControllerPolicyClosure
@@ -107,10 +108,13 @@ import Proofs.GaloisSplitCertificate
 import Proofs.GamifiedRefundFairQueue
 import Proofs.GeneralizedSettlementCertificates
 import Proofs.GlobalSettlementCoreV1
+import Proofs.GlobalSettlementCoreV2
+import Proofs.GlobalEconomicStateRefinementV2
 import Proofs.ExternalCustodyDisabledLaneV1
 import Proofs.LaneCapabilityRegistryV1
 import Proofs.ProofRewardsPolicyBlockedLaneV1
 import Proofs.GlobalSettlementCoreV1Challenge
+import Proofs.ManagedAssetLifecycleRefinementV2
 import Proofs.GracefulDegradation
 import Proofs.GrossMarginSafety
 import Proofs.HybridCurveProperties
