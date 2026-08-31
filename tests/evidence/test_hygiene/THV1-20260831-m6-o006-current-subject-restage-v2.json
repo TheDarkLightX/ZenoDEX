@@ -1,0 +1,165 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-m6-o006-current-subject-restage-v2",
+  "created_date": "2026-08-31",
+  "claim_scope": "Bounded research-only evidence for O006 V2 exact command-map closure on the M6 safe-mount 33-command domain. Stage A is a direct child of combined O003B, O004, O005B, and bounded global-core base 553593e164e738824b67dc16a4bcd7a14f67a179; Stage B adds only the canonical certificate. The current O005 V1 certificate is an exact pinned dependency and the O005B ledger remains current-applicable without promotion. All authority remains NONE and zero VM gates close.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "O006-V2-EXACT-REGISTERED-COMMAND-DOMAIN",
+    "O006-V2-CAPABILITY-BOUND-MAP-ROOT",
+    "O006-V2-STAGE-A-DIRECT-CURRENT-BASE-PARENT",
+    "O006-V2-STAGE-B-SOLE-ARTIFACT-DELTA",
+    "O006-V2-ZERO-VALUE-MOVEMENT-AUTHORITY"
+  ],
+  "failure_modes": [
+    "a registered command is omitted, duplicated, reordered, or mapped to an undeclared target",
+    "a research-disabled command is represented as ACTIVE_NEW",
+    "the capability manifest, O005 completion, runtime disabled guard, Rust enum, or V1 registry drifts",
+    "Stage A has the wrong current-base parent or Stage B contains an extra delta",
+    "a descendant changes a relevant source or artifact while retaining a stale certificate",
+    "the documented builder or checker CLI cannot resolve repository packages",
+    "a promisor repository can lazily fetch a missing source object",
+    "a historical Git blob exceeds its bounded read ceiling",
+    "an artifact mutation promotes authority or a value-movement gate"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/m6_o006_command_lane_completion_v2.py",
+      "sha256": "8414060bdfb67046f05a312ec2d234bdb2be5fc4862c02486e1a23e69d43891d"
+    },
+    {
+      "path": "tools/build_m6_o006_command_lane_completion_v2.py",
+      "sha256": "985ea26de3ec8d041018b58688436c09505403eacb47eefc2ac8d8bc871b4fea"
+    },
+    {
+      "path": "tools/check_m6_o006_command_lane_completion_v2.py",
+      "sha256": "31d00fdd4eff3442c86407d8667c05bf6579bac69bb89a3495e0cedd44114d5a"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_m6_o006_command_lane_completion_v2.py",
+      "sha256": "56a1fb2e14328a81194a6ae59e165e37b46d6d715c270828c682805710997856",
+      "node_ids": [
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_bdd_given_exact_stage_a_when_built_then_current_subject_and_zero_authority_are_explicit",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_property_given_closed_command_vocabulary_then_each_command_is_mapped_once",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_ripr_given_command_cardinality_or_order_mutant_then_direct_semantic_gate_rejects[omit]",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_ripr_given_command_cardinality_or_order_mutant_then_direct_semantic_gate_rejects[duplicate]",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_ripr_given_command_cardinality_or_order_mutant_then_direct_semantic_gate_rejects[reorder]",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_declared_target_substitution_and_paired_root_updates_then_reviewed_root_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_undeclared_target_then_manifest_projection_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_capability_lane_substitution_then_command_target_binding_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_active_new_direct_semantic_mutant_then_rejects_with_named_code",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_duplicate_command_when_building_then_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_disabled_command_active_new_when_building_then_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_o005_claim_ceiling_promotion_then_dependency_gate_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_o005_evidence_subject_drift_then_final_dependency_gate_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_differential_given_cross_language_or_runtime_domain_drift_then_rejects[rust]",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_differential_given_cross_language_or_runtime_domain_drift_then_rejects[runtime_guard]",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_metamorphic_given_same_stage_a_snapshot_then_certificate_bytes_are_identical",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_certificate_boolean_or_status_drift_then_exact_projection_rejects[structural_scope_only-1]",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_certificate_boolean_or_status_drift_then_exact_projection_rejects[status-PROMOTED]",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_value_movement_gate_promotion_then_exact_projection_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_real_stage_a_and_artifact_only_stage_b_then_public_checker_accepts",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_documented_cli_entrypoints_then_builder_and_checker_execute",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_promisor_repository_then_stage_a_loader_rejects_before_snapshot",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_git_blob_over_read_ceiling_then_bounded_reader_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_stage_b_extra_delta_then_public_checker_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_merge_stage_b_then_checker_rejects_multiple_parents",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_stage_a_extra_delta_then_builder_rejects_before_projection",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_intermediate_parent_then_builder_rejects_non_direct_stage_a",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_stage_a_symlink_source_then_regular_blob_gate_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_harmless_descendant_then_certificate_remains_currently_applicable",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_dirty_artifact_then_history_is_valid_and_current_applicability_fails",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_delete_and_readd_artifact_then_history_count_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_noncanonical_committed_artifact_then_historical_projection_rejects",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_relevant_source_descendant_drift_then_history_survives_but_current_fails",
+        "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_dirty_stage_a_source_then_history_survives_but_current_worktree_fails"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange immutable source or Git-topology candidates, act through the pure projection or public checker, and assert exact canonical evidence or typed zero-authority rejection."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The functional core consumes immutable bytes and returns bytes or typed rejection. Public-checker failures preserve false applicability, zero closed VM gates, and every authority field at NONE."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "artifact_topology",
+      "points": [
+        "direct artifact-only Stage B accepts",
+        "Stage B with one extra path rejects",
+        "relevant descendant drift preserves history but rejects current applicability"
+      ]
+    },
+    {
+      "name": "command_domain",
+      "points": [
+        "33 exact commands accept",
+        "one duplicate rejects",
+        "one research-disabled ACTIVE_NEW mutation rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "duplicate one registered command row",
+      "killed_by": "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_duplicate_command_when_building_then_rejects"
+    },
+    {
+      "description": "change a research-disabled command status to ACTIVE_NEW",
+      "killed_by": "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_disabled_command_active_new_when_building_then_rejects"
+    },
+    {
+      "description": "add a second path to the Stage-B artifact commit",
+      "killed_by": "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_stage_b_extra_delta_then_public_checker_rejects"
+    },
+    {
+      "description": "change one Stage-A source in a later descendant",
+      "killed_by": "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_relevant_source_descendant_drift_then_history_survives_but_current_fails"
+    },
+    {
+      "description": "change one command target and recompute both V1 roots",
+      "killed_by": "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_declared_target_substitution_and_paired_root_updates_then_reviewed_root_rejects"
+    },
+    {
+      "description": "promote the O005 dependency production authority",
+      "killed_by": "tests/test_check_m6_o006_command_lane_completion_v2.py::test_mutation_given_o005_claim_ceiling_promotion_then_dependency_gate_rejects"
+    },
+    {
+      "description": "delete and re-add the V2 artifact after a valid Stage B",
+      "killed_by": "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_delete_and_readd_artifact_then_history_count_rejects"
+    },
+    {
+      "description": "replace canonical artifact bytes with a pretty-printed committed artifact",
+      "killed_by": "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_noncanonical_committed_artifact_then_historical_projection_rejects"
+    },
+    {
+      "description": "mark the synthetic repository as a promisor checkout",
+      "killed_by": "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_promisor_repository_then_stage_a_loader_rejects_before_snapshot"
+    },
+    {
+      "description": "read a historical blob beyond the caller-provided byte ceiling",
+      "killed_by": "tests/test_check_m6_o006_command_lane_completion_v2.py::test_given_git_blob_over_read_ceiling_then_bounded_reader_rejects"
+    }
+  ],
+  "nonclaims": [
+    "The exact domain is M6_SAFE_MOUNT_33_ONLY; whole-economy command vocabulary remains incomplete.",
+    "O007A through O007C sink reachability and aggregate semantic closure remain unresolved.",
+    "No UI, runtime mount, release, settlement, migration, verifier activation, production readiness, or value movement is established.",
+    "This packet is pinned by the O006 V2 Stage-A source manifest but does not pin itself."
+  ]
+}
