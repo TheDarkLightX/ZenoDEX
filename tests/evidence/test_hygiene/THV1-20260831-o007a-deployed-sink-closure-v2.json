@@ -1,0 +1,119 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-o007a-deployed-sink-closure-v2",
+  "created_date": "2026-08-31",
+  "claim_scope": "Research-only O-007A closure for exact repository launcher sources under the selected public-testnet configuration. The packet binds exact O-005B and O-006 point-of-use evidence, retains typed gaps and unmediated writers, leaves VM-01 OPEN, and grants no authority.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "O007A-EXACT-LAUNCHER-SOURCE-ROOTS",
+    "O007A-EXACT-DEPLOYMENT-PROFILE-CLOSURE",
+    "O007A-DETERMINISTIC-DONOR-SELECTION",
+    "O007A-NEW-WRITER-FAILS-CLOSED",
+    "O007A-ZERO-VM-GATE-AUTHORITY"
+  ],
+  "failure_modes": [
+    "a deployed launcher source is added, removed, or changed without invalidating the closure",
+    "the selected deployment profile or its source binding drifts",
+    "a newly named durable writer is omitted or silently classified",
+    "the stale V1 receipt or its pre-V2 O-006 dependency is treated as current evidence",
+    "the O-005B or O-006 point-of-use checker ceases to be current-applicable",
+    "a receipt mutation promotes VM-01 or any authority"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/o007a_deployed_sink_closure_v2.py",
+      "sha256": "901d7a3317e5dffa179b432a8cebca59a56f302727ca5ec993e05d7fa6b99ee2"
+    },
+    {
+      "path": "tools/build_o007a_deployed_sink_closure_v2.py",
+      "sha256": "051d80fbf75298b989b01176a130059e58fc6f80aabb31c9d91d3769ad990278"
+    },
+    {
+      "path": "tools/check_o007a_deployed_sink_closure_v2.py",
+      "sha256": "b8ec6c479b016bfe1f227a6bdbd6f4016acdb77bbcd9df0716007eb757beb759"
+    },
+    {
+      "path": "tools/check_m6_value_sinks_v2.py",
+      "sha256": "910b68da63bb3bb049425619b74b6acbf720a869fda7f20ebe28a16fb3f2c0ae"
+    },
+    {
+      "path": "tools/m6_value_sinks/operations.py",
+      "sha256": "daa05b65f5cd40e36d5b6fbac8130415d6d9b8ee55f21323b24ad5c5f46b1920"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_m6_value_sinks_v2.py",
+      "sha256": "dfd04b3f61bd032a2f420228830576eda43f5b75c1f2b1f72c732fca948ad6fc",
+      "node_ids": [
+        "tests/test_check_m6_value_sinks_v2.py::test_path_lchmod_deployed_writer_mutant_fails_closed",
+        "tests/test_check_m6_value_sinks_v2.py::test_relative_import_writer_fails_the_full_gate"
+      ]
+    },
+    {
+      "path": "tests/test_check_o007a_deployed_sink_closure_v2.py",
+      "sha256": "6a5de93f07fbac5d7142c63877809422366c8237af2fe22c05fe6cc567ce73f7",
+      "node_ids": [
+        "tests/test_check_o007a_deployed_sink_closure_v2.py::test_bdd_given_exact_stage_a_then_receipt_closes_only_o007a_delta",
+        "tests/test_check_o007a_deployed_sink_closure_v2.py::test_mutation_given_launcher_source_root_drift_then_projection_rejects",
+        "tests/test_check_o007a_deployed_sink_closure_v2.py::test_mutation_given_authority_dependency_or_donor_drift_then_rejects",
+        "tests/test_check_o007a_deployed_sink_closure_v2.py::test_given_synthetic_exact_stage_a_and_artifact_only_stage_b_checker_accepts"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact immutable snapshots or deployed-writer mutants, act through the public gate, and assert canonical bounded closure or typed zero-authority rejection."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The receipt projection is immutable and rejected sink candidates do not alter the reviewed manifest or grant authority."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "deployment_closure",
+      "points": [
+        "exact launcher and profile roots accept",
+        "one new unclassified writer rejects",
+        "one launcher or census root drift rejects"
+      ]
+    },
+    {
+      "name": "claim_ceiling",
+      "points": [
+        "VM-01 OPEN accepts",
+        "VM-01 CLOSED rejects",
+        "value-movement authority promotion rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "introduce a deployed Path.lchmod permission writer absent from the manifest",
+      "killed_by": "tests/test_check_m6_value_sinks_v2.py::test_path_lchmod_deployed_writer_mutant_fails_closed"
+    },
+    {
+      "description": "change the exact launcher source root while recomputing the receipt certificate root",
+      "killed_by": "tests/test_check_o007a_deployed_sink_closure_v2.py::test_mutation_given_launcher_source_root_drift_then_projection_rejects"
+    },
+    {
+      "description": "promote authority, close VM-01, substitute O-006, or select the rejected donor",
+      "killed_by": "tests/test_check_o007a_deployed_sink_closure_v2.py::test_mutation_given_authority_dependency_or_donor_drift_then_rejects"
+    }
+  ],
+  "nonclaims": [
+    "Cross-language, dynamic, recovery, migration, worker, callback, administrative, and terminal closure remain outside O-007A.",
+    "VM-01 remains OPEN and no runtime, UI, production, release, settlement, verifier, or value-movement authority is established.",
+    "This packet is pinned by the O-007A Stage-A source manifest but does not pin itself."
+  ]
+}
