@@ -1,0 +1,2722 @@
+{
+  "schema": "zenodex/global-settlement-abi-v2/o008-bounded-core-evidence/v1",
+  "subject_commit": "1a1edeb569dc71aedbe0ea75bdc61758e6f583cc",
+  "obligation": "O-008",
+  "evidence_status": "BOUNDED_CORE_EVIDENCE_ONLY",
+  "promotion_allowed": false,
+  "authority": "NONE",
+  "dependencies": {
+    "O-006": "OPEN_UNVERIFIED",
+    "O-007C": "OPEN_UNVERIFIED",
+    "O-008A": "OPEN_UNVERIFIED"
+  },
+  "whole_program_value_movement_gates": {
+    "total": 12,
+    "passed": 0,
+    "closed": 0,
+    "status": "OPEN_UNVERIFIED"
+  },
+  "nonclaims": [
+    "runtime_mounting",
+    "risc0_guest_or_receipt",
+    "tau_refinement",
+    "publisher_authority",
+    "settlement_authority",
+    "release_or_profile_authentication",
+    "migration_or_recovery_closure",
+    "production_readiness",
+    "whole_program_value_movement",
+    "collection_bound_completeness"
+  ],
+  "typed_reject_no_op_status": {
+    "global": "IMPLEMENTED_TESTED_AND_BOUNDED_LEAN",
+    "asset_transfer": "IMPLEMENTED_TESTED_AND_BOUNDED_LEAN",
+    "managed_asset_lifecycle": "IMPLEMENTED_TESTED_AND_BOUNDED_LEAN_PYTHON_ONLY",
+    "asset_lane_coordinator": "IMPLEMENTED_TESTED_PYTHON_ONLY",
+    "authority": "NONE"
+  },
+  "python_rust_parity_scope": {
+    "global_core": "CANONICAL_FIXTURE_AND_WIRE_CODE_SET",
+    "asset_transfer": "CANONICAL_FIXTURE_AND_TRANSITION_SLICE",
+    "managed_asset_lifecycle": "GAP_NO_RUST_V2_IMPLEMENTATION",
+    "asset_lane_coordinator": "GAP_NO_RUST_V2_IMPLEMENTATION",
+    "claim": "BOUNDED_SUBJECT_PINNED_PARITY_ONLY"
+  },
+  "field_profiles": {
+    "schema": {
+      "value_type": "ASCII text literal",
+      "unit": "schema identifier",
+      "width": "1..160 UTF-8 bytes; exact literal",
+      "rejection": "constructor or checker rejects missing/mismatched literal"
+    },
+    "token": {
+      "value_type": "Python str / Rust String containing printable ASCII",
+      "unit": "opaque identifier",
+      "width": "1..160 printable ASCII bytes (0x21..0x7E)",
+      "rejection": "typed constructor rejects empty, oversized, non-text, or non-printable values"
+    },
+    "root": {
+      "value_type": "canonical lowercase hex text",
+      "unit": "SHA-256-shaped commitment",
+      "width": "66 ASCII bytes: 0x plus 64 hex digits",
+      "rejection": "typed constructor rejects malformed roots"
+    },
+    "root_zero": {
+      "value_type": "canonical lowercase hex text",
+      "unit": "commitment or zero sentinel",
+      "width": "66 ASCII bytes",
+      "rejection": "typed constructor rejects malformed roots; zero allowed only by field contract"
+    },
+    "u64": {
+      "value_type": "Python exact int / Rust u64",
+      "unit": "counter or index",
+      "width": "0..2^64-1",
+      "rejection": "typed constructor rejects bool, negative, or overflow"
+    },
+    "u128_atoms": {
+      "value_type": "Python exact int / Rust u128",
+      "unit": "asset base atoms",
+      "width": "0..2^128-1",
+      "rejection": "typed constructor or transition rejects negative/overflow"
+    },
+    "i128_atoms": {
+      "value_type": "Python exact int / Rust i128",
+      "unit": "signed asset base-atom delta",
+      "width": "-2^127..2^127-1",
+      "rejection": "typed constructor or global refinement returns SIGNED_STATE_DELTA_OVERFLOW"
+    },
+    "u8_decimals": {
+      "value_type": "Python exact int / Rust u8",
+      "unit": "decimal places",
+      "width": "0..255; implemented asset slice requires 8",
+      "rejection": "typed policy/command rejects unsupported scale"
+    },
+    "boolean": {
+      "value_type": "Python bool / Rust bool",
+      "unit": "truth value",
+      "width": "one boolean",
+      "rejection": "typed constructor rejects non-boolean values"
+    },
+    "enum": {
+      "value_type": "closed string enum",
+      "unit": "variant code",
+      "width": "finite inventory pinned below",
+      "rejection": "decode or transition rejects unknown variants"
+    },
+    "optional_token": {
+      "value_type": "printable-ASCII token or null",
+      "unit": "optional identifier",
+      "width": "null or 1..160 printable ASCII bytes (0x21..0x7E)",
+      "rejection": "typed constructor rejects invalid, empty, oversized, or non-printable present value"
+    },
+    "optional_root": {
+      "value_type": "root or null",
+      "unit": "optional commitment",
+      "width": "null or 66 ASCII bytes",
+      "rejection": "typed constructor rejects invalid present root"
+    },
+    "record": {
+      "value_type": "exact owned typed record",
+      "unit": "nested value",
+      "width": "bounded by nested record",
+      "rejection": "constructor rejects wrong runtime type or invalid nested value"
+    },
+    "optional_record": {
+      "value_type": "exact owned typed record or null",
+      "unit": "optional nested value",
+      "width": "null or bounded nested record",
+      "rejection": "constructor rejects wrong runtime type or invalid nested value"
+    },
+    "ordered_records": {
+      "value_type": "owned tuple / Rust Vec",
+      "unit": "canonical record collection",
+      "width": "owning-surface-specific cardinality; no universal item bound asserted",
+      "rejection": "constructor rejects wrong type, duplicate key, or noncanonical order where required; bound overflow only where the owning source declares a bound"
+    },
+    "ordered_roots": {
+      "value_type": "owned tuple / Rust Vec",
+      "unit": "canonical commitment collection",
+      "width": "owning-surface-specific cardinality; no universal item bound asserted",
+      "rejection": "constructor rejects malformed, duplicate, or noncanonical roots where required; bound overflow only where the owning source declares a bound"
+    },
+    "authority_none": {
+      "value_type": "ASCII text literal",
+      "unit": "authority posture",
+      "width": "exactly NONE",
+      "rejection": "checker rejects every other authority value"
+    },
+    "ordered_tokens": {
+      "value_type": "owned tuple / Rust Vec",
+      "unit": "canonical token collection",
+      "width": "owning-surface-specific cardinality; each item is 1..160 printable ASCII bytes; no universal item bound asserted",
+      "rejection": "constructor rejects non-token, non-printable, duplicate, or noncanonical entries where required; bound overflow only where the owning source declares a bound"
+    },
+    "authentication_unverified": {
+      "value_type": "ASCII text literal",
+      "unit": "profile authentication posture",
+      "width": "exactly UNVERIFIED",
+      "rejection": "packet checker rejects any stronger authentication value"
+    }
+  },
+  "field_registry": [
+    {
+      "record": "EconomicAmountV2",
+      "surface": "global state tables",
+      "owner": "GlobalEconomicStateV2",
+      "producer": "typed state constructors",
+      "source": "src/core/global_settlement_primitives_v2.py:223",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction",
+      "collection_key": [
+        "asset",
+        "owner",
+        "custody_domain"
+      ],
+      "fields": [
+        {
+          "name": "owner",
+          "profile": "token"
+        },
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "custody_domain",
+          "profile": "token"
+        },
+        {
+          "name": "amount_atoms",
+          "profile": "u128_atoms"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "amount_atoms",
+        "asset",
+        "custody_domain",
+        "owner"
+      ]
+    },
+    {
+      "record": "AssetSupplyV2",
+      "surface": "global state tables",
+      "owner": "GlobalEconomicStateV2",
+      "producer": "typed state constructors",
+      "source": "src/core/global_settlement_primitives_v2.py:249",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction",
+      "collection_key": [
+        "asset"
+      ],
+      "fields": [
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "amount_atoms",
+          "profile": "u128_atoms"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "amount_atoms",
+        "asset"
+      ]
+    },
+    {
+      "record": "EconomicEffectRowV2",
+      "surface": "global effect plan",
+      "owner": "GlobalEconomicEffectPlanV2",
+      "producer": "lane functional cores",
+      "source": "src/core/global_settlement_effect_values_v2.py:34",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and global refinement",
+      "collection_key": [
+        "kind",
+        "asset",
+        "principal",
+        "custody_domain"
+      ],
+      "fields": [
+        {
+          "name": "kind",
+          "profile": "enum"
+        },
+        {
+          "name": "principal",
+          "profile": "token"
+        },
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "custody_domain",
+          "profile": "token"
+        },
+        {
+          "name": "delta_atoms",
+          "profile": "i128_atoms"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "asset",
+        "custody_domain",
+        "delta_atoms",
+        "kind",
+        "principal"
+      ]
+    },
+    {
+      "record": "AssetConservationRowV2",
+      "surface": "global effect plan",
+      "owner": "GlobalEconomicEffectPlanV2",
+      "producer": "lane/core aggregation",
+      "source": "src/core/global_settlement_effect_values_v2.py:70",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and global refinement",
+      "collection_key": [
+        "asset"
+      ],
+      "fields": [
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "owned_and_custodied_pre_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "owned_and_custodied_post_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "supply_pre_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "supply_post_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "authorized_issue_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "authorized_burn_atoms",
+          "profile": "u128_atoms"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "asset",
+        "authorized_burn_atoms",
+        "authorized_issue_atoms",
+        "owned_and_custodied_post_atoms",
+        "owned_and_custodied_pre_atoms",
+        "supply_post_atoms",
+        "supply_pre_atoms"
+      ]
+    },
+    {
+      "record": "FeeConservationRowV2",
+      "surface": "global effect plan",
+      "owner": "GlobalEconomicEffectPlanV2",
+      "producer": "fee aggregation",
+      "source": "src/core/global_settlement_effect_values_v2.py:119",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and global refinement",
+      "collection_key": [
+        "asset"
+      ],
+      "fields": [
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "fee_charged_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "current_allocations_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "carried_residue_atoms",
+          "profile": "u128_atoms"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "asset",
+        "carried_residue_atoms",
+        "current_allocations_atoms",
+        "fee_charged_atoms"
+      ]
+    },
+    {
+      "record": "LaneWriteV2",
+      "surface": "global effect plan",
+      "owner": "GlobalEconomicEffectPlanV2",
+      "producer": "lane journals",
+      "source": "src/core/global_settlement_effect_values_v2.py:149",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and exact coverage refinement",
+      "collection_key": [
+        "lane_id"
+      ],
+      "fields": [
+        {
+          "name": "lane_id",
+          "profile": "enum"
+        },
+        {
+          "name": "pre_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "post_root",
+          "profile": "root_zero"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "lane_id",
+        "post_root",
+        "pre_root"
+      ]
+    },
+    {
+      "record": "ExternalOutboxEnqueueV2",
+      "surface": "global effect plan",
+      "owner": "GlobalEconomicEffectPlanV2",
+      "producer": "external custody lane only after future closure",
+      "source": "src/core/global_settlement_effect_values_v2.py:169",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction; current global refiner closes outbox",
+      "collection_key": [
+        "effect_id"
+      ],
+      "fields": [
+        {
+          "name": "effect_id",
+          "profile": "root"
+        },
+        {
+          "name": "destination_id",
+          "profile": "token"
+        },
+        {
+          "name": "payload_hash",
+          "profile": "root"
+        },
+        {
+          "name": "adapter_profile_root",
+          "profile": "root"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "adapter_profile_root",
+        "destination_id",
+        "effect_id",
+        "payload_hash"
+      ]
+    },
+    {
+      "record": "GlobalEconomicEffectPlanV2",
+      "surface": "global effect plan",
+      "owner": "candidate aggregate",
+      "producer": "deterministic lane/core aggregation",
+      "source": "src/core/global_settlement_effect_plan_v2.py:83",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and global refinement",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "schema",
+          "profile": "schema"
+        },
+        {
+          "name": "rows",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "asset_conservation",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "fee_conservation",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "lane_writes",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "occurrence_consumptions",
+          "profile": "ordered_roots"
+        },
+        {
+          "name": "external_outbox_enqueue",
+          "profile": "ordered_records"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "asset_conservation",
+        "external_outbox_enqueue",
+        "fee_conservation",
+        "lane_writes",
+        "occurrence_consumptions",
+        "rows",
+        "schema"
+      ]
+    },
+    {
+      "record": "OracleOccurrenceStateV2",
+      "surface": "oracle state table",
+      "owner": "GlobalEconomicStateV2",
+      "producer": "oracle lifecycle refinement",
+      "source": "src/core/global_settlement_lifecycle_v2.py:28",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and oracle refinement",
+      "collection_key": [
+        "oracle_id"
+      ],
+      "fields": [
+        {
+          "name": "oracle_id",
+          "profile": "token"
+        },
+        {
+          "name": "occurrence_root",
+          "profile": "root"
+        },
+        {
+          "name": "observed_height",
+          "profile": "u64"
+        },
+        {
+          "name": "finalized",
+          "profile": "boolean"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "finalized",
+        "observed_height",
+        "occurrence_root",
+        "oracle_id"
+      ]
+    },
+    {
+      "record": "OracleOccurrenceDeltaV2",
+      "surface": "oracle plan",
+      "owner": "GlobalOracleOccurrencePlanV2",
+      "producer": "oracle lane core",
+      "source": "src/core/global_settlement_lifecycle_v2.py:50",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and oracle refinement",
+      "collection_key": [
+        "oracle_id"
+      ],
+      "fields": [
+        {
+          "name": "oracle_id",
+          "profile": "token"
+        },
+        {
+          "name": "pre_occurrence",
+          "profile": "optional_record"
+        },
+        {
+          "name": "post_occurrence",
+          "profile": "optional_record"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "oracle_id",
+        "post_occurrence",
+        "pre_occurrence"
+      ]
+    },
+    {
+      "record": "GlobalOracleOccurrencePlanV2",
+      "surface": "oracle plan",
+      "owner": "candidate aggregate",
+      "producer": "oracle lane core",
+      "source": "src/core/global_settlement_lifecycle_v2.py:94",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and oracle refinement",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "schema",
+          "profile": "schema"
+        },
+        {
+          "name": "deltas",
+          "profile": "ordered_records"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "deltas",
+        "schema"
+      ]
+    },
+    {
+      "record": "TerminalObligationV2",
+      "surface": "terminal obligation table",
+      "owner": "GlobalEconomicStateV2",
+      "producer": "owning lane core",
+      "source": "src/core/global_settlement_lifecycle_v2.py:140",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and claimant/liability refinement",
+      "collection_key": [
+        "obligation_id"
+      ],
+      "fields": [
+        {
+          "name": "obligation_id",
+          "profile": "token"
+        },
+        {
+          "name": "lane_id",
+          "profile": "enum"
+        },
+        {
+          "name": "claimant",
+          "profile": "token"
+        },
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "liability_domain",
+          "profile": "token"
+        },
+        {
+          "name": "amount_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "status",
+          "profile": "enum"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "amount_atoms",
+        "asset",
+        "claimant",
+        "lane_id",
+        "liability_domain",
+        "obligation_id",
+        "status"
+      ]
+    },
+    {
+      "record": "TerminalObligationDeltaV2",
+      "surface": "terminal plan",
+      "owner": "GlobalTerminalObligationPlanV2",
+      "producer": "owning lane core",
+      "source": "src/core/global_settlement_lifecycle_v2.py:178",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and terminal refinement",
+      "collection_key": [
+        "obligation_id"
+      ],
+      "fields": [
+        {
+          "name": "obligation_id",
+          "profile": "token"
+        },
+        {
+          "name": "pre_obligation",
+          "profile": "optional_record"
+        },
+        {
+          "name": "post_obligation",
+          "profile": "optional_record"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "obligation_id",
+        "post_obligation",
+        "pre_obligation"
+      ]
+    },
+    {
+      "record": "GlobalTerminalObligationPlanV2",
+      "surface": "terminal plan",
+      "owner": "candidate aggregate",
+      "producer": "owning lane cores",
+      "source": "src/core/global_settlement_lifecycle_v2.py:238",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and terminal refinement",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "schema",
+          "profile": "schema"
+        },
+        {
+          "name": "deltas",
+          "profile": "ordered_records"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "deltas",
+        "schema"
+      ]
+    },
+    {
+      "record": "EconomicCommandOccurrenceV2",
+      "surface": "authenticated occurrence value",
+      "owner": "global candidate input",
+      "producer": "imperative ingress after external authentication premise",
+      "source": "src/core/global_economic_proof_v2.py:24",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and occurrence/replay refinement",
+      "collection_key": [
+        "derived:occurrence_id"
+      ],
+      "fields": [
+        {
+          "name": "schema",
+          "profile": "schema"
+        },
+        {
+          "name": "chain_id",
+          "profile": "token"
+        },
+        {
+          "name": "deployment_root",
+          "profile": "root"
+        },
+        {
+          "name": "height",
+          "profile": "u64"
+        },
+        {
+          "name": "tx_index",
+          "profile": "u64"
+        },
+        {
+          "name": "op_index",
+          "profile": "u64"
+        },
+        {
+          "name": "command_kind",
+          "profile": "token"
+        },
+        {
+          "name": "command_body_hash",
+          "profile": "root"
+        },
+        {
+          "name": "route_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "subject_id",
+          "profile": "token"
+        },
+        {
+          "name": "grant_root",
+          "profile": "root"
+        },
+        {
+          "name": "nonce",
+          "profile": "u64"
+        },
+        {
+          "name": "profile_root",
+          "profile": "root"
+        },
+        {
+          "name": "pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "consumed_object_ids",
+          "profile": "ordered_tokens"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "chain_id",
+        "command_body_hash",
+        "command_kind",
+        "consumed_object_ids",
+        "deployment_root",
+        "grant_root",
+        "height",
+        "nonce",
+        "op_index",
+        "pre_state_root",
+        "profile_root",
+        "route_release_id",
+        "schema",
+        "subject_id",
+        "tx_index"
+      ]
+    },
+    {
+      "record": "LaneModuleTransitionJournalV2",
+      "surface": "lane transition journal",
+      "owner": "global candidate input",
+      "producer": "lane functional core",
+      "source": "src/core/global_economic_proof_v2.py:99",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and global refinement",
+      "collection_key": [
+        "lane_id"
+      ],
+      "fields": [
+        {
+          "name": "schema",
+          "profile": "schema"
+        },
+        {
+          "name": "chain_id",
+          "profile": "token"
+        },
+        {
+          "name": "deployment_root",
+          "profile": "root"
+        },
+        {
+          "name": "profile_root",
+          "profile": "root"
+        },
+        {
+          "name": "writer_epoch",
+          "profile": "u64"
+        },
+        {
+          "name": "lane_id",
+          "profile": "enum"
+        },
+        {
+          "name": "module_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "command_occurrence_id",
+          "profile": "root"
+        },
+        {
+          "name": "pre_lane_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "post_lane_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "effect_plan_root",
+          "profile": "root"
+        },
+        {
+          "name": "private_port_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "receipt_root",
+          "profile": "root"
+        },
+        {
+          "name": "terminal_obligations_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "oracle_occurrence_plan_root",
+          "profile": "root_zero"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "chain_id",
+        "command_occurrence_id",
+        "deployment_root",
+        "effect_plan_root",
+        "lane_id",
+        "module_release_id",
+        "oracle_occurrence_plan_root",
+        "post_lane_root",
+        "pre_lane_root",
+        "private_port_root",
+        "profile_root",
+        "receipt_root",
+        "schema",
+        "terminal_obligations_root",
+        "writer_epoch"
+      ]
+    },
+    {
+      "record": "LaneStateRootV2",
+      "surface": "global lane table",
+      "owner": "GlobalEconomicStateV2",
+      "producer": "accepted global refinement",
+      "source": "src/core/global_economic_state_ownership_v2.py:32",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and exact 12-lane coverage",
+      "collection_key": [
+        "lane_id"
+      ],
+      "fields": [
+        {
+          "name": "lane_id",
+          "profile": "enum"
+        },
+        {
+          "name": "module_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "enabled",
+          "profile": "boolean"
+        },
+        {
+          "name": "state_root",
+          "profile": "root_zero"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "enabled",
+        "lane_id",
+        "module_release_id",
+        "state_root"
+      ]
+    },
+    {
+      "record": "ReplayStateV2",
+      "surface": "global replay table",
+      "owner": "GlobalEconomicStateV2",
+      "producer": "accepted global refinement",
+      "source": "src/core/global_economic_state_ownership_v2.py:62",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and replay refinement",
+      "collection_key": [
+        "replay_id"
+      ],
+      "fields": [
+        {
+          "name": "replay_id",
+          "profile": "token"
+        },
+        {
+          "name": "occurrence_id",
+          "profile": "root"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "occurrence_id",
+        "replay_id"
+      ]
+    },
+    {
+      "record": "OutboxStateV2",
+      "surface": "global outbox table",
+      "owner": "GlobalEconomicStateV2",
+      "producer": "future publisher shell after O-009",
+      "source": "src/core/global_economic_state_ownership_v2.py:83",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction; current global refiner rejects enqueue",
+      "collection_key": [
+        "effect_id"
+      ],
+      "fields": [
+        {
+          "name": "effect_id",
+          "profile": "root"
+        },
+        {
+          "name": "destination_id",
+          "profile": "token"
+        },
+        {
+          "name": "payload_hash",
+          "profile": "root"
+        },
+        {
+          "name": "adapter_profile_root",
+          "profile": "root"
+        },
+        {
+          "name": "commit_id",
+          "profile": "root"
+        },
+        {
+          "name": "status",
+          "profile": "enum"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "adapter_profile_root",
+        "commit_id",
+        "destination_id",
+        "effect_id",
+        "payload_hash",
+        "status"
+      ]
+    },
+    {
+      "record": "GlobalEconomicStateV2",
+      "surface": "authoritative global state candidate",
+      "owner": "global functional core",
+      "producer": "accepted global refinement",
+      "source": "src/core/global_economic_state_v2.py:69",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and all global refinement checks",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "schema",
+          "profile": "schema"
+        },
+        {
+          "name": "chain_id",
+          "profile": "token"
+        },
+        {
+          "name": "deployment_root",
+          "profile": "root"
+        },
+        {
+          "name": "writer_epoch",
+          "profile": "u64"
+        },
+        {
+          "name": "height",
+          "profile": "u64"
+        },
+        {
+          "name": "profile_root",
+          "profile": "root"
+        },
+        {
+          "name": "lane_roots",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "balances",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "supplies",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "custody",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "liabilities",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "reserves",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "oracle_occurrences",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "replay_state",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "terminal_obligations",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "history_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "outbox",
+          "profile": "ordered_records"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "balances",
+        "chain_id",
+        "custody",
+        "deployment_root",
+        "height",
+        "history_root",
+        "lane_roots",
+        "liabilities",
+        "oracle_occurrences",
+        "outbox",
+        "profile_root",
+        "replay_state",
+        "reserves",
+        "schema",
+        "supplies",
+        "terminal_obligations",
+        "writer_epoch"
+      ]
+    },
+    {
+      "record": "GlobalEconomicStateRootV2",
+      "surface": "global state summary",
+      "owner": "global functional core",
+      "producer": "state root projection",
+      "source": "src/core/global_economic_state_v2.py:301",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "root",
+          "profile": "root"
+        },
+        {
+          "name": "profile_root",
+          "profile": "root"
+        },
+        {
+          "name": "writer_epoch",
+          "profile": "u64"
+        },
+        {
+          "name": "height",
+          "profile": "u64"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "height",
+        "profile_root",
+        "root",
+        "writer_epoch"
+      ]
+    },
+    {
+      "record": "GlobalEconomicRefinementAcceptedV2",
+      "surface": "global outcome",
+      "owner": "global refinement wrapper",
+      "producer": "accepted checked refinement",
+      "source": "src/core/global_economic_refinement_outcome_v2.py:233",
+      "order_kind": "opaque observable order",
+      "authority": "NONE",
+      "rejection_boundary": "controlled factory; no public settlement authority",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "witness",
+          "profile": "record"
+        },
+        {
+          "name": "production_authority",
+          "profile": "authority_none"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    },
+    {
+      "record": "GlobalEconomicRefinementRejectedV2",
+      "surface": "global outcome",
+      "owner": "global refinement wrapper",
+      "producer": "typed rejection mapping",
+      "source": "src/core/global_economic_refinement_outcome_v2.py:255",
+      "order_kind": "observable property order",
+      "authority": "NONE",
+      "rejection_boundary": "reject is exact no-op bundle",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "reject_code",
+          "profile": "enum"
+        },
+        {
+          "name": "pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "post_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "effect_plan",
+          "profile": "record"
+        },
+        {
+          "name": "terminal_plan",
+          "profile": "record"
+        },
+        {
+          "name": "oracle_plan",
+          "profile": "record"
+        },
+        {
+          "name": "consumed_occurrences",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "outbox",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "production_authority",
+          "profile": "authority_none"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    },
+    {
+      "record": "AssetTransferPolicyV2",
+      "surface": "asset transfer leaf",
+      "owner": "AssetTransferStateV2",
+      "producer": "asset policy configuration premise",
+      "source": "src/core/asset_transfer_types_v2.py:92",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and transfer guards",
+      "collection_key": [
+        "asset"
+      ],
+      "fields": [
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "fee_owner",
+          "profile": "token"
+        },
+        {
+          "name": "transfer_fee_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "enabled",
+          "profile": "boolean"
+        },
+        {
+          "name": "asset_class",
+          "profile": "enum"
+        },
+        {
+          "name": "asset_origin_root",
+          "profile": "optional_root"
+        },
+        {
+          "name": "atom_decimals",
+          "profile": "u8_decimals"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "asset",
+        "asset_class",
+        "asset_origin_root",
+        "atom_decimals",
+        "enabled",
+        "fee_owner",
+        "transfer_fee_atoms"
+      ]
+    },
+    {
+      "record": "AssetTransferStateV2",
+      "surface": "asset transfer leaf",
+      "owner": "asset transfer functional core",
+      "producer": "asset transfer transition",
+      "source": "src/core/asset_transfer_types_v2.py:133",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and transfer guards",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "schema",
+          "profile": "schema"
+        },
+        {
+          "name": "module_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "policies",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "balances",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "supplies",
+          "profile": "ordered_records"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "balances",
+        "module_release_id",
+        "policies",
+        "schema",
+        "supplies"
+      ]
+    },
+    {
+      "record": "AssetTransferContextV2",
+      "surface": "asset transfer leaf",
+      "owner": "transfer call input",
+      "producer": "asset lane coordinator projection",
+      "source": "src/core/asset_transfer_types_v2.py:275",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and occurrence binding",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "writer_epoch",
+          "profile": "u64"
+        },
+        {
+          "name": "module_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "global_pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "occurrence",
+          "profile": "optional_record"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "global_pre_state_root",
+        "module_release_id",
+        "occurrence",
+        "writer_epoch"
+      ]
+    },
+    {
+      "record": "AssetTransferCommandV2",
+      "surface": "asset transfer leaf",
+      "owner": "transfer call input",
+      "producer": "typed command decoder",
+      "source": "src/core/asset_transfer_types_v2.py:335",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and ordered transfer guards",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "command_kind",
+          "profile": "token"
+        },
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "sender",
+          "profile": "token"
+        },
+        {
+          "name": "recipient",
+          "profile": "token"
+        },
+        {
+          "name": "amount_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "max_fee_atoms",
+          "profile": "u128_atoms"
+        },
+        {
+          "name": "asset_origin_root",
+          "profile": "optional_root"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "amount_atoms",
+        "asset",
+        "asset_origin_root",
+        "command_kind",
+        "max_fee_atoms",
+        "recipient",
+        "sender"
+      ]
+    },
+    {
+      "record": "AssetTransferAcceptedV2",
+      "surface": "asset transfer leaf",
+      "owner": "asset transfer functional core",
+      "producer": "accepted transfer transition",
+      "source": "src/core/asset_transfer_types_v2.py:426",
+      "order_kind": "canonical observable order",
+      "authority": "NONE",
+      "rejection_boundary": "controlled factory",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "post_state",
+          "profile": "record"
+        },
+        {
+          "name": "effects",
+          "profile": "record"
+        },
+        {
+          "name": "module_journal",
+          "profile": "record"
+        },
+        {
+          "name": "production_authority",
+          "profile": "authority_none"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "effects",
+        "module_journal",
+        "post_state",
+        "production_authority"
+      ]
+    },
+    {
+      "record": "AssetTransferRejectedV2",
+      "surface": "asset transfer leaf",
+      "owner": "asset transfer functional core",
+      "producer": "typed ordered rejection",
+      "source": "src/core/asset_transfer_types_v2.py:520",
+      "order_kind": "canonical observable order",
+      "authority": "NONE",
+      "rejection_boundary": "post root equals pre and effects empty",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "code",
+          "profile": "enum"
+        },
+        {
+          "name": "pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "post_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "effects",
+          "profile": "record"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "code",
+        "effects",
+        "post_state_root",
+        "pre_state_root"
+      ]
+    },
+    {
+      "record": "ManagedAssetLifecyclePolicyV2",
+      "surface": "managed asset leaf",
+      "owner": "ManagedAssetLifecycleStateV2",
+      "producer": "asset policy configuration premise",
+      "source": "src/core/managed_asset_lifecycle_state_v2.py:42",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and issue/burn guards",
+      "collection_key": [
+        "asset"
+      ],
+      "fields": [
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "asset_class",
+          "profile": "enum"
+        },
+        {
+          "name": "asset_origin_root",
+          "profile": "optional_root"
+        },
+        {
+          "name": "atom_decimals",
+          "profile": "u8_decimals"
+        },
+        {
+          "name": "issue_authority_subject",
+          "profile": "optional_token"
+        },
+        {
+          "name": "issue_authorization_root",
+          "profile": "optional_root"
+        },
+        {
+          "name": "burn_authorization_root",
+          "profile": "optional_root"
+        },
+        {
+          "name": "enabled",
+          "profile": "boolean"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "asset",
+        "asset_class",
+        "asset_origin_root",
+        "atom_decimals",
+        "burn_authorization_root",
+        "enabled",
+        "issue_authority_subject",
+        "issue_authorization_root"
+      ]
+    },
+    {
+      "record": "ManagedAssetLifecycleStateV2",
+      "surface": "managed asset leaf",
+      "owner": "managed asset functional core",
+      "producer": "issue/burn transition",
+      "source": "src/core/managed_asset_lifecycle_state_v2.py:101",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and issue/burn guards",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "schema",
+          "profile": "schema"
+        },
+        {
+          "name": "module_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "policies",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "balances",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "supplies",
+          "profile": "ordered_records"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "balances",
+        "module_release_id",
+        "policies",
+        "schema",
+        "supplies"
+      ]
+    },
+    {
+      "record": "ManagedAssetLifecycleContextV2",
+      "surface": "managed asset leaf",
+      "owner": "managed call input",
+      "producer": "asset lane coordinator projection",
+      "source": "src/core/managed_asset_lifecycle_state_v2.py:236",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and occurrence binding",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "writer_epoch",
+          "profile": "u64"
+        },
+        {
+          "name": "module_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "global_pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "occurrence",
+          "profile": "optional_record"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "global_pre_state_root",
+        "module_release_id",
+        "occurrence",
+        "writer_epoch"
+      ]
+    },
+    {
+      "record": "ManagedAssetLifecycleCommandV2",
+      "surface": "managed asset leaf",
+      "owner": "managed call input",
+      "producer": "typed command decoder",
+      "source": "src/core/managed_asset_lifecycle_result_v2.py:61",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and ordered issue/burn guards",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "command_kind",
+          "profile": "token"
+        },
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "asset_class",
+          "profile": "enum"
+        },
+        {
+          "name": "asset_origin_root",
+          "profile": "optional_root"
+        },
+        {
+          "name": "atom_decimals",
+          "profile": "u8_decimals"
+        },
+        {
+          "name": "authorization_root",
+          "profile": "optional_root"
+        },
+        {
+          "name": "account_owner",
+          "profile": "token"
+        },
+        {
+          "name": "amount_atoms",
+          "profile": "u128_atoms"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "account_owner",
+        "amount_atoms",
+        "asset",
+        "asset_class",
+        "asset_origin_root",
+        "atom_decimals",
+        "authorization_root",
+        "command_kind"
+      ]
+    },
+    {
+      "record": "ManagedAssetLifecycleAcceptedV2",
+      "surface": "managed asset leaf",
+      "owner": "managed asset functional core",
+      "producer": "accepted issue/burn transition",
+      "source": "src/core/managed_asset_lifecycle_result_v2.py:127",
+      "order_kind": "observable only; no standalone canonical encoder",
+      "authority": "NONE",
+      "rejection_boundary": "controlled factory",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "post_state",
+          "profile": "record"
+        },
+        {
+          "name": "effects",
+          "profile": "record"
+        },
+        {
+          "name": "module_journal",
+          "profile": "record"
+        },
+        {
+          "name": "receipt_root",
+          "profile": "root"
+        },
+        {
+          "name": "production_authority",
+          "profile": "authority_none"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    },
+    {
+      "record": "ManagedAssetLifecycleRejectedV2",
+      "surface": "managed asset leaf",
+      "owner": "managed asset functional core",
+      "producer": "typed ordered rejection",
+      "source": "src/core/managed_asset_lifecycle_result_v2.py:211",
+      "order_kind": "observable only; no standalone canonical encoder",
+      "authority": "NONE",
+      "rejection_boundary": "post root equals pre, effects empty, external roots zero",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "code",
+          "profile": "enum"
+        },
+        {
+          "name": "pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "post_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "effects",
+          "profile": "record"
+        },
+        {
+          "name": "terminal_obligations_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "oracle_occurrence_plan_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "production_authority",
+          "profile": "authority_none"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    },
+    {
+      "record": "AssetOriginRecordV2",
+      "surface": "asset origin registry",
+      "owner": "AssetOriginRegistryStateV2",
+      "producer": "accepted registration transition",
+      "source": "src/core/asset_origin_registry_types_v2.py:62",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and registry guards",
+      "collection_key": [
+        "asset"
+      ],
+      "fields": [
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "origin_kind",
+          "profile": "enum"
+        },
+        {
+          "name": "origin_root",
+          "profile": "root"
+        },
+        {
+          "name": "transfer_policy_root",
+          "profile": "root"
+        },
+        {
+          "name": "issue_policy_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "decimals",
+          "profile": "u8_decimals"
+        },
+        {
+          "name": "asset_class",
+          "profile": "enum"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "asset",
+        "asset_class",
+        "decimals",
+        "issue_policy_root",
+        "origin_kind",
+        "origin_root",
+        "transfer_policy_root"
+      ]
+    },
+    {
+      "record": "AssetOriginRegistrationPolicyV2",
+      "surface": "asset origin registry",
+      "owner": "AssetOriginRegistryStateV2",
+      "producer": "registry configuration premise",
+      "source": "src/core/asset_origin_registry_types_v2.py:117",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and registration guards",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "authority_subject",
+          "profile": "token"
+        },
+        {
+          "name": "authority_grant_root",
+          "profile": "root"
+        },
+        {
+          "name": "allow_native",
+          "profile": "boolean"
+        },
+        {
+          "name": "allow_tau_originated",
+          "profile": "boolean"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "allow_native",
+        "allow_tau_originated",
+        "authority_grant_root",
+        "authority_subject"
+      ]
+    },
+    {
+      "record": "AssetOriginRegistryStateV2",
+      "surface": "asset origin registry",
+      "owner": "asset origin functional core",
+      "producer": "registration transition",
+      "source": "src/core/asset_origin_registry_types_v2.py:151",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and registration guards",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "schema",
+          "profile": "schema"
+        },
+        {
+          "name": "module_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "policy",
+          "profile": "record"
+        },
+        {
+          "name": "assets",
+          "profile": "ordered_records"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "assets",
+        "module_release_id",
+        "policy",
+        "schema"
+      ]
+    },
+    {
+      "record": "AssetOriginRegistrationContextV2",
+      "surface": "asset origin registry",
+      "owner": "registration call input",
+      "producer": "asset lane coordinator projection",
+      "source": "src/core/asset_origin_registry_types_v2.py:212",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and occurrence binding",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "writer_epoch",
+          "profile": "u64"
+        },
+        {
+          "name": "module_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "global_pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "occurrence",
+          "profile": "optional_record"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "global_pre_state_root",
+        "module_release_id",
+        "occurrence",
+        "writer_epoch"
+      ]
+    },
+    {
+      "record": "AssetOriginRegistrationCommandV2",
+      "surface": "asset origin registry",
+      "owner": "registration call input",
+      "producer": "typed command decoder",
+      "source": "src/core/asset_origin_registry_types_v2.py:259",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and ordered registration guards",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "command_kind",
+          "profile": "token"
+        },
+        {
+          "name": "asset",
+          "profile": "token"
+        },
+        {
+          "name": "origin_kind",
+          "profile": "enum"
+        },
+        {
+          "name": "origin_root",
+          "profile": "root"
+        },
+        {
+          "name": "transfer_policy_root",
+          "profile": "root"
+        },
+        {
+          "name": "issue_policy_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "decimals",
+          "profile": "u8_decimals"
+        },
+        {
+          "name": "asset_class",
+          "profile": "enum"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "asset",
+        "asset_class",
+        "command_kind",
+        "decimals",
+        "issue_policy_root",
+        "origin_kind",
+        "origin_root",
+        "transfer_policy_root"
+      ]
+    },
+    {
+      "record": "AssetOriginRegistrationAcceptedV2",
+      "surface": "asset origin registry",
+      "owner": "asset origin functional core",
+      "producer": "accepted registration transition",
+      "source": "src/core/asset_origin_registry_types_v2.py:342",
+      "order_kind": "observable property order",
+      "authority": "NONE",
+      "rejection_boundary": "controlled factory",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "post_state",
+          "profile": "record"
+        },
+        {
+          "name": "effects",
+          "profile": "record"
+        },
+        {
+          "name": "module_journal",
+          "profile": "record"
+        },
+        {
+          "name": "production_authority",
+          "profile": "authority_none"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    },
+    {
+      "record": "AssetOriginRegistrationRejectedV2",
+      "surface": "asset origin registry",
+      "owner": "asset origin functional core",
+      "producer": "typed ordered rejection",
+      "source": "src/core/asset_origin_registry_types_v2.py:406",
+      "order_kind": "observable property order",
+      "authority": "NONE",
+      "rejection_boundary": "post root equals pre and effects empty",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "code",
+          "profile": "enum"
+        },
+        {
+          "name": "pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "post_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "effects",
+          "profile": "record"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    },
+    {
+      "record": "AssetLaneStateV2",
+      "surface": "asset lane coordinator",
+      "owner": "asset lane functional core",
+      "producer": "coordinator rebind of accepted leaf",
+      "source": "src/core/asset_lane_state_v2.py:79",
+      "order_kind": "projection field order",
+      "authority": "NONE",
+      "rejection_boundary": "cross-leaf identity and supply/balance invariants",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "schema",
+          "profile": "schema"
+        },
+        {
+          "name": "module_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "origin_registry",
+          "profile": "record"
+        },
+        {
+          "name": "transfer_policies",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "managed_policies",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "balances",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "supplies",
+          "profile": "ordered_records"
+        }
+      ],
+      "serialization_status": "IMPLEMENTED_CANONICAL_ENCODER",
+      "canonical_key_order_if_encoded": [
+        "balances",
+        "managed_policies",
+        "module_release_id",
+        "origin_registry",
+        "schema",
+        "supplies",
+        "transfer_policies"
+      ]
+    },
+    {
+      "record": "AssetLaneContextV2",
+      "surface": "asset lane coordinator",
+      "owner": "asset lane call input",
+      "producer": "imperative shell projection",
+      "source": "src/core/asset_lane_state_v2.py:345",
+      "order_kind": "projection input order",
+      "authority": "NONE",
+      "rejection_boundary": "typed construction and occurrence binding",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "writer_epoch",
+          "profile": "u64"
+        },
+        {
+          "name": "module_release_id",
+          "profile": "root"
+        },
+        {
+          "name": "global_pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "occurrence",
+          "profile": "optional_record"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    },
+    {
+      "record": "AssetLaneAcceptedV2",
+      "surface": "asset lane coordinator",
+      "owner": "asset lane functional core",
+      "producer": "accepted projection and rebind",
+      "source": "src/core/asset_lane_coordinator_values_v2.py:78",
+      "order_kind": "observable property order",
+      "authority": "NONE",
+      "rejection_boundary": "controlled factory and projection equality",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "route",
+          "profile": "enum"
+        },
+        {
+          "name": "source_leaf_journal_root",
+          "profile": "root"
+        },
+        {
+          "name": "post_state",
+          "profile": "record"
+        },
+        {
+          "name": "effects",
+          "profile": "record"
+        },
+        {
+          "name": "module_journal",
+          "profile": "record"
+        },
+        {
+          "name": "receipt_root",
+          "profile": "root"
+        },
+        {
+          "name": "production_authority",
+          "profile": "authority_none"
+        },
+        {
+          "name": "profile_authentication",
+          "profile": "authentication_unverified"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    },
+    {
+      "record": "AssetLaneRejectedV2",
+      "surface": "asset lane coordinator",
+      "owner": "asset lane functional core",
+      "producer": "typed coordinator rejection",
+      "source": "src/core/asset_lane_coordinator_values_v2.py:173",
+      "order_kind": "observable property order",
+      "authority": "NONE",
+      "rejection_boundary": "post root equals pre and effects empty",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "route",
+          "profile": "enum"
+        },
+        {
+          "name": "code",
+          "profile": "enum"
+        },
+        {
+          "name": "pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "post_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "effects",
+          "profile": "record"
+        },
+        {
+          "name": "production_authority",
+          "profile": "authority_none"
+        },
+        {
+          "name": "profile_authentication",
+          "profile": "authentication_unverified"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    },
+    {
+      "record": "GlobalEconomicStateEffectRefinementCandidateV2",
+      "surface": "global refinement candidate",
+      "owner": "global refinement call input",
+      "producer": "typed candidate constructor",
+      "source": "src/core/global_economic_state_effect_refinement_v2.py:49",
+      "order_kind": "observable property order",
+      "authority": "NONE",
+      "rejection_boundary": "exact owned types; global refiner returns typed rejection",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "pre_state",
+          "profile": "record"
+        },
+        {
+          "name": "post_state",
+          "profile": "record"
+        },
+        {
+          "name": "effect_plan",
+          "profile": "record"
+        },
+        {
+          "name": "consumed_occurrences",
+          "profile": "ordered_records"
+        },
+        {
+          "name": "terminal_plan",
+          "profile": "record"
+        },
+        {
+          "name": "oracle_plan",
+          "profile": "record"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    },
+    {
+      "record": "GlobalEconomicStateEffectRefinementV2",
+      "surface": "global refinement witness",
+      "owner": "global refinement core",
+      "producer": "accepted global refinement",
+      "source": "src/core/global_economic_state_effect_refinement_v2.py:155",
+      "order_kind": "observable property order",
+      "authority": "NONE",
+      "rejection_boundary": "opaque checker token and immutable root fields",
+      "collection_key": [],
+      "fields": [
+        {
+          "name": "pre_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "post_state_root",
+          "profile": "root"
+        },
+        {
+          "name": "effect_plan_root",
+          "profile": "root"
+        },
+        {
+          "name": "terminal_plan_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "oracle_plan_root",
+          "profile": "root_zero"
+        },
+        {
+          "name": "state_delta_root",
+          "profile": "root"
+        },
+        {
+          "name": "production_authority",
+          "profile": "authority_none"
+        },
+        {
+          "name": "refinement_root",
+          "profile": "root"
+        }
+      ],
+      "serialization_status": "GAP_NO_CANONICAL_ENCODER"
+    }
+  ],
+  "lane_conservation_status": [
+    {
+      "lane_id": "ASSET_TRANSFER",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "BOUNDED_PYTHON_ASSET_SLICE_WITH_RUST_TRANSFER_ONLY",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "SPOT_LIQUIDITY",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "SEMANTIC_GAP",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "FARM_INCENTIVES",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "SEMANTIC_GAP",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "ZDEX_TOKENOMICS",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "SEMANTIC_GAP",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "ZUSD_MONETARY",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "SEMANTIC_GAP",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "PERPS_MARKET",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "SEMANTIC_GAP",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "ORACLE_MARKET",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "GLOBAL_ORACLE_LIFECYCLE_RECONCILIATION_ONLY_NO_LANE_CORE",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "SEALED_AUCTION",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "SEMANTIC_GAP",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "STRATEGY_ESCROW",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "SEMANTIC_GAP",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "PROOF_REWARDS",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "SEMANTIC_GAP",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "EXTERNAL_CUSTODY",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "STRUCTURAL_ONLY_OUTBOX_CLOSED_PRE_O009",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    },
+    {
+      "lane_id": "GOVERNANCE_MIGRATION",
+      "registered_global_lane": true,
+      "exact_lane_write_coverage": true,
+      "structural_conservation_status": "GLOBAL_AGGREGATE_RELATION_ONLY",
+      "lane_semantic_status": "STRUCTURAL_ONLY_NO_MIGRATION_TRANSITION",
+      "mounted": false,
+      "release_backed": false,
+      "production_authority": "NONE"
+    }
+  ],
+  "equations": [
+    {
+      "id": "OWNED_DEFINITION",
+      "formula": "owned(a)=sum balances[a]+sum custody[a]+sum reserves[a]",
+      "scope": "global aggregate per asset",
+      "source": "src/core/global_economic_state_effect_refinement_v2.py"
+    },
+    {
+      "id": "OWNED_EQUALS_SUPPLY_PRE_POST",
+      "formula": "owned_pre(a)=supply_pre(a) and owned_post(a)=supply_post(a)",
+      "scope": "global aggregate per asset",
+      "source": "src/core/global_economic_refinement_checks_v2.py"
+    },
+    {
+      "id": "ISSUE_BURN_CONSERVATION",
+      "formula": "owned_post(a)=owned_pre(a)+authorized_issue(a)-authorized_burn(a); same for supply",
+      "scope": "global aggregate per asset",
+      "source": "src/core/global_economic_refinement_checks_v2.py"
+    },
+    {
+      "id": "ISSUE_BURN_EFFECT_PROJECTION",
+      "formula": "authorized_issue=sum positive ISSUE effects; authorized_burn=sum absolute negative BURN effects",
+      "scope": "global effect plan",
+      "source": "src/core/global_economic_refinement_checks_v2.py"
+    },
+    {
+      "id": "LIABILITY_BACKING",
+      "formula": "sum liabilities[a] <= sum custody[a]",
+      "scope": "global aggregate per asset",
+      "source": "src/core/global_economic_refinement_checks_v2.py"
+    },
+    {
+      "id": "CLAIMANT_TERMINAL_BOUND",
+      "formula": "sum OPEN terminal obligations[a,claimant,domain] <= exact liability row[a,claimant,domain]",
+      "scope": "global claimant and liability domain",
+      "source": "src/core/global_economic_refinement_checks_v2.py"
+    },
+    {
+      "id": "FEE_DECOMPOSITION",
+      "formula": "fee_charged(a)=current_allocations(a)+carried_residue(a)",
+      "scope": "global fee annotations",
+      "source": "src/core/global_economic_refinement_checks_v2.py"
+    },
+    {
+      "id": "FEE_RESIDUE_MIRROR",
+      "formula": "carried_residue equals positive RESERVE mirror at protocol:fee-unallocated-reserve / zenoledger:protocol-fee-residue",
+      "scope": "global fee annotations",
+      "source": "src/core/global_economic_refinement_checks_v2.py"
+    },
+    {
+      "id": "FEE_ALLOCATION_POSITIVE_CREDIT",
+      "formula": "allocation(key)>=0 and allocation(key)<=positive state-bearing credit aggregate(key)",
+      "scope": "global annotations; sender-as-fee-owner net debit can fail this mirror despite local transfer conservation",
+      "source": "src/core/global_economic_refinement_checks_v2.py"
+    },
+    {
+      "id": "ASSET_TRANSFER_LOCAL_CONSERVATION",
+      "formula": "sender delta=-(amount+fee), recipient delta=amount, fee-owner delta=fee after same-key aggregation; total=0",
+      "scope": "asset transfer leaf only",
+      "source": "src/core/asset_transfer_module_v2.py"
+    },
+    {
+      "id": "MANAGED_ISSUE_BURN_CONSERVATION",
+      "formula": "issue/burn changes selected account balance and supply by equal amount under exact subject/root authorization; generic authority forbidden for protocol assets",
+      "scope": "managed asset leaf only",
+      "source": "src/core/managed_asset_lifecycle_module_v2.py"
+    }
+  ],
+  "enum_inventory": {
+    "LaneIdV2": [
+      "ASSET_TRANSFER",
+      "SPOT_LIQUIDITY",
+      "FARM_INCENTIVES",
+      "ZDEX_TOKENOMICS",
+      "ZUSD_MONETARY",
+      "PERPS_MARKET",
+      "ORACLE_MARKET",
+      "SEALED_AUCTION",
+      "STRATEGY_ESCROW",
+      "PROOF_REWARDS",
+      "EXTERNAL_CUSTODY",
+      "GOVERNANCE_MIGRATION"
+    ],
+    "AssetClassV2": [
+      "tau_native_coin",
+      "canonical_zusd",
+      "lp_share",
+      "zdex_protocol_token",
+      "sealed_bid_payment_or_inventory",
+      "registered_ordinary_token"
+    ],
+    "AssetTransferRejectCodeV2": [
+      "MISSING_OCCURRENCE",
+      "OCCURRENCE_BINDING_MISMATCH",
+      "RELEASE_MISMATCH",
+      "UNKNOWN_COMMAND",
+      "OCCURRENCE_COMMAND_MISMATCH",
+      "UNKNOWN_ASSET",
+      "DISABLED_ASSET",
+      "UNREGISTERED_ASSET",
+      "ASSET_ORIGIN_MISMATCH",
+      "NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED",
+      "UNAUTHORIZED_SUBJECT",
+      "SELF_TRANSFER",
+      "ZERO_AMOUNT",
+      "FEE_LIMIT_EXCEEDED",
+      "EFFECT_DELTA_OVERFLOW",
+      "INSUFFICIENT_BALANCE",
+      "BALANCE_OVERFLOW"
+    ],
+    "ManagedAssetLifecycleRejectCodeV2": [
+      "MISSING_OCCURRENCE",
+      "OCCURRENCE_BINDING_MISMATCH",
+      "RELEASE_MISMATCH",
+      "UNKNOWN_COMMAND",
+      "OCCURRENCE_COMMAND_MISMATCH",
+      "UNKNOWN_ASSET",
+      "DISABLED_ASSET",
+      "ASSET_CLASS_MISMATCH",
+      "ASSET_DECIMALS_MISMATCH",
+      "UNREGISTERED_ASSET",
+      "ASSET_ORIGIN_MISMATCH",
+      "GENERIC_AUTHORITY_FORBIDDEN",
+      "ISSUE_DISABLED",
+      "BURN_DISABLED",
+      "UNAUTHORIZED_SUBJECT",
+      "AUTHORIZATION_ROOT_MISMATCH",
+      "ZERO_AMOUNT",
+      "EFFECT_DELTA_OVERFLOW",
+      "INSUFFICIENT_BALANCE",
+      "BALANCE_OVERFLOW",
+      "SUPPLY_OVERFLOW"
+    ],
+    "AssetLaneRouteV2": [
+      "TRANSFER",
+      "MANAGED_LIFECYCLE",
+      "COORDINATOR"
+    ],
+    "AssetLaneCoordinatorRejectCodeV2": [
+      "REGISTRY_BINDING_MISMATCH",
+      "CANDIDATE_BINDING_MISMATCH",
+      "PROJECTION_MISMATCH"
+    ],
+    "AssetOriginKindV2": [
+      "NATIVE",
+      "TAU_ORIGINATED"
+    ],
+    "AssetOriginRegistrationRejectCodeV2": [
+      "MISSING_OCCURRENCE",
+      "OCCURRENCE_BINDING_MISMATCH",
+      "RELEASE_MISMATCH",
+      "UNKNOWN_COMMAND",
+      "OCCURRENCE_COMMAND_MISMATCH",
+      "UNAUTHORIZED_SUBJECT",
+      "GRANT_MISMATCH",
+      "DECIMAL_SCALE_MISMATCH",
+      "DISABLED_ORIGIN_KIND",
+      "NATIVE_ASSET_ACCOUNTING_UNIMPLEMENTED",
+      "DUPLICATE_ASSET",
+      "DUPLICATE_ORIGIN"
+    ],
+    "EconomicEffectKindV2": [
+      "ACCOUNT_MOVEMENT",
+      "ISSUE",
+      "BURN",
+      "CUSTODY",
+      "LIABILITY",
+      "RESERVE",
+      "FEE_ALLOCATION",
+      "REWARD",
+      "SLASH"
+    ],
+    "TerminalObligationStatusV2": [
+      "OPEN",
+      "DRAINED",
+      "TOMBSTONED"
+    ],
+    "OutboxStatusV2": [
+      "PENDING",
+      "ACKNOWLEDGED"
+    ],
+    "GlobalEconomicRefinementRejectCodeV2": [
+      "MALFORMED_CANDIDATE",
+      "EXTERNAL_OUTBOX_REQUIRES_PUBLISHER",
+      "ZERO_OCCURRENCE_NOT_STATIC",
+      "FIXED_CONTEXT_CHANGED",
+      "LANE_OWNERSHIP_CHANGED",
+      "DISABLED_LANE_WRITE",
+      "LANE_WRITE_COVERAGE_MISMATCH",
+      "LANE_WRITE_ROOT_MISMATCH",
+      "SIGNED_STATE_DELTA_OVERFLOW",
+      "BALANCES_STATE_EFFECT_MISMATCH",
+      "CUSTODY_STATE_EFFECT_MISMATCH",
+      "LIABILITIES_STATE_EFFECT_MISMATCH",
+      "RESERVES_STATE_EFFECT_MISMATCH",
+      "SUPPLY_EFFECT_TOTAL_OVERFLOW",
+      "SUPPLY_ISSUE_BURN_MISMATCH",
+      "OWNED_ACCOUNTING_TOTAL_OVERFLOW",
+      "OWNED_TOTAL_NOT_SUPPLY",
+      "CONSERVATION_ASSET_COVERAGE_MISMATCH",
+      "CONSERVATION_STATE_MISMATCH",
+      "ANNOTATION_MIRROR_OVERFLOW",
+      "FEE_ALLOCATION_NOT_MIRRORED",
+      "REWARD_OR_SLASH_NOT_MIRRORED",
+      "ZERO_FEE_CONSERVATION_ROW",
+      "FEE_RESIDUE_OVERFLOW",
+      "FEE_RESIDUE_STATE_MISMATCH",
+      "CUSTODY_BACKING_TOTAL_OVERFLOW",
+      "LIABILITY_TOTAL_OVERFLOW",
+      "LIABILITIES_EXCEED_BACKING",
+      "OPEN_TERMINAL_TOTAL_OVERFLOW",
+      "OPEN_TERMINAL_EXCEEDS_LIABILITY",
+      "TERMINAL_LIABILITY_DELTA_OVERFLOW",
+      "TERMINAL_PRE_STATE_MISMATCH",
+      "TERMINAL_OWNING_LANE_WRITE_MISSING",
+      "TERMINAL_PLAN_MISMATCH",
+      "TERMINAL_LIABILITY_MISMATCH",
+      "ORACLE_LANE_WRITE_MISSING",
+      "ORACLE_PRE_STATE_MISMATCH",
+      "ORACLE_PLAN_MISMATCH",
+      "OCCURRENCES_NOT_ORDERED_UNIQUE",
+      "REPLAY_CONSUMPTION_MISMATCH",
+      "OCCURRENCE_CONTEXT_MISMATCH",
+      "REPLAY_ALREADY_CONSUMED",
+      "REPLAY_POST_STATE_MISMATCH",
+      "HEIGHT_PROGRESSION_MISMATCH",
+      "OCCURRENCE_HEIGHT_MISMATCH",
+      "INTERNAL_CONTRACT_DRIFT"
+    ]
+  },
+  "fixtures": [
+    {
+      "path": "tests/data/global_settlement_abi_v2_global_core_golden.json",
+      "sha256": "f266d82a3e2506cbb586c0fccffaa51218028c6fcbba84c493fc47d9f4ef05f2",
+      "scope": "Python/Rust global canonical fixture"
+    },
+    {
+      "path": "tests/data/global_settlement_abi_v2_asset_transfer_golden.json",
+      "sha256": "3a3f0a2edeb24daf088c3b44f48c6cea917880b8bba8a9702bed6c77e69ce52a",
+      "scope": "Python/Rust asset-transfer canonical fixture"
+    }
+  ],
+  "formal_evidence": {
+    "toolchain": "leanprover/lean4:v4.27.0",
+    "authority": "NONE",
+    "scope": "bounded mathematical models source-pinned below; no codec, runtime, or release equivalence",
+    "theorems": {
+      "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean": [
+        "allLaneIds_complete",
+        "negative_fee_allocation_rejected",
+        "fee_projection_mismatch_rejected",
+        "netOnlyMutation_projection_rejected"
+      ],
+      "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean": [
+        "accepted_preserves_owned_supply",
+        "accepted_preserves_liability_backing",
+        "accepted_open_terminal_totals_fit_exact_liability_rows",
+        "accepted_fee_credit_and_residue_are_exact",
+        "accepted_has_exact_lane_write_coverage",
+        "rejected_is_no_op_bundle"
+      ],
+      "lean-mathlib/Proofs/AssetTransferRefinementV2.lean": [
+        "transition_total",
+        "rejected_post_eq_pre",
+        "rejected_effects_empty",
+        "accepted_consumes_exact_occurrence",
+        "accepted_conservation_row_exact",
+        "fee_owner_sender_alias_is_locally_conserving",
+        "omitted_fee_credit_breaks_conservation_counterexample"
+      ],
+      "lean-mathlib/Proofs/ManagedAssetLifecycleRefinementV2.lean": [
+        "transition_total",
+        "rejected_post_eq_pre",
+        "rejected_effects_empty",
+        "accepted_authorization_guard",
+        "accepted_conservation_equations",
+        "accepted_issue_authority_exact",
+        "accepted_burn_authority_exact",
+        "stateful_issue_transfer_burn_trace",
+        "protocol_issue_rejects_generic_authority_counterexample"
+      ]
+    }
+  },
+  "file_sha256": {
+    "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json": "8bbd05a875317fb75e4853f7babc3a91351e581f6d1ec7ed75db0e660ae4542f",
+    "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.md": "da42739f085b3344d4a1240ea0a77fa91b9def05c5c6a530dad7d789d2e920f6",
+    "src/core/global_settlement_primitives_v2.py": "11a26694357812e91b398bddc2b6bbec0a93063731ccd5b23818de1d0c0ca01e",
+    "src/core/global_settlement_effect_values_v2.py": "a366616f8a11f35d5c69d29c91e1d0b8598ac48499eb44d86d8011c73d30fb9a",
+    "src/core/global_settlement_effect_plan_v2.py": "e352b67a13ac22e09d31d5aebf94d10aa7f540ef3149050ed2675854f6b839f0",
+    "src/core/global_settlement_lifecycle_v2.py": "70e49b99a2ee617ef535beb577b975b302faea7aa14134de0791bd493e342471",
+    "src/core/global_economic_proof_v2.py": "087b4df5295d82d112d552bac136b66cf0010f078915c29869d7a427fd8d5705",
+    "src/core/global_economic_state_ownership_v2.py": "435ce66dd5233f4cb5d4553d106bd0347c3ccda82a98572080680663ecdaad8e",
+    "src/core/global_economic_state_v2.py": "2948531057e332a301c0cdd278771040a86eda38f34ca839cd1ec196fc75b12e",
+    "src/core/global_economic_refinement_checks_v2.py": "f8084730492024764f9f2f2008e4e04c7c7d28455358885bd4f6c758eb99f1c6",
+    "src/core/global_economic_state_effect_refinement_v2.py": "4663cbee5ff7485b65bc68e55058bbe49cbc0ddd0c6e2f9c6b9502928c9713b7",
+    "src/core/global_economic_refinement_outcome_v2.py": "a0d6b4d6c12f2da81300675f6b923926294bfeade3ddc4ee10bf1374ffef508e",
+    "src/core/asset_transfer_types_v2.py": "345ddc4a414b8526d7e52e53b22cbc987bfa4b9ad3b2573d0aa5ae37c8f74283",
+    "src/core/asset_transfer_module_v2.py": "df0a25077d508db805afa0b828edbe5c8becdd362401f778fef0ce1f8649d065",
+    "src/core/managed_asset_lifecycle_state_v2.py": "cacb73ed865c35533377114d1eed9c01a630359fa435f2e64a416daec038c981",
+    "src/core/managed_asset_lifecycle_result_v2.py": "d5f19e377fe721d3bcd7fd99732128c80e2839bffa5315c76fa07dca9e74e35a",
+    "src/core/managed_asset_lifecycle_module_v2.py": "a7278af80244a51302670138e9f50876ba72db1246bd8b6f1af90ac65b595a48",
+    "src/core/asset_origin_registry_types_v2.py": "9b1a0cdde0909dd1c1729804277b34805f4877e849a1e3e897540053643b23e4",
+    "src/core/asset_origin_registry_v2.py": "30a94b99eda4c395b5510fb11bf295171399290f3db72112092a42eb00850be4",
+    "src/core/asset_lane_state_v2.py": "ecbe37b11f5f80aaa0f114c3c5f08454a0e302f4b7830bbc55a894cbeb655034",
+    "src/core/asset_lane_coordinator_values_v2.py": "e138c22f4fb85d85ba969e7f45ddc51b304ea5b11fb9ef4b866c282a8956efde",
+    "src/core/asset_lane_coordinator_v2.py": "be82d0ad5a7bc5ed49305a44711de9ca53a21f4ac7fc69fd1f232b33bc9462f8",
+    "zk/global_settlement_abi_v2/src/canonical.rs": "b17a76d6e8ce5915ba1d250982147dceda0d7368911b396f7ae83fd860216053",
+    "zk/global_settlement_abi_v2/src/state.rs": "28c515697fe08190142f5885e60e7cfcf650cf472ab0f3535b34ed154a831846",
+    "zk/global_settlement_abi_v2/src/effect_values.rs": "2546015b68ddf0197cdf584dcefde8a7d7ae0eb6d77e24f98ba86fb375400f24",
+    "zk/global_settlement_abi_v2/src/effects.rs": "38f4be8275fdabed5b3af792dc9c16292a4ed6b2cd57ee1812afa881c301cf84",
+    "zk/global_settlement_abi_v2/src/lifecycle.rs": "b0561bd8ca9943b3f096a402c0c993d65ac5d6207388b5b0480877a40cdd37f6",
+    "zk/global_settlement_abi_v2/src/proof.rs": "f0fb984ae594284795c1c01a54a6e0dffacd69b4732a2fd7153128ce7a691dce",
+    "zk/global_settlement_abi_v2/src/global_state.rs": "b007d8b7dad5136821fd000794bb3e6f3d8b952fbca6a5e1d8bfafa2375a6b92",
+    "zk/global_settlement_abi_v2/src/global_refinement.rs": "f18d51eabad485f0d2c9a625ada7c573600076b314c10d992c68c7dd68702e31",
+    "zk/global_settlement_abi_v2/src/global_refinement_checks.rs": "6b9e7c9e41b94dec1d9076205a5dcf0e76208b8d345c36a2890fe87921bf4259",
+    "zk/global_settlement_abi_v2/src/global_refinement_annotations.rs": "dbb2aacc7af202bfeb41f9e0f9b3b88c605a18eb2d1314092172ee7016c649de",
+    "zk/global_settlement_abi_v2/src/global_refinement_lifecycle.rs": "574214d8004ac5f4f80916ba3416e020b5afcbe4b1cd7cbd7345feb309027b0d",
+    "zk/global_settlement_abi_v2/src/outcome.rs": "5973d04e50c951c6d98a1ad17f609c5fd2d3060657e6cb74726b4e9830467223",
+    "zk/global_settlement_abi_v2/src/asset_transfer_types.rs": "599b478ff18e7270650eddd005c22c2124ceebbe137a029fb7b7fe6e51efe3c2",
+    "zk/global_settlement_abi_v2/src/asset_transfer.rs": "a21aea1c2e642948edcdf7a0466b035bc26203572c5c22dc7185493e04077198",
+    "zk/global_settlement_abi_v2/src/lib.rs": "f27b122cc5b55cffbeb646409f23fb2439d1a7bb2f908d5c57e84da472cfc97e",
+    "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean": "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4",
+    "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean": "85448be52a0ad003a953e12f46b558face3650282ac238c8ac7bb8a002a55867",
+    "lean-mathlib/Proofs/AssetTransferRefinementV2.lean": "4401a6bb2718285768f510c91690bbff4d0928b05e2a57f6a8985379f5ff2772",
+    "lean-mathlib/Proofs/ManagedAssetLifecycleRefinementV2.lean": "e3054b8d7580486dadc70ad36e6ac0e3a8b4435504779421081b475acbde2983",
+    "tests/data/global_settlement_abi_v2_global_core_golden.json": "f266d82a3e2506cbb586c0fccffaa51218028c6fcbba84c493fc47d9f4ef05f2",
+    "tests/data/global_settlement_abi_v2_asset_transfer_golden.json": "3a3f0a2edeb24daf088c3b44f48c6cea917880b8bba8a9702bed6c77e69ce52a",
+    "tests/formal/test_lean_global_settlement_core_v2.py": "2f59fba46c7c42daab18053cb3ad22428825d7e7d649088e4e7c12d29a0a7b2d",
+    "tests/formal/test_lean_asset_lane_refinement_v2.py": "1291a66f26638c835831e02612ce7d43814c91eb8cb1cc30ceaffa7443cce5cb"
+  },
+  "canonicalization": {
+    "object_key_order": "UTF8_LEXICAL_ASCENDING",
+    "registry_fields_order": "PROJECTION_FIELD_ORDER",
+    "array_order": "SEMANTIC_ORDER_AS_LISTED_OR_KEY_SORTED_BY_OWNING_TYPE",
+    "canonical_key_order_if_encoded_derivation": "sorted(fields[].name)"
+  },
+  "collection_bound_completeness": {
+    "status": "GAP_NOT_FULLY_CLASSIFIED",
+    "global_core": "MIXED_EXPLICIT_AND_UNBOUNDED_COLLECTIONS",
+    "asset_slice": "MIXED_EXPLICIT_AND_NO_EXPLICIT_ITEM_BOUND",
+    "claim": "No universal item ceiling is asserted; each collection inherits only bounds explicitly enforced by its owning source."
+  }
+}
