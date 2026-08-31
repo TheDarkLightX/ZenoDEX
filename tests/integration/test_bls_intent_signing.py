@@ -119,3 +119,46 @@ def test_current_operator_import_roots_do_not_load_retired_tau_bridge_modules(
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
+
+
+@pytest.mark.parametrize(
+    "broken_module",
+    ("py_ecc.bls", "py_ecc.optimized_bls12_381"),
+)
+def test_bls_backend_initialization_fault_is_not_misclassified_as_optional_absence(
+    broken_module: str,
+) -> None:
+    script = f"""
+import builtins
+import importlib
+import types
+
+real_import = builtins.__import__
+
+def import_with_broken_bls(name, globals=None, locals=None, fromlist=(), level=0):
+    if name == {broken_module!r}:
+        raise RuntimeError("broken BLS backend")
+    if name == "py_ecc.bls":
+        return types.SimpleNamespace(G2Basic=object())
+    return real_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = import_with_broken_bls
+try:
+    importlib.import_module("src.integration.bls_intent_signing")
+except RuntimeError as exc:
+    if str(exc) != "broken BLS backend":
+        raise
+else:
+    raise SystemExit("BLS backend fault was treated as an absent optional dependency")
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", script],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout

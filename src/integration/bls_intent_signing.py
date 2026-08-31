@@ -12,13 +12,13 @@ try:
     from py_ecc.bls import G2Basic
 
     BLS_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     G2Basic = None
     BLS_AVAILABLE = False
 
 try:
     from py_ecc.optimized_bls12_381 import curve_order as BLS12_381_CURVE_ORDER
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     BLS12_381_CURVE_ORDER = None
 
 
