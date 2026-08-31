@@ -1,0 +1,106 @@
+# FCIS PR 477 and PR 478 Global ABI Successor Review
+
+Status: `RESEARCH_ONLY_EXACT_SUCCESSOR_DISPOSITION`
+
+## Result
+
+PR 477 and PR 478 remain unsuitable for merge at their current heads. Their
+useful objective is now implemented through the admitted Whole-Program Plan
+V2.1 seam, `GlobalSettlementABI V1`, rather than through the historical
+mutable-table and mutable-record inheritance designs.
+
+The exact successor implementation is:
+
+```text
+base:   484f09a528d5a7f2aff99e9d0b50b67d95ae3b42
+commit: efcf1ca1f496343e984c1ccdfa813b3eab8de3ed
+tree:   4ee98361f6b98a68f3e9bcc767ea1de92829c625
+```
+
+The implementation enforces exact primitive, exact tuple, exact nested-record,
+outer snapshot, and accepted-effect ownership at the global settlement seam.
+It preserves eight minimized subclass and behavior-hook counterexamples. This
+is successor-bound repair evidence; it does not close a finding at either
+historical PR head.
+
+## PR disposition
+
+| PR | Current exact head | Disposition |
+| --- | --- | --- |
+| 477 | `576c7bb8a61012858db14d7d1092244ed4e9f2b3` | Preserve as a historical donor. Do not merge or mount its pre-M5 shadow state model. |
+| 478 | `6dbb9b36237d982515777caae04a296d0ebac040` | Supersede. Its mutable-base frozen subclasses and stale stack must not be rebased as the authority design. |
+
+The machine-readable successor mapping is
+`FCIS_PR477_PR478_FINDING_DISPOSITION_V1.json`. It classifies every one of the
+34 audit findings exactly once without modifying their historical `OPEN`
+statuses.
+
+## What the successor changes
+
+- scalar fields require exact `str`, `int`, and `bool` values before behavior;
+- canonical mappings and sequences require exact built-in containers;
+- nested state, effect, registry, lane, terminal, and outbox records require
+  exact declared types before key access or canonical projection;
+- state, effect, occurrence, lane-journal, and route-journal snapshots reject
+  outer subclasses before dataclass reflection or reconstruction;
+- accepted and rejected transitions require exact effect-plan types;
+- public factories reject subclass dispatch and return only exact declared
+  values;
+- rejection remains pre-root equal to post-root with an empty effect plan;
+- diagnostics added by this repair do not include attacker-controlled class
+  names or representations.
+
+## Retained counterexamples
+
+The new test file retains these failure families:
+
+1. behavior-bearing string subclasses;
+2. mapping subclasses with iteration hooks;
+3. sequence subclasses with iteration hooks;
+4. nested lane-state subclasses with forged canonical projections;
+5. nested effect-row subclasses with behavior-bearing key access;
+6. outer global-state and effect-plan subclasses at snapshot boundaries;
+7. effect-plan subclasses embedded in accepted transitions;
+8. subclass dispatch through closed state-root, effect-plan, and rejection
+   factories.
+
+Before the repair, the first six test functions produced six failures. The
+sequence and factory-dispatch families were added during repair review. All
+eight now pass.
+
+## Evidence
+
+```text
+focused and shared Python tests: 292 passed
+new FCIS counterexamples:         8 passed
+Rust GlobalSettlementABI suite:   passed
+test-hygiene gate:                3 critical paths, 8 nodes passed
+Ruff:                             passed
+Ruff format, changed tests:       passed
+Ruff format, inherited sources:   baseline not clean; no bulk rewrite
+strict mypy:                      passed
+Python compilation:               passed
+git diff --check:                 passed
+remote CI:                        initial missing-packet failure; rerun pending
+```
+
+The first hosted `critical-quality` run rejected the candidate because
+`global_economic_refinement_snapshot_v1.py` lacked current diff-aware hygiene
+evidence. `THV1-20260830-global-settlement-exact-ownership-v1` now pins both
+source files and the eight counterexample nodes. The identical local gate
+passes; the repaired exact-head hosted rerun remains external evidence.
+
+## Remaining successor gaps
+
+The repair intentionally leaves six gaps explicit:
+
+1. close or privatize the generic `to_canonical` protocol surface;
+2. bind canonical traversal to one cycle, depth, item, and byte budget;
+3. define typed ownership-admission rejection precedence;
+4. generate command parsing and ownership from one closed kind registry;
+5. close exact local ownership for every pool, perps, fill, and delta language;
+6. obtain complete mutation, mount, sole-publisher, no-bypass, durability, and
+   independent exact-head evidence.
+
+No production, settlement, release, or value-movement authority follows from
+this review or implementation.

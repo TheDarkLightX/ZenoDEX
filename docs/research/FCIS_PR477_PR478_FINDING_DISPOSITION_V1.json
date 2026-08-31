@@ -1,0 +1,155 @@
+{
+  "schema": "zenodex/fcis-pr477-pr478-finding-disposition/v1",
+  "status": "RESEARCH_ONLY_EXACT_SUCCESSOR_DISPOSITION",
+  "classification_scope": "Successor evidence mapping only; every finding remains OPEN at its original PR head.",
+  "authority": {
+    "production_authority": "NONE",
+    "settlement_authority": "NONE",
+    "release_authority": "NONE",
+    "value_movement_authority": "NONE"
+  },
+  "active_plan": {
+    "plan_commit": "c52c71d01a3edf3e298a840d41345abdc2d6d26d",
+    "admission_commit": "c0fb36c62b20293ebc54fc530f3dfe2e8046576d",
+    "stable_seam": "GlobalSettlementABI V1"
+  },
+  "subjects": {
+    "pr477_current_head": "576c7bb8a61012858db14d7d1092244ed4e9f2b3",
+    "pr478_current_head": "6dbb9b36237d982515777caae04a296d0ebac040",
+    "successor_base": "484f09a528d5a7f2aff99e9d0b50b67d95ae3b42",
+    "successor_implementation": "efcf1ca1f496343e984c1ccdfa813b3eab8de3ed",
+    "successor_implementation_tree": "4ee98361f6b98a68f3e9bcc767ea1de92829c625"
+  },
+  "source_artifacts": [
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "2ac00d75fc90aa408cd4ac0a33895edd70d875916dd19469c3a98c0fe84058d5"
+    },
+    {
+      "path": "src/core/global_economic_refinement_snapshot_v1.py",
+      "sha256": "0ab017a4fd6eee81e85bfeda3a829b34c78edb2b9af95d0959f1059be0469bb7"
+    },
+    {
+      "path": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py",
+      "sha256": "a8378a6fe331a68bfb5bdc795376f6d20d6bf333203cfbb71c3b5a6a61c34bd3"
+    }
+  ],
+  "dispositions": {
+    "SUCCESSOR_EXACT_BOUNDARY_EVIDENCE": [
+      "FCIS-477-001",
+      "FCIS-477-002",
+      "FCIS-477-003",
+      "FCIS-477-004",
+      "FCIS-477-005",
+      "FCIS-477-006",
+      "FCIS-477-008",
+      "FCIS-477-011",
+      "FCIS-477-012",
+      "FCIS-477-014",
+      "FCIS-478-003",
+      "FCIS-478-004",
+      "FCIS-478-005",
+      "FCIS-478-006",
+      "FCIS-478-009",
+      "FCIS-478-010",
+      "FCIS-478-011",
+      "FCIS-478-013",
+      "FCIS-478-014"
+    ],
+    "SUPERSEDED_BY_DIFFERENT_SUCCESSOR_MODEL": [
+      "FCIS-477-009",
+      "FCIS-477-010",
+      "FCIS-478-001",
+      "FCIS-478-002",
+      "FCIS-478-008"
+    ],
+    "OPEN_IN_SUCCESSOR": [
+      "FCIS-477-007",
+      "FCIS-477-017",
+      "FCIS-478-007",
+      "FCIS-478-015"
+    ],
+    "PARTIAL_IN_SUCCESSOR": [
+      "FCIS-477-016",
+      "FCIS-477-018",
+      "FCIS-478-012"
+    ],
+    "OUTSIDE_GLOBAL_ABI_SUCCESSOR_SCOPE": [
+      "FCIS-477-013",
+      "FCIS-477-015"
+    ],
+    "ORIGINAL_STACK_PROCESS_SUPERSEDED": [
+      "FCIS-478-016"
+    ]
+  },
+  "successor_open_gaps": [
+    {
+      "id": "GABI-FCIS-001",
+      "related_findings": [
+        "FCIS-477-001",
+        "FCIS-477-003"
+      ],
+      "description": "canonical_global_bytes_v1 still accepts an arbitrary object implementing to_canonical; exact owned call-site discipline exists but is not expressed by a closed canonicalizable type registry"
+    },
+    {
+      "id": "GABI-FCIS-002",
+      "related_findings": [
+        "FCIS-477-007",
+        "FCIS-477-017",
+        "FCIS-478-015"
+      ],
+      "description": "canonical normalization does not yet impose one source-pinned cycle, depth, item, and byte budget before recursive materialization"
+    },
+    {
+      "id": "GABI-FCIS-003",
+      "related_findings": [
+        "FCIS-477-016"
+      ],
+      "description": "lane rejection is typed and no-op, while constructor and ownership admission still use heterogeneous exceptions without a frozen canonical precedence relation"
+    },
+    {
+      "id": "GABI-FCIS-004",
+      "related_findings": [
+        "FCIS-478-007"
+      ],
+      "description": "command-kind field knowledge and runtime parsing are not yet generated from one closed source registry across every lane"
+    },
+    {
+      "id": "GABI-FCIS-005",
+      "related_findings": [
+        "FCIS-477-013",
+        "FCIS-477-015",
+        "FCIS-478-012"
+      ],
+      "description": "GlobalSettlementABI normalizes lane roots and economic effects but does not itself close every local pool, perps, fill, and delta ownership language"
+    },
+    {
+      "id": "GABI-FCIS-006",
+      "related_findings": [
+        "FCIS-477-018",
+        "FCIS-478-016"
+      ],
+      "description": "the successor has focused counterexamples and parity suites but lacks complete accepted-language mutation evidence, mounted sole-publication evidence, and independent exact-head review"
+    }
+  ],
+  "evidence": {
+    "new_counterexamples": 8,
+    "focused_shared_tests_passed": 292,
+    "rust_global_settlement_abi_suite": "PASS",
+    "test_hygiene_packet": "THV1-20260830-global-settlement-exact-ownership-v1",
+    "test_hygiene_gate": "PASS_3_CRITICAL_PATHS_8_DECLARED_NODES",
+    "ruff_check": "PASS",
+    "ruff_format_changed_tests": "PASS",
+    "ruff_format_inherited_source_baseline": "NOT_CLEAN_NO_BULK_REFORMAT",
+    "strict_mypy": "PASS",
+    "python_compile": "PASS",
+    "diff_check": "PASS",
+    "remote_ci": "INITIAL_FAILURE_MISSING_HYGIENE_PACKET; LOCAL_REPAIR_PASS; EXACT_HEAD_RERUN_PENDING"
+  },
+  "nonclaims": [
+    "No finding is rewritten or closed on the historical PR 477 or PR 478 heads.",
+    "A successor-bound closure does not establish mounted runtime reachability, durability, no-bypass, proof validity, or production readiness.",
+    "The six successor open gaps remain release-blocking for the affected scope.",
+    "The disposition creates no production, settlement, release, or value-movement authority."
+  ]
+}
