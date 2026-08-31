@@ -203,18 +203,43 @@ def _validate_admission_and_plan_v2(sources: dict[str, bytes], active: dict[str,
         reject_v2("HISTORICAL_BINDING", HISTORICAL_LEDGER_PATH_V2, "historical donor hash drift")
 
 
+def _require_no_dependency_promotion_v2(value: dict[str, object], path: str) -> None:
+    forbidden_truthy = (
+        "closed_value_movement_gates",
+        "production_promotion",
+        "release_eligible",
+        "value_movement_claim_allowed",
+    )
+    for field in forbidden_truthy:
+        if value.get(field) not in (None, False, 0, []):
+            reject_v2("DEPENDENCY_PROMOTION", path, f"{field} must remain empty or false")
+    authority_fields = (
+        "migration_authority",
+        "production_authority",
+        "release_authority",
+        "settlement_authority",
+        "value_movement_authority",
+    )
+    for field in authority_fields:
+        if field in value and value.get(field) != "NONE":
+            reject_v2("DEPENDENCY_PROMOTION", path, f"{field} must remain NONE")
+
+
 def _dependency_projection_v2(sources: dict[str, bytes]) -> list[dict[str, object]]:
     result: list[dict[str, object]] = []
     for obligation_id, path, schema, status in DEPENDENCY_ROWS_V2:
         artifact = _json_source_v2(sources, path)
         if artifact.get("schema") != schema or artifact.get("status") != status:
             reject_v2("DEPENDENCY_STATUS", path, "dependency schema or status drift")
+        _require_no_dependency_promotion_v2(artifact, path)
         if path.endswith("ZENODEX_RETIRED_TAU_BRIDGE_CLOSURE_V3.json"):
             ceiling = _one_mapping_v2(artifact.get("claim_ceiling"), f"{path}.claim_ceiling")
+            _require_no_dependency_promotion_v2(ceiling, path)
             if ceiling.get("closed_value_movement_gates") != 0:
                 reject_v2("DEPENDENCY_PROMOTION", path, "dependency closes a VM gate")
         if path.endswith("M6_O005_REQUIREMENTS_FLOOR_COMPLETION_V1.json"):
             ceiling = _one_mapping_v2(artifact.get("claim_ceiling"), f"{path}.claim_ceiling")
+            _require_no_dependency_promotion_v2(ceiling, path)
             if ceiling.get("closed_value_movement_gates") != 0:
                 reject_v2("DEPENDENCY_PROMOTION", path, "dependency closes a VM gate")
         if path.endswith("ZENODEX_OPERATOR_SURFACE_REGISTRY_V2.json"):
@@ -240,6 +265,11 @@ def _historical_donor_rows_v2(sources: dict[str, bytes]) -> list[dict[str, objec
     subject = _one_mapping_v2(historical.get("subject"), f"{HISTORICAL_LEDGER_PATH_V2}.subject")
     if historical.get("schema") != "zenodex/value-movement-closure-status/v1":
         reject_v2("HISTORICAL_SCHEMA", HISTORICAL_LEDGER_PATH_V2, "historical schema drift")
+    authority = _one_mapping_v2(
+        historical.get("authority"), f"{HISTORICAL_LEDGER_PATH_V2}.authority"
+    )
+    if authority.get("production_authority") != "NONE":
+        reject_v2("HISTORICAL_PROMOTION", HISTORICAL_LEDGER_PATH_V2, "authority drift")
     if subject.get("commit") != EXPECTED_HISTORICAL_SUBJECT_V2:
         reject_v2("HISTORICAL_SUBJECT", HISTORICAL_LEDGER_PATH_V2, "historical subject drift")
     rows = _one_list_v2(historical.get("gate_status"), f"{HISTORICAL_LEDGER_PATH_V2}.gate_status")
@@ -356,9 +386,23 @@ def validate_ledger_artifact_v2(artifact: object) -> None:
     if type(subject) is not str or HEX_40_V2.fullmatch(subject) is None:
         reject_v2("IMPLEMENTATION_SUBJECT", "implementation_subject", "invalid commit")
     lineage = _one_mapping_v2(value.get("admitted_lineage"), "admitted_lineage")
+    expected_lineage_fields = {
+        "active_plan_commit",
+        "active_plan_path",
+        "active_plan_sha256",
+        "admission_receipt_path",
+        "admission_receipt_payload_sha256",
+        "implementation_subject",
+        "relation",
+    }
+    if set(lineage) != expected_lineage_fields:
+        reject_v2("ADMITTED_LINEAGE", "admitted_lineage", "closed lineage fields required")
     if (
         lineage.get("implementation_subject") != subject
         or lineage.get("active_plan_commit") != EXPECTED_ACTIVE_PLAN_COMMIT_V2
+        or lineage.get("active_plan_path") != PLAN_PATH_V2
+        or lineage.get("admission_receipt_path") != ADMISSION_PATH_V2
+        or lineage.get("relation") != "ACTIVE_PLAN_IS_ANCESTOR_OF_EXACT_STAGE_A_SUBJECT"
     ):
         reject_v2("ADMITTED_LINEAGE", "admitted_lineage", "subject lineage drift")
     if value.get("current_gate_rows") != _current_gate_rows_v2():
@@ -367,7 +411,11 @@ def validate_ledger_artifact_v2(artifact: object) -> None:
     if [row.get("gate_id") if type(row) is dict else None for row in donors] != list(GATE_IDS_V2):
         reject_v2("HISTORICAL_DISPOSITION", "historical_donor_rows", "gate denominator drift")
     if any(
-        type(row) is not dict or row.get("disposition") != "STALE_DONOR_NOT_CURRENT_EVIDENCE"
+        type(row) is not dict
+        or set(row) != {"disposition", "gate_id", "historical_status", "source_subject"}
+        or row.get("disposition") != "STALE_DONOR_NOT_CURRENT_EVIDENCE"
+        or row.get("historical_status") not in {"GAP", "PARTIAL"}
+        or row.get("source_subject") != EXPECTED_HISTORICAL_SUBJECT_V2
         for row in donors
     ):
         reject_v2("HISTORICAL_DISPOSITION", "historical_donor_rows", "donor label drift")
@@ -376,6 +424,27 @@ def validate_ledger_artifact_v2(artifact: object) -> None:
         row[0] for row in DEPENDENCY_ROWS_V2
     ]:
         reject_v2("DEPENDENCY_DENOMINATOR", "dependency_rows", "dependency denominator drift")
+    for index, dependency in enumerate(dependencies):
+        if type(dependency) is not dict or set(dependency) != {
+            "artifact_path",
+            "artifact_sha256",
+            "evidence_relation",
+            "obligation_id",
+            "status",
+        }:
+            reject_v2("DEPENDENCY_SHAPE", f"dependency_rows[{index}]", "closed row required")
+        dependency_row = cast(dict[str, object], dependency)
+        expected = DEPENDENCY_ROWS_V2[index]
+        if (
+            dependency_row.get("artifact_path") != expected[1]
+            or dependency_row.get("status") != expected[3]
+            or dependency_row.get("evidence_relation")
+            != "SOURCE_BOUND_ANCESTOR_RECHECK_AT_POINT_OF_USE"
+        ):
+            reject_v2("DEPENDENCY_SHAPE", f"dependency_rows[{index}]", "dependency drift")
+        digest = dependency_row.get("artifact_sha256")
+        if type(digest) is not str or HEX_64_V2.fullmatch(digest) is None:
+            reject_v2("DEPENDENCY_SHAPE", f"dependency_rows[{index}]", "invalid digest")
     if (
         value.get("nonclaims") != list(_NONCLAIMS_V2)
         or value.get("closed_gap") != "current_closure_ledger_gap"
