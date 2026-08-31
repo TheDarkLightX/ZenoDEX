@@ -2,7 +2,7 @@
   "schema": "zenodex/test-hygiene-evidence/v1",
   "evidence_id": "THV1-20260831-immutable-intent-consumer-closure",
   "created_date": "2026-08-31",
-  "claim_scope": "Immutable Intent snapshots expose explicit detached JSON projections at exact consumer boundaries; pool-curve, Oracle, proof-signing, support-root, and blast-radius consumers preserve their prior semantics without reintroducing mutable aliases.",
+  "claim_scope": "Immutable Intent snapshots expose explicit detached JSON projections at exact consumer boundaries; pool-curve, Oracle, proof-signing, support-root, and blast-radius consumers preserve their prior semantics without reintroducing mutable aliases. Stateful quote-receipt path identities derive from canonical semantic state and rejection observations rather than interpreter line events.",
   "change_kind": "bug_fix",
   "risk_class": "critical",
   "invariant_ids": [
@@ -10,7 +10,8 @@
     "INTENT-V1-DETACHED-COMPOSITE-PROJECTION",
     "POOL-CURVE-V1-IMMUTABLE-INTENT-REFINEMENT",
     "ORACLE-ROUTING-V1-HASHED-QUERY-IDENTITY",
-    "ACCEPTANCE-TCB-V1-EXACT-SIGNING-PROJECTION"
+    "ACCEPTANCE-TCB-V1-EXACT-SIGNING-PROJECTION",
+    "QUOTE-RECEIPT-SEQUENCE-V1-SEMANTIC-PATH-DETERMINISM"
   ],
   "failure_modes": [
     "a recursively frozen curve_params object is rejected by an exact plain-dict curve decoder",
@@ -20,7 +21,8 @@
     "proof commitment JSON retains a private frozen Intent mapping",
     "diagnostic blast-radius logic silently misses nonce and quote-receipt fields on immutable snapshots",
     "legacy tests mutate an admitted Intent after construction and thereby test an impossible state",
-    "the stateful quote-receipt explorer calls the removed mutable Intent API and never reaches its intended stale-receipt paths"
+    "the stateful quote-receipt explorer calls the removed mutable Intent API and never reaches its intended stale-receipt paths",
+    "interpreter patch-version line tracing changes a quote-receipt path identity despite identical semantic transitions"
   ],
   "source_pins": [
     {
@@ -61,7 +63,7 @@
     },
     {
       "path": "tools/dex_engine_quote_receipt_sequence_grammar_fuzz.py",
-      "sha256": "20ed1b7de3fecd96d5dc368290b1d9d278d74d530a0c9ddd51dcfc9c379bb2d9"
+      "sha256": "bf7bcfe6f61281aa76f501db2186b5a8776ac207bfc6391e8a355696b121d78c"
     }
   ],
   "removed_paths": [],
@@ -165,12 +167,13 @@
     },
     {
       "path": "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py",
-      "sha256": "74b9a6fd7698cded5aba5bdf411e2c8c40b8d604f2d189c67518b6f584a4f8d2",
+      "sha256": "0237b5eacf441f2be6d75f45118da862d1247a8f7463cdde6d635e93d04b551b",
       "node_ids": [
         "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_direct_paths_are_stable",
         "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_targets_are_covered_and_deterministic",
         "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_changing_path",
-        "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg_projection"
+        "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg_projection",
+        "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_path_ids_do_not_use_interpreter_line_tracing"
       ]
     },
     {
@@ -300,6 +303,10 @@
     {
       "description": "call the removed mutable Intent API while constructing a stateful quote-receipt sequence",
       "killed_by": "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_direct_paths_are_stable"
+    },
+    {
+      "description": "derive quote-receipt path identity from interpreter filename and line events",
+      "killed_by": "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py::test_dex_engine_quote_receipt_sequence_path_ids_do_not_use_interpreter_line_tracing"
     }
   ],
   "nonclaims": [
