@@ -38,6 +38,15 @@ def test_disposition_is_complete_disjoint_and_research_only() -> None:
     assert payload["evidence"]["affected_test_files_passed"] == 218
     assert payload["evidence"]["runtime_disaster_discovery_tests_passed"] == 192
     assert payload["evidence"]["rejection_precedence_regressions_passed"] == 7
+    critical_gate = payload["evidence"]["critical_quality_gate"]
+    assert critical_gate["status"] == "BLOCKED_BY_SUCCESSOR_BASE_GATE_DEBT"
+    assert critical_gate["first_failure"]["present_in_successor_base"] is False
+    assert critical_gate["downstream_acceptance_tcb_probe"]["passed"] == 414
+    assert critical_gate["downstream_acceptance_tcb_probe"]["failed"] == 19
+    assert (
+        critical_gate["downstream_acceptance_tcb_probe"]["failed_test_paths_in_successor_diff"]
+        == []
+    )
     assert (
         payload["evidence"]["inherited_base_failure"]["successor_base"]
         == (payload["subjects"]["successor_base"])

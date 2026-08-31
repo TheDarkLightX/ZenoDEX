@@ -89,6 +89,22 @@ git diff --check:                 passed
 remote CI:                        live external evidence; query exact PR head
 ```
 
+The repository-wide critical-quality gate is not green on the successor base.
+Its first unambiguous blocker is a committed invocation of
+`tools/bva/check_critical_surface_coverage.py`, which is absent from base
+`484f09a5...` and has no tracked Git history. A machine-local untracked copy was
+inspected but was not imported into this successor as trusted source.
+
+Running the next acceptance-TCB stage directly produced 414 passes and 19
+failures. None of the nine failing test files is changed by this successor, and
+the runtime paths implicated by the failures are byte-identical to the
+successor base. The failures include tests that still call removed mutable
+`Intent.set_field` behavior or assign through a frozen dataclass. This is
+base-branch gate debt, remains a hard red status, and is not counted as passing
+evidence for the successor. A clean base replay was not performed, so the
+classification is deliberately narrower than a proof that every failure
+already executes identically at the base commit.
+
 Hosted run `33350595043` at `d0d2a7ca...` rejected the candidate because
 `global_economic_refinement_snapshot_v1.py` lacked current diff-aware hygiene
 evidence. `THV1-20260830-global-settlement-exact-ownership-v1` now pins both

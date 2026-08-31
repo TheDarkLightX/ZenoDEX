@@ -188,6 +188,29 @@
     "strict_mypy": "PASS",
     "python_compile": "PASS",
     "diff_check": "PASS",
+    "critical_quality_gate": {
+      "status": "BLOCKED_BY_SUCCESSOR_BASE_GATE_DEBT",
+      "first_failure": {
+        "kind": "MISSING_TRACKED_GATE_DEPENDENCY",
+        "path": "tools/bva/check_critical_surface_coverage.py",
+        "present_in_successor_base": false,
+        "gate_reference_introduced_by": "539cbdbe39618ef625d17105e7444d0ac87bd008"
+      },
+      "downstream_acceptance_tcb_probe": {
+        "status": "FAIL",
+        "passed": 414,
+        "failed": 19,
+        "failed_test_paths_in_successor_diff": [],
+        "unchanged_runtime_paths_checked": [
+          "src/state/intents.py",
+          "src/integration/dex_engine.py",
+          "src/core/intent_normal_form.py",
+          "src/state/support_root.py",
+          "src/core/settlement_strong_validator.py"
+        ]
+      },
+      "nonclaim": "Unchanged-path comparison localizes the observed failures outside this successor diff; it is not a clean-checkout replay of the successor base."
+    },
     "remote_ci": "LIVE_EXTERNAL_QUERY_REQUIRED",
     "observed_remote_ci_failures": [
       {
