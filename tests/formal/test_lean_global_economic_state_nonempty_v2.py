@@ -15,8 +15,8 @@ import os
 import re
 import shutil
 import subprocess
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypedDict
 
 import pytest
 
@@ -53,10 +53,11 @@ ALLOWED_STANDARD_AXIOMS = frozenset(
 )
 
 
-class CompiledPacket(TypedDict):
+@dataclass(frozen=True, slots=True)
+class CompiledPacket:
     root: Path
     lean: Path
-    environment: dict[str, str]
+    environment: dict[str, str] = field(repr=False)
 
 
 def _require_lake() -> str:
@@ -158,16 +159,16 @@ def compiled_packet(tmp_path_factory: pytest.TempPathFactory) -> CompiledPacket:
         assert result.stderr.strip() == ""
         assert output.is_file()
 
-    return {"root": build_root, "lean": lean, "environment": environment}
+    return CompiledPacket(root=build_root, lean=lean, environment=environment)
 
 
 def _run_probe(
     compiled_packet: CompiledPacket, path: Path
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [str(compiled_packet["lean"]), "-DwarningAsError=true", str(path)],
+        [str(compiled_packet.lean), "-DwarningAsError=true", str(path)],
         cwd=ROOT,
-        env=compiled_packet["environment"],
+        env=compiled_packet.environment,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -221,7 +222,8 @@ def test_sources_are_exactly_pinned() -> None:
 def test_packet_compiles_with_pinned_lean_and_warnings_as_errors(
     compiled_packet: CompiledPacket,
 ) -> None:
-    assert compiled_packet["lean"].is_file()
+    assert compiled_packet.lean.is_file()
+    assert "environment" not in repr(compiled_packet)
 
 
 @pytest.mark.parametrize(
