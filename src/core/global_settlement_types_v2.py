@@ -23,6 +23,8 @@ from .global_settlement_effect_plan_v2 import (
     _require_economic_effect_plan_item_bounds_v2 as _require_economic_effect_plan_item_bounds_v2,
 )
 from .global_settlement_effect_values_v2 import (
+    FEE_RESIDUE_CONTROL_DOMAIN_V2,
+    FEE_RESIDUE_PRINCIPAL_V2,
     AssetConservationRowV2,
     EconomicEffectKindV2,
     EconomicEffectRowV2,
@@ -119,6 +121,8 @@ __all__ = [
     "MAX_EXTERNAL_OUTBOX_ENQUEUES_PER_PLAN_V2",
     "MAX_ECONOMIC_EFFECT_PLAN_ITEMS_V2",
     "MAX_ECONOMIC_EFFECT_PLAN_CANONICAL_BYTES_V2",
+    "FEE_RESIDUE_PRINCIPAL_V2",
+    "FEE_RESIDUE_CONTROL_DOMAIN_V2",
     "ZERO_ROOT_V2",
     "LaneIdV2",
     "ALL_LANE_IDS_V2",

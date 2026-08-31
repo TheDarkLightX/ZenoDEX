@@ -96,7 +96,7 @@ class GlobalOracleOccurrencePlanV2:
 
     _deltas: ClassVar[tuple[OracleOccurrenceDeltaV2, ...]]
     deltas: tuple[OracleOccurrenceDeltaV2, ...] = (
-        _DataclassTupleSnapshotPropertyV2(  # type: ignore[assignment]
+        _DataclassTupleSnapshotPropertyV2(
             "_deltas",
             OracleOccurrenceDeltaV2,
             "global Oracle occurrence plan deltas",
@@ -159,6 +159,8 @@ class TerminalObligationV2:
         _require_atoms_u128_v2(self.amount_atoms, name="terminal obligation amount")
         if type(self.status) is not TerminalObligationStatusV2:
             raise TypeError("terminal obligation status is not closed")
+        if self.status is TerminalObligationStatusV2.OPEN and self.amount_atoms == 0:
+            raise ValueError("open terminal obligation amount must be positive")
 
     def to_canonical(self) -> dict[str, object]:
         return {
@@ -238,7 +240,7 @@ class GlobalTerminalObligationPlanV2:
 
     _deltas: ClassVar[tuple[TerminalObligationDeltaV2, ...]]
     deltas: tuple[TerminalObligationDeltaV2, ...] = (
-        _DataclassTupleSnapshotPropertyV2(  # type: ignore[assignment]
+        _DataclassTupleSnapshotPropertyV2(
             "_deltas",
             TerminalObligationDeltaV2,
             "global terminal obligation plan deltas",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Final
 
 from .global_settlement_primitives_v2 import (
     LaneIdV2,
@@ -12,6 +13,9 @@ from .global_settlement_primitives_v2 import (
     _require_root_v2,
     _require_token_v2,
 )
+
+FEE_RESIDUE_PRINCIPAL_V2: Final = "protocol:fee-unallocated-reserve"
+FEE_RESIDUE_CONTROL_DOMAIN_V2: Final = "zenoledger:protocol-fee-residue"
 
 
 class EconomicEffectKindV2(str, Enum):
@@ -189,6 +193,8 @@ class ExternalOutboxEnqueueV2:
 
 
 __all__ = [
+    "FEE_RESIDUE_PRINCIPAL_V2",
+    "FEE_RESIDUE_CONTROL_DOMAIN_V2",
     "EconomicEffectKindV2",
     "EconomicEffectRowV2",
     "AssetConservationRowV2",

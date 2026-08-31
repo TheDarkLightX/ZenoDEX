@@ -152,6 +152,11 @@ def test_terminal_obligation_creation_and_terminal_transition_are_closed() -> No
         )
 
 
+def test_open_terminal_obligation_requires_a_positive_amount() -> None:
+    with pytest.raises(ValueError, match="open terminal obligation amount must be positive"):
+        _obligation(amount_atoms=0)
+
+
 def test_terminal_plan_empty_root_and_bound_are_exact() -> None:
     assert GlobalTerminalObligationPlanV2.empty().plan_root == ZERO_ROOT_V2
     deltas = tuple(

@@ -10,6 +10,9 @@ from typing import Final
 
 from .global_economic_state_v2 import GlobalEconomicStateV2
 from .global_settlement_types_v2 import (
+    FEE_RESIDUE_CONTROL_DOMAIN_V2,
+    FEE_RESIDUE_PRINCIPAL_V2,
+    MAX_ATOMS_V2,
     MAX_DELTA_ATOMS_V2,
     MIN_DELTA_ATOMS_V2,
     EconomicAmountV2,
@@ -188,13 +191,53 @@ def _require_annotation_mirrors_v2(effect_plan: GlobalEconomicEffectPlanV2) -> N
     for row in effect_plan.rows:
         key = (row.asset, row.principal, row.custody_domain)
         if row.kind is EconomicEffectKindV2.FEE_ALLOCATION:
-            if row.delta_atoms < 0 or key not in state_rows:
+            if row.delta_atoms < 0 or state_rows.get(key, 0) < row.delta_atoms:
                 raise ValueError("global refinement fee allocation is not mirrored")
         elif row.kind in {EconomicEffectKindV2.REWARD, EconomicEffectKindV2.SLASH}:
             if state_rows.get(key, 0) != row.delta_atoms:
                 raise ValueError(
                     "global refinement reward or slash lacks exact state-bearing mirror"
                 )
+    if any(row.fee_charged_atoms == 0 for row in effect_plan.fee_conservation):
+        raise ValueError("global refinement zero fee conservation row is noncanonical")
+    residue_effects = {
+        row.asset: row.delta_atoms
+        for row in effect_plan.rows
+        if row.kind is EconomicEffectKindV2.RESERVE
+        and row.principal == FEE_RESIDUE_PRINCIPAL_V2
+        and row.custody_domain == FEE_RESIDUE_CONTROL_DOMAIN_V2
+        and row.delta_atoms > 0
+    }
+    expected_residue = {
+        row.asset: row.carried_residue_atoms
+        for row in effect_plan.fee_conservation
+        if row.carried_residue_atoms > 0
+    }
+    if residue_effects != expected_residue:
+        raise ValueError("global refinement fee residue state mapping mismatch")
+
+
+def _require_open_terminal_liability_coverage_v2(
+    state: GlobalEconomicStateV2,
+) -> None:
+    liabilities = _amount_map_v2(state.liabilities)
+    open_totals: dict[tuple[str, str, str], int] = {}
+    for obligation in state.terminal_obligations:
+        if obligation.status is not TerminalObligationStatusV2.OPEN:
+            continue
+        key = (
+            obligation.asset,
+            obligation.claimant,
+            obligation.liability_domain,
+        )
+        total = open_totals.get(key, 0) + obligation.amount_atoms
+        if total > MAX_ATOMS_V2:
+            raise ValueError("global refinement open terminal obligation total overflows")
+        open_totals[key] = total
+    if any(total > liabilities.get(key, 0) for key, total in open_totals.items()):
+        raise ValueError(
+            "global refinement open terminal obligations exceed exact liability row"
+        )
 
 
 def _require_liability_backing_v2(state: GlobalEconomicStateV2) -> None:
@@ -204,6 +247,7 @@ def _require_liability_backing_v2(state: GlobalEconomicStateV2) -> None:
     liabilities = state.liability_atoms_by_asset()
     if any(amount > custody.get(asset, 0) for asset, amount in liabilities.items()):
         raise ValueError("global refinement liabilities exceed accounting backing")
+    _require_open_terminal_liability_coverage_v2(state)
 
 
 def require_global_economic_tables_v2(

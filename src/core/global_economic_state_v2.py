@@ -247,6 +247,9 @@ class GlobalEconomicStateV2(_GlobalEconomicStateGraphViewV2):
         occurrence_ids = tuple(row.occurrence_id for row in replay_state)
         if len(occurrence_ids) != len(set(occurrence_ids)):
             raise ValueError("global state replay occurrence ids must be unique")
+        oracle_occurrences = object.__getattribute__(self, "_oracle_occurrences")
+        if any(row.observed_height > self.height for row in oracle_occurrences):
+            raise ValueError("Oracle observed height exceeds global state height")
 
     @property
     def state_root(self) -> str:

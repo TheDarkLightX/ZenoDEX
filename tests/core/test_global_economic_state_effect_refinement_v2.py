@@ -32,6 +32,8 @@ from src.core.global_economic_state_v2 import (
 )
 from src.core.global_settlement_types_v2 import (
     ALL_LANE_IDS_V2,
+    FEE_RESIDUE_CONTROL_DOMAIN_V2,
+    FEE_RESIDUE_PRINCIPAL_V2,
     ZERO_ROOT_V2,
     AssetConservationRowV2,
     AssetSupplyV2,
@@ -39,6 +41,7 @@ from src.core.global_settlement_types_v2 import (
     EconomicEffectKindV2,
     EconomicEffectRowV2,
     ExternalOutboxEnqueueV2,
+    FeeConservationRowV2,
     GlobalEconomicEffectPlanV2,
     GlobalOracleOccurrencePlanV2,
     GlobalTerminalObligationPlanV2,
@@ -288,11 +291,125 @@ def test_zero_occurrence_change_and_external_outbox_fail_closed() -> None:
         )
 
 
-def test_fee_owner_sender_alias_retains_exact_global_refinement() -> None:
+def test_fee_annotation_requires_a_same_key_positive_state_credit() -> None:
     candidate = _asset_transfer_candidate(fee_owner="alice")
 
-    assert refine_global_economic_state_effects_v2(candidate).effect_plan_root == (
-        candidate.effect_plan.effect_plan_root
+    with pytest.raises(ValueError, match="fee allocation is not mirrored"):
+        refine_global_economic_state_effects_v2(candidate)
+
+
+def test_zero_fee_conservation_row_is_noncanonical_at_global_refinement() -> None:
+    candidate = _asset_transfer_candidate()
+    effects = GlobalEconomicEffectPlanV2(
+        rows=tuple(
+            row
+            for row in candidate.effect_plan.rows
+            if row.kind is not EconomicEffectKindV2.FEE_ALLOCATION
+        ),
+        asset_conservation=candidate.effect_plan.asset_conservation,
+        fee_conservation=(FeeConservationRowV2("USD", 0, 0, 0),),
+        lane_writes=candidate.effect_plan.lane_writes,
+        occurrence_consumptions=candidate.effect_plan.occurrence_consumptions,
+        external_outbox_enqueue=(),
+    )
+
+    with pytest.raises(ValueError, match="zero fee conservation row"):
+        refine_global_economic_state_effects_v2(
+            replace(candidate, effect_plan=effects)
+        )
+
+
+def test_fee_residue_requires_the_designated_reserve_mapping() -> None:
+    candidate = _asset_transfer_candidate()
+    wrong_reserve = EconomicEffectRowV2(
+        EconomicEffectKindV2.RESERVE,
+        "reserve:wrong",
+        "USD",
+        "zenoledger:wrong-residue",
+        2,
+    )
+    effects = GlobalEconomicEffectPlanV2(
+        rows=tuple(
+            sorted(
+                (
+                    *(
+                        row
+                        for row in candidate.effect_plan.rows
+                        if row.kind is not EconomicEffectKindV2.FEE_ALLOCATION
+                        and not (
+                            row.kind is EconomicEffectKindV2.ACCOUNT_MOVEMENT
+                            and row.principal == "treasury"
+                        )
+                    ),
+                    wrong_reserve,
+                ),
+                key=lambda row: row.key,
+            )
+        ),
+        asset_conservation=candidate.effect_plan.asset_conservation,
+        fee_conservation=(FeeConservationRowV2("USD", 2, 0, 2),),
+        lane_writes=candidate.effect_plan.lane_writes,
+        occurrence_consumptions=candidate.effect_plan.occurrence_consumptions,
+        external_outbox_enqueue=(),
+    )
+    post_state = replace(
+        candidate.post_state,
+        balances=tuple(
+            row for row in candidate.post_state.balances if row.owner != "treasury"
+        ),
+        reserves=(
+            EconomicAmountV2(
+                "reserve:wrong",
+                "USD",
+                "zenoledger:wrong-residue",
+                2,
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="fee residue state mapping"):
+        refine_global_economic_state_effects_v2(
+            replace(candidate, post_state=post_state, effect_plan=effects)
+        )
+
+    correct_reserve = replace(
+        wrong_reserve,
+        principal=FEE_RESIDUE_PRINCIPAL_V2,
+        custody_domain=FEE_RESIDUE_CONTROL_DOMAIN_V2,
+    )
+    correct_effects = replace(
+        effects,
+        rows=tuple(
+            sorted(
+                (
+                    *(
+                        row
+                        for row in effects.rows
+                        if row.principal != "reserve:wrong"
+                    ),
+                    correct_reserve,
+                ),
+                key=lambda row: row.key,
+            )
+        ),
+    )
+    correct_post_state = replace(
+        post_state,
+        reserves=(
+            EconomicAmountV2(
+                FEE_RESIDUE_PRINCIPAL_V2,
+                "USD",
+                FEE_RESIDUE_CONTROL_DOMAIN_V2,
+                2,
+            ),
+        ),
+    )
+    assert refine_global_economic_state_effects_v2(
+        replace(
+            candidate,
+            post_state=correct_post_state,
+            effect_plan=correct_effects,
+        )
     )
 
 
@@ -393,6 +510,37 @@ def test_liability_must_be_backed_even_for_a_static_candidate() -> None:
     )
 
     with pytest.raises(ValueError, match="liabilities exceed"):
+        refine_global_economic_state_effects_v2(candidate)
+
+
+def test_open_terminal_amount_must_fit_its_exact_liability_row() -> None:
+    obligation = TerminalObligationV2(
+        obligation_id="perps:alice:one",
+        lane_id=LaneIdV2.PERPS_MARKET,
+        claimant="alice",
+        asset="USD",
+        liability_domain="claims",
+        amount_atoms=3,
+        status=TerminalObligationStatusV2.OPEN,
+    )
+    state = _global_state(
+        lane_roots=_lane_roots(),
+        balances=(EconomicAmountV2("alice", "USD", "accounts", 6),),
+        custody=(EconomicAmountV2("vault", "USD", "backing", 4),),
+        liabilities=(EconomicAmountV2("alice", "USD", "claims", 2),),
+        supplies=(AssetSupplyV2("USD", 10),),
+        terminal_obligations=(obligation,),
+    )
+    candidate = GlobalEconomicStateEffectRefinementCandidateV2(
+        state,
+        state,
+        GlobalEconomicEffectPlanV2.empty(),
+        (),
+        GlobalTerminalObligationPlanV2.empty(),
+        GlobalOracleOccurrencePlanV2.empty(),
+    )
+
+    with pytest.raises(ValueError, match="open terminal obligations exceed"):
         refine_global_economic_state_effects_v2(candidate)
 
 

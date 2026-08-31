@@ -146,6 +146,16 @@ def test_global_state_rejects_noncanonical_sparse_rows_and_replay_aliases() -> N
         )
 
 
+def test_global_state_rejects_future_oracle_observations() -> None:
+    with pytest.raises(ValueError, match="observed height exceeds global state height"):
+        _state(
+            height=7,
+            oracle_occurrences=(
+                OracleOccurrenceStateV2("oracle:future", _root(303), 8, False),
+            ),
+        )
+
+
 def test_global_state_root_owns_constructor_inputs() -> None:
     lanes = list(_lane_roots())
     balances = [EconomicAmountV2("alice", "asset:usd", "zenoledger:accounts", 7)]
