@@ -47,11 +47,14 @@ def test_pure_signing_matches_fixed_vector_and_independent_bls_call() -> None:
     message_hash = hash_dex_intent_auth_message_v1(intent, chain_id="parity-chain")
 
     assert bls_intent_signing.bls_pubkey_hex_from_privkey(25) == FIXED_PUBKEY_25
-    assert bls_intent_signing.sign_dex_intent_for_engine(
-        intent,
-        privkey=25,
-        chain_id="parity-chain",
-    ) == FIXED_DEX_SIGNATURE_25
+    assert (
+        bls_intent_signing.sign_dex_intent_for_engine(
+            intent,
+            privkey=25,
+            chain_id="parity-chain",
+        )
+        == FIXED_DEX_SIGNATURE_25
+    )
     assert FIXED_DEX_SIGNATURE_25 == "0x" + G2Basic.Sign(25, message_hash).hex()
 
 
@@ -104,7 +107,7 @@ def test_pure_signing_matches_retired_tau_client_compatibility_exports() -> None
 def test_current_operator_import_roots_do_not_load_retired_tau_bridge_modules(
     module_name: str,
 ) -> None:
-    script = f'''\nimport importlib\nimport sys\nimportlib.import_module({module_name!r})\nfor forbidden in (\n    "src.integration.tau_net_client",\n    "src.integration.tau_testnet_dex_plugin",\n    "src.integration.perps_wallet_api",\n    "src.integration.zusd_tau_wallet_api",\n    "src.integration.zusd_monetary_wallet_api",\n):\n    if forbidden in sys.modules:\n        raise SystemExit(forbidden)\n'''
+    script = f"""\nimport importlib\nimport sys\nimportlib.import_module({module_name!r})\nfor forbidden in (\n    "src.integration.tau_net_client",\n    "src.integration.tau_testnet_dex_plugin",\n    "src.integration.perps_wallet_api",\n    "src.integration.zusd_tau_wallet_api",\n    "src.integration.zusd_monetary_wallet_api",\n):\n    if forbidden in sys.modules:\n        raise SystemExit(forbidden)\n"""
 
     result = subprocess.run(
         [sys.executable, "-B", "-c", script],

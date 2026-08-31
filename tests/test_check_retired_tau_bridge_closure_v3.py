@@ -90,18 +90,12 @@ def _loader_subject_repo(
     pinned.write_text("BASELINE = True\n", encoding="utf-8")
     _temp_git(root, "add", "pinned.py")
     _temp_git(root, "commit", "--quiet", "-m", "baseline")
-    baseline_commit = (
-        _temp_git_output(root, "rev-parse", "HEAD").decode("ascii").strip()
-    )
-    baseline_tree = (
-        _temp_git_output(root, "rev-parse", "HEAD^{tree}").decode("ascii").strip()
-    )
+    baseline_commit = _temp_git_output(root, "rev-parse", "HEAD").decode("ascii").strip()
+    baseline_tree = _temp_git_output(root, "rev-parse", "HEAD^{tree}").decode("ascii").strip()
     pinned.write_text("STAGE_A = True\n", encoding="utf-8")
     _temp_git(root, "add", "pinned.py")
     _temp_git(root, "commit", "--quiet", "-m", "stage A")
-    evidence_commit = (
-        _temp_git_output(root, "rev-parse", "HEAD").decode("ascii").strip()
-    )
+    evidence_commit = _temp_git_output(root, "rev-parse", "HEAD").decode("ascii").strip()
     monkeypatch.setattr(closure_builder, "BASELINE_COMMIT_V3", baseline_commit)
     monkeypatch.setattr(closure_builder, "BASELINE_TREE_V3", baseline_tree)
     monkeypatch.setattr(closure_builder, "BASELINE_PIN_PATHS_V3", ("pinned.py",))
@@ -178,9 +172,9 @@ def _mutate_subject(
 def _artifact_with_root(value: dict[str, object]) -> bytes:
     unsigned = dict(value)
     unsigned.pop("certificate_root", None)
-    value["certificate_root"] = __import__("hashlib").sha256(
-        canonical_json_bytes_v3(unsigned)
-    ).hexdigest()
+    value["certificate_root"] = (
+        __import__("hashlib").sha256(canonical_json_bytes_v3(unsigned)).hexdigest()
+    )
     return canonical_json_bytes_v3(value)
 
 
@@ -212,9 +206,7 @@ def test_source_loaders_accept_pinned_executable_regular_blob() -> None:
         path=path,
     )
 
-    assert _git_output("ls-tree", BASELINE_COMMIT_V3, "--", path).startswith(
-        b"100755 blob "
-    )
+    assert _git_output("ls-tree", BASELINE_COMMIT_V3, "--", path).startswith(b"100755 blob ")
     assert _git_output("ls-tree", head, "--", path).startswith(b"100755 blob ")
     assert baseline.path == subject.path == path
 
@@ -225,20 +217,14 @@ def test_exact_import_projection_and_closed_operation_registry(
     _, _, rows, projection = derive_closure_v3(exact_snapshot)
 
     assert projection["direct_consumer_path_count"] == 36
-    assert projection["direct_consumer_path_set_sha256"] == (
-        DIRECT_CONSUMER_PATH_SET_SHA256_V3
-    )
+    assert projection["direct_consumer_path_set_sha256"] == (DIRECT_CONSUMER_PATH_SET_SHA256_V3)
     assert projection["baseline_edge_count"] == 128
     assert projection["current_edge_count"] == 92
     assert projection["unchanged_edge_count"] == 92
     assert projection["removed_edge_count"] == 36
     assert projection["current_only_edge_count"] == 0
-    assert projection["baseline_python_path_count"] == (
-        BASELINE_DISCOVERY_PATH_COUNT_V3
-    )
-    assert projection["baseline_python_path_set_sha256"] == (
-        BASELINE_DISCOVERY_PATH_SET_SHA256_V3
-    )
+    assert projection["baseline_python_path_count"] == (BASELINE_DISCOVERY_PATH_COUNT_V3)
+    assert projection["baseline_python_path_set_sha256"] == (BASELINE_DISCOVERY_PATH_SET_SHA256_V3)
     assert projection["baseline_discovered_consumer_count"] == 36
     assert projection["baseline_discovered_edge_count"] == 128
     assert projection["subject_discovered_consumer_count"] == 19
@@ -250,31 +236,23 @@ def test_exact_import_projection_and_closed_operation_registry(
     assert "tests/integration/test_zusd_tau_token.py" in SUBJECT_PIN_PATHS_V3
     assert projection["baseline_edge_root_sha256"] == EXPECTED_BASELINE_EDGE_ROOT_V3
     assert projection["current_edge_root_sha256"] == EXPECTED_CURRENT_EDGE_ROOT_V3
-    assert projection["current_route_source_root_sha256"] == (
-        EXPECTED_CURRENT_ROUTE_SOURCE_ROOT_V3
-    )
+    assert projection["current_route_source_root_sha256"] == (EXPECTED_CURRENT_ROUTE_SOURCE_ROOT_V3)
     assert projection["import_classification_counts"] == {
         "QUARANTINED": 0,
         "RESEARCH_ORACLE": 92,
         "REMOVED": 36,
     }
-    assert _path_set_sha256(DIRECT_CONSUMER_PATHS_V3) == (
-        DIRECT_CONSUMER_PATH_SET_SHA256_V3
-    )
+    assert _path_set_sha256(DIRECT_CONSUMER_PATHS_V3) == (DIRECT_CONSUMER_PATH_SET_SHA256_V3)
     assert {
         operation_id
         for row in rows
         for operation_id in cast(list[str], row["current_operation_ids"])
-    } == set(
-        CURRENT_OPERATION_IDS_V3
-    )
+    } == set(CURRENT_OPERATION_IDS_V3)
     assert {
         operation_id
         for row in rows
         for operation_id in cast(list[str], row["research_operation_ids"])
-    } == set(
-        RESEARCH_OPERATION_IDS_V3
-    )
+    } == set(RESEARCH_OPERATION_IDS_V3)
 
 
 def test_certificate_is_canonical_deterministic_and_authority_free(
@@ -484,7 +462,7 @@ def test_api_attachment_guard_rejects_nested_safe_decoy_after_unsafe_real_functi
 ) -> None:
     path = "src/integration/api_server.py"
     guard = b"    if type(config) is not ApiServerConfig or any(\n"
-    decoy = b'''
+    decoy = b"""
 
 def _o003b_api_attachment_decoy() -> object:
     def _attach_api_server_state(httpd, config):
@@ -499,16 +477,18 @@ def _o003b_api_attachment_decoy() -> object:
         ):
             refuse_current_local_operator_operation_v1("api_server_state_attachment")
     return _attach_api_server_state
-'''
+"""
     mutated = _mutate_subject(
         exact_snapshot,
         path,
-        lambda data: data.replace(
-            guard,
-            b"    httpd.compromised = True\n" + guard,
-            1,
-        )
-        + decoy,
+        lambda data: (
+            data.replace(
+                guard,
+                b"    httpd.compromised = True\n" + guard,
+                1,
+            )
+            + decoy
+        ),
     )
 
     assert _reject_code(mutated) == "API_AUTOTRADER_ATTACHMENT_GUARD"
@@ -519,22 +499,24 @@ def test_lifecycle_guard_rejects_nested_safe_decoy_after_unsafe_real_function(
 ) -> None:
     path = "tools/zenoctl_testnet_local/lifecycle.py"
     refusal = b'    return refuse_current_local_operator_operation_v1("seed_api_state")\n'
-    decoy = b'''
+    decoy = b"""
 
 def _o003b_lifecycle_decoy() -> object:
     def _seed_api_state():
         return refuse_current_local_operator_operation_v1("seed_api_state")
     return _seed_api_state
-'''
+"""
     mutated = _mutate_subject(
         exact_snapshot,
         path,
-        lambda data: data.replace(
-            refusal,
-            b"    engine.compromised = True\n" + refusal,
-            1,
-        )
-        + decoy,
+        lambda data: (
+            data.replace(
+                refusal,
+                b"    engine.compromised = True\n" + refusal,
+                1,
+            )
+            + decoy
+        ),
     )
 
     assert _reject_code(mutated) == "LIFECYCLE_DONOR_GUARD"
@@ -545,7 +527,7 @@ def test_direct_signer_guard_rejects_nested_safe_class_decoy_after_unsafe_real_m
 ) -> None:
     path = "src/integration/zenodex_local_signer.py"
     refusal = b"        raise RetiredTauTransactionSigningRouteError(\n"
-    decoy = b'''
+    decoy = b"""
 
 def _o003b_signer_class_decoy() -> object:
     class LocalSignerVault:
@@ -554,16 +536,18 @@ def _o003b_signer_class_decoy() -> object:
                 RETIRED_TAU_TRANSACTION_SIGNING_ROUTE_ERROR
             )
     return LocalSignerVault
-'''
+"""
     mutated = _mutate_subject(
         exact_snapshot,
         path,
-        lambda data: data.replace(
-            refusal,
-            b"        self.compromised = True\n" + refusal,
-            1,
-        )
-        + decoy,
+        lambda data: (
+            data.replace(
+                refusal,
+                b"        self.compromised = True\n" + refusal,
+                1,
+            )
+            + decoy
+        ),
     )
 
     assert _reject_code(mutated) == "LOCAL_SIGNER_RETIREMENT_GUARD"
@@ -806,7 +790,7 @@ def test_http_signer_guard_rejects_nested_safe_decoy_after_unsafe_real_method(
 ) -> None:
     path = "tools/zenodex_local_signer.py"
     guard = b'        if urlsplit(self.path).path == "/sign-tau-transaction-payload":\n'
-    decoy = b'''
+    decoy = b"""
 
 def _o003b_decoy_handler() -> object:
     def do_POST(self) -> None:
@@ -822,16 +806,18 @@ def _o003b_decoy_handler() -> object:
             )
             return
     return do_POST
-'''
+"""
     mutated = _mutate_subject(
         exact_snapshot,
         path,
-        lambda data: data.replace(
-            guard,
-            b"        self.server.vault\n" + guard,
-            1,
-        )
-        + decoy,
+        lambda data: (
+            data.replace(
+                guard,
+                b"        self.server.vault\n" + guard,
+                1,
+            )
+            + decoy
+        ),
     )
 
     assert _reject_code(mutated) == "LOCAL_SIGNER_RETIREMENT_GUARD"
@@ -841,11 +827,7 @@ def test_http_signer_guard_rejects_server_access_after_retired_response(
     exact_snapshot: SubjectSnapshotV3,
 ) -> None:
     path = "tools/zenodex_local_signer.py"
-    needle = (
-        b"            )\n"
-        b"            return\n"
-        b"        vault = self.server.vault"
-    )
+    needle = b"            )\n            return\n        vault = self.server.vault"
     mutated = _mutate_subject(
         exact_snapshot,
         path,
@@ -885,22 +867,24 @@ def test_cli_signer_guard_rejects_nested_safe_decoy_after_unsafe_real_function(
 ) -> None:
     path = "tools/zenodex_local_signer.py"
     refusal = b"    raise ValueError(RETIRED_TAU_TRANSACTION_SIGNING_ROUTE_ERROR)\n"
-    decoy = b'''
+    decoy = b"""
 
 def _o003b_decoy_cli() -> object:
     def cmd_sign_tau_transaction_payload(args: argparse.Namespace) -> int:
         raise ValueError(RETIRED_TAU_TRANSACTION_SIGNING_ROUTE_ERROR)
     return cmd_sign_tau_transaction_payload
-'''
+"""
     mutated = _mutate_subject(
         exact_snapshot,
         path,
-        lambda data: data.replace(
-            refusal,
-            b"    read_local_signer_vault(args.vault)\n" + refusal,
-            1,
-        )
-        + decoy,
+        lambda data: (
+            data.replace(
+                refusal,
+                b"    read_local_signer_vault(args.vault)\n" + refusal,
+                1,
+            )
+            + decoy
+        ),
     )
 
     assert _reject_code(mutated) == "LOCAL_SIGNER_RETIREMENT_GUARD"
@@ -951,8 +935,9 @@ def test_api_startup_guard_rejects_dead_condition_with_marker_decoy(
     mutated = _mutate_subject(
         exact_snapshot,
         path,
-        lambda data: data.replace(needle, replacement, 1)
-        + b"\n# if config.autotrader_live_enabled:\n",
+        lambda data: (
+            data.replace(needle, replacement, 1) + b"\n# if config.autotrader_live_enabled:\n"
+        ),
     )
 
     assert _reject_code(mutated) == "API_AUTOTRADER_STARTUP_REFUSAL"
@@ -972,9 +957,7 @@ def test_artifact_rejects_research_oracle_current_operation_contamination(
 
     with pytest.raises(ClosureRejectV3) as exc_info:
         check_artifact_v3(raw, exact_snapshot)
-    assert exc_info.value.code == (
-        "RESEARCH_ORACLE_REACHABLE_FROM_CURRENT_OPERATION"
-    )
+    assert exc_info.value.code == ("RESEARCH_ORACLE_REACHABLE_FROM_CURRENT_OPERATION")
 
 
 def test_artifact_rejects_missing_quarantine_witness(
@@ -1052,9 +1035,7 @@ def test_artifact_rejects_negative_dependency_occurrence_count(
     exact_snapshot: SubjectSnapshotV3,
 ) -> None:
     artifact = json.loads(build_artifact_v3(exact_snapshot))
-    artifact["dependency_projection"]["dependency_rows"][0][
-        "baseline_occurrences"
-    ] = -1
+    artifact["dependency_projection"]["dependency_rows"][0]["baseline_occurrences"] = -1
     raw = _artifact_with_root(artifact)
 
     with pytest.raises(ClosureRejectV3) as exc_info:
@@ -1108,9 +1089,7 @@ def test_stage_b_topology_accepts_exact_single_artifact_commit(
 
     assert observed_head == stage_b_commit
     assert observed_tree == (
-        _temp_git_output(tmp_path, "rev-parse", "HEAD^{tree}")
-        .decode("ascii")
-        .strip()
+        _temp_git_output(tmp_path, "rev-parse", "HEAD^{tree}").decode("ascii").strip()
     )
 
 
@@ -1291,8 +1270,7 @@ def test_stage_a_loader_accepts_unrelated_descendant_with_pins_unchanged(
     (
         b"from src.integration.tau_net_client import TauNetTcpClient\n",
         "import src.integration.tau_net_ｃlient as injected\n".encode("utf-8"),
-        b"# coding: unicode_escape\n"
-        b"import src.integration.tau_net_\\x63lient as injected\n",
+        b"# coding: unicode_escape\nimport src.integration.tau_net_\\x63lient as injected\n",
     ),
     ids=("plain", "nfkc-identifier", "encoding-cookie-escape"),
 )
@@ -1308,9 +1286,7 @@ def test_stage_a_loader_propagates_real_out_of_seed_bridge_import(
     source_path.write_bytes(source)
     _temp_git(tmp_path, "add", relative_path)
     _temp_git(tmp_path, "commit", "--quiet", "-m", "out-of-seed bridge import")
-    mutant_commit = (
-        _temp_git_output(tmp_path, "rev-parse", "HEAD").decode("ascii").strip()
-    )
+    mutant_commit = _temp_git_output(tmp_path, "rev-parse", "HEAD").decode("ascii").strip()
 
     snapshot = closure_builder.load_subject_snapshot_v3(
         tmp_path,
@@ -1612,11 +1588,7 @@ def test_builder_check_rejects_terminal_artifact_replacement(
 ) -> None:
     artifact_path = tmp_path / closure_builder.OUTPUT_PATH
     artifact_path.parent.mkdir(parents=True)
-    artifact_path.write_bytes(
-        canonical_json_bytes_v3(
-            {"evidence_subject": {"commit": "a" * 40}}
-        )
-    )
+    artifact_path.write_bytes(canonical_json_bytes_v3({"evidence_subject": {"commit": "a" * 40}}))
     snapshot = _empty_snapshot_for_head("1" * 40)
     snapshot = replace(
         snapshot,
@@ -1684,11 +1656,7 @@ def test_builder_check_rejects_terminal_live_input_change(
 ) -> None:
     artifact_path = tmp_path / closure_builder.OUTPUT_PATH
     artifact_path.parent.mkdir(parents=True)
-    artifact_path.write_bytes(
-        canonical_json_bytes_v3(
-            {"evidence_subject": {"commit": "a" * 40}}
-        )
-    )
+    artifact_path.write_bytes(canonical_json_bytes_v3({"evidence_subject": {"commit": "a" * 40}}))
     initial_snapshot = _empty_snapshot_for_head("1" * 40)
     initial_snapshot = replace(
         initial_snapshot,
@@ -1726,11 +1694,7 @@ def test_builder_check_rejects_terminal_repository_change(
 ) -> None:
     artifact_path = tmp_path / closure_builder.OUTPUT_PATH
     artifact_path.parent.mkdir(parents=True)
-    artifact_path.write_bytes(
-        canonical_json_bytes_v3(
-            {"evidence_subject": {"commit": "a" * 40}}
-        )
-    )
+    artifact_path.write_bytes(canonical_json_bytes_v3({"evidence_subject": {"commit": "a" * 40}}))
     snapshot = _empty_snapshot_for_head("1" * 40)
     snapshot = replace(
         snapshot,
@@ -1830,12 +1794,10 @@ def test_public_checker_accepts_quiescent_real_stage_pair() -> None:
     report = closure_checker.check_retired_tau_bridge_closure_v3(ROOT)
 
     assert report["ok"] is True
-    assert report["observed_head"] == _git_output("rev-parse", "HEAD").decode(
-        "ascii"
-    ).strip()
-    assert report["observed_tree"] == _git_output("rev-parse", "HEAD^{tree}").decode(
-        "ascii"
-    ).strip()
+    assert report["observed_head"] == _git_output("rev-parse", "HEAD").decode("ascii").strip()
+    assert (
+        report["observed_tree"] == _git_output("rev-parse", "HEAD^{tree}").decode("ascii").strip()
+    )
 
 
 @pytest.mark.parametrize(
@@ -1862,9 +1824,7 @@ def test_public_checker_rejects_real_post_semantic_worktree_mutation(
         ("git", "clone", "--quiet", "--shared", str(ROOT), str(clone)),  # noqa: S607
         check=True,
     )
-    expected_head = (
-        _temp_git_output(clone, "rev-parse", "HEAD").decode("ascii").strip()
-    )
+    expected_head = _temp_git_output(clone, "rev-parse", "HEAD").decode("ascii").strip()
     original_check = closure_checker.check_artifact_v3
     events: list[str] = []
 
@@ -1880,23 +1840,19 @@ def test_public_checker_rejects_real_post_semantic_worktree_mutation(
         elif case == "pinned-source":
             target = clone / "src/integration/api_server.py"
             target.write_bytes(
-                target.read_bytes()
-                + b"\nfrom src.integration import tau_testnet_dex_plugin\n"
+                target.read_bytes() + b"\nfrom src.integration import tau_testnet_dex_plugin\n"
             )
         elif case == "tracked-discovery":
             target = clone / "src/core/__init__.py"
             target.write_bytes(
-                target.read_bytes()
-                + b"\nfrom src.integration import tau_testnet_dex_plugin\n"
+                target.read_bytes() + b"\nfrom src.integration import tau_testnet_dex_plugin\n"
             )
         elif case == "tracked-byte-only":
             target = clone / "src/core/__init__.py"
             target.write_bytes(target.read_bytes() + b"\n# late byte drift\n")
         else:
             target = clone / "src/o003b_late_untracked_bridge.py"
-            target.write_bytes(
-                b"from src.integration.tau_net_client import TauNetTcpClient\n"
-            )
+            target.write_bytes(b"from src.integration.tau_net_client import TauNetTcpClient\n")
         events.append("worktree_mutation")
         return report
 
@@ -1908,10 +1864,7 @@ def test_public_checker_rejects_real_post_semantic_worktree_mutation(
     findings = cast(list[dict[str, object]], report["findings"])
     assert findings[0]["code"] == code
     assert events == ["semantic_acceptance", "worktree_mutation"]
-    assert (
-        _temp_git_output(clone, "rev-parse", "HEAD").decode("ascii").strip()
-        == expected_head
-    )
+    assert _temp_git_output(clone, "rev-parse", "HEAD").decode("ascii").strip() == expected_head
 
 
 def test_public_checker_propagates_new_bridge_import_from_real_stage_pair(
@@ -1933,17 +1886,11 @@ def test_public_checker_propagates_new_bridge_import_from_real_stage_pair(
     _temp_git(clone, "checkout", "--quiet", "--detach", evidence_commit)
     relative_source_path = "src/integration/o003b_out_of_seed_mutant.py"
     source_path = clone / relative_source_path
-    source_path.write_bytes(
-        b"from src.integration.tau_net_client import TauNetTcpClient\n"
-    )
+    source_path.write_bytes(b"from src.integration.tau_net_client import TauNetTcpClient\n")
     _temp_git(clone, "add", relative_source_path)
     _temp_git(clone, "commit", "--quiet", "-m", "mutant Stage A")
-    mutant_commit = (
-        _temp_git_output(clone, "rev-parse", "HEAD").decode("ascii").strip()
-    )
-    mutant_tree = (
-        _temp_git_output(clone, "rev-parse", "HEAD^{tree}").decode("ascii").strip()
-    )
+    mutant_commit = _temp_git_output(clone, "rev-parse", "HEAD").decode("ascii").strip()
+    mutant_tree = _temp_git_output(clone, "rev-parse", "HEAD^{tree}").decode("ascii").strip()
     artifact["evidence_subject"] = {
         "commit": mutant_commit,
         "tree": mutant_tree,
@@ -1959,9 +1906,7 @@ def test_public_checker_propagates_new_bridge_import_from_real_stage_pair(
 
     assert report["ok"] is False
     findings = cast(list[dict[str, object]], report["findings"])
-    assert findings[0]["code"] == (
-        "UNCLASSIFIED_RETIRED_TAU_BRIDGE_IMPORT"
-    )
+    assert findings[0]["code"] == ("UNCLASSIFIED_RETIRED_TAU_BRIDGE_IMPORT")
     assert report["production_authority"] == "NONE"
     assert report["release_authority"] == "NONE"
     assert report["settlement_authority"] == "NONE"

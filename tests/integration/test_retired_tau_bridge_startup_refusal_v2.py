@@ -262,7 +262,9 @@ def test_given_all_lifecycle_historical_donors_when_called_then_refuse_before_ef
             operation(**kwargs)
 
 
-def test_given_direct_asset_settlement_attachment_when_called_then_rejects_before_state_effects() -> None:
+def test_given_direct_asset_settlement_attachment_when_called_then_rejects_before_state_effects() -> (
+    None
+):
     from src.integration import api_server
 
     config = replace(
@@ -294,7 +296,9 @@ def test_given_direct_autotrader_attachment_when_called_then_rejects_before_stat
     assert vars(server) == {}
 
 
-def test_given_persisted_retired_asset_success_when_loading_then_execution_claim_is_rejected() -> None:
+def test_given_persisted_retired_asset_success_when_loading_then_execution_claim_is_rejected() -> (
+    None
+):
     from src.integration.confidential_sealed_bid_api import SealedBidBatch
 
     persisted = {
@@ -315,7 +319,9 @@ def test_given_persisted_retired_asset_success_when_loading_then_execution_claim
         SealedBidBatch.from_json(persisted)
 
 
-def test_given_retired_asset_settlement_request_then_callback_channel_is_absent_and_state_untouched() -> None:
+def test_given_retired_asset_settlement_request_then_callback_channel_is_absent_and_state_untouched() -> (
+    None
+):
     import inspect
 
     from src.integration.confidential_sealed_bid_api import (
@@ -346,8 +352,10 @@ def test_given_retired_asset_settlement_request_then_callback_channel_is_absent_
     assert events == []
 
 
-def test_given_retired_http_paths_when_requested_then_modules_stay_unloaded_and_routes_are_absent() -> None:
-    script = r'''
+def test_given_retired_http_paths_when_requested_then_modules_stay_unloaded_and_routes_are_absent() -> (
+    None
+):
+    script = r"""
 import http.client
 import json
 import sys
@@ -394,7 +402,7 @@ finally:
     httpd.shutdown()
     httpd.server_close()
     thread.join(timeout=2.0)
-'''
+"""
 
     result = subprocess.run(
         [sys.executable, "-B", "-c", script],
@@ -475,8 +483,18 @@ def test_given_retired_tau_state_selector_when_called_then_rejects_before_file_e
         ["python3", "tools/zeno_ledger_run_local.py", "--tau-app-state=retired.json"],
         ["sh", "-c", "python tools/zeno_ledger_run_local.py --tau-app-state retired.json"],
         ["python3", "-m", "tools.zeno_ledger_run_local", "--tau-chain-id", "retired-chain"],
-        ["python3", "tools/zeno_ledger_make_feature_lane.py", "--tau-chain-balances", "retired.json"],
-        ["python3", "tools/zeno_ledger_make_feature_lane.py", "--clock-policy-schedule", "retired.json"],
+        [
+            "python3",
+            "tools/zeno_ledger_make_feature_lane.py",
+            "--tau-chain-balances",
+            "retired.json",
+        ],
+        [
+            "python3",
+            "tools/zeno_ledger_make_feature_lane.py",
+            "--clock-policy-schedule",
+            "retired.json",
+        ],
     ),
 )
 def test_given_manifest_embeds_retired_tau_state_selector_then_no_command_or_report_runs(
@@ -578,7 +596,11 @@ def test_given_public_node_retired_tau_state_when_appending_then_rejects_before_
 
     def load_json(path: Path) -> dict[str, object]:
         if path.name == "manifest.json":
-            return {"sequencer_set_hash": "unused", "config_digest": "unused", "module_versions_digest": "unused"}
+            return {
+                "sequencer_set_hash": "unused",
+                "config_digest": "unused",
+                "module_versions_digest": "unused",
+            }
         return pre_state
 
     monkeypatch.setattr(node, "_load_json_object", load_json)
@@ -1039,11 +1061,7 @@ def test_given_peer_retired_stream_when_pulling_then_reject_precedes_header_and_
             return {"ok": True, "live": True, "state": {"latest_height": 1}}
         if url.endswith("/live/body/1"):
             events.append("body")
-            return {
-                "transactions": [
-                    {"tx_id": "retired-peer", "operations": {retired_stream: {}}}
-                ]
-            }
+            return {"transactions": [{"tx_id": "retired-peer", "operations": {retired_stream: {}}}]}
         events.append("header")
         return {}
 
@@ -1209,9 +1227,7 @@ def test_given_feature_lane_tau_companion_selector_then_rejects_before_paths(
     )
 
     assert result.returncode == 1
-    assert json.loads(result.stdout)["errors"] == [
-        "RETIRED_TAU_BRIDGE_COMPANION_SELECTOR"
-    ]
+    assert json.loads(result.stdout)["errors"] == ["RETIRED_TAU_BRIDGE_COMPANION_SELECTOR"]
     assert not (tmp_path / "unwritten-out").exists()
 
 
@@ -1255,9 +1271,7 @@ def test_given_local_block_tau_companion_selector_then_rejects_before_paths(
     )
 
     assert result.returncode == 1
-    assert json.loads(result.stdout)["errors"] == [
-        "RETIRED_TAU_BRIDGE_COMPANION_SELECTOR"
-    ]
+    assert json.loads(result.stdout)["errors"] == ["RETIRED_TAU_BRIDGE_COMPANION_SELECTOR"]
     assert not (tmp_path / "unwritten-out").exists()
 
 

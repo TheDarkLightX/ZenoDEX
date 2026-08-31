@@ -187,11 +187,7 @@ def _git_python_discovery_v3(
         entries.append((path, blob_sha, size))
     entries.sort()
     paths = tuple(path for path, _, _ in entries)
-    if (
-        not paths
-        or len(paths) > MAX_DISCOVERY_PATHS_V3
-        or len(set(paths)) != len(paths)
-    ):
+    if not paths or len(paths) > MAX_DISCOVERY_PATHS_V3 or len(set(paths)) != len(paths):
         raise ClosureRejectV3(
             "GIT_DISCOVERY_PATH_SET",
             commit,
@@ -254,9 +250,7 @@ def _worktree_python_discovery_v3(root: Path) -> PythonImportDiscoveryV3:
             sorted(
                 path
                 for path in (
-                    raw_path.decode("utf-8")
-                    for raw_path in raw_paths.split(b"\x00")
-                    if raw_path
+                    raw_path.decode("utf-8") for raw_path in raw_paths.split(b"\x00") if raw_path
                 )
                 if is_python_discovery_path_v3(path)
             )
@@ -267,11 +261,7 @@ def _worktree_python_discovery_v3(root: Path) -> PythonImportDiscoveryV3:
             "worktree",
             "path encoding",
         ) from exc
-    if (
-        not paths
-        or len(paths) > MAX_DISCOVERY_PATHS_V3
-        or len(set(paths)) != len(paths)
-    ):
+    if not paths or len(paths) > MAX_DISCOVERY_PATHS_V3 or len(set(paths)) != len(paths):
         raise ClosureRejectV3(
             "WORKTREE_DISCOVERY_PATH_SET",
             "worktree",
@@ -398,8 +388,7 @@ def load_subject_snapshot_v3(
         raise ClosureRejectV3("BASELINE_TREE", "Git", "fixed O-002 baseline tree drift")
 
     baseline_files = tuple(
-        _tree_source_file_v3(inert_root, BASELINE_COMMIT_V3, path)
-        for path in BASELINE_PIN_PATHS_V3
+        _tree_source_file_v3(inert_root, BASELINE_COMMIT_V3, path) for path in BASELINE_PIN_PATHS_V3
     )
     subject_files = tuple(
         _subject_source_file_v3(
@@ -454,9 +443,7 @@ def build_certificate_v3(
     *,
     evidence_commit: str | None = None,
 ) -> bytes:
-    return build_artifact_v3(
-        load_subject_snapshot_v3(root, evidence_commit=evidence_commit)
-    )
+    return build_artifact_v3(load_subject_snapshot_v3(root, evidence_commit=evidence_commit))
 
 
 def _artifact_evidence_commit(raw: bytes) -> str:

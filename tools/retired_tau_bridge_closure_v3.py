@@ -37,9 +37,7 @@ PLAN_ADMISSION_PAYLOAD_SHA256_V3: Final = (
     "fdc2d69fe530e0098d66f4a9d5d6297296cdf896b0fb97beb0f959ae054be86d"
 )
 CURRENT_TAU_PATH_V3: Final = "docs/research/ZENODEX_CURRENT_TAU_COMPATIBILITY_V1.json"
-CURRENT_TAU_SHA256_V3: Final = (
-    "ee3646ea867a0b41ad2a6f6bd8b9c7c7848e0ebd72f83b56c2b074d58ccf0ae7"
-)
+CURRENT_TAU_SHA256_V3: Final = "ee3646ea867a0b41ad2a6f6bd8b9c7c7848e0ebd72f83b56c2b074d58ccf0ae7"
 
 MAX_ARTIFACT_BYTES_V3: Final = 524_288
 MAX_SOURCE_BYTES_V3: Final = 2_097_152
@@ -152,7 +150,10 @@ CURRENT_PATH_OPERATIONS_V3: Final = (
 RESEARCH_PATH_OPERATIONS_V3: Final = (
     ("src/integration/autotrader_live.py", ("RESEARCH_AUTOTRADER_LIVE",)),
     ("src/integration/autotrader_live_api.py", ("RESEARCH_AUTOTRADER_LIVE_API",)),
-    ("src/integration/autotrader_live_release_certificate.py", ("RESEARCH_AUTOTRADER_RELEASE_CERTIFICATE",)),
+    (
+        "src/integration/autotrader_live_release_certificate.py",
+        ("RESEARCH_AUTOTRADER_RELEASE_CERTIFICATE",),
+    ),
     ("src/integration/autotrader_stage_certificate.py", ("RESEARCH_AUTOTRADER_STAGE_CERTIFICATE",)),
     ("src/integration/perps_wallet_api.py", ("RESEARCH_PERPS_WALLET_BRIDGE",)),
     ("src/integration/tau_testnet_dex_plugin.py", ("RESEARCH_TAU_APP_BRIDGE",)),
@@ -161,7 +162,10 @@ RESEARCH_PATH_OPERATIONS_V3: Final = (
     ("src/integration/zusd_monetary_wallet_api.py", ("RESEARCH_ZUSD_MONETARY_WALLET",)),
     ("src/integration/zusd_tau_token.py", ("RESEARCH_ZUSD_TAU_TOKEN",)),
     ("src/integration/zusd_tau_wallet_api.py", ("RESEARCH_ZUSD_TAU_WALLET",)),
-    ("src/kernels/python/strategy_submit_bundle_guard_v1_adapter.py", ("RESEARCH_AUTOTRADER_SUBMIT_BUNDLE",)),
+    (
+        "src/kernels/python/strategy_submit_bundle_guard_v1_adapter.py",
+        ("RESEARCH_AUTOTRADER_SUBMIT_BUNDLE",),
+    ),
     ("tools/autotrader_live.py", ("RESEARCH_AUTOTRADER_CLI",)),
     ("tools/chaos/run_chaos_experiments.py", ("RESEARCH_TAU_RPC_CHAOS",)),
     ("tools/dex_offline_swap_demo.py", ("RESEARCH_TAU_DEX_OFFLINE_DEMO",)),
@@ -202,13 +206,21 @@ _EXTRA_RESEARCH_OPERATION_IDS_V3: Final = (
 
 CURRENT_OPERATION_IDS_V3: Final = tuple(
     sorted(
-        {operation_id for _, operation_ids in CURRENT_PATH_OPERATIONS_V3 for operation_id in operation_ids}
+        {
+            operation_id
+            for _, operation_ids in CURRENT_PATH_OPERATIONS_V3
+            for operation_id in operation_ids
+        }
         | set(_EXTRA_CURRENT_OPERATION_IDS_V3)
     )
 )
 RESEARCH_OPERATION_IDS_V3: Final = tuple(
     sorted(
-        {operation_id for _, operation_ids in RESEARCH_PATH_OPERATIONS_V3 for operation_id in operation_ids}
+        {
+            operation_id
+            for _, operation_ids in RESEARCH_PATH_OPERATIONS_V3
+            for operation_id in operation_ids
+        }
         | set(_EXTRA_RESEARCH_OPERATION_IDS_V3)
     )
 )
@@ -244,7 +256,9 @@ _ROUTE_PIN_PATHS_V3: Final = (
     "tools/zenoctl_testnet_local/nginx.py",
     "tools/zenodex_local_signer.py",
 )
-BASELINE_PIN_PATHS_V3: Final = tuple(sorted(set(DIRECT_CONSUMER_PATHS_V3) | set(_ROUTE_PIN_PATHS_V3)))
+BASELINE_PIN_PATHS_V3: Final = tuple(
+    sorted(set(DIRECT_CONSUMER_PATHS_V3) | set(_ROUTE_PIN_PATHS_V3))
+)
 SUBJECT_PIN_PATHS_V3: Final = tuple(
     sorted(
         set(BASELINE_PIN_PATHS_V3)
@@ -297,7 +311,10 @@ _ROUTE_ENV_ALIASES_V3: Final = (
 )
 _LIFECYCLE_DONOR_PAIRS_V3: Final = (
     ("_seed_api_state", "_seed_api_state_historical_donor"),
-    ("_materialize_release_native_collateral", "_materialize_release_native_collateral_historical_donor"),
+    (
+        "_materialize_release_native_collateral",
+        "_materialize_release_native_collateral_historical_donor",
+    ),
     ("_run_release_flow_smoke", "_run_release_flow_smoke_historical_donor"),
     ("_run_cloudflare_quick_tunnel", "_run_cloudflare_quick_tunnel_historical_donor"),
     ("_zusd_transfer_payload", "_zusd_transfer_payload_historical_donor"),
@@ -398,7 +415,9 @@ def _git_blob_sha(data: bytes) -> str:
 
 
 def canonical_json_bytes_v3(value: object) -> bytes:
-    return (json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True) + "\n").encode("utf-8")
+    return (
+        json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True) + "\n"
+    ).encode("utf-8")
 
 
 def _decode_json_object(raw: bytes, path: str) -> dict[str, object]:
@@ -441,8 +460,13 @@ def is_python_discovery_path_v3(path: object) -> bool:
     return bool(parts) and all(part not in {"", ".", ".."} for part in parts)
 
 
-def _source_manifest(files: Mapping[str, SourceFileV3], paths: Sequence[str]) -> list[dict[str, object]]:
-    return [{"path": path, "sha256": _sha256(files[path].data), "size": len(files[path].data)} for path in paths]
+def _source_manifest(
+    files: Mapping[str, SourceFileV3], paths: Sequence[str]
+) -> list[dict[str, object]]:
+    return [
+        {"path": path, "sha256": _sha256(files[path].data), "size": len(files[path].data)}
+        for path in paths
+    ]
 
 
 def _manifest_root(rows: object) -> str:
@@ -480,7 +504,9 @@ def _validate_source_snapshot(
     return result
 
 
-def _snapshot_sources(snapshot: SubjectSnapshotV3) -> tuple[dict[str, SourceFileV3], dict[str, SourceFileV3]]:
+def _snapshot_sources(
+    snapshot: SubjectSnapshotV3,
+) -> tuple[dict[str, SourceFileV3], dict[str, SourceFileV3]]:
     if type(snapshot) is not SubjectSnapshotV3:
         _reject("SNAPSHOT_TYPE", "snapshot", "requires exact SubjectSnapshotV3")
     if snapshot.captured_head != snapshot.rechecked_head:
@@ -499,8 +525,12 @@ def _snapshot_sources(snapshot: SubjectSnapshotV3) -> tuple[dict[str, SourceFile
         _reject("ANCESTRY_TYPE", "Git", "subject ancestry result must be an exact bool")
     if not snapshot.subject_is_current_ancestor:
         _reject("SUBJECT_ANCESTRY", "Git", "evidence subject is off current lineage")
-    baseline = _validate_source_snapshot(snapshot.baseline, expected_paths=BASELINE_PIN_PATHS_V3, role="baseline")
-    subject = _validate_source_snapshot(snapshot.subject, expected_paths=SUBJECT_PIN_PATHS_V3, role="subject")
+    baseline = _validate_source_snapshot(
+        snapshot.baseline, expected_paths=BASELINE_PIN_PATHS_V3, role="baseline"
+    )
+    subject = _validate_source_snapshot(
+        snapshot.subject, expected_paths=SUBJECT_PIN_PATHS_V3, role="subject"
+    )
     return baseline, subject
 
 
@@ -563,9 +593,7 @@ def _validate_discovery_snapshot(
     for path in paths:
         if not is_python_discovery_path_v3(path):
             _reject("DISCOVERY_PATH", str(path), "outside ordinary Python scope")
-    if type(edges) is not tuple or any(
-        type(edge) is not ImportEdgeV3 for edge in edges
-    ):
+    if type(edges) is not tuple or any(type(edge) is not ImportEdgeV3 for edge in edges):
         _reject("DISCOVERY_EDGE_TYPE", role, "requires exact ImportEdgeV3 rows")
     if type(source_root_sha256) is not str or _SHA256_RE.fullmatch(source_root_sha256) is None:
         _reject("DISCOVERY_SOURCE_ROOT", role, "requires one lowercase SHA-256 digest")
@@ -607,8 +635,7 @@ def _snapshot_discoveries(
     )
     if (
         len(baseline.paths) != BASELINE_DISCOVERY_PATH_COUNT_V3
-        or _path_set_sha256(baseline.paths)
-        != BASELINE_DISCOVERY_PATH_SET_SHA256_V3
+        or _path_set_sha256(baseline.paths) != BASELINE_DISCOVERY_PATH_SET_SHA256_V3
     ):
         _reject(
             "BASELINE_DISCOVERY_PATH_SET",
@@ -731,9 +758,7 @@ def discover_bridge_imports_v3(
         total_bytes += len(raw)
         if total_bytes > MAX_DISCOVERY_TOTAL_BYTES_V3:
             _reject("DISCOVERY_TOTAL_BYTES", "Python discovery", str(total_bytes))
-        source_rows.append(
-            {"path": path, "sha256": _sha256(raw), "size": len(raw)}
-        )
+        source_rows.append({"path": path, "sha256": _sha256(raw), "size": len(raw)})
         visitor = _ImportVisitorV3(path)
         visitor.visit(_parse_python(source, path))
         rows.extend(visitor.rows)
@@ -749,20 +774,13 @@ def _first_counter_extra(
     reference: Counter[ImportEdgeV3],
 ) -> ImportEdgeV3 | None:
     return next(
-        (
-            edge
-            for edge in sorted(candidate)
-            if candidate[edge] > reference[edge]
-        ),
+        (edge for edge in sorted(candidate) if candidate[edge] > reference[edge]),
         None,
     )
 
 
 def _edge_reject_detail(edge: ImportEdgeV3) -> str:
-    return (
-        f"{edge.scope}:{edge.dependency_kind}:"
-        f"{edge.target()}:{edge.bound_name}"
-    )
+    return f"{edge.scope}:{edge.dependency_kind}:{edge.target()}:{edge.bound_name}"
 
 
 def _require_discovery_closure(
@@ -796,9 +814,7 @@ def _require_discovery_closure(
             edge.source_path,
             _edge_reject_detail(edge),
         )
-    baseline_consumers = tuple(
-        sorted({edge.source_path for edge in baseline_discovery.edges})
-    )
+    baseline_consumers = tuple(sorted({edge.source_path for edge in baseline_discovery.edges}))
     if baseline_consumers != DIRECT_CONSUMER_PATHS_V3:
         _reject(
             "BASELINE_DISCOVERY_CONSUMER_SET",
@@ -852,9 +868,7 @@ def _require_discovery_closure(
         "baseline_discovered_consumer_count": len(baseline_consumers),
         "baseline_discovered_edge_count": len(baseline_discovery.edges),
         "baseline_python_path_count": len(baseline_discovery.paths),
-        "baseline_python_path_set_sha256": _path_set_sha256(
-            baseline_discovery.paths
-        ),
+        "baseline_python_path_set_sha256": _path_set_sha256(baseline_discovery.paths),
         "python_discovery_scope": (
             "GIT_TREE_BASELINE_AND_SUBJECT_PLUS_CURRENT_INDEX_OR_UNTRACKED_"
             "NONIGNORED_NONTEST_NONGENERATED_STATIC_PYTHON_IMPORTS"
@@ -864,9 +878,7 @@ def _require_discovery_closure(
         ),
         "subject_discovered_edge_count": len(subject_discovery.edges),
         "subject_python_path_count": len(subject_discovery.paths),
-        "subject_python_path_set_sha256": _path_set_sha256(
-            subject_discovery.paths
-        ),
+        "subject_python_path_set_sha256": _path_set_sha256(subject_discovery.paths),
     }
 
 
@@ -881,18 +893,13 @@ def _unique_top_level_function(
     matches = [
         node
         for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == name
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name
     ]
     return matches[0] if len(matches) == 1 else None
 
 
 def _unique_top_level_class(tree: ast.Module, name: str) -> ast.ClassDef | None:
-    matches = [
-        node
-        for node in tree.body
-        if isinstance(node, ast.ClassDef) and node.name == name
-    ]
+    matches = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == name]
     return matches[0] if len(matches) == 1 else None
 
 
@@ -903,8 +910,7 @@ def _unique_direct_method(
     matches = [
         node
         for node in class_node.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == name
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name
     ]
     return matches[0] if len(matches) == 1 else None
 
@@ -922,9 +928,7 @@ def _target_rewrites_binding(target: ast.AST, protected: frozenset[str]) -> bool
     if isinstance(target, ast.Attribute):
         return _binding_root_name(target) in protected
     if isinstance(target, (ast.List, ast.Tuple)):
-        return any(
-            _target_rewrites_binding(item, protected) for item in target.elts
-        )
+        return any(_target_rewrites_binding(item, protected) for item in target.elts)
     if isinstance(target, ast.Starred):
         return _target_rewrites_binding(target.value, protected)
     return False
@@ -957,19 +961,13 @@ def _require_no_binding_rewrites(
         elif isinstance(node, ast.ExceptHandler) and node.name in protected:
             _reject(code, path, f"protected binding rewrite: {node.name}")
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            bound = {
-                alias.asname or alias.name.split(".", maxsplit=1)[0]
-                for alias in node.names
-            }
+            bound = {alias.asname or alias.name.split(".", maxsplit=1)[0] for alias in node.names}
             overlap = sorted(bound & protected)
             if overlap:
                 _reject(code, path, f"protected import binding: {overlap[0]}")
         if any(_target_rewrites_binding(target, protected) for target in targets):
             _reject(code, path, "protected binding assignment or deletion")
-        if (
-            assigned_value is not None
-            and _binding_root_name(assigned_value) in protected
-        ):
+        if assigned_value is not None and _binding_root_name(assigned_value) in protected:
             _reject(code, path, "protected binding alias")
         if not isinstance(node, ast.Call) or not node.args:
             continue
@@ -982,9 +980,7 @@ def _require_no_binding_rewrites(
             _reject(code, path, f"dynamic binding mutator: {mutator}")
         if mutator in {"setattr", "delattr", "__setattr__", "__delattr__"}:
             referenced_names = {
-                child.id
-                for child in ast.walk(node.args[0])
-                if isinstance(child, ast.Name)
+                child.id for child in ast.walk(node.args[0]) if isinstance(child, ast.Name)
             }
             if referenced_names & protected:
                 _reject(code, path, f"protected binding mutator: {mutator}")
@@ -993,9 +989,15 @@ def _require_no_binding_rewrites(
 def _literal_assignment(tree: ast.Module, name: str, path: str) -> object:
     values: list[ast.expr] = []
     for node in tree.body:
-        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == name for target in node.targets
+        ):
             values.append(node.value)
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == name:
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == name
+        ):
             if node.value is None:
                 _reject("ASSIGNMENT_LITERAL", path, f"{name}:missing value")
             values.append(node.value)
@@ -1049,7 +1051,12 @@ def _require_markers(
 
 def _first_executable_statement(node: ast.FunctionDef | ast.AsyncFunctionDef) -> ast.stmt | None:
     body = list(node.body)
-    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and type(body[0].value.value) is str:
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and type(body[0].value.value) is str
+    ):
         body.pop(0)
     return body[0] if body else None
 
@@ -1105,7 +1112,9 @@ def _is_exact_call_statement(
 def _operation_maps() -> tuple[dict[str, tuple[str, ...]], dict[str, tuple[str, ...]]]:
     current: dict[str, tuple[str, ...]] = dict(CURRENT_PATH_OPERATIONS_V3)
     research: dict[str, tuple[str, ...]] = dict(RESEARCH_PATH_OPERATIONS_V3)
-    if len(current) != len(CURRENT_PATH_OPERATIONS_V3) or len(research) != len(RESEARCH_PATH_OPERATIONS_V3):
+    if len(current) != len(CURRENT_PATH_OPERATIONS_V3) or len(research) != len(
+        RESEARCH_PATH_OPERATIONS_V3
+    ):
         _reject("OPERATION_REGISTRY_DUPLICATE", "operation registry", "duplicate path")
     if set(current) & set(research):
         _reject("ORACLE_AUTHORITY", "operation registry", "path appears in both lanes")
@@ -1130,9 +1139,7 @@ def _require_plan_and_current_tau(source: Mapping[str, bytes]) -> None:
     if type(obligations) is not list or type(gaps) is not list or type(gates) is not list:
         _reject("PLAN_SHAPE", PLAN_PATH_V3, "required registries missing")
     rows = [
-        row
-        for row in obligations
-        if type(row) is dict and row.get("obligation_id") == "O-003B"
+        row for row in obligations if type(row) is dict and row.get("obligation_id") == "O-003B"
     ]
     expected_evidence = [
         "operation-derived dependency rows",
@@ -1217,11 +1224,25 @@ def _require_route_witnesses(
     current = {path: item.data for path, item in subject.items()}
     quarantine_path = "src/integration/local_route_quarantine.py"
     quarantine_tree = _parse_python(current, quarantine_path)
-    if _string_collection_assignment(quarantine_tree, "QUARANTINED_ROUTE_ENVIRONMENT_V1", quarantine_path) != _PRIMARY_ROUTE_ENV_V3:
+    if (
+        _string_collection_assignment(
+            quarantine_tree, "QUARANTINED_ROUTE_ENVIRONMENT_V1", quarantine_path
+        )
+        != _PRIMARY_ROUTE_ENV_V3
+    ):
         _reject("ROUTE_ENVIRONMENT", quarantine_path, "primary route registry drift")
-    if _string_collection_assignment(quarantine_tree, "QUARANTINED_ROUTE_ENVIRONMENT_ALIASES_V1", quarantine_path) != _ROUTE_ENV_ALIASES_V3:
+    if (
+        _string_collection_assignment(
+            quarantine_tree, "QUARANTINED_ROUTE_ENVIRONMENT_ALIASES_V1", quarantine_path
+        )
+        != _ROUTE_ENV_ALIASES_V3
+    ):
         _reject("ROUTE_ALIASES", quarantine_path, "alias registry drift")
-    if frozenset(_string_collection_assignment(quarantine_tree, "QUARANTINED_ROUTE_ALLOWED_VALUES_V1", quarantine_path)) != frozenset({"false", "0"}):
+    if frozenset(
+        _string_collection_assignment(
+            quarantine_tree, "QUARANTINED_ROUTE_ALLOWED_VALUES_V1", quarantine_path
+        )
+    ) != frozenset({"false", "0"}):
         _reject("ROUTE_ALLOWED_VALUES", quarantine_path, "exact disabled encodings drift")
 
     _require_markers(
@@ -1248,9 +1269,7 @@ def _require_route_witnesses(
         names=("_attach_api_server_state", "_api_startup_refusal_lines"),
     )
     attach = _unique_top_level_function(api_tree, "_attach_api_server_state")
-    first_attach_statement = (
-        None if attach is None else _first_executable_statement(attach)
-    )
+    first_attach_statement = None if attach is None else _first_executable_statement(attach)
     expected_attach_test = _expected_if_test(
         "type(config) is not ApiServerConfig or any("
         "value is not False for value in ("
@@ -1260,8 +1279,7 @@ def _require_route_witnesses(
     )
     exact_attach_condition = bool(
         isinstance(first_attach_statement, ast.If)
-        and _ast_shape(first_attach_statement.test)
-        == _ast_shape(expected_attach_test)
+        and _ast_shape(first_attach_statement.test) == _ast_shape(expected_attach_test)
     )
     exact_attach_refusal = bool(
         isinstance(first_attach_statement, ast.If)
@@ -1307,11 +1325,7 @@ def _require_route_witnesses(
     for index, attribute, message_marker in expected_startup_branches:
         branch = startup_body[index] if len(startup_body) > index else None
         expected_test = _expected_if_test(f"config.{attribute}")
-        returned = (
-            branch.body[0]
-            if isinstance(branch, ast.If) and len(branch.body) == 1
-            else None
-        )
+        returned = branch.body[0] if isinstance(branch, ast.If) and len(branch.body) == 1 else None
         return_value = returned.value if isinstance(returned, ast.Return) else None
         returned_strings = (
             tuple(
@@ -1498,9 +1512,7 @@ def _require_route_witnesses(
             "def cmd_sign_tau_transaction_payload(args: argparse.Namespace) -> int:\n    pass\n"
         ).body[0],
     )
-    cli_first = (
-        None if cli_method is None else _first_executable_statement(cli_method)
-    )
+    cli_first = None if cli_method is None else _first_executable_statement(cli_method)
     cli_raise = cli_first.exc if isinstance(cli_first, ast.Raise) else None
     cli_callable_ok = bool(
         type(cli_method) is ast.FunctionDef
@@ -1540,11 +1552,7 @@ def _require_route_witnesses(
         and isinstance(handler_class.bases[0], ast.Name)
         and handler_class.bases[0].id == "BaseHTTPRequestHandler"
     )
-    post_method = (
-        None
-        if handler_class is None
-        else _unique_direct_method(handler_class, "do_POST")
-    )
+    post_method = None if handler_class is None else _unique_direct_method(handler_class, "do_POST")
     expected_post_method = cast(
         ast.FunctionDef,
         ast.parse("def do_POST(self) -> None:\n    pass\n").body[0],
@@ -1598,8 +1606,7 @@ def _require_route_witnesses(
     write_statement = retired_body[0] if retired_body else None
     write_call = (
         write_statement.value
-        if isinstance(write_statement, ast.Expr)
-        and isinstance(write_statement.value, ast.Call)
+        if isinstance(write_statement, ast.Expr) and isinstance(write_statement.value, ast.Call)
         else None
     )
     expected_payload = ast.parse(
@@ -1784,10 +1791,24 @@ def _import_dependency_rows(
         )
     baseline_root = _manifest_root(_edge_manifest(baseline_edges))
     current_root = _manifest_root(_edge_manifest(current_edges))
-    if len(baseline_edges) != EXPECTED_BASELINE_EDGE_COUNT_V3 or baseline_root != EXPECTED_BASELINE_EDGE_ROOT_V3:
-        _reject("BASELINE_EDGE_SET", "import projection", f"count={len(baseline_edges)} root={baseline_root}")
-    if len(current_edges) != EXPECTED_CURRENT_EDGE_COUNT_V3 or current_root != EXPECTED_CURRENT_EDGE_ROOT_V3:
-        _reject("CURRENT_EDGE_SET", "import projection", f"count={len(current_edges)} root={current_root}")
+    if (
+        len(baseline_edges) != EXPECTED_BASELINE_EDGE_COUNT_V3
+        or baseline_root != EXPECTED_BASELINE_EDGE_ROOT_V3
+    ):
+        _reject(
+            "BASELINE_EDGE_SET",
+            "import projection",
+            f"count={len(baseline_edges)} root={baseline_root}",
+        )
+    if (
+        len(current_edges) != EXPECTED_CURRENT_EDGE_COUNT_V3
+        or current_root != EXPECTED_CURRENT_EDGE_ROOT_V3
+    ):
+        _reject(
+            "CURRENT_EDGE_SET",
+            "import projection",
+            f"count={len(current_edges)} root={current_root}",
+        )
     unchanged = set(baseline_counts) & set(current_counts)
     removed = set(baseline_counts) - set(current_counts)
     if (
@@ -2188,18 +2209,78 @@ def _manual_dependency_rows(
     )
 
     oracle_specs = (
-        ("src/integration/tau_net_client.py", "TauNetTcpClient", "HISTORICAL_RPC_CLIENT", ("RESEARCH_TAU_RPC_CLIENT",)),
-        ("src/integration/tau_net_client.py", "build_signed_tau_transaction", "HISTORICAL_TRANSACTION_BUILDER", ("RESEARCH_HISTORICAL_TOOLING",)),
-        ("src/integration/tau_testnet_dex_plugin.py", "propose_app_tx_v1", "HISTORICAL_APP_BRIDGE", ("RESEARCH_TAU_APP_PLUGIN",)),
-        ("src/integration/tau_testnet_dex_plugin.py", "apply_app_tx", "HISTORICAL_APP_BRIDGE", ("RESEARCH_TAU_APP_PLUGIN",)),
-        ("src/integration/autotrader_live.py", "prepare_autotrader_live_quote_receipt", "HISTORICAL_AUTOTRADER", ("RESEARCH_AUTOTRADER_TAU",)),
-        ("src/integration/perps_wallet_api.py", "handle_perps_wallet_request", "HISTORICAL_WALLET_HANDLER", ("RESEARCH_PERPS_WALLET",)),
-        ("src/integration/zusd_tau_wallet_api.py", "handle_zusd_tau_wallet_request", "HISTORICAL_WALLET_HANDLER", ("RESEARCH_ZUSD_TAU_WALLET_ORACLE",)),
-        ("src/integration/zusd_monetary_wallet_api.py", "handle_zusd_monetary_wallet_request", "HISTORICAL_WALLET_HANDLER", ("RESEARCH_ZUSD_MONETARY_WALLET_ORACLE",)),
-        ("src/integration/zusd_tau_token.py", "prepare_zusd_tau_token_operation", "HISTORICAL_TOKEN_BRIDGE", ("RESEARCH_ZUSD_TOKEN_BRIDGE",)),
-        ("src/integration/zusd_tau_token.py", "derive_zusd_tau_asset_id", "HISTORICAL_TOKEN_BRIDGE", ("RESEARCH_ZUSD_TOKEN_BRIDGE",)),
-        ("src/integration/zusd_monetary_bridge.py", "init_monetary_state", "HISTORICAL_MONETARY_BRIDGE", ("RESEARCH_ZUSD_MONETARY_BRIDGE",)),
-        ("src/integration/zusd_monetary_bridge.py", "apply_zusd_monetary_ops", "HISTORICAL_MONETARY_BRIDGE", ("RESEARCH_ZUSD_MONETARY_BRIDGE",)),
+        (
+            "src/integration/tau_net_client.py",
+            "TauNetTcpClient",
+            "HISTORICAL_RPC_CLIENT",
+            ("RESEARCH_TAU_RPC_CLIENT",),
+        ),
+        (
+            "src/integration/tau_net_client.py",
+            "build_signed_tau_transaction",
+            "HISTORICAL_TRANSACTION_BUILDER",
+            ("RESEARCH_HISTORICAL_TOOLING",),
+        ),
+        (
+            "src/integration/tau_testnet_dex_plugin.py",
+            "propose_app_tx_v1",
+            "HISTORICAL_APP_BRIDGE",
+            ("RESEARCH_TAU_APP_PLUGIN",),
+        ),
+        (
+            "src/integration/tau_testnet_dex_plugin.py",
+            "apply_app_tx",
+            "HISTORICAL_APP_BRIDGE",
+            ("RESEARCH_TAU_APP_PLUGIN",),
+        ),
+        (
+            "src/integration/autotrader_live.py",
+            "prepare_autotrader_live_quote_receipt",
+            "HISTORICAL_AUTOTRADER",
+            ("RESEARCH_AUTOTRADER_TAU",),
+        ),
+        (
+            "src/integration/perps_wallet_api.py",
+            "handle_perps_wallet_request",
+            "HISTORICAL_WALLET_HANDLER",
+            ("RESEARCH_PERPS_WALLET",),
+        ),
+        (
+            "src/integration/zusd_tau_wallet_api.py",
+            "handle_zusd_tau_wallet_request",
+            "HISTORICAL_WALLET_HANDLER",
+            ("RESEARCH_ZUSD_TAU_WALLET_ORACLE",),
+        ),
+        (
+            "src/integration/zusd_monetary_wallet_api.py",
+            "handle_zusd_monetary_wallet_request",
+            "HISTORICAL_WALLET_HANDLER",
+            ("RESEARCH_ZUSD_MONETARY_WALLET_ORACLE",),
+        ),
+        (
+            "src/integration/zusd_tau_token.py",
+            "prepare_zusd_tau_token_operation",
+            "HISTORICAL_TOKEN_BRIDGE",
+            ("RESEARCH_ZUSD_TOKEN_BRIDGE",),
+        ),
+        (
+            "src/integration/zusd_tau_token.py",
+            "derive_zusd_tau_asset_id",
+            "HISTORICAL_TOKEN_BRIDGE",
+            ("RESEARCH_ZUSD_TOKEN_BRIDGE",),
+        ),
+        (
+            "src/integration/zusd_monetary_bridge.py",
+            "init_monetary_state",
+            "HISTORICAL_MONETARY_BRIDGE",
+            ("RESEARCH_ZUSD_MONETARY_BRIDGE",),
+        ),
+        (
+            "src/integration/zusd_monetary_bridge.py",
+            "apply_zusd_monetary_ops",
+            "HISTORICAL_MONETARY_BRIDGE",
+            ("RESEARCH_ZUSD_MONETARY_BRIDGE",),
+        ),
     )
     current_source = {path: item.data for path, item in subject.items()}
     for path, symbol, kind, research_ids in oracle_specs:
@@ -2343,9 +2424,7 @@ def _operation_registry(rows: Sequence[dict[str, object]]) -> list[dict[str, obj
                     str(evidence_id)
                     for row in rows
                     if operation_id in _row_string_list(row, field)
-                    for evidence_id in _row_string_list(
-                        row, "quarantine_evidence_ids"
-                    )
+                    for evidence_id in _row_string_list(row, "quarantine_evidence_ids")
                 }
             )
             result.append(
@@ -2368,17 +2447,13 @@ def derive_closure_v3(
     dict[str, object],
 ]:
     baseline, subject = _snapshot_sources(snapshot)
-    baseline_discovery, subject_discovery, current_discovery = (
-        _snapshot_discoveries(snapshot)
-    )
+    baseline_discovery, subject_discovery, current_discovery = _snapshot_discoveries(snapshot)
     if _path_set_sha256(DIRECT_CONSUMER_PATHS_V3) != DIRECT_CONSUMER_PATH_SET_SHA256_V3:
         _reject("SOURCE_SCOPE", "direct consumers", "fixed path-set digest drift")
     current_source = {path: item.data for path, item in subject.items()}
     _require_plan_and_current_tau(current_source)
     _require_route_witnesses(baseline, subject)
-    current_route_source_root = _manifest_root(
-        _source_manifest(subject, _ROUTE_PIN_PATHS_V3)
-    )
+    current_route_source_root = _manifest_root(_source_manifest(subject, _ROUTE_PIN_PATHS_V3))
     if current_route_source_root != EXPECTED_CURRENT_ROUTE_SOURCE_ROOT_V3:
         _reject(
             "CURRENT_ROUTE_SOURCE_SET",
@@ -2389,16 +2464,10 @@ def derive_closure_v3(
     import_rows, projection = _import_dependency_rows(baseline, subject)
     discovery_projection = _require_discovery_closure(
         baseline_direct=scan_bridge_import_edges_v3(
-            {
-                path: baseline[path].data
-                for path in DIRECT_CONSUMER_PATHS_V3
-            }
+            {path: baseline[path].data for path in DIRECT_CONSUMER_PATHS_V3}
         ),
         subject_direct=scan_bridge_import_edges_v3(
-            {
-                path: subject[path].data
-                for path in DIRECT_CONSUMER_PATHS_V3
-            }
+            {path: subject[path].data for path in DIRECT_CONSUMER_PATHS_V3}
         ),
         baseline_discovery=baseline_discovery,
         subject_discovery=subject_discovery,
@@ -2416,9 +2485,7 @@ def derive_closure_v3(
     rows.sort(key=lambda row: str(row["dependency_id"]))
     _validate_dependency_rows(rows)
     import_counts = {
-        classification: sum(
-            row["classification"] == classification for row in import_rows
-        )
+        classification: sum(row["classification"] == classification for row in import_rows)
         for classification in _CLASSIFICATIONS_V3
     }
     if import_counts != {"QUARANTINED": 0, "RESEARCH_ORACLE": 92, "REMOVED": 36}:
@@ -2429,9 +2496,7 @@ def derive_closure_v3(
                 cast(int, row["size"]) for row in baseline_direct_manifest
             ),
             "baseline_source_root_sha256": baseline_source_root,
-            "current_source_bytes": sum(
-                cast(int, row["size"]) for row in current_direct_manifest
-            ),
+            "current_source_bytes": sum(cast(int, row["size"]) for row in current_direct_manifest),
             "current_source_root_sha256": current_source_root,
             "current_route_source_root_sha256": current_route_source_root,
             "direct_consumer_path_count": len(DIRECT_CONSUMER_PATHS_V3),
@@ -2512,12 +2577,10 @@ def build_artifact_v3(snapshot: SubjectSnapshotV3) -> bytes:
         "source_projection": projection,
         "source_snapshot_pins": {
             "baseline": [
-                {"path": path, **_source_pin(baseline[path])}
-                for path in BASELINE_PIN_PATHS_V3
+                {"path": path, **_source_pin(baseline[path])} for path in BASELINE_PIN_PATHS_V3
             ],
             "subject": [
-                {"path": path, **_source_pin(subject[path])}
-                for path in SUBJECT_PIN_PATHS_V3
+                {"path": path, **_source_pin(subject[path])} for path in SUBJECT_PIN_PATHS_V3
             ],
         },
         "startup_refusal_evidence": {
@@ -2579,7 +2642,9 @@ def _validate_artifact_semantics(artifact: dict[str, object]) -> None:
     registry = artifact.get("operation_registry")
     if type(registry) is not dict:
         _reject("OPERATION_REGISTRY_SHAPE", "operation_registry", "missing exact object")
-    if registry.get("current_operation_ids") != list(CURRENT_OPERATION_IDS_V3) or registry.get("research_operation_ids") != list(RESEARCH_OPERATION_IDS_V3):
+    if registry.get("current_operation_ids") != list(CURRENT_OPERATION_IDS_V3) or registry.get(
+        "research_operation_ids"
+    ) != list(RESEARCH_OPERATION_IDS_V3):
         _reject("OPERATION_REGISTRY_DRIFT", "operation_registry", "closed operation ids drift")
     projection = artifact.get("dependency_projection")
     if type(projection) is not dict or type(projection.get("dependency_rows")) is not list:
@@ -2593,7 +2658,9 @@ def _validate_artifact_semantics(artifact: dict[str, object]) -> None:
         classification: sum(row.get("classification") == classification for row in typed_rows)
         for classification in _CLASSIFICATIONS_V3
     }
-    if projection.get("classification_counts") != counts or projection.get("dependency_count") != len(typed_rows):
+    if projection.get("classification_counts") != counts or projection.get(
+        "dependency_count"
+    ) != len(typed_rows):
         _reject("CLASSIFICATION_COUNT", "dependency_projection", "count replay drift")
     expected_registry = _operation_registry(typed_rows)
     if registry.get("operation_rows") != expected_registry:

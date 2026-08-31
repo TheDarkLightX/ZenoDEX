@@ -157,10 +157,7 @@ def check_retired_tau_bridge_closure_v3(
             inert_root,
             evidence_commit=evidence_commit,
         )
-        if (
-            snapshot.captured_head != observed_head
-            or snapshot.rechecked_head != observed_head
-        ):
+        if snapshot.captured_head != observed_head or snapshot.rechecked_head != observed_head:
             raise ClosureRejectV3(
                 "HEAD_CHANGED",
                 observed_head,
