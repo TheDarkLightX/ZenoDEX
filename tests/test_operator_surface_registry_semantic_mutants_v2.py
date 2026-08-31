@@ -115,3 +115,21 @@ def test_source_manifest_and_canonicalization_mutants_are_rejected() -> None:
     assert encoded == registry.canonical_json_bytes_v2(
         registry.decode_json_object_v2(encoded, "registry")
     )
+
+
+def test_projection_and_nonclaim_mutants_are_rejected() -> None:
+    mutant = deepcopy(_registry())
+    projections = mutant["source_projections"]
+    assert type(projections) is dict
+    navigation = projections["app_navigation"]
+    assert type(navigation) is dict
+    render_ids = navigation["render_ids"]
+    assert type(render_ids) is list
+    render_ids.pop()
+    _reject_artifact(mutant, "SOURCE_PROJECTION_SHAPE")
+
+    mutant = deepcopy(_registry())
+    nonclaims = mutant["nonclaims"]
+    assert type(nonclaims) is list
+    nonclaims.append("This mutation attempts to broaden the claim.")
+    _reject_artifact(mutant, "NONCLAIM_SHAPE")

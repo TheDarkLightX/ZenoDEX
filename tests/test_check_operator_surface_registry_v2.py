@@ -210,3 +210,55 @@ def test_all_evidence_references_bind_one_top_level_python_test(tmp_path: Path) 
             {"test_evidence.py": path.read_bytes()},
         )
     assert captured.value.code == "EVIDENCE_AST_NODE"
+
+
+def test_checker_rejects_non_artifact_stage_b_changes_and_index_suppression(
+    tmp_path: Path,
+) -> None:
+    repo = _subject_repo(tmp_path)
+    payload = registry.build_registry_bytes_v2(repo)
+    artifact = repo / registry.ARTIFACT_RELATIVE_PATH_V2
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    artifact.write_bytes(payload)
+    (repo / "extra.txt").write_text("not artifact-only\n", encoding="utf-8")
+    _commit(repo, "invalid stage-b topology")
+
+    report = check_operator_surface_registry_v2(repo)
+    assert report["ok"] is False
+    assert _finding_code(report) == "ARTIFACT_TOPOLOGY"
+
+    valid_parent = tmp_path / "valid"
+    valid_parent.mkdir()
+    valid_repo, _payload, _stage_a = _stage_b_repo(valid_parent)
+    _git(
+        valid_repo,
+        "update-index",
+        "--assume-unchanged",
+        "tools/dex-ui/public/zenodex-config.json",
+    )
+    report = check_operator_surface_registry_v2(valid_repo)
+    assert report["ok"] is False
+    assert _finding_code(report) == "INDEX_SUPPRESSION"
+
+
+def test_builder_and_checker_reject_non_regular_committed_or_checkout_sources(
+    tmp_path: Path,
+) -> None:
+    repo = _subject_repo(tmp_path)
+    config = repo / "tools/dex-ui/public/zenodex-config.json"
+    config.unlink()
+    config.symlink_to("../../../dex-ui/src/App.jsx")
+    _commit(repo, "replace source with symlink")
+    with pytest.raises(registry.OperatorSurfaceRegistryRejectV2) as captured:
+        registry.build_registry_artifact_v2(repo)
+    assert captured.value.code == "GIT_SOURCE_MODE"
+
+    valid_parent = tmp_path / "valid"
+    valid_parent.mkdir()
+    valid_repo, _payload, _stage_a = _stage_b_repo(valid_parent)
+    artifact = valid_repo / registry.ARTIFACT_RELATIVE_PATH_V2
+    artifact.unlink()
+    artifact.symlink_to("../ZENODEX_WHOLE_PROGRAM_PLAN_V2.json")
+    report = check_operator_surface_registry_v2(valid_repo)
+    assert report["ok"] is False
+    assert _finding_code(report) == "ARTIFACT_WORKTREE_TYPE"
