@@ -29,8 +29,11 @@ meta:
     open_claim and drain_claim model only an accepted exact relation update.
     Their Boolean parameters are adversarial abstract premises. They represent
     facts established by an opaque verifier; a caller-provided true Boolean
-    would not be authority. The journal makes every accepted transition imply
-    all four bindings. The state equations make cross-domain, claimant, and
+    would not be authority. The journal makes every accepted claimant
+    transition (open_claim, drain_claim) imply all four bindings;
+    deposit_reserve accepts without bindings because it reads and writes no
+    claimant, custody, or terminal coordinate. The state equations make
+    cross-domain, claimant, and
     terminal-domain mutations falsifiable. Reserve masking is exercised by a
     separate executable runtime counterexample family.
 

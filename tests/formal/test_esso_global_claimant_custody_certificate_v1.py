@@ -46,8 +46,8 @@ from src.core.perps_margin_types_v1 import (
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = ROOT / "src" / "kernels" / "dex" / "global_claimant_custody_certificate_v1.yaml"
 
-RECORDED_SOURCE_SHA256 = "e3c841e25db8051c1fe1903cc441db5b2f378f87d997d5d31c528dba3ced39f9"
-RECORDED_IR_HASH = "sha256:08fce65c258f145667cdf0df33e1c8464d6ca24f572fd39e4c21bf25778f9158"
+RECORDED_SOURCE_SHA256 = "d7b547e32790828c149fb0e3bdd6b32e11a235bbb67b6cf02eaaff4db2681252"
+RECORDED_IR_HASH = "sha256:918526261e71b37c7bf6af05a73a836c72fba86e008258e525b4970fcb75f04c"
 RECORDED_FINGERPRINT = "256b0dcbb7c25c9581d6b16db8f2a5b44512d18c9cadf420477d6c63e38dfc86"
 RECORDED_ESSO_CODE_HASH = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
 
@@ -219,6 +219,7 @@ def test_model_source_scope_and_claim_ceiling_are_exact() -> None:
         "reserve can never stand in for missing custody",
         "Exact reserve reconciliation remains open",
         "caller-provided true Boolean would not be authority",
+        "deposit_reserve accepts without bindings",
         "does not prove current V1 runtime refinement",
         "settlement authority",
         "ABI extension remains required",

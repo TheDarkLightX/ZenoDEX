@@ -517,14 +517,15 @@ CONTAINER_DESERIALIZERS_V1: Final[dict[str, str]] = {
 BOUNDED_VEC_MACRO_NAME_V1: Final = "bounded_state_vec_deserializer_v1"
 # Whitespace-normalised body of the local macro that produces every container deserialiser.
 BOUNDED_VEC_MACRO_BODY_V1: Final = "($function:ident, $row:ty, $maximum:expr, $label:literal) => { fn $function<'de, D>(deserializer: D) -> Result<Vec<$row>, D::Error> where D: Deserializer<'de>, { deserialize_bounded_vec_v1::<D, $row, $maximum>(deserializer, $label) } };"
-# Whitespace-normalised fragments of bounded_vec.rs that fix the decoding path: the visitor
-# decodes every element through `T: Deserialize` (the record's derive) and nothing else.
-BOUNDED_VEC_REQUIRED_FRAGMENTS_V1: Final[tuple[str, ...]] = (
-    "pub(crate) fn deserialize_bounded_vec_v1<'de, D, T, const MAXIMUM: usize>( deserializer: D, label: &'static str, ) -> Result<Vec<T>, D::Error> where D: Deserializer<'de>, T: Deserialize<'de>, { deserializer.deserialize_seq(BoundedVecVisitorV1::<T, MAXIMUM> { label, marker: PhantomData, }) }",
-    "impl<'de, T, const MAXIMUM: usize> Visitor<'de> for BoundedVecVisitorV1<T, MAXIMUM> where T: Deserialize<'de>, { type Value = Vec<T>;",
-    'match sequence.next_element()? { Some(value) => values.push(value), None => return Ok(values), }',
-)
-# Closed content of the two compiled/imported projection gates.
+# Whitespace-normalised library portion of bounded_vec.rs (the cfg(test) module excluded):
+# the only decoding path for a container is this visitor, which decodes every element
+# through `T: Deserialize` (the record's derive) and nothing else.
+BOUNDED_VEC_LIBRARY_TEMPLATE_V1: Final = "use std::{fmt, marker::PhantomData}; use serde::de::{Error, IgnoredAny, SeqAccess, Visitor}; use serde::{Deserialize, Deserializer}; pub(crate) fn deserialize_bounded_vec_v1<'de, D, T, const MAXIMUM: usize>( deserializer: D, label: &'static str, ) -> Result<Vec<T>, D::Error> where D: Deserializer<'de>, T: Deserialize<'de>, { deserializer.deserialize_seq(BoundedVecVisitorV1::<T, MAXIMUM> { label, marker: PhantomData, }) } struct BoundedVecVisitorV1<T, const MAXIMUM: usize> { label: &'static str, marker: PhantomData<T>, } impl<'de, T, const MAXIMUM: usize> Visitor<'de> for BoundedVecVisitorV1<T, MAXIMUM> where T: Deserialize<'de>, { type Value = Vec<T>; fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result { write!(formatter, , self.label) } fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error> where A: SeqAccess<'de>, { if sequence.size_hint().is_some_and(|size| size > MAXIMUM) { return Err(A::Error::custom(format_args!( , self.label ))); } let mut values = Vec::with_capacity(sequence.size_hint().unwrap_or(0).min(MAXIMUM)); while values.len() < MAXIMUM { match sequence.next_element()? { Some(value) => values.push(value), None => return Ok(values), } } if sequence.next_element::<IgnoredAny>()?.is_some() { return Err(A::Error::custom(format_args!( , self.label ))); } Ok(values) } }"
+# Closed content of the two compiled/imported projection gates: normalised-content hashes
+# (Rust: comment/string-stripped, whitespace-collapsed source; Python: ast.dump of the module)
+# plus the named tests and tables, so a gate cannot keep its names and lose its assertions.
+RUST_GATE_NORMALIZED_SHA256_V1: Final = "8afc35b744fc9e9f84f51a8fbdcf6b245701bd09388585ea17cee40946ceac1b"
+PYTHON_GATE_AST_SHA256_V1: Final = "c84dbf97e4bd3021ec46bb6557b5b71d93e1eebe848959b9278926a05fe1fad6"
 # The only file the compiled gate may embed: the pinned golden fixture, by its crate-relative path.
 RUST_GATE_INCLUDES_V1: Final[tuple[str, ...]] = ("../../../tests/data/global_claimant_backing_guard_v1_golden.json",)
 RUST_GATE_TESTS_V1: Final[tuple[str, ...]] = (
@@ -552,10 +553,14 @@ CONTAINER_RECORD_FIELDS_V1: Final[tuple[tuple[str, str], ...]] = (
 INFORMATION_LOSS_BINDING_V1: Final[dict[str, str]] = {
     "static": "LEXICAL_CLOSURE_SCAN_OF_PINNED_BYTES",
     "static_closure": (
-        "no cfg, include, or path attributes; no item-defining or record-naming macro token"
-        " trees; single depth-zero definition; exact derive plus deny_unknown_fields attribute"
-        " block; no field attributes; serde imported only from serde; crate root declares mod"
-        " state once; manifest keeps default targets and registry dependencies"
+        "no cfg, include, or path attributes; no item-defining, nested-invoking, foreign, or"
+        " later-defined item macros; single depth-zero definition; exact derive plus"
+        " deny_unknown_fields attribute block; no field attributes; use statements expanded"
+        " through brace groups and aliases with serde names bound only from serde and the"
+        " bounded-vec deserialiser bound only from crate::bounded_vec; no glob imports in the"
+        " scanned modules; record containers decode only through the pinned local macro and the"
+        " whole-template-pinned bounded_vec.rs; crate root declares mod state once; manifest and"
+        " lockfile pinned with default targets, exact versions, and no cargo config"
     ),
     "compiled": "REPLAY_GATES_python_projection_gate_AND_rust_projection_gate_NOT_RUN_UNLESS_EXECUTED",
 }
@@ -613,7 +618,10 @@ _RUST_MACRO_INVOCATION_RE: Final = re.compile(
 )
 _RUST_ITEM_KEYWORD_RE: Final = re.compile(r"\b(?:struct|enum|union|trait|impl|type|mod|use|extern)\b")
 # `use` statements tokenised from stripped code: anchored on statement boundaries, not lines.
-_RUST_USE_RE: Final = re.compile(r"(?:^|[;{}])\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([^;{}]+);")
+# Statement boundaries are matched with a lookbehind so consecutive statements are all seen:
+# a consuming boundary would swallow the `;` the next statement needs.
+_RUST_USE_RE: Final = re.compile(r"(?:^|(?<=[;{}]))\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([^;]+);", re.MULTILINE)
+_RUST_SERDE_NAMES_V1: Final[frozenset[str]] = frozenset({"Serialize", "Deserialize", "Serializer", "Deserializer"})
 _RUST_TEST_FN_RE: Final = re.compile(r"#\[test\]\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)")
 _RUST_ATTR_PREFIX_RE: Final = re.compile(
     r"((?:#\[[^\]]*\]\s*)+)(?:pub(?:\([^)]*\))?\s+)?$", re.DOTALL
@@ -1197,6 +1205,10 @@ def python_container_field_annotations_v1(source: bytes, class_name: str, path: 
 _PYTHON_DYNAMIC_CALLS_V1: Final[frozenset[str]] = frozenset(
     {"exec", "eval", "compile", "__import__", "globals", "locals", "vars", "setattr", "delattr"}
 )
+# Attribute-level rebinding hooks that bypass name binding entirely.
+_PYTHON_DYNAMIC_ATTRIBUTES_V1: Final[frozenset[str]] = frozenset(
+    {"__setattr__", "__delattr__", "__dict__", "__class__", "__builtins__", "__loader__", "__spec__"}
+)
 # A gate file may call setattr on an instance under test; module rebinding stays forbidden.
 _PYTHON_GATE_DYNAMIC_CALLS_V1: Final[frozenset[str]] = _PYTHON_DYNAMIC_CALLS_V1 - {"setattr", "delattr"}
 
@@ -1209,6 +1221,8 @@ def python_dynamic_binding_scan_v1(
     for node in ast.walk(_parse_python(source, path)):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in forbidden:
             _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"{node.func.id}() at line {node.lineno}")
+        if isinstance(node, ast.Attribute) and node.attr in _PYTHON_DYNAMIC_ATTRIBUTES_V1:
+            _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f".{node.attr} at line {node.lineno}")
         if isinstance(node, ast.Subscript) and isinstance(node.ctx, (ast.Store, ast.Del)):
             target = ast.unparse(node.value)
             if target.endswith(".modules") or target in {"globals()", "locals()", "vars()"}:
@@ -1495,6 +1509,7 @@ def rust_lexical_closure_v1(
     allow_cfg_test: bool = False,
     defines_bounded_vec: bool = False,
     allow_include_str: tuple[str, ...] = (),
+    crate_root: bool = False,
 ) -> str:
     """Reject the source constructs that let a textual struct scan diverge from the compiled type.
 
@@ -1544,15 +1559,64 @@ def rust_lexical_closure_v1(
                 _reject("RUST_MACRO_DEFINES_ITEM", path, head)
     for use in _RUST_USE_RE.finditer(code):
         target = " ".join(use.group(1).split())
-        if re.search(r"\b(?:Serialize|Deserialize|Serializer|Deserializer)\b", target) and not target.startswith("serde::"):
-            _reject("RUST_SERDE_IMPORT_DRIFT", path, target[:60])
-        if (
-            not defines_bounded_vec
-            and "deserialize_bounded_vec_v1" in target
-            and target != "crate::bounded_vec::deserialize_bounded_vec_v1"
-        ):
-            _reject("RUST_BOUNDED_VEC_IMPORT_DRIFT", path, target[:60])
+        is_pub = "pub" in code[max(0, use.start()) : use.start(1)]
+        for full_path, bound_name in _expand_use_paths(target, path):
+            leaf = full_path.rsplit("::", 1)[-1]
+            if leaf == "*":
+                if not (crate_root and is_pub and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*::\*", full_path)):
+                    _reject("RUST_GLOB_IMPORT_FORBIDDEN", path, full_path[:60])
+                continue
+            if bound_name in _RUST_SERDE_NAMES_V1 or leaf in _RUST_SERDE_NAMES_V1:
+                if not full_path.startswith("serde::") or bound_name != leaf:
+                    _reject("RUST_SERDE_IMPORT_DRIFT", path, full_path[:60])
+            if not defines_bounded_vec and (bound_name == "deserialize_bounded_vec_v1" or leaf == "deserialize_bounded_vec_v1"):
+                if full_path != "crate::bounded_vec::deserialize_bounded_vec_v1" or bound_name != leaf:
+                    _reject("RUST_BOUNDED_VEC_IMPORT_DRIFT", path, full_path[:60])
     return code
+
+
+_RUST_USE_PATH: Final = r"(?:[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*(?:::\*)?|\*|self)"
+
+
+def _split_use_items(body: str) -> list[str]:
+    items: list[str] = []
+    depth = 0
+    current: list[str] = []
+    for char in body:
+        depth += {"{": 1, "}": -1}.get(char, 0)
+        if char == "," and depth == 0:
+            items.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    items.append("".join(current))
+    return [item for item in items if item.strip()]
+
+
+def _expand_use_paths(target: str, path: str) -> list[tuple[str, str]]:
+    """Expand a `use` tree (brace groups, `as` aliases, globs) into (full path, bound name) pairs."""
+
+    def expand(text: str, prefix: str) -> list[tuple[str, str]]:
+        text = text.strip()
+        brace = text.find("{")
+        if brace >= 0:
+            if text.find("}") < 0 or _balanced_end(text, brace) != len(text):
+                _reject("RUST_USE_UNPARSEABLE", path, text[:60])
+            head = (prefix + text[:brace]).strip()
+            pairs: list[tuple[str, str]] = []
+            for item in _split_use_items(text[brace + 1 : -1]):
+                pairs.extend(expand(item, head))
+            return pairs
+        alias = re.fullmatch(r"(" + _RUST_USE_PATH + r")\s+as\s+([A-Za-z_][A-Za-z0-9_]*)", text)
+        if alias:
+            full = prefix + alias.group(1)
+            return [(full, alias.group(2))]
+        if re.fullmatch(_RUST_USE_PATH, text) is None:
+            _reject("RUST_USE_UNPARSEABLE", path, text[:60])
+        full = prefix.rstrip(":") if text == "self" else prefix + text
+        return [(full, full.rsplit("::", 1)[-1])]
+
+    return expand(target, "")
 
 
 def rust_struct_shape_v1(source: bytes, struct_name: str, path: str) -> StructShapeV1:
@@ -1661,19 +1725,14 @@ def rust_bounded_vec_closure_v1(source: bytes, path: str) -> None:
     test_module = re.search(r"#\[cfg\(test\)\]\s*mod\s+tests\s*\{", code)
     if test_module is not None:
         library = code[: test_module.start()] + code[_balanced_end(code, test_module.end() - 1) :]
-    normalized = _normalized(library)
-    for fragment in BOUNDED_VEC_REQUIRED_FRAGMENTS_V1:
-        if fragment not in normalized:
-            _reject("RUST_BOUNDED_VEC_DRIFT", path, fragment[:60])
-    manual_deserialize = re.search(r"\bimpl\b[^{]*\bDeserialize\b[^{]*\bfor\b", library)
-    if len(re.findall(r"\bimpl\b", library)) != 1 or manual_deserialize is not None:
-        _reject("RUST_BOUNDED_VEC_DRIFT", path, "exactly one impl block and no Deserialize impl")
+    if _normalized(library) != BOUNDED_VEC_LIBRARY_TEMPLATE_V1:
+        _reject("RUST_BOUNDED_VEC_DRIFT", path, "library portion differs from the pinned template")
 
 
 def rust_crate_root_closure_v1(source: bytes, path: str) -> None:
     """The crate root declares ``mod state;`` unconditionally and nothing redirects modules."""
 
-    code = rust_lexical_closure_v1(source, path, (TERMINAL_CLASS_NAME_V1, OUTBOX_CLASS_NAME_V1))
+    code = rust_lexical_closure_v1(source, path, (TERMINAL_CLASS_NAME_V1, OUTBOX_CLASS_NAME_V1), crate_root=True)
     declarations = re.findall(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+state\s*;", code, re.MULTILINE)
     if len(declarations) != 1:
         _reject("RUST_STATE_MODULE_DECLARATION_DRIFT", path, f"{len(declarations)} declarations of mod state")
@@ -1934,6 +1993,8 @@ def _check_projection_gates(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     rust_code = rust_lexical_closure_v1(
         _blob(snapshot, RUST_GATE_PATH_V1).data, RUST_GATE_PATH_V1, (), allow_include_str=RUST_GATE_INCLUDES_V1
     )
+    if sha256_hex_v1(_normalized(rust_code).encode("utf-8")) != RUST_GATE_NORMALIZED_SHA256_V1:
+        _reject("RUST_GATE_CONTENT_DRIFT", RUST_GATE_PATH_V1, "normalised content differs from the pinned gate")
     rust_tests = tuple(_RUST_TEST_FN_RE.findall(rust_code))
     if rust_tests != RUST_GATE_TESTS_V1:
         _reject("RUST_GATE_CONTENT_DRIFT", RUST_GATE_PATH_V1, ",".join(rust_tests)[:80])
@@ -1950,6 +2011,8 @@ def _check_projection_gates(snapshot: SubjectSnapshotV1) -> dict[str, object]:
             _reject("RUST_GATE_CONTENT_DRIFT", RUST_GATE_PATH_V1, name)
     python_source = _blob(snapshot, PYTHON_GATE_PATH_V1).data
     module = _parse_python(python_source, PYTHON_GATE_PATH_V1)
+    if sha256_hex_v1(ast.dump(module, include_attributes=False).encode("utf-8")) != PYTHON_GATE_AST_SHA256_V1:
+        _reject("PYTHON_GATE_CONTENT_DRIFT", PYTHON_GATE_PATH_V1, "module AST differs from the pinned gate")
     python_tests = tuple(n.name for n in module.body if isinstance(n, ast.FunctionDef) and n.name.startswith("test_"))
     if python_tests != PYTHON_GATE_TESTS_V1:
         _reject("PYTHON_GATE_CONTENT_DRIFT", PYTHON_GATE_PATH_V1, ",".join(python_tests)[:80])

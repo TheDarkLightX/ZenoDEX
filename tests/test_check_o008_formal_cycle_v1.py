@@ -343,6 +343,8 @@ def test_weakened_statement_changes_statement_hash(snapshot: core.SubjectSnapsho
         pytest.param(core.LEAN_GATE_PATH_V1, "ALLOWED_STANDARD_AXIOMS = frozenset({", 'ALLOWED_STANDARD_AXIOMS = frozenset({"sorryAx", ', "LEAN_GATE_AXIOMS_DRIFT", id="stale_lean_gate_axioms"),
         pytest.param(core.ESSO_MODEL_PATH_V1, '  - id: "inv_accept_requires_exact_bound_evidence"', '  - id: "inv_accept_requires_bound_evidence"', "ESSO_INVARIANTS_DRIFT", id="rename_esso_invariant"),
         pytest.param(core.ESSO_MODEL_PATH_V1, '  model_id: "global_claimant_custody_certificate_v1"', '  model_id: "global_claimant_custody_certificate_v2"', "ESSO_MODEL_ID_DRIFT", id="esso_model_id_drift"),
+        pytest.param(core.ESSO_MODEL_PATH_V1, '  - id: "deposit_reserve"', '  - id: "deposit_reserve_shadow"\n    description: "extra action"\n    params: []\n    guard: { bool: true }\n    updates: []\n    effects: { accepted: { bool: true }, decision: { var: "g_decision" } }\n  - id: "deposit_reserve"', "ESSO_ACTIONS_DRIFT", id="extra_esso_action"),
+        pytest.param(core.ESSO_MODEL_PATH_V1, '  - id: "deposit_reserve"', '  - id: "deposit_reserves"', "ESSO_ACTIONS_DRIFT", id="renamed_esso_action"),
         pytest.param(core.ESSO_GATE_PATH_V1, 'RECORDED_ESSO_CODE_HASH = "', 'RECORDED_ESSO_CODE_HASH = "0', "ESSO_CODE_COMMIT_DRIFT", id="esso_code_commit_drift"),
         pytest.param(core.ESSO_GATE_PATH_V1, 'RECORDED_IR_HASH = "sha256:', 'RECORDED_IR_HASH = "md5:', "ESSO_IR_HASH_DRIFT", id="esso_ir_hash_malformed"),
         pytest.param(core.ESSO_GATE_PATH_V1, 'id="drain_cross_domain_custody_substitution"', 'id="drain_cross_domain_custody_substitution_x"', "ESSO_GATE_MUTANTS_DRIFT", id="drop_drain_mutant"),
@@ -420,6 +422,17 @@ LIVE_MACRO = (
         pytest.param(core.RUST_GATE_PATH_V1, '    "custody_principal",\n', '', "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_forbidden_shrunk"),
         pytest.param(core.RUST_GATE_PATH_V1, '    "obligation_id",\n    "lane_id",\n', '    "lane_id",\n    "obligation_id",\n', "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_fields_reordered"),
         pytest.param(core.RUST_GATE_PATH_V1, 'include_str!("../../../tests/data/global_claimant_backing_guard_v1_golden.json")', 'include_str!("../../../tests/data/other.json")', "", "RUST_INCLUDE_FORBIDDEN", id="rust_gate_other_include"),
+        # Opus C1'' P1-1: brace-group use statements were invisible to the import scan.
+        pytest.param(core.RUST_STATE_PATH_V1, "use crate::bounded_vec::deserialize_bounded_vec_v1;", "use crate::canonical::{deserialize_bounded_vec_v1};", "", "RUST_BOUNDED_VEC_IMPORT_DRIFT", id="bounded_vec_brace_group_redirect"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use crate::bounded_vec::deserialize_bounded_vec_v1;", "use crate::canonical::lenient_vec_v1 as deserialize_bounded_vec_v1;", "", "RUST_BOUNDED_VEC_IMPORT_DRIFT", id="bounded_vec_alias_binding"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserializer, Serialize};\nuse crate::shadow::{Deserialize};", "", "RUST_SERDE_IMPORT_DRIFT", id="brace_group_foreign_deserialize"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserializer, Serialize};\nuse serde::Serializer as Deserialize;", "", "RUST_SERDE_IMPORT_DRIFT", id="serde_alias_rebinding"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nuse crate::canonical::*;\n", "RUST_GLOB_IMPORT_FORBIDDEN", id="glob_import_in_state"),
+        # Opus C1'' P1-2: the bounded-vec file is now a whole-template pin, not substrings.
+        pytest.param(core.RUST_BOUNDED_VEC_PATH_V1, "        let mut values = Vec::with_capacity(sequence.size_hint().unwrap_or(0).min(MAXIMUM));", "        let mut values = Vec::with_capacity(MAXIMUM);", "", "RUST_BOUNDED_VEC_DRIFT", id="bounded_vec_body_edit_outside_old_fragments"),
+        pytest.param(core.RUST_BOUNDED_VEC_PATH_V1, "", "", "\nfn lenient_helper() {}\n", "RUST_BOUNDED_VEC_DRIFT", id="bounded_vec_extra_fn"),
+        # Opus C1'' P2-1: gate bodies are pinned by normalised content, not only names and tables.
+        pytest.param(core.RUST_GATE_PATH_V1, "        assert_unknown_field::<TerminalObligationV1>(value, extra);\n    }\n}", "    }\n}", "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_emptied_body"),
     ],
 )
 def test_rust_lexical_closure_rejects_decoys(
@@ -429,6 +442,17 @@ def test_rust_lexical_closure_rejects_decoys(
     if tail:
         mutated = _append(mutated, path, tail)
     assert _project_code(mutated) == code
+
+
+def test_gate_body_edits_are_rejected_even_with_pinned_names(snapshot: core.SubjectSnapshotV1) -> None:
+    python_gate = snapshot.blobs[core.PYTHON_GATE_PATH_V1].data.decode("utf-8")
+    emptied = python_gate.replace("    assert tuple(f.name for f in dataclasses.fields(TerminalObligationV1)) == TERMINAL_FIELDS\n", "    pass\n", 1)
+    assert emptied != python_gate
+    assert _project_code(_with_blob(snapshot, core.PYTHON_GATE_PATH_V1, emptied.encode())) == "PYTHON_GATE_CONTENT_DRIFT"
+    # A comment-only edit leaves the module AST (and the content hash) unchanged; the byte pin
+    # of the hygiene packet is then the only thing that fails, and it fails last.
+    commented = python_gate + "\n# a trailing comment does not change the module AST\n"
+    assert _project_code(_with_blob(snapshot, core.PYTHON_GATE_PATH_V1, commented.encode())) == "THV1_PIN_DRIFT"
 
 
 def test_vacuous_gate_files_are_rejected(snapshot: core.SubjectSnapshotV1) -> None:
@@ -483,6 +507,8 @@ def test_cargo_version_parser(stdout: bytes, expected: str | None) -> None:
         pytest.param("", "", "\nexec('TerminalObligation' + 'V1 = int')\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="exec_rebinding"),
         pytest.param("", "", "\nglobals()['TerminalObligationV1'] = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="globals_subscript_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\n_sys.modules[__name__] = None\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="sys_modules_rebinding"),
+        pytest.param("", "", "\nimport sys as _sys\nobject.__setattr__(_sys.modules[__name__], 'TerminalObligationV1', int)\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="object_setattr_rebinding"),
+        pytest.param("", "", "\nimport sys as _sys\n_sys.modules[__name__].__dict__['TerminalObligationV1'] = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_dict_rebinding"),
     ],
 )
 def test_python_closure_rejects_decoys(snapshot: core.SubjectSnapshotV1, old: str, new: str, tail: str, code: str) -> None:
