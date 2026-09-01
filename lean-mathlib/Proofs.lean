@@ -110,6 +110,7 @@ import Proofs.GeneralizedSettlementCertificates
 import Proofs.GlobalSettlementCoreV1
 import Proofs.GlobalSettlementCoreV2
 import Proofs.GlobalEconomicStateRefinementV2
+import Proofs.GlobalClaimantCustodyRelationV1
 import Proofs.ExternalCustodyDisabledLaneV1
 import Proofs.LaneCapabilityRegistryV1
 import Proofs.ProofRewardsPolicyBlockedLaneV1

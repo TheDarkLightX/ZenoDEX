@@ -16,11 +16,11 @@ The necessary relation has two parts:
 * each claimant's aggregate OPEN-terminal amount fits inside that claimant's
   liabilities across both domains.
 
-The stronger current-profile certificate relation also requires, per domain,
-that custody plus named reserves equals claimant liabilities plus those same
-named reserves.  This makes the reserve classification explicit and prevents a
-reserve atom from masking missing claimant backing.  The equality is scoped to
-the current profile, whose V1 bytes have no asset/amount representation for a
+The stronger exact current-profile relation requires custody to equal visible
+claimant liabilities in each domain.  `State.reserves` is excluded from that
+relation.  It remains in this bounded state only to express and refute the
+reserve-inclusive weaker relation below.  The exact equality is scoped to the
+current profile, whose V1 bytes have no asset/amount representation for a
 pending registered external obligation.
 
 `ExactAllocationWitness` records stronger, certificate-side partition
@@ -91,16 +91,13 @@ def OpenTerminalClaimsCovered (state : State) : Prop :=
 def NecessaryRelation (state : State) : Prop :=
   SameDomainLiabilitiesBacked state ∧ OpenTerminalClaimsCovered state
 
-/-- R3: current-profile controlled atoms are partitioned into claimant
-liabilities and separately named reserves.  Repeating reserves on both sides
-is intentional: a reserve is a distinct owned class, never claimant backing. -/
-def ControlledClaimReserveEquation (state : State) : Prop :=
-  ∀ domain,
-    state.custody domain + state.reserves domain =
-      liabilityInDomain state domain + state.reserves domain
+/-- R3: current-profile custody is exactly the sum of visible claimant
+liabilities in the same domain.  `State.reserves` is deliberately excluded. -/
+def ExactCurrentProfileCustody (state : State) : Prop :=
+  ∀ domain, state.custody domain = liabilityInDomain state domain
 
-def CurrentProfileCertificateRelation (state : State) : Prop :=
-  NecessaryRelation state ∧ ControlledClaimReserveEquation state
+def ExactCurrentProfileRelation (state : State) : Prop :=
+  NecessaryRelation state ∧ ExactCurrentProfileCustody state
 
 /-- Certificate-side slack values turn the two necessary inequalities into
 exact partition equalities.  These values are evidence, not V1 wire fields. -/
@@ -127,29 +124,16 @@ theorem exactAllocation_implies_necessaryRelation
     omega
 
 /-- With no unclassified custody bucket, exact allocation evidence implies the
-current-profile controlled-atom equation as well as the necessary checks. -/
-theorem exactAllocation_noUnclassified_implies_certificateRelation
+exact current-profile custody relation as well as the necessary checks. -/
+theorem exactAllocation_noUnclassified_implies_exactCurrentProfileRelation
     {state : State} (witness : ExactAllocationWitness state)
     (noUnclassified : ∀ domain, witness.unencumberedCustody domain = 0) :
-    CurrentProfileCertificateRelation state := by
+    ExactCurrentProfileRelation state := by
   constructor
   · exact exactAllocation_implies_necessaryRelation witness
   · intro domain
     rw [witness.custodyPartition domain, noUnclassified domain]
     omega
-
-/-- Named reserves cancel from the current-profile equation.  They therefore
-cannot supply a missing claimant-liability atom. -/
-theorem controlledClaimReserveEquation_iff_exactCustody
-    (state : State) :
-    ControlledClaimReserveEquation state ↔
-      ∀ domain, state.custody domain = liabilityInDomain state domain := by
-  constructor
-  · intro equation domain
-    have exactDomain := equation domain
-    omega
-  · intro exactCustody domain
-    rw [exactCustody domain]
 
 def balancedState : State where
   custody
@@ -180,10 +164,10 @@ def balancedAllocation : ExactAllocationWitness balancedState where
 theorem necessaryRelation_nonvacuous : NecessaryRelation balancedState := by
   exact exactAllocation_implies_necessaryRelation balancedAllocation
 
-/-- Concrete non-vacuity witness for the stronger current-profile relation. -/
-theorem currentProfileCertificateRelation_nonvacuous :
-    CurrentProfileCertificateRelation balancedState := by
-  apply exactAllocation_noUnclassified_implies_certificateRelation balancedAllocation
+/-- Concrete non-vacuity witness for the exact current-profile relation. -/
+theorem exactCurrentProfileRelation_nonvacuous :
+    ExactCurrentProfileRelation balancedState := by
+  apply exactAllocation_noUnclassified_implies_exactCurrentProfileRelation balancedAllocation
   intro domain
   cases domain <;> rfl
 
@@ -227,11 +211,12 @@ theorem deposit_preserves_necessaryRelation
         if_true, if_false] at claimantCoverage ⊢ <;>
         omega
 
-/-- The exact same-domain deposit also preserves the controlled-atom equation. -/
-theorem deposit_preserves_controlledClaimReserveEquation
+/-- The exact same-domain deposit also preserves exact current-profile
+custody. -/
+theorem deposit_preserves_exactCurrentProfileCustody
     (state : State) (claimant : Claimant) (domain : Domain) (amount : Nat)
-    (admitted : ControlledClaimReserveEquation state) :
-    ControlledClaimReserveEquation (deposit state claimant domain amount) := by
+    (admitted : ExactCurrentProfileCustody state) :
+    ExactCurrentProfileCustody (deposit state claimant domain amount) := by
   intro observedDomain
   specialize admitted observedDomain
   cases claimant <;> cases domain <;> cases observedDomain <;>
@@ -239,13 +224,14 @@ theorem deposit_preserves_controlledClaimReserveEquation
       reduceCtorEq, and_true, and_false, if_true, if_false] at admitted ⊢ <;>
       omega
 
-/-- The exact same-domain deposit preserves the full current-profile relation. -/
-theorem deposit_preserves_currentProfileCertificateRelation
+/-- The exact same-domain deposit preserves the full exact current-profile
+relation. -/
+theorem deposit_preserves_exactCurrentProfileRelation
     (state : State) (claimant : Claimant) (domain : Domain) (amount : Nat)
-    (admitted : CurrentProfileCertificateRelation state) :
-    CurrentProfileCertificateRelation (deposit state claimant domain amount) := by
+    (admitted : ExactCurrentProfileRelation state) :
+    ExactCurrentProfileRelation (deposit state claimant domain amount) := by
   exact ⟨deposit_preserves_necessaryRelation state claimant domain amount admitted.1,
-    deposit_preserves_controlledClaimReserveEquation state claimant domain amount
+    deposit_preserves_exactCurrentProfileCustody state claimant domain amount
       admitted.2⟩
 
 /-- Drain subtracts the same amount from one domain's custody, one
@@ -290,14 +276,14 @@ theorem drain_preserves_necessaryRelation
       simp only [liabilityForClaimant, drain, reduceCtorEq, and_true, and_false,
         if_true, if_false] at claimantCoverage ⊢ <;> omega
 
-/-- An exact drain preserves the controlled-atom equation when both affected
+/-- An exact drain preserves exact current-profile custody when both affected
 custody and liability coordinates contain the drained amount. -/
-theorem drain_preserves_controlledClaimReserveEquation
+theorem drain_preserves_exactCurrentProfileCustody
     (state : State) (claimant : Claimant) (domain : Domain) (amount : Nat)
-    (admitted : ControlledClaimReserveEquation state)
+    (admitted : ExactCurrentProfileCustody state)
     (amountWithinCustody : amount ≤ state.custody domain)
     (amountWithinLiability : amount ≤ state.liabilities claimant domain) :
-    ControlledClaimReserveEquation (drain state claimant domain amount) := by
+    ExactCurrentProfileCustody (drain state claimant domain amount) := by
   intro observedDomain
   specialize admitted observedDomain
   cases claimant <;> cases domain <;> cases observedDomain <;>
@@ -305,18 +291,18 @@ theorem drain_preserves_controlledClaimReserveEquation
       reduceCtorEq, and_true, and_false, if_true, if_false] at admitted ⊢ <;>
       omega
 
-/-- An exact drain preserves the full current-profile relation. -/
-theorem drain_preserves_currentProfileCertificateRelation
+/-- An exact drain preserves the full exact current-profile relation. -/
+theorem drain_preserves_exactCurrentProfileRelation
     (state : State) (claimant : Claimant) (domain : Domain) (amount : Nat)
-    (admitted : CurrentProfileCertificateRelation state)
+    (admitted : ExactCurrentProfileRelation state)
     (amountWithinCustody : amount ≤ state.custody domain)
     (amountWithinLiability : amount ≤ state.liabilities claimant domain)
     (amountWithinOpenTerminal : amount ≤ state.openTerminal claimant) :
-    CurrentProfileCertificateRelation (drain state claimant domain amount) := by
+    ExactCurrentProfileRelation (drain state claimant domain amount) := by
   constructor
   · exact drain_preserves_necessaryRelation state claimant domain amount admitted.1
       amountWithinCustody amountWithinLiability amountWithinOpenTerminal
-  · exact drain_preserves_controlledClaimReserveEquation state claimant domain amount
+  · exact drain_preserves_exactCurrentProfileCustody state claimant domain amount
       admitted.2 amountWithinCustody amountWithinLiability
 
 /-! ## Minimized weaker-relation counterexamples -/
@@ -376,11 +362,11 @@ theorem aggregateClaimants_permit_claimantSwap :
     have bobCoverage := claimantCoverage .bob
     norm_num [liabilityForClaimant, claimantSwapState] at bobCoverage
 
-def CustodyOrReserveBacked (state : State) : Prop :=
+def ReserveInclusiveBacking (state : State) : Prop :=
   ∀ domain,
     liabilityInDomain state domain ≤ state.custody domain + state.reserves domain
 
-def reserveMaskingState : State where
+def reserveInclusiveMaskingState : State where
   custody _ := 0
   liabilities
     | .alice, .hot => 1
@@ -391,25 +377,22 @@ def reserveMaskingState : State where
   openTerminal _ := 0
 
 /-- Reserve-inclusive backing accepts a state with zero custody behind one
-hot-domain liability atom; custody-only same-domain backing rejects it. -/
-theorem reservesCanMaskMissingCustody :
-    CustodyOrReserveBacked reserveMaskingState ∧
-      ¬ SameDomainLiabilitiesBacked reserveMaskingState := by
-  constructor
+hot-domain liability atom.  Both same-domain backing and exact current-profile
+custody reject it. -/
+theorem reserveInclusiveBacking_permits_missingExactCustody :
+    ReserveInclusiveBacking reserveInclusiveMaskingState ∧
+      ¬ SameDomainLiabilitiesBacked reserveInclusiveMaskingState ∧
+      ¬ ExactCurrentProfileCustody reserveInclusiveMaskingState := by
+  refine ⟨?_, ?_, ?_⟩
   · intro domain
-    cases domain <;> norm_num [CustodyOrReserveBacked, liabilityInDomain,
-      reserveMaskingState]
+    cases domain <;> norm_num [ReserveInclusiveBacking, liabilityInDomain,
+      reserveInclusiveMaskingState]
   · intro sameDomain
     have hotBacking := sameDomain .hot
-    norm_num [liabilityInDomain, reserveMaskingState] at hotBacking
-
-/-- The explicit current-profile equation rejects the same reserve-masking
-counterexample even though a reserve-inclusive inequality accepts it. -/
-theorem reserveMasking_violates_controlledClaimReserveEquation :
-    ¬ ControlledClaimReserveEquation reserveMaskingState := by
-  intro equation
-  have hotEquation := equation .hot
-  norm_num [liabilityInDomain, reserveMaskingState] at hotEquation
+    norm_num [liabilityInDomain, reserveInclusiveMaskingState] at hotBacking
+  · intro exactCustody
+    have hotCustody := exactCustody .hot
+    norm_num [liabilityInDomain, reserveInclusiveMaskingState] at hotCustody
 
 /-! ## V1 terminal domain-erasure boundary -/
 
