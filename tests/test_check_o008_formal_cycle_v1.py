@@ -274,7 +274,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V4.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v3", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v3"),
+        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V5.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v4", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v4"),
         pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
@@ -490,6 +490,13 @@ TERMINAL_MACRO = "bounded_state_vec_deserializer_v1!(\n    deserialize_terminal_
         # Opus C1''' P3-1/P3-2: raw-text pins for the gate and the whole bounded_vec.rs file.
         pytest.param(core.RUST_GATE_PATH_V1, 'error.to_string().contains("unknown field")', 'error.to_string().contains("")', "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_string_literal_weakened"),
         pytest.param(core.RUST_BOUNDED_VEC_PATH_V1, "    use super::deserialize_bounded_vec_v1;\n", "    use super::deserialize_bounded_vec_v1;\n    fn extra_unpinned() {}\n", "", "RUST_BOUNDED_VEC_DRIFT", id="bounded_vec_test_module_edit"),
+        # C4a: the sidecar implementation is bound by check order, closed reject codes, registry, and fixture.
+        pytest.param(core.CERTIFICATE_PYTHON_PATH_V1, '    "header_binding",\n    "exact_twelve_lane_order",', '    "exact_twelve_lane_order",\n    "header_binding",', "", "CERTIFICATE_CHECK_ORDER_DRIFT", id="certificate_check_order_swapped"),
+        pytest.param(core.CERTIFICATE_PYTHON_PATH_V1, '    DERIVED_ROOT_DRIFT = "DERIVED_ROOT_DRIFT"\n', '    DERIVED_ROOT_DRIFT = "DERIVED_ROOT_DRIFT"\n    LENIENT = "LENIENT"\n', "", "CERTIFICATE_REJECT_CODES_DRIFT", id="certificate_extra_reject_code"),
+        pytest.param(core.CERTIFICATE_PYTHON_PATH_V1, "", "", "\nimport sys as _s\n_s.modules[__name__].AllocationCertificateRejectCodeV1 = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="certificate_module_rebinding"),
+        pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, '"REGISTERED_EMPTY_BLOCKED"', '"RECEIPT_BACKED"', "", "CERTIFICATE_PRODUCER_DRIFT", id="certificate_fixture_receipt_backed_producer"),
+        pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, '"authority": "NONE"', '"authority": "SHADOW"', "", "CERTIFICATE_FIXTURE_DRIFT", id="certificate_fixture_authority"),
+        pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, "{", "{{", "", "CERTIFICATE_FIXTURE_UNPARSEABLE", id="certificate_fixture_malformed"),
         # Opus C1'' P2-1: gate bodies are pinned by normalised content, not only names and tables.
         pytest.param(core.RUST_GATE_PATH_V1, "        assert_unknown_field::<TerminalObligationV1>(value, extra);\n    }\n}", "    }\n}", "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_emptied_body"),
     ],
@@ -501,6 +508,36 @@ def test_rust_lexical_closure_rejects_decoys(
     if tail:
         mutated = _append(mutated, path, tail)
     assert _project_code(mutated) == code
+
+
+def test_certificate_fixture_surface_rejects_non_empty_accepted_vectors(snapshot: core.SubjectSnapshotV1) -> None:
+    """Only the registered-empty certificate over disabled lanes may be an accepted vector."""
+
+    fixture = json.loads(snapshot.blobs[core.CERTIFICATE_FIXTURE_PATH_V1].data.decode("utf-8"))
+    surface = core.certificate_fixture_surface_v1(fixture)
+    assert surface["vectors"] == core.CERTIFICATE_FIXTURE_VECTORS_V1 and len(surface["accepted_vectors"]) == 3
+    accepted = next(name for name, v in fixture["vectors"].items() if v["expected_outcome"]["status"] == "ACCEPT")
+    enabled = copy.deepcopy(fixture)
+    enabled["vectors"][accepted]["certificate"]["ordered_lane_fragments"][0]["enabled"] = True
+    with pytest.raises(core.AdmissionRejectV1) as captured:
+        core.certificate_fixture_surface_v1(enabled)
+    assert captured.value.code == "CERTIFICATE_FIXTURE_DRIFT" and accepted in captured.value.detail
+    with_rows = copy.deepcopy(fixture)
+    with_rows["vectors"][accepted]["certificate"]["ordered_lane_fragments"][0]["claimant_entitlements"] = [{"asset": "USD"}]
+    with pytest.raises(core.AdmissionRejectV1):
+        core.certificate_fixture_surface_v1(with_rows)
+    fewer = copy.deepcopy(fixture)
+    fewer["vectors"].pop(accepted)
+    with pytest.raises(core.AdmissionRejectV1) as short:
+        core.certificate_fixture_surface_v1(fewer)
+    assert (short.value.code, short.value.detail) == ("CERTIFICATE_FIXTURE_DRIFT", "vectors")
+    missing_code = copy.deepcopy(fixture)
+    missing_code["reject_messages"].pop("DERIVED_ROOT_DRIFT")
+    with pytest.raises(core.AdmissionRejectV1) as codes:
+        core.certificate_fixture_surface_v1(missing_code)
+    assert codes.value.detail == "reject_messages"
+    assert core.CERTIFICATE_CHECK_ORDER_V1[1:-1] == core.SIDECAR_CHECKS_V1
+    assert set(core.CERTIFICATE_PRODUCER_KINDS_V1) == set(core.EXPECTED_LANES_V1) and "RECEIPT_BACKED" not in core.CERTIFICATE_PRODUCER_KINDS_V1.values()
 
 
 def test_codex_c1dprime_survivor_is_rejected_at_every_layer(snapshot: core.SubjectSnapshotV1) -> None:
@@ -705,6 +742,24 @@ def test_hygiene_selection_selected_packet_pinning_the_packet_is_circular(
     assert _project_code(_with_packet(snapshot, chosen, json.dumps(thv1).encode())) == "THV1_PINS_PACKET_CIRCULAR"
 
 
+def test_hygiene_selection_orders_lineage_versions_numerically() -> None:
+    """v10 outranks v9 (natural order), a packet without a version sorts lowest, ties fall to the path."""
+
+    base = core.HYGIENE_EVIDENCE_DIR_V1 + "/THV1-20260901-o008-formal-cycle-admission"
+    paths = [f"{base}-v9.json", f"{base}-v10.json", f"{base}-v2.json", f"{base}.json", core.HYGIENE_EVIDENCE_DIR_V1 + "/THV1-20260901-other-v3.json"]
+    ordered = sorted(paths, key=core.hygiene_lineage_key_v1)
+    assert ordered[:4] == [f"{base}.json", f"{base}-v2.json", f"{base}-v9.json", f"{base}-v10.json"]
+    assert core.hygiene_lineage_key_v1(f"{base}-v10.json") > core.hygiene_lineage_key_v1(f"{base}-v9.json")
+
+
+def test_hygiene_selection_prefers_the_numerically_newest_matching_packet(snapshot: core.SubjectSnapshotV1) -> None:
+    path = core.CORE_PATH_V1
+    newest = max((p for p in snapshot.hygiene_packets if "o008-formal-cycle-admission" in p), key=core.hygiene_lineage_key_v1)
+    selection = {row["path"]: row["packet_path"] for row in core._select_hygiene_packets(snapshot)}
+    assert selection[path] == newest
+    assert core.hygiene_lineage_key_v1(newest)[1] >= 10
+
+
 def test_hygiene_selection_requires_a_matching_packet(snapshot: core.SubjectSnapshotV1) -> None:
     mutated = snapshot
     for path, blob in snapshot.hygiene_packets.items():
@@ -881,6 +936,8 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "python_golden_gate": f"{core.PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
         "rust_golden_gate": _cargo_summary(core.RUST_GOLDEN_GATE_EXPECTED_PASSED_V1),
         "rust_bounded_vec_unit_gate": _cargo_summary(core.RUST_BOUNDED_VEC_UNIT_GATE_EXPECTED_PASSED_V1),
+        "python_certificate_golden_gate": f"{core.CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
+        "rust_certificate_golden_gate": _cargo_summary(core.CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1),
     }
     return {
         command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id == "lean_axioms_probe" else None)
@@ -1064,6 +1121,8 @@ def test_python_version_parser_requires_one_semver_line(stdout: bytes, expected:
         pytest.param("rust_refinement_gate", lambda o: replace(o, stdout=_cargo_summary(40)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_refinement_count"),
         pytest.param("rust_golden_gate", lambda o: replace(o, stdout=_cargo_summary(2)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_golden_count"),
         pytest.param("rust_bounded_vec_unit_gate", lambda o: replace(o, stdout=_cargo_summary(0)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_bounded_vec_unit_count"),
+        pytest.param("python_certificate_golden_gate", lambda o: replace(o, stdout=b"30 passed in 1.0s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="python_certificate_count"),
+        pytest.param("rust_certificate_golden_gate", lambda o: replace(o, stdout=_cargo_summary(2)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_certificate_count"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(f'"total_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"total_queries": 0').replace(f'"passed_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"passed_queries": 0')), "REPLAY_ESSO_QUERY_COUNT_DRIFT", id="esso_zero_queries"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_drain_claim"', b'"inductive_other_claim"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_query_set_drift"),
     ],
@@ -1365,7 +1424,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V4:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V5:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:

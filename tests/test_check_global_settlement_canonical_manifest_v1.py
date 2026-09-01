@@ -28,10 +28,10 @@ def test_repository_canonical_manifest_source_closure_passes() -> None:
     report = check_repository(REPO_ROOT)
 
     assert report["ok"] is True, report["errors"]
-    assert report["serializer_type_count"] == 92
-    assert report["enum_type_count"] == 30
-    assert report["canonical_helper_call_file_count"] == 92
-    assert report["source_closure_file_count"] == 93
+    assert report["serializer_type_count"] == 102
+    assert report["enum_type_count"] == 34
+    assert report["canonical_helper_call_file_count"] == 93
+    assert report["source_closure_file_count"] == 94
 
 
 def test_manifest_shape_rejects_missing_duplicate_and_unsorted_types() -> None:

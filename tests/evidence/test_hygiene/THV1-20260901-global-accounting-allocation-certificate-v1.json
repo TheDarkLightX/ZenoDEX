@@ -1,0 +1,243 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260901-global-accounting-allocation-certificate-v1",
+  "created_date": "2026-09-01",
+  "claim_scope": "Candidate C4a: GlobalAccountingAllocationCertificateV1, the state-keyed sidecar checker over the control-domain vocabulary (claimant entitlements, unencumbered reserves, pending external obligations, terminal bindings) with a producer registry exhaustive over the twelve lanes (EXTERNAL_CUSTODY registered-empty-disabled, PROOF_REWARDS registered-empty-blocked, ten NO_PRODUCER lanes blocked on their unresolved policies), fourteen closed reject codes in fixed check precedence, checked u128 folds, derived field-ownership/terminal-binding/allocation roots, and a Python/Rust twin replaying one rendered twenty-five-vector golden fixture (three accepts: registered-empty over empty state, acknowledged outbox, drained terminal; one reject per reachable code; root-pinning synthetic fragments). Research-only: no lane producer is receipt-backed, nothing is mounted, and the reject-is-no-op contract is asserted on state roots.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CERT-EXACT-TWELVE-LANE-ORDER",
+    "CERT-PRODUCER-REGISTRY-EXHAUSTIVE-NO-RECEIPT-BACKED",
+    "CERT-EVERY-CONTROLLED-ATOM-ASSIGNED-EXACTLY-ONCE",
+    "CERT-ENTITLEMENT-AND-RESERVE-ROWS-EQUAL-V1-PARTITIONS",
+    "CERT-TERMINAL-AND-EXTERNAL-BINDINGS-EXACT",
+    "CERT-CHECKED-U128-CANONICAL-ORDER",
+    "CERT-REJECT-IS-NO-OP",
+    "CERT-PYTHON-RUST-GOLDEN-PARITY"
+  ],
+  "failure_modes": [
+    "a certificate over an enabled lane without a receipt-backed producer is accepted",
+    "a controlled atom is counted twice or not at all across entitlements, reserves, and external obligations",
+    "a reserve row masks a missing claimant entitlement",
+    "a reject message or check order drifts between Python and Rust",
+    "a derived root is accepted without recomputation",
+    "an overflowed fold is accepted"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_accounting_allocation_certificate_v1.py",
+      "sha256": "4302b6463fbb566b996e6e4a220a142185d67265535b70adb0d3c48b6b2b36c7"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_accounting_allocation_certificate.rs",
+      "sha256": "4ceae85fe7f274de0750b7c9092adc51ecfcaa46e85869eb67c7286ac2e3d80e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "e2cdf040978d350dbefba79e870a760d562ed2ec97011616c5f3ae24b5046146"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_accounting_allocation_certificate_golden.rs",
+      "sha256": "c545fa4bf7e15da4b694e5c321d8f8efa93777f6e7b7ed6e9c0dd2b35692966c"
+    },
+    {
+      "path": "tools/render_global_accounting_allocation_certificate_v1_golden.py",
+      "sha256": "2efff3af8c13ddf0e9f764e6f6e2cd071fa828e422fdfac97aa77e6b523ac1cd"
+    },
+    {
+      "path": "tests/data/global_accounting_allocation_certificate_v1_golden.json",
+      "sha256": "51986e67a6ee656f6465c2693e9d67e93da0bd3e1cd851e9e7a7470086a8cb3d"
+    },
+    {
+      "path": "src/core/global_settlement_canonical_manifest_v1.py",
+      "sha256": "92ce6d7396d586d74186099a3b05434b97bf0289541b61d1cdc4b2f41e4dab7a"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py",
+      "sha256": "90a01a52216880facf1f7f22492602d44007b7f1e3fa4504a0c121f7ccee6d64",
+      "node_ids": [
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_fixture_is_the_renderer_output",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_fixture_header_tables_are_shared",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_producer_registry_is_exhaustive_and_has_no_receipt_backed_lane",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[accepts_acknowledged_outbox_without_external_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[accepts_drained_terminal_without_binding_row]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[accepts_registered_empty_certificate_over_empty_state]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[pins_roots_of_a_fully_classified_synthetic_fragment]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[pins_roots_of_u128_boundary_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_all_lanes_enabled_at_the_first_lane]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_custody_without_controlled_locations]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_disabled_lane_with_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_disabled_lane_with_single_reserve_row]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_enabled_lane_without_receipt_backed_producer]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_allocation_root]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_field_ownership_root]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_terminal_binding_root]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_header_chain_context_drift]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_header_profile_root_drift]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_header_writer_epoch_drift]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_enabled_flag_forged]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_order_missing_lane]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_order_swap]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_state_root_forged]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_liabilities_without_entitlement_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_open_terminal_without_binding_row]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_pending_outbox_without_external_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_producer_kind_drift]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_reserves_without_reserve_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_reject_never_mutates_and_accept_needs_all_lanes_disabled",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_row_level_checks_are_exercised_on_synthetic_fragments"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "formal",
+    "replay",
+    "boundary",
+    "negative_regression",
+    "mutation",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each vector arranges one rendered state and one certificate, invokes the pure checker once, and asserts the exact outcome, detail, message, and derived roots; killers are named per vector with polarity."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every reject carries pre_state_root == post_state_root and the test asserts the state root is unchanged after a rejected check; the checker is a pure function over frozen inputs."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "reject_codes",
+      "points": [
+        "exact 14 closed codes in check precedence",
+        "two codes reachable only through a receipt-backed producer are exercised on synthetic fragments"
+      ]
+    },
+    {
+      "name": "lanes",
+      "points": [
+        "exact twelve ordered lanes",
+        "registry exhaustive over LaneIdV1",
+        "no RECEIPT_BACKED kind"
+      ]
+    },
+    {
+      "name": "amounts",
+      "points": [
+        "u128 maximum entitlement plus one overflows the fold",
+        "zero rows for every disabled lane"
+      ]
+    },
+    {
+      "name": "vectors",
+      "points": [
+        "exact 25 vectors",
+        "three accepts, all registered-empty over disabled lanes"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept a fragment bound to a foreign lane root (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_state_root_forged]"
+    },
+    {
+      "description": "accept an enabled lane without a receipt-backed producer (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_enabled_lane_without_receipt_backed_producer]"
+    },
+    {
+      "description": "accept fragments out of canonical lane order (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_order_swap]"
+    },
+    {
+      "description": "accept the registered-empty certificate over a non-empty state (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_custody_without_controlled_locations]"
+    },
+    {
+      "description": "count ACKNOWLEDGED outbox rows as pending (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[accepts_acknowledged_outbox_without_external_rows]"
+    },
+    {
+      "description": "count DRAINED terminals as open (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[accepts_drained_terminal_without_binding_row]"
+    },
+    {
+      "description": "ignore OPEN terminal obligations (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_open_terminal_without_binding_row]"
+    },
+    {
+      "description": "ignore PENDING outbox rows (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_pending_outbox_without_external_rows]"
+    },
+    {
+      "description": "let a disabled lane carry rows (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_disabled_lane_with_rows]"
+    },
+    {
+      "description": "skip the custody aggregate equality (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_custody_without_controlled_locations]"
+    },
+    {
+      "description": "skip the header binding (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_header_writer_epoch_drift]"
+    },
+    {
+      "description": "skip the liabilities equality (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_liabilities_without_entitlement_rows]"
+    },
+    {
+      "description": "skip the reserve partition equality (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_reserves_without_reserve_rows]"
+    },
+    {
+      "description": "trust the fragment's producer kind instead of the registry (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_producer_kind_drift]"
+    },
+    {
+      "description": "trust the recorded allocation root (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_allocation_root]"
+    },
+    {
+      "description": "trust the recorded field-ownership root (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_field_ownership_root]"
+    },
+    {
+      "description": "trust the recorded terminal-binding root (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_terminal_binding_root]"
+    },
+    {
+      "description": "register a receipt-backed producer or drop a lane from the registry",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_producer_registry_is_exhaustive_and_has_no_receipt_backed_lane"
+    },
+    {
+      "description": "drift a reject message or the check order between Python and Rust",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_fixture_header_tables_are_shared"
+    },
+    {
+      "description": "hand-edit the fixture instead of rendering it",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_fixture_is_the_renderer_output"
+    },
+    {
+      "description": "mutate state on a reject or accept a certificate over an enabled lane",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_reject_never_mutates_and_accept_needs_all_lanes_disabled"
+    },
+    {
+      "description": "mis-attribute a mutation killer or flip its polarity",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity"
+    },
+    {
+      "description": "use unchecked u128 addition or accept an unassigned controlled atom",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_row_level_checks_are_exercised_on_synthetic_fragments"
+    }
+  ],
+  "nonclaims": [
+    "No lane producer is receipt-backed; the only accepted certificate is the registered-empty certificate over an all-lanes-disabled state.",
+    "The checker is not mounted in any verifier, commit port, or route; it grants evidence-only authority.",
+    "Lean and ESSO models of the certificate are future candidates (C4b), not part of this packet.",
+    "No production, release, settlement, verifier, migration, publication, or value-moving authority is granted."
+  ]
+}

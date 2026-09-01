@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V4: Final = "zenodex/o008-formal-cycle-evidence/v4"
+PACKET_SCHEMA_V5: Final = "zenodex/o008-formal-cycle-evidence/v5"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -69,6 +69,12 @@ GOLDEN_RENDERER_PATH_V1: Final = "tools/render_global_claimant_backing_guard_v1_
 GOLDEN_FIXTURE_PATH_V1: Final = "tests/data/global_claimant_backing_guard_v1_golden.json"
 GOLDEN_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_claimant_backing_guard_v1_golden.py"
 GOLDEN_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/claimant_backing_guard_golden.rs"
+CERTIFICATE_PYTHON_PATH_V1: Final = "src/core/global_accounting_allocation_certificate_v1.py"
+CERTIFICATE_RUST_PATH_V1: Final = "zk/global_settlement_abi_v1/src/global_accounting_allocation_certificate.rs"
+CERTIFICATE_RENDERER_PATH_V1: Final = "tools/render_global_accounting_allocation_certificate_v1_golden.py"
+CERTIFICATE_FIXTURE_PATH_V1: Final = "tests/data/global_accounting_allocation_certificate_v1_golden.json"
+CERTIFICATE_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_allocation_certificate_v1_golden.py"
+CERTIFICATE_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/global_accounting_allocation_certificate_golden.rs"
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
 RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
@@ -110,6 +116,12 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (GOLDEN_FIXTURE_PATH_V1, "claimant_backing_guard_golden_fixture"),
     (GOLDEN_PYTHON_TEST_PATH_V1, "claimant_backing_guard_golden_python_replay"),
     (GOLDEN_RUST_TEST_PATH_V1, "claimant_backing_guard_golden_rust_replay"),
+    (CERTIFICATE_PYTHON_PATH_V1, "allocation_certificate_python_checker"),
+    (CERTIFICATE_RUST_PATH_V1, "allocation_certificate_rust_twin"),
+    (CERTIFICATE_RENDERER_PATH_V1, "allocation_certificate_golden_renderer"),
+    (CERTIFICATE_FIXTURE_PATH_V1, "allocation_certificate_golden_fixture"),
+    (CERTIFICATE_PYTHON_TEST_PATH_V1, "allocation_certificate_golden_python_replay"),
+    (CERTIFICATE_RUST_TEST_PATH_V1, "allocation_certificate_golden_rust_replay"),
     (PYTHON_TYPES_PATH_V1, "python_v1_wire_schema"),
     (RUST_STATE_PATH_V1, "rust_v1_wire_schema"),
     (RUST_LIB_PATH_V1, "rust_crate_root_module_closure"),
@@ -161,6 +173,12 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     GOLDEN_FIXTURE_PATH_V1,
     GOLDEN_PYTHON_TEST_PATH_V1,
     GOLDEN_RUST_TEST_PATH_V1,
+    CERTIFICATE_PYTHON_PATH_V1,
+    CERTIFICATE_RUST_PATH_V1,
+    CERTIFICATE_RENDERER_PATH_V1,
+    CERTIFICATE_FIXTURE_PATH_V1,
+    CERTIFICATE_PYTHON_TEST_PATH_V1,
+    CERTIFICATE_RUST_TEST_PATH_V1,
     PYTHON_GATE_PATH_V1,
     RUST_GATE_PATH_V1,
     GATE_TESTS_PATH_V1,
@@ -227,6 +245,10 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     "all twelve lanes were audited for exact reconciliation source data",
     "the smallest wire-compatible sidecar contract and its missing producer/proof obligations"
     " are specified under the control-domain vocabulary",
+    "the GlobalAccountingAllocationCertificateV1 checker is implemented in Python and Rust with a"
+    " producer registry exhaustive over the twelve lanes and no receipt-backed producer, and both"
+    " replay one rendered golden vector of twenty-five state/certificate pairs with closed reject"
+    " codes; only the registered-empty certificate over an all-lanes-disabled state is accepted",
 )
 
 EXPECTED_LANES_V1: Final[tuple[str, ...]] = (
@@ -335,11 +357,44 @@ REQUIRED_SIDECAR_V1: Final[dict[str, object]] = {
     "host_only_authority": "EVIDENCE_ONLY",
     "verifier_authority_requires": list(SIDECAR_VERIFIER_AUTHORITY_REQUIRES_V1),
 }
+# C4a: the sidecar checker exists in Python and Rust; the packet binds its check order, closed
+# reject codes, producer registry (no receipt-backed lane), and the shared golden fixture, so the
+# implementation claim below is a projection of pinned sources and never a free-text status.
+CERTIFICATE_SCHEMA_V1: Final = "zenodex/global-accounting-allocation-certificate/v1"
+CERTIFICATE_FIXTURE_SCHEMA_V1: Final = "zenodex/global-accounting-allocation-certificate-v1-golden/v1"
+CERTIFICATE_CHECK_ORDER_V1: Final[tuple[str, ...]] = ("header_binding", *SIDECAR_CHECKS_V1, "derived_roots")
+CERTIFICATE_REJECT_CODES_V1: Final[tuple[str, ...]] = (
+    "HEADER_BINDING_DRIFT",
+    "LANE_ORDER_DRIFT",
+    "LANE_STATE_ROOT_DRIFT",
+    "PRODUCER_KIND_DRIFT",
+    "BLOCKED_LANE_PRODUCER_MISSING",
+    "DISABLED_LANE_NOT_EMPTY",
+    "ALLOCATION_TOTAL_OVERFLOW",
+    "SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE",
+    "ENTITLEMENT_ROWS_DRIFT",
+    "RESERVE_ROWS_DRIFT",
+    "EXTERNAL_OBLIGATION_BINDING_DRIFT",
+    "TERMINAL_BINDING_DRIFT",
+    "LANE_AGGREGATE_DRIFT",
+    "DERIVED_ROOT_DRIFT",
+)
+CERTIFICATE_REJECT_CODE_CLASS_V1: Final = "AllocationCertificateRejectCodeV1"
+CERTIFICATE_PRODUCER_KINDS_V1: Final[dict[str, str]] = {
+    lane: {"EXTERNAL_CUSTODY": "REGISTERED_EMPTY_DISABLED", "PROOF_REWARDS": "REGISTERED_EMPTY_BLOCKED"}.get(lane, "NO_PRODUCER")
+    for lane in EXPECTED_LANES_V1
+}
+CERTIFICATE_FIXTURE_VECTORS_V1: Final = 25
+CERTIFICATE_FRAGMENT_ROW_FIELDS_V1: Final[tuple[str, ...]] = (
+    "controlled_locations", "claimant_entitlements", "unencumbered_reserves", "pending_external_obligations", "terminal_bindings"
+)
+CERTIFICATE_IMPLEMENTATION_STATUS_V1: Final = "IMPLEMENTED_REGISTERED_EMPTY_ONLY_NOT_MOUNTED"
 
 NONCLAIMS_V1: Final[tuple[str, ...]] = (
     "The completed formal cycle does not complete O-008.",
-    "The exact all-twelve-lane claimant entitlement and reserve reconciliation certificate is"
-    " not implemented or mounted.",
+    "The GlobalAccountingAllocationCertificateV1 checker has no receipt-backed lane producer and"
+    " is not mounted; the only certificate it accepts today is the registered-empty certificate"
+    " over a state with every lane disabled, so no exact all-twelve-lane reconciliation exists.",
     "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher"
     " execution.",
     "The Lean theorems do not establish cryptographic binding, finite-width runtime parity,"
@@ -667,6 +722,9 @@ RUST_REFINEMENT_GATE_EXPECTED_PASSED_V1: Final = 41
 RUST_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 3
 RUST_REFINEMENT_GATE_TARGET_V1: Final = "global_economic_state_effect_refinement"
 RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
+CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
+CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
+CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 31
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
 _CARGO_VERSION_RE: Final = re.compile(r"^cargo ([0-9]+\.[0-9]+\.[0-9]+)")
 _RUSTC_FIELD_RE: Final = re.compile(r"^(release|commit-hash|host): (\S+)$", re.MULTILINE)
@@ -1009,6 +1067,22 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         f"exit 0; {RUST_BOUNDED_VEC_UNIT_GATE_EXPECTED_PASSED_V1} passed",
         1800,
     ),
+    ReplayCommandV1(
+        "python_certificate_golden_gate",
+        (PYTHON_TOKEN_V1, "-m", "pytest", "-q", "-p", "no:cacheprovider", CERTIFICATE_PYTHON_TEST_PATH_V1),
+        ".",
+        (),
+        f"exit 0; {CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1} passed",
+        600,
+    ),
+    ReplayCommandV1(
+        "rust_certificate_golden_gate",
+        ("cargo", "test", "--offline", "--locked", "--test", CERTIFICATE_RUST_GATE_TARGET_V1),
+        RUST_CRATE_DIR_V1,
+        ("CARGO_TARGET_DIR", "CARGO_INCREMENTAL"),
+        f"exit 0; {CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1} passed",
+        1800,
+    ),
 )
 REPLAY_COMMAND_IDS_V1: Final[tuple[str, ...]] = tuple(c.command_id for c in REPLAY_COMMANDS_V1)
 
@@ -1102,8 +1176,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V4:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V4}")
+    if packet.get("schema") != PACKET_SCHEMA_V5:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V5}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -1408,6 +1482,21 @@ def python_sequence_constant_v1(source: bytes, name: str, path: str) -> tuple[st
     """Return the string elements of a top-level tuple/list/set/frozenset constant."""
 
     return _string_elements(_top_level_assignments(_parse_python(source, path)).get(name))
+
+
+def python_enum_members_v1(source: bytes, class_name: str, path: str) -> tuple[str, ...]:
+    """Return the string values assigned in the body of exactly one top-level class, in order."""
+
+    module = _parse_python(source, path)
+    classes = [node for node in module.body if isinstance(node, ast.ClassDef) and node.name == class_name]
+    if len(classes) != 1:
+        _reject("PYTHON_CLASS_AMBIGUOUS", path, f"{len(classes)} definitions of {class_name}")
+    members: list[str] = []
+    for node in classes[0].body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                members.append(node.value.value)
+    return tuple(members)
 
 
 def python_dict_values_v1(source: bytes, name: str, path: str) -> tuple[str, ...]:
@@ -1913,6 +2002,7 @@ RUST_CRATE_MODULES_V1: Final[tuple[str, ...]] = (
     "effects",
     "epoch_effect_composition",
     "external_custody_disabled_lane",
+    "global_accounting_allocation_certificate",
     "global_economic_replay_refinement",
     "global_economic_state_delta",
     "global_economic_state_effect_refinement",
@@ -2344,6 +2434,79 @@ def _check_container_bindings(python_source: bytes, rust_source: bytes) -> None:
             _reject("RUST_STATE_FIELD_TYPE_DRIFT", RUST_STATE_PATH_V1, f"{container}: {rust_fields.get(container)}")
 
 
+def certificate_fixture_surface_v1(fixture: object) -> dict[str, object]:
+    """Validate the decoded golden fixture against the closed certificate surface and summarise it."""
+
+    path = CERTIFICATE_FIXTURE_PATH_V1
+    if not isinstance(fixture, dict):
+        _reject("CERTIFICATE_FIXTURE_DRIFT", path, "object required")
+    if fixture.get("fixture_schema") != CERTIFICATE_FIXTURE_SCHEMA_V1 or fixture.get("certificate_schema") != CERTIFICATE_SCHEMA_V1:
+        _reject("CERTIFICATE_FIXTURE_DRIFT", path, "schema")
+    if fixture.get("authority") != "NONE":
+        _reject("CERTIFICATE_FIXTURE_DRIFT", path, "authority")
+    messages = fixture.get("reject_messages")
+    if not isinstance(messages, dict) or tuple(sorted(messages)) != tuple(sorted(CERTIFICATE_REJECT_CODES_V1)):
+        _reject("CERTIFICATE_FIXTURE_DRIFT", path, "reject_messages")
+    if tuple(fixture.get("check_order", ())) != CERTIFICATE_CHECK_ORDER_V1:
+        _reject("CERTIFICATE_FIXTURE_DRIFT", path, "check_order")
+    registry = fixture.get("producer_registry")
+    kinds = {lane: entry.get("producer_kind") for lane, entry in registry.items()} if isinstance(registry, dict) else {}
+    if kinds != CERTIFICATE_PRODUCER_KINDS_V1:
+        drifted = sorted(f"{lane}:{kind}" for lane, kind in kinds.items() if CERTIFICATE_PRODUCER_KINDS_V1.get(lane) != kind)
+        _reject("CERTIFICATE_PRODUCER_DRIFT", path, drifted[0] if drifted else "registry")
+    vectors = fixture.get("vectors")
+    if not isinstance(vectors, dict) or len(vectors) != CERTIFICATE_FIXTURE_VECTORS_V1:
+        _reject("CERTIFICATE_FIXTURE_DRIFT", path, "vectors")
+    accepted: list[str] = []
+    for name, vector in sorted(vectors.items()):
+        outcome = vector.get("expected_outcome", {}) if isinstance(vector, dict) else {}
+        if outcome.get("status") != "ACCEPT":
+            continue
+        fragments = vector.get("certificate", {}).get("ordered_lane_fragments", ())
+        for fragment in fragments:
+            if fragment.get("enabled") is not False or any(fragment.get(field) for field in CERTIFICATE_FRAGMENT_ROW_FIELDS_V1):
+                _reject("CERTIFICATE_FIXTURE_DRIFT", path, f"accepted vector {name} is not registered-empty")
+        accepted.append(name)
+    return {
+        "fixture": path,
+        "vectors": len(vectors),
+        "accepted_vectors": accepted,
+        "accepted_vectors_are_registered_empty_over_disabled_lanes": True,
+        "python_replay": CERTIFICATE_PYTHON_TEST_PATH_V1,
+        "rust_replay": CERTIFICATE_RUST_TEST_PATH_V1,
+    }
+
+
+def _project_certificate(snapshot: SubjectSnapshotV1) -> dict[str, object]:
+    """Bind the implemented sidecar checker: check order, closed reject codes, registry, golden fixture."""
+
+    python_source = _blob(snapshot, CERTIFICATE_PYTHON_PATH_V1).data
+    order = python_sequence_constant_v1(python_source, "CHECK_ORDER_V1", CERTIFICATE_PYTHON_PATH_V1)
+    if order != CERTIFICATE_CHECK_ORDER_V1:
+        _reject("CERTIFICATE_CHECK_ORDER_DRIFT", CERTIFICATE_PYTHON_PATH_V1, ",".join(order)[:80])
+    codes = python_enum_members_v1(python_source, CERTIFICATE_REJECT_CODE_CLASS_V1, CERTIFICATE_PYTHON_PATH_V1)
+    if codes != CERTIFICATE_REJECT_CODES_V1:
+        _reject("CERTIFICATE_REJECT_CODES_DRIFT", CERTIFICATE_PYTHON_PATH_V1, ",".join(codes)[:80])
+    python_dynamic_binding_scan_v1(python_source, CERTIFICATE_PYTHON_PATH_V1)
+    _blob(snapshot, CERTIFICATE_RUST_PATH_V1)
+    _blob(snapshot, CERTIFICATE_RENDERER_PATH_V1)
+    try:
+        fixture = json.loads(_blob(snapshot, CERTIFICATE_FIXTURE_PATH_V1).data.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        _reject("CERTIFICATE_FIXTURE_UNPARSEABLE", CERTIFICATE_FIXTURE_PATH_V1, type(exc).__name__)
+    return {
+        "status": CERTIFICATE_IMPLEMENTATION_STATUS_V1,
+        "python": CERTIFICATE_PYTHON_PATH_V1,
+        "rust": CERTIFICATE_RUST_PATH_V1,
+        "check_order": list(order),
+        "reject_codes": list(codes),
+        "producer_registry": dict(CERTIFICATE_PRODUCER_KINDS_V1),
+        "receipt_backed_producers": 0,
+        "golden": certificate_fixture_surface_v1(fixture),
+        "mounted": False,
+    }
+
+
 def _project_information_loss(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     python_source = _blob(snapshot, PYTHON_TYPES_PATH_V1).data
     rust_source = _blob(snapshot, RUST_STATE_PATH_V1).data
@@ -2399,15 +2562,31 @@ def _hygiene_pins(blob: SourceBlobV1) -> dict[str, str]:
     return pins
 
 
+_HYGIENE_LINEAGE_RE: Final = re.compile(r"^(.*?)(?:-v([0-9]+))?(\.json)?$")
+
+
+def hygiene_lineage_key_v1(path: str) -> tuple[str, int, str]:
+    """Order key for hygiene packets: lineage name, then the numeric ``-vN`` suffix, then the path."""
+
+    match = _HYGIENE_LINEAGE_RE.fullmatch(path)
+    if match is None:
+        return (path, -1, path)
+    version = -1 if match.group(2) is None else int(match.group(2))
+    return (match.group(1), version, path)
+
+
 def _select_hygiene_packets(snapshot: SubjectSnapshotV1) -> list[dict[str, object]]:
     """Select, per required path, the newest hygiene packet whose pin equals the subject blob.
 
-    Packets are ordered by evidence id (newest last), mirroring the repository
-    hygiene gate: stale packets are skipped, a path with no matching packet is drift,
-    and a selected packet that pins the O-008 packet itself is circular.
+    Packets are ordered by lineage version (the trailing ``-vN`` compared numerically, so
+    ``v10`` outranks ``v9``), newest first: stale packets are skipped, a path with no matching
+    packet is drift, and a selected packet that pins the O-008 packet itself is circular. The
+    repository hygiene gate iterates lexicographically and also skips stale packets, so for
+    every changed path both select the same packet; for an unchanged path any matching
+    packet carries the same pin.
     """
 
-    ordered = sorted(snapshot.hygiene_packets.values(), key=lambda blob: blob.path, reverse=True)
+    ordered = sorted(snapshot.hygiene_packets.values(), key=lambda blob: hygiene_lineage_key_v1(blob.path), reverse=True)
     pins_by_packet = {blob.path: _hygiene_pins(blob) for blob in ordered}
     selection: list[dict[str, object]] = []
     for path in THV1_REQUIRED_PIN_PATHS_V1:
@@ -2459,6 +2638,8 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
     "python_golden_gate": {"passed": PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1},
     "rust_golden_gate": {"passed": RUST_GOLDEN_GATE_EXPECTED_PASSED_V1},
     "rust_bounded_vec_unit_gate": {"passed": RUST_BOUNDED_VEC_UNIT_GATE_EXPECTED_PASSED_V1},
+    "python_certificate_golden_gate": {"passed": CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1},
+    "rust_certificate_golden_gate": {"passed": CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1},
 }
 
 
@@ -2592,7 +2773,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V4,
+        "schema": PACKET_SCHEMA_V5,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -2609,7 +2790,7 @@ def project_packet_v1(
             {"lane_id": lane, "status": status, "missing": missing}
             for lane, status, missing in LANE_SOURCE_DATA_V1
         ],
-        "required_sidecar": json.loads(json.dumps(REQUIRED_SIDECAR_V1)),
+        "required_sidecar": {**json.loads(json.dumps(REQUIRED_SIDECAR_V1)), "implementation": _project_certificate(snapshot)},
         "proof_replay": {
             "commands": [command.to_json() for command in REPLAY_COMMANDS_V1],
             "environment_policy": json.loads(json.dumps(REPLAY_ENV_POLICY_V1)),
@@ -2753,14 +2934,38 @@ def check_lane_map_v1(packet: Mapping[str, Any]) -> None:
         _reject("LANE_MAP_DRIFT", "lane_source_data", "differs from the closed twelve-lane map")
 
 
+SIDECAR_IMPLEMENTATION_KEYS_V1: Final[frozenset[str]] = frozenset(
+    {"status", "python", "rust", "check_order", "reject_codes", "producer_registry", "receipt_backed_producers", "golden", "mounted"}
+)
+
+
 def check_sidecar_v1(packet: Mapping[str, Any]) -> None:
     sidecar = _section(packet, "required_sidecar")
     expected = json.loads(json.dumps(REQUIRED_SIDECAR_V1))
     for key, value in expected.items():
         if sidecar.get(key) != value:
             _reject("SIDECAR_DRIFT", f"required_sidecar.{key}", str(sidecar.get(key))[:80])
-    if set(sidecar) != set(expected):
+    if set(sidecar) != set(expected) | {"implementation"}:
         _reject("SIDECAR_DRIFT", "required_sidecar", "unexpected keys")
+    implementation = sidecar.get("implementation")
+    if not isinstance(implementation, dict) or set(implementation) != SIDECAR_IMPLEMENTATION_KEYS_V1:
+        _reject("SIDECAR_DRIFT", "required_sidecar.implementation", "closed implementation keys required")
+    fixed: dict[str, object] = {
+        "status": CERTIFICATE_IMPLEMENTATION_STATUS_V1,
+        "python": CERTIFICATE_PYTHON_PATH_V1,
+        "rust": CERTIFICATE_RUST_PATH_V1,
+        "check_order": list(CERTIFICATE_CHECK_ORDER_V1),
+        "reject_codes": list(CERTIFICATE_REJECT_CODES_V1),
+        "producer_registry": dict(CERTIFICATE_PRODUCER_KINDS_V1),
+        "receipt_backed_producers": 0,
+        "mounted": False,
+    }
+    for key, value in fixed.items():
+        if implementation.get(key) != value or type(implementation.get(key)) is not type(value):
+            _reject("SIDECAR_DRIFT", f"required_sidecar.implementation.{key}", str(implementation.get(key))[:80])
+    golden = implementation.get("golden")
+    if not isinstance(golden, dict) or golden.get("vectors") != CERTIFICATE_FIXTURE_VECTORS_V1 or golden.get("fixture") != CERTIFICATE_FIXTURE_PATH_V1:
+        _reject("SIDECAR_DRIFT", "required_sidecar.implementation.golden", str(golden)[:80])
 
 
 def _string_scalars(value: object, pointer: str) -> list[tuple[str, str]]:
@@ -3130,6 +3335,10 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_cargo(obs, RUST_GOLDEN_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "rust_bounded_vec_unit_gate":
         return _grade_cargo(obs, RUST_BOUNDED_VEC_UNIT_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "python_certificate_golden_gate":
+        return _grade_pytest(obs, CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "rust_certificate_golden_gate":
+        return _grade_cargo(obs, CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "python_golden_gate":
         return _grade_pytest(obs, PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1)
     return _grade_esso(obs, esso)
@@ -3333,6 +3542,10 @@ __all__ = [
     "AdmissionRejectV1",
     "admit_packet_v1",
     "canonical_packet_bytes_v1",
+    "CERTIFICATE_CHECK_ORDER_V1",
+    "certificate_fixture_surface_v1",
+    "CERTIFICATE_PRODUCER_KINDS_V1",
+    "CERTIFICATE_REJECT_CODES_V1",
     "ClassShapeV1",
     "compare_author_record_v1",
     "CurrentSourceStateV1",
@@ -3343,6 +3556,7 @@ __all__ = [
     "ExecutingToolsV1",
     "exit_code_for_report_v1",
     "git_blob_oid_v1",
+    "hygiene_lineage_key_v1",
     "LEAN_DEFINITION_SURFACE_SHA256_V1",
     "lean_definition_surface_v1",
     "LEAN_STATEMENT_SHA256_V1",
@@ -3351,6 +3565,7 @@ __all__ = [
     "parse_rustc_vv_v1",
     "project_packet_v1",
     "python_class_shape_v1",
+    "python_enum_members_v1",
     "render_markdown_v1",
     "render_report_v1",
     "REPLAY_ENV_POLICY_V1",
