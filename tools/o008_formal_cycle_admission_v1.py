@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V10: Final = "zenodex/o008-formal-cycle-evidence/v10"
+PACKET_SCHEMA_V11: Final = "zenodex/o008-formal-cycle-evidence/v11"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -279,8 +279,9 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     " accepted, with a counterexample that a reserve never covers a missing claimant entitlement",
     "a bounded ESSO model of the certificate relation is inductive under Z3 and CVC5 for eight"
     " invariants (lane partition, row equality, custody aggregate, terminal bound, producer gate, lane"
-    " binding, and the derived normative partition and same-domain backing) with eight named mutants"
-    " each attributed to one invariant by a two-solver counterexample",
+    " binding, and the derived normative partition and same-domain backing) with eight named mutants,"
+    " each caught by its attributed invariant alone and each two-solver counterexample falsifying that"
+    " invariant on its post state; the two derived invariants are conclusions and carry no mutant",
     "the EXTERNAL_CUSTODY and PROOF_REWARDS registered-empty fragment producers are pure functions"
     " of the committed lane root that certify the lane is disabled and committed at the root of its"
     " unique empty typed lane state, in Python and Rust, and the certificate checker rejects a"
@@ -598,10 +599,10 @@ LEAN_STATEMENT_SHA256_V1: Final[dict[str, str]] = {
 LEAN_DEFINITION_SURFACE_SHA256_V1: Final = "cd1e010a3f82e1595c4cefa7fc7354bc8d972e77c669ed026d177bb8cf275b11"
 LEAN_STATEMENT_BINDING_V1: Final = (
     "theorem statements and the definitional surface are compared against hashes embedded in the"
-    " admission core at S; the file contains no string or char literal (no double quote) and no #"
-    " command and may use no notation, macro, syntax, instance, attribute, scope, or open command;"
-    " each elided region is indented proof text with no declaration, so only how a theorem is"
-    " proved is left to replay"
+    " admission core at S (the definition-surface hash carries the binding; the lexical closures are"
+    " defence in depth): the file contains no double quote or guillemet, no # command, and no"
+    " notation, macro, syntax, instance, attribute, scope, or open command; each elided region is"
+    " indented proof text with no declaration, so only how a theorem is proved is left to replay"
 )
 LEAN_GATE_PIN_ORDER_V1: Final[tuple[str, ...]] = (
     LEAN_PROOF_PATH_V1,
@@ -815,7 +816,7 @@ CERTIFICATE_ESSO_NAMED_MUTANTS_V1: Final[tuple[str, ...]] = (
     "external_table_not_summed",
     "accept_without_lane_binding",
 )
-CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1: Final = 22
+CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1: Final = 24
 CERTIFICATE_ESSO_SUBJECT_V1: Final = EssoSubjectV1(
     key="allocation_certificate_model",
     model_path=CERTIFICATE_ESSO_MODEL_PATH_V1,
@@ -1001,12 +1002,12 @@ RUST_REFINEMENT_GATE_TARGET_V1: Final = "global_economic_state_effect_refinement
 RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
-CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 34
+CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 35
 PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 5
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
 PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 2
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
-CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 2
+CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 3
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
 _CARGO_VERSION_RE: Final = re.compile(r"^cargo ([0-9]+\.[0-9]+\.[0-9]+)")
 _RUSTC_FIELD_RE: Final = re.compile(r"^(release|commit-hash|host): (\S+)$", re.MULTILINE)
@@ -1558,8 +1559,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V10:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V10}")
+    if packet.get("schema") != PACKET_SCHEMA_V11:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V11}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -1628,7 +1629,7 @@ _LEAN_ITEM_START_RE: Final = re.compile(
 
 
 def lean_literal_closure_v1(text: str, path: str = LEAN_PROOF_PATH_V1) -> None:
-    """No string or char literal may exist in a pinned proof file, and no `#` command.
+    """No string, char, or guillemet literal may exist in a pinned proof file, and no `#` command.
 
     Opus P10 P1-B1: a double quote inside a char literal opens a phantom string for the
     comment/string stripper, and a quote inside a line comment closes it, hiding arbitrary
@@ -1639,7 +1640,12 @@ def lean_literal_closure_v1(text: str, path: str = LEAN_PROOF_PATH_V1) -> None:
 
     if '"' in text:
         _reject("LEAN_DOUBLE_QUOTE_FORBIDDEN", path, f"line {text.count(chr(10), 0, text.index(chr(34))) + 1}")
-    hash_command = re.search(r"^[ \t]*#", _lean_code(text, path), re.MULTILINE)
+    # Opus P13 P2-3: `«a--»` is one identifier to Lean but opens a line comment for the stripper.
+    for guillemet in ("\u00ab", "\u00bb"):
+        if guillemet in text:
+            _reject("LEAN_GUILLEMET_FORBIDDEN", path, f"line {text.count(chr(10), 0, text.index(guillemet)) + 1}")
+    # Opus P13 P3-5: any Unicode whitespace may precede a `#` command.
+    hash_command = re.search(r"^\s*#", _lean_code(text, path), re.MULTILINE)
     if hash_command is not None:
         _reject("LEAN_COMMAND_FORBIDDEN", path, f"# command at line {text.count(chr(10), 0, hash_command.start()) + 1}")
 
@@ -1836,23 +1842,22 @@ _PYTHON_FORBIDDEN_MODULES_V1: Final[frozenset[str]] = frozenset({"importlib", "c
 _PYTHON_MODULE_HOOKS_V1: Final[frozenset[str]] = frozenset({"__getattr__", "__dir__"})
 
 
-def _statement_binding_nodes(statement: ast.stmt) -> list[ast.AST]:
-    """The nodes a module-level statement binds directly (never descending into bodies)."""
+def _binds_hook_name(node: ast.AST, name: str) -> bool:
+    """True when ``node`` binds ``name`` by any form other than a def/class (handled at module level)."""
 
-    if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Global):
-        return [statement]
-    if isinstance(statement, ast.Import | ast.ImportFrom):
-        return list(statement.names)
-    targets: list[ast.expr] = []
-    if isinstance(statement, ast.Assign):
-        targets = list(statement.targets)
-    elif isinstance(statement, ast.AnnAssign | ast.AugAssign):
-        targets = [statement.target]
-    elif isinstance(statement, ast.For | ast.AsyncFor):
-        targets = [statement.target]
-    elif isinstance(statement, ast.With | ast.AsyncWith):
-        targets = [item.optional_vars for item in statement.items if item.optional_vars is not None]
-    return [node for target in targets for node in ast.walk(target)]
+    if isinstance(node, ast.Name):
+        return node.id == name and isinstance(node.ctx, ast.Store | ast.Del)
+    if isinstance(node, ast.alias):
+        return (node.asname or node.name.split(".")[0]) == name
+    if isinstance(node, ast.Global | ast.Nonlocal):
+        return name in node.names
+    if isinstance(node, ast.ExceptHandler):
+        return node.name == name
+    if isinstance(node, ast.MatchAs | ast.MatchStar):
+        return node.name == name
+    if isinstance(node, ast.MatchMapping):
+        return node.rest == name
+    return False
 
 
 def _is_self_name(node: ast.expr) -> bool:
@@ -1865,10 +1870,16 @@ def python_dynamic_binding_scan_v1(
     """Reject dynamic name binding that an AST scan of definitions cannot see through."""
 
     module = _parse_python(source, path)
-    for statement in module.body:
+    # Opus P13 P1-1: a module hook can be installed by any binding form anywhere in the module
+    # (walrus, `global` inside a called function, except/match captures, imports); the only
+    # binding left alone is a method named after the hook inside a class body.
+    for node in ast.walk(module):
         for hook in _PYTHON_MODULE_HOOKS_V1:
-            if any(_binds_name(node, hook) for node in _statement_binding_nodes(statement)):
-                _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"module-level {hook} at line {statement.lineno}")
+            if _binds_hook_name(node, hook):
+                _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"binding of {hook} at line {getattr(node, 'lineno', 0)}")
+    for statement in module.body:
+        if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) and statement.name in _PYTHON_MODULE_HOOKS_V1:
+            _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"module-level {statement.name} at line {statement.lineno}")
     for node in ast.walk(module):
         if isinstance(node, ast.Import | ast.ImportFrom):
             imported = [alias.name for alias in node.names] if isinstance(node, ast.Import) else [node.module or ""]
@@ -3301,7 +3312,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V10,
+        "schema": PACKET_SCHEMA_V11,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,

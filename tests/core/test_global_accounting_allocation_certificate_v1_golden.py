@@ -166,3 +166,34 @@ def _certificate_for(base: cert.GlobalAccountingAllocationCertificateV1, fragmen
     from dataclasses import replace
 
     return replace(base, ordered_lane_fragments=(fragment, *base.ordered_lane_fragments[1:]))
+
+
+def test_terminal_rows_are_bounded_in_aggregate_per_entitlement_cell() -> None:
+    """Opus P13 P2-1: two OPEN claims of 2 against an entitlement of 3 reject; per-row comparison would accept."""
+
+    state = renderer.build_state_v1(renderer._spec())
+    base = cert.build_registered_empty_certificate_v1(state)
+    lane = base.ordered_lane_fragments[0]
+    root = lane.lane_state_root
+
+    def _claim(obligation_id: str, amount: int) -> cert.TerminalBindingRowV1:
+        return cert.TerminalBindingRowV1(obligation_id, "alice", "USD", amount, "spot-pool", "pool-a", lane.lane_id, root)
+
+    def _fragment(*claims: cert.TerminalBindingRowV1) -> cert.LaneAllocationFragmentV1:
+        return renderer._fragment_with_rows(
+            lane,
+            controlled_locations=(cert.ControlledLocationRowV1("USD", "pool-a", "spot-pool", 3),),
+            claimant_entitlements=(cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", 3),),
+            terminal_bindings=claims,
+        )
+
+    cert._check_terminal_totals(_certificate_for(base, _fragment(_claim("t1", 2), _claim("t2", 1))))
+    with pytest.raises(cert._Reject) as captured:
+        cert._check_terminal_totals(_certificate_for(base, _fragment(_claim("t1", 2), _claim("t2", 2))))
+    assert captured.value.code is cert.AllocationCertificateRejectCodeV1.TERMINAL_BINDING_DRIFT
+    assert captured.value.detail == f"{lane.lane_id.value} terminal total USD:alice:spot-pool"
+    with pytest.raises(cert._Reject) as unentitled:
+        cert._check_terminal_totals(
+            _certificate_for(base, renderer._fragment_with_rows(lane, terminal_bindings=(_claim("t1", 1),)))
+        )
+    assert unentitled.value.code is cert.AllocationCertificateRejectCodeV1.TERMINAL_BINDING_DRIFT

@@ -731,7 +731,6 @@ def _check_terminal_bindings(certificate: GlobalAccountingAllocationCertificateV
             entitlement.asset == row.asset
             and entitlement.claimant == row.claimant
             and entitlement.control_domain == row.control_domain
-            and entitlement.amount_atoms >= row.amount_atoms
             for entitlement in fragment.claimant_entitlements
         )
         controlled = any(
@@ -742,6 +741,27 @@ def _check_terminal_bindings(certificate: GlobalAccountingAllocationCertificateV
         )
         if not entitled or not controlled:
             _fail(AllocationCertificateRejectCodeV1.TERMINAL_BINDING_DRIFT, f"{obligation_id} domain binding")
+    _check_terminal_totals(certificate)
+
+
+def _check_terminal_totals(certificate: GlobalAccountingAllocationCertificateV1) -> None:
+    """Per lane and (asset, claimant, control_domain): the OPEN terminal total never exceeds the entitlement.
+
+    Opus P13 P2-1: the bound is on the sum of the rows, not on each row against some entitlement,
+    so two claims of 2 against an entitlement of 3 reject; this is the aggregate ``TerminalBound``
+    of the bounded Lean and ESSO models.
+    """
+
+    for fragment in certificate.ordered_lane_fragments:
+        claimed = _fold(
+            ((r.asset, r.claimant, r.control_domain), r.amount_atoms) for r in fragment.terminal_bindings
+        )
+        entitled: dict[tuple[str, ...], int] = {
+            (r.asset, r.claimant, r.control_domain): r.amount_atoms for r in fragment.claimant_entitlements
+        }
+        for key, total in sorted(claimed.items()):
+            if total > entitled.get(key, 0):
+                _fail(AllocationCertificateRejectCodeV1.TERMINAL_BINDING_DRIFT, f"{fragment.lane_id.value} terminal total {':'.join(key)}")
 
 
 def _check_lane_aggregates(certificate: GlobalAccountingAllocationCertificateV1, state: GlobalEconomicStateV1) -> None:
@@ -766,6 +786,8 @@ def _check_derived_roots(certificate: GlobalAccountingAllocationCertificateV1) -
         _fail(AllocationCertificateRejectCodeV1.DERIVED_ROOT_DRIFT, "allocation_root")
 
 
+# Realised check precedence; ALLOCATION_TOTAL_OVERFLOW fires inside the first checked fold that
+# overflows (positions 5, 7, 9, 10), not at the position of the checked-u128 entry below.
 CHECK_ORDER_V1: Final[tuple[str, ...]] = (
     "header_binding",
     "exact_twelve_lane_order",

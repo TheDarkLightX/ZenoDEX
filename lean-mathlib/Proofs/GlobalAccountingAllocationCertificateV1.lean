@@ -90,8 +90,11 @@ def ProducerGate (f : LaneFragment) : Prop :=
 def LanePartition (f : LaneFragment) : Prop :=
   ∀ d, f.controlled d = sumClaimants (fun c => f.entitlement c d) + f.reserve d + f.external d
 
-/-- Every open terminal claim is backed by an entitlement of the same claimant and
-domain that is at least as large (`TERMINAL_BINDING_DRIFT`). -/
+/-- The open terminal claims of a claimant in a domain, summed, never exceed that
+claimant's entitlement in the domain (`TERMINAL_BINDING_DRIFT`).  The model keeps one
+amount per (claimant, domain) cell, so this is the aggregate bound the running checker
+enforces by folding terminal rows per (asset, claimant, control domain); a per-row
+comparison would be weaker (two claims of 2 against an entitlement of 3 must reject). -/
 def TerminalBound (f : LaneFragment) : Prop :=
   ∀ c d, f.terminal c d ≤ f.entitlement c d
 
@@ -181,10 +184,11 @@ theorem noReceiptBacked_forces_allDisabled (cert : Lane → LaneFragment)
     rw [hrb l] at this
     exact nomatch this
 
-/-- The current profile (no receipt-backed producer anywhere) accepts only the
-registered-empty certificate: every table the certificate is checked against is
-zero.  This is the model-level statement of the fixture invariant that every
-accepted vector is registered-empty over disabled lanes. -/
+/-- Without a receipt-backed producer every table the certificate is checked against
+is zero (custody, reserves, external obligations, every liability and open terminal):
+together with `noReceiptBacked_forces_allDisabled`, which gives the disabled flags,
+this is the model-level form of the fixture invariant that every accepted vector is
+registered-empty over disabled lanes. -/
 theorem noReceiptBacked_implies_zeroTables (cert : Lane → LaneFragment) (t : Tables)
     (h : CertificateRelation cert t) (hrb : ∀ l, (cert l).receiptBacked = false) (d : Domain) :
     t.custody d = 0 ∧ t.reserves d = 0 ∧ t.external d = 0 ∧

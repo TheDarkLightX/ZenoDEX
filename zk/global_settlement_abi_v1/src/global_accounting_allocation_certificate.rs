@@ -1027,7 +1027,6 @@ fn check_terminal_bindings(
             e.asset == row.asset
                 && e.claimant == row.claimant
                 && e.control_domain == row.control_domain
-                && e.amount_atoms >= row.amount_atoms
         });
         let controlled = fragment.controlled_locations.iter().any(|l| {
             l.asset == row.asset
@@ -1039,6 +1038,55 @@ fn check_terminal_bindings(
                 AllocationCertificateRejectCodeV1::TerminalBindingDrift,
                 format!("{obligation_id} domain binding"),
             );
+        }
+    }
+    check_terminal_totals(certificate)
+}
+
+/// Per lane and (asset, claimant, control_domain): the OPEN terminal total never exceeds the
+/// entitlement (Opus P13 P2-1: the bound is on the sum of the rows, the aggregate `TerminalBound`
+/// of the bounded models).
+fn check_terminal_totals(
+    certificate: &GlobalAccountingAllocationCertificateV1,
+) -> Result<(), Reject> {
+    for fragment in &certificate.ordered_lane_fragments {
+        let claimed = fold_or_reject(
+            fragment.terminal_bindings.iter().map(|r| {
+                (
+                    (
+                        r.asset.clone(),
+                        r.claimant.clone(),
+                        r.control_domain.clone(),
+                    ),
+                    r.amount_atoms,
+                )
+            }),
+            "terminal totals",
+        )?;
+        let entitled: BTreeMap<(String, String, String), u128> = fragment
+            .claimant_entitlements
+            .iter()
+            .map(|r| {
+                (
+                    (
+                        r.asset.clone(),
+                        r.claimant.clone(),
+                        r.control_domain.clone(),
+                    ),
+                    r.amount_atoms,
+                )
+            })
+            .collect();
+        for (key, total) in &claimed {
+            if *total > entitled.get(key).copied().unwrap_or(0) {
+                return fail(
+                    AllocationCertificateRejectCodeV1::TerminalBindingDrift,
+                    format!(
+                        "{:?} terminal total {}:{}:{}",
+                        fragment.lane_id, key.0, key.1, key.2
+                    ),
+                );
+            }
         }
     }
     Ok(())
@@ -1275,6 +1323,59 @@ mod tests {
         ];
         let pending = pending_external_rows(&fragments).expect("distinct ids collect");
         assert_eq!(pending.len(), 2);
+    }
+
+    #[test]
+    fn terminal_total_above_entitlement_is_rejected() {
+        let fragment: LaneAllocationFragmentV1 = serde_json::from_value(serde_json::json!({
+            "lane_id": "ASSET_TRANSFER",
+            "module_release_id": format!("0x{:064x}", 201u64),
+            "enabled": true,
+            "lane_state_root": format!("0x{:064x}", 301u64),
+            "producer_kind": "RECEIPT_BACKED",
+            "binding_root": format!("0x{:064x}", 301u64),
+            "controlled_locations": [{"asset": "USD", "controlling_principal": "pool-a", "control_domain": "spot-pool", "amount_atoms": 3u64}],
+            "claimant_entitlements": [{"asset": "USD", "claimant": "alice", "control_domain": "spot-pool", "amount_atoms": 3u64}],
+            "unencumbered_reserves": [],
+            "pending_external_obligations": [],
+            "terminal_bindings": [
+                {"obligation_id": "t1", "claimant": "alice", "asset": "USD", "amount_atoms": 2u64, "control_domain": "spot-pool", "controlling_principal": "pool-a", "lane_id": "ASSET_TRANSFER", "lane_state_root": format!("0x{:064x}", 301u64)},
+                {"obligation_id": "t2", "claimant": "alice", "asset": "USD", "amount_atoms": 2u64, "control_domain": "spot-pool", "controlling_principal": "pool-a", "lane_id": "ASSET_TRANSFER", "lane_state_root": format!("0x{:064x}", 301u64)}
+            ],
+        }))
+        .expect("fragment decodes");
+        let certificate = super::GlobalAccountingAllocationCertificateV1 {
+            schema: super::GLOBAL_ACCOUNTING_ALLOCATION_CERTIFICATE_SCHEMA_V1.to_owned(),
+            global_state_root: super::RootV1::parse(format!("0x{:064x}", 1u64), "root", false)
+                .expect("root"),
+            profile_root: super::RootV1::parse(format!("0x{:064x}", 2u64), "root", false)
+                .expect("root"),
+            writer_epoch: 1,
+            chain_context: super::ChainContextV1 {
+                chain_id: "chain".to_owned(),
+                deployment_root: super::RootV1::parse(format!("0x{:064x}", 3u64), "root", false)
+                    .expect("root"),
+            },
+            ordered_lane_fragments: vec![fragment],
+            canonical_allocation_rows: Vec::new(),
+            field_ownership_root: super::RootV1::parse(format!("0x{:064x}", 4u64), "root", false)
+                .expect("root"),
+            terminal_binding_root: super::RootV1::parse(format!("0x{:064x}", 5u64), "root", false)
+                .expect("root"),
+            allocation_root: super::RootV1::parse(format!("0x{:064x}", 6u64), "root", false)
+                .expect("root"),
+            reserve_interpretation: super::ReserveInterpretationV1::NAMED_UNENCUMBERED_NO_CLAIMANT,
+        };
+        let reject = super::check_terminal_totals(&certificate).expect_err("2 + 2 > 3 rejects");
+        assert_eq!(
+            reject.0,
+            AllocationCertificateRejectCodeV1::TerminalBindingDrift
+        );
+        assert!(
+            reject.1.ends_with("terminal total USD:alice:spot-pool"),
+            "{}",
+            reject.1
+        );
     }
 
     #[test]

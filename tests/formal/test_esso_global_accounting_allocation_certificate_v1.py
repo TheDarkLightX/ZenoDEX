@@ -6,9 +6,12 @@ transition preserves the exact lane partition, the row/table equalities, the
 custody aggregate, the terminal bound, the producer gate, and the lane binding
 premise, and the normative partition and same-domain backing follow as
 inductive invariants. Named semantic mutants must each produce one exact
-two-solver counterexample attributed to a single invariant. The runtime link
-replays the model's disasters against the Python checker. No verifier,
-settlement, release, or production authority is granted.
+two-solver counterexample whose every variable lies in its declared domain and
+whose post state falsifies the attributed invariant (evaluated here on both
+solvers' models), and the attributed invariant alone must still catch the
+mutant. The two derived invariants are conclusions and carry no mutant. The
+runtime link replays the model's disasters against the Python checker. No
+verifier, settlement, release, or production authority is granted.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -113,6 +117,138 @@ def _assert_exact_two_solver_counterexample(result: dict[str, object], *, expect
         assert isinstance(solver_result, dict)
         assert solver_result["result"] == "sat"
         assert solver_result["model"] is not None
+
+
+_Z3_ASSIGNMENT = re.compile(r"(\w+) = ([^,\]\s]+)")
+_CVC5_ASSIGNMENT = re.compile(r"\(define-fun (\w+) \(\) \w+ (\(- \d+\)|[^\s()]+)\)")
+
+
+def _enum_index(document: dict[str, object]) -> dict[str, int]:
+    index: dict[str, int] = {}
+    for row in document["types"]:
+        for position, symbol in enumerate(row["type"]["symbols"]):
+            assert index.setdefault(symbol, position) == position, symbol
+    return index
+
+
+def _literal(raw: str, enums: dict[str, int]) -> int | bool:
+    if raw in ("True", "true"):
+        return True
+    if raw in ("False", "false"):
+        return False
+    if raw in enums:
+        return enums[raw]
+    return int(raw.replace("(- ", "-").rstrip(")"))
+
+
+def _valuation(model_text: str, enums: dict[str, int]) -> dict[str, int | bool]:
+    pairs = _Z3_ASSIGNMENT.findall(model_text) if model_text.lstrip().startswith("[") else _CVC5_ASSIGNMENT.findall(model_text)
+    values = {name: _literal(raw, enums) for name, raw in pairs}
+    assert values, model_text[:200]
+    return values
+
+
+def _evaluate(expr: dict[str, object], values: dict[str, int | bool], enums: dict[str, int], suffix: str) -> int | bool | None:
+    """Evaluate an ESSO invariant expression over one solver valuation (`suffix` selects pre or post).
+
+    A solver omits unconstrained variables from its model; any completion of the partial model is a
+    counterexample, so evaluation is three-valued and ``None`` means "depends on an omitted variable".
+    """
+
+    if "var" in expr:
+        return values.get(f"{expr['var']}{suffix}")
+    if "const" in expr:
+        return int(expr["const"])
+    if "bool" in expr:
+        return bool(expr["bool"])
+    if "enum" in expr:
+        return enums[str(expr["enum"])]
+    assert "param" not in expr, expr
+    op = expr["op"]
+    if op == "ite":
+        condition = _evaluate(expr["cond"], values, enums, suffix)
+        if condition is None:
+            taken = _evaluate(expr["then"], values, enums, suffix)
+            other = _evaluate(expr["else"], values, enums, suffix)
+            return taken if taken == other else None
+        return _evaluate(expr["then" if condition else "else"], values, enums, suffix)
+    args = [_evaluate(arg, values, enums, suffix) for arg in expr["args"]]
+    if op == "and":
+        if any(arg is False for arg in args):
+            return False
+        return None if any(arg is None for arg in args) else True
+    if op == "or":
+        if any(arg is True for arg in args):
+            return True
+        return None if any(arg is None for arg in args) else False
+    if op == "not":
+        return None if args[0] is None else not args[0]
+    if op == "=>":
+        if args[0] is False or args[1] is True:
+            return True
+        return None if None in args else bool(args[1])
+    if None in args:
+        return None
+    if op == "=":
+        return all(arg == args[0] for arg in args[1:])
+    if op == "+":
+        return sum(int(arg) for arg in args)
+    if op == "-":
+        return int(args[0]) - sum(int(arg) for arg in args[1:])
+    if op == "<=":
+        return bool(args[0] <= args[1])
+    if op == ">=":
+        return bool(args[0] >= args[1])
+    if op == "<":
+        return bool(args[0] < args[1])
+    if op == ">":
+        return bool(args[0] > args[1])
+    raise AssertionError(op)
+
+
+def _assert_counterexample_falsifies(
+    result: dict[str, object],
+    original: dict[str, object],
+    *,
+    query_id: str,
+    attributed_invariant: str,
+    assumed_invariants: frozenset[str] | None = None,
+) -> None:
+    """Both solver models are in-domain, consistent with every assumed invariant before, and falsify the attributed one after.
+
+    The inductive query assumes exactly the invariants present in the verified model, so
+    ``assumed_invariants`` names them (``None`` means the full original set, the mutant run).
+    Omitted (unconstrained) variables make evaluation three-valued: the attributed invariant must be
+    definitely False on the post state; an assumed pre invariant must never be definitely False.
+    """
+
+    enums = _enum_index(original)
+    invariants = {row["id"]: row["expr"] for row in original["invariants"]}
+    if assumed_invariants is not None:
+        assert attributed_invariant in assumed_invariants
+        invariants = {name: expr for name, expr in invariants.items() if name in assumed_invariants}
+    query = result["queries"][query_id]
+    assert isinstance(query, dict)
+    for solver in ("z3", "cvc5"):
+        values = _valuation(str(query[solver]["model"]), enums)
+        for row in original["state_vars"]:
+            declared = row["type"]
+            for suffix in ("", "_post"):
+                value = values.get(f"{row['id']}{suffix}")
+                if value is not None and declared.get("kind") == "int":
+                    assert declared["min"] <= value <= declared["max"], (solver, row["id"], suffix, value)
+        for invariant_id, expr in invariants.items():
+            assert _evaluate(expr, values, enums, "") is not False, (solver, invariant_id, "pre")
+        assert _evaluate(invariants[attributed_invariant], values, enums, "_post") is False, (solver, attributed_invariant)
+
+
+def _append_guard(action: dict[str, object], conjunct: dict[str, object]) -> None:
+    assert action["guard"]["op"] == "and"
+    action["guard"]["args"].append(conjunct)
+
+
+def _in_domain(total: dict[str, object]) -> dict[str, object]:
+    return {"op": "<=", "args": [total, {"const": 8}]}
 
 
 def test_model_source_scope_and_claim_ceiling_are_exact() -> None:
@@ -220,6 +356,7 @@ def _mutate_reserve_masks_entitlement(document: dict[str, object]) -> None:
     condition = update["expr"]["cond"]
     update["expr"]["then"] = {"var": "ent_alice_l0"}
     action["updates"].append({"var": "reserve_l0", "expr": {"op": "ite", "cond": condition, "then": {"op": "+", "args": [{"var": "reserve_l0"}, {"param": "amount"}]}, "else": {"var": "reserve_l0"}}})
+    _append_guard(action, _in_domain({"op": "+", "args": [{"var": "reserve_l0"}, {"param": "amount"}]}))
 
 
 def _mutate_unassigned_atom(document: dict[str, object]) -> None:
@@ -236,12 +373,15 @@ def _mutate_terminal_over_entitlement(document: dict[str, object]) -> None:
     args = action["guard"]["args"]
     bounds = [index for index, arg in enumerate(args) if arg.get("op") == "<=" and arg["args"][1].get("op") == "ite"]
     assert len(bounds) == 1
-    args[bounds[0]] = {"bool": True}
+    # Keep the cell in its declared domain; only the entitlement bound is dropped.
+    args[bounds[0]] = _in_domain(args[bounds[0]]["args"][0])
 
 
 def _mutate_custody_double_count(document: dict[str, object]) -> None:
-    update = _update(_action(document, "open_entitlement"), "custody")
+    action = _action(document, "open_entitlement")
+    update = _update(action, "custody")
     update["expr"] = {"op": "+", "args": [{"var": "custody"}, {"param": "amount"}, {"param": "amount"}]}
+    _append_guard(action, _in_domain(update["expr"]))
 
 
 def _mutate_disable_with_rows(document: dict[str, object]) -> None:
@@ -283,9 +423,10 @@ def test_named_semantic_mutants_produce_two_solver_counterexamples(
     expected_query_id: str,
     attributed_invariant: str,
 ) -> None:
+    original = _document()
     document = _document()
     mutate(document)
-    assert document != _document(), named_disaster
+    assert document != original, named_disaster
     mutant = tmp_path / f"{named_disaster}.yaml"
     mutant.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     python = _esso_python()
@@ -296,6 +437,7 @@ def test_named_semantic_mutants_produce_two_solver_counterexamples(
     assert result["report"]["inconclusive_queries"] == 0
     assert result["report"]["solvers_agreed"] is True
     _assert_exact_two_solver_counterexample(result, expected_query_id=expected_query_id)
+    _assert_counterexample_falsifies(result, original, query_id=expected_query_id, attributed_invariant=attributed_invariant)
     attributed = [row for row in document["invariants"] if row["id"] == attributed_invariant]
     assert [row["id"] for row in attributed] == [attributed_invariant]
     document["invariants"] = attributed
@@ -307,6 +449,41 @@ def test_named_semantic_mutants_produce_two_solver_counterexamples(
     assert attribution["report"]["inconclusive_queries"] == 0
     assert attribution["report"]["solvers_agreed"] is True
     _assert_exact_two_solver_counterexample(attribution, expected_query_id=expected_query_id)
+    _assert_counterexample_falsifies(
+        attribution,
+        original,
+        query_id=expected_query_id,
+        attributed_invariant=attributed_invariant,
+        assumed_invariants=frozenset({attributed_invariant}),
+    )
+
+
+def test_derived_invariants_carry_no_mutant() -> None:
+    """inv_normative_partition and inv_same_domain_backed are conclusions of the others, so no mutant targets them."""
+
+    attributed = {row.values[3] for row in test_named_semantic_mutants_produce_two_solver_counterexamples.pytestmark[0].args[1]}
+    assert attributed == EXPECTED_INVARIANTS - {"inv_normative_partition", "inv_same_domain_backed"}
+
+
+def test_runtime_rejects_terminal_total_over_entitlement() -> None:
+    """The model's aggregate TerminalBound is the running per-cell fold of terminal rows (Opus P13 P2-1)."""
+
+    state = renderer.build_state_v1(renderer._spec())
+    base = cert.build_registered_empty_certificate_v1(state)
+    lane = base.ordered_lane_fragments[0]
+    claims = tuple(
+        cert.TerminalBindingRowV1(f"t{i}", "alice", "USD", 2, "spot-pool", "pool-a", lane.lane_id, lane.lane_state_root) for i in (1, 2)
+    )
+    fragment = renderer._fragment_with_rows(
+        lane,
+        controlled_locations=(cert.ControlledLocationRowV1("USD", "pool-a", "spot-pool", 3),),
+        claimant_entitlements=(cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", 3),),
+        terminal_bindings=claims,
+    )
+    certificate = renderer._certificate_with_fragments(base, (fragment, *base.ordered_lane_fragments[1:]))
+    with pytest.raises(cert._Reject) as captured:
+        cert._check_terminal_totals(certificate)
+    assert captured.value.code is cert.AllocationCertificateRejectCodeV1.TERMINAL_BINDING_DRIFT
 
 
 def test_runtime_rejects_reserve_masking_as_entitlement() -> None:

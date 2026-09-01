@@ -274,7 +274,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V10.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v9", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v9"),
+        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V11.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v10", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v10"),
         pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
@@ -367,6 +367,12 @@ LEAN_REGION_ANCHOR = "def balancedState : State where"
         pytest.param("  end GlobalClaimantCustodyRelationV1\n\n", "LEAN_NAMESPACE_DRIFT", "", id="indented_end_in_region"),
         pytest.param("#eval 1\n\n", "LEAN_COMMAND_FORBIDDEN", "# command", id="eval_command_forbidden"),
         pytest.param("#exit\n\n", "LEAN_COMMAND_FORBIDDEN", "# command", id="exit_command_forbidden"),
+        # Opus P13 P3-5: any Unicode whitespace may precede a command.
+        pytest.param("\f#eval 1\n\n", "LEAN_COMMAND_FORBIDDEN", "# command", id="form_feed_eval_command"),
+        pytest.param("\u00a0\u2028#exit\n\n", "LEAN_COMMAND_FORBIDDEN", "# command", id="unicode_space_exit_command"),
+        # Opus P13 P2-3: `«a--»` is one identifier to Lean and a line comment to the stripper.
+        pytest.param("theorem «a--» : True := trivial\n\n", "LEAN_GUILLEMET_FORBIDDEN", "line", id="guillemet_identifier_opens_comment"),
+        pytest.param("def «x» : Nat := 0\n\n", "LEAN_GUILLEMET_FORBIDDEN", "line", id="guillemet_identifier"),
         # Opus P10 P1-B1 (mounted survivor): a char literal holding a double quote opened a phantom
         # string for the stripper and a quote in a line comment closed it, hiding the commands between.
         pytest.param("axiom opusEvilAxiom : False\ninstance opusEvilInstance : Inhabited Nat := ⟨0⟩\n-- close the phantom string with a quote inside a line comment: \"\n", "LEAN_DOUBLE_QUOTE_FORBIDDEN", "line", id="quote_in_comment"),
@@ -568,6 +574,7 @@ TERMINAL_MACRO = "bounded_state_vec_deserializer_v1!(\n    deserialize_terminal_
         pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "def TerminalBound (f : LaneFragment) : Prop :=\n  ∀ c d, f.terminal c d ≤ f.entitlement c d", "def TerminalBound (f : LaneFragment) : Prop :=\n  ∀ c d, f.terminal c d ≤ f.entitlement c d + f.reserve d", "", "LEAN_DEFINITION_SURFACE_DRIFT", id="certificate_lean_definition_weakened"),
         pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "", "", "\nnotation:max \"RowsEqual\" => (fun _ _ => True)\n", "LEAN_DOUBLE_QUOTE_FORBIDDEN", id="certificate_lean_notation"),
         pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "", "", "\nmacro_rules | `(RowsEqual) => `(True)\n", "LEAN_COMMAND_FORBIDDEN", id="certificate_lean_macro_rules"),
+        pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "", "", "\ntheorem «rows--» : True := trivial\n", "LEAN_GUILLEMET_FORBIDDEN", id="certificate_lean_guillemet"),
         pytest.param(core.LEAN_ROOT_PATH_V1, "import Proofs.GlobalAccountingAllocationCertificateV1\n", "", "", "LEAN_IMPORT_ROOT_MISSING", id="certificate_lean_import_dropped"),
         pytest.param(core.CERTIFICATE_LEAN_GATE_PATH_V1, '    "lanePartition_premise_is_necessary",\n', "", "", "LEAN_GATE_THEOREMS_DRIFT", id="certificate_lean_gate_theorem_dropped"),
         # C4c: the certificate ESSO model is a second pinned ESSO subject under the same closures.
@@ -783,6 +790,15 @@ def test_rustc_version_parser_binds_release_commit_and_host() -> None:
         pytest.param("", "", "\ndef _hook(name: str) -> object:\n    return int\n\n\n__getattr__ = _hook\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_alias"),
         pytest.param("", "", "\n__dir__: object = None\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_dir_annassign"),
         pytest.param("", "", "\nfrom os import getcwd as __getattr__\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_import_alias"),
+        # Opus P13 P1-1: hooks installed by binding forms outside the module-level statement allowlist.
+        pytest.param("", "", "\n(__getattr__ := lambda name: int)\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_walrus"),
+        pytest.param("", "", "\ndef _install() -> None:\n    global __getattr__\n    __getattr__ = lambda name: int\n\n\n_install()\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_global_in_function"),
+        pytest.param("", "", "\ntry:\n    raise ValueError\nexcept ValueError as __getattr__:\n    pass\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_except_capture"),
+        pytest.param("", "", "\nmatch int:\n    case __getattr__:\n        pass\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_match_capture"),
+        pytest.param("", "", "\nif True:\n    import os as __dir__\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_dir_nested_import_alias"),
+        pytest.param("", "", "\nfor __dir__ in ():\n    pass\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_dir_for_target"),
+        pytest.param("", "", "\nwith open(__file__) as __getattr__:\n    pass\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_with_target"),
+        pytest.param("", "", "\n[__getattr__ for __getattr__ in ()]\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_comprehension_target"),
         pytest.param("", "", "\nglobals()['TerminalObligationV1'] = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="globals_subscript_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\n_sys.modules[__name__] = None\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="sys_modules_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\nobject.__setattr__(_sys.modules[__name__], 'TerminalObligationV1', int)\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="object_setattr_rebinding"),
@@ -1582,7 +1598,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V10:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V11:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:
