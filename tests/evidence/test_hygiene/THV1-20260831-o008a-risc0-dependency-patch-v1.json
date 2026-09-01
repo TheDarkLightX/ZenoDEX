@@ -1,0 +1,185 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-o008a-risc0-dependency-patch-v1",
+  "created_date": "2026-08-31",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "claim_scope": "Research-only O-008A Stage-A dependency repair restaged on exact parent b6655bf0c7ef7e099c9430485010baf4df15fd65 for the selected RISC0 3.0.6 economic-initial-state workspace. It source-pins the local patch graph, removes the two vulnerable dependency selections from the selected lock, and grants no build-host, proof, release, runtime, settlement, or value-movement authority.",
+  "invariant_ids": [
+    "O008A-PATCH-CLOSED-SOURCE-TREES",
+    "O008A-PATCH-GIT-TREE-COMPLETENESS",
+    "O008A-PATCH-EXACT-COMMIT-SUBJECT",
+    "O008A-PATCH-CLOSED-WRITE-SET",
+    "O008A-PATCH-RSA-ABSENT-SELECTED-GRAPH",
+    "O008A-PATCH-TRACING-FIXED-SELECTED-GRAPH",
+    "O008A-PATCH-SIGNATURE-PROFILES-FAIL-CLOSED",
+    "O008A-PATCH-ZERO-AUTHORITY"
+  ],
+  "failure_modes": [
+    "a vendored byte, executable bit, package identity, license, repository, or upstream VCS identity changes without review",
+    "a vendored source is missing from the committed Git tree because of an inherited ignore rule",
+    "a short SHA, ref name, wrong parent, extra path, missing path, non-blob, or unexpected executable mode enters the Stage-A subject",
+    "ambient TMPDIR redirects committed-subject materialization onto tmpfs, a symlink, or a foreign filesystem, or the checker is invoked below the sanitized Git root",
+    "the primary patch donor is misrepresented as a complete tracing source capture, or the four cached-upstream env-filter restores are not bound under the complete tracing identity",
+    "rsa re-enters the selected lock or tracing-subscriber falls below the repaired compatibility line",
+    "install or publish loses signature verification, or signature-disabled verification accepts",
+    "the no-feature build imports unrelated feature-dependent upstream tests",
+    "the dependency patch is misrepresented as host qualification, proof validity, release readiness, or runtime authority"
+  ],
+  "source_pins": [
+    {
+      "path": ".gitignore",
+      "sha256": "94d42a7736821a1c785c339502b60dd59ec8ed174951de8a640d120844d3d11c"
+    },
+    {
+      "path": ".gitattributes",
+      "sha256": "8d761c017b65951301f8d97011af9feaebc331547a524b5e98ff9b8d412e30aa"
+    },
+    {
+      "path": "tools/o008a_risc0_dependency_patch_v1.py",
+      "sha256": "1ee909f5f57655c940df50542b5782d2a4508856dc3dbcc2237572c63e293adc"
+    },
+    {
+      "path": "tools/check_o008a_risc0_dependency_patch_v1.py",
+      "sha256": "fa9072ab106cbefd5653df16b5fc205d294368da6e8b87bef544a701b8cf18ba"
+    },
+    {
+      "path": "zk/economic_initial_state_risc0/Cargo.toml",
+      "sha256": "105f23df86807ab5a7130fa5daa7cf2d581fa2fa4d0576968fefcac27008fc09"
+    },
+    {
+      "path": "zk/economic_initial_state_risc0/Cargo.lock",
+      "sha256": "e795d92ffe588fcc2280c3f6b543f9e5158fe7e8b1ff28442af2e20c2503751f"
+    },
+    {
+      "path": "docs/dependency-approvals/2026-08-31-risc0-3-0-6-source-pinned-patches.md",
+      "sha256": "2f9d8354808fc4d672fd53b5cf5f73727c626640c3ce9cf7a684979bb471abec"
+    },
+    {
+      "path": "vendor/risc0-3.0.6-patches/README.md",
+      "sha256": "3bd3021247805553949624d6d60ad0df62a24d53407564056b81d2abd72e1e3f"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_o008a_risc0_dependency_patch_v1.py",
+      "sha256": "0a5e79952ec640233481e528f0ea782f67235c95ad511c77250444db2c476d44",
+      "node_ids": [
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_bdd_given_closed_patch_when_checked_then_selected_graph_is_validated_only",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_closed_vendor_identities_retain_upstream_and_patched_roots",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_subject_tree_contains_all_86_tracing_sources_and_exact_modes",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_subject_omits_ignored_tracing_env_source_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_subject_adds_receipt_admission_path_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_subject_mode_changes_are_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_subject_cli_identity_requires_literal_lowercase_full_sha",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_checker_cli_requires_subject_argument",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_subject_parent_or_parent_count_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_noncanonical_or_traversing_subject_path_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_checker_rejects_foreign_scratch_and_nonroot_repository",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_clean_git_archive_replays_committed_subject",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_workspace_patch_substitution_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_rsa_reintroduced_into_selected_lock_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_tracing_downgrade_in_selected_lock_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_rzup_install_without_signature_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_signature_disabled_verifier_acceptance_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_no_feature_lane_imports_full_upstream_test_suite_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_ark_tracing_compatibility_floor_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_ark_old_layer_api_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_closed_vendor_byte_is_rejected",
+        "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_vendor_symlink_is_rejected"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "substitute a foreign local rzup patch path",
+      "killed_by": "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_workspace_patch_substitution_is_rejected"
+    },
+    {
+      "description": "reintroduce rsa into the selected lock",
+      "killed_by": "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_rsa_reintroduced_into_selected_lock_is_rejected"
+    },
+    {
+      "description": "make signature-disabled verification accept",
+      "killed_by": "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_signature_disabled_verifier_acceptance_is_rejected"
+    },
+    {
+      "description": "compile the full upstream test suite in the no-feature build-only lane",
+      "killed_by": "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_no_feature_lane_imports_full_upstream_test_suite_is_rejected"
+    },
+    {
+      "description": "replace a closed vendored source byte or node with a symlink",
+      "killed_by": "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_closed_vendor_byte_is_rejected"
+    },
+    {
+      "description": "omit an ignored tracing-subscriber env module source from the committed Git tree",
+      "killed_by": "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_subject_omits_ignored_tracing_env_source_is_rejected"
+    },
+    {
+      "description": "add an out-of-scope receipt-admission path to the dependency-only subject",
+      "killed_by": "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_subject_adds_receipt_admission_path_is_rejected"
+    },
+    {
+      "description": "change the sole executable install script to a regular-file mode",
+      "killed_by": "tests/test_o008a_risc0_dependency_patch_v1.py::test_mutation_subject_mode_changes_are_rejected"
+    },
+    {
+      "description": "redirect scratch through hostile TMPDIR or a symlink, select a foreign scratch device, or invoke below the Git top level",
+      "killed_by": "tests/test_o008a_risc0_dependency_patch_v1.py::test_checker_rejects_foreign_scratch_and_nonroot_repository"
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange the exact selected lock or one-defect source-policy mutation, act through the deterministic validator, and assert the complete bounded report or exact typed rejection code."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The checker reads immutable source bytes and returns a typed report. A rejected patch, lock, or source mutation cannot publish a proof, alter committed state, grant authority, or move value."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "dependency_selection",
+      "points": [
+        "rsa absent from selected lock",
+        "one rsa row reintroduced rejects",
+        "tracing-subscriber exactly 0.3.22 accepts and the former 0.2.25 line rejects",
+        "all 86 tracing source files are committed blobs and one omitted env module rejects",
+        "exactly rzup install is executable and a mode mutation rejects",
+        "a literal full commit SHA with exact single parent and closed 134-path diff accepts; refs, missing paths, and extra paths reject"
+      ]
+    },
+    {
+      "name": "signature_profile",
+      "points": [
+        "build-only no-feature profile rejects signing and verification",
+        "install and publish profiles retain the signature feature",
+        "full upstream tests require the complete install-and-publish profile"
+      ]
+    },
+    {
+      "name": "source_provenance",
+      "points": [
+        "the primary patch donor is identified without claiming it contained the four ignored tracing env-filter files",
+        "the four exact restored paths are listed under the complete 86-file cached-upstream tracing tree, VCS, and package identity",
+        "the recorded tracing archive checksum is provenance metadata and the absent archive was not rehashed in this exact restage"
+      ]
+    }
+  ],
+  "nonclaims": [
+    "The source-pinned patch and zero-vulnerability selected-lock audit do not qualify the build host.",
+    "The three informational unmaintained-package notices remain open and visible.",
+    "No Cargo audit, Cargo build, guest build, proof, or receipt replay was run for this exact restage.",
+    "The cached tracing-subscriber .crate archive was absent and was not rehashed in this exact restage; its recorded checksum is provenance metadata only.",
+    "No proof validity, verifier admission, release, production, mount, migration, settlement, or value-movement authority is established.",
+    "O-008A still requires a clean isolated exact-head image build, artifact identities, real proof, separate replay, resource and toolchain receipts, and independent review."
+  ]
+}

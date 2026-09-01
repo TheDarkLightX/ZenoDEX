@@ -72,6 +72,8 @@ target/
 .venv/
 venv/
 env/
+!/vendor/risc0-3.0.6-patches/tracing-subscriber-0.3.22/src/filter/env/
+!/vendor/risc0-3.0.6-patches/tracing-subscriber-0.3.22/src/filter/env/*.rs
 ENV/
 .venv_audit/
 .venv_gpu/

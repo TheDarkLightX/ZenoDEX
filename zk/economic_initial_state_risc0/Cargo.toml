@@ -10,3 +10,8 @@ members = [
 [profile.release]
 lto = true
 opt-level = 3
+
+[patch.crates-io]
+ark-relations = { path = "../../vendor/risc0-3.0.6-patches/ark-relations-0.5.1" }
+rzup = { path = "../../vendor/risc0-3.0.6-patches/rzup-0.5.2" }
+tracing-subscriber = { path = "../../vendor/risc0-3.0.6-patches/tracing-subscriber-0.3.22" }

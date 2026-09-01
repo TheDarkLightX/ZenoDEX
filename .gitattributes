@@ -1,0 +1,2 @@
+# Preserve reviewed upstream crate bytes exactly, including inherited whitespace.
+/vendor/risc0-3.0.6-patches/** -text -whitespace linguist-vendored
