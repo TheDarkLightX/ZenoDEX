@@ -1,0 +1,137 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260901-o008-formal-relation-boundary-v1",
+  "created_date": "2026-09-01",
+  "claim_scope": "Research-only source-bound evidence that the O-008 formal cycle records visible necessary claimant-backing checks, bounded ESSO and Lean relations, V1 terminal-domain information loss, a complete twelve-lane feasibility inventory, and the minimum sidecar obligations while keeping O-008 open, all value-movement gates open, and every authority field at NONE.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "O008-V1-NECESSARY-CLAIMANT-BACKING",
+    "O008-BOUNDED-CONTROLLED-CLAIM-RESERVE-EQUATION",
+    "O008-V1-TERMINAL-DOMAIN-ERASURE-NONINJECTIVE",
+    "O008-EXACT-ALL-12-RECONCILIATION-OPEN",
+    "O008-ZERO-AUTHORITY-CLAIM-CEILING"
+  ],
+  "failure_modes": [
+    "a bounded theorem or solver result is promoted to O-008 completion",
+    "the exact all-twelve-lane reconciliation gap is omitted",
+    "a reserve atom is allowed to mask missing claimant backing",
+    "the V1 terminal projection is treated as if it retained domain and source principal",
+    "a detached host sidecar is assigned verifier or settlement authority",
+    "a source hash or exact formal subject drifts while the packet still passes",
+    "one of the twelve lanes disappears from the feasibility inventory"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json",
+      "sha256": "87bdf009f6ec842971bca89baa6f9f5b69a59dfba932eb090d6b69f1e9eaea66"
+    },
+    {
+      "path": "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md",
+      "sha256": "addf22790e0b3a16833408e38d799e360cc3852c839890dc98af223e87e57a23"
+    },
+    {
+      "path": "tools/check_o008_formal_cycle_v1.py",
+      "sha256": "ba21f8c6c564ae073e24a786bbc1dff180f4cd87f45f384845131839bfc3b7dd"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_o008_formal_cycle_v1.py",
+      "sha256": "5071fd624ffa680c69e4b680dadc12221bec78c6bd28609e0b05a42eae1e7305",
+      "node_ids": [
+        "tests/test_check_o008_formal_cycle_v1.py::test_current_o008_formal_cycle_packet_passes_fail_closed_checker",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cli_emits_machine_readable_open_o008_verdict",
+        "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[promote_formal_core]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[promote_authority]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[drift_source]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[drop_lane]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[drop_sidecar_check]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[promote_lane]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_duplicate_json_key_fails_closed",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_names_the_exact_v1_information_loss_and_nonclaims"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "formal",
+    "replay",
+    "negative_regression",
+    "mutation",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each checker test arranges one exact packet or one named semantic mutation, invokes the deterministic checker, and asserts the exact machine-readable pass or fail-closed reason."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "The checker is read-only and produces only a process result and JSON report. It has no state transition, witness constructor, settlement effect, or external effect."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "claim_ceiling",
+      "points": [
+        "formal cycle complete with bounded claim",
+        "O-008 explicitly open",
+        "formal core explicitly incomplete",
+        "zero of twelve value-movement gates",
+        "all authorities NONE"
+      ]
+    },
+    {
+      "name": "inventory_cardinality",
+      "points": [
+        "exact eleven source pins",
+        "exact twelve ordered lanes",
+        "exact eight ESSO invariants",
+        "exact eighteen Lean theorems",
+        "exact ten sidecar checker obligations"
+      ]
+    },
+    {
+      "name": "information_boundary",
+      "points": [
+        "terminal liability domain absent",
+        "terminal source principal absent",
+        "lane projection preimage absent",
+        "external outbox asset and amount absent"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "promote the bounded packet to formal-core completion",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[promote_formal_core]"
+    },
+    {
+      "description": "grant settlement authority",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[promote_authority]"
+    },
+    {
+      "description": "replace a source pin with a forged digest",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[drift_source]"
+    },
+    {
+      "description": "remove a lane or sidecar obligation",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[drop_lane]"
+    },
+    {
+      "description": "promote one lane to exact reconciliation completion",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_unsafe_packet_mutations_fail_closed[promote_lane]"
+    },
+    {
+      "description": "repeat a JSON key so a permissive parser could select the unsafe value",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_duplicate_json_key_fails_closed"
+    }
+  ],
+  "nonclaims": [
+    "The completed formal cycle does not complete O-008 or the formal functional core.",
+    "The exact all-twelve-lane claimant and reserve certificate is not implemented, proof-bound, verifier-admitted, or mounted.",
+    "The bounded ESSO and Lean results do not establish current runtime refinement, RISC0 receipt validity, Tau parity, publisher admission, or whole-program value safety.",
+    "The all-lane audit is a source-data feasibility inventory, not proof that every caller or producer has been exhaustively discovered.",
+    "The proposed sidecar has evidence-only authority until it is emitted and bound by the accepted proof fabric.",
+    "No production, release, settlement, verifier, migration, publication, or value-moving authority is granted."
+  ]
+}
