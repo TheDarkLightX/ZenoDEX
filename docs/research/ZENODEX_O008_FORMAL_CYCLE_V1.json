@@ -1,0 +1,260 @@
+{
+  "schema": "zenodex/o008-formal-cycle-evidence/v1",
+  "created_date": "2026-09-01",
+  "subject_commit": "fd071bcb53daf5e37c083b610003ec36c7391f18",
+  "subject_parent": "38d5de111d5566622e7d1db53f27eeeeabb4ad2e",
+  "formal_cycle_status": "FORMAL_CYCLE_COMPLETE_O008_OPEN",
+  "supported_claim": "O008_RELATION_NECESSARY_CHECKS_AND_INFORMATION_LOSS_PROVED",
+  "o008_status": "OPEN_EXACT_ALL_12_RECONCILIATION_MISSING",
+  "formal_core_complete": false,
+  "whole_value_movement_safe": false,
+  "value_movement_gates_closed": 0,
+  "value_movement_gates_total": 12,
+  "production_authority": "NONE",
+  "settlement_authority": "NONE",
+  "release_authority": "NONE",
+  "verifier_authority": "NONE",
+  "completion_scope": [
+    "Python and Rust reject V1-state-visible same-domain claimant underbacking",
+    "Python and Rust reject aggregate OPEN-terminal amounts above the same claimant's visible liabilities",
+    "ESSO proves the bounded exact claimant/domain/current-profile reserve target inductive with Z3 and CVC5",
+    "Lean proves the bounded necessary relation, current-profile reserve equation, exact deposit/drain preservation, minimized weaker-relation counterexamples, and V1 terminal-domain information loss",
+    "the old bounded formal blueprint no longer maps terminal metadata into the owned-atom sum",
+    "all twelve lanes were audited for exact reconciliation source data",
+    "the smallest wire-compatible sidecar contract and its missing producer/proof obligations are specified"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "2c80fe364241de0fa2c93c258767dd93ad65233fbb58de71af398b3b5c1c2d54",
+      "role": "python_visible_necessary_checks"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
+      "sha256": "44352e36e147c59ca397e571237d48eebd91787066df26fb7a5b65b2a78b2672",
+      "role": "rust_visible_necessary_checks"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "13871fb586d7e5c1106edd5c0a9fdcd6f817016925027a6bdfb5ca8f53f29f58",
+      "role": "python_v1_wire_schema"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/state.rs",
+      "sha256": "44f6874589e72c7fefdcac8b6c220fb311c6dc0f1e53bb3b962e32a6d593b98c",
+      "role": "rust_v1_wire_schema"
+    },
+    {
+      "path": "src/kernels/dex/global_claimant_custody_certificate_v1.yaml",
+      "sha256": "492283e6791663550a424423571fc0cf1466cda604732dc2d3e6c027e6b2a60d",
+      "role": "bounded_exact_target_model"
+    },
+    {
+      "path": "tests/formal/test_esso_global_claimant_custody_certificate_v1.py",
+      "sha256": "2046d51238f5100648fa54c16708d586fe77840ae0cb04389fc6c969a48aef07",
+      "role": "esso_replay_mutation_and_v1_information_loss_gate"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalClaimantCustodyRelationV1.lean",
+      "sha256": "1fc04ed21c4615d483d037549ff151b3a5bd10bbdf263bcaa4ff992c4bf6b9d8",
+      "role": "machine_checked_relation_and_no_recovery_theorems"
+    },
+    {
+      "path": "tests/formal/test_lean_global_claimant_custody_relation_v1.py",
+      "sha256": "047b0026706f673941252311a090e9deee5101e91bfe875f3690a5217640a187",
+      "role": "lean_source_binding_compilation_and_axiom_gate"
+    },
+    {
+      "path": "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
+      "sha256": "f623b12c7c82adfd6011e682fae86ce46538d474d61c44288f1ceff46cde941a",
+      "role": "corrected_prior_formal_blueprint"
+    },
+    {
+      "path": "tests/formal/test_esso_global_settlement_core_v1.py",
+      "sha256": "f5ae430981007698bc00a25e3aa676bd38fc1fcf9522731cee650e7279f72b4d",
+      "role": "prior_model_semantic_restage_gate"
+    },
+    {
+      "path": "tests/evidence/test_hygiene/THV1-20260901-global-settlement-formal-core-semantic-restage-v1.json",
+      "sha256": "55e0021b648ab2ec273e8a69a0ec1eecdf19492ddd0468d55a220e56e02c0b02",
+      "role": "append_only_semantic_correction_packet"
+    }
+  ],
+  "esso_evidence": {
+    "model_id": "global_claimant_custody_certificate_v1",
+    "ir_hash": "sha256:833ada0215f0a4f07e6e9695f06a3c740d3e89eee175f6d14027b25a947b4578",
+    "fingerprint": "e37705902eb04f48aee9ab1fac333396b80a317716aeb64f51ebdb72cb3fde82",
+    "esso_code_commit": "7f80c6216be85c827e8d1cc2fa08ee3107a74588",
+    "solvers": {
+      "z3": "4.15.4",
+      "cvc5": "1.1.2"
+    },
+    "determinism_trials": 2,
+    "solver_timeout_ms": 10000,
+    "queries": [
+      "init_implies_inv",
+      "inductive_open_claim",
+      "inductive_drain_claim"
+    ],
+    "invariant_count": 8,
+    "per_invariant_projections": 8,
+    "named_mutants_with_two_solver_counterexamples": 5,
+    "pytest_result": "20 passed",
+    "claim_boundary": "finite one-asset two-domain two-claimant model with at most eight atoms per cell"
+  },
+  "lean_evidence": {
+    "toolchain": "leanprover/lean4:v4.27.0",
+    "direct_warning_as_error_check": "PASS",
+    "sorry_admit_sorryAx_count": 0,
+    "allowed_axioms": [
+      "propext",
+      "Quot.sound",
+      "Classical.choice"
+    ],
+    "theorem_count": 18,
+    "binding_pytest_result": "6 passed",
+    "required_theorems": [
+      "exactAllocation_noUnclassified_implies_certificateRelation",
+      "controlledClaimReserveEquation_iff_exactCustody",
+      "deposit_preserves_currentProfileCertificateRelation",
+      "drain_preserves_currentProfileCertificateRelation",
+      "aggregateOnly_permits_crossDomainBacking",
+      "aggregateClaimants_permit_claimantSwap",
+      "reserveMasking_violates_controlledClaimReserveEquation",
+      "terminalProjection_domainErasure_notInjective",
+      "terminalProjection_hasNoUniversalDomainRecovery"
+    ],
+    "claim_boundary": "bounded cardinality relation over natural-number atoms; no canonical bytes, cryptographic roots, runtime refinement, verifier admission, or authority"
+  },
+  "v1_information_loss": {
+    "terminal_missing_fields": [
+      "liability_domain",
+      "custody_principal"
+    ],
+    "opaque_bindings": [
+      "lane_state_root_to_private_accounting_projection",
+      "receipt_root_to_allocation_preimage"
+    ],
+    "external_outbox_missing_fields": [
+      "asset",
+      "amount_atoms"
+    ],
+    "accepted_known_gaps": [
+      "same_lane_root_claimant_projection_substitution",
+      "domainless_terminal_with_two_distinct_hidden_domain_preimages"
+    ],
+    "formal_result": "NO_UNIVERSAL_RECOVERY_FROM_V1_TERMINAL_PROJECTION",
+    "mounted_exploit_claim": false
+  },
+  "lane_source_data": [
+    {
+      "lane_id": "ASSET_TRANSFER",
+      "status": "PARTIAL",
+      "missing": "claimant and reserve classification"
+    },
+    {
+      "lane_id": "SPOT_LIQUIDITY",
+      "status": "PARTIAL",
+      "missing": "LP ownership and terminal detail behind opaque roots"
+    },
+    {
+      "lane_id": "FARM_INCENTIVES",
+      "status": "MISSING",
+      "missing": "V1 projection and receipt producer"
+    },
+    {
+      "lane_id": "ZDEX_TOKENOMICS",
+      "status": "PARTIAL",
+      "missing": "staking treasury host reward and cover-reserve allocation preimages"
+    },
+    {
+      "lane_id": "ZUSD_MONETARY",
+      "status": "MISSING",
+      "missing": "matching Python/Rust V1 projection and receipt path"
+    },
+    {
+      "lane_id": "PERPS_MARKET",
+      "status": "NARROW_FRAGMENT_ONLY",
+      "missing": "full-lane producer beyond margin deposit withdraw and close"
+    },
+    {
+      "lane_id": "ORACLE_MARKET",
+      "status": "MISSING",
+      "missing": "reporter bond reward and claim accounting projection"
+    },
+    {
+      "lane_id": "SEALED_AUCTION",
+      "status": "MISSING",
+      "missing": "matching V1 Rust and proof projection"
+    },
+    {
+      "lane_id": "STRATEGY_ESCROW",
+      "status": "MISSING",
+      "missing": "V1 accounting projection"
+    },
+    {
+      "lane_id": "PROOF_REWARDS",
+      "status": "EMPTY_ROOT_UNBOUND",
+      "missing": "global lane root to registered empty-state root binding"
+    },
+    {
+      "lane_id": "EXTERNAL_CUSTODY",
+      "status": "EMPTY_ROOT_UNBOUND",
+      "missing": "global lane root to registered disabled empty-state root binding"
+    },
+    {
+      "lane_id": "GOVERNANCE_MIGRATION",
+      "status": "MISSING",
+      "missing": "lane-specific accounting projection and receipt"
+    }
+  ],
+  "required_sidecar": {
+    "type_name": "GlobalAccountingAllocationCertificateV1",
+    "preserves_global_state_v1_wire_bytes": true,
+    "required_fields": [
+      "global_state_root",
+      "profile_root",
+      "writer_epoch",
+      "chain_context",
+      "ordered_lane_fragments",
+      "canonical_allocation_rows",
+      "field_ownership_root",
+      "terminal_binding_root",
+      "allocation_root"
+    ],
+    "required_checks": [
+      "exact_twelve_lane_order",
+      "enabled_lane_supported_receipt_backed_producer",
+      "disabled_lane_registered_empty_state_root",
+      "every_controlled_source_atom_assigned_exactly_once",
+      "claimant_allocations_equal_liabilities",
+      "reserve_allocations_equal_selected_normative_reserve_interpretation",
+      "external_obligations_bind_asset_amount_destination_and_commitment",
+      "terminal_rows_bind_claimant_asset_amount_domain_principal_lane_and_state_root",
+      "lane_aggregates_equal_global_economic_tables",
+      "checked_u128_arithmetic_and_canonical_order"
+    ],
+    "host_only_authority": "EVIDENCE_ONLY",
+    "verifier_authority_requires": [
+      "all_twelve_lane_fragment_producers",
+      "lane_receipt_binding",
+      "route_and_epoch_proof_propagation",
+      "versioned_journal_admission",
+      "commit_port_enforcement"
+    ]
+  },
+  "replay_commands": [
+    "ZENO_ESSO_PYTHON=/path/to/clean/ESSO/.venv/bin/python python3 -m pytest -q tests/formal/test_esso_global_claimant_custody_certificate_v1.py",
+    "cd lean-mathlib && lake env lean -DwarningAsError=true Proofs/GlobalClaimantCustodyRelationV1.lean",
+    "python3 -m pytest -q tests/formal/test_lean_global_claimant_custody_relation_v1.py",
+    "python3 -m pytest -q tests/formal/test_esso_global_settlement_core_v1.py"
+  ],
+  "nonclaims": [
+    "The completed formal cycle does not complete O-008.",
+    "The exact all-twelve-lane claimant and reserve reconciliation certificate is not implemented or mounted.",
+    "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher execution.",
+    "The Lean theorems do not establish cryptographic binding, finite-width runtime parity, settlement authority, or whole-program value safety.",
+    "A detached host-generated sidecar can be swapped independently of an epoch receipt and therefore grants evidence-only authority.",
+    "No production, release, settlement, verifier, migration, publication, or value-moving authority is granted."
+  ]
+}
