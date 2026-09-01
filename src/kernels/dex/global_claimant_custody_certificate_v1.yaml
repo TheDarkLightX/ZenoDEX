@@ -12,23 +12,21 @@ meta:
 
     allocation_{claimant}_{domain} is verifier-derived evidence bound to the
     exact global-state root, lane-projection root, profile/writer header, and
-    terminal projection. Exact domain custody is partitioned into claimant
-    allocations plus an explicitly visible unclassified bucket. The current
-    profile requires that bucket to be zero because V1 has no asset/amount
-    representation for a pending registered external obligation. Each
-    claimant liability equals its allocation in that domain. Each OPEN
-    terminal amount is bounded by the exact claimant/domain allocation.
-    Controlled atoms are modeled as custody plus named reserves, with named
-    reserves appearing separately on the claim side of the equation. They
-    cannot back claimant liabilities.
+    terminal projection. For the current no-unclassified profile, exact domain
+    custody is partitioned entirely into claimant allocations. Each claimant
+    liability equals its allocation in that domain. Each OPEN terminal amount
+    is bounded by the exact claimant/domain allocation.
+
+    Reserves are outside this bounded exact claimant/custody slice. Exact
+    reserve reconciliation remains open and is not a claimed invariant here.
 
     open_claim and drain_claim model only an accepted exact relation update.
     Their Boolean parameters are adversarial abstract premises. They represent
     facts established by an opaque verifier; a caller-provided true Boolean
     would not be authority. The journal makes every accepted transition imply
-    all four bindings, and the state equations make cross-domain, claimant,
-    reserve-source, terminal-domain, and unclassified-custody mutations
-    falsifiable.
+    all four bindings. The state equations make cross-domain, claimant, and
+    terminal-domain mutations falsifiable. Reserve masking is exercised by a
+    separate executable runtime counterexample family.
 
     This model is a bounded target contract. It does not prove current V1
     runtime refinement, private lane projections, cryptographic roots,
@@ -49,8 +47,6 @@ observables:
     - "open_alice_d1"
     - "open_bob_d0"
     - "open_bob_d1"
-    - "reserve_d0"
-    - "reserve_d1"
     - "g_decision"
   effects:
     - "accepted"
@@ -77,8 +73,6 @@ state_vars:
   - { id: "allocation_alice_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "allocation_bob_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "allocation_bob_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
-  - { id: "unclassified_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
-  - { id: "unclassified_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "liability_alice_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "liability_alice_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "liability_bob_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
@@ -87,16 +81,11 @@ state_vars:
   - { id: "open_alice_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "open_bob_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "open_bob_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
-  - { id: "reserve_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
-  - { id: "reserve_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
-
   - { id: "g_decision", role: "control", type: { ref: "Decision" } }
   - { id: "g_global_root_bound", role: "control", type: { kind: "bool" } }
   - { id: "g_lane_projection_root_bound", role: "control", type: { kind: "bool" } }
   - { id: "g_header_bound", role: "control", type: { kind: "bool" } }
   - { id: "g_terminal_projection_exact", role: "control", type: { kind: "bool" } }
-  - { id: "g_pre_reserve_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
-  - { id: "g_pre_reserve_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
 
 init:
   - { var: "custody_d0", expr: { const: 1 } }
@@ -105,8 +94,6 @@ init:
   - { var: "allocation_alice_d1", expr: { const: 0 } }
   - { var: "allocation_bob_d0", expr: { const: 0 } }
   - { var: "allocation_bob_d1", expr: { const: 1 } }
-  - { var: "unclassified_d0", expr: { const: 0 } }
-  - { var: "unclassified_d1", expr: { const: 0 } }
   - { var: "liability_alice_d0", expr: { const: 1 } }
   - { var: "liability_alice_d1", expr: { const: 0 } }
   - { var: "liability_bob_d0", expr: { const: 0 } }
@@ -115,15 +102,11 @@ init:
   - { var: "open_alice_d1", expr: { const: 0 } }
   - { var: "open_bob_d0", expr: { const: 0 } }
   - { var: "open_bob_d1", expr: { const: 1 } }
-  - { var: "reserve_d0", expr: { const: 1 } }
-  - { var: "reserve_d1", expr: { const: 1 } }
   - { var: "g_decision", expr: { enum: "GENESIS" } }
   - { var: "g_global_root_bound", expr: { bool: false } }
   - { var: "g_lane_projection_root_bound", expr: { bool: false } }
   - { var: "g_header_bound", expr: { bool: false } }
   - { var: "g_terminal_projection_exact", expr: { bool: false } }
-  - { var: "g_pre_reserve_d0", expr: { const: 1 } }
-  - { var: "g_pre_reserve_d1", expr: { const: 1 } }
 
 invariants:
   - id: "inv_exact_custody_partition_d0"
@@ -136,7 +119,6 @@ invariants:
           args:
             - { var: "allocation_alice_d0" }
             - { var: "allocation_bob_d0" }
-            - { var: "unclassified_d0" }
 
   - id: "inv_exact_custody_partition_d1"
     kind: "safety"
@@ -148,7 +130,6 @@ invariants:
           args:
             - { var: "allocation_alice_d1" }
             - { var: "allocation_bob_d1" }
-            - { var: "unclassified_d1" }
 
   - id: "inv_exact_claimant_domain_liabilities"
     kind: "safety"
@@ -170,36 +151,6 @@ invariants:
         - { op: "<=", args: [{ var: "open_bob_d0" }, { var: "allocation_bob_d0" }] }
         - { op: "<=", args: [{ var: "open_bob_d1" }, { var: "allocation_bob_d1" }] }
 
-  - id: "inv_current_profile_has_no_unclassified_custody"
-    kind: "safety"
-    expr:
-      op: "and"
-      args:
-        - { op: "=", args: [{ var: "unclassified_d0" }, { const: 0 }] }
-        - { op: "=", args: [{ var: "unclassified_d1" }, { const: 0 }] }
-
-  - id: "inv_controlled_claim_reserve_equation"
-    kind: "safety"
-    expr:
-      op: "and"
-      args:
-        - op: "="
-          args:
-            - { op: "+", args: [{ var: "custody_d0" }, { var: "reserve_d0" }] }
-            - op: "+"
-              args:
-                - { var: "liability_alice_d0" }
-                - { var: "liability_bob_d0" }
-                - { var: "reserve_d0" }
-        - op: "="
-          args:
-            - { op: "+", args: [{ var: "custody_d1" }, { var: "reserve_d1" }] }
-            - op: "+"
-              args:
-                - { var: "liability_alice_d1" }
-                - { var: "liability_bob_d1" }
-                - { var: "reserve_d1" }
-
   - id: "inv_accept_requires_exact_bound_evidence"
     kind: "safety"
     expr:
@@ -215,20 +166,6 @@ invariants:
             - { var: "g_lane_projection_root_bound" }
             - { var: "g_header_bound" }
             - { var: "g_terminal_projection_exact" }
-
-  - id: "inv_reserves_are_not_claimant_backing"
-    kind: "safety"
-    expr:
-      op: "=>"
-      args:
-        - op: "or"
-          args:
-            - { op: "=", args: [{ var: "g_decision" }, { enum: "OPENED" }] }
-            - { op: "=", args: [{ var: "g_decision" }, { enum: "DRAINED" }] }
-        - op: "and"
-          args:
-            - { op: "=", args: [{ var: "reserve_d0" }, { var: "g_pre_reserve_d0" }] }
-            - { op: "=", args: [{ var: "reserve_d1" }, { var: "g_pre_reserve_d1" }] }
 
 actions:
   - id: "open_claim"
@@ -426,8 +363,6 @@ actions:
       - { var: "g_lane_projection_root_bound", expr: { param: "lane_projection_root_bound" } }
       - { var: "g_header_bound", expr: { param: "header_bound" } }
       - { var: "g_terminal_projection_exact", expr: { param: "terminal_projection_exact" } }
-      - { var: "g_pre_reserve_d0", expr: { var: "reserve_d0" } }
-      - { var: "g_pre_reserve_d1", expr: { var: "reserve_d1" } }
     effects:
       accepted: { bool: true }
       decision: { enum: "OPENED" }
@@ -615,8 +550,6 @@ actions:
       - { var: "g_lane_projection_root_bound", expr: { param: "lane_projection_root_bound" } }
       - { var: "g_header_bound", expr: { param: "header_bound" } }
       - { var: "g_terminal_projection_exact", expr: { param: "terminal_projection_exact" } }
-      - { var: "g_pre_reserve_d0", expr: { var: "reserve_d0" } }
-      - { var: "g_pre_reserve_d1", expr: { var: "reserve_d1" } }
     effects:
       accepted: { bool: true }
       decision: { enum: "DRAINED" }

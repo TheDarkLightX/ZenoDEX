@@ -34,12 +34,20 @@ from src.core.global_settlement_types_v1 import (
     TerminalObligationStatusV1,
     TerminalObligationV1,
 )
+from src.core.perps_margin_lane_coordinator_v1 import PerpsMarginLaneProjectionV1
+from src.core.perps_margin_types_v1 import (
+    PERPS_MARGIN_CUSTODY_DOMAIN_V1,
+    PerpsMarginAccountStatusV1,
+    PerpsMarginAccountV1,
+    PerpsMarginMarketStatusV1,
+    PerpsMarginStateV1,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = ROOT / "src" / "kernels" / "dex" / "global_claimant_custody_certificate_v1.yaml"
 
-RECORDED_SOURCE_SHA256 = "492283e6791663550a424423571fc0cf1466cda604732dc2d3e6c027e6b2a60d"
-RECORDED_IR_HASH = "sha256:833ada0215f0a4f07e6e9695f06a3c740d3e89eee175f6d14027b25a947b4578"
+RECORDED_SOURCE_SHA256 = "b28d930697b232711fd392f09f60b377ad2e498adcab92beacdd2d83d8e0192a"
+RECORDED_IR_HASH = "sha256:a4d1d07f6c9d9587e3848599ebdd9fdb0a4126d6c3c8f217b12249106e7b9dcf"
 RECORDED_FINGERPRINT = "e37705902eb04f48aee9ab1fac333396b80a317716aeb64f51ebdb72cb3fde82"
 RECORDED_ESSO_CODE_HASH = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
 
@@ -49,10 +57,7 @@ EXPECTED_INVARIANTS = {
     "inv_exact_custody_partition_d1",
     "inv_exact_claimant_domain_liabilities",
     "inv_open_terminals_fit_exact_allocations",
-    "inv_current_profile_has_no_unclassified_custody",
-    "inv_controlled_claim_reserve_equation",
     "inv_accept_requires_exact_bound_evidence",
-    "inv_reserves_are_not_claimant_backing",
 }
 
 
@@ -62,13 +67,20 @@ def _document() -> dict[str, object]:
     return value
 
 
-def _esso_python() -> str | None:
+def _esso_python() -> str:
     configured = os.environ.get("ZENO_ESSO_PYTHON")
     if configured:
+        configured_path = Path(configured)
+        if not configured_path.is_file():
+            raise RuntimeError(
+                f"configured ESSO interpreter is unavailable: {configured_path}"
+            )
         return configured
     if importlib.util.find_spec("ESSO") is not None:
         return sys.executable
-    return None
+    raise RuntimeError(
+        "ESSO is unavailable; set ZENO_ESSO_PYTHON to the verified interpreter"
+    )
 
 
 def _run_esso(python: str, *args: str) -> tuple[int, dict[str, object]]:
@@ -89,13 +101,18 @@ def _root(value: int) -> str:
     return f"0x{value:064x}"
 
 
-def _lane_roots(perps_root: int = 40_000) -> tuple[LaneStateRootV1, ...]:
+def _lane_roots(perps_root: int | str = 40_000) -> tuple[LaneStateRootV1, ...]:
+    committed_perps_root = _root(perps_root) if type(perps_root) is int else perps_root
     return tuple(
         LaneStateRootV1(
             lane_id,
             _root(41_000 + index),
             True,
-            _root(perps_root if lane_id is LaneIdV1.PERPS_MARKET else 42_000 + index),
+            (
+                committed_perps_root
+                if lane_id is LaneIdV1.PERPS_MARKET
+                else _root(42_000 + index)
+            ),
         )
         for index, lane_id in enumerate(ALL_LANE_IDS_V1)
     )
@@ -115,14 +132,16 @@ def _state(
     custody: tuple[tuple[str, str, str, int], ...],
     liabilities: tuple[tuple[str, str, str, int], ...],
     terminals: tuple[TerminalObligationV1, ...],
+    reserves: tuple[tuple[str, str, str, int], ...] = (),
     lane_roots: tuple[LaneStateRootV1, ...] | None = None,
 ) -> GlobalEconomicStateV1:
+    holdings = (*custody, *reserves)
     supplies = tuple(
         AssetSupplyV1(
             asset,
-            sum(amount for _, row_asset, _, amount in custody if row_asset == asset),
+            sum(amount for _, row_asset, _, amount in holdings if row_asset == asset),
         )
-        for asset in sorted({row[1] for row in custody})
+        for asset in sorted({row[1] for row in holdings})
     )
     return GlobalEconomicStateV1(
         chain_id="zeno-claimant-certificate-no-go",
@@ -134,11 +153,12 @@ def _state(
         supplies=supplies,
         custody=_amounts(*custody),
         liabilities=_amounts(*liabilities),
+        reserves=_amounts(*reserves),
         terminal_obligations=tuple(sorted(terminals, key=lambda row: row.obligation_id)),
     )
 
 
-def _accept_static_state(state: GlobalEconomicStateV1) -> None:
+def _accept_static_state(state: GlobalEconomicStateV1) -> str:
     candidate = GlobalEconomicStateEffectRefinementCandidateV1(
         state,
         state,
@@ -147,6 +167,37 @@ def _accept_static_state(state: GlobalEconomicStateV1) -> None:
     refinement = refine_global_economic_state_effects_v1(candidate)
     assert refinement.pre_state_root == state.state_root
     assert refinement.post_state_root == state.state_root
+    return refinement.refinement_root
+
+
+def _sat_query_ids(result: dict[str, object]) -> set[str]:
+    queries = result["queries"]
+    assert isinstance(queries, dict)
+    return {
+        query_id
+        for query_id, query in queries.items()
+        if isinstance(query, dict) and query["final_result"] == "sat"
+    }
+
+
+def _assert_exact_two_solver_counterexample(
+    result: dict[str, object],
+    *,
+    expected_query_id: str,
+) -> None:
+    assert result["ok"] is False
+    assert _sat_query_ids(result) == {expected_query_id}
+    queries = result["queries"]
+    assert isinstance(queries, dict)
+    query = queries[expected_query_id]
+    assert isinstance(query, dict)
+    assert query["final_result"] == "sat"
+    assert query["agreed"] is True
+    for solver in ("z3", "cvc5"):
+        solver_result = query[solver]
+        assert isinstance(solver_result, dict)
+        assert solver_result["result"] == "sat"
+        assert solver_result["model"] is not None
 
 
 def test_model_source_scope_and_claim_ceiling_are_exact() -> None:
@@ -162,6 +213,9 @@ def test_model_source_scope_and_claim_ceiling_are_exact() -> None:
     assert invariants == EXPECTED_INVARIANTS
     for phrase in (
         "one asset, two custody domains, two claimants",
+        "current no-unclassified profile",
+        "Reserves are outside this bounded exact claimant/custody slice",
+        "Exact reserve reconciliation remains open",
         "caller-provided true Boolean would not be authority",
         "does not prove current V1 runtime refinement",
         "settlement authority",
@@ -170,59 +224,81 @@ def test_model_source_scope_and_claim_ceiling_are_exact() -> None:
         assert phrase in notes
 
 
-def test_exact_relation_excludes_reserves_and_classifies_every_custody_atom() -> None:
-    document = _document()
-    invariant_text = json.dumps(document["invariants"], sort_keys=True)
-
-    assert "allocation_alice_d0" in invariant_text
-    assert "unclassified_d0" in invariant_text
-    assert "liability_alice_d0" in invariant_text
-    assert "open_alice_d0" in invariant_text
-    assert "inv_controlled_claim_reserve_equation" in invariant_text
-
-    custody = 2
-    allocations = 1
-    unclassified = 0
-    assert custody >= allocations + unclassified
-    assert custody != allocations + unclassified, "weak inequality leaves one atom unclassified"
-
-
-def test_current_profile_equation_classifies_reserves_separately() -> None:
+def test_exact_partition_model_has_no_unclassified_or_reserve_escape_hatch() -> None:
     document = _document()
     invariants = {row["id"]: row for row in document["invariants"]}
-    equation = json.dumps(
-        invariants["inv_controlled_claim_reserve_equation"],
+    for domain in ("d0", "d1"):
+        partition = invariants[f"inv_exact_custody_partition_{domain}"]["expr"]
+        assert partition["op"] == "="
+        assert partition["args"][0] == {"var": f"custody_{domain}"}
+        assert partition["args"][1] == {
+            "op": "+",
+            "args": [
+                {"var": f"allocation_alice_{domain}"},
+                {"var": f"allocation_bob_{domain}"},
+            ],
+        }
+
+    claimed_surface = json.dumps(
+        {
+            "state_vars": document["state_vars"],
+            "invariants": document["invariants"],
+        },
         sort_keys=True,
     )
-    no_unclassified = json.dumps(
-        invariants["inv_current_profile_has_no_unclassified_custody"],
-        sort_keys=True,
+    assert "reserve_" not in claimed_surface
+    assert "unclassified_" not in claimed_surface
+    assert "g_pre_" not in claimed_surface
+
+
+def test_runtime_rejects_aggregate_only_cross_domain_backing() -> None:
+    aggregate_only = _state(
+        custody=(("account-bob", "USD", "domain-1", 2),),
+        liabilities=(("alice", "USD", "domain-0", 2),),
+        terminals=(),
+    )
+    assert sum(row.amount_atoms for row in aggregate_only.custody) == sum(
+        row.amount_atoms for row in aggregate_only.liabilities
     )
 
-    assert equation.count("reserve_d0") == 2
-    assert equation.count("reserve_d1") == 2
-    assert "liability_alice_d0" in equation
-    assert "liability_bob_d1" in equation
-    assert "unclassified_d0" in no_unclassified
-    assert '"const": 0' in no_unclassified
+    with pytest.raises(
+        ValueError,
+        match="liabilities exceed same-domain custody backing",
+    ):
+        _accept_static_state(aggregate_only)
 
 
-def test_aggregate_conservation_does_not_imply_domain_or_claimant_reconciliation() -> None:
-    custody_by_domain = {"d0": 0, "d1": 2}
-    liability_by_domain = {"d0": 2, "d1": 0}
-    terminal_by_claimant = {"alice": 1, "bob": 1}
-    liability_by_claimant = {"alice": 0, "bob": 2}
+def test_runtime_rejects_reserve_masking_as_claimant_backing() -> None:
+    reserve_masked = _state(
+        custody=(),
+        liabilities=(("alice", "USD", "perps-margin", 1),),
+        terminals=(),
+        reserves=(("protocol-reserve", "USD", "perps-margin", 1),),
+    )
+    assert sum(row.amount_atoms for row in reserve_masked.reserves) == sum(
+        row.amount_atoms for row in reserve_masked.liabilities
+    )
 
-    assert sum(custody_by_domain.values()) == sum(liability_by_domain.values())
-    assert liability_by_domain["d0"] > custody_by_domain["d0"]
-    assert sum(terminal_by_claimant.values()) == sum(liability_by_claimant.values())
-    assert terminal_by_claimant["alice"] > liability_by_claimant["alice"]
+    with pytest.raises(
+        ValueError,
+        match="liabilities exceed same-domain custody backing",
+    ):
+        _accept_static_state(reserve_masked)
 
 
-@pytest.mark.skipif(_esso_python() is None, reason="ESSO unavailable; formal replay is INCOMPLETE")
+def test_configured_esso_interpreter_missing_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "missing-esso-python"
+    monkeypatch.setenv("ZENO_ESSO_PYTHON", str(missing))
+
+    with pytest.raises(RuntimeError, match="configured ESSO interpreter is unavailable"):
+        _esso_python()
+
+
 def test_esso_two_solver_replay_is_exact_and_deterministic() -> None:
     python = _esso_python()
-    assert python is not None
 
     validate_rc, validate = _run_esso(python, "validate", str(MODEL))
     verify_rc, verify = _run_esso(
@@ -255,33 +331,28 @@ def test_esso_two_solver_replay_is_exact_and_deterministic() -> None:
     }
 
 
-INVARIANT_SUPPORT = {
-    "inv_exact_custody_partition_d0": {"inv_open_terminals_fit_exact_allocations"},
-    "inv_exact_custody_partition_d1": {"inv_open_terminals_fit_exact_allocations"},
-    "inv_exact_claimant_domain_liabilities": {"inv_open_terminals_fit_exact_allocations"},
+SUFFICIENT_INVARIANT_SUPPORT = {
+    "inv_exact_custody_partition_d0": set(),
+    "inv_exact_custody_partition_d1": set(),
+    "inv_exact_claimant_domain_liabilities": set(),
     "inv_open_terminals_fit_exact_allocations": set(),
-    "inv_current_profile_has_no_unclassified_custody": set(),
-    "inv_controlled_claim_reserve_equation": set(),
     "inv_accept_requires_exact_bound_evidence": set(),
-    "inv_reserves_are_not_claimant_backing": set(),
 }
 
 
 @pytest.mark.parametrize("invariant_id", sorted(EXPECTED_INVARIANTS))
-@pytest.mark.skipif(_esso_python() is None, reason="ESSO unavailable; formal replay is INCOMPLETE")
-def test_each_invariant_has_a_minimal_inductive_solver_projection(
+def test_each_invariant_has_a_sufficient_inductive_solver_projection(
     tmp_path: Path,
     invariant_id: str,
 ) -> None:
     document = _document()
-    selected_ids = {invariant_id, *INVARIANT_SUPPORT[invariant_id]}
+    selected_ids = {invariant_id, *SUFFICIENT_INVARIANT_SUPPORT[invariant_id]}
     selected = [row for row in document["invariants"] if row["id"] in selected_ids]
     assert {row["id"] for row in selected} == selected_ids
     document["invariants"] = selected
     projection = tmp_path / f"{invariant_id}.yaml"
     projection.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     python = _esso_python()
-    assert python is not None
 
     rc, result = _run_esso(
         python,
@@ -303,53 +374,69 @@ def test_each_invariant_has_a_minimal_inductive_solver_projection(
 
 
 @pytest.mark.parametrize(
-    ("needle", "replacement", "named_disaster"),
+    (
+        "needle",
+        "replacement",
+        "named_disaster",
+        "expected_query_id",
+        "attributed_invariant",
+    ),
     (
         pytest.param(
             'args:\n        - { param: "global_root_bound" }\n        - { param: "lane_projection_root_bound" }',
             'args:\n        - { bool: true }\n        - { param: "lane_projection_root_bound" }',
             "accept_without_global_root_binding",
+            "inductive_open_claim",
+            "inv_accept_requires_exact_bound_evidence",
             id="accept_without_global_root_binding",
         ),
         pytest.param(
             '- var: "custody_d0"\n        expr:\n          op: "ite"\n          cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }\n          then: { op: "+", args: [{ var: "custody_d0" }, { param: "amount" }] }',
             '- var: "custody_d0"\n        expr:\n          op: "ite"\n          cond: { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }\n          then: { op: "+", args: [{ var: "custody_d0" }, { param: "amount" }] }',
             "cross_domain_custody_substitution",
+            "inductive_open_claim",
+            "inv_exact_custody_partition_d0",
             id="cross_domain_custody_substitution",
-        ),
-        pytest.param(
-            '- var: "custody_d0"\n        expr:\n          op: "ite"\n          cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }\n          then: { op: "+", args: [{ var: "custody_d0" }, { param: "amount" }] }',
-            '- var: "reserve_d0"\n        expr:\n          op: "ite"\n          cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }\n          then: { op: "+", args: [{ var: "reserve_d0" }, { param: "amount" }] }',
-            "reserve_used_as_claimant_backing",
-            id="reserve_used_as_claimant_backing",
         ),
         pytest.param(
             '- var: "liability_alice_d0"\n        expr:\n          op: "ite"\n          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }\n          then: { op: "+", args: [{ var: "liability_alice_d0" }, { param: "amount" }] }',
             '- var: "liability_alice_d0"\n        expr:\n          op: "ite"\n          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }\n          then: { op: "+", args: [{ var: "liability_alice_d0" }, { param: "amount" }] }',
             "claimant_column_substitution",
+            "inductive_open_claim",
+            "inv_exact_claimant_domain_liabilities",
             id="claimant_column_substitution",
         ),
         pytest.param(
             '- var: "open_alice_d0"\n        expr:\n          op: "ite"\n          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }\n          then: { op: "+", args: [{ var: "open_alice_d0" }, { param: "amount" }] }',
             '- var: "open_alice_d0"\n        expr:\n          op: "ite"\n          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }\n          then: { op: "+", args: [{ var: "open_alice_d0" }, { param: "amount" }] }',
             "terminal_domain_erasure",
+            "inductive_open_claim",
+            "inv_open_terminals_fit_exact_allocations",
             id="terminal_domain_erasure",
+        ),
+        pytest.param(
+            '- var: "custody_d0"\n        expr:\n          op: "ite"\n          cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }\n          then: { op: "-", args: [{ var: "custody_d0" }, { param: "amount" }] }',
+            '- var: "custody_d0"\n        expr:\n          op: "ite"\n          cond: { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }\n          then: { op: "-", args: [{ var: "custody_d0" }, { param: "amount" }] }',
+            "drain_cross_domain_custody_substitution",
+            "inductive_drain_claim",
+            "inv_exact_custody_partition_d0",
+            id="drain_cross_domain_custody_substitution",
         ),
     ),
 )
-@pytest.mark.skipif(_esso_python() is None, reason="ESSO unavailable; mutation replay is INCOMPLETE")
 def test_named_semantic_mutants_produce_two_solver_counterexamples(
     tmp_path: Path,
     needle: str,
     replacement: str,
     named_disaster: str,
+    expected_query_id: str,
+    attributed_invariant: str,
 ) -> None:
     source = MODEL.read_text(encoding="utf-8")
     assert source.count(needle) >= 1, named_disaster
     mutant = tmp_path / f"{named_disaster}.yaml"
     mutant.write_text(source.replace(needle, replacement, 1), encoding="utf-8")
     python = _esso_python()
-    assert python is not None
 
     rc, result = _run_esso(
         python,
@@ -364,14 +451,53 @@ def test_named_semantic_mutants_produce_two_solver_counterexamples(
     )
 
     assert rc != 0
-    assert result["ok"] is False
     assert result["report"]["verdict"] == "FAILED"
-    assert result["report"]["failed_queries"] >= 1
+    assert result["report"]["failed_queries"] == 1
     assert result["report"]["inconclusive_queries"] == 0
     assert result["report"]["solvers_agreed"] is True
+    _assert_exact_two_solver_counterexample(
+        result,
+        expected_query_id=expected_query_id,
+    )
+
+    mutant_document = yaml.safe_load(mutant.read_text(encoding="utf-8"))
+    attributed_rows = [
+        row
+        for row in mutant_document["invariants"]
+        if row["id"] == attributed_invariant
+    ]
+    assert [row["id"] for row in attributed_rows] == [attributed_invariant]
+    mutant_document["invariants"] = attributed_rows
+    attribution_model = tmp_path / (
+        f"{named_disaster}-{attributed_invariant}-attribution.yaml"
+    )
+    attribution_model.write_text(
+        yaml.safe_dump(mutant_document, sort_keys=False),
+        encoding="utf-8",
+    )
+    attribution_rc, attribution = _run_esso(
+        python,
+        "verify-multi",
+        str(attribution_model),
+        "--solvers",
+        "z3,cvc5",
+        "--determinism-trials",
+        "2",
+        "--timeout-ms",
+        "10000",
+    )
+
+    assert attribution_rc != 0
+    assert attribution["report"]["failed_queries"] == 1
+    assert attribution["report"]["inconclusive_queries"] == 0
+    assert attribution["report"]["solvers_agreed"] is True
+    _assert_exact_two_solver_counterexample(
+        attribution,
+        expected_query_id=expected_query_id,
+    )
 
 
-def test_v1_domainless_terminal_has_distinct_hidden_domain_preimages() -> None:
+def test_v1_terminal_domain_erasure_has_distinct_exact_relation_preimages() -> None:
     terminal = TerminalObligationV1(
         "terminal-1",
         LaneIdV1.PERPS_MARKET,
@@ -398,44 +524,89 @@ def test_v1_domainless_terminal_has_distinct_hidden_domain_preimages() -> None:
         ),
         terminals=(terminal,),
     )
-    _accept_static_state(ambiguous)
+    liabilities_by_domain = {
+        row.custody_domain: row.amount_atoms for row in ambiguous.liabilities
+    }
+    assert terminal.amount_atoms > liabilities_by_domain[hidden_d0[1]]
+    assert _accept_static_state(ambiguous) == (
+        "0x99c49ccabda238b41785d2587dd509d15e37cb2896ed89941ccbc9f324b0be3b"
+    )
 
 
-def test_v1_same_lane_root_accepts_claimant_substitution_without_projection_evidence() -> None:
-    lane_roots = _lane_roots(perps_root=44_000)
-    custody = (("account-bob", "USD", "perps-margin", 1),)
-    honest = _state(
-        custody=custody,
-        liabilities=(("alice", "USD", "perps-margin", 1),),
-        terminals=(
-            TerminalObligationV1(
-                "terminal-1",
-                LaneIdV1.PERPS_MARKET,
+def test_v1_accepts_claimant_substitution_against_canonical_perps_projection() -> None:
+    account = PerpsMarginAccountV1(
+        account_id="acct-bob",
+        owner="alice",
+        position_base=0,
+        entry_price_e8=0,
+        collateral_atoms=1,
+        nonce=0,
+        status=PerpsMarginAccountStatusV1.OPEN,
+    )
+    lane_state = PerpsMarginStateV1(
+        module_release_id=_root(17),
+        market_id="market",
+        collateral_asset="USD",
+        index_price_e8=1,
+        maintenance_margin_bps=1,
+        depeg_buffer_bps=0,
+        max_position_abs=1,
+        market_status=PerpsMarginMarketStatusV1.ACTIVE,
+        accounts=(account,),
+    )
+    honest_projection = PerpsMarginLaneProjectionV1(
+        lane_state=lane_state,
+        balances=(),
+        accounting_locations=(
+            EconomicAmountV1(
+                "acct-bob",
+                "USD",
+                PERPS_MARGIN_CUSTODY_DOMAIN_V1,
+                1,
+            ),
+        ),
+        liabilities=(
+            EconomicAmountV1(
                 "alice",
                 "USD",
+                PERPS_MARGIN_CUSTODY_DOMAIN_V1,
                 1,
-                TerminalObligationStatusV1.OPEN,
             ),
         ),
-        lane_roots=lane_roots,
+        supplies=(AssetSupplyV1("USD", 1),),
+        terminal_obligations=lane_state.terminal_obligations,
+    )
+    honest_terminal = honest_projection.terminal_obligations[0]
+    substituted_terminal = TerminalObligationV1(
+        honest_terminal.obligation_id,
+        honest_terminal.lane_id,
+        "mallory",
+        honest_terminal.asset,
+        honest_terminal.amount_atoms,
+        honest_terminal.status,
     )
     substituted = _state(
-        custody=custody,
-        liabilities=(("mallory", "USD", "perps-margin", 1),),
-        terminals=(
-            TerminalObligationV1(
-                "terminal-1",
-                LaneIdV1.PERPS_MARKET,
-                "mallory",
-                "USD",
-                1,
-                TerminalObligationStatusV1.OPEN,
-            ),
-        ),
-        lane_roots=lane_roots,
+        custody=(("acct-bob", "USD", PERPS_MARGIN_CUSTODY_DOMAIN_V1, 1),),
+        liabilities=(("mallory", "USD", PERPS_MARGIN_CUSTODY_DOMAIN_V1, 1),),
+        terminals=(substituted_terminal,),
+        lane_roots=_lane_roots(perps_root=honest_projection.state_root),
     )
 
-    assert honest.lane_roots == substituted.lane_roots
-    assert honest.state_root != substituted.state_root
-    _accept_static_state(honest)
-    _accept_static_state(substituted)
+    perps_lane_root = next(
+        row for row in substituted.lane_roots if row.lane_id is LaneIdV1.PERPS_MARKET
+    )
+    assert honest_terminal.claimant == "alice"
+    assert substituted_terminal.claimant == "mallory"
+    assert perps_lane_root.state_root == honest_projection.state_root
+    assert honest_terminal.obligation_id == (
+        "0xcbb415722632be964cd5113050c842cdf8d643df256655ff551439c0fd81dc55"
+    )
+    assert honest_projection.state_root == (
+        "0x470e8a0f06841fc48fb1cd93a3417824fcd1eece840458455ee9f8a7f3b16a28"
+    )
+    assert substituted.state_root == (
+        "0x32fe632a765eb2d143be6257bc2bc27c253be6307a160093781a5fd541593bf0"
+    )
+    assert _accept_static_state(substituted) == (
+        "0xc553f2cfb6f028b5679a1cb3a2ccd693d59d6deb0b16c8374cd179fd378f2daa"
+    )
