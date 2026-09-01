@@ -18,22 +18,39 @@ The necessary relation has two parts:
 
 The stronger exact current-profile relation requires custody to equal visible
 claimant liabilities in each domain.  `State.reserves` is excluded from that
-relation.  It remains in this bounded state only to express and refute the
-reserve-inclusive weaker relation below.  The exact equality is scoped to the
-current profile, whose V1 bytes have no asset/amount representation for a
-pending registered external obligation.
+relation: `necessaryRelation_independent_of_reserves` and
+`exactCurrentProfileCustody_independent_of_reserves` state that exclusion as
+definitional equivalences.  The reserve column remains in this bounded state
+only to express and refute the reserve-inclusive weaker relation below.  The
+exact equality is scoped to the current profile, whose V1 bytes have no
+asset/amount representation for a pending registered external obligation.
 
 `ExactAllocationWitness` records stronger, certificate-side partition
 equalities.  Its first theorem establishes that the two inequalities are
-necessary consequences of exact partitions.  The deposit and drain theorems
-then show that exact coordinate updates preserve the necessary relation under
-their stated arithmetic premises.
+necessary consequences of exact partitions; `noUnclassified_premise_is_necessary`
+shows that the zero-unclassified-custody premise of the exact current-profile
+consequence cannot be dropped.  The deposit and drain theorems then show that
+exact coordinate updates preserve the necessary relation and the exact
+current-profile relation.  Deposit needs no arithmetic premise.  Only drain
+requires the amount to fit inside each of the three updated coordinates, so that
+natural-number subtraction cannot truncate (the exact-custody drain lemma alone
+needs just the custody and liability bounds).  Neither transition changes
+`State.reserves`; `deposit_preserves_reserves` and `drain_preserves_reserves`
+record that by `rfl`.
 
-The counterexamples are part of the result.  They show that total-only backing,
+The counterexamples are part of the result.  Total-only backing,
 claimant-erased terminal coverage, and reserve-inclusive backing are strictly
-weaker.  The final theorems show that removing `liability_domain` from a
-terminal record is non-injective, so no function of the projected V1 record can
-recover the domain for every domain-bound source record.
+weaker than the same-domain and claimant-specific checks: the forward
+implications are proved by `sameDomainBacked_implies_aggregateBacked`,
+`openTerminalCovered_implies_aggregateCovered`, and
+`sameDomainBacked_implies_reserveInclusiveBacking`, and the minimized
+counterexamples refute each converse.  `overCollateralised_isBacked_notExact`
+exhibits a state that satisfies same-domain backing but not exact
+current-profile custody, so the exact relation is not a consequence of the
+necessary inequalities.  The final theorems show that removing
+`liability_domain` from a terminal record is non-injective, so no function of
+the projected V1 record can recover the domain for every domain-bound source
+record.
 
 ## Claim boundary
 
@@ -98,6 +115,29 @@ def ExactCurrentProfileCustody (state : State) : Prop :=
 
 def ExactCurrentProfileRelation (state : State) : Prop :=
   NecessaryRelation state ∧ ExactCurrentProfileCustody state
+
+/-- Reserve independence of the necessary relation: replacing the reserve
+column by any other column leaves `NecessaryRelation` unchanged.  The proof is
+`Iff.rfl` because neither R1 nor R2 reads `State.reserves`, so both sides are
+definitionally the same proposition.  This is the formal statement, cited by
+the packet, that reserves do not influence the necessary relation. -/
+theorem necessaryRelation_independent_of_reserves
+    (state : State) (reserves : Domain → Nat) :
+    NecessaryRelation { state with reserves := reserves } ↔
+      NecessaryRelation state :=
+  Iff.rfl
+
+/-- Reserve independence of exact current-profile custody: replacing the
+reserve column by any other column leaves `ExactCurrentProfileCustody`
+unchanged.  The proof is `Iff.rfl` because R3 compares custody with visible
+liabilities only and never reads `State.reserves`.  This is the formal
+statement, cited by the packet, that reserves are excluded from the exact
+current-profile relation. -/
+theorem exactCurrentProfileCustody_independent_of_reserves
+    (state : State) (reserves : Domain → Nat) :
+    ExactCurrentProfileCustody { state with reserves := reserves } ↔
+      ExactCurrentProfileCustody state :=
+  Iff.rfl
 
 /-- Certificate-side slack values turn the two necessary inequalities into
 exact partition equalities.  These values are evidence, not V1 wire fields. -/
@@ -171,6 +211,61 @@ theorem exactCurrentProfileRelation_nonvacuous :
   intro domain
   cases domain <;> rfl
 
+/-- Hot custody of ten atoms behind six atoms of hot liability: same-domain
+backed, with four atoms of unclassified hot custody. -/
+def overCollateralisedState : State where
+  custody
+    | .hot => 10
+    | .cold => 0
+  liabilities
+    | .alice, .hot => 6
+    | _, _ => 0
+  reserves _ := 0
+  openTerminal _ := 0
+
+/-- `overCollateralisedState` satisfies same-domain backing (R1) and violates
+exact current-profile custody (R3): hot custody strictly exceeds hot
+liabilities.  R3 is therefore not a consequence of R1. -/
+theorem overCollateralised_isBacked_notExact :
+    SameDomainLiabilitiesBacked overCollateralisedState ∧
+      ¬ ExactCurrentProfileCustody overCollateralisedState := by
+  constructor
+  · intro domain
+    cases domain <;> norm_num [liabilityInDomain, overCollateralisedState]
+  · intro exactCustody
+    have hotCustody := exactCustody .hot
+    norm_num [liabilityInDomain, overCollateralisedState] at hotCustody
+
+/-- Exact allocation evidence for `overCollateralisedState` whose hot
+unencumbered-custody bucket holds the four surplus atoms. -/
+def overCollateralisedAllocation : ExactAllocationWitness overCollateralisedState where
+  unencumberedCustody
+    | .hot => 4
+    | .cold => 0
+  nonOpenLiability
+    | .alice => 6
+    | .bob => 0
+  custodyPartition := by
+    intro domain
+    cases domain <;> norm_num [overCollateralisedState, liabilityInDomain]
+  liabilityPartition := by
+    intro claimant
+    cases claimant <;> norm_num [overCollateralisedState, liabilityForClaimant]
+
+/-- The `noUnclassified` premise of
+`exactAllocation_noUnclassified_implies_exactCurrentProfileRelation` cannot be
+dropped: `overCollateralisedAllocation` is a well-formed exact allocation
+witness whose hot unencumbered-custody bucket is four, not zero, and
+`overCollateralised_isBacked_notExact` shows its state fails exact
+current-profile custody. -/
+theorem noUnclassified_premise_is_necessary :
+    ¬ ∀ domain, overCollateralisedAllocation.unencumberedCustody domain = 0 := by
+  intro allZero
+  have hotUnclassified :
+      overCollateralisedAllocation.unencumberedCustody .hot = 4 := rfl
+  have hotZero := allZero .hot
+  omega
+
 /-! ## Exact coordinate transitions -/
 
 /-- Deposit adds the same amount to one domain's custody, one claimant/domain
@@ -191,6 +286,14 @@ def deposit (state : State) (claimant : Claimant) (domain : Domain)
       state.openTerminal observedClaimant + amount
     else
       state.openTerminal observedClaimant
+
+/-- `deposit` copies the reserve column unchanged: reserves are not a deposit
+coordinate, so the post-state reserve column is definitionally the pre-state
+column. -/
+theorem deposit_preserves_reserves
+    (state : State) (claimant : Claimant) (domain : Domain) (amount : Nat) :
+    (deposit state claimant domain amount).reserves = state.reserves :=
+  rfl
 
 /-- An exact same-domain deposit preserves both necessary inequalities. -/
 theorem deposit_preserves_necessaryRelation
@@ -254,6 +357,14 @@ def drain (state : State) (claimant : Claimant) (domain : Domain)
     else
       state.openTerminal observedClaimant
 
+/-- `drain` copies the reserve column unchanged: reserves are not a drain
+coordinate, so the post-state reserve column is definitionally the pre-state
+column. -/
+theorem drain_preserves_reserves
+    (state : State) (claimant : Claimant) (domain : Domain) (amount : Nat) :
+    (drain state claimant domain amount).reserves = state.reserves :=
+  rfl
+
 /-- An exact drain preserves the necessary relation when subtraction cannot
 truncate any of the three updated coordinates. -/
 theorem drain_preserves_necessaryRelation
@@ -310,6 +421,18 @@ theorem drain_preserves_exactCurrentProfileRelation
 def AggregateLiabilitiesBacked (state : State) : Prop :=
   totalLiabilities state ≤ totalCustody state
 
+/-- Same-domain backing implies total-only backing: adding the hot and cold
+instances of R1 bounds total liabilities by total custody.  Together with
+`aggregateOnly_permits_crossDomainBacking`, this makes total-only backing
+strictly weaker than R1. -/
+theorem sameDomainBacked_implies_aggregateBacked
+    (state : State) (backed : SameDomainLiabilitiesBacked state) :
+    AggregateLiabilitiesBacked state := by
+  have hotBacking := backed .hot
+  have coldBacking := backed .cold
+  unfold AggregateLiabilitiesBacked totalLiabilities totalCustody
+  omega
+
 def crossDomainBackingState : State where
   custody
     | .hot => 0
@@ -334,6 +457,19 @@ theorem aggregateOnly_permits_crossDomainBacking :
 
 def AggregateOpenClaimsCovered (state : State) : Prop :=
   state.openTerminal .alice + state.openTerminal .bob ≤ totalLiabilities state
+
+/-- Claimant-specific coverage implies claimant-erased aggregate coverage:
+adding the Alice and Bob instances of R2 bounds the total OPEN amount by total
+liabilities.  Together with `aggregateClaimants_permit_claimantSwap`, this
+makes claimant-erased coverage strictly weaker than R2. -/
+theorem openTerminalCovered_implies_aggregateCovered
+    (state : State) (covered : OpenTerminalClaimsCovered state) :
+    AggregateOpenClaimsCovered state := by
+  have aliceCoverage := covered .alice
+  have bobCoverage := covered .bob
+  unfold liabilityForClaimant at aliceCoverage bobCoverage
+  unfold AggregateOpenClaimsCovered totalLiabilities liabilityInDomain
+  omega
 
 def claimantSwapState : State where
   custody
@@ -365,6 +501,17 @@ theorem aggregateClaimants_permit_claimantSwap :
 def ReserveInclusiveBacking (state : State) : Prop :=
   ∀ domain,
     liabilityInDomain state domain ≤ state.custody domain + state.reserves domain
+
+/-- Same-domain backing implies reserve-inclusive backing: enlarging the
+right-hand side of R1 by the reserve column can only loosen the bound.
+Together with `reserveInclusiveBacking_permits_missingExactCustody`, this makes
+reserve-inclusive backing strictly weaker than R1. -/
+theorem sameDomainBacked_implies_reserveInclusiveBacking
+    (state : State) (backed : SameDomainLiabilitiesBacked state) :
+    ReserveInclusiveBacking state := by
+  intro domain
+  have domainBacking := backed domain
+  omega
 
 def reserveInclusiveMaskingState : State where
   custody _ := 0

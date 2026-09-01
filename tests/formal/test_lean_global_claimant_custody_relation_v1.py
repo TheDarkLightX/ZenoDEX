@@ -40,8 +40,8 @@ RUST_REFINEMENT = (
 
 NAMESPACE = "Proofs.GlobalClaimantCustodyRelationV1"
 PINNED_SOURCES = {
-    PROOF: "1fc04ed21c4615d483d037549ff151b3a5bd10bbdf263bcaa4ff992c4bf6b9d8",
-    ESSO_MODEL: "492283e6791663550a424423571fc0cf1466cda604732dc2d3e6c027e6b2a60d",
+    PROOF: "12c75fbe47896ec2308f010a33aa0a02260ad886971c4975cfaeebb269e6228c",
+    ESSO_MODEL: "b28d930697b232711fd392f09f60b377ad2e498adcab92beacdd2d83d8e0192a",
     PYTHON_TYPES: "13871fb586d7e5c1106edd5c0a9fdcd6f817016925027a6bdfb5ca8f53f29f58",
     PYTHON_REFINEMENT: "2c80fe364241de0fa2c93c258767dd93ad65233fbb58de71af398b3b5c1c2d54",
     RUST_STATE: "44f6874589e72c7fefdcac8b6c220fb311c6dc0f1e53bb3b962e32a6d593b98c",
@@ -49,21 +49,28 @@ PINNED_SOURCES = {
 }
 
 THEOREMS = (
+    "necessaryRelation_independent_of_reserves",
+    "exactCurrentProfileCustody_independent_of_reserves",
     "exactAllocation_implies_necessaryRelation",
-    "exactAllocation_noUnclassified_implies_certificateRelation",
-    "controlledClaimReserveEquation_iff_exactCustody",
+    "exactAllocation_noUnclassified_implies_exactCurrentProfileRelation",
     "necessaryRelation_nonvacuous",
-    "currentProfileCertificateRelation_nonvacuous",
+    "exactCurrentProfileRelation_nonvacuous",
+    "overCollateralised_isBacked_notExact",
+    "noUnclassified_premise_is_necessary",
+    "deposit_preserves_reserves",
     "deposit_preserves_necessaryRelation",
-    "deposit_preserves_controlledClaimReserveEquation",
-    "deposit_preserves_currentProfileCertificateRelation",
+    "deposit_preserves_exactCurrentProfileCustody",
+    "deposit_preserves_exactCurrentProfileRelation",
+    "drain_preserves_reserves",
     "drain_preserves_necessaryRelation",
-    "drain_preserves_controlledClaimReserveEquation",
-    "drain_preserves_currentProfileCertificateRelation",
+    "drain_preserves_exactCurrentProfileCustody",
+    "drain_preserves_exactCurrentProfileRelation",
+    "sameDomainBacked_implies_aggregateBacked",
     "aggregateOnly_permits_crossDomainBacking",
+    "openTerminalCovered_implies_aggregateCovered",
     "aggregateClaimants_permit_claimantSwap",
-    "reservesCanMaskMissingCustody",
-    "reserveMasking_violates_controlledClaimReserveEquation",
+    "sameDomainBacked_implies_reserveInclusiveBacking",
+    "reserveInclusiveBacking_permits_missingExactCustody",
     "terminalProjection_domainErasure_witness",
     "terminalProjection_domainErasure_notInjective",
     "terminalProjection_hasNoUniversalDomainRecovery",
@@ -162,13 +169,16 @@ def test_lean_esso_and_runtime_sources_share_the_bounded_relation() -> None:
 
     assert "def SameDomainLiabilitiesBacked" in lean
     assert "def OpenTerminalClaimsCovered" in lean
-    assert "def ControlledClaimReserveEquation" in lean
-    assert "controlledClaimReserveEquation_iff_exactCustody" in lean
+    assert "def ExactCurrentProfileCustody" in lean
+    assert "def ExactCurrentProfileRelation" in lean
+    assert "exactAllocation_noUnclassified_implies_exactCurrentProfileRelation" in lean
+    assert "reserveInclusiveBacking_permits_missingExactCustody" in lean
+    assert "necessaryRelation_independent_of_reserves" in lean
     assert "terminalProjection_hasNoUniversalDomainRecovery" in lean
+    assert "inv_exact_custody_partition_d0" in esso
+    assert "inv_exact_custody_partition_d1" in esso
     assert "inv_exact_claimant_domain_liabilities" in esso
     assert "inv_open_terminals_fit_exact_allocations" in esso
-    assert "inv_current_profile_has_no_unclassified_custody" in esso
-    assert "inv_controlled_claim_reserve_equation" in esso
     assert "inv_accept_requires_exact_bound_evidence" in esso
     for runtime in (python, rust):
         assert "liabilities exceed same-domain custody backing" in runtime
