@@ -3,6 +3,8 @@
 //! Structural pre/post deltas are the independent semantic oracle. The shared
 //! Python/Rust root detects canonical encoding drift.
 
+use std::collections::BTreeMap;
+
 use serde::Deserialize;
 use zenodex_global_settlement_abi_v1::{
     refine_global_economic_state_effects_v1, AbiErrorV1, AssetConservationRowV1, AssetSupplyV1,
@@ -10,8 +12,9 @@ use zenodex_global_settlement_abi_v1::{
     ExternalOutboxEnqueueV1, FeeConservationRowV1, GlobalEconomicEffectPlanV1,
     GlobalEconomicStateEffectRefinementCandidateV1, GlobalEconomicStateV1, LaneIdV1,
     LaneStateRootV1, LaneWriteV1, ReplayStateV1, RootV1, RouteCompositionJournalV1,
-    ALL_LANE_IDS_V1, FEE_RESIDUE_CONTROL_DOMAIN_V1, FEE_RESIDUE_PRINCIPAL_V1,
-    GLOBAL_SETTLEMENT_ABI_V1, ZERO_ROOT_V1,
+    TerminalObligationStatusV1, TerminalObligationV1, ALL_LANE_IDS_V1,
+    FEE_RESIDUE_CONTROL_DOMAIN_V1, FEE_RESIDUE_PRINCIPAL_V1, GLOBAL_SETTLEMENT_ABI_V1,
+    ZERO_ROOT_V1,
 };
 
 #[derive(Debug, Deserialize)]
@@ -91,7 +94,8 @@ fn pre_state() -> GlobalEconomicStateV1 {
         }],
         custody: vec![
             amount("burn-bucket", "USD", "protocol-burn", 20),
-            amount("pool", "USD", "amm-pool", 50),
+            amount("pool", "USD", "amm-pool", 40),
+            amount("vault-account", "USD", "vault-debt", 10),
         ],
         liabilities: vec![amount("vault", "USD", "vault-debt", 10)],
         reserves: vec![amount("treasury", "USD", "reserve", 5)],
@@ -124,7 +128,8 @@ fn post_state() -> GlobalEconomicStateV1 {
         custody: vec![
             amount("burn-bucket", "USD", "protocol-burn", 16),
             amount("escrow", "USD", "strategy-escrow", 5),
-            amount("pool", "USD", "amm-pool", 44),
+            amount("pool", "USD", "amm-pool", 31),
+            amount("vault-account", "USD", "vault-debt", 13),
         ],
         liabilities: vec![amount("vault", "USD", "vault-debt", 13)],
         reserves: vec![amount("treasury", "USD", "reserve", 6)],
@@ -186,7 +191,13 @@ fn effect_plan() -> GlobalEconomicEffectPlanV1 {
                 "strategy-escrow",
                 5,
             ),
-            effect(EconomicEffectKindV1::CUSTODY, "pool", "amm-pool", -6),
+            effect(EconomicEffectKindV1::CUSTODY, "pool", "amm-pool", -9),
+            effect(
+                EconomicEffectKindV1::CUSTODY,
+                "vault-account",
+                "vault-debt",
+                3,
+            ),
             effect(
                 EconomicEffectKindV1::FEE_ALLOCATION,
                 "treasury",
@@ -222,6 +233,18 @@ fn effect_plan() -> GlobalEconomicEffectPlanV1 {
     }
 }
 
+fn empty_effect_plan() -> GlobalEconomicEffectPlanV1 {
+    GlobalEconomicEffectPlanV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        rows: vec![],
+        asset_conservation: vec![],
+        fee_conservation: vec![],
+        lane_writes: vec![],
+        occurrence_consumptions: vec![],
+        external_outbox_enqueue: vec![],
+    }
+}
+
 fn candidate<'a>(
     pre: &'a GlobalEconomicStateV1,
     post: &'a GlobalEconomicStateV1,
@@ -233,6 +256,78 @@ fn candidate<'a>(
         effect_plan: effects,
         consumed_occurrences: &[],
         route_journals: &[],
+    }
+}
+
+fn claimant_relation_state(
+    mut balances: Vec<EconomicAmountV1>,
+    mut custody: Vec<EconomicAmountV1>,
+    mut liabilities: Vec<EconomicAmountV1>,
+    mut reserves: Vec<EconomicAmountV1>,
+    mut terminal_obligations: Vec<TerminalObligationV1>,
+) -> GlobalEconomicStateV1 {
+    let amount_order = |left: &EconomicAmountV1, right: &EconomicAmountV1| {
+        (&left.asset, &left.owner, &left.custody_domain).cmp(&(
+            &right.asset,
+            &right.owner,
+            &right.custody_domain,
+        ))
+    };
+    balances.sort_by(amount_order);
+    custody.sort_by(amount_order);
+    liabilities.sort_by(amount_order);
+    reserves.sort_by(amount_order);
+    terminal_obligations.sort_by(|left, right| left.obligation_id.cmp(&right.obligation_id));
+    let mut supply = BTreeMap::<String, u128>::new();
+    for row in balances.iter().chain(&custody).chain(&reserves) {
+        let total = supply
+            .get(&row.asset)
+            .copied()
+            .unwrap_or(0)
+            .checked_add(row.amount_atoms)
+            .expect("claimant relation fixture owned total must fit u128");
+        supply.insert(row.asset.clone(), total);
+    }
+    GlobalEconomicStateV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        chain_id: "zeno-claimant-relation-test".to_owned(),
+        deployment_root: root(31_000),
+        writer_epoch: 1,
+        height: 1,
+        profile_root: root(31_001),
+        lane_roots: lane_roots(31_002),
+        balances,
+        supplies: supply
+            .into_iter()
+            .map(|(asset, amount_atoms)| AssetSupplyV1 {
+                asset,
+                amount_atoms,
+            })
+            .collect(),
+        custody,
+        liabilities,
+        reserves,
+        oracle_occurrences: vec![],
+        replay_state: vec![],
+        terminal_obligations,
+        history_root: zero_root(),
+        outbox: vec![],
+    }
+}
+
+fn terminal(
+    obligation_id: &str,
+    claimant: &str,
+    atoms: u128,
+    status: TerminalObligationStatusV1,
+) -> TerminalObligationV1 {
+    TerminalObligationV1 {
+        obligation_id: obligation_id.to_owned(),
+        lane_id: LaneIdV1::PERPS_MARKET,
+        claimant: claimant.to_owned(),
+        asset: "USD".to_owned(),
+        amount_atoms: atoms,
+        status,
     }
 }
 
@@ -573,7 +668,243 @@ fn refinement_matches_python_golden_root() {
     );
     assert_eq!(
         refinement.refinement_root().unwrap().as_str(),
-        "0x5026263a651e46d40e4ee6d818c3e222a7d36f484ac48a180500047f51725fdc"
+        "0x2ae67749650b51f1e9a62f8052b4c7425c389773798139fd9fb0082cd6be5773"
+    );
+}
+
+#[test]
+fn claimant_relation_rejects_unbacked_and_cross_domain_liabilities() {
+    for state in [
+        claimant_relation_state(
+            vec![],
+            vec![],
+            vec![amount("alice", "USD", "perps-margin", 1)],
+            vec![],
+            vec![],
+        ),
+        claimant_relation_state(
+            vec![],
+            vec![amount("pool", "USD", "amm-pool", 1)],
+            vec![amount("alice", "USD", "perps-margin", 1)],
+            vec![],
+            vec![],
+        ),
+    ] {
+        let effects = empty_effect_plan();
+        assert_eq!(
+            refine_global_economic_state_effects_v1(&candidate(&state, &state, &effects)),
+            Err(AbiErrorV1::Conservation(
+                "economic refinement liabilities exceed same-domain custody backing"
+            ))
+        );
+    }
+}
+
+#[test]
+fn claimant_relation_excludes_balances_and_reserves_from_backing() {
+    for state in [
+        claimant_relation_state(
+            vec![amount("protocol", "USD", "perps-margin", 1)],
+            vec![],
+            vec![amount("alice", "USD", "perps-margin", 1)],
+            vec![],
+            vec![],
+        ),
+        claimant_relation_state(
+            vec![],
+            vec![],
+            vec![amount("alice", "USD", "perps-margin", 1)],
+            vec![amount("protocol", "USD", "perps-margin", 1)],
+            vec![],
+        ),
+    ] {
+        let effects = empty_effect_plan();
+        assert_eq!(
+            refine_global_economic_state_effects_v1(&candidate(&state, &state, &effects)),
+            Err(AbiErrorV1::Conservation(
+                "economic refinement liabilities exceed same-domain custody backing"
+            ))
+        );
+    }
+}
+
+#[test]
+fn claimant_relation_rejects_claimant_swap_hidden_by_asset_aggregate() {
+    let state = claimant_relation_state(
+        vec![],
+        vec![amount("account-bob", "USD", "perps-margin", 1)],
+        vec![amount("bob", "USD", "perps-margin", 1)],
+        vec![],
+        vec![terminal(
+            "alice-claim",
+            "alice",
+            1,
+            TerminalObligationStatusV1::OPEN,
+        )],
+    );
+    let effects = empty_effect_plan();
+
+    assert_eq!(
+        refine_global_economic_state_effects_v1(&candidate(&state, &state, &effects)),
+        Err(AbiErrorV1::Conservation(
+            "economic refinement open terminal obligations exceed claimant liabilities"
+        ))
+    );
+}
+
+#[test]
+fn claimant_relation_accepts_exact_cross_domain_claimant_coverage() {
+    let state = claimant_relation_state(
+        vec![],
+        vec![
+            amount("account-a", "USD", "domain-a", 2),
+            amount("account-b", "USD", "domain-b", 3),
+        ],
+        vec![
+            amount("alice", "USD", "domain-a", 2),
+            amount("alice", "USD", "domain-b", 3),
+        ],
+        vec![],
+        vec![terminal(
+            "alice-claim",
+            "alice",
+            5,
+            TerminalObligationStatusV1::OPEN,
+        )],
+    );
+    let effects = empty_effect_plan();
+
+    refine_global_economic_state_effects_v1(&candidate(&state, &state, &effects))
+        .expect("exact same-domain backing and claimant coverage must refine");
+}
+
+#[test]
+fn state_only_relation_accepts_domainless_terminal_ambiguity() {
+    let state = claimant_relation_state(
+        vec![],
+        vec![
+            amount("custody-0", "USD", "perps-domain-0", 1),
+            amount("custody-1", "USD", "perps-domain-1", 1),
+        ],
+        vec![
+            amount("alice", "USD", "perps-domain-0", 1),
+            amount("alice", "USD", "perps-domain-1", 1),
+        ],
+        vec![],
+        vec![terminal(
+            "terminal-1",
+            "alice",
+            2,
+            TerminalObligationStatusV1::OPEN,
+        )],
+    );
+    let effects = empty_effect_plan();
+
+    refine_global_economic_state_effects_v1(&candidate(&state, &state, &effects))
+        .expect("V1 state-only relation cannot recover the terminal's omitted exact domain");
+}
+
+#[test]
+fn state_only_relation_accepts_claimant_substitution_behind_same_lane_root() {
+    let honest = claimant_relation_state(
+        vec![],
+        vec![amount("account-bob", "USD", "perps-margin", 1)],
+        vec![amount("alice", "USD", "perps-margin", 1)],
+        vec![],
+        vec![terminal(
+            "terminal-1",
+            "alice",
+            1,
+            TerminalObligationStatusV1::OPEN,
+        )],
+    );
+    let substituted = claimant_relation_state(
+        vec![],
+        vec![amount("account-bob", "USD", "perps-margin", 1)],
+        vec![amount("mallory", "USD", "perps-margin", 1)],
+        vec![],
+        vec![terminal(
+            "terminal-1",
+            "mallory",
+            1,
+            TerminalObligationStatusV1::OPEN,
+        )],
+    );
+    let effects = empty_effect_plan();
+
+    assert_eq!(honest.lane_roots, substituted.lane_roots);
+    assert_ne!(
+        honest.state_root().unwrap(),
+        substituted.state_root().unwrap()
+    );
+    refine_global_economic_state_effects_v1(&candidate(&honest, &honest, &effects))
+        .expect("honest aggregate state must pass the necessary relation");
+    refine_global_economic_state_effects_v1(&candidate(&substituted, &substituted, &effects))
+        .expect("opaque lane roots do not state-bind the substituted claimant tables");
+}
+
+#[test]
+fn claimant_relation_ignores_closed_and_zero_open_terminal_amounts() {
+    for terminal_row in [
+        terminal(
+            "drained-claim",
+            "alice",
+            u128::MAX,
+            TerminalObligationStatusV1::DRAINED,
+        ),
+        terminal(
+            "tombstoned-claim",
+            "alice",
+            u128::MAX,
+            TerminalObligationStatusV1::TOMBSTONED,
+        ),
+        terminal(
+            "zero-open-claim",
+            "alice",
+            0,
+            TerminalObligationStatusV1::OPEN,
+        ),
+    ] {
+        let state = claimant_relation_state(vec![], vec![], vec![], vec![], vec![terminal_row]);
+        let effects = empty_effect_plan();
+        refine_global_economic_state_effects_v1(&candidate(&state, &state, &effects))
+            .expect("closed and zero OPEN terminal amounts contribute no open claim");
+    }
+}
+
+#[test]
+fn claimant_relation_accepts_u128_boundary_and_rejects_aggregate_overflow() {
+    let exact = claimant_relation_state(
+        vec![],
+        vec![amount("account", "USD", "perps-margin", u128::MAX)],
+        vec![amount("alice", "USD", "perps-margin", u128::MAX)],
+        vec![],
+        vec![terminal(
+            "maximum-claim",
+            "alice",
+            u128::MAX,
+            TerminalObligationStatusV1::OPEN,
+        )],
+    );
+    let effects = empty_effect_plan();
+    refine_global_economic_state_effects_v1(&candidate(&exact, &exact, &effects))
+        .expect("exact u128 boundary must refine");
+
+    let overflow = claimant_relation_state(
+        vec![],
+        vec![amount("account", "USD", "perps-margin", u128::MAX)],
+        vec![
+            amount("alice", "USD", "perps-margin", u128::MAX),
+            amount("bob", "USD", "perps-margin", 1),
+        ],
+        vec![],
+        vec![],
+    );
+    assert_eq!(
+        refine_global_economic_state_effects_v1(&candidate(&overflow, &overflow, &effects,)),
+        Err(AbiErrorV1::Conservation(
+            "economic refinement claimant backing total overflow"
+        ))
     );
 }
 
@@ -648,6 +979,13 @@ fn fee_mirror_sums_cross_kind_deltas_before_accepting_allocation() {
     pre.supplies[0].amount_atoms = 185;
     let mut post = post_state();
     post.custody.push(amount("treasury", "USD", "accounts", 10));
+    post.custody.sort_by(|left, right| {
+        (&left.asset, &left.owner, &left.custody_domain).cmp(&(
+            &right.asset,
+            &right.owner,
+            &right.custody_domain,
+        ))
+    });
     post.supplies[0].amount_atoms = 188;
     let mut effects = effect_plan();
     for row in &mut effects.rows {
@@ -661,13 +999,15 @@ fn fee_mirror_sums_cross_kind_deltas_before_accepting_allocation() {
             row.delta_atoms = 10;
         }
     }
-    let fee_index = effects
+    let vault_custody_index = effects
         .rows
         .iter()
-        .position(|row| row.kind == EconomicEffectKindV1::FEE_ALLOCATION)
-        .expect("fixture fee row");
+        .position(|row| {
+            row.kind == EconomicEffectKindV1::CUSTODY && row.principal == "vault-account"
+        })
+        .expect("fixture vault custody row");
     effects.rows.insert(
-        fee_index,
+        vault_custody_index,
         effect(EconomicEffectKindV1::CUSTODY, "treasury", "accounts", 10),
     );
     effects.asset_conservation[0] = AssetConservationRowV1 {
@@ -838,7 +1178,7 @@ fn refinement_accepts_fee_residue_in_exact_named_reserve() {
     assert_eq!(refinement.post_state_root(), &post.state_root().unwrap());
     assert_eq!(
         refinement.refinement_root().unwrap().as_str(),
-        "0x58da8bc5aed457f0b938e0e73318d58b59c1b62afd46dd7046e10009770307c6"
+        "0x24b7622043cf87fd3f6eaa360f9cbd58e7e65b8579bed12e6a01de4deb3d5861"
     );
 }
 
@@ -1294,6 +1634,7 @@ fn replay_refinement_rejects_duplicate_subject_nonce_under_distinct_occurrences(
         .iter()
         .map(|item| item.occurrence_id().unwrap())
         .collect();
+    effects.occurrence_consumptions.sort();
     post.height = 42;
     post.replay_state = vec![first_row];
     let journals = vec![
@@ -1358,7 +1699,7 @@ fn replay_refinement_matches_two_occurrence_python_golden_and_u64_nonce_max() {
         .unwrap();
     assert_eq!(
         refinement.refinement_root().unwrap().as_str(),
-        "0x04a52daea5b87169f428fc698537e115fa14330a1eea885db0e8db7a7b503517"
+        "0xc4c33f7c500e8807c1f7dc3904f183a67bf1f794109d9eec350a7034335a761e"
     );
 
     let (pre, post, effects, occurrences, journals) = replay_batch_for_nonces(&[u64::MAX]);

@@ -97,7 +97,8 @@ def _pre_state() -> GlobalEconomicStateV1:
         supplies=(AssetSupplyV1("USD", 175),),
         custody=_amounts(
             ("burn-bucket", "USD", "protocol-burn", 20),
-            ("pool", "USD", "amm-pool", 50),
+            ("pool", "USD", "amm-pool", 40),
+            ("vault-account", "USD", "vault-debt", 10),
         ),
         liabilities=_amounts(("vault", "USD", "vault-debt", 10)),
         reserves=_amounts(("treasury", "USD", "reserve", 5)),
@@ -121,7 +122,8 @@ def _post_state() -> GlobalEconomicStateV1:
         custody=_amounts(
             ("burn-bucket", "USD", "protocol-burn", 16),
             ("escrow", "USD", "strategy-escrow", 5),
-            ("pool", "USD", "amm-pool", 44),
+            ("pool", "USD", "amm-pool", 31),
+            ("vault-account", "USD", "vault-debt", 13),
         ),
         liabilities=_amounts(("vault", "USD", "vault-debt", 13)),
         reserves=_amounts(("treasury", "USD", "reserve", 6)),
@@ -154,7 +156,14 @@ def _effect_plan() -> GlobalEconomicEffectPlanV1:
             "strategy-escrow",
             5,
         ),
-        EconomicEffectRowV1(EconomicEffectKindV1.CUSTODY, "pool", "USD", "amm-pool", -6),
+        EconomicEffectRowV1(EconomicEffectKindV1.CUSTODY, "pool", "USD", "amm-pool", -9),
+        EconomicEffectRowV1(
+            EconomicEffectKindV1.CUSTODY,
+            "vault-account",
+            "USD",
+            "vault-debt",
+            3,
+        ),
         EconomicEffectRowV1(
             EconomicEffectKindV1.FEE_ALLOCATION,
             "treasury",
@@ -181,6 +190,50 @@ def _candidate() -> GlobalEconomicStateEffectRefinementCandidateV1:
         _pre_state(),
         _post_state(),
         _effect_plan(),
+    )
+
+
+def _claimant_relation_state(
+    *,
+    custody: tuple[tuple[str, str, str, int], ...] = (),
+    liabilities: tuple[tuple[str, str, str, int], ...] = (),
+    reserves: tuple[tuple[str, str, str, int], ...] = (),
+    balances: tuple[tuple[str, str, str, int], ...] = (),
+    terminal_obligations: tuple[TerminalObligationV1, ...] = (),
+) -> GlobalEconomicStateV1:
+    amount_rows = (*custody, *reserves, *balances)
+    supplies = tuple(
+        AssetSupplyV1(
+            asset,
+            sum(row[3] for row in amount_rows if row[1] == asset),
+        )
+        for asset in sorted({row[1] for row in amount_rows})
+    )
+    return GlobalEconomicStateV1(
+        chain_id="zeno-claimant-relation-test",
+        deployment_root=_root(31_000),
+        writer_epoch=1,
+        height=1,
+        profile_root=_root(31_001),
+        lane_roots=_lane_roots(asset_root=31_002),
+        balances=_amounts(*balances),
+        supplies=supplies,
+        custody=_amounts(*custody),
+        liabilities=_amounts(*liabilities),
+        reserves=_amounts(*reserves),
+        terminal_obligations=tuple(
+            sorted(terminal_obligations, key=lambda row: row.obligation_id)
+        ),
+    )
+
+
+def _static_claimant_candidate(
+    state: GlobalEconomicStateV1,
+) -> GlobalEconomicStateEffectRefinementCandidateV1:
+    return GlobalEconomicStateEffectRefinementCandidateV1(
+        state,
+        state,
+        GlobalEconomicEffectPlanV1.empty(),
     )
 
 
@@ -365,8 +418,168 @@ def test_refinement_matches_cross_language_golden_root() -> None:
     assert refinement.post_state_root == candidate.post_state.state_root
     assert refinement.effect_plan_root == candidate.effect_plan.effect_plan_root
     assert refinement.refinement_root == (
-        "0x5026263a651e46d40e4ee6d818c3e222a7d36f484ac48a180500047f51725fdc"
+        "0x2ae67749650b51f1e9a62f8052b4c7425c389773798139fd9fb0082cd6be5773"
     )
+
+
+def test_claimant_relation_rejects_unbacked_liability_despite_supply_conservation() -> None:
+    state = _claimant_relation_state(
+        liabilities=(("alice", "USD", "perps-margin", 1),),
+    )
+
+    with pytest.raises(ValueError, match="liabilities exceed same-domain custody backing"):
+        refine_global_economic_state_effects_v1(_static_claimant_candidate(state))
+
+
+def test_claimant_relation_rejects_cross_domain_backing() -> None:
+    state = _claimant_relation_state(
+        custody=(("pool", "USD", "amm-pool", 1),),
+        liabilities=(("alice", "USD", "perps-margin", 1),),
+    )
+
+    with pytest.raises(ValueError, match="liabilities exceed same-domain custody backing"):
+        refine_global_economic_state_effects_v1(_static_claimant_candidate(state))
+
+
+@pytest.mark.parametrize(
+    "backing_field",
+    ("balances", "reserves"),
+)
+def test_claimant_relation_excludes_balance_and_reserve_rows_from_backing(
+    backing_field: str,
+) -> None:
+    state = _claimant_relation_state(
+        liabilities=(("alice", "USD", "perps-margin", 1),),
+        **{backing_field: (("protocol", "USD", "perps-margin", 1),)},
+    )
+
+    with pytest.raises(ValueError, match="liabilities exceed same-domain custody backing"):
+        refine_global_economic_state_effects_v1(_static_claimant_candidate(state))
+
+
+def test_claimant_relation_rejects_claimant_swap_hidden_by_asset_aggregate() -> None:
+    state = _claimant_relation_state(
+        custody=(("account-bob", "USD", "perps-margin", 1),),
+        liabilities=(("bob", "USD", "perps-margin", 1),),
+        terminal_obligations=(
+            TerminalObligationV1(
+                "alice-claim",
+                LaneIdV1.PERPS_MARKET,
+                "alice",
+                "USD",
+                1,
+                TerminalObligationStatusV1.OPEN,
+            ),
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="open terminal obligations exceed claimant liabilities",
+    ):
+        refine_global_economic_state_effects_v1(_static_claimant_candidate(state))
+
+
+def test_claimant_relation_accepts_exact_coverage_across_claimant_domains() -> None:
+    state = _claimant_relation_state(
+        custody=(
+            ("account-a", "USD", "domain-a", 2),
+            ("account-b", "USD", "domain-b", 3),
+        ),
+        liabilities=(
+            ("alice", "USD", "domain-a", 2),
+            ("alice", "USD", "domain-b", 3),
+        ),
+        terminal_obligations=(
+            TerminalObligationV1(
+                "alice-claim",
+                LaneIdV1.PERPS_MARKET,
+                "alice",
+                "USD",
+                5,
+                TerminalObligationStatusV1.OPEN,
+            ),
+        ),
+    )
+
+    refinement = refine_global_economic_state_effects_v1(
+        _static_claimant_candidate(state)
+    )
+
+    assert refinement.pre_state_root == state.state_root
+    assert refinement.post_state_root == state.state_root
+
+
+@pytest.mark.parametrize(
+    "status",
+    (TerminalObligationStatusV1.DRAINED, TerminalObligationStatusV1.TOMBSTONED),
+)
+def test_claimant_relation_ignores_closed_terminal_amounts(
+    status: TerminalObligationStatusV1,
+) -> None:
+    state = _claimant_relation_state(
+        terminal_obligations=(
+            TerminalObligationV1(
+                "closed-claim",
+                LaneIdV1.PERPS_MARKET,
+                "alice",
+                "USD",
+                MAX_ATOMS_V1,
+                status,
+            ),
+        ),
+    )
+
+    refine_global_economic_state_effects_v1(_static_claimant_candidate(state))
+
+
+def test_claimant_relation_accepts_open_zero_amount_v1_terminal_row() -> None:
+    state = _claimant_relation_state(
+        terminal_obligations=(
+            TerminalObligationV1(
+                "zero-open-claim",
+                LaneIdV1.PERPS_MARKET,
+                "alice",
+                "USD",
+                0,
+                TerminalObligationStatusV1.OPEN,
+            ),
+        ),
+    )
+
+    refine_global_economic_state_effects_v1(_static_claimant_candidate(state))
+
+
+def test_claimant_relation_accepts_exact_u128_backing_boundary() -> None:
+    state = _claimant_relation_state(
+        custody=(("account", "USD", "perps-margin", MAX_ATOMS_V1),),
+        liabilities=(("alice", "USD", "perps-margin", MAX_ATOMS_V1),),
+        terminal_obligations=(
+            TerminalObligationV1(
+                "maximum-claim",
+                LaneIdV1.PERPS_MARKET,
+                "alice",
+                "USD",
+                MAX_ATOMS_V1,
+                TerminalObligationStatusV1.OPEN,
+            ),
+        ),
+    )
+
+    refine_global_economic_state_effects_v1(_static_claimant_candidate(state))
+
+
+def test_claimant_relation_rejects_liability_aggregate_overflow() -> None:
+    state = _claimant_relation_state(
+        custody=(("account", "USD", "perps-margin", MAX_ATOMS_V1),),
+        liabilities=(
+            ("alice", "USD", "perps-margin", MAX_ATOMS_V1),
+            ("bob", "USD", "perps-margin", 1),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="claimant backing total overflows"):
+        refine_global_economic_state_effects_v1(_static_claimant_candidate(state))
 
 
 @pytest.mark.parametrize(
@@ -493,8 +706,9 @@ def test_fee_mirror_sums_cross_kind_deltas_before_accepting_allocation() -> None
         custody=_amounts(
             ("burn-bucket", "USD", "protocol-burn", 16),
             ("escrow", "USD", "strategy-escrow", 5),
-            ("pool", "USD", "amm-pool", 44),
+            ("pool", "USD", "amm-pool", 31),
             ("treasury", "USD", "accounts", 10),
+            ("vault-account", "USD", "vault-debt", 13),
         ),
         supplies=(AssetSupplyV1("USD", 188),),
     )
@@ -544,7 +758,7 @@ def test_refinement_accepts_fee_residue_in_exact_named_reserve() -> None:
     assert refinement.pre_state_root == candidate.pre_state.state_root
     assert refinement.post_state_root == candidate.post_state.state_root
     assert refinement.refinement_root == (
-        "0x58da8bc5aed457f0b938e0e73318d58b59c1b62afd46dd7046e10009770307c6"
+        "0x24b7622043cf87fd3f6eaa360f9cbd58e7e65b8579bed12e6a01de4deb3d5861"
     )
 
 
@@ -1040,7 +1254,7 @@ def test_two_occurrence_replay_refinement_has_cross_language_golden_root() -> No
     refinement = refine_global_economic_state_effects_v1(_replay_batch(2))
 
     assert refinement.refinement_root == (
-        "0x04a52daea5b87169f428fc698537e115fa14330a1eea885db0e8db7a7b503517"
+        "0xc4c33f7c500e8807c1f7dc3904f183a67bf1f794109d9eec350a7034335a761e"
     )
 
 

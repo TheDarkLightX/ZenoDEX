@@ -2,9 +2,11 @@
 //!
 //! This deterministic checker covers sparse amount tables, supply, lane roots,
 //! replay insertion, one-step whole-epoch height progression, intra-epoch route
-//! height preservation, and conservation rows. Unsupported state and effect
-//! categories fail closed. The result verifies no receipt and grants no
-//! publication authority.
+//! height preservation, conservation rows, and state-visible necessary
+//! claimant-backing checks. The latter cannot recover omitted terminal domains
+//! or validate a private projection behind an opaque lane root. Unsupported
+//! state and effect categories fail closed. The result verifies no receipt and
+//! grants no publication authority.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -20,7 +22,7 @@ use crate::global_economic_state_delta::{
     derive_global_economic_state_delta_v1, supply_map_v1, DerivedGlobalEconomicStateDeltaV1,
 };
 use crate::proof::{EconomicCommandOccurrenceV1, RouteCompositionJournalV1};
-use crate::state::GlobalEconomicStateV1;
+use crate::state::{GlobalEconomicStateV1, TerminalObligationStatusV1};
 
 pub const GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_SCHEMA_V1: &str =
     "zenodex/global-economic-state-effect-refinement/v1";
@@ -119,6 +121,84 @@ fn require_nonzero_sparse_amounts_v1(state: &GlobalEconomicStateV1) -> AbiResult
     {
         return Err(AbiErrorV1::InvalidBounds(
             "economic refinement zero economic amount",
+        ));
+    }
+    Ok(())
+}
+
+fn add_claimant_backing_total_v1<'a>(
+    totals: &mut BTreeMap<(&'a str, &'a str), u128>,
+    key: (&'a str, &'a str),
+    amount_atoms: u128,
+) -> AbiResultV1<()> {
+    let total = totals
+        .get(&key)
+        .copied()
+        .unwrap_or(0)
+        .checked_add(amount_atoms)
+        .ok_or(AbiErrorV1::Conservation(
+            "economic refinement claimant backing total overflow",
+        ))?;
+    totals.insert(key, total);
+    Ok(())
+}
+
+/// Reject necessary backing failures visible in V1 state bytes.
+///
+/// This cannot bind an opaque lane root to its private claimant projection or
+/// recover a terminal obligation's omitted custody domain and principal.
+/// Exact reconciliation still requires verifier-derived, root-bound evidence.
+fn require_state_only_necessary_claimant_backing_v1(
+    state: &GlobalEconomicStateV1,
+) -> AbiResultV1<()> {
+    let mut custody_by_domain = BTreeMap::<(&str, &str), u128>::new();
+    let mut liabilities_by_domain = BTreeMap::<(&str, &str), u128>::new();
+    let mut liabilities_by_claimant = BTreeMap::<(&str, &str), u128>::new();
+    for row in &state.custody {
+        add_claimant_backing_total_v1(
+            &mut custody_by_domain,
+            (row.asset.as_str(), row.custody_domain.as_str()),
+            row.amount_atoms,
+        )?;
+    }
+    for row in &state.liabilities {
+        add_claimant_backing_total_v1(
+            &mut liabilities_by_domain,
+            (row.asset.as_str(), row.custody_domain.as_str()),
+            row.amount_atoms,
+        )?;
+        add_claimant_backing_total_v1(
+            &mut liabilities_by_claimant,
+            (row.asset.as_str(), row.owner.as_str()),
+            row.amount_atoms,
+        )?;
+    }
+    if liabilities_by_domain
+        .iter()
+        .any(|(key, amount)| *amount > custody_by_domain.get(key).copied().unwrap_or(0))
+    {
+        return Err(AbiErrorV1::Conservation(
+            "economic refinement liabilities exceed same-domain custody backing",
+        ));
+    }
+
+    let mut open_terminal_by_claimant = BTreeMap::<(&str, &str), u128>::new();
+    for obligation in &state.terminal_obligations {
+        if obligation.status != TerminalObligationStatusV1::OPEN {
+            continue;
+        }
+        add_claimant_backing_total_v1(
+            &mut open_terminal_by_claimant,
+            (obligation.asset.as_str(), obligation.claimant.as_str()),
+            obligation.amount_atoms,
+        )?;
+    }
+    if open_terminal_by_claimant
+        .iter()
+        .any(|(key, amount)| *amount > liabilities_by_claimant.get(key).copied().unwrap_or(0))
+    {
+        return Err(AbiErrorV1::Conservation(
+            "economic refinement open terminal obligations exceed claimant liabilities",
         ));
     }
     Ok(())
@@ -341,6 +421,8 @@ fn refine_with_expected_post_height_v1(
     )?;
     require_nonzero_sparse_amounts_v1(candidate.pre_state)?;
     require_nonzero_sparse_amounts_v1(candidate.post_state)?;
+    require_state_only_necessary_claimant_backing_v1(candidate.pre_state)?;
+    require_state_only_necessary_claimant_backing_v1(candidate.post_state)?;
     require_supported_effects_v1(candidate.effect_plan)?;
     let replay_insertions = derive_replay_insertions_v1(
         candidate.pre_state,

@@ -5,9 +5,14 @@ canonical effect plan. It derives replay insertion from disclosed command
 occurrences. Whole-epoch refinement advances state height exactly once for a
 nonempty epoch. Per-route refinement requires the first route to reach the
 occurrence epoch height and permits later routes to preserve that height. The
-zero-occurrence static relation preserves height. Oracle occurrences, terminal
-obligations, history, and external outbox commit binding remain outside this
-refinement and therefore cannot change here.
+zero-occurrence static relation preserves height. Each pre/post state must also
+pass state-visible necessary checks: claimant liabilities do not exceed custody
+in the same asset and accounting domain, and OPEN terminal obligations do not
+exceed the claimant's aggregate liabilities. Balances and reserves cannot back
+liabilities. These checks cannot recover omitted terminal domains or validate
+the private projection behind an opaque lane root. Oracle occurrences, terminal
+obligation transitions, history, exact lane allocation evidence, and external
+outbox commit binding remain outside this refinement and cannot change here.
 
 The returned value is an opaque structural witness.  It verifies no receipt,
 selects no active profile, applies no durable write, and grants no settlement
@@ -42,6 +47,7 @@ from .global_settlement_types_v1 import (
     EconomicEffectKindV1,
     GlobalEconomicEffectPlanV1,
     GlobalEconomicStateV1,
+    TerminalObligationStatusV1,
     _require_root,
     hash_global_v1,
 )
@@ -236,6 +242,74 @@ def _require_supported_effects_v1(effect_plan: GlobalEconomicEffectPlanV1) -> No
         raise ValueError("economic refinement reward and slash labels are unmapped")
 
 
+def _add_claimant_backing_total_v1(
+    totals: dict[tuple[str, str], int],
+    key: tuple[str, str],
+    amount_atoms: int,
+) -> None:
+    total = totals.get(key, 0) + amount_atoms
+    if total > MAX_ATOMS_V1:
+        raise ValueError("economic refinement claimant backing total overflows")
+    totals[key] = total
+
+
+def _require_state_only_necessary_claimant_backing_v1(
+    state: GlobalEconomicStateV1,
+) -> None:
+    """Reject necessary backing failures visible in V1 state bytes.
+
+    This check cannot bind an opaque lane root to its private claimant
+    projection or recover a terminal obligation's omitted custody domain and
+    principal. Exact reconciliation therefore still requires verifier-derived,
+    root-bound allocation evidence. Passing this guard grants no authority.
+    """
+
+    custody_by_domain: dict[tuple[str, str], int] = {}
+    liabilities_by_domain: dict[tuple[str, str], int] = {}
+    liabilities_by_claimant: dict[tuple[str, str], int] = {}
+    for row in state.custody:
+        _add_claimant_backing_total_v1(
+            custody_by_domain,
+            (row.asset, row.custody_domain),
+            row.amount_atoms,
+        )
+    for row in state.liabilities:
+        _add_claimant_backing_total_v1(
+            liabilities_by_domain,
+            (row.asset, row.custody_domain),
+            row.amount_atoms,
+        )
+        _add_claimant_backing_total_v1(
+            liabilities_by_claimant,
+            (row.asset, row.owner),
+            row.amount_atoms,
+        )
+    if any(
+        amount > custody_by_domain.get(key, 0)
+        for key, amount in liabilities_by_domain.items()
+    ):
+        raise ValueError(
+            "economic refinement liabilities exceed same-domain custody backing"
+        )
+
+    open_terminal_by_claimant: dict[tuple[str, str], int] = {}
+    for obligation in state.terminal_obligations:
+        if obligation.status is not TerminalObligationStatusV1.OPEN:
+            continue
+        _add_claimant_backing_total_v1(
+            open_terminal_by_claimant,
+            (obligation.asset, obligation.claimant),
+            obligation.amount_atoms,
+        )
+    if any(
+        amount > liabilities_by_claimant.get(key, 0)
+        for key, amount in open_terminal_by_claimant.items()
+    ):
+        raise ValueError(
+            "economic refinement open terminal obligations exceed claimant liabilities"
+        )
+
+
 def _require_fee_mirror_v1(effect_plan: GlobalEconomicEffectPlanV1) -> None:
     state_rows: dict[tuple[str, str, str], int] = {}
     for row in effect_plan.rows:
@@ -346,6 +420,8 @@ def _refine_snapshot_v1(
     )
     _require_nonzero_sparse_amounts_v1(pre_state)
     _require_nonzero_sparse_amounts_v1(post_state)
+    _require_state_only_necessary_claimant_backing_v1(pre_state)
+    _require_state_only_necessary_claimant_backing_v1(post_state)
     _require_supported_effects_v1(effect_plan)
     replay_insertions = _derive_replay_insertions_v1(snapshot)
     _require_fee_mirror_v1(effect_plan)
