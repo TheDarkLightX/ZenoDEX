@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Fail-closed admission checker for the O-008 formal-cycle evidence packet (v2).
+"""Fail-closed admission checker for the O-008 formal-cycle evidence packet (v3).
 
 JSON contract:
     stdout  exactly one compact JSON report (schema
-            ``zenodex/o008-formal-cycle-admission-report/v2``) followed by a newline.
+            ``zenodex/o008-formal-cycle-admission-report/v3``) followed by a newline.
     stderr  empty except argparse usage text.
     exit 0  the committed packet at P is admitted against its subject commit S, the
             HEAD and worktree copies of every pinned source still equal S, and proof
@@ -93,7 +93,7 @@ def run_checker_v1(args: argparse.Namespace) -> dict[str, Any]:
         packet = core.decode_packet_v1(topology.packet_blob_at_p)
         subject_commit = str(packet.get("subject_commit"))
         snapshot = shell.read_subject_snapshot_v1(git, subject_commit)
-        current = shell.read_current_source_state_v1(git, root, head, core.SOURCE_PIN_PATHS_V1)
+        current = shell.read_current_source_state_v1(git, root, head, core.applicability_paths_v1(packet))
         context = core.AdmissionContextV1(snapshot, topology, current, tools)
         outcome = core.admit_packet_v1(packet, context)
         replay, extra = (_replay(root, packet, outcome, args) if args.replay else (not_run, ()))

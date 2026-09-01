@@ -35,7 +35,9 @@ GIT_ENV_V1: Final[dict[str, str]] = {
     "PATH": "/usr/bin:/bin",
 }
 GIT_TIMEOUT_SECONDS_V1: Final = 20
-REPLAY_ENV_PASSTHROUGH_V1: Final[tuple[str, ...]] = ("PATH", "HOME", "ELAN_HOME", "TMPDIR")
+REPLAY_ENV_PASSTHROUGH_V1: Final[tuple[str, ...]] = (
+    "PATH", "HOME", "ELAN_HOME", "TMPDIR", "CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,15 +167,36 @@ def read_subject_snapshot_v1(git: GitReadPortV1, subject_commit: str) -> core.Su
             continue
         mode, oid = entry
         data = read_blob_v1(git, oid, path)
-        blobs[path] = core.SourceBlobV1(
-            path=path,
-            mode=mode,
-            git_blob=oid,
-            sha256=core.sha256_hex_v1(data),
-            size=len(data),
-            data=data,
-        )
-    return core.SubjectSnapshotV1(subject_commit, parents[0], tree, blobs)
+        blobs[path] = _source_blob(path, mode, oid, data)
+    return core.SubjectSnapshotV1(
+        subject_commit, parents[0], tree, blobs, _read_hygiene_packets(git, subject_commit)
+    )
+
+
+def _source_blob(path: str, mode: str, oid: str, data: bytes) -> core.SourceBlobV1:
+    return core.SourceBlobV1(
+        path=path, mode=mode, git_blob=oid, sha256=core.sha256_hex_v1(data), size=len(data), data=data
+    )
+
+
+def _read_hygiene_packets(git: GitReadPortV1, commit: str) -> dict[str, core.SourceBlobV1]:
+    """Read every ``*.json`` regular file under the hygiene evidence directory at the commit."""
+
+    raw = git.run("ls-tree", "-z", "--full-tree", commit, "--", core.HYGIENE_EVIDENCE_DIR_V1 + "/")
+    packets: dict[str, core.SourceBlobV1] = {}
+    for entry in raw.split(b"\0"):
+        if not entry:
+            continue
+        meta, _, path_bytes = entry.partition(b"\t")
+        parts = meta.decode("ascii", errors="replace").split()
+        path = path_bytes.decode("utf-8", errors="replace")
+        if len(parts) != 3 or parts[1] != "blob" or not path.endswith(".json"):
+            continue
+        if parts[0] != core.GIT_BLOB_MODE_V1:
+            core._reject("SOURCE_PIN_MODE_DRIFT", path, parts[0])
+        data = read_blob_v1(git, parts[2], path)
+        packets[path] = _source_blob(path, parts[0], parts[2], data)
+    return packets
 
 
 def working_bytes_v1(root: Path, path: str) -> bytes | None:
@@ -286,6 +309,9 @@ def _replay_env(command: core.ReplayCommandV1, environment: ReplayEnvironmentV1)
         env["PYTHONPATH"] = environment.esso_pythonpath
     if "ZENO_ESSO_PYTHON" in command.env_names and environment.esso_python:
         env["ZENO_ESSO_PYTHON"] = environment.esso_python
+    if "CARGO_TARGET_DIR" in command.env_names:
+        env["CARGO_TARGET_DIR"] = str(environment.tmp_dir / "cargo-target")
+        env["CARGO_INCREMENTAL"] = "0"
     return env
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pure admission core for the O-008 formal-cycle evidence packet (schema v2).
+"""Pure admission core for the O-008 formal-cycle evidence packet (schema v3).
 
 This module is the functional core behind ``tools/check_o008_formal_cycle_v1.py``
 and ``tools/build_o008_formal_cycle_v1.py``. It performs no I/O: every input is
@@ -29,8 +29,9 @@ import functools
 import hashlib
 import json
 import re
+import tomllib
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Final, NoReturn
 
 import yaml  # type: ignore[import-untyped]
@@ -41,8 +42,8 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V2: Final = "zenodex/o008-formal-cycle-evidence/v2"
-REPORT_SCHEMA_V2: Final = "zenodex/o008-formal-cycle-admission-report/v2"
+PACKET_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-evidence/v3"
+REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
 PACKET_WRITE_SET_V1: Final[tuple[tuple[str, str], ...]] = (
@@ -65,27 +66,33 @@ RUST_REFINEMENT_PATH_V1: Final = (
 )
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
+RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
+RUST_MANIFEST_PATH_V1: Final = "zk/global_settlement_abi_v1/Cargo.toml"
+RUST_GATE_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/v1_projection_gate.rs"
+RUST_CRATE_DIR_V1: Final = "zk/global_settlement_abi_v1"
+RUST_CRATE_NAME_V1: Final = "zenodex-global-settlement-abi-v1"
+RUST_GATE_TARGET_V1: Final = "v1_projection_gate"
+PYTHON_GATE_PATH_V1: Final = "tests/test_o008_v1_projection_runtime_gate.py"
 ESSO_MODEL_PATH_V1: Final = "src/kernels/dex/global_claimant_custody_certificate_v1.yaml"
 ESSO_GATE_PATH_V1: Final = "tests/formal/test_esso_global_claimant_custody_certificate_v1.py"
 LEAN_PROOF_PATH_V1: Final = "lean-mathlib/Proofs/GlobalClaimantCustodyRelationV1.lean"
 LEAN_ROOT_PATH_V1: Final = "lean-mathlib/Proofs.lean"
 LEAN_TOOLCHAIN_PATH_V1: Final = "lean-mathlib/lean-toolchain"
 LEAN_GATE_PATH_V1: Final = "tests/formal/test_lean_global_claimant_custody_relation_v1.py"
-THV1_PATH_V1: Final = (
-    "tests/evidence/test_hygiene/THV1-20260901-o008-formal-cycle-admission-v3.json"
-)
+HYGIENE_EVIDENCE_DIR_V1: Final = "tests/evidence/test_hygiene"
+HYGIENE_SCHEMA_V1: Final = "zenodex/test-hygiene-evidence/v1"
 BLUEPRINT_PATH_V1: Final = "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md"
 PRIOR_ESSO_GATE_PATH_V1: Final = "tests/formal/test_esso_global_settlement_core_v1.py"
-PRIOR_THV1_PATH_V1: Final = (
-    "tests/evidence/test_hygiene/"
-    "THV1-20260901-global-settlement-formal-core-semantic-restage-v2.json"
-)
 
 SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (PYTHON_REFINEMENT_PATH_V1, "python_visible_necessary_checks"),
     (RUST_REFINEMENT_PATH_V1, "rust_visible_necessary_checks"),
     (PYTHON_TYPES_PATH_V1, "python_v1_wire_schema"),
     (RUST_STATE_PATH_V1, "rust_v1_wire_schema"),
+    (RUST_LIB_PATH_V1, "rust_crate_root_module_closure"),
+    (RUST_MANIFEST_PATH_V1, "rust_crate_manifest_closure"),
+    (PYTHON_GATE_PATH_V1, "python_runtime_projection_gate"),
+    (RUST_GATE_PATH_V1, "rust_compiled_projection_gate"),
     (ESSO_MODEL_PATH_V1, "bounded_exact_target_model"),
     (ESSO_GATE_PATH_V1, "esso_replay_mutation_and_v1_information_loss_gate"),
     (LEAN_PROOF_PATH_V1, "machine_checked_relation_and_no_recovery_theorems"),
@@ -98,10 +105,8 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (CHECKER_PATH_V1, "admission_cli"),
     (BUILDER_PATH_V1, "packet_builder_cli"),
     (GATE_TESTS_PATH_V1, "admission_gate_tests"),
-    (THV1_PATH_V1, "test_hygiene_evidence_packet"),
     (BLUEPRINT_PATH_V1, "corrected_prior_formal_blueprint"),
     (PRIOR_ESSO_GATE_PATH_V1, "prior_model_semantic_restage_gate"),
-    (PRIOR_THV1_PATH_V1, "append_only_semantic_correction_packet"),
 )
 SOURCE_PIN_PATHS_V1: Final[tuple[str, ...]] = tuple(path for path, _ in SOURCE_PIN_ROLES_V1)
 EXECUTING_TOOL_PATHS_V1: Final[tuple[str, ...]] = (
@@ -121,11 +126,18 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     ESSO_MODEL_PATH_V1,
     PYTHON_TYPES_PATH_V1,
     RUST_STATE_PATH_V1,
+    RUST_LIB_PATH_V1,
+    RUST_MANIFEST_PATH_V1,
     PYTHON_REFINEMENT_PATH_V1,
     RUST_REFINEMENT_PATH_V1,
+    PYTHON_GATE_PATH_V1,
+    RUST_GATE_PATH_V1,
+    GATE_TESTS_PATH_V1,
+    LEAN_GATE_PATH_V1,
+    ESSO_GATE_PATH_V1,
 )
 
-PACKET_KEYS_V2: Final[frozenset[str]] = frozenset(
+PACKET_KEYS_V3: Final[frozenset[str]] = frozenset(
     {
         "schema",
         "created_date",
@@ -140,6 +152,7 @@ PACKET_KEYS_V2: Final[frozenset[str]] = frozenset(
         "esso_evidence",
         "lean_evidence",
         "v1_information_loss",
+        "hygiene_selection",
         "lane_source_data",
         "required_sidecar",
         "proof_replay",
@@ -450,6 +463,21 @@ TERMINAL_FORBIDDEN_FIELDS_V1: Final[tuple[str, ...]] = (
 )
 OUTBOX_FORBIDDEN_FIELDS_V1: Final[tuple[str, ...]] = ("asset", "amount_atoms")
 TERMINAL_ABSENT_FIELDS_V1: Final[tuple[str, ...]] = ("liability_domain", "custody_principal")
+STATE_CLASS_NAME_V1: Final = "GlobalEconomicStateV1"
+CONTAINER_RECORD_FIELDS_V1: Final[tuple[tuple[str, str], ...]] = (
+    ("terminal_obligations", "TerminalObligationV1"),
+    ("outbox", "OutboxStateV1"),
+)
+INFORMATION_LOSS_BINDING_V1: Final[dict[str, str]] = {
+    "static": "LEXICAL_CLOSURE_SCAN_OF_PINNED_BYTES",
+    "static_closure": (
+        "no cfg, include, or path attributes; no item-defining or record-naming macro token"
+        " trees; single depth-zero definition; exact derive plus deny_unknown_fields attribute"
+        " block; no field attributes; serde imported only from serde; crate root declares mod"
+        " state once; manifest keeps default targets and registry dependencies"
+    ),
+    "compiled": "REPLAY_GATES_python_projection_gate_AND_rust_projection_gate_NOT_RUN_UNLESS_EXECUTED",
+}
 OUTBOX_ABSENT_FIELDS_V1: Final[tuple[str, ...]] = ("asset", "amount_atoms")
 INFORMATION_LOSS_SCOPE_V1: Final = (
     "NO_UNIVERSAL_RECOVERY_THEOREM_IS_SCOPED_TO_THIS_V1_TERMINAL_PROJECTION"
@@ -472,6 +500,13 @@ REPLAY_STATUS_EXECUTED_PASS_V1: Final = "EXECUTED_PASS"
 REPLAY_STATUS_EXECUTED_FAIL_V1: Final = "EXECUTED_FAIL"
 REPLAY_STATUS_REFUSED_V1: Final = "REFUSED"
 PYTHON_TOKEN_V1: Final = "<PYTHON>"
+PYTHON_GATE_EXPECTED_PASSED_V1: Final = 8
+RUST_GATE_EXPECTED_PASSED_V1: Final = 5
+EMPTY_SHA256_V1: Final = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+_SEMVER_RE: Final = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
+_CARGO_SUMMARY_RE: Final = re.compile(
+    r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed;", re.MULTILINE
+)
 ESSO_PYTHON_TOKEN_V1: Final = "<ZENO_ESSO_PYTHON>"
 PRIOR_ESSO_GATE_EXPECTED_PASSED_V1: Final = 136
 
@@ -486,6 +521,10 @@ _LEAN_DECL_RE: Final = re.compile(
 )
 _LEAN_NAMESPACE_RE: Final = re.compile(r"^(namespace|end)[ \t]+(\S+)[ \t]*$", re.MULTILINE)
 _RUST_FIELD_RE: Final = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+?)\s*$", re.DOTALL)
+_RUST_MACRO_INVOCATION_RE: Final = re.compile(
+    r"\b([A-Za-z_][A-Za-z0-9_]*)!\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*)?([\(\[{])"
+)
+_RUST_ITEM_KEYWORD_RE: Final = re.compile(r"\b(?:struct|enum|union|trait|impl|type|mod|use|extern)\b")
 _RUST_ATTR_PREFIX_RE: Final = re.compile(
     r"((?:#\[[^\]]*\]\s*)+)(?:pub(?:\([^)]*\))?\s+)?$", re.DOTALL
 )
@@ -541,6 +580,7 @@ class SubjectSnapshotV1:
     subject_parent: str
     subject_tree: str
     blobs: Mapping[str, SourceBlobV1]
+    hygiene_packets: Mapping[str, SourceBlobV1] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -637,6 +677,7 @@ class ReplayEvaluationV1:
     status: str
     errors: tuple[AdmissionErrorV1, ...]
     runs: tuple[dict[str, object], ...]
+    toolchain: dict[str, object] = field(default_factory=dict)
 
 
 REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
@@ -714,6 +755,30 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         ".",
         ("PYTHONPATH", "ZENO_ESSO_PYTHON"),
         f"exit 0; {PRIOR_ESSO_GATE_EXPECTED_PASSED_V1} passed",
+        1800,
+    ),
+    ReplayCommandV1(
+        "python_version",
+        (PYTHON_TOKEN_V1, "-c", "import sys; print(sys.version.split()[0])"),
+        ".",
+        (),
+        "exit 0; one semantic version line",
+        60,
+    ),
+    ReplayCommandV1(
+        "python_projection_gate",
+        (PYTHON_TOKEN_V1, "-m", "pytest", "-q", "-p", "no:cacheprovider", PYTHON_GATE_PATH_V1),
+        ".",
+        (),
+        f"exit 0; {PYTHON_GATE_EXPECTED_PASSED_V1} passed",
+        600,
+    ),
+    ReplayCommandV1(
+        "rust_projection_gate",
+        ("cargo", "test", "--offline", "--locked", "--test", RUST_GATE_TARGET_V1),
+        RUST_CRATE_DIR_V1,
+        ("CARGO_TARGET_DIR", "CARGO_INCREMENTAL"),
+        f"exit 0; {RUST_GATE_EXPECTED_PASSED_V1} passed",
         1800,
     ),
 )
@@ -802,11 +867,11 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V2:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V2}")
+    if packet.get("schema") != PACKET_SCHEMA_V3:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V3}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
-    if frozenset(packet) != PACKET_KEYS_V2:
+    if frozenset(packet) != PACKET_KEYS_V3:
         _reject("PACKET_KEY_SET_DRIFT", "$", "top-level key set differs from the closed set")
     return packet
 
@@ -903,13 +968,41 @@ def _parse_python(source: bytes, path: str) -> ast.Module:
         _reject("PYTHON_SOURCE_UNPARSEABLE", path, type(exc).__name__)
 
 
+def _binds_name(node: ast.AST, name: str) -> bool:
+    if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+        return node.name == name
+    if isinstance(node, ast.Name):
+        return node.id == name and isinstance(node.ctx, (ast.Store, ast.Del))
+    if isinstance(node, ast.alias):
+        return (node.asname or node.name.split(".")[0]) == name
+    if isinstance(node, ast.Global):
+        return name in node.names
+    return False
+
+
 def _top_level_class(module: ast.Module, class_name: str, path: str) -> ast.ClassDef:
+    """Return the single module-level class of that name; the name is bound nowhere else."""
+
     found = [n for n in module.body if isinstance(n, ast.ClassDef) and n.name == class_name]
     if not found:
         _reject("PYTHON_CLASS_MISSING", path, class_name)
     if len(found) > 1:
         _reject("PYTHON_CLASS_AMBIGUOUS", path, class_name)
-    return found[0]
+    node = found[0]
+    for other in ast.walk(module):
+        if other is not node and _binds_name(other, class_name):
+            _reject("PYTHON_CLASS_REBOUND", path, f"{class_name} at line {getattr(other, 'lineno', '?')}")
+    if node.bases or node.keywords:
+        _reject("PYTHON_CLASS_BASES_FORBIDDEN", path, class_name)
+    decorators = [
+        d for d in node.decorator_list
+        if isinstance(d, ast.Call) and isinstance(d.func, ast.Name) and d.func.id == "dataclass"
+    ]
+    if len(node.decorator_list) != 1 or len(decorators) != 1:
+        _reject("PYTHON_CLASS_DECORATORS_DRIFT", path, class_name)
+    if any(not isinstance(k.value, ast.Constant) or k.arg is None for k in decorators[0].keywords):
+        _reject("PYTHON_CLASS_DECORATORS_DRIFT", path, f"{class_name} dataclass keywords must be literal")
+    return node
 
 
 def _is_frozen_dataclass(node: ast.ClassDef) -> bool:
@@ -924,14 +1017,22 @@ def _is_frozen_dataclass(node: ast.ClassDef) -> bool:
     return False
 
 
-def _canonical_keys(node: ast.ClassDef) -> tuple[str, ...]:
-    for item in node.body:
-        if isinstance(item, ast.FunctionDef) and item.name == "to_canonical":
-            for statement in ast.walk(item):
-                if isinstance(statement, ast.Return) and isinstance(statement.value, ast.Dict):
-                    keys = statement.value.keys
-                    return tuple(str(getattr(k, "value", "")) for k in keys)
-    return ()
+def _canonical_keys(node: ast.ClassDef, path: str) -> tuple[str, ...]:
+    """Keys of the single literal dict returned by ``to_canonical`` (no other statements)."""
+
+    methods = [i for i in node.body if isinstance(i, ast.FunctionDef) and i.name == "to_canonical"]
+    if len(methods) != 1:
+        _reject("PYTHON_CANONICAL_SHAPE", path, f"{node.name} needs exactly one to_canonical")
+    body = [
+        stmt for stmt in methods[0].body
+        if not (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str))
+    ]
+    if len(body) != 1 or not isinstance(body[0], ast.Return) or not isinstance(body[0].value, ast.Dict):
+        _reject("PYTHON_CANONICAL_SHAPE", path, f"{node.name}.to_canonical must be one literal dict return")
+    keys = body[0].value.keys
+    if any(not (isinstance(k, ast.Constant) and isinstance(k.value, str)) for k in keys):
+        _reject("PYTHON_CANONICAL_SHAPE", path, f"{node.name}.to_canonical keys must be string literals")
+    return tuple(str(k.value) for k in keys if isinstance(k, ast.Constant))
 
 
 def python_class_shape_v1(source: bytes, class_name: str, path: str) -> ClassShapeV1:
@@ -947,8 +1048,22 @@ def python_class_shape_v1(source: bytes, class_name: str, path: str) -> ClassSha
         line=node.lineno,
         fields=fields,
         frozen=_is_frozen_dataclass(node),
-        canonical_keys=_canonical_keys(node),
+        canonical_keys=_canonical_keys(node, path),
     )
+
+
+def python_container_field_annotations_v1(source: bytes, class_name: str, path: str) -> dict[str, str]:
+    """Return ``{field: annotation}`` of a module-level class without the record-only closure."""
+
+    module = _parse_python(source, path)
+    found = [n for n in module.body if isinstance(n, ast.ClassDef) and n.name == class_name]
+    if len(found) != 1:
+        _reject("PYTHON_CLASS_MISSING", path, class_name)
+    return {
+        item.target.id: ast.unparse(item.annotation)
+        for item in found[0].body
+        if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name)
+    }
 
 
 def _top_level_assignments(module: ast.Module) -> dict[str, ast.expr]:
@@ -1125,6 +1240,8 @@ def _rust_struct_body(code: str, name: str, path: str) -> tuple[int, int, int]:
     if len(matches) > 1:
         _reject("RUST_STRUCT_AMBIGUOUS", path, name)
     match = matches[0]
+    if _brace_depth_at(code, match.start()) != 0:
+        _reject("RUST_STRUCT_NOT_TOP_LEVEL", path, name)
     index = match.end()
     while index < len(code) and code[index].isspace():
         index += 1
@@ -1153,27 +1270,121 @@ def _split_depth_zero_commas(body: str) -> list[str]:
     return [item for item in items if item.strip()]
 
 
-def _strip_rust_field_prefix(item: str) -> str:
+def _strip_rust_field_prefix(item: str, path: str, *, allow_attributes: bool) -> str:
     text = item.strip()
     while text.startswith("#["):
+        if not allow_attributes:
+            _reject("RUST_FIELD_ATTRIBUTE_FORBIDDEN", path, text[:60])
         end = text.find("]")
         text = text[end + 1 :].lstrip() if end >= 0 else ""
     text = re.sub(r"^pub(?:\([^)]*\))?\s+", "", text)
     return text
 
 
-def _rust_fields(body: str, path: str) -> tuple[tuple[str, str], ...]:
+def _rust_fields(body: str, path: str, *, allow_attributes: bool) -> tuple[tuple[str, str], ...]:
     fields: list[tuple[str, str]] = []
     for item in _split_depth_zero_commas(body):
-        match = _RUST_FIELD_RE.match(_strip_rust_field_prefix(item))
+        match = _RUST_FIELD_RE.match(_strip_rust_field_prefix(item, path, allow_attributes=allow_attributes))
         if match is None:
             _reject("RUST_FIELD_UNPARSEABLE", path, item.strip()[:60])
         fields.append((match.group(1), " ".join(match.group(2).split())))
     return tuple(fields)
 
 
+def _brace_depth_at(code: str, position: int) -> int:
+    depth = 0
+    for char in code[:position]:
+        depth += {"{": 1, "}": -1}.get(char, 0)
+    return depth
+
+
+def _balanced_end(code: str, start: int) -> int:
+    """Return the index just past the token tree opened at ``start`` (one of ( [ {)."""
+
+    pairs = {"(": ")", "[": "]", "{": "}"}
+    stack: list[str] = []
+    for cursor in range(start, len(code)):
+        char = code[cursor]
+        if char in pairs:
+            stack.append(pairs[char])
+        elif stack and char == stack[-1]:
+            stack.pop()
+            if not stack:
+                return cursor + 1
+        elif char in ")]}":
+            return cursor + 1
+    return len(code)
+
+
+def _rust_record_attributes(code: str, start: int, name: str, path: str) -> None:
+    """The record's attribute block is exactly one serde-derive and deny_unknown_fields."""
+
+    prefix = code[max(0, start - 600) : start]
+    attrs = _RUST_ATTR_PREFIX_RE.search(prefix)
+    if attrs is None:
+        _reject("RUST_STRUCT_ATTRIBUTES_DRIFT", path, f"{name} has no attribute block")
+    block = [" ".join(item.split()) for item in re.findall(r"#\[[^\]]*\]", attrs.group(1))]
+    derives = [item for item in block if item.startswith("#[derive(")]
+    others = [item for item in block if not item.startswith("#[derive(")]
+    if "#[serde(deny_unknown_fields)]" not in others:
+        _reject("RUST_DENY_UNKNOWN_FIELDS_MISSING", path, name)
+    if len(derives) != 1 or others != ["#[serde(deny_unknown_fields)]"]:
+        _reject("RUST_STRUCT_ATTRIBUTES_DRIFT", path, f"{name}: {' '.join(block)}")
+    derived = {item.strip() for item in derives[0][len("#[derive(") : -2].split(",")}
+    if not {"Serialize", "Deserialize"} <= derived:
+        _reject("RUST_STRUCT_ATTRIBUTES_DRIFT", path, f"{name} must derive Serialize and Deserialize")
+
+
+def rust_lexical_closure_v1(source: bytes, path: str, record_names: tuple[str, ...]) -> str:
+    """Reject the source constructs that let a textual struct scan diverge from the compiled type.
+
+    Without ``cfg``, ``include!``, ``#[path]``, item-defining or nested-invoking local
+    macros, foreign item-position macros, and item keywords in item-position token
+    trees, a ``pub struct`` at brace depth zero is the single definition Rust compiles
+    for that name in this module. Returns the stripped code. ``record_names`` is
+    reported in errors only; the closure is name-independent.
+    """
+
+    try:
+        text = source.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        _reject("RUST_SOURCE_UNPARSEABLE", path, type(exc).__name__)
+    code = strip_rust_noncode_v1(text)
+    if re.search(r"#!?\[\s*cfg", code):
+        _reject("RUST_CFG_FORBIDDEN", path, "cfg or cfg_attr attribute")
+    if re.search(r"\binclude(?:_str|_bytes)?!", code):
+        _reject("RUST_INCLUDE_FORBIDDEN", path, "include macro")
+    if re.search(r"#!?\[\s*path\s*=", code):
+        _reject("RUST_PATH_ATTRIBUTE_FORBIDDEN", path, "path attribute")
+    local_macros = set(re.findall(r"\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)", code))
+    for match in _RUST_MACRO_INVOCATION_RE.finditer(code):
+        tree = code[match.start(2) : _balanced_end(code, match.start(2))]
+        head = code[match.start() : match.start() + 60]
+        if match.group(1) == "macro_rules":
+            if _RUST_ITEM_KEYWORD_RE.search(tree):
+                _reject("RUST_MACRO_DEFINES_ITEM", path, head)
+            if _RUST_MACRO_INVOCATION_RE.search(tree):
+                _reject("RUST_MACRO_NESTED_INVOCATION", path, head)
+        elif _brace_depth_at(code, match.start()) == 0:
+            if match.group(1) not in local_macros:
+                _reject("RUST_FOREIGN_ITEM_MACRO", path, head)
+            if _RUST_ITEM_KEYWORD_RE.search(tree):
+                _reject("RUST_MACRO_DEFINES_ITEM", path, head)
+    for use in re.finditer(r"^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([^;]+);", code, re.MULTILINE):
+        target = " ".join(use.group(1).split())
+        if re.search(r"\b(?:Serialize|Deserialize|Serializer|Deserializer)\b", target) and not target.startswith("serde::"):
+            _reject("RUST_SERDE_IMPORT_DRIFT", path, target[:60])
+    return code
+
+
 def rust_struct_shape_v1(source: bytes, struct_name: str, path: str) -> StructShapeV1:
-    """Return the ordered fields of a brace struct and whether serde denies unknown fields."""
+    """Return the ordered fields of a top-level brace struct and whether serde denies unknown fields.
+
+    The record structs carry exactly ``#[derive(...)]`` (with Serialize and
+    Deserialize) and ``#[serde(deny_unknown_fields)]`` and no field attributes, so no
+    serde renaming, flattening, defaulting, or custom (de)serialisation can widen the
+    wire schema behind the scanned field list.
+    """
 
     try:
         text = source.decode("utf-8")
@@ -1181,14 +1392,58 @@ def rust_struct_shape_v1(source: bytes, struct_name: str, path: str) -> StructSh
         _reject("RUST_SOURCE_UNPARSEABLE", path, type(exc).__name__)
     code = strip_rust_noncode_v1(text)
     start, body_start, body_end = _rust_struct_body(code, struct_name, path)
-    prefix = code[max(0, start - 600) : start]
-    attrs = _RUST_ATTR_PREFIX_RE.search(prefix)
-    attr_text = " ".join(attrs.group(1).split()) if attrs else ""
+    _rust_record_attributes(code, start, struct_name, path)
     return StructShapeV1(
         line=code.count("\n", 0, start) + 1,
-        fields=_rust_fields(code[body_start:body_end], path),
-        deny_unknown_fields="#[serde(deny_unknown_fields)]" in attr_text,
+        fields=_rust_fields(code[body_start:body_end], path, allow_attributes=False),
+        deny_unknown_fields=True,
     )
+
+
+def rust_container_field_types_v1(source: bytes, struct_name: str, path: str) -> dict[str, str]:
+    """Return ``{field: type}`` of a top-level struct whose fields may carry attributes."""
+
+    code = strip_rust_noncode_v1(source.decode("utf-8", errors="strict"))
+    _, body_start, body_end = _rust_struct_body(code, struct_name, path)
+    return dict(_rust_fields(code[body_start:body_end], path, allow_attributes=True))
+
+
+def rust_crate_root_closure_v1(source: bytes, path: str) -> None:
+    """The crate root declares ``mod state;`` unconditionally and nothing redirects modules."""
+
+    code = rust_lexical_closure_v1(source, path, (TERMINAL_CLASS_NAME_V1, OUTBOX_CLASS_NAME_V1))
+    declarations = re.findall(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+state\s*;", code, re.MULTILINE)
+    if len(declarations) != 1:
+        _reject("RUST_STATE_MODULE_DECLARATION_DRIFT", path, f"{len(declarations)} declarations of mod state")
+    if re.search(r"\bmod\s+state\s*\{", code):
+        _reject("RUST_STATE_MODULE_DECLARATION_DRIFT", path, "inline mod state")
+
+
+def rust_manifest_closure_v1(source: bytes, path: str) -> None:
+    """Cargo.toml keeps the default lib and test target layout and the registry serde crates."""
+
+    try:
+        manifest = tomllib.loads(source.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        _reject("CARGO_MANIFEST_UNPARSEABLE", path, type(exc).__name__)
+    package = manifest.get("package")
+    if not isinstance(package, dict) or package.get("name") != RUST_CRATE_NAME_V1:
+        _reject("CARGO_PACKAGE_NAME_DRIFT", path, str(package.get("name") if isinstance(package, dict) else None))
+    lib = manifest.get("lib")
+    if isinstance(lib, dict) and ("path" in lib or "name" in lib):
+        _reject("CARGO_LIB_TARGET_OVERRIDE", path, ",".join(sorted(lib)))
+    for key in ("test", "bench", "example", "bin", "patch", "replace", "build"):
+        if key in manifest:
+            _reject("CARGO_TARGET_OVERRIDE_FORBIDDEN", path, key)
+    if "build" in package:
+        _reject("CARGO_TARGET_OVERRIDE_FORBIDDEN", path, "package.build")
+    for table in ("dependencies", "dev-dependencies", "build-dependencies"):
+        rows = manifest.get(table)
+        if not isinstance(rows, dict):
+            continue
+        for crate, spec in rows.items():
+            if isinstance(spec, dict) and any(k in spec for k in ("path", "git", "registry", "package")):
+                _reject("CARGO_DEPENDENCY_SOURCE_OVERRIDE", path, f"{table}.{crate}")
 
 
 # ---------------------------------------------------------------------------
@@ -1392,9 +1647,25 @@ def _record_projection(python: ClassShapeV1, rust: StructShapeV1, absent: tuple[
     }
 
 
+def _check_container_bindings(python_source: bytes, rust_source: bytes) -> None:
+    """The V1 state containers hold exactly the scanned record types."""
+
+    python_fields = python_container_field_annotations_v1(python_source, STATE_CLASS_NAME_V1, PYTHON_TYPES_PATH_V1)
+    rust_fields = rust_container_field_types_v1(rust_source, STATE_CLASS_NAME_V1, RUST_STATE_PATH_V1)
+    for container, record in CONTAINER_RECORD_FIELDS_V1:
+        if python_fields.get(container) != f"tuple[{record}, ...]":
+            _reject("PYTHON_STATE_FIELD_TYPE_DRIFT", PYTHON_TYPES_PATH_V1, f"{container}: {python_fields.get(container)}")
+        if rust_fields.get(container) != f"Vec<{record}>":
+            _reject("RUST_STATE_FIELD_TYPE_DRIFT", RUST_STATE_PATH_V1, f"{container}: {rust_fields.get(container)}")
+
+
 def _project_information_loss(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     python_source = _blob(snapshot, PYTHON_TYPES_PATH_V1).data
     rust_source = _blob(snapshot, RUST_STATE_PATH_V1).data
+    rust_lexical_closure_v1(rust_source, RUST_STATE_PATH_V1, (TERMINAL_CLASS_NAME_V1, OUTBOX_CLASS_NAME_V1))
+    rust_crate_root_closure_v1(_blob(snapshot, RUST_LIB_PATH_V1).data, RUST_LIB_PATH_V1)
+    rust_manifest_closure_v1(_blob(snapshot, RUST_MANIFEST_PATH_V1).data, RUST_MANIFEST_PATH_V1)
+    _check_container_bindings(python_source, rust_source)
     terminal_py = python_class_shape_v1(python_source, TERMINAL_CLASS_NAME_V1, PYTHON_TYPES_PATH_V1)
     terminal_rs = rust_struct_shape_v1(rust_source, TERMINAL_CLASS_NAME_V1, RUST_STATE_PATH_V1)
     outbox_py = python_class_shape_v1(python_source, OUTBOX_CLASS_NAME_V1, PYTHON_TYPES_PATH_V1)
@@ -1411,6 +1682,7 @@ def _project_information_loss(snapshot: SubjectSnapshotV1) -> dict[str, object]:
             outbox_py, outbox_rs, OUTBOX_ABSENT_FIELDS_V1, OUTBOX_CLASS_NAME_V1
         ),
         "scope": INFORMATION_LOSS_SCOPE_V1,
+        "binding": dict(INFORMATION_LOSS_BINDING_V1),
         "opaque_bindings": list(OPAQUE_BINDINGS_V1),
         "accepted_known_gaps": list(ACCEPTED_KNOWN_GAPS_V1),
         "formal_result": INFORMATION_LOSS_FORMAL_RESULT_V1,
@@ -1418,45 +1690,137 @@ def _project_information_loss(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     }
 
 
-def _check_thv1_packet(snapshot: SubjectSnapshotV1) -> None:
-    raw = _blob(snapshot, THV1_PATH_V1).data
-    packet = decode_json_object_v1(raw, context=THV1_PATH_V1, require_canonical=False)
-    pins = packet.get("source_pins")
-    if not isinstance(pins, list) or not all(isinstance(pin, dict) for pin in pins):
-        _reject("THV1_SHAPE", THV1_PATH_V1, "source_pins must be a list of objects")
-    by_path = {str(pin.get("path")): str(pin.get("sha256")) for pin in pins}
-    circular = [path for path in (PACKET_JSON_PATH_V1, PACKET_MD_PATH_V1) if path in by_path]
-    if circular:
-        _reject("THV1_PINS_PACKET_CIRCULAR", THV1_PATH_V1, ",".join(circular))
+def _hygiene_pins(blob: SourceBlobV1) -> dict[str, str]:
+    """Return ``{pinned path: sha256}`` of one test-hygiene packet after shape checks."""
+
+    packet = decode_json_object_v1(blob.data, context=blob.path, require_canonical=False)
+    stem = blob.path.rsplit("/", 1)[-1].removesuffix(".json")
+    if packet.get("schema") != HYGIENE_SCHEMA_V1 or packet.get("evidence_id") != stem:
+        _reject("THV1_SHAPE", blob.path, "schema and evidence_id must match the file")
+    pins: dict[str, str] = {}
+    for key in ("source_pins", "test_pins"):
+        rows = packet.get(key)
+        if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+            _reject("THV1_SHAPE", blob.path, f"{key} must be a list of objects")
+        for row in rows:
+            pins[str(row.get("path"))] = str(row.get("sha256"))
+    return pins
+
+
+def _select_hygiene_packets(snapshot: SubjectSnapshotV1) -> list[dict[str, object]]:
+    """Select, per required path, the newest hygiene packet whose pin equals the subject blob.
+
+    Packets are ordered by evidence id (newest last), mirroring the repository
+    hygiene gate: stale packets are skipped, a path with no matching packet is drift,
+    and a selected packet that pins the O-008 packet itself is circular.
+    """
+
+    ordered = sorted(snapshot.hygiene_packets.values(), key=lambda blob: blob.path, reverse=True)
+    pins_by_packet = {blob.path: _hygiene_pins(blob) for blob in ordered}
+    selection: list[dict[str, object]] = []
     for path in THV1_REQUIRED_PIN_PATHS_V1:
-        if by_path.get(path) != _blob(snapshot, path).sha256:
-            _reject("THV1_PIN_DRIFT", THV1_PATH_V1, path)
+        expected = _blob(snapshot, path).sha256
+        chosen = next((blob for blob in ordered if pins_by_packet[blob.path].get(path) == expected), None)
+        if chosen is None:
+            _reject("THV1_PIN_DRIFT", HYGIENE_EVIDENCE_DIR_V1, path)
+        pins = pins_by_packet[chosen.path]
+        circular = [item for item in (PACKET_JSON_PATH_V1, PACKET_MD_PATH_V1) if item in pins]
+        if circular:
+            _reject("THV1_PINS_PACKET_CIRCULAR", chosen.path, ",".join(circular))
+        selection.append(
+            {
+                "path": path,
+                "packet_path": chosen.path,
+                "packet_git_blob": chosen.git_blob,
+                "packet_sha256": chosen.sha256,
+                "pin_sha256": expected,
+            }
+        )
+    return selection
 
 
 AUTHOR_RUN_KEYS_V1: Final[frozenset[str]] = frozenset({"command_id", "exit_code", "comparable"})
+AUTHOR_TOOLCHAIN_KEYS_V1: Final[frozenset[str]] = frozenset({"esso_code_hash", "lean", "python", "solvers"})
+LEAN_VERSION_V1: Final = LEAN_TOOLCHAIN_V1.rsplit("v", 1)[1]
+# Closed comparable schema per replay command: key -> ("hex64" | "semver" | "verdict" | "solvers" | exact value).
+COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
+    "lean_version": {"lean_version": LEAN_VERSION_V1},
+    "lean_direct_check": {"stdout_sha256": EMPTY_SHA256_V1},
+    "lean_axioms_probe": {"probe_sha256": "hex64", "theorems_probed": len(THEOREM_INVENTORY_V1)},
+    "lean_binding_gate": {"passed": LEAN_GATE_EXPECTED_PASSED_V1},
+    "esso_validate": {"ir_hash": "esso_ir_hash"},
+    "esso_verify_multi": {
+        "verdict": "VERIFIED",
+        "fingerprint": "esso_fingerprint",
+        "solvers": "solvers",
+        "esso_code_hash": ESSO_CODE_COMMIT_V1,
+    },
+    "esso_gate": {"passed": ESSO_GATE_EXPECTED_PASSED_V1},
+    "prior_restage_gate": {"passed": PRIOR_ESSO_GATE_EXPECTED_PASSED_V1},
+    "python_version": {"python_version": "semver"},
+    "python_projection_gate": {"passed": PYTHON_GATE_EXPECTED_PASSED_V1},
+    "rust_projection_gate": {"passed": RUST_GATE_EXPECTED_PASSED_V1},
+}
 
 
-def _validate_replay_run(run: object, index: int) -> dict[str, object]:
+def _comparable_value_ok(rule: object, value: object, esso: Mapping[str, Any]) -> bool:
+    if rule == "hex64":
+        return isinstance(value, str) and _HEX64_RE.fullmatch(value) is not None
+    if rule == "semver":
+        return isinstance(value, str) and _SEMVER_RE.fullmatch(value) is not None
+    if rule == "solvers":
+        return value == dict(ESSO_SOLVERS_V1)
+    if rule == "esso_ir_hash":
+        return value == esso.get("ir_hash")
+    if rule == "esso_fingerprint":
+        return value == esso.get("fingerprint")
+    return type(value) is type(rule) and value == rule
+
+
+def _validate_replay_run(run: object, index: int, esso: Mapping[str, Any]) -> dict[str, object]:
+    where = f"proof_replay.author_record.runs[{index}]"
     if not isinstance(run, dict) or set(run) != AUTHOR_RUN_KEYS_V1:
-        _reject(
-            "REPLAY_RECORD_SHAPE",
-            f"proof_replay.author_record.runs[{index}]",
-            "exactly command_id, exit_code, comparable",
-        )
+        _reject("REPLAY_RECORD_SHAPE", where, "exactly command_id, exit_code, comparable")
     command_id = run.get("command_id")
-    if command_id not in REPLAY_COMMAND_IDS_V1:
-        _reject("REPLAY_RECORD_SHAPE", f"proof_replay.author_record.runs[{index}]", str(command_id))
+    if command_id not in COMPARABLE_SCHEMA_V1:
+        _reject("REPLAY_RECORD_SHAPE", where, str(command_id))
     exit_code = run.get("exit_code")
     if type(exit_code) is not int or exit_code != 0:
-        _reject("REPLAY_RECORD_EXIT_NONZERO", f"proof_replay.author_record.runs[{index}]", str(exit_code))
-    for key, value in run.items():
-        if isinstance(value, str) and value.startswith("/"):
-            _reject("REPLAY_RECORD_MACHINE_PATH", f"proof_replay.author_record.runs[{index}].{key}", value)
-    return dict(run)
+        _reject("REPLAY_RECORD_EXIT_NONZERO", where, str(exit_code))
+    schema = COMPARABLE_SCHEMA_V1[str(command_id)]
+    comparable = run.get("comparable")
+    if not isinstance(comparable, dict) or set(comparable) != set(schema):
+        _reject("REPLAY_RECORD_COMPARABLE_SHAPE", where, str(sorted(comparable) if isinstance(comparable, dict) else comparable))
+    for key, rule in schema.items():
+        if not _comparable_value_ok(rule, comparable[key], esso):
+            _reject("REPLAY_RECORD_COMPARABLE_DRIFT", f"{where}.{key}", str(comparable[key])[:80])
+    return {"command_id": command_id, "exit_code": exit_code, "comparable": dict(comparable)}
 
 
-def validate_author_replay_record_v1(record: object) -> dict[str, object]:
-    """Validate a packet author's proof-replay observation record."""
+def _validate_toolchain(record: Mapping[str, Any]) -> dict[str, object]:
+    toolchain = record.get("toolchain")
+    where = "proof_replay.author_record.toolchain"
+    if not isinstance(toolchain, dict) or set(toolchain) != AUTHOR_TOOLCHAIN_KEYS_V1:
+        _reject("REPLAY_RECORD_SHAPE", where, "exactly esso_code_hash, lean, python, solvers")
+    expected = {"esso_code_hash": ESSO_CODE_COMMIT_V1, "lean": LEAN_VERSION_V1, "solvers": dict(ESSO_SOLVERS_V1)}
+    for key, value in expected.items():
+        if toolchain.get(key) != value:
+            _reject("REPLAY_RECORD_TOOLCHAIN_DRIFT", f"{where}.{key}", str(toolchain.get(key))[:80])
+    python = toolchain.get("python")
+    if not isinstance(python, str) or _SEMVER_RE.fullmatch(python) is None:
+        _reject("REPLAY_RECORD_TOOLCHAIN_DRIFT", f"{where}.python", str(python)[:80])
+    return {"esso_code_hash": ESSO_CODE_COMMIT_V1, "lean": LEAN_VERSION_V1, "python": python, "solvers": dict(ESSO_SOLVERS_V1)}
+
+
+def validate_author_replay_record_v1(record: object, esso: Mapping[str, Any]) -> dict[str, object]:
+    """Validate a packet author's proof-replay observation record against the closed schema.
+
+    Every comparable is typed and, where the packet already carries the value
+    (ESSO ir_hash, fingerprint, solver and code versions, Lean version, gate counts,
+    empty direct-check output), must equal it; the toolchain block is closed and
+    exact. Only ``python`` and the two probe hashes are free, and fresh replay
+    compares them.
+    """
 
     if not isinstance(record, dict) or "status" not in record:
         _reject("REPLAY_RECORD_SHAPE", "proof_replay.author_record", "object with status required")
@@ -1470,10 +1834,14 @@ def validate_author_replay_record_v1(record: object) -> dict[str, object]:
     runs = record.get("runs")
     if set(record) != {"status", "runs", "toolchain"} or not isinstance(runs, list):
         _reject("REPLAY_RECORD_SHAPE", "proof_replay.author_record", "EXECUTED needs runs and toolchain")
-    validated = [_validate_replay_run(run, index) for index, run in enumerate(runs)]
+    validated = [_validate_replay_run(run, index, esso) for index, run in enumerate(runs)]
     if tuple(str(run["command_id"]) for run in validated) != REPLAY_COMMAND_IDS_V1:
         _reject("REPLAY_RECORD_SHAPE", "proof_replay.author_record.runs", "one run per command in order")
-    return {"status": "EXECUTED", "runs": validated, "toolchain": record["toolchain"]}
+    toolchain = _validate_toolchain(record)
+    python_run = next(run["comparable"] for run in validated if run["command_id"] == "python_version")
+    if not isinstance(python_run, dict) or python_run.get("python_version") != toolchain["python"]:
+        _reject("REPLAY_RECORD_TOOLCHAIN_DRIFT", "proof_replay.author_record.toolchain.python", "differs from python_version run")
+    return {"status": "EXECUTED", "runs": validated, "toolchain": toolchain}
 
 
 def project_packet_v1(
@@ -1486,13 +1854,14 @@ def project_packet_v1(
 
     if _DATE_RE.fullmatch(created_date) is None:
         _reject("CREATED_DATE_INVALID", "created_date", created_date)
-    for field, value in (("subject_commit", snapshot.subject_commit),
-                         ("subject_parent", snapshot.subject_parent),
-                         ("subject_tree", snapshot.subject_tree)):
+    for name, value in (("subject_commit", snapshot.subject_commit),
+                        ("subject_parent", snapshot.subject_parent),
+                        ("subject_tree", snapshot.subject_tree)):
         if _HEX40_RE.fullmatch(value) is None:
-            _reject("SUBJECT_COMMIT_INVALID", field, value)
+            _reject("SUBJECT_COMMIT_INVALID", name, value)
+    esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V2,
+        "schema": PACKET_SCHEMA_V3,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -1502,7 +1871,7 @@ def project_packet_v1(
         "claim_ceiling": dict(CLAIM_CEILING_V1),
         "completion_scope": list(COMPLETION_SCOPE_V1),
         "source_pins": _project_source_pins(snapshot),
-        "esso_evidence": _project_esso(snapshot),
+        "esso_evidence": esso_evidence,
         "lean_evidence": _project_lean(snapshot),
         "v1_information_loss": _project_information_loss(snapshot),
         "lane_source_data": [
@@ -1512,7 +1881,7 @@ def project_packet_v1(
         "required_sidecar": json.loads(json.dumps(REQUIRED_SIDECAR_V1)),
         "proof_replay": {
             "commands": [command.to_json() for command in REPLAY_COMMANDS_V1],
-            "author_record": validate_author_replay_record_v1(author_replay_record),
+            "author_record": validate_author_replay_record_v1(author_replay_record, esso_evidence),
             "admission_semantics": ADMISSION_SEMANTICS_V1,
         },
         "nonclaims": list(NONCLAIMS_V1),
@@ -1520,7 +1889,7 @@ def project_packet_v1(
     # Pin-consistency checks run last so a structural finding in a source is
     # reported before the derived pin drift it also causes.
     _check_lean_gate(snapshot, tuple(name for _, name in THEOREM_INVENTORY_V1))
-    _check_thv1_packet(snapshot)
+    projection["hygiene_selection"] = _select_hygiene_packets(snapshot)
     return projection
 
 
@@ -1696,12 +2065,12 @@ def check_replay_declaration_v1(packet: Mapping[str, Any]) -> None:
         _reject("REPLAY_COMMANDS_DRIFT", "proof_replay.commands", "differs from the closed command list")
     if replay.get("admission_semantics") != ADMISSION_SEMANTICS_V1:
         _reject("REPLAY_SEMANTICS_DRIFT", "proof_replay.admission_semantics", "drift")
-    validate_author_replay_record_v1(replay.get("author_record"))
+    validate_author_replay_record_v1(replay.get("author_record"), _section(packet, "esso_evidence"))
 
 
 def check_projection_v1(packet: Mapping[str, Any], expected: Mapping[str, Any]) -> None:
     if canonical_packet_bytes_v1(dict(packet)) != canonical_packet_bytes_v1(dict(expected)):
-        for key in sorted(PACKET_KEYS_V2):
+        for key in sorted(PACKET_KEYS_V3):
             if packet.get(key) != expected.get(key):
                 _reject("PACKET_PROJECTION_DRIFT", key, "differs from the projection of the subject")
         _reject("PACKET_PROJECTION_DRIFT", "$", "differs from the projection of the subject")
@@ -1726,13 +2095,28 @@ def check_current_applicability_v1(
     if topology.worktree_markdown != topology.markdown_blob_at_p:
         _reject("WORKTREE_PACKET_DRIFT", PACKET_MD_PATH_V1, "worktree markdown differs from P")
     drift: list[str] = []
-    for path in SOURCE_PIN_PATHS_V1:
-        blob = _blob(snapshot, path)
+    pinned: dict[str, SourceBlobV1] = {path: _blob(snapshot, path) for path in SOURCE_PIN_PATHS_V1}
+    for row in _select_hygiene_packets(snapshot):
+        packet_path = str(row["packet_path"])
+        pinned.setdefault(packet_path, snapshot.hygiene_packets[packet_path])
+    for path, blob in pinned.items():
         if current.head_blob_ids.get(path) != blob.git_blob:
             drift.append(path)
         elif current.worktree_sha256.get(path) != blob.sha256:
             drift.append(path)
     return tuple(drift)
+
+
+def applicability_paths_v1(packet: Mapping[str, Any]) -> tuple[str, ...]:
+    """Paths whose HEAD and worktree state decide applicability: source pins plus selected packets."""
+
+    paths = list(SOURCE_PIN_PATHS_V1)
+    selection = packet.get("hygiene_selection")
+    for row in selection if isinstance(selection, list) else ():
+        packet_path = row.get("packet_path") if isinstance(row, dict) else None
+        if isinstance(packet_path, str) and packet_path not in paths and ".." not in packet_path:
+            paths.append(packet_path)
+    return tuple(paths)
 
 
 def _run_check(errors: list[AdmissionErrorV1], check: Callable[[], object]) -> object | None:
@@ -1859,6 +2243,36 @@ def _grade_lean(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> dict[str
     return {"probe_sha256": obs.probe_sha256, "theorems_probed": len(axioms)}
 
 
+def parse_cargo_test_summary_v1(stdout: bytes) -> int | None:
+    """Return the passed count of exactly one all-green cargo test summary line, else None."""
+
+    found = _CARGO_SUMMARY_RE.findall(stdout.decode("utf-8", errors="replace"))
+    if len(found) != 1 or found[0][0] != "ok" or found[0][2] != "0":
+        return None
+    return int(found[0][1])
+
+
+def parse_python_version_v1(stdout: bytes) -> str | None:
+    text = stdout.decode("utf-8", errors="replace").strip()
+    return text if _SEMVER_RE.fullmatch(text) else None
+
+
+def _grade_cargo(obs: ReplayObservationV1, expected: int) -> dict[str, object]:
+    passed = parse_cargo_test_summary_v1(obs.stdout)
+    if passed is None:
+        _reject("REPLAY_CARGO_SUMMARY_UNPARSEABLE", obs.command_id, "no single all-green summary")
+    if passed != expected:
+        _reject("REPLAY_PASSED_COUNT_DRIFT", obs.command_id, f"{passed} != {expected}")
+    return {"passed": passed}
+
+
+def _grade_python_version(obs: ReplayObservationV1) -> dict[str, object]:
+    version = parse_python_version_v1(obs.stdout)
+    if version is None:
+        _reject("REPLAY_PYTHON_VERSION_UNPARSEABLE", obs.command_id, obs.stdout[:40].decode("utf-8", "replace"))
+    return {"python_version": version}
+
+
 def _grade_pytest(obs: ReplayObservationV1, expected: int) -> dict[str, object]:
     passed = parse_pytest_summary_v1(obs.stdout)
     if passed is None:
@@ -1895,7 +2309,12 @@ def _grade_esso(obs: ReplayObservationV1, esso: Mapping[str, Any]) -> dict[str, 
         _reject("REPLAY_FINGERPRINT_NONDETERMINISTIC", obs.command_id, str(fingerprints))
     if fingerprints[0] != esso.get("fingerprint"):
         _reject("REPLAY_FINGERPRINT_DRIFT", obs.command_id, str(fingerprints[0]))
-    return {"verdict": "VERIFIED", "fingerprint": fingerprints[0], "solvers": solvers}
+    return {
+        "verdict": "VERIFIED",
+        "fingerprint": fingerprints[0],
+        "solvers": solvers,
+        "esso_code_hash": versions.get("esso_code_hash"),
+    }
 
 
 def _solver_versions(reported: object, expected: object) -> dict[str, str] | None:
@@ -1924,6 +2343,12 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_pytest(obs, ESSO_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "prior_restage_gate":
         return _grade_pytest(obs, PRIOR_ESSO_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "python_version":
+        return _grade_python_version(obs)
+    if obs.command_id == "python_projection_gate":
+        return _grade_pytest(obs, PYTHON_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "rust_projection_gate":
+        return _grade_cargo(obs, RUST_GATE_EXPECTED_PASSED_V1)
     return _grade_esso(obs, esso)
 
 
@@ -1953,7 +2378,24 @@ def evaluate_proof_replay_v1(
             }
         )
     status = REPLAY_STATUS_EXECUTED_FAIL_V1 if errors else REPLAY_STATUS_EXECUTED_PASS_V1
-    return ReplayEvaluationV1(status, tuple(errors), tuple(runs))
+    return ReplayEvaluationV1(status, tuple(errors), tuple(runs), observed_toolchain_v1(runs))
+
+
+def observed_toolchain_v1(runs: Sequence[Mapping[str, object]]) -> dict[str, object]:
+    """Derive the toolchain record from fresh replay comparables (never from the builder process)."""
+
+    comparable: dict[str, Mapping[str, object]] = {}
+    for run in runs:
+        value = run.get("comparable")
+        if isinstance(value, dict):
+            comparable[str(run.get("command_id"))] = value
+    esso = comparable.get("esso_verify_multi", {})
+    return {
+        "esso_code_hash": esso.get("esso_code_hash"),
+        "lean": comparable.get("lean_version", {}).get("lean_version"),
+        "python": comparable.get("python_version", {}).get("python_version"),
+        "solvers": esso.get("solvers"),
+    }
 
 
 def compare_author_record_v1(
@@ -1972,6 +2414,8 @@ def compare_author_record_v1(
             errors.append(
                 AdmissionErrorV1("REPLAY_AUTHOR_RECORD_DRIFT", str(run["command_id"]), "comparable drift")
             )
+    if evaluation.status == REPLAY_STATUS_EXECUTED_PASS_V1 and record.get("toolchain") != evaluation.toolchain:
+        errors.append(AdmissionErrorV1("REPLAY_AUTHOR_TOOLCHAIN_DRIFT", "proof_replay.author_record.toolchain", "toolchain drift"))
     return tuple(errors)
 
 
@@ -2014,6 +2458,14 @@ def render_markdown_v1(packet: Mapping[str, Any]) -> str:
         ("path", "role", "git_blob", "sha256"),
         [(p["path"], p["role"], p["git_blob"], p["sha256"]) for p in packet.get("source_pins", ())],
     )
+    lines += ["", "## Hygiene selection (newest packet pinning each required path at the subject commit)", ""]
+    lines += _md_table(
+        ("path", "packet", "packet_git_blob", "pin_sha256"),
+        [(r["path"], r["packet_path"], r["packet_git_blob"], r["pin_sha256"]) for r in packet.get("hygiene_selection", ())],
+    )
+    binding = _section(packet, "v1_information_loss").get("binding", {})
+    lines += ["", "## V1 projection binding", ""]
+    lines += [f"- `{key}`: `{value}`" for key, value in sorted(binding.items())] if isinstance(binding, dict) else []
     lines += ["", "## Lean evidence", "", f"- toolchain: `{lean.get('toolchain')}`",
               f"- theorem count: `{lean.get('theorem_count')}`", ""]
     lines += _md_table(
@@ -2030,7 +2482,9 @@ def render_markdown_v1(packet: Mapping[str, Any]) -> str:
         ("lane", "status", "missing"),
         [(r["lane_id"], r["status"], r["missing"]) for r in packet.get("lane_source_data", ())],
     )
+    command_ids = ", ".join(f"`{c.get('command_id')}`" for c in replay.get("commands", ()))
     lines += ["", "## Proof replay", "",
+              f"- commands: {command_ids}",
               f"- author record status: `{replay.get('author_record', {}).get('status')}`",
               f"- admission semantics: `{replay.get('admission_semantics')}`", "",
               "## Nonclaims", ""]
@@ -2065,7 +2519,7 @@ def render_report_v1(inputs: ReportInputsV1) -> dict[str, Any]:
     ok = ok and not inputs.extra_errors
     exit_code = 2 if inputs.infra_error is not None else (0 if ok else 1)
     return {
-        "schema": REPORT_SCHEMA_V2,
+        "schema": REPORT_SCHEMA_V3,
         "ok": ok,
         "exit_code": exit_code,
         "packet_path": PACKET_JSON_PATH_V1,

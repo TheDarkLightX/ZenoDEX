@@ -1,4 +1,4 @@
-"""Mutation-killer matrix for the O-008 formal-cycle admission checker (schema v2).
+"""Mutation-killer matrix for the O-008 formal-cycle admission checker (schema v3).
 
 Two fixture layers:
 
@@ -51,6 +51,7 @@ CORE_IMPORT_ALLOWLIST = frozenset(
         "collections.abc",
         "dataclasses",
         "typing",
+        "tomllib",
         "yaml",
         "tools.scan_lean_proof_placeholders_v1",
     }
@@ -95,7 +96,11 @@ def snapshot() -> core.SubjectSnapshotV1:
         for path in core.SOURCE_PIN_PATHS_V1
         if (ROOT / path).is_file()
     }
-    return core.SubjectSnapshotV1(S_FAKE, S_PARENT_FAKE, S_TREE_FAKE, blobs)
+    packets = {
+        f"{core.HYGIENE_EVIDENCE_DIR_V1}/{entry.name}": _blob(f"{core.HYGIENE_EVIDENCE_DIR_V1}/{entry.name}", entry.read_bytes())
+        for entry in sorted((ROOT / core.HYGIENE_EVIDENCE_DIR_V1).glob("*.json"))
+    }
+    return core.SubjectSnapshotV1(S_FAKE, S_PARENT_FAKE, S_TREE_FAKE, blobs, packets)
 
 
 @pytest.fixture(scope="module")
@@ -124,9 +129,10 @@ def _topology(packet: dict[str, Any], **overrides: Any) -> core.PacketTopologyV1
 
 
 def _context(snapshot: core.SubjectSnapshotV1, packet: dict[str, Any], **overrides: Any) -> core.AdmissionContextV1:
+    pinned = {**snapshot.hygiene_packets, **snapshot.blobs}
     current = core.CurrentSourceStateV1(
-        {path: blob.git_blob for path, blob in snapshot.blobs.items()},
-        {path: blob.sha256 for path, blob in snapshot.blobs.items()},
+        {path: blob.git_blob for path, blob in pinned.items()},
+        {path: blob.sha256 for path, blob in pinned.items()},
     )
     executing = core.ExecutingToolsV1(
         {path: snapshot.blobs[path].sha256 for path in core.EXECUTING_TOOL_PATHS_V1}
@@ -265,7 +271,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(b"/v2", b"/v1", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v1"),
+        pytest.param(lambda raw: raw.replace(b"/v3", b"/v2", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v2"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
         pytest.param(lambda raw: b"{", "PACKET_JSON_MALFORMED", id="malformed"),
@@ -345,11 +351,80 @@ def test_weakened_statement_changes_statement_hash(snapshot: core.SubjectSnapsho
         pytest.param(core.RUST_STATE_PATH_V1, "pub struct TerminalObligationV1 {\n    pub obligation_id: String,\n", "pub struct TerminalObligationV1 {\n    pub obligation_id: String,\n    pub liability_domain: String,\n", "TERMINAL_FORBIDDEN_FIELD_PRESENT", id="insert_liability_domain_rust"),
         pytest.param(core.RUST_STATE_PATH_V1, "    pub claimant: String,\n    pub asset: String,\n    pub amount_atoms: u128,\n    pub status: TerminalObligationStatusV1,", "    pub asset: String,\n    pub claimant: String,\n    pub amount_atoms: u128,\n    pub status: TerminalObligationStatusV1,", "RUST_TERMINAL_FIELD_ORDER_DRIFT", id="reorder_rust_fields"),
         pytest.param(core.RUST_STATE_PATH_V1, "#[serde(deny_unknown_fields)]\npub struct TerminalObligationV1", "pub struct TerminalObligationV1", "RUST_DENY_UNKNOWN_FIELDS_MISSING", id="drop_deny_unknown_fields"),
-        pytest.param(core.RUST_STATE_PATH_V1, "pub struct TerminalObligationV1 {", "pub struct TerminalObligationV1 { pub extra: String, } mod dup { pub struct TerminalObligationV1 {", "RUST_STRUCT_AMBIGUOUS", id="duplicate_rust_struct"),
     ],
 )
 def test_subject_mutations_reject_projection(snapshot: core.SubjectSnapshotV1, path: str, old: str, new: str, code: str) -> None:
     assert _project_code(_edit(snapshot, path, old, new)) == code
+
+
+def _append(snapshot: core.SubjectSnapshotV1, path: str, tail: str) -> core.SubjectSnapshotV1:
+    return _with_blob(snapshot, path, snapshot.blobs[path].data + tail.encode("utf-8"))
+
+
+TERMINAL_ATTRS = "#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]\n#[serde(deny_unknown_fields)]\npub struct TerminalObligationV1 {"
+LIVE_MACRO = (
+    "\nmacro_rules! define_live_terminal_obligation_v1 {\n    ($name:ident) => {\n"
+    "        #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]\n        pub struct $name {\n"
+    "            pub obligation_id: String,\n            pub lane_id: LaneIdV1,\n            pub claimant: String,\n"
+    "            pub asset: String,\n            pub amount_atoms: u128,\n            pub status: TerminalObligationStatusV1,\n"
+    "        }\n    };\n}\ndefine_live_terminal_obligation_v1!(TerminalObligationV1);\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("path", "old", "new", "tail", "code"),
+    [
+        # Codex C1 P1: cfg(any()) decoy plus a macro-generated live struct without deny_unknown_fields.
+        pytest.param(core.RUST_STATE_PATH_V1, TERMINAL_ATTRS, "#[cfg(any())]\n" + TERMINAL_ATTRS, LIVE_MACRO, "RUST_CFG_FORBIDDEN", id="cfg_decoy_macro_live"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", LIVE_MACRO, "RUST_MACRO_DEFINES_ITEM", id="item_defining_macro"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nmacro_rules! passthrough { ($($t:tt)*) => { $($t)* }; }\npassthrough!(pub struct TerminalObligationV2 { pub extra: String });\n", "RUST_MACRO_DEFINES_ITEM", id="passthrough_macro_item_tokens"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\ndefine_live!(TerminalObligationV1);\n", "RUST_FOREIGN_ITEM_MACRO", id="foreign_item_macro"),
+        pytest.param(core.RUST_STATE_PATH_V1, "            deserialize_bounded_vec_v1::<D, $row, $maximum>(deserializer, $label)", "            let _ = vec![0u8];\n            deserialize_bounded_vec_v1::<D, $row, $maximum>(deserializer, $label)", "", "RUST_MACRO_NESTED_INVOCATION", id="nested_invocation_in_macro"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\ninclude!(\"extra.rs\");\n", "RUST_INCLUDE_FORBIDDEN", id="include_macro"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\n#[path = \"other.rs\"]\nmod other;\n", "RUST_PATH_ATTRIBUTE_FORBIDDEN", id="path_attribute"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nmod dup { pub struct TerminalObligationV1 { pub extra: String } }\n", "RUST_STRUCT_AMBIGUOUS", id="duplicate_rust_struct"),
+        pytest.param(core.RUST_STATE_PATH_V1, "pub struct TerminalObligationV1 {", "mod inner { pub struct TerminalObligationV1 {", "\n}\n", "RUST_STRUCT_NOT_TOP_LEVEL", id="nested_module_struct"),
+        pytest.param(core.RUST_STATE_PATH_V1, "    pub obligation_id: String,\n    pub lane_id: LaneIdV1,", "    pub obligation_id: String,\n    #[serde(rename = \"liability_domain\")]\n    pub lane_id: LaneIdV1,", "", "RUST_FIELD_ATTRIBUTE_FORBIDDEN", id="serde_field_rename"),
+        pytest.param(core.RUST_STATE_PATH_V1, "#[serde(deny_unknown_fields)]\npub struct TerminalObligationV1 {", "#[serde(deny_unknown_fields)]\n#[serde(rename_all = \"camelCase\")]\npub struct TerminalObligationV1 {", "", "RUST_STRUCT_ATTRIBUTES_DRIFT", id="serde_struct_rename_all"),
+        pytest.param(core.RUST_STATE_PATH_V1, "#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]\n#[serde(deny_unknown_fields)]\npub struct TerminalObligationV1 {", "#[derive(Clone, Debug, Eq, PartialEq, Serialize)]\n#[serde(deny_unknown_fields)]\npub struct TerminalObligationV1 {", "", "RUST_STRUCT_ATTRIBUTES_DRIFT", id="derive_without_deserialize"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserializer, Serialize};\nuse crate::shadow::Deserialize;", "", "RUST_SERDE_IMPORT_DRIFT", id="foreign_deserialize_import"),
+        pytest.param(core.RUST_STATE_PATH_V1, "    pub terminal_obligations: Vec<TerminalObligationV1>,", "    pub terminal_obligations: Vec<TerminalObligationV2>,", "", "RUST_STATE_FIELD_TYPE_DRIFT", id="state_container_type"),
+        pytest.param(core.RUST_LIB_PATH_V1, "mod state;", "#[cfg(any())]\nmod state;", "", "RUST_CFG_FORBIDDEN", id="lib_cfg_mod_state"),
+        pytest.param(core.RUST_LIB_PATH_V1, "mod state;", "mod state2;", "", "RUST_STATE_MODULE_DECLARATION_DRIFT", id="lib_drops_mod_state"),
+        pytest.param(core.RUST_LIB_PATH_V1, "mod state;", "mod state { pub struct TerminalObligationV1 { pub extra: String } }", "", "RUST_STATE_MODULE_DECLARATION_DRIFT", id="lib_inline_mod_state"),
+        pytest.param(core.RUST_MANIFEST_PATH_V1, "", "", "\n[lib]\npath = \"src/other.rs\"\n", "CARGO_LIB_TARGET_OVERRIDE", id="cargo_lib_path"),
+        pytest.param(core.RUST_MANIFEST_PATH_V1, "", "", "\n[[test]]\nname = \"v1_projection_gate\"\npath = \"tests/other.rs\"\n", "CARGO_TARGET_OVERRIDE_FORBIDDEN", id="cargo_test_target"),
+        pytest.param(core.RUST_MANIFEST_PATH_V1, "", "", "\n[patch.crates-io]\nserde = { path = \"../serde\" }\n", "CARGO_TARGET_OVERRIDE_FORBIDDEN", id="cargo_patch"),
+        pytest.param(core.RUST_MANIFEST_PATH_V1, 'serde = { version = "=1.0.228", features = ["derive"] }', 'serde = { path = "../serde", features = ["derive"] }', "", "CARGO_DEPENDENCY_SOURCE_OVERRIDE", id="cargo_serde_path"),
+        pytest.param(core.RUST_MANIFEST_PATH_V1, 'name = "zenodex-global-settlement-abi-v1"', 'name = "zenodex-global-settlement-abi-v2"', "", "CARGO_PACKAGE_NAME_DRIFT", id="cargo_package_name"),
+    ],
+)
+def test_rust_lexical_closure_rejects_decoys(
+    snapshot: core.SubjectSnapshotV1, path: str, old: str, new: str, tail: str, code: str
+) -> None:
+    mutated = _edit(snapshot, path, old, new) if old else snapshot
+    if tail:
+        mutated = _append(mutated, path, tail)
+    assert _project_code(mutated) == code
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "tail", "code"),
+    [
+        pytest.param("", "", "\nTerminalObligationV1 = OutboxStateV1\n", "PYTHON_CLASS_REBOUND", id="rebound_class_name"),
+        pytest.param("", "", "\nfrom typing import Any as TerminalObligationV1\n", "PYTHON_CLASS_REBOUND", id="import_rebinds_class_name"),
+        pytest.param("class TerminalObligationV1:", "class TerminalObligationV1(object):", "", "PYTHON_CLASS_BASES_FORBIDDEN", id="base_class"),
+        pytest.param("@dataclass(frozen=True, slots=True, order=True)\nclass TerminalObligationV1:", "@functools.total_ordering\n@dataclass(frozen=True, slots=True, order=True)\nclass TerminalObligationV1:", "", "PYTHON_CLASS_DECORATORS_DRIFT", id="extra_decorator"),
+        pytest.param("@dataclass(frozen=True, slots=True, order=True)\nclass TerminalObligationV1:", "@dataclass(frozen=FROZEN, slots=True, order=True)\nclass TerminalObligationV1:", "", "PYTHON_CLASS_DECORATORS_DRIFT", id="non_literal_dataclass_keyword"),
+        pytest.param('    def to_canonical(self) -> dict[str, object]:\n        return {\n            "obligation_id": self.obligation_id,', '    def to_canonical(self) -> dict[str, object]:\n        if self.amount_atoms:\n            return {"obligation_id": self.obligation_id}\n        return {\n            "obligation_id": self.obligation_id,', "", "PYTHON_CANONICAL_SHAPE", id="canonical_early_return"),
+        pytest.param("    terminal_obligations: tuple[TerminalObligationV1, ...] = ()", "    terminal_obligations: tuple[object, ...] = ()", "", "PYTHON_STATE_FIELD_TYPE_DRIFT", id="state_container_annotation"),
+    ],
+)
+def test_python_closure_rejects_decoys(snapshot: core.SubjectSnapshotV1, old: str, new: str, tail: str, code: str) -> None:
+    mutated = _edit(snapshot, core.PYTHON_TYPES_PATH_V1, old, new) if old else snapshot
+    if tail:
+        mutated = _append(mutated, core.PYTHON_TYPES_PATH_V1, tail)
+    assert _project_code(mutated) == code
 
 
 def test_deleted_lean_file_is_missing_pin(snapshot: core.SubjectSnapshotV1) -> None:
@@ -378,20 +453,92 @@ def test_rust_lifetime_tick_is_not_a_char_literal() -> None:
     assert "struct S { a: u8 }" in stripped and "fn f<'a>" in stripped
 
 
-def test_thv1_packet_pinning_the_packet_is_circular(snapshot: core.SubjectSnapshotV1) -> None:
-    thv1 = json.loads(snapshot.blobs[core.THV1_PATH_V1].data)
+def _with_packet(snapshot: core.SubjectSnapshotV1, path: str, data: bytes | None) -> core.SubjectSnapshotV1:
+    packets = dict(snapshot.hygiene_packets)
+    if data is None:
+        packets.pop(path, None)
+    else:
+        packets[path] = _blob(path, data)
+    return replace(snapshot, hygiene_packets=packets)
+
+
+def _selected_packet(packet: dict[str, Any], path: str) -> str:
+    return next(str(row["packet_path"]) for row in packet["hygiene_selection"] if row["path"] == path)
+
+
+def test_hygiene_selection_covers_every_required_path_from_committed_packets(
+    snapshot: core.SubjectSnapshotV1, packet: dict[str, Any]
+) -> None:
+    rows = packet["hygiene_selection"]
+    assert [row["path"] for row in rows] == list(core.THV1_REQUIRED_PIN_PATHS_V1)
+    for row in rows:
+        blob = snapshot.hygiene_packets[row["packet_path"]]
+        assert row["packet_sha256"] == blob.sha256 and row["packet_git_blob"] == blob.git_blob
+        assert row["pin_sha256"] == snapshot.blobs[row["path"]].sha256
+        assert core.PACKET_JSON_PATH_V1 not in blob.data.decode("utf-8")
+
+
+def test_hygiene_selection_selected_packet_pinning_the_packet_is_circular(
+    snapshot: core.SubjectSnapshotV1, packet: dict[str, Any]
+) -> None:
+    chosen = _selected_packet(packet, core.CHECKER_PATH_V1)
+    thv1 = json.loads(snapshot.hygiene_packets[chosen].data)
     thv1["source_pins"].append({"path": core.PACKET_JSON_PATH_V1, "sha256": "0" * 64})
-    mutated = _with_blob(snapshot, core.THV1_PATH_V1, json.dumps(thv1).encode())
-    assert _project_code(mutated) == "THV1_PINS_PACKET_CIRCULAR"
+    assert _project_code(_with_packet(snapshot, chosen, json.dumps(thv1).encode())) == "THV1_PINS_PACKET_CIRCULAR"
 
 
-def test_thv1_stale_checker_pin_is_drift(snapshot: core.SubjectSnapshotV1) -> None:
-    thv1 = json.loads(snapshot.blobs[core.THV1_PATH_V1].data)
-    for pin in thv1["source_pins"]:
-        if pin["path"] == core.CHECKER_PATH_V1:
-            pin["sha256"] = "0" * 64
-    mutated = _with_blob(snapshot, core.THV1_PATH_V1, json.dumps(thv1).encode())
+def test_hygiene_selection_requires_a_matching_packet(snapshot: core.SubjectSnapshotV1) -> None:
+    mutated = snapshot
+    for path, blob in snapshot.hygiene_packets.items():
+        thv1 = json.loads(blob.data)
+        for key in ("source_pins", "test_pins"):
+            for pin in thv1.get(key, ()):
+                if pin["path"] == core.CHECKER_PATH_V1:
+                    pin["sha256"] = "0" * 64
+        mutated = _with_packet(mutated, path, json.dumps(thv1).encode())
     assert _project_code(mutated) == "THV1_PIN_DRIFT"
+
+
+def test_hygiene_selection_skips_a_stale_newer_packet(snapshot: core.SubjectSnapshotV1, packet: dict[str, Any]) -> None:
+    newest = f"{core.HYGIENE_EVIDENCE_DIR_V1}/THV1-99999999-zzz-stale.json"
+    stale = {
+        "schema": core.HYGIENE_SCHEMA_V1,
+        "evidence_id": "THV1-99999999-zzz-stale",
+        "source_pins": [{"path": core.CHECKER_PATH_V1, "sha256": "0" * 64}],
+        "test_pins": [],
+    }
+    projected = core.project_packet_v1(
+        _with_packet(snapshot, newest, json.dumps(stale).encode()), created_date=CREATED, author_replay_record=NOT_RUN
+    )
+    assert _selected_packet(projected, core.CHECKER_PATH_V1) == _selected_packet(packet, core.CHECKER_PATH_V1)
+    matching = dict(stale, source_pins=[{"path": core.CHECKER_PATH_V1, "sha256": snapshot.blobs[core.CHECKER_PATH_V1].sha256}])
+    projected = core.project_packet_v1(
+        _with_packet(snapshot, newest, json.dumps(matching).encode()), created_date=CREATED, author_replay_record=NOT_RUN
+    )
+    assert _selected_packet(projected, core.CHECKER_PATH_V1) == newest
+
+
+@pytest.mark.parametrize(
+    ("mutation", "code"),
+    [
+        pytest.param(lambda t: t.__setitem__("evidence_id", "THV1-other"), "THV1_SHAPE", id="evidence_id_mismatch"),
+        pytest.param(lambda t: t.__setitem__("schema", "zenodex/test-hygiene-evidence/v2"), "THV1_SHAPE", id="schema_drift"),
+        pytest.param(lambda t: t.__setitem__("source_pins", "none"), "THV1_SHAPE", id="pins_not_a_list"),
+    ],
+)
+def test_hygiene_packet_shape_is_closed(
+    snapshot: core.SubjectSnapshotV1, packet: dict[str, Any], mutation: Callable[[dict[str, Any]], None], code: str
+) -> None:
+    chosen = _selected_packet(packet, core.CHECKER_PATH_V1)
+    thv1 = json.loads(snapshot.hygiene_packets[chosen].data)
+    mutation(thv1)
+    assert _project_code(_with_packet(snapshot, chosen, json.dumps(thv1).encode())) == code
+
+
+def test_applicability_paths_include_selected_packets(packet: dict[str, Any]) -> None:
+    paths = core.applicability_paths_v1(packet)
+    assert paths[: len(core.SOURCE_PIN_PATHS_V1)] == core.SOURCE_PIN_PATHS_V1
+    assert set(paths[len(core.SOURCE_PIN_PATHS_V1):]) == {row["packet_path"] for row in packet["hygiene_selection"]}
 
 
 def test_created_date_is_validated(snapshot: core.SubjectSnapshotV1) -> None:
@@ -497,6 +644,12 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "esso_verify_multi": json.dumps(verify).encode(),
         "esso_gate": f"{core.ESSO_GATE_EXPECTED_PASSED_V1} passed in 17.00s\n".encode(),
         "prior_restage_gate": f"{core.PRIOR_ESSO_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
+        "python_version": b"3.12.3\n",
+        "python_projection_gate": f"{core.PYTHON_GATE_EXPECTED_PASSED_V1} passed in 0.30s\n".encode(),
+        "rust_projection_gate": (
+            f"running {core.RUST_GATE_EXPECTED_PASSED_V1} tests\ntest result: ok. {core.RUST_GATE_EXPECTED_PASSED_V1} passed;"
+            " 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n"
+        ).encode(),
     }
     return {
         command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id == "lean_axioms_probe" else None)
@@ -559,7 +712,121 @@ def test_author_record_drift_is_reported(packet: dict[str, Any]) -> None:
     runs[0]["comparable"] = {"lean_version": "4.26.0"}
     recorded["proof_replay"]["author_record"] = {"status": "EXECUTED", "runs": runs, "toolchain": {}}
     drift = core.compare_author_record_v1(recorded, evaluation)
-    assert [(e.code, e.path) for e in drift] == [("REPLAY_AUTHOR_RECORD_DRIFT", "lean_version")]
+    assert [(e.code, e.path) for e in drift] == [
+        ("REPLAY_AUTHOR_RECORD_DRIFT", "lean_version"),
+        ("REPLAY_AUTHOR_TOOLCHAIN_DRIFT", "proof_replay.author_record.toolchain"),
+    ]
+
+
+def _executed_record(packet: dict[str, Any]) -> dict[str, Any]:
+    evaluation = core.evaluate_proof_replay_v1(packet, list(_passing_observations(packet).values()))
+    assert evaluation.status == "EXECUTED_PASS", evaluation.errors
+    runs = [{k: run[k] for k in ("command_id", "exit_code", "comparable")} for run in evaluation.runs]
+    return {"status": "EXECUTED", "runs": copy.deepcopy(runs), "toolchain": dict(evaluation.toolchain)}
+
+
+def test_executed_record_round_trips_through_validation(packet: dict[str, Any]) -> None:
+    record = _executed_record(packet)
+    assert core.validate_author_replay_record_v1(record, packet["esso_evidence"]) == record
+    assert record["toolchain"] == {
+        "esso_code_hash": core.ESSO_CODE_COMMIT_V1,
+        "lean": core.LEAN_VERSION_V1,
+        "python": "3.12.3",
+        "solvers": dict(core.ESSO_SOLVERS_V1),
+    }
+
+
+def _run(record: dict[str, Any], command_id: str) -> dict[str, Any]:
+    return next(run for run in record["runs"] if run["command_id"] == command_id)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "code"),
+    [
+        pytest.param(lambda r: r["toolchain"].__setitem__("lean", "999.0"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_lean_forged"),
+        pytest.param(lambda r: r["toolchain"].__setitem__("solvers", {"z3": "9.9.9", "cvc5": "9.9.9"}), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_solvers_forged"),
+        pytest.param(lambda r: r["toolchain"].__setitem__("esso_code_hash", "0" * 40), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_code_hash_forged"),
+        pytest.param(lambda r: r["toolchain"].__setitem__("python", "3.12.3-authority"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_python_malformed"),
+        pytest.param(lambda r: r["toolchain"].__setitem__("python", "3.11.0"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_python_differs_from_run"),
+        pytest.param(lambda r: r["toolchain"].__setitem__("authority", "GRANTED"), "REPLAY_RECORD_SHAPE", id="toolchain_authority_key"),
+        pytest.param(lambda r: r["toolchain"]["solvers"].__setitem__("authority", "GRANTED"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_nested_authority_key"),
+        pytest.param(lambda r: r.__setitem__("formal_core_complete", True), "REPLAY_RECORD_SHAPE", id="record_extra_key"),
+        pytest.param(lambda r: _run(r, "esso_gate")["comparable"].__setitem__("passed", 17), "REPLAY_RECORD_COMPARABLE_DRIFT", id="comparable_passed_tampered"),
+        pytest.param(lambda r: _run(r, "esso_gate")["comparable"].__setitem__("authority", "GRANTED"), "REPLAY_RECORD_COMPARABLE_SHAPE", id="comparable_unknown_key"),
+        pytest.param(lambda r: _run(r, "esso_validate")["comparable"].__setitem__("ir_hash", "sha256:" + "0" * 64), "REPLAY_RECORD_COMPARABLE_DRIFT", id="comparable_ir_hash_forged"),
+        pytest.param(lambda r: _run(r, "esso_verify_multi")["comparable"].__setitem__("verdict", "FAILED"), "REPLAY_RECORD_COMPARABLE_DRIFT", id="comparable_verdict_forged"),
+        pytest.param(lambda r: _run(r, "lean_direct_check")["comparable"].__setitem__("stdout_sha256", "1" * 64), "REPLAY_RECORD_COMPARABLE_DRIFT", id="comparable_nonempty_direct_check"),
+        pytest.param(lambda r: _run(r, "lean_axioms_probe")["comparable"].__setitem__("theorems_probed", 1), "REPLAY_RECORD_COMPARABLE_DRIFT", id="comparable_theorems_probed"),
+        pytest.param(lambda r: _run(r, "lean_axioms_probe")["comparable"].__setitem__("probe_sha256", "/tmp/probe"), "REPLAY_RECORD_COMPARABLE_DRIFT", id="comparable_machine_path"),
+        pytest.param(lambda r: _run(r, "rust_projection_gate")["comparable"].__setitem__("passed", True), "REPLAY_RECORD_COMPARABLE_DRIFT", id="comparable_bool_is_not_int"),
+        pytest.param(lambda r: r["runs"].pop(), "REPLAY_RECORD_SHAPE", id="missing_last_run"),
+    ],
+)
+def test_forged_author_records_are_rejected_statically(
+    packet: dict[str, Any], mutation: Callable[[dict[str, Any]], None], code: str
+) -> None:
+    record = _executed_record(packet)
+    mutation(record)
+    with pytest.raises(core.AdmissionRejectV1) as captured:
+        core.validate_author_replay_record_v1(record, packet["esso_evidence"])
+    assert captured.value.code == code
+
+
+def test_forged_probe_hash_is_refuted_by_fresh_replay(packet: dict[str, Any]) -> None:
+    record = _executed_record(packet)
+    _run(record, "lean_axioms_probe")["comparable"]["probe_sha256"] = "cd" * 32
+    assert core.validate_author_replay_record_v1(record, packet["esso_evidence"]) == record
+    recorded = copy.deepcopy(packet)
+    recorded["proof_replay"]["author_record"] = record
+    evaluation = core.evaluate_proof_replay_v1(packet, list(_passing_observations(packet).values()))
+    assert [(e.code, e.path) for e in core.compare_author_record_v1(recorded, evaluation)] == [
+        ("REPLAY_AUTHOR_RECORD_DRIFT", "lean_axioms_probe")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected"),
+    [
+        pytest.param(b"running 5 tests\ntest result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n", 5, id="one_green_line"),
+        pytest.param(b"test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n", None, id="failed_line"),
+        pytest.param(b"test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n", None, id="two_summary_lines"),
+        pytest.param(b"5 passed in 0.1s\n", None, id="pytest_summary_is_not_cargo"),
+    ],
+)
+def test_cargo_summary_parser_accepts_exactly_one_green_line(stdout: bytes, expected: int | None) -> None:
+    assert core.parse_cargo_test_summary_v1(stdout) == expected
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected"),
+    [
+        pytest.param(b"3.12.3\n", "3.12.3", id="semver"),
+        pytest.param(b"Python 3.12.3\n", None, id="banner"),
+        pytest.param(b"3.12\n", None, id="two_components"),
+        pytest.param(b"", None, id="empty"),
+    ],
+)
+def test_python_version_parser_requires_one_semver_line(stdout: bytes, expected: str | None) -> None:
+    assert core.parse_python_version_v1(stdout) == expected
+
+
+@pytest.mark.parametrize(
+    ("command_id", "patch", "code"),
+    [
+        pytest.param("rust_projection_gate", lambda o: replace(o, stdout=b"test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n"), "REPLAY_CARGO_SUMMARY_UNPARSEABLE", id="cargo_failed_line"),
+        pytest.param("rust_projection_gate", lambda o: replace(o, stdout=b"test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="cargo_count_drift"),
+        pytest.param("python_projection_gate", lambda o: replace(o, stdout=b"7 passed in 0.1s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="python_gate_count_drift"),
+        pytest.param("python_version", lambda o: replace(o, stdout=b"Python 3.12.3\n"), "REPLAY_PYTHON_VERSION_UNPARSEABLE", id="python_version_banner"),
+    ],
+)
+def test_new_gate_observation_mutations_are_executed_fail(
+    packet: dict[str, Any], command_id: str, patch: Callable[[core.ReplayObservationV1], core.ReplayObservationV1], code: str
+) -> None:
+    observations = _passing_observations(packet)
+    observations[command_id] = patch(observations[command_id])
+    evaluation = core.evaluate_proof_replay_v1(packet, list(observations.values()))
+    assert evaluation.status == "EXECUTED_FAIL"
+    assert code in [error.code for error in evaluation.errors]
 
 
 @pytest.mark.parametrize(
@@ -570,14 +837,16 @@ def test_author_record_drift_is_reported(packet: dict[str, Any]) -> None:
         pytest.param({"status": "NOT_RUN", "runs": []}, "REPLAY_RECORD_SHAPE", id="not_run_with_runs"),
         pytest.param({"status": "PASS"}, "REPLAY_RECORD_STATUS_INVALID", id="status_pass"),
         pytest.param({"status": "EXECUTED", "runs": [{"command_id": "lean_version", "exit_code": 1, "comparable": {}}], "toolchain": {}}, "REPLAY_RECORD_EXIT_NONZERO", id="nonzero_exit"),
-        pytest.param({"status": "EXECUTED", "runs": [{"command_id": "lean_version", "exit_code": 0, "comparable": "/home/user/repo"}], "toolchain": {}}, "REPLAY_RECORD_MACHINE_PATH", id="absolute_path"),
+        pytest.param({"status": "EXECUTED", "runs": [{"command_id": "lean_version", "exit_code": 0, "comparable": "/home/user/repo"}], "toolchain": {}}, "REPLAY_RECORD_COMPARABLE_SHAPE", id="comparable_not_an_object"),
+        pytest.param({"status": "EXECUTED", "runs": [{"command_id": "lean_version", "exit_code": 0, "comparable": {"lean_version": "/usr/bin/lean"}}], "toolchain": {}}, "REPLAY_RECORD_COMPARABLE_DRIFT", id="comparable_machine_path_value"),
+        pytest.param({"status": "EXECUTED", "runs": [{"command_id": "cargo_build", "exit_code": 0, "comparable": {}}], "toolchain": {}}, "REPLAY_RECORD_SHAPE", id="unknown_command_id"),
         pytest.param({"status": "EXECUTED", "runs": [{"command_id": "lean_version", "exit_code": 0, "comparable": {}, "stdout_sha256": "0" * 64}], "toolchain": {}}, "REPLAY_RECORD_SHAPE", id="nondeterministic_run_keys"),
         pytest.param("EXECUTED", "REPLAY_RECORD_SHAPE", id="not_an_object"),
     ],
 )
-def test_author_record_validation(record: object, code: str) -> None:
+def test_author_record_validation(packet: dict[str, Any], record: object, code: str) -> None:
     with pytest.raises(core.AdmissionRejectV1) as captured:
-        core.validate_author_replay_record_v1(record)
+        core.validate_author_replay_record_v1(record, packet["esso_evidence"])
     assert captured.value.code == code
 
 
@@ -658,7 +927,8 @@ def chain(tmp_path_factory: pytest.TempPathFactory) -> Path:
         check=True, capture_output=True, timeout=120,
     )
     _git(destination, "checkout", "--quiet", "--detach", "HEAD")
-    for path in (*core.SOURCE_PIN_PATHS_V1, "tools/__init__.py"):
+    packets = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / core.HYGIENE_EVIDENCE_DIR_V1).glob("*.json"))
+    for path in (*core.SOURCE_PIN_PATHS_V1, *packets, "tools/__init__.py"):
         source = ROOT / path
         if source.is_file():
             target = destination / path
@@ -788,7 +1058,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V2:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V3:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:

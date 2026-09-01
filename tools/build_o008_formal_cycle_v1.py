@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic builder for the O-008 formal-cycle evidence packet (v2).
+"""Deterministic builder for the O-008 formal-cycle evidence packet (v3).
 
 The packet JSON and its Markdown companion are projections of one exact source
 commit S. This tool reads S through Git, optionally executes the recorded proof
@@ -77,21 +77,13 @@ def _author_record(root: Path, snapshot: core.SubjectSnapshotV1, args: argparse.
         first = evaluation.errors[0] if evaluation.errors else None
         detail = f"{first.code} at {first.path}: {first.detail}" if first else evaluation.status
         core._reject("REPLAY_EXECUTED_FAIL", "proof_replay", detail)
-    comparable = {str(run["command_id"]): run["comparable"] for run in evaluation.runs}
-    lean = comparable.get("lean_version", {})
-    esso = comparable.get("esso_verify_multi", {})
-    toolchain = {
-        "lean": lean.get("lean_version") if isinstance(lean, dict) else None,
-        "python": sys.version.split()[0],
-        "solvers": esso.get("solvers") if isinstance(esso, dict) else None,
-        "esso_code_hash": preview["esso_evidence"]["esso_code_commit"],
-    }
     # Only the deterministic subset is recorded: raw stdout/stderr hashes carry timings.
+    # The toolchain is derived from the replayed tools, never from this builder process.
     runs = [
         {key: run[key] for key in ("command_id", "exit_code", "comparable")}
         for run in evaluation.runs
     ]
-    return {"status": "EXECUTED", "runs": runs, "toolchain": toolchain}
+    return {"status": "EXECUTED", "runs": runs, "toolchain": dict(evaluation.toolchain)}
 
 
 def build_v1(args: argparse.Namespace) -> dict[str, Any]:
