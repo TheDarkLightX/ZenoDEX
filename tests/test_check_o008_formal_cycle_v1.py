@@ -274,7 +274,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V7.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v6", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v6"),
+        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V8.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v7", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v7"),
         pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
@@ -545,6 +545,11 @@ TERMINAL_MACRO = "bounded_state_vec_deserializer_v1!(\n    deserialize_terminal_
         pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "", "", "\nnotation:max \"RowsEqual\" => (fun _ _ => True)\n", "LEAN_COMMAND_FORBIDDEN", id="certificate_lean_notation"),
         pytest.param(core.LEAN_ROOT_PATH_V1, "import Proofs.GlobalAccountingAllocationCertificateV1\n", "", "", "LEAN_IMPORT_ROOT_MISSING", id="certificate_lean_import_dropped"),
         pytest.param(core.CERTIFICATE_LEAN_GATE_PATH_V1, '    "lanePartition_premise_is_necessary",\n', "", "", "LEAN_GATE_THEOREMS_DRIFT", id="certificate_lean_gate_theorem_dropped"),
+        # C4c: the certificate ESSO model is a second pinned ESSO subject under the same closures.
+        pytest.param(core.CERTIFICATE_ESSO_MODEL_PATH_V1, "- id: inv_same_domain_backed\n", "- id: inv_same_domain_backed_renamed\n", "", "ESSO_INVARIANTS_DRIFT", id="certificate_esso_invariant_renamed"),
+        pytest.param(core.CERTIFICATE_ESSO_MODEL_PATH_V1, "- id: disable_lane\n", "- id: disable_lane_v2\n", "", "ESSO_ACTIONS_DRIFT", id="certificate_esso_action_renamed"),
+        pytest.param(core.CERTIFICATE_ESSO_MODEL_PATH_V1, "  seed: 0\n", "  seed: 1\n", "", "ESSO_GATE_SOURCE_PIN_DRIFT", id="certificate_esso_model_edit_without_repin"),
+        pytest.param(core.CERTIFICATE_ESSO_GATE_PATH_V1, 'id="accept_without_lane_binding"', 'id="accept_without_binding"', "", "ESSO_GATE_MUTANTS_DRIFT", id="certificate_esso_mutant_dropped"),
         # Opus C1'''' P1-1 (mounted survivor): a second macro_rules of the pinned name shadows the pinned body.
         pytest.param(core.RUST_STATE_PATH_V1, TERMINAL_MACRO, "macro_rules! bounded_state_vec_deserializer_v1 {\n    ($function:ident, $row:ty, $maximum:expr, $label:literal) => {\n        fn $function<'de, D>(deserializer: D) -> Result<Vec<$row>, D::Error>\n        where D: Deserializer<'de>,\n        { evil_widen_rows_v1::<D, $row, $maximum>(deserializer, $label) }\n    };\n}\n" + TERMINAL_MACRO, "\nfn evil_widen_rows_v1<'de, D, T, const MAXIMUM: usize>(_deserializer: D, _label: &'static str) -> Result<Vec<T>, D::Error> where D: Deserializer<'de> { unimplemented!() }\n", "RUST_MACRO_REDEFINED", id="second_macro_definition_shadows_pinned_body"),
         pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nmacro_rules! lenient_rows_v1 {\n    ($function:ident) => {\n        fn $function() {}\n    };\n}\nlenient_rows_v1!(lenient_helper);\n", "RUST_MACRO_DEFINES_ITEM", id="second_macro_under_another_name_defining_fn"),
@@ -980,6 +985,25 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
             },
         },
     }
+    certificate_esso = esso["certificate_model"]
+    certificate_verify = {
+        "ok": True,
+        "determinism": True,
+        "fingerprints": [certificate_esso["fingerprint"], certificate_esso["fingerprint"]],
+        "queries": {query: {"final_result": "unsat"} for query in core.CERTIFICATE_ESSO_QUERIES_V1},
+        "report": {
+            "verdict": "VERIFIED",
+            "solvers_agreed": True,
+            "failed_queries": 0,
+            "inconclusive_queries": 0,
+            "total_queries": len(core.CERTIFICATE_ESSO_QUERIES_V1),
+            "passed_queries": len(core.CERTIFICATE_ESSO_QUERIES_V1),
+            "tool_versions": {
+                "esso_code_hash": certificate_esso["esso_code_commit"],
+                "solvers": {"z3": "4.15.4", "cvc5": "This is cvc5 version 1.1.2"},
+            },
+        },
+    }
     outputs = {
         "lean_version": b"Lean (version 4.27.0, x86_64-unknown-linux-gnu, commit abc, Release)\n",
         "lean_direct_check": b"",
@@ -991,6 +1015,9 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "esso_validate": json.dumps({"ok": True, "ir_hash": esso["ir_hash"]}).encode(),
         "esso_verify_multi": json.dumps(verify).encode(),
         "esso_gate": f"{core.ESSO_GATE_EXPECTED_PASSED_V1} passed in 17.00s\n".encode(),
+        "esso_certificate_validate": json.dumps({"ok": True, "ir_hash": certificate_esso["ir_hash"]}).encode(),
+        "esso_certificate_verify_multi": json.dumps(certificate_verify).encode(),
+        "esso_certificate_gate": f"{core.CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1} passed in 40.00s\n".encode(),
         "prior_restage_gate": f"{core.PRIOR_ESSO_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
         "python_version": b"3.12.3\n",
         "python_projection_gate": f"{core.PYTHON_GATE_EXPECTED_PASSED_V1} passed in 0.30s\n".encode(),
@@ -1190,6 +1217,9 @@ def test_python_version_parser_requires_one_semver_line(stdout: bytes, expected:
         pytest.param("rust_certificate_golden_gate", lambda o: replace(o, stdout=_cargo_summary(2)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_certificate_count"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(f'"total_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"total_queries": 0').replace(f'"passed_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"passed_queries": 0')), "REPLAY_ESSO_QUERY_COUNT_DRIFT", id="esso_zero_queries"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_drain_claim"', b'"inductive_other_claim"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_query_set_drift"),
+        pytest.param("esso_certificate_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_disable_lane"', b'"inductive_other_lane"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_certificate_query_set_drift"),
+        pytest.param("esso_certificate_validate", lambda o: replace(o, stdout=json.dumps({"ok": True, "ir_hash": "sha256:" + "0" * 64}).encode()), "REPLAY_ESSO_IR_HASH_DRIFT", id="esso_certificate_ir_hash_drift"),
+        pytest.param("esso_certificate_gate", lambda o: replace(o, stdout=b"21 passed in 40.0s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="esso_certificate_gate_count"),
     ],
 )
 def test_new_gate_observation_mutations_are_executed_fail(
@@ -1255,6 +1285,8 @@ def test_closed_constants_are_internally_consistent() -> None:
     assert set(core.CERTIFICATE_LEAN_WITNESS_THEOREMS_V1) <= {name for _, name in core.CERTIFICATE_THEOREM_INVENTORY_V1}
     assert set(core.CERTIFICATE_LEAN_STATEMENT_SHA256_V1) == {name for _, name in core.CERTIFICATE_THEOREM_INVENTORY_V1}
     assert len({subject.probe_token for subject in core.LEAN_SUBJECTS_V1}) == len(core.LEAN_SUBJECTS_V1) == 2
+    assert [subject.evidence_key for subject in core.ESSO_SUBJECTS_V1] == ["", "certificate_model"]
+    assert set(core.CERTIFICATE_ESSO_QUERIES_V1) == {"init_implies_inv", *(f"inductive_{a}" for a in core.CERTIFICATE_ESSO_ACTIONS_V1)}
     assert len(set(core.SOURCE_PIN_PATHS_V1)) == len(core.SOURCE_PIN_PATHS_V1)
     assert set(core.EXECUTING_TOOL_PATHS_V1) <= set(core.SOURCE_PIN_PATHS_V1)
     assert set(core.THV1_REQUIRED_PIN_PATHS_V1) <= set(core.SOURCE_PIN_PATHS_V1)
@@ -1492,7 +1524,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V7:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V8:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:

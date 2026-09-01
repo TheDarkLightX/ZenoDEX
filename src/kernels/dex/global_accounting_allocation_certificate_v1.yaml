@@ -1,0 +1,2100 @@
+# Bounded target contract for the GlobalAccountingAllocationCertificateV1 sidecar checker.
+ir_version: esso-ir/v1
+meta:
+  model_id: global_accounting_allocation_certificate_v1
+  created_by: zenodex
+  seed: 0
+  notes: 'Research-only finite model of GlobalAccountingAllocationCertificateV1, the
+
+    state-keyed sidecar over the control-domain vocabulary. The domain has one
+
+    asset, one control domain, two lanes (L0, L1), two claimants, and at most
+
+    eight atoms per cell; the twelve running lanes and the unbounded vocabulary are
+
+    outside the model.
+
+
+    Each lane fragment classifies the atoms it controls exactly once into
+
+    claimant entitlements, an unencumbered reserve with no claimant, and pending
+
+    registered external obligations (inv_lane_partition_exact), and binds its
+
+    open terminal claims to same-lane entitlements (inv_terminal_bound_by_entitlement).
+
+    The lane rows sum to the global tables (inv_lane_rows_equal_tables) and the
+
+    lane aggregates equal global custody (inv_lane_aggregate_equals_custody). An
+
+    enabled lane needs a receipt-backed producer and a disabled lane is
+
+    registered-empty (inv_producer_gate); every accepted transition implies the
+
+    lane state root and header bindings (inv_accept_requires_lane_binding). The
+
+    normative partition controlled = claimant_entitlements +
+
+    named_unencumbered_reserves + pending_registered_external_obligations and
+
+    same-domain backing are proved as inductive consequences
+
+    (inv_normative_partition, inv_same_domain_backed).
+
+
+    A reserve never stands in for a missing claimant entitlement: the named mutant
+
+    reserve_masks_entitlement routes an entitlement''s atoms into the reserve while
+
+    the liability table still grows and breaks the row equality. The Boolean
+
+    parameters of every action are adversarial abstract premises established by
+
+    an opaque verifier; a caller-provided true Boolean would not be authority.
+
+
+    This model is a bounded target contract. It does not prove finite-width
+
+    arithmetic, canonical bytes, roots, current V1 runtime refinement, private
+
+    lane projections, verifier correctness, receipt validity, mounting, liveness,
+
+    production, settlement authority, or whole-value-movement safety. No lane
+
+    producer is receipt-backed in the running code, so the only certificate it
+
+    accepts today is the registered-empty one; enable_lane models the future
+
+    receipt-backed producers, not a present capability.
+
+    '
+observables:
+  state_vars:
+  - controlled_l0
+  - reserve_l0
+  - external_l0
+  - ent_alice_l0
+  - ent_bob_l0
+  - term_alice_l0
+  - term_bob_l0
+  - enabled_l0
+  - receipt_backed_l0
+  - controlled_l1
+  - reserve_l1
+  - external_l1
+  - ent_alice_l1
+  - ent_bob_l1
+  - term_alice_l1
+  - term_bob_l1
+  - enabled_l1
+  - receipt_backed_l1
+  - custody
+  - liability_alice
+  - liability_bob
+  - reserves
+  - external
+  - open_alice
+  - open_bob
+  - g_decision
+  - g_lane_root_bound
+  - g_header_bound
+  effects:
+  - accepted
+  - decision
+types:
+- id: Lane
+  type:
+    kind: enum
+    symbols:
+    - L0
+    - L1
+- id: Claimant
+  type:
+    kind: enum
+    symbols:
+    - ALICE
+    - BOB
+- id: Decision
+  type:
+    kind: enum
+    symbols:
+    - GENESIS
+    - LANE_ENABLED
+    - ENTITLED
+    - RESERVED
+    - EXTERNALISED
+    - TERMINAL_OPENED
+    - TERMINAL_DRAINED
+    - LANE_DISABLED
+state_vars:
+- id: controlled_l0
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: reserve_l0
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: external_l0
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: ent_alice_l0
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: ent_bob_l0
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: term_alice_l0
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: term_bob_l0
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: enabled_l0
+  role: control
+  type:
+    kind: bool
+- id: receipt_backed_l0
+  role: control
+  type:
+    kind: bool
+- id: controlled_l1
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: reserve_l1
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: external_l1
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: ent_alice_l1
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: ent_bob_l1
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: term_alice_l1
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: term_bob_l1
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: enabled_l1
+  role: control
+  type:
+    kind: bool
+- id: receipt_backed_l1
+  role: control
+  type:
+    kind: bool
+- id: custody
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: liability_alice
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: liability_bob
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: reserves
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: external
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: open_alice
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: open_bob
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 8
+- id: g_decision
+  role: control
+  type:
+    ref: Decision
+- id: g_lane_root_bound
+  role: control
+  type:
+    kind: bool
+- id: g_header_bound
+  role: control
+  type:
+    kind: bool
+init:
+- var: controlled_l0
+  expr:
+    const: 0
+- var: reserve_l0
+  expr:
+    const: 0
+- var: external_l0
+  expr:
+    const: 0
+- var: ent_alice_l0
+  expr:
+    const: 0
+- var: ent_bob_l0
+  expr:
+    const: 0
+- var: term_alice_l0
+  expr:
+    const: 0
+- var: term_bob_l0
+  expr:
+    const: 0
+- var: enabled_l0
+  expr:
+    bool: false
+- var: receipt_backed_l0
+  expr:
+    bool: false
+- var: controlled_l1
+  expr:
+    const: 0
+- var: reserve_l1
+  expr:
+    const: 0
+- var: external_l1
+  expr:
+    const: 0
+- var: ent_alice_l1
+  expr:
+    const: 0
+- var: ent_bob_l1
+  expr:
+    const: 0
+- var: term_alice_l1
+  expr:
+    const: 0
+- var: term_bob_l1
+  expr:
+    const: 0
+- var: enabled_l1
+  expr:
+    bool: false
+- var: receipt_backed_l1
+  expr:
+    bool: false
+- var: custody
+  expr:
+    const: 0
+- var: liability_alice
+  expr:
+    const: 0
+- var: liability_bob
+  expr:
+    const: 0
+- var: reserves
+  expr:
+    const: 0
+- var: external
+  expr:
+    const: 0
+- var: open_alice
+  expr:
+    const: 0
+- var: open_bob
+  expr:
+    const: 0
+- var: g_decision
+  expr:
+    enum: GENESIS
+- var: g_lane_root_bound
+  expr:
+    bool: false
+- var: g_header_bound
+  expr:
+    bool: false
+invariants:
+- id: inv_lane_partition_exact
+  kind: safety
+  expr:
+    op: and
+    args:
+    - op: '='
+      args:
+      - var: controlled_l0
+      - op: +
+        args:
+        - var: ent_alice_l0
+        - var: ent_bob_l0
+        - var: reserve_l0
+        - var: external_l0
+    - op: '='
+      args:
+      - var: controlled_l1
+      - op: +
+        args:
+        - var: ent_alice_l1
+        - var: ent_bob_l1
+        - var: reserve_l1
+        - var: external_l1
+- id: inv_lane_rows_equal_tables
+  kind: safety
+  expr:
+    op: and
+    args:
+    - op: '='
+      args:
+      - var: liability_alice
+      - op: +
+        args:
+        - var: ent_alice_l0
+        - var: ent_alice_l1
+    - op: '='
+      args:
+      - var: liability_bob
+      - op: +
+        args:
+        - var: ent_bob_l0
+        - var: ent_bob_l1
+    - op: '='
+      args:
+      - var: reserves
+      - op: +
+        args:
+        - var: reserve_l0
+        - var: reserve_l1
+    - op: '='
+      args:
+      - var: external
+      - op: +
+        args:
+        - var: external_l0
+        - var: external_l1
+    - op: '='
+      args:
+      - var: open_alice
+      - op: +
+        args:
+        - var: term_alice_l0
+        - var: term_alice_l1
+    - op: '='
+      args:
+      - var: open_bob
+      - op: +
+        args:
+        - var: term_bob_l0
+        - var: term_bob_l1
+- id: inv_lane_aggregate_equals_custody
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: custody
+    - op: +
+      args:
+      - var: controlled_l0
+      - var: controlled_l1
+- id: inv_terminal_bound_by_entitlement
+  kind: safety
+  expr:
+    op: and
+    args:
+    - op: <=
+      args:
+      - var: term_alice_l0
+      - var: ent_alice_l0
+    - op: <=
+      args:
+      - var: term_bob_l0
+      - var: ent_bob_l0
+    - op: <=
+      args:
+      - var: term_alice_l1
+      - var: ent_alice_l1
+    - op: <=
+      args:
+      - var: term_bob_l1
+      - var: ent_bob_l1
+- id: inv_producer_gate
+  kind: safety
+  expr:
+    op: and
+    args:
+    - op: and
+      args:
+      - op: =>
+        args:
+        - var: enabled_l0
+        - var: receipt_backed_l0
+      - op: =>
+        args:
+        - op: not
+          args:
+          - var: enabled_l0
+        - op: and
+          args:
+          - op: '='
+            args:
+            - var: controlled_l0
+            - const: 0
+          - op: '='
+            args:
+            - var: reserve_l0
+            - const: 0
+          - op: '='
+            args:
+            - var: external_l0
+            - const: 0
+          - op: '='
+            args:
+            - var: ent_alice_l0
+            - const: 0
+          - op: '='
+            args:
+            - var: ent_bob_l0
+            - const: 0
+          - op: '='
+            args:
+            - var: term_alice_l0
+            - const: 0
+          - op: '='
+            args:
+            - var: term_bob_l0
+            - const: 0
+    - op: and
+      args:
+      - op: =>
+        args:
+        - var: enabled_l1
+        - var: receipt_backed_l1
+      - op: =>
+        args:
+        - op: not
+          args:
+          - var: enabled_l1
+        - op: and
+          args:
+          - op: '='
+            args:
+            - var: controlled_l1
+            - const: 0
+          - op: '='
+            args:
+            - var: reserve_l1
+            - const: 0
+          - op: '='
+            args:
+            - var: external_l1
+            - const: 0
+          - op: '='
+            args:
+            - var: ent_alice_l1
+            - const: 0
+          - op: '='
+            args:
+            - var: ent_bob_l1
+            - const: 0
+          - op: '='
+            args:
+            - var: term_alice_l1
+            - const: 0
+          - op: '='
+            args:
+            - var: term_bob_l1
+            - const: 0
+- id: inv_accept_requires_lane_binding
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: not
+      args:
+      - op: '='
+        args:
+        - var: g_decision
+        - enum: GENESIS
+    - op: and
+      args:
+      - var: g_lane_root_bound
+      - var: g_header_bound
+- id: inv_normative_partition
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: custody
+    - op: +
+      args:
+      - var: liability_alice
+      - var: liability_bob
+      - var: reserves
+      - var: external
+- id: inv_same_domain_backed
+  kind: safety
+  expr:
+    op: <=
+    args:
+    - op: +
+      args:
+      - var: liability_alice
+      - var: liability_bob
+    - var: custody
+actions:
+- id: enable_lane
+  description: Enable a lane whose fragment producer is receipt-backed; the lane state root and header
+    must be bound.
+  params:
+  - &id001
+    id: lane
+    type:
+      ref: Lane
+  - id: receipt_backed
+    type:
+      kind: bool
+  - &id002
+    id: lane_root_bound
+    type:
+      kind: bool
+  - &id003
+    id: header_bound
+    type:
+      kind: bool
+  guard:
+    op: and
+    args:
+    - param: receipt_backed
+    - &id004
+      param: lane_root_bound
+    - &id005
+      param: header_bound
+  updates:
+  - var: enabled_l0
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        bool: true
+      else:
+        var: enabled_l0
+  - var: enabled_l1
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L1
+      then:
+        bool: true
+      else:
+        var: enabled_l1
+  - var: receipt_backed_l0
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        param: receipt_backed
+      else:
+        var: receipt_backed_l0
+  - var: receipt_backed_l1
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L1
+      then:
+        param: receipt_backed
+      else:
+        var: receipt_backed_l1
+  - var: g_lane_root_bound
+    expr:
+      param: lane_root_bound
+  - var: g_header_bound
+    expr:
+      param: header_bound
+  - var: g_decision
+    expr:
+      enum: LANE_ENABLED
+  effects:
+    accepted:
+      bool: true
+    decision:
+      var: g_decision
+- id: open_entitlement
+  description: A lane classifies newly controlled atoms as a claimant entitlement; the global liability
+    and custody tables move with it.
+  params:
+  - *id001
+  - &id007
+    id: claimant
+    type:
+      ref: Claimant
+  - &id006
+    id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  - *id002
+  - *id003
+  guard:
+    op: and
+    args:
+    - *id004
+    - *id005
+    - op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        var: enabled_l0
+      else:
+        var: enabled_l1
+    - op: <=
+      args:
+      - op: +
+        args:
+        - op: ite
+          cond:
+            op: '='
+            args:
+            - param: lane
+            - enum: L0
+          then:
+            var: controlled_l0
+          else:
+            var: controlled_l1
+        - param: amount
+      - const: 8
+    - op: <=
+      args:
+      - op: +
+        args:
+        - op: ite
+          cond:
+            op: and
+            args:
+            - op: '='
+              args:
+              - param: claimant
+              - enum: ALICE
+            - op: '='
+              args:
+              - param: lane
+              - enum: L0
+          then:
+            var: ent_alice_l0
+          else:
+            op: ite
+            cond:
+              op: and
+              args:
+              - op: '='
+                args:
+                - param: claimant
+                - enum: ALICE
+              - op: '='
+                args:
+                - param: lane
+                - enum: L1
+            then:
+              var: ent_alice_l1
+            else:
+              op: ite
+              cond:
+                op: and
+                args:
+                - op: '='
+                  args:
+                  - param: claimant
+                  - enum: BOB
+                - op: '='
+                  args:
+                  - param: lane
+                  - enum: L0
+              then:
+                var: ent_bob_l0
+              else:
+                var: ent_bob_l1
+        - param: amount
+      - const: 8
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: custody
+        - param: amount
+      - const: 8
+    - op: <=
+      args:
+      - op: +
+        args:
+        - op: ite
+          cond:
+            op: '='
+            args:
+            - param: claimant
+            - enum: ALICE
+          then:
+            var: liability_alice
+          else:
+            var: liability_bob
+        - param: amount
+      - const: 8
+  updates:
+  - var: controlled_l0
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        op: +
+        args:
+        - var: controlled_l0
+        - param: amount
+      else:
+        var: controlled_l0
+  - var: controlled_l1
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L1
+      then:
+        op: +
+        args:
+        - var: controlled_l1
+        - param: amount
+      else:
+        var: controlled_l1
+  - var: ent_alice_l0
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: ALICE
+        - op: '='
+          args:
+          - param: lane
+          - enum: L0
+      then:
+        op: +
+        args:
+        - var: ent_alice_l0
+        - param: amount
+      else:
+        var: ent_alice_l0
+  - var: ent_alice_l1
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: ALICE
+        - op: '='
+          args:
+          - param: lane
+          - enum: L1
+      then:
+        op: +
+        args:
+        - var: ent_alice_l1
+        - param: amount
+      else:
+        var: ent_alice_l1
+  - var: ent_bob_l0
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: BOB
+        - op: '='
+          args:
+          - param: lane
+          - enum: L0
+      then:
+        op: +
+        args:
+        - var: ent_bob_l0
+        - param: amount
+      else:
+        var: ent_bob_l0
+  - var: ent_bob_l1
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: BOB
+        - op: '='
+          args:
+          - param: lane
+          - enum: L1
+      then:
+        op: +
+        args:
+        - var: ent_bob_l1
+        - param: amount
+      else:
+        var: ent_bob_l1
+  - var: liability_alice
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: claimant
+        - enum: ALICE
+      then:
+        op: +
+        args:
+        - var: liability_alice
+        - param: amount
+      else:
+        var: liability_alice
+  - var: liability_bob
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: claimant
+        - enum: BOB
+      then:
+        op: +
+        args:
+        - var: liability_bob
+        - param: amount
+      else:
+        var: liability_bob
+  - var: custody
+    expr:
+      op: +
+      args:
+      - var: custody
+      - param: amount
+  - var: g_lane_root_bound
+    expr:
+      param: lane_root_bound
+  - var: g_header_bound
+    expr:
+      param: header_bound
+  - var: g_decision
+    expr:
+      enum: ENTITLED
+  effects:
+    accepted:
+      bool: true
+    decision:
+      var: g_decision
+- id: deposit_reserve
+  description: A lane classifies newly controlled atoms as an unencumbered reserve with no claimant.
+  params:
+  - *id001
+  - *id006
+  - *id002
+  - *id003
+  guard:
+    op: and
+    args:
+    - *id004
+    - *id005
+    - op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        var: enabled_l0
+      else:
+        var: enabled_l1
+    - op: <=
+      args:
+      - op: +
+        args:
+        - op: ite
+          cond:
+            op: '='
+            args:
+            - param: lane
+            - enum: L0
+          then:
+            var: controlled_l0
+          else:
+            var: controlled_l1
+        - param: amount
+      - const: 8
+    - op: <=
+      args:
+      - op: +
+        args:
+        - op: ite
+          cond:
+            op: '='
+            args:
+            - param: lane
+            - enum: L0
+          then:
+            var: reserve_l0
+          else:
+            var: reserve_l1
+        - param: amount
+      - const: 8
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: custody
+        - param: amount
+      - const: 8
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: reserves
+        - param: amount
+      - const: 8
+  updates:
+  - var: controlled_l0
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        op: +
+        args:
+        - var: controlled_l0
+        - param: amount
+      else:
+        var: controlled_l0
+  - var: controlled_l1
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L1
+      then:
+        op: +
+        args:
+        - var: controlled_l1
+        - param: amount
+      else:
+        var: controlled_l1
+  - var: reserve_l0
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        op: +
+        args:
+        - var: reserve_l0
+        - param: amount
+      else:
+        var: reserve_l0
+  - var: reserve_l1
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L1
+      then:
+        op: +
+        args:
+        - var: reserve_l1
+        - param: amount
+      else:
+        var: reserve_l1
+  - var: reserves
+    expr:
+      op: +
+      args:
+      - var: reserves
+      - param: amount
+  - var: custody
+    expr:
+      op: +
+      args:
+      - var: custody
+      - param: amount
+  - var: g_lane_root_bound
+    expr:
+      param: lane_root_bound
+  - var: g_header_bound
+    expr:
+      param: header_bound
+  - var: g_decision
+    expr:
+      enum: RESERVED
+  effects:
+    accepted:
+      bool: true
+    decision:
+      var: g_decision
+- id: register_external
+  description: A lane classifies newly controlled atoms as a pending registered external obligation.
+  params:
+  - *id001
+  - *id006
+  - *id002
+  - *id003
+  guard:
+    op: and
+    args:
+    - *id004
+    - *id005
+    - op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        var: enabled_l0
+      else:
+        var: enabled_l1
+    - op: <=
+      args:
+      - op: +
+        args:
+        - op: ite
+          cond:
+            op: '='
+            args:
+            - param: lane
+            - enum: L0
+          then:
+            var: controlled_l0
+          else:
+            var: controlled_l1
+        - param: amount
+      - const: 8
+    - op: <=
+      args:
+      - op: +
+        args:
+        - op: ite
+          cond:
+            op: '='
+            args:
+            - param: lane
+            - enum: L0
+          then:
+            var: external_l0
+          else:
+            var: external_l1
+        - param: amount
+      - const: 8
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: custody
+        - param: amount
+      - const: 8
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: external
+        - param: amount
+      - const: 8
+  updates:
+  - var: controlled_l0
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        op: +
+        args:
+        - var: controlled_l0
+        - param: amount
+      else:
+        var: controlled_l0
+  - var: controlled_l1
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L1
+      then:
+        op: +
+        args:
+        - var: controlled_l1
+        - param: amount
+      else:
+        var: controlled_l1
+  - var: external_l0
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        op: +
+        args:
+        - var: external_l0
+        - param: amount
+      else:
+        var: external_l0
+  - var: external_l1
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L1
+      then:
+        op: +
+        args:
+        - var: external_l1
+        - param: amount
+      else:
+        var: external_l1
+  - var: external
+    expr:
+      op: +
+      args:
+      - var: external
+      - param: amount
+  - var: custody
+    expr:
+      op: +
+      args:
+      - var: custody
+      - param: amount
+  - var: g_lane_root_bound
+    expr:
+      param: lane_root_bound
+  - var: g_header_bound
+    expr:
+      param: header_bound
+  - var: g_decision
+    expr:
+      enum: EXTERNALISED
+  effects:
+    accepted:
+      bool: true
+    decision:
+      var: g_decision
+- id: open_terminal
+  description: A claimant opens a terminal claim bounded by its same-lane entitlement.
+  params:
+  - *id001
+  - *id007
+  - *id006
+  - *id002
+  - *id003
+  guard:
+    op: and
+    args:
+    - *id004
+    - *id005
+    - op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        var: enabled_l0
+      else:
+        var: enabled_l1
+    - op: <=
+      args:
+      - op: +
+        args:
+        - op: ite
+          cond:
+            op: and
+            args:
+            - op: '='
+              args:
+              - param: claimant
+              - enum: ALICE
+            - op: '='
+              args:
+              - param: lane
+              - enum: L0
+          then:
+            var: term_alice_l0
+          else:
+            op: ite
+            cond:
+              op: and
+              args:
+              - op: '='
+                args:
+                - param: claimant
+                - enum: ALICE
+              - op: '='
+                args:
+                - param: lane
+                - enum: L1
+            then:
+              var: term_alice_l1
+            else:
+              op: ite
+              cond:
+                op: and
+                args:
+                - op: '='
+                  args:
+                  - param: claimant
+                  - enum: BOB
+                - op: '='
+                  args:
+                  - param: lane
+                  - enum: L0
+              then:
+                var: term_bob_l0
+              else:
+                var: term_bob_l1
+        - param: amount
+      - op: ite
+        cond:
+          op: and
+          args:
+          - op: '='
+            args:
+            - param: claimant
+            - enum: ALICE
+          - op: '='
+            args:
+            - param: lane
+            - enum: L0
+        then:
+          var: ent_alice_l0
+        else:
+          op: ite
+          cond:
+            op: and
+            args:
+            - op: '='
+              args:
+              - param: claimant
+              - enum: ALICE
+            - op: '='
+              args:
+              - param: lane
+              - enum: L1
+          then:
+            var: ent_alice_l1
+          else:
+            op: ite
+            cond:
+              op: and
+              args:
+              - op: '='
+                args:
+                - param: claimant
+                - enum: BOB
+              - op: '='
+                args:
+                - param: lane
+                - enum: L0
+            then:
+              var: ent_bob_l0
+            else:
+              var: ent_bob_l1
+    - op: <=
+      args:
+      - op: +
+        args:
+        - op: ite
+          cond:
+            op: '='
+            args:
+            - param: claimant
+            - enum: ALICE
+          then:
+            var: open_alice
+          else:
+            var: open_bob
+        - param: amount
+      - const: 8
+  updates:
+  - var: term_alice_l0
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: ALICE
+        - op: '='
+          args:
+          - param: lane
+          - enum: L0
+      then:
+        op: +
+        args:
+        - var: term_alice_l0
+        - param: amount
+      else:
+        var: term_alice_l0
+  - var: term_alice_l1
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: ALICE
+        - op: '='
+          args:
+          - param: lane
+          - enum: L1
+      then:
+        op: +
+        args:
+        - var: term_alice_l1
+        - param: amount
+      else:
+        var: term_alice_l1
+  - var: term_bob_l0
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: BOB
+        - op: '='
+          args:
+          - param: lane
+          - enum: L0
+      then:
+        op: +
+        args:
+        - var: term_bob_l0
+        - param: amount
+      else:
+        var: term_bob_l0
+  - var: term_bob_l1
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: BOB
+        - op: '='
+          args:
+          - param: lane
+          - enum: L1
+      then:
+        op: +
+        args:
+        - var: term_bob_l1
+        - param: amount
+      else:
+        var: term_bob_l1
+  - var: open_alice
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: claimant
+        - enum: ALICE
+      then:
+        op: +
+        args:
+        - var: open_alice
+        - param: amount
+      else:
+        var: open_alice
+  - var: open_bob
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: claimant
+        - enum: BOB
+      then:
+        op: +
+        args:
+        - var: open_bob
+        - param: amount
+      else:
+        var: open_bob
+  - var: g_lane_root_bound
+    expr:
+      param: lane_root_bound
+  - var: g_header_bound
+    expr:
+      param: header_bound
+  - var: g_decision
+    expr:
+      enum: TERMINAL_OPENED
+  effects:
+    accepted:
+      bool: true
+    decision:
+      var: g_decision
+- id: drain_terminal
+  description: 'A terminal claim settles: the claim, the entitlement it consumed, the controlled atoms,
+    and the global tables all shrink together.'
+  params:
+  - *id001
+  - *id007
+  - *id006
+  - *id002
+  - *id003
+  guard:
+    op: and
+    args:
+    - *id004
+    - *id005
+    - op: '>='
+      args:
+      - op: ite
+        cond:
+          op: and
+          args:
+          - op: '='
+            args:
+            - param: claimant
+            - enum: ALICE
+          - op: '='
+            args:
+            - param: lane
+            - enum: L0
+        then:
+          var: term_alice_l0
+        else:
+          op: ite
+          cond:
+            op: and
+            args:
+            - op: '='
+              args:
+              - param: claimant
+              - enum: ALICE
+            - op: '='
+              args:
+              - param: lane
+              - enum: L1
+          then:
+            var: term_alice_l1
+          else:
+            op: ite
+            cond:
+              op: and
+              args:
+              - op: '='
+                args:
+                - param: claimant
+                - enum: BOB
+              - op: '='
+                args:
+                - param: lane
+                - enum: L0
+            then:
+              var: term_bob_l0
+            else:
+              var: term_bob_l1
+      - param: amount
+    - op: '>='
+      args:
+      - op: ite
+        cond:
+          op: and
+          args:
+          - op: '='
+            args:
+            - param: claimant
+            - enum: ALICE
+          - op: '='
+            args:
+            - param: lane
+            - enum: L0
+        then:
+          var: ent_alice_l0
+        else:
+          op: ite
+          cond:
+            op: and
+            args:
+            - op: '='
+              args:
+              - param: claimant
+              - enum: ALICE
+            - op: '='
+              args:
+              - param: lane
+              - enum: L1
+          then:
+            var: ent_alice_l1
+          else:
+            op: ite
+            cond:
+              op: and
+              args:
+              - op: '='
+                args:
+                - param: claimant
+                - enum: BOB
+              - op: '='
+                args:
+                - param: lane
+                - enum: L0
+            then:
+              var: ent_bob_l0
+            else:
+              var: ent_bob_l1
+      - param: amount
+    - op: '>='
+      args:
+      - op: ite
+        cond:
+          op: '='
+          args:
+          - param: lane
+          - enum: L0
+        then:
+          var: controlled_l0
+        else:
+          var: controlled_l1
+      - param: amount
+    - op: '>='
+      args:
+      - op: ite
+        cond:
+          op: '='
+          args:
+          - param: claimant
+          - enum: ALICE
+        then:
+          var: liability_alice
+        else:
+          var: liability_bob
+      - param: amount
+    - op: '>='
+      args:
+      - op: ite
+        cond:
+          op: '='
+          args:
+          - param: claimant
+          - enum: ALICE
+        then:
+          var: open_alice
+        else:
+          var: open_bob
+      - param: amount
+    - op: '>='
+      args:
+      - var: custody
+      - param: amount
+  updates:
+  - var: term_alice_l0
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: ALICE
+        - op: '='
+          args:
+          - param: lane
+          - enum: L0
+      then:
+        op: '-'
+        args:
+        - var: term_alice_l0
+        - param: amount
+      else:
+        var: term_alice_l0
+  - var: term_alice_l1
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: ALICE
+        - op: '='
+          args:
+          - param: lane
+          - enum: L1
+      then:
+        op: '-'
+        args:
+        - var: term_alice_l1
+        - param: amount
+      else:
+        var: term_alice_l1
+  - var: term_bob_l0
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: BOB
+        - op: '='
+          args:
+          - param: lane
+          - enum: L0
+      then:
+        op: '-'
+        args:
+        - var: term_bob_l0
+        - param: amount
+      else:
+        var: term_bob_l0
+  - var: term_bob_l1
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: BOB
+        - op: '='
+          args:
+          - param: lane
+          - enum: L1
+      then:
+        op: '-'
+        args:
+        - var: term_bob_l1
+        - param: amount
+      else:
+        var: term_bob_l1
+  - var: ent_alice_l0
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: ALICE
+        - op: '='
+          args:
+          - param: lane
+          - enum: L0
+      then:
+        op: '-'
+        args:
+        - var: ent_alice_l0
+        - param: amount
+      else:
+        var: ent_alice_l0
+  - var: ent_alice_l1
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: ALICE
+        - op: '='
+          args:
+          - param: lane
+          - enum: L1
+      then:
+        op: '-'
+        args:
+        - var: ent_alice_l1
+        - param: amount
+      else:
+        var: ent_alice_l1
+  - var: ent_bob_l0
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: BOB
+        - op: '='
+          args:
+          - param: lane
+          - enum: L0
+      then:
+        op: '-'
+        args:
+        - var: ent_bob_l0
+        - param: amount
+      else:
+        var: ent_bob_l0
+  - var: ent_bob_l1
+    expr:
+      op: ite
+      cond:
+        op: and
+        args:
+        - op: '='
+          args:
+          - param: claimant
+          - enum: BOB
+        - op: '='
+          args:
+          - param: lane
+          - enum: L1
+      then:
+        op: '-'
+        args:
+        - var: ent_bob_l1
+        - param: amount
+      else:
+        var: ent_bob_l1
+  - var: controlled_l0
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        op: '-'
+        args:
+        - var: controlled_l0
+        - param: amount
+      else:
+        var: controlled_l0
+  - var: controlled_l1
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L1
+      then:
+        op: '-'
+        args:
+        - var: controlled_l1
+        - param: amount
+      else:
+        var: controlled_l1
+  - var: liability_alice
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: claimant
+        - enum: ALICE
+      then:
+        op: '-'
+        args:
+        - var: liability_alice
+        - param: amount
+      else:
+        var: liability_alice
+  - var: liability_bob
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: claimant
+        - enum: BOB
+      then:
+        op: '-'
+        args:
+        - var: liability_bob
+        - param: amount
+      else:
+        var: liability_bob
+  - var: open_alice
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: claimant
+        - enum: ALICE
+      then:
+        op: '-'
+        args:
+        - var: open_alice
+        - param: amount
+      else:
+        var: open_alice
+  - var: open_bob
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: claimant
+        - enum: BOB
+      then:
+        op: '-'
+        args:
+        - var: open_bob
+        - param: amount
+      else:
+        var: open_bob
+  - var: custody
+    expr:
+      op: '-'
+      args:
+      - var: custody
+      - param: amount
+  - var: g_lane_root_bound
+    expr:
+      param: lane_root_bound
+  - var: g_header_bound
+    expr:
+      param: header_bound
+  - var: g_decision
+    expr:
+      enum: TERMINAL_DRAINED
+  effects:
+    accepted:
+      bool: true
+    decision:
+      var: g_decision
+- id: disable_lane
+  description: Disable a lane whose fragment is registered-empty.
+  params:
+  - *id001
+  - *id002
+  - *id003
+  guard:
+    op: and
+    args:
+    - *id004
+    - *id005
+    - op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        op: and
+        args:
+        - op: '='
+          args:
+          - var: controlled_l0
+          - const: 0
+        - op: '='
+          args:
+          - var: reserve_l0
+          - const: 0
+        - op: '='
+          args:
+          - var: external_l0
+          - const: 0
+        - op: '='
+          args:
+          - var: ent_alice_l0
+          - const: 0
+        - op: '='
+          args:
+          - var: ent_bob_l0
+          - const: 0
+        - op: '='
+          args:
+          - var: term_alice_l0
+          - const: 0
+        - op: '='
+          args:
+          - var: term_bob_l0
+          - const: 0
+      else:
+        op: and
+        args:
+        - op: '='
+          args:
+          - var: controlled_l1
+          - const: 0
+        - op: '='
+          args:
+          - var: reserve_l1
+          - const: 0
+        - op: '='
+          args:
+          - var: external_l1
+          - const: 0
+        - op: '='
+          args:
+          - var: ent_alice_l1
+          - const: 0
+        - op: '='
+          args:
+          - var: ent_bob_l1
+          - const: 0
+        - op: '='
+          args:
+          - var: term_alice_l1
+          - const: 0
+        - op: '='
+          args:
+          - var: term_bob_l1
+          - const: 0
+  updates:
+  - var: enabled_l0
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L0
+      then:
+        bool: false
+      else:
+        var: enabled_l0
+  - var: enabled_l1
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - param: lane
+        - enum: L1
+      then:
+        bool: false
+      else:
+        var: enabled_l1
+  - var: g_lane_root_bound
+    expr:
+      param: lane_root_bound
+  - var: g_header_bound
+    expr:
+      param: header_bound
+  - var: g_decision
+    expr:
+      enum: LANE_DISABLED
+  effects:
+    accepted:
+      bool: true
+    decision:
+      var: g_decision

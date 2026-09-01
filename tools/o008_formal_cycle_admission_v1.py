@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V7: Final = "zenodex/o008-formal-cycle-evidence/v7"
+PACKET_SCHEMA_V8: Final = "zenodex/o008-formal-cycle-evidence/v8"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -77,6 +77,8 @@ CERTIFICATE_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_allo
 CERTIFICATE_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/global_accounting_allocation_certificate_golden.rs"
 CERTIFICATE_LEAN_PATH_V1: Final = "lean-mathlib/Proofs/GlobalAccountingAllocationCertificateV1.lean"
 CERTIFICATE_LEAN_GATE_PATH_V1: Final = "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py"
+CERTIFICATE_ESSO_MODEL_PATH_V1: Final = "src/kernels/dex/global_accounting_allocation_certificate_v1.yaml"
+CERTIFICATE_ESSO_GATE_PATH_V1: Final = "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py"
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
 RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
@@ -126,6 +128,8 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (CERTIFICATE_RUST_TEST_PATH_V1, "allocation_certificate_golden_rust_replay"),
     (CERTIFICATE_LEAN_PATH_V1, "allocation_certificate_bounded_lean_model"),
     (CERTIFICATE_LEAN_GATE_PATH_V1, "allocation_certificate_lean_binding_gate"),
+    (CERTIFICATE_ESSO_MODEL_PATH_V1, "allocation_certificate_bounded_esso_model"),
+    (CERTIFICATE_ESSO_GATE_PATH_V1, "allocation_certificate_esso_replay_gate"),
     (PYTHON_TYPES_PATH_V1, "python_v1_wire_schema"),
     (RUST_STATE_PATH_V1, "rust_v1_wire_schema"),
     (RUST_LIB_PATH_V1, "rust_crate_root_module_closure"),
@@ -185,6 +189,8 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     CERTIFICATE_RUST_TEST_PATH_V1,
     CERTIFICATE_LEAN_PATH_V1,
     CERTIFICATE_LEAN_GATE_PATH_V1,
+    CERTIFICATE_ESSO_MODEL_PATH_V1,
+    CERTIFICATE_ESSO_GATE_PATH_V1,
     PYTHON_GATE_PATH_V1,
     RUST_GATE_PATH_V1,
     GATE_TESTS_PATH_V1,
@@ -259,6 +265,10 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     " backing, open-terminal coverage, exact current-profile custody under zero reserves and external"
     " obligations, and that without a receipt-backed producer only the registered-empty certificate is"
     " accepted, with a counterexample that a reserve never covers a missing claimant entitlement",
+    "a bounded ESSO model of the certificate relation is inductive under Z3 and CVC5 for eight"
+    " invariants (lane partition, row equality, custody aggregate, terminal bound, producer gate, lane"
+    " binding, and the derived normative partition and same-domain backing) with eight named mutants"
+    " each attributed to one invariant by a two-solver counterexample",
 )
 
 EXPECTED_LANES_V1: Final[tuple[str, ...]] = (
@@ -701,6 +711,107 @@ CERTIFICATE_LEAN_SUBJECT_V1: Final = LeanSubjectV1(
     ),
 )
 LEAN_SUBJECTS_V1: Final[tuple[LeanSubjectV1, ...]] = (O008_LEAN_SUBJECT_V1, CERTIFICATE_LEAN_SUBJECT_V1)
+
+
+@dataclass(frozen=True, slots=True)
+class EssoSubjectV1:
+    """One pinned ESSO-IR model with its closed surface, replay gate, and replay commands."""
+
+    key: str
+    model_path: str
+    gate_path: str
+    model_id: str
+    invariants: tuple[str, ...]
+    actions: tuple[str, ...]
+    queries: tuple[str, ...]
+    named_mutants: tuple[str, ...]
+    gate_expected_passed: int
+    validate_command: str
+    verify_command: str
+    gate_command: str
+    evidence_key: str
+    claim_boundary: str
+
+
+O008_ESSO_SUBJECT_V1: Final = EssoSubjectV1(
+    key="o008_relation",
+    model_path=ESSO_MODEL_PATH_V1,
+    gate_path=ESSO_GATE_PATH_V1,
+    model_id=ESSO_MODEL_ID_V1,
+    invariants=ESSO_INVARIANTS_V1,
+    actions=ESSO_ACTIONS_V1,
+    queries=ESSO_QUERIES_V1,
+    named_mutants=ESSO_NAMED_MUTANTS_V1,
+    gate_expected_passed=ESSO_GATE_EXPECTED_PASSED_V1,
+    validate_command="esso_validate",
+    verify_command="esso_verify_multi",
+    gate_command="esso_gate",
+    evidence_key="",
+    claim_boundary=ESSO_CLAIM_BOUNDARY_V1,
+)
+# C4c: the bounded ESSO model of the sidecar checker (two lanes, one domain, two claimants).
+CERTIFICATE_ESSO_MODEL_ID_V1: Final = "global_accounting_allocation_certificate_v1"
+CERTIFICATE_ESSO_INVARIANTS_V1: Final[tuple[str, ...]] = (
+    "inv_lane_partition_exact",
+    "inv_lane_rows_equal_tables",
+    "inv_lane_aggregate_equals_custody",
+    "inv_terminal_bound_by_entitlement",
+    "inv_producer_gate",
+    "inv_accept_requires_lane_binding",
+    "inv_normative_partition",
+    "inv_same_domain_backed",
+)
+CERTIFICATE_ESSO_ACTIONS_V1: Final[tuple[str, ...]] = (
+    "enable_lane",
+    "open_entitlement",
+    "deposit_reserve",
+    "register_external",
+    "open_terminal",
+    "drain_terminal",
+    "disable_lane",
+)
+CERTIFICATE_ESSO_QUERIES_V1: Final[tuple[str, ...]] = (
+    "init_implies_inv",
+    "inductive_enable_lane",
+    "inductive_open_entitlement",
+    "inductive_deposit_reserve",
+    "inductive_register_external",
+    "inductive_open_terminal",
+    "inductive_drain_terminal",
+    "inductive_disable_lane",
+)
+CERTIFICATE_ESSO_NAMED_MUTANTS_V1: Final[tuple[str, ...]] = (
+    "reserve_masks_entitlement",
+    "unassigned_atom",
+    "enable_without_receipt",
+    "terminal_over_entitlement",
+    "custody_double_count",
+    "disable_with_rows",
+    "external_table_not_summed",
+    "accept_without_lane_binding",
+)
+CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1: Final = 22
+CERTIFICATE_ESSO_SUBJECT_V1: Final = EssoSubjectV1(
+    key="allocation_certificate_model",
+    model_path=CERTIFICATE_ESSO_MODEL_PATH_V1,
+    gate_path=CERTIFICATE_ESSO_GATE_PATH_V1,
+    model_id=CERTIFICATE_ESSO_MODEL_ID_V1,
+    invariants=CERTIFICATE_ESSO_INVARIANTS_V1,
+    actions=CERTIFICATE_ESSO_ACTIONS_V1,
+    queries=CERTIFICATE_ESSO_QUERIES_V1,
+    named_mutants=CERTIFICATE_ESSO_NAMED_MUTANTS_V1,
+    gate_expected_passed=CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1,
+    validate_command="esso_certificate_validate",
+    verify_command="esso_certificate_verify_multi",
+    gate_command="esso_certificate_gate",
+    evidence_key="certificate_model",
+    claim_boundary=(
+        "bounded two-lane, one-domain, two-claimant inductive contract of the sidecar checker; no"
+        " finite-width arithmetic, canonical bytes, roots, runtime refinement, receipt validity,"
+        " mounting, or authority; no lane producer is receipt-backed in the running code"
+    ),
+)
+ESSO_SUBJECTS_V1: Final[tuple[EssoSubjectV1, ...]] = (O008_ESSO_SUBJECT_V1, CERTIFICATE_ESSO_SUBJECT_V1)
 
 TERMINAL_CLASS_NAME_V1: Final = "TerminalObligationV1"
 OUTBOX_CLASS_NAME_V1: Final = "OutboxStateV1"
@@ -1169,6 +1280,42 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         1800,
     ),
     ReplayCommandV1(
+        "esso_certificate_validate",
+        (ESSO_PYTHON_TOKEN_V1, "-m", "ESSO", "validate", CERTIFICATE_ESSO_MODEL_PATH_V1),
+        ".",
+        ("PYTHONPATH",),
+        "exit 0; ok; ir_hash equals packet",
+        600,
+    ),
+    ReplayCommandV1(
+        "esso_certificate_verify_multi",
+        (
+            ESSO_PYTHON_TOKEN_V1,
+            "-m",
+            "ESSO",
+            "verify-multi",
+            CERTIFICATE_ESSO_MODEL_PATH_V1,
+            "--solvers",
+            "z3,cvc5",
+            "--determinism-trials",
+            str(ESSO_DETERMINISM_TRIALS_V1),
+            "--timeout-ms",
+            str(ESSO_SOLVER_TIMEOUT_MS_V1),
+        ),
+        ".",
+        ("PYTHONPATH",),
+        "exit 0; VERIFIED; solvers agreed; deterministic fingerprints; code hash and versions",
+        600,
+    ),
+    ReplayCommandV1(
+        "esso_certificate_gate",
+        (PYTHON_TOKEN_V1, "-m", "pytest", "-q", "-p", "no:cacheprovider", CERTIFICATE_ESSO_GATE_PATH_V1),
+        ".",
+        ("PYTHONPATH", "ZENO_ESSO_PYTHON"),
+        f"exit 0; {CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1} passed",
+        3600,
+    ),
+    ReplayCommandV1(
         "prior_restage_gate",
         (PYTHON_TOKEN_V1, "-m", "pytest", "-q", "-p", "no:cacheprovider", PRIOR_ESSO_GATE_PATH_V1),
         ".",
@@ -1357,8 +1504,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V7:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V7}")
+    if packet.get("schema") != PACKET_SCHEMA_V8:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V8}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -2374,20 +2521,20 @@ def rust_manifest_closure_v1(source: bytes, path: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def esso_model_surface_v1(blob: bytes) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
+def esso_model_surface_v1(blob: bytes, path: str = ESSO_MODEL_PATH_V1) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
     """Return (model_id, ordered invariant ids, ordered action ids) from the ESSO-IR yaml."""
 
     try:
         data = yaml.safe_load(blob.decode("utf-8"))
     except (UnicodeDecodeError, yaml.YAMLError) as exc:
-        _reject("ESSO_MODEL_UNPARSEABLE", ESSO_MODEL_PATH_V1, type(exc).__name__)
+        _reject("ESSO_MODEL_UNPARSEABLE", path, type(exc).__name__)
     if not isinstance(data, dict) or not isinstance(data.get("meta"), dict):
-        _reject("ESSO_MODEL_UNPARSEABLE", ESSO_MODEL_PATH_V1, "meta object required")
+        _reject("ESSO_MODEL_UNPARSEABLE", path, "meta object required")
     model_id = data["meta"].get("model_id")
     invariants = data.get("invariants")
     actions = data.get("actions")
     if not isinstance(model_id, str) or not isinstance(invariants, list) or not isinstance(actions, list):
-        _reject("ESSO_MODEL_UNPARSEABLE", ESSO_MODEL_PATH_V1, "model_id, invariants, actions required")
+        _reject("ESSO_MODEL_UNPARSEABLE", path, "model_id, invariants, actions required")
     return (
         model_id,
         tuple(str(row.get("id")) for row in invariants if isinstance(row, dict)),
@@ -2424,37 +2571,38 @@ def _project_source_pins(snapshot: SubjectSnapshotV1) -> list[dict[str, object]]
     return pins
 
 
-def _project_esso(snapshot: SubjectSnapshotV1) -> dict[str, object]:
-    model = _blob(snapshot, ESSO_MODEL_PATH_V1)
-    gate = _blob(snapshot, ESSO_GATE_PATH_V1)
-    model_id, invariants, actions = esso_model_surface_v1(model.data)
-    if model_id != ESSO_MODEL_ID_V1:
-        _reject("ESSO_MODEL_ID_DRIFT", ESSO_MODEL_PATH_V1, model_id)
-    if invariants != ESSO_INVARIANTS_V1:
-        _reject("ESSO_INVARIANTS_DRIFT", ESSO_MODEL_PATH_V1, ",".join(invariants))
-    if actions != ESSO_ACTIONS_V1:
-        _reject("ESSO_ACTIONS_DRIFT", ESSO_MODEL_PATH_V1, ",".join(actions))
-    constants = python_string_constants_v1(gate.data, ESSO_GATE_PATH_V1)
+def _project_esso_subject(snapshot: SubjectSnapshotV1, subject: EssoSubjectV1) -> dict[str, object]:
+    model = _blob(snapshot, subject.model_path)
+    gate = _blob(snapshot, subject.gate_path)
+    model_id, invariants, actions = esso_model_surface_v1(model.data, subject.model_path)
+    if model_id != subject.model_id:
+        _reject("ESSO_MODEL_ID_DRIFT", subject.model_path, model_id)
+    if invariants != subject.invariants:
+        _reject("ESSO_INVARIANTS_DRIFT", subject.model_path, ",".join(invariants))
+    if actions != subject.actions:
+        _reject("ESSO_ACTIONS_DRIFT", subject.model_path, ",".join(actions))
+    constants = python_string_constants_v1(gate.data, subject.gate_path)
     if model.sha256 not in constants.values():
-        _reject("ESSO_GATE_SOURCE_PIN_DRIFT", ESSO_GATE_PATH_V1, "gate does not pin the model sha256")
-    gate_invariants = python_sequence_constant_v1(gate.data, "EXPECTED_INVARIANTS", ESSO_GATE_PATH_V1)
-    if frozenset(gate_invariants) != frozenset(ESSO_INVARIANTS_V1):
-        _reject("ESSO_GATE_INVARIANTS_DRIFT", ESSO_GATE_PATH_V1, ",".join(gate_invariants))
-    mutants = pytest_param_ids_v1(gate.data, ESSO_GATE_PATH_V1)
-    if tuple(m for m in mutants if m in ESSO_NAMED_MUTANTS_V1) != ESSO_NAMED_MUTANTS_V1:
-        _reject("ESSO_GATE_MUTANTS_DRIFT", ESSO_GATE_PATH_V1, ",".join(mutants))
+        _reject("ESSO_GATE_SOURCE_PIN_DRIFT", subject.gate_path, "gate does not pin the model sha256")
+    gate_invariants = python_sequence_constant_v1(gate.data, "EXPECTED_INVARIANTS", subject.gate_path)
+    if frozenset(gate_invariants) != frozenset(subject.invariants):
+        _reject("ESSO_GATE_INVARIANTS_DRIFT", subject.gate_path, ",".join(gate_invariants))
+    mutants = pytest_param_ids_v1(gate.data, subject.gate_path)
+    if tuple(m for m in mutants if m in subject.named_mutants) != subject.named_mutants:
+        _reject("ESSO_GATE_MUTANTS_DRIFT", subject.gate_path, ",".join(mutants))
     ir_hash = constants.get("RECORDED_IR_HASH", "")
     if not ir_hash.startswith("sha256:") or _HEX64_RE.fullmatch(ir_hash[7:]) is None:
-        _reject("ESSO_IR_HASH_DRIFT", ESSO_GATE_PATH_V1, "RECORDED_IR_HASH malformed")
+        _reject("ESSO_IR_HASH_DRIFT", subject.gate_path, "RECORDED_IR_HASH malformed")
     if constants.get("RECORDED_ESSO_CODE_HASH") != ESSO_CODE_COMMIT_V1:
-        _reject("ESSO_CODE_COMMIT_DRIFT", ESSO_GATE_PATH_V1, "RECORDED_ESSO_CODE_HASH drift")
+        _reject("ESSO_CODE_COMMIT_DRIFT", subject.gate_path, "RECORDED_ESSO_CODE_HASH drift")
     return {
         "model_id": model_id,
+        "model_path": subject.model_path,
         "model_source_sha256": model.sha256,
         "actions": list(actions),
         "invariants": list(invariants),
-        "queries": list(ESSO_QUERIES_V1),
-        "named_mutants": list(ESSO_NAMED_MUTANTS_V1),
+        "queries": list(subject.queries),
+        "named_mutants": list(subject.named_mutants),
         "esso_code_commit": ESSO_CODE_COMMIT_V1,
         "ir_hash": ir_hash,
         "ir_hash_role": IR_HASH_ROLE_V1,
@@ -2463,9 +2611,15 @@ def _project_esso(snapshot: SubjectSnapshotV1) -> dict[str, object]:
         "solvers": dict(ESSO_SOLVERS_V1),
         "determinism_trials": ESSO_DETERMINISM_TRIALS_V1,
         "solver_timeout_ms": ESSO_SOLVER_TIMEOUT_MS_V1,
-        "gate_expected_passed": ESSO_GATE_EXPECTED_PASSED_V1,
-        "claim_boundary": ESSO_CLAIM_BOUNDARY_V1,
+        "gate_expected_passed": subject.gate_expected_passed,
+        "replay_only": {"validate": subject.validate_command, "verify_multi": subject.verify_command, "gate": subject.gate_command},
+        "claim_boundary": subject.claim_boundary,
     }
+
+
+def _project_esso(snapshot: SubjectSnapshotV1) -> dict[str, object]:
+    relation = _project_esso_subject(snapshot, O008_ESSO_SUBJECT_V1)
+    return {**relation, "certificate_model": _project_esso_subject(snapshot, CERTIFICATE_ESSO_SUBJECT_V1)}
 
 
 def _check_lean_gate(
@@ -2736,6 +2890,7 @@ def _project_certificate(snapshot: SubjectSnapshotV1) -> dict[str, object]:
         "receipt_backed_producers": 0,
         "golden": certificate_fixture_surface_v1(fixture),
         "lean_model": CERTIFICATE_LEAN_PATH_V1,
+        "esso_model": CERTIFICATE_ESSO_MODEL_PATH_V1,
         "mounted": False,
     }
 
@@ -2866,6 +3021,14 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
         "esso_code_hash": ESSO_CODE_COMMIT_V1,
     },
     "esso_gate": {"passed": ESSO_GATE_EXPECTED_PASSED_V1},
+    "esso_certificate_validate": {"ir_hash": "esso_certificate_ir_hash"},
+    "esso_certificate_verify_multi": {
+        "verdict": "VERIFIED",
+        "fingerprint": "esso_certificate_fingerprint",
+        "solvers": "solvers",
+        "esso_code_hash": ESSO_CODE_COMMIT_V1,
+    },
+    "esso_certificate_gate": {"passed": CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1},
     "prior_restage_gate": {"passed": PRIOR_ESSO_GATE_EXPECTED_PASSED_V1},
     "python_version": {"python_version": "semver"},
     "python_projection_gate": {"passed": PYTHON_GATE_EXPECTED_PASSED_V1},
@@ -2896,6 +3059,11 @@ def _comparable_value_ok(rule: object, value: object, esso: Mapping[str, Any]) -
         return value == esso.get("ir_hash")
     if rule == "esso_fingerprint":
         return value == esso.get("fingerprint")
+    certificate = esso.get("certificate_model")
+    if rule == "esso_certificate_ir_hash":
+        return isinstance(certificate, dict) and value == certificate.get("ir_hash")
+    if rule == "esso_certificate_fingerprint":
+        return isinstance(certificate, dict) and value == certificate.get("fingerprint")
     return type(value) is type(rule) and value == rule
 
 
@@ -3011,7 +3179,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V7,
+        "schema": PACKET_SCHEMA_V8,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -3174,7 +3342,7 @@ def check_lane_map_v1(packet: Mapping[str, Any]) -> None:
 
 
 SIDECAR_IMPLEMENTATION_KEYS_V1: Final[frozenset[str]] = frozenset(
-    {"status", "python", "rust", "check_order", "reject_codes", "producer_registry", "receipt_backed_producers", "golden", "lean_model", "mounted"}
+    {"status", "python", "rust", "check_order", "reject_codes", "producer_registry", "receipt_backed_producers", "golden", "lean_model", "esso_model", "mounted"}
 )
 
 
@@ -3198,6 +3366,7 @@ def check_sidecar_v1(packet: Mapping[str, Any]) -> None:
         "producer_registry": dict(CERTIFICATE_PRODUCER_KINDS_V1),
         "receipt_backed_producers": 0,
         "lean_model": CERTIFICATE_LEAN_PATH_V1,
+        "esso_model": CERTIFICATE_ESSO_MODEL_PATH_V1,
         "mounted": False,
     }
     for key, value in fixed.items():
@@ -3494,11 +3663,21 @@ def _grade_pytest(obs: ReplayObservationV1, expected: int) -> dict[str, object]:
     return {"passed": passed}
 
 
-def _grade_esso(obs: ReplayObservationV1, esso: Mapping[str, Any]) -> dict[str, object]:
+def _esso_subject_for(command_id: str) -> EssoSubjectV1:
+    for subject in ESSO_SUBJECTS_V1:
+        if command_id in (subject.validate_command, subject.verify_command):
+            return subject
+    _reject("REPLAY_RECORD_SHAPE", command_id, "unknown esso command")
+
+
+def _grade_esso(obs: ReplayObservationV1, evidence: Mapping[str, Any]) -> dict[str, object]:
+    subject = _esso_subject_for(obs.command_id)
+    nested = evidence.get(subject.evidence_key) if subject.evidence_key else evidence
+    esso: Mapping[str, Any] = nested if isinstance(nested, Mapping) else {}
     payload = parse_esso_json_v1(obs.stdout, obs.stderr)
     if payload is None:
         _reject("REPLAY_ESSO_OUTPUT_UNPARSEABLE", obs.command_id, "no JSON payload")
-    if obs.command_id == "esso_validate":
+    if obs.command_id == subject.validate_command:
         if payload.get("ir_hash") != esso.get("ir_hash"):
             _reject("REPLAY_ESSO_IR_HASH_DRIFT", obs.command_id, str(payload.get("ir_hash")))
         return {"ir_hash": payload.get("ir_hash")}
@@ -3512,12 +3691,12 @@ def _grade_esso(obs: ReplayObservationV1, esso: Mapping[str, Any]) -> dict[str, 
     verified = report.get("verdict") == "VERIFIED" and report.get("solvers_agreed") is True
     if not verified or report.get("failed_queries") != 0 or report.get("inconclusive_queries") != 0:
         _reject("REPLAY_ESSO_VERDICT", obs.command_id, str(report.get("verdict")))
-    expected_queries = len(ESSO_QUERIES_V1)
+    expected_queries = len(subject.queries)
     queries_raw = payload.get("queries")
     query_ids = set(queries_raw) if isinstance(queries_raw, dict) else set()
     if report.get("total_queries") != expected_queries or report.get("passed_queries") != expected_queries:
         _reject("REPLAY_ESSO_QUERY_COUNT_DRIFT", obs.command_id, f"{report.get('total_queries')}/{report.get('passed_queries')}")
-    if query_ids != set(ESSO_QUERIES_V1):
+    if query_ids != set(subject.queries):
         _reject("REPLAY_ESSO_QUERY_SET_DRIFT", obs.command_id, ",".join(sorted(query_ids)))
     if versions.get("esso_code_hash") != esso.get("esso_code_commit"):
         _reject("REPLAY_ESSO_CODE_COMMIT_DRIFT", obs.command_id, str(versions.get("esso_code_hash")))
@@ -3561,6 +3740,8 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
             return _grade_pytest(obs, subject.gate_expected_passed)
     if obs.command_id == "esso_gate":
         return _grade_pytest(obs, ESSO_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "esso_certificate_gate":
+        return _grade_pytest(obs, CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "prior_restage_gate":
         return _grade_pytest(obs, PRIOR_ESSO_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "python_version":
@@ -3787,6 +3968,7 @@ __all__ = [
     "admit_packet_v1",
     "canonical_packet_bytes_v1",
     "CERTIFICATE_CHECK_ORDER_V1",
+    "CERTIFICATE_ESSO_SUBJECT_V1",
     "certificate_fixture_surface_v1",
     "CERTIFICATE_LEAN_SUBJECT_V1",
     "CERTIFICATE_PRODUCER_KINDS_V1",
@@ -3797,6 +3979,8 @@ __all__ = [
     "decode_json_object_v1",
     "decode_packet_v1",
     "esso_model_surface_v1",
+    "ESSO_SUBJECTS_V1",
+    "EssoSubjectV1",
     "evaluate_proof_replay_v1",
     "ExecutingToolsV1",
     "exit_code_for_report_v1",
@@ -3809,6 +3993,7 @@ __all__ = [
     "LEAN_SUBJECTS_V1",
     "lean_theorem_inventory_v1",
     "LeanSubjectV1",
+    "O008_ESSO_SUBJECT_V1",
     "O008_LEAN_SUBJECT_V1",
     "PacketTopologyV1",
     "parse_rustc_vv_v1",
