@@ -1,0 +1,483 @@
+# Bounded target contract for verifier-derived claimant/custody reconciliation.
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "global_claimant_custody_certificate_v1"
+  created_by: "zenodex"
+  seed: 0
+  notes: |
+    Research-only finite model for the evidence that GlobalSettlementABI V1
+    cannot derive from its state bytes alone. The domain has one asset, two
+    custody domains, two claimants, and at most eight atoms per cell.
+
+    allocation_{claimant}_{domain} is verifier-derived evidence bound to the
+    exact global-state root, lane-projection root, profile/writer header, and
+    terminal projection. Exact domain custody is partitioned into claimant
+    allocations plus an explicitly named unencumbered bucket. Each claimant
+    liability equals its allocation in that domain. Each OPEN terminal amount
+    is bounded by the exact claimant/domain allocation. Protocol reserves are
+    separate and cannot back claimant liabilities.
+
+    open_claim and drain_claim model only an accepted exact relation update.
+    Their Boolean parameters are adversarial abstract premises. They represent
+    facts established by an opaque verifier; a caller-provided true Boolean
+    would not be authority. The journal makes every accepted transition imply
+    all four bindings, and the state equations make cross-domain, claimant,
+    reserve-source, terminal-domain, and unclassified-custody mutations
+    falsifiable.
+
+    This model is a bounded target contract. It does not prove current V1
+    runtime refinement, private lane projections, cryptographic roots,
+    verifier correctness, receipt validity, mounting, liveness, production,
+    settlement authority, or whole-value-movement safety. V1 terminal bytes do
+    not contain a liability domain or custody principal, so a versioned proof
+    journal/certificate or ABI extension remains required.
+
+observables:
+  state_vars:
+    - "custody_d0"
+    - "custody_d1"
+    - "liability_alice_d0"
+    - "liability_alice_d1"
+    - "liability_bob_d0"
+    - "liability_bob_d1"
+    - "open_alice_d0"
+    - "open_alice_d1"
+    - "open_bob_d0"
+    - "open_bob_d1"
+    - "reserve_d0"
+    - "reserve_d1"
+    - "g_decision"
+  effects:
+    - "accepted"
+    - "decision"
+
+types:
+  - id: "Claimant"
+    type:
+      kind: "enum"
+      symbols: ["ALICE", "BOB"]
+  - id: "Domain"
+    type:
+      kind: "enum"
+      symbols: ["D0", "D1"]
+  - id: "Decision"
+    type:
+      kind: "enum"
+      symbols: ["GENESIS", "OPENED", "DRAINED"]
+
+state_vars:
+  - { id: "custody_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "custody_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "allocation_alice_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "allocation_alice_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "allocation_bob_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "allocation_bob_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "unencumbered_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "unencumbered_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "liability_alice_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "liability_alice_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "liability_bob_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "liability_bob_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "open_alice_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "open_alice_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "open_bob_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "open_bob_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "reserve_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "reserve_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+
+  - { id: "g_decision", role: "control", type: { ref: "Decision" } }
+  - { id: "g_global_root_bound", role: "control", type: { kind: "bool" } }
+  - { id: "g_lane_projection_root_bound", role: "control", type: { kind: "bool" } }
+  - { id: "g_header_bound", role: "control", type: { kind: "bool" } }
+  - { id: "g_terminal_projection_exact", role: "control", type: { kind: "bool" } }
+  - { id: "g_pre_reserve_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "g_pre_reserve_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+
+init:
+  - { var: "custody_d0", expr: { const: 2 } }
+  - { var: "custody_d1", expr: { const: 2 } }
+  - { var: "allocation_alice_d0", expr: { const: 1 } }
+  - { var: "allocation_alice_d1", expr: { const: 0 } }
+  - { var: "allocation_bob_d0", expr: { const: 0 } }
+  - { var: "allocation_bob_d1", expr: { const: 1 } }
+  - { var: "unencumbered_d0", expr: { const: 1 } }
+  - { var: "unencumbered_d1", expr: { const: 1 } }
+  - { var: "liability_alice_d0", expr: { const: 1 } }
+  - { var: "liability_alice_d1", expr: { const: 0 } }
+  - { var: "liability_bob_d0", expr: { const: 0 } }
+  - { var: "liability_bob_d1", expr: { const: 1 } }
+  - { var: "open_alice_d0", expr: { const: 1 } }
+  - { var: "open_alice_d1", expr: { const: 0 } }
+  - { var: "open_bob_d0", expr: { const: 0 } }
+  - { var: "open_bob_d1", expr: { const: 1 } }
+  - { var: "reserve_d0", expr: { const: 1 } }
+  - { var: "reserve_d1", expr: { const: 1 } }
+  - { var: "g_decision", expr: { enum: "GENESIS" } }
+  - { var: "g_global_root_bound", expr: { bool: false } }
+  - { var: "g_lane_projection_root_bound", expr: { bool: false } }
+  - { var: "g_header_bound", expr: { bool: false } }
+  - { var: "g_terminal_projection_exact", expr: { bool: false } }
+  - { var: "g_pre_reserve_d0", expr: { const: 1 } }
+  - { var: "g_pre_reserve_d1", expr: { const: 1 } }
+
+invariants:
+  - id: "inv_exact_custody_partition_d0"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "custody_d0" }
+        - op: "+"
+          args:
+            - { var: "allocation_alice_d0" }
+            - { var: "allocation_bob_d0" }
+            - { var: "unencumbered_d0" }
+
+  - id: "inv_exact_custody_partition_d1"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "custody_d1" }
+        - op: "+"
+          args:
+            - { var: "allocation_alice_d1" }
+            - { var: "allocation_bob_d1" }
+            - { var: "unencumbered_d1" }
+
+  - id: "inv_exact_claimant_domain_liabilities"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "liability_alice_d0" }, { var: "allocation_alice_d0" }] }
+        - { op: "=", args: [{ var: "liability_alice_d1" }, { var: "allocation_alice_d1" }] }
+        - { op: "=", args: [{ var: "liability_bob_d0" }, { var: "allocation_bob_d0" }] }
+        - { op: "=", args: [{ var: "liability_bob_d1" }, { var: "allocation_bob_d1" }] }
+
+  - id: "inv_open_terminals_fit_exact_allocations"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ var: "open_alice_d0" }, { var: "allocation_alice_d0" }] }
+        - { op: "<=", args: [{ var: "open_alice_d1" }, { var: "allocation_alice_d1" }] }
+        - { op: "<=", args: [{ var: "open_bob_d0" }, { var: "allocation_bob_d0" }] }
+        - { op: "<=", args: [{ var: "open_bob_d1" }, { var: "allocation_bob_d1" }] }
+
+  - id: "inv_accept_requires_exact_bound_evidence"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "g_decision" }, { enum: "OPENED" }] }
+            - { op: "=", args: [{ var: "g_decision" }, { enum: "DRAINED" }] }
+        - op: "and"
+          args:
+            - { var: "g_global_root_bound" }
+            - { var: "g_lane_projection_root_bound" }
+            - { var: "g_header_bound" }
+            - { var: "g_terminal_projection_exact" }
+
+  - id: "inv_reserves_are_not_claimant_backing"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "g_decision" }, { enum: "OPENED" }] }
+            - { op: "=", args: [{ var: "g_decision" }, { enum: "DRAINED" }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "reserve_d0" }, { var: "g_pre_reserve_d0" }] }
+            - { op: "=", args: [{ var: "reserve_d1" }, { var: "g_pre_reserve_d1" }] }
+
+actions:
+  - id: "open_claim"
+    description: "Add custody, exact allocation, liability, and OPEN terminal atoms together."
+    params:
+      - { id: "claimant", type: { ref: "Claimant" } }
+      - { id: "domain", type: { ref: "Domain" } }
+      - { id: "amount", type: { kind: "int", min: 1, max: 2 } }
+      - { id: "global_root_bound", type: { kind: "bool" } }
+      - { id: "lane_projection_root_bound", type: { kind: "bool" } }
+      - { id: "header_bound", type: { kind: "bool" } }
+      - { id: "terminal_projection_exact", type: { kind: "bool" } }
+    guard:
+      op: "and"
+      args:
+        - { param: "global_root_bound" }
+        - { param: "lane_projection_root_bound" }
+        - { param: "header_bound" }
+        - { param: "terminal_projection_exact" }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - op: "ite"
+                  cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }
+                  then: { var: "custody_d0" }
+                  else: { var: "custody_d1" }
+                - { param: "amount" }
+            - { const: 8 }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - op: "ite"
+                  cond:
+                    op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }
+                      - { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }
+                  then: { var: "allocation_alice_d0" }
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "and"
+                      args:
+                        - { op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }
+                        - { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }
+                    then: { var: "allocation_alice_d1" }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }
+                      then: { var: "allocation_bob_d0" }
+                      else: { var: "allocation_bob_d1" }
+                - { param: "amount" }
+            - { const: 8 }
+    updates:
+      - var: "custody_d0"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }
+          then: { op: "+", args: [{ var: "custody_d0" }, { param: "amount" }] }
+          else: { var: "custody_d0" }
+      - var: "custody_d1"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }
+          then: { op: "+", args: [{ var: "custody_d1" }, { param: "amount" }] }
+          else: { var: "custody_d1" }
+      - var: "allocation_alice_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "+", args: [{ var: "allocation_alice_d0" }, { param: "amount" }] }
+          else: { var: "allocation_alice_d0" }
+      - var: "allocation_alice_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "+", args: [{ var: "allocation_alice_d1" }, { param: "amount" }] }
+          else: { var: "allocation_alice_d1" }
+      - var: "allocation_bob_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "+", args: [{ var: "allocation_bob_d0" }, { param: "amount" }] }
+          else: { var: "allocation_bob_d0" }
+      - var: "allocation_bob_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "+", args: [{ var: "allocation_bob_d1" }, { param: "amount" }] }
+          else: { var: "allocation_bob_d1" }
+      - var: "liability_alice_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "+", args: [{ var: "liability_alice_d0" }, { param: "amount" }] }
+          else: { var: "liability_alice_d0" }
+      - var: "liability_alice_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "+", args: [{ var: "liability_alice_d1" }, { param: "amount" }] }
+          else: { var: "liability_alice_d1" }
+      - var: "liability_bob_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "+", args: [{ var: "liability_bob_d0" }, { param: "amount" }] }
+          else: { var: "liability_bob_d0" }
+      - var: "liability_bob_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "+", args: [{ var: "liability_bob_d1" }, { param: "amount" }] }
+          else: { var: "liability_bob_d1" }
+      - var: "open_alice_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "+", args: [{ var: "open_alice_d0" }, { param: "amount" }] }
+          else: { var: "open_alice_d0" }
+      - var: "open_alice_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "+", args: [{ var: "open_alice_d1" }, { param: "amount" }] }
+          else: { var: "open_alice_d1" }
+      - var: "open_bob_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "+", args: [{ var: "open_bob_d0" }, { param: "amount" }] }
+          else: { var: "open_bob_d0" }
+      - var: "open_bob_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "+", args: [{ var: "open_bob_d1" }, { param: "amount" }] }
+          else: { var: "open_bob_d1" }
+      - { var: "g_decision", expr: { enum: "OPENED" } }
+      - { var: "g_global_root_bound", expr: { param: "global_root_bound" } }
+      - { var: "g_lane_projection_root_bound", expr: { param: "lane_projection_root_bound" } }
+      - { var: "g_header_bound", expr: { param: "header_bound" } }
+      - { var: "g_terminal_projection_exact", expr: { param: "terminal_projection_exact" } }
+      - { var: "g_pre_reserve_d0", expr: { var: "reserve_d0" } }
+      - { var: "g_pre_reserve_d1", expr: { var: "reserve_d1" } }
+    effects:
+      accepted: { bool: true }
+      decision: { enum: "OPENED" }
+
+  - id: "drain_claim"
+    description: "Drain one exact claimant/domain terminal allocation."
+    params:
+      - { id: "claimant", type: { ref: "Claimant" } }
+      - { id: "domain", type: { ref: "Domain" } }
+      - { id: "amount", type: { kind: "int", min: 1, max: 2 } }
+      - { id: "global_root_bound", type: { kind: "bool" } }
+      - { id: "lane_projection_root_bound", type: { kind: "bool" } }
+      - { id: "header_bound", type: { kind: "bool" } }
+      - { id: "terminal_projection_exact", type: { kind: "bool" } }
+    guard:
+      op: "and"
+      args:
+        - { param: "global_root_bound" }
+        - { param: "lane_projection_root_bound" }
+        - { param: "header_bound" }
+        - { param: "terminal_projection_exact" }
+        - op: ">="
+          args:
+            - op: "ite"
+              cond:
+                op: "and"
+                args:
+                  - { op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }
+                  - { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }
+              then: { var: "open_alice_d0" }
+              else:
+                op: "ite"
+                cond:
+                  op: "and"
+                  args:
+                    - { op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }
+                    - { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }
+                then: { var: "open_alice_d1" }
+                else:
+                  op: "ite"
+                  cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }
+                  then: { var: "open_bob_d0" }
+                  else: { var: "open_bob_d1" }
+            - { param: "amount" }
+    updates:
+      - var: "custody_d0"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }
+          then: { op: "-", args: [{ var: "custody_d0" }, { param: "amount" }] }
+          else: { var: "custody_d0" }
+      - var: "custody_d1"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }
+          then: { op: "-", args: [{ var: "custody_d1" }, { param: "amount" }] }
+          else: { var: "custody_d1" }
+      - var: "allocation_alice_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "-", args: [{ var: "allocation_alice_d0" }, { param: "amount" }] }
+          else: { var: "allocation_alice_d0" }
+      - var: "allocation_alice_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "-", args: [{ var: "allocation_alice_d1" }, { param: "amount" }] }
+          else: { var: "allocation_alice_d1" }
+      - var: "allocation_bob_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "-", args: [{ var: "allocation_bob_d0" }, { param: "amount" }] }
+          else: { var: "allocation_bob_d0" }
+      - var: "allocation_bob_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "-", args: [{ var: "allocation_bob_d1" }, { param: "amount" }] }
+          else: { var: "allocation_bob_d1" }
+      - var: "liability_alice_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "-", args: [{ var: "liability_alice_d0" }, { param: "amount" }] }
+          else: { var: "liability_alice_d0" }
+      - var: "liability_alice_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "-", args: [{ var: "liability_alice_d1" }, { param: "amount" }] }
+          else: { var: "liability_alice_d1" }
+      - var: "liability_bob_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "-", args: [{ var: "liability_bob_d0" }, { param: "amount" }] }
+          else: { var: "liability_bob_d0" }
+      - var: "liability_bob_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "-", args: [{ var: "liability_bob_d1" }, { param: "amount" }] }
+          else: { var: "liability_bob_d1" }
+      - var: "open_alice_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "-", args: [{ var: "open_alice_d0" }, { param: "amount" }] }
+          else: { var: "open_alice_d0" }
+      - var: "open_alice_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "ALICE" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "-", args: [{ var: "open_alice_d1" }, { param: "amount" }] }
+          else: { var: "open_alice_d1" }
+      - var: "open_bob_d0"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }] }
+          then: { op: "-", args: [{ var: "open_bob_d0" }, { param: "amount" }] }
+          else: { var: "open_bob_d0" }
+      - var: "open_bob_d1"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [{ op: "=", args: [{ param: "claimant" }, { enum: "BOB" }] }, { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }] }
+          then: { op: "-", args: [{ var: "open_bob_d1" }, { param: "amount" }] }
+          else: { var: "open_bob_d1" }
+      - { var: "g_decision", expr: { enum: "DRAINED" } }
+      - { var: "g_global_root_bound", expr: { param: "global_root_bound" } }
+      - { var: "g_lane_projection_root_bound", expr: { param: "lane_projection_root_bound" } }
+      - { var: "g_header_bound", expr: { param: "header_bound" } }
+      - { var: "g_terminal_projection_exact", expr: { param: "terminal_projection_exact" } }
+      - { var: "g_pre_reserve_d0", expr: { var: "reserve_d0" } }
+      - { var: "g_pre_reserve_d1", expr: { var: "reserve_d1" } }
+    effects:
+      accepted: { bool: true }
+      decision: { enum: "DRAINED" }
