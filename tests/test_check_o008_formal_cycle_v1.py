@@ -274,7 +274,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V6.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v5", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v5"),
+        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V7.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v6", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v6"),
         pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
@@ -539,6 +539,12 @@ TERMINAL_MACRO = "bounded_state_vec_deserializer_v1!(\n    deserialize_terminal_
         pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, '"REGISTERED_EMPTY_BLOCKED"', '"RECEIPT_BACKED"', "", "CERTIFICATE_PRODUCER_DRIFT", id="certificate_fixture_receipt_backed_producer"),
         pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, '"authority": "NONE"', '"authority": "SHADOW"', "", "CERTIFICATE_FIXTURE_DRIFT", id="certificate_fixture_authority"),
         pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, "{", "{{", "", "CERTIFICATE_FIXTURE_UNPARSEABLE", id="certificate_fixture_malformed"),
+        # C4b: the certificate Lean model is a second pinned Lean subject under the same closures.
+        pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "    t.openTerminal c d ≤ t.liability c d := by", "    t.openTerminal c d ≤ t.liability c d + 1 := by", "", "LEAN_STATEMENT_DRIFT", id="certificate_lean_statement_weakened"),
+        pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "def TerminalBound (f : LaneFragment) : Prop :=\n  ∀ c d, f.terminal c d ≤ f.entitlement c d", "def TerminalBound (f : LaneFragment) : Prop :=\n  ∀ c d, f.terminal c d ≤ f.entitlement c d + f.reserve d", "", "LEAN_DEFINITION_SURFACE_DRIFT", id="certificate_lean_definition_weakened"),
+        pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "", "", "\nnotation:max \"RowsEqual\" => (fun _ _ => True)\n", "LEAN_COMMAND_FORBIDDEN", id="certificate_lean_notation"),
+        pytest.param(core.LEAN_ROOT_PATH_V1, "import Proofs.GlobalAccountingAllocationCertificateV1\n", "", "", "LEAN_IMPORT_ROOT_MISSING", id="certificate_lean_import_dropped"),
+        pytest.param(core.CERTIFICATE_LEAN_GATE_PATH_V1, '    "lanePartition_premise_is_necessary",\n', "", "", "LEAN_GATE_THEOREMS_DRIFT", id="certificate_lean_gate_theorem_dropped"),
         # Opus C1'''' P1-1 (mounted survivor): a second macro_rules of the pinned name shadows the pinned body.
         pytest.param(core.RUST_STATE_PATH_V1, TERMINAL_MACRO, "macro_rules! bounded_state_vec_deserializer_v1 {\n    ($function:ident, $row:ty, $maximum:expr, $label:literal) => {\n        fn $function<'de, D>(deserializer: D) -> Result<Vec<$row>, D::Error>\n        where D: Deserializer<'de>,\n        { evil_widen_rows_v1::<D, $row, $maximum>(deserializer, $label) }\n    };\n}\n" + TERMINAL_MACRO, "\nfn evil_widen_rows_v1<'de, D, T, const MAXIMUM: usize>(_deserializer: D, _label: &'static str) -> Result<Vec<T>, D::Error> where D: Deserializer<'de> { unimplemented!() }\n", "RUST_MACRO_REDEFINED", id="second_macro_definition_shadows_pinned_body"),
         pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nmacro_rules! lenient_rows_v1 {\n    ($function:ident) => {\n        fn $function() {}\n    };\n}\nlenient_rows_v1!(lenient_helper);\n", "RUST_MACRO_DEFINES_ITEM", id="second_macro_under_another_name_defining_fn"),
@@ -951,6 +957,11 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         f"'{namespace}.{name}' depends on axioms: [propext, Classical.choice, Quot.sound]"
         for _, name in core.THEOREM_INVENTORY_V1
     )
+    certificate_namespace = ".".join(core.CERTIFICATE_LEAN_SUBJECT_V1.namespace)
+    certificate_axioms = "\n".join(
+        f"'{certificate_namespace}.{name}' depends on axioms: [propext, Classical.choice, Quot.sound]"
+        for _, name in core.CERTIFICATE_THEOREM_INVENTORY_V1
+    )
     verify = {
         "ok": True,
         "determinism": True,
@@ -974,6 +985,9 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "lean_direct_check": b"",
         "lean_axioms_probe": axioms.encode(),
         "lean_binding_gate": f"...\n{core.LEAN_GATE_EXPECTED_PASSED_V1} passed in 3.00s\n".encode(),
+        "lean_certificate_direct_check": b"",
+        "lean_certificate_axioms_probe": certificate_axioms.encode(),
+        "lean_certificate_binding_gate": f"{core.CERTIFICATE_LEAN_GATE_EXPECTED_PASSED_V1} passed in 3.00s\n".encode(),
         "esso_validate": json.dumps({"ok": True, "ir_hash": esso["ir_hash"]}).encode(),
         "esso_verify_multi": json.dumps(verify).encode(),
         "esso_gate": f"{core.ESSO_GATE_EXPECTED_PASSED_V1} passed in 17.00s\n".encode(),
@@ -991,7 +1005,7 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "rust_certificate_golden_gate": _cargo_summary(core.CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1),
     }
     return {
-        command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id == "lean_axioms_probe" else None)
+        command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id in ("lean_axioms_probe", "lean_certificate_axioms_probe") else None)
         for command_id, stdout in outputs.items()
     }
 
@@ -1238,6 +1252,9 @@ def test_closed_constants_are_internally_consistent() -> None:
     assert core.RUST_GATE_EXPECTED_PASSED_V1 == len(core.RUST_GATE_TESTS_V1)
     assert core.PYTHON_GATE_EXPECTED_PASSED_V1 >= len(core.PYTHON_GATE_TESTS_V1)
     assert set(core.LEAN_DEFINITIONAL_THEOREMS_V1) <= {name for _, name in core.THEOREM_INVENTORY_V1}
+    assert set(core.CERTIFICATE_LEAN_WITNESS_THEOREMS_V1) <= {name for _, name in core.CERTIFICATE_THEOREM_INVENTORY_V1}
+    assert set(core.CERTIFICATE_LEAN_STATEMENT_SHA256_V1) == {name for _, name in core.CERTIFICATE_THEOREM_INVENTORY_V1}
+    assert len({subject.probe_token for subject in core.LEAN_SUBJECTS_V1}) == len(core.LEAN_SUBJECTS_V1) == 2
     assert len(set(core.SOURCE_PIN_PATHS_V1)) == len(core.SOURCE_PIN_PATHS_V1)
     assert set(core.EXECUTING_TOOL_PATHS_V1) <= set(core.SOURCE_PIN_PATHS_V1)
     assert set(core.THV1_REQUIRED_PIN_PATHS_V1) <= set(core.SOURCE_PIN_PATHS_V1)
@@ -1475,7 +1492,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V6:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V7:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:

@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V6: Final = "zenodex/o008-formal-cycle-evidence/v6"
+PACKET_SCHEMA_V7: Final = "zenodex/o008-formal-cycle-evidence/v7"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -75,6 +75,8 @@ CERTIFICATE_RENDERER_PATH_V1: Final = "tools/render_global_accounting_allocation
 CERTIFICATE_FIXTURE_PATH_V1: Final = "tests/data/global_accounting_allocation_certificate_v1_golden.json"
 CERTIFICATE_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_allocation_certificate_v1_golden.py"
 CERTIFICATE_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/global_accounting_allocation_certificate_golden.rs"
+CERTIFICATE_LEAN_PATH_V1: Final = "lean-mathlib/Proofs/GlobalAccountingAllocationCertificateV1.lean"
+CERTIFICATE_LEAN_GATE_PATH_V1: Final = "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py"
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
 RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
@@ -122,6 +124,8 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (CERTIFICATE_FIXTURE_PATH_V1, "allocation_certificate_golden_fixture"),
     (CERTIFICATE_PYTHON_TEST_PATH_V1, "allocation_certificate_golden_python_replay"),
     (CERTIFICATE_RUST_TEST_PATH_V1, "allocation_certificate_golden_rust_replay"),
+    (CERTIFICATE_LEAN_PATH_V1, "allocation_certificate_bounded_lean_model"),
+    (CERTIFICATE_LEAN_GATE_PATH_V1, "allocation_certificate_lean_binding_gate"),
     (PYTHON_TYPES_PATH_V1, "python_v1_wire_schema"),
     (RUST_STATE_PATH_V1, "rust_v1_wire_schema"),
     (RUST_LIB_PATH_V1, "rust_crate_root_module_closure"),
@@ -179,6 +183,8 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     CERTIFICATE_FIXTURE_PATH_V1,
     CERTIFICATE_PYTHON_TEST_PATH_V1,
     CERTIFICATE_RUST_TEST_PATH_V1,
+    CERTIFICATE_LEAN_PATH_V1,
+    CERTIFICATE_LEAN_GATE_PATH_V1,
     PYTHON_GATE_PATH_V1,
     RUST_GATE_PATH_V1,
     GATE_TESTS_PATH_V1,
@@ -249,6 +255,10 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     " producer registry exhaustive over the twelve lanes and no receipt-backed producer, and both"
     " replay one rendered golden vector of twenty-five state/certificate pairs with closed reject"
     " codes; only the registered-empty certificate over an all-lanes-disabled state is accepted",
+    "a bounded Lean model of the certificate relation derives the normative partition, same-domain"
+    " backing, open-terminal coverage, exact current-profile custody under zero reserves and external"
+    " obligations, and that without a receipt-backed producer only the registered-empty certificate is"
+    " accepted, with a counterexample that a reserve never covers a missing claimant entitlement",
 )
 
 EXPECTED_LANES_V1: Final[tuple[str, ...]] = (
@@ -566,6 +576,131 @@ LEAN_GATE_PIN_ORDER_V1: Final[tuple[str, ...]] = (
     RUST_STATE_PATH_V1,
     RUST_REFINEMENT_PATH_V1,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class LeanSubjectV1:
+    """One pinned Lean file with its closed theorem inventory, hashes, gate, and replay commands."""
+
+    key: str
+    path: str
+    gate_path: str
+    namespace: tuple[str, ...]
+    import_line: str
+    inventory: tuple[tuple[str, str], ...]
+    statement_sha256: Mapping[str, str]
+    definition_surface_sha256: str
+    definitional_theorems: tuple[str, ...]
+    witness_theorems: tuple[str, ...]
+    gate_pin_order: tuple[str, ...]
+    gate_expected_passed: int
+    direct_check_command: str
+    axioms_probe_command: str
+    binding_gate_command: str
+    probe_token: str
+    claim_boundary: str
+
+
+O008_LEAN_SUBJECT_V1: Final = LeanSubjectV1(
+    key="o008_relation",
+    path=LEAN_PROOF_PATH_V1,
+    gate_path=LEAN_GATE_PATH_V1,
+    namespace=LEAN_NAMESPACE_V1,
+    import_line=LEAN_IMPORT_LINE_V1,
+    inventory=THEOREM_INVENTORY_V1,
+    statement_sha256=LEAN_STATEMENT_SHA256_V1,
+    definition_surface_sha256=LEAN_DEFINITION_SURFACE_SHA256_V1,
+    definitional_theorems=LEAN_DEFINITIONAL_THEOREMS_V1,
+    witness_theorems=(),
+    gate_pin_order=LEAN_GATE_PIN_ORDER_V1,
+    gate_expected_passed=LEAN_GATE_EXPECTED_PASSED_V1,
+    direct_check_command="lean_direct_check",
+    axioms_probe_command="lean_axioms_probe",
+    binding_gate_command="lean_binding_gate",
+    probe_token="<PROBE>",
+    claim_boundary=LEAN_CLAIM_BOUNDARY_V1,
+)
+# C4b: the bounded Lean model of the sidecar checker (three lanes, two domains, two claimants).
+CERTIFICATE_LEAN_NAMESPACE_V1: Final[tuple[str, ...]] = ("Proofs", "GlobalAccountingAllocationCertificateV1")
+CERTIFICATE_THEOREM_INVENTORY_V1: Final[tuple[tuple[str, str], ...]] = (
+    ("theorem", "certificate_implies_normativePartition"),
+    ("theorem", "certificate_implies_sameDomainBacked"),
+    ("theorem", "certificate_implies_terminalCovered"),
+    ("theorem", "certificate_noReserve_noExternal_implies_exactCustody"),
+    ("theorem", "noReceiptBacked_forces_allDisabled"),
+    ("theorem", "noReceiptBacked_implies_zeroTables"),
+    ("theorem", "emptyFragment_checks"),
+    ("theorem", "registeredEmpty_nonvacuous"),
+    ("theorem", "hotFragment_checks"),
+    ("theorem", "mixed_nonvacuous"),
+    ("theorem", "unassignedAtom_fails_partition"),
+    ("theorem", "reserve_cannot_cover_claimant"),
+    ("theorem", "enabledWithoutProducer_fails_gate"),
+    ("theorem", "terminalOverEntitlement_fails_bound"),
+    ("theorem", "unassigned_satisfies_all_but_partition"),
+    ("theorem", "lanePartition_premise_is_necessary"),
+)
+CERTIFICATE_LEAN_STATEMENT_SHA256_V1: Final[dict[str, str]] = {
+    "certificate_implies_normativePartition": "5ba5fb86ca4b70adf4cb6a5149e7723edc9a84f46434185f2be17b6f9b09dcf8",
+    "certificate_implies_sameDomainBacked": "ded5bf794ae12e43a5977a77b83006015d8689945a49809c378b39f53238c65c",
+    "certificate_implies_terminalCovered": "8f106d99dbe0bb09e5826771ecd98c6bbf5da4118cdabdbbbb8f429ab9292f43",
+    "certificate_noReserve_noExternal_implies_exactCustody": "ce408ce94cf2073ee3175691606ea7ae551bab31c6314f1a9c4575678b4ecd64",
+    "noReceiptBacked_forces_allDisabled": "650c888acaa5c61dd607699242600460a7309ab034eb4194fbaf0e695c86d561",
+    "noReceiptBacked_implies_zeroTables": "b39614b10d1ec1a7afbb2dd15d2a132e19d051a48f80103fbaa5883479c32260",
+    "emptyFragment_checks": "81d0f8aa350a3c40afe15344903067eab2a19d6979c1a21322018b651024ebd0",
+    "registeredEmpty_nonvacuous": "e82db9489c2ed07b76267116cdcb8b20ca0e66f76af25882c75c88d2ea3f930c",
+    "hotFragment_checks": "aec77ed1f4e5275ad4b424112282b76808ba192eb33032da6f9be2f9c816384d",
+    "mixed_nonvacuous": "eeea239d5994cdec43bf5507f9bdd4fd2f09a243935fac4a41ac909c22156d86",
+    "unassignedAtom_fails_partition": "03dfb47aa37799ee3f4ae459395f285bc603e726e099ee2d2e69f9c78a4a27ee",
+    "reserve_cannot_cover_claimant": "a8465022ffd914ce1565b370f8fa1783f1fc1519926bc07f5fbe29c1b3fe06e2",
+    "enabledWithoutProducer_fails_gate": "68c32b1ace4b90a554a1313a0517249b973f3c877eb7bdc1f9d877354ed40024",
+    "terminalOverEntitlement_fails_bound": "7e48af7d2c803fcd261a89ed30a561f575daba000b793feeb81762a8ea9051ac",
+    "unassigned_satisfies_all_but_partition": "d4cb243ec4cdb97768481092283272d22139c5935c53eebdc78122ef18a7f5e0",
+    "lanePartition_premise_is_necessary": "022af98e186dc3a2ce1cb66e32dd8d35b15d78b17cb2f43d38d8f71b4d1805f5",
+}
+CERTIFICATE_LEAN_DEFINITION_SURFACE_SHA256_V1: Final = "db6e720f8cca8d62525889c6e529e383a1e2f42297c982b422728d70e0e6594d"
+# Decidable evaluations on closed witnesses and refutations; reported apart from the derived theorems.
+CERTIFICATE_LEAN_WITNESS_THEOREMS_V1: Final[tuple[str, ...]] = (
+    "emptyFragment_checks",
+    "registeredEmpty_nonvacuous",
+    "hotFragment_checks",
+    "mixed_nonvacuous",
+    "unassignedAtom_fails_partition",
+    "reserve_cannot_cover_claimant",
+    "enabledWithoutProducer_fails_gate",
+    "terminalOverEntitlement_fails_bound",
+    "unassigned_satisfies_all_but_partition",
+)
+CERTIFICATE_LEAN_GATE_EXPECTED_PASSED_V1: Final = 6
+CERTIFICATE_LEAN_GATE_PIN_ORDER_V1: Final[tuple[str, ...]] = (
+    CERTIFICATE_LEAN_PATH_V1,
+    CERTIFICATE_PYTHON_PATH_V1,
+    CERTIFICATE_RUST_PATH_V1,
+    CERTIFICATE_FIXTURE_PATH_V1,
+)
+CERTIFICATE_LEAN_SUBJECT_V1: Final = LeanSubjectV1(
+    key="allocation_certificate_model",
+    path=CERTIFICATE_LEAN_PATH_V1,
+    gate_path=CERTIFICATE_LEAN_GATE_PATH_V1,
+    namespace=CERTIFICATE_LEAN_NAMESPACE_V1,
+    import_line="import Proofs.GlobalAccountingAllocationCertificateV1",
+    inventory=CERTIFICATE_THEOREM_INVENTORY_V1,
+    statement_sha256=CERTIFICATE_LEAN_STATEMENT_SHA256_V1,
+    definition_surface_sha256=CERTIFICATE_LEAN_DEFINITION_SURFACE_SHA256_V1,
+    definitional_theorems=(),
+    witness_theorems=CERTIFICATE_LEAN_WITNESS_THEOREMS_V1,
+    gate_pin_order=CERTIFICATE_LEAN_GATE_PIN_ORDER_V1,
+    gate_expected_passed=CERTIFICATE_LEAN_GATE_EXPECTED_PASSED_V1,
+    direct_check_command="lean_certificate_direct_check",
+    axioms_probe_command="lean_certificate_axioms_probe",
+    binding_gate_command="lean_certificate_binding_gate",
+    probe_token="<CERTIFICATE_PROBE>",
+    claim_boundary=(
+        "bounded three-lane, two-domain, two-claimant model over natural numbers; no finite-width"
+        " arithmetic, canonical bytes, roots, runtime refinement, verifier admission, or authority"
+    ),
+)
+LEAN_SUBJECTS_V1: Final[tuple[LeanSubjectV1, ...]] = (O008_LEAN_SUBJECT_V1, CERTIFICATE_LEAN_SUBJECT_V1)
 
 TERMINAL_CLASS_NAME_V1: Final = "TerminalObligationV1"
 OUTBOX_CLASS_NAME_V1: Final = "OutboxStateV1"
@@ -974,6 +1109,30 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         1800,
     ),
     ReplayCommandV1(
+        "lean_certificate_direct_check",
+        ("lake", "env", "lean", "-DwarningAsError=true", "Proofs/GlobalAccountingAllocationCertificateV1.lean"),
+        "lean-mathlib",
+        (),
+        "exit 0; empty stdout and stderr",
+        900,
+    ),
+    ReplayCommandV1(
+        "lean_certificate_axioms_probe",
+        ("lake", "env", "lean", "<CERTIFICATE_PROBE>"),
+        "lean-mathlib",
+        (),
+        "exit 0; every theorem depends only on allowed axioms; no sorryAx",
+        900,
+    ),
+    ReplayCommandV1(
+        "lean_certificate_binding_gate",
+        (PYTHON_TOKEN_V1, "-m", "pytest", "-q", "-p", "no:cacheprovider", CERTIFICATE_LEAN_GATE_PATH_V1),
+        ".",
+        (),
+        f"exit 0; {CERTIFICATE_LEAN_GATE_EXPECTED_PASSED_V1} passed",
+        1800,
+    ),
+    ReplayCommandV1(
         "esso_validate",
         (ESSO_PYTHON_TOKEN_V1, "-m", "ESSO", "validate", ESSO_MODEL_PATH_V1),
         ".",
@@ -1198,8 +1357,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V6:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V6}")
+    if packet.get("schema") != PACKET_SCHEMA_V7:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V7}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -1212,11 +1371,11 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _lean_code(text: str) -> str:
+def _lean_code(text: str, path: str = LEAN_PROOF_PATH_V1) -> str:
     try:
         code: str = strip_lean_noncode(text)
     except ScanError as exc:
-        _reject("LEAN_SOURCE_UNPARSEABLE", LEAN_PROOF_PATH_V1, str(exc))
+        _reject("LEAN_SOURCE_UNPARSEABLE", path, str(exc))
     return code
 
 
@@ -1228,24 +1387,24 @@ def _lean_statement_boundary(code: str, index: int) -> bool:
     return code[index] == "\n" and code[index + 1 :].lstrip(" \t").startswith("|")
 
 
-def _lean_statement_end(code: str, start: int) -> int:
+def _lean_statement_end(code: str, start: int, path: str = LEAN_PROOF_PATH_V1) -> int:
     depth = 0
     for index in range(start, len(code)):
         depth += {"(": 1, "[": 1, "{": 1, "⟨": 1, ")": -1, "]": -1, "}": -1, "⟩": -1}.get(code[index], 0)
         if depth == 0 and _lean_statement_boundary(code, index):
             return index
-    _reject("LEAN_STATEMENT_UNPARSEABLE", LEAN_PROOF_PATH_V1, f"no statement end after {start}")
+    _reject("LEAN_STATEMENT_UNPARSEABLE", path, f"no statement end after {start}")
 
 
-def lean_theorem_inventory_v1(text: str) -> tuple[TheoremEntryV1, ...]:
+def lean_theorem_inventory_v1(text: str, path: str = LEAN_PROOF_PATH_V1) -> tuple[TheoremEntryV1, ...]:
     """Return every theorem/lemma declaration in file order with a statement hash."""
 
-    code = _lean_code(text)
+    code = _lean_code(text, path)
     entries: list[TheoremEntryV1] = []
     for match in _LEAN_DECL_RE.finditer(code):
         if "private" in match.group("mods"):
-            _reject("LEAN_PRIVATE_THEOREM_FORBIDDEN", LEAN_PROOF_PATH_V1, match.group("name"))
-        end = _lean_statement_end(code, match.end())
+            _reject("LEAN_PRIVATE_THEOREM_FORBIDDEN", path, match.group("name"))
+        end = _lean_statement_end(code, match.end(), path)
         statement = " ".join(code[match.end() : end].split())
         entries.append(
             TheoremEntryV1(
@@ -1267,19 +1426,19 @@ _LEAN_ITEM_START_RE: Final = re.compile(
 )
 
 
-def lean_command_closure_v1(text: str) -> None:
+def lean_command_closure_v1(text: str, path: str = LEAN_PROOF_PATH_V1) -> None:
     """Reject any command that can change what a pinned statement means or add an instance."""
 
-    code = _lean_code(text)
+    code = _lean_code(text, path)
     for match in _LEAN_WORD_RE.finditer(code):
         if match.group(1) in _LEAN_FORBIDDEN_WORDS_V1:
-            _reject("LEAN_COMMAND_FORBIDDEN", LEAN_PROOF_PATH_V1, f"{match.group(1)} at line {code.count(chr(10), 0, match.start()) + 1}")
+            _reject("LEAN_COMMAND_FORBIDDEN", path, f"{match.group(1)} at line {code.count(chr(10), 0, match.start()) + 1}")
     opened = _LEAN_OPEN_COMMAND_RE.search(code)
     if opened is not None:
-        _reject("LEAN_COMMAND_FORBIDDEN", LEAN_PROOF_PATH_V1, f"open command at line {code.count(chr(10), 0, opened.start()) + 1}")
+        _reject("LEAN_COMMAND_FORBIDDEN", path, f"open command at line {code.count(chr(10), 0, opened.start()) + 1}")
 
 
-def lean_definition_surface_v1(text: str) -> str:
+def lean_definition_surface_v1(text: str, path: str = LEAN_PROOF_PATH_V1) -> str:
     """Return the normalised proof file with every theorem proof elided.
 
     Imports, definitions, structures, inductives, and theorem statements stay. The elided
@@ -1289,42 +1448,44 @@ def lean_definition_surface_v1(text: str) -> str:
     and leaves only how they are proved to replay (Opus C1'''' P1-2).
     """
 
-    code = _lean_code(text)
+    code = _lean_code(text, path)
     kept: list[str] = []
     cursor = 0
     for match in _LEAN_DECL_RE.finditer(code):
-        statement_end = _lean_statement_end(code, match.end())
+        statement_end = _lean_statement_end(code, match.end(), path)
         kept.append(code[cursor:statement_end])
         following = _LEAN_COLUMN_ZERO_RE.search(code, statement_end + 1)
         cursor = following.start() if following else len(code)
         if following is not None and cursor < len(code) and _LEAN_ITEM_START_RE.match(code, cursor) is None:
-            _reject("LEAN_UNRECOGNISED_ITEM", LEAN_PROOF_PATH_V1, code[cursor : cursor + 40].split(chr(10))[0])
+            _reject("LEAN_UNRECOGNISED_ITEM", path, code[cursor : cursor + 40].split(chr(10))[0])
         indented = _LEAN_INDENTED_DECL_RE.search(code, statement_end, cursor)
         if indented is not None:
-            _reject("LEAN_UNRECOGNISED_ITEM", LEAN_PROOF_PATH_V1, f"indented declaration at line {code.count(chr(10), 0, indented.start()) + 1}")
+            _reject("LEAN_UNRECOGNISED_ITEM", path, f"indented declaration at line {code.count(chr(10), 0, indented.start()) + 1}")
     kept.append(code[cursor:])
     return " ".join("".join(kept).split())
 
 
-def lean_namespace_check_v1(text: str) -> None:
-    code = _lean_code(text)
+def lean_namespace_check_v1(
+    text: str, namespace: tuple[str, ...] = LEAN_NAMESPACE_V1, path: str = LEAN_PROOF_PATH_V1
+) -> None:
+    code = _lean_code(text, path)
     opened = [m.group(2) for m in _LEAN_NAMESPACE_RE.finditer(code) if m.group(1) == "namespace"]
     closed = [m.group(2) for m in _LEAN_NAMESPACE_RE.finditer(code) if m.group(1) == "end"]
-    if tuple(opened) != LEAN_NAMESPACE_V1 or tuple(closed) != tuple(reversed(LEAN_NAMESPACE_V1)):
-        _reject("LEAN_NAMESPACE_DRIFT", LEAN_PROOF_PATH_V1, f"{opened} / {closed}")
+    if tuple(opened) != namespace or tuple(closed) != tuple(reversed(namespace)):
+        _reject("LEAN_NAMESPACE_DRIFT", path, f"{opened} / {closed}")
 
 
-def lean_placeholder_matches_v1(text: str) -> tuple[str, ...]:
+def lean_placeholder_matches_v1(text: str, path: str = LEAN_PROOF_PATH_V1) -> tuple[str, ...]:
     try:
-        matches = scan_text(LEAN_PROOF_PATH_V1, text, check_axioms=True)
+        matches = scan_text(path, text, check_axioms=True)
     except ScanError as exc:
-        _reject("LEAN_SOURCE_UNPARSEABLE", LEAN_PROOF_PATH_V1, str(exc))
+        _reject("LEAN_SOURCE_UNPARSEABLE", path, str(exc))
     return tuple(f"{match.rule}:{match.line}" for match in matches)
 
 
-def lean_import_root_declares_v1(root_text: str) -> bool:
+def lean_import_root_declares_v1(root_text: str, import_line: str = LEAN_IMPORT_LINE_V1) -> bool:
     code = strip_lean_noncode(root_text)
-    return any(line.strip() == LEAN_IMPORT_LINE_V1 for line in code.splitlines())
+    return any(line.strip() == import_line for line in code.splitlines())
 
 
 def lean_toolchain_v1(text: str) -> str:
@@ -2307,67 +2468,82 @@ def _project_esso(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     }
 
 
-def _check_lean_gate(snapshot: SubjectSnapshotV1, names: tuple[str, ...]) -> None:
-    gate = _blob(snapshot, LEAN_GATE_PATH_V1)
-    if python_sequence_constant_v1(gate.data, "THEOREMS", LEAN_GATE_PATH_V1) != names:
-        _reject("LEAN_GATE_THEOREMS_DRIFT", LEAN_GATE_PATH_V1, "THEOREMS differs from inventory")
-    expected_pins = tuple(_blob(snapshot, path).sha256 for path in LEAN_GATE_PIN_ORDER_V1)
-    if python_dict_values_v1(gate.data, "PINNED_SOURCES", LEAN_GATE_PATH_V1) != expected_pins:
-        _reject("LEAN_GATE_PIN_DRIFT", LEAN_GATE_PATH_V1, "PINNED_SOURCES differ from subject")
-    axioms = python_sequence_constant_v1(gate.data, "ALLOWED_STANDARD_AXIOMS", LEAN_GATE_PATH_V1)
+def _check_lean_gate(
+    snapshot: SubjectSnapshotV1, names: tuple[str, ...], subject: LeanSubjectV1 = O008_LEAN_SUBJECT_V1
+) -> None:
+    gate = _blob(snapshot, subject.gate_path)
+    if python_sequence_constant_v1(gate.data, "THEOREMS", subject.gate_path) != names:
+        _reject("LEAN_GATE_THEOREMS_DRIFT", subject.gate_path, "THEOREMS differs from inventory")
+    expected_pins = tuple(_blob(snapshot, path).sha256 for path in subject.gate_pin_order)
+    if python_dict_values_v1(gate.data, "PINNED_SOURCES", subject.gate_path) != expected_pins:
+        _reject("LEAN_GATE_PIN_DRIFT", subject.gate_path, "PINNED_SOURCES differ from subject")
+    axioms = python_sequence_constant_v1(gate.data, "ALLOWED_STANDARD_AXIOMS", subject.gate_path)
     if frozenset(axioms) != ALLOWED_LEAN_AXIOMS_V1:
-        _reject("LEAN_GATE_AXIOMS_DRIFT", LEAN_GATE_PATH_V1, ",".join(axioms))
+        _reject("LEAN_GATE_AXIOMS_DRIFT", subject.gate_path, ",".join(axioms))
 
 
-def _project_lean(snapshot: SubjectSnapshotV1) -> dict[str, object]:
-    proof = _blob(snapshot, LEAN_PROOF_PATH_V1).data.decode("utf-8")
-    placeholders = lean_placeholder_matches_v1(proof)
+def _project_lean_subject(snapshot: SubjectSnapshotV1, subject: LeanSubjectV1) -> dict[str, object]:
+    """Project one pinned Lean subject: inventory, statement and surface hashes, command closure."""
+
+    proof = _blob(snapshot, subject.path).data.decode("utf-8")
+    placeholders = lean_placeholder_matches_v1(proof, subject.path)
     if placeholders:
-        _reject("LEAN_PLACEHOLDER_PRESENT", LEAN_PROOF_PATH_V1, ",".join(placeholders))
-    lean_namespace_check_v1(proof)
-    lean_command_closure_v1(proof)
-    inventory = lean_theorem_inventory_v1(proof)
+        _reject("LEAN_PLACEHOLDER_PRESENT", subject.path, ",".join(placeholders))
+    lean_namespace_check_v1(proof, subject.namespace, subject.path)
+    lean_command_closure_v1(proof, subject.path)
+    inventory = lean_theorem_inventory_v1(proof, subject.path)
     pairs = tuple((entry.kind, entry.name) for entry in inventory)
-    if pairs != THEOREM_INVENTORY_V1:
-        _reject("LEAN_THEOREM_INVENTORY_DRIFT", LEAN_PROOF_PATH_V1, _first_difference(pairs))
+    if pairs != subject.inventory:
+        _reject("LEAN_THEOREM_INVENTORY_DRIFT", subject.path, _first_difference(pairs, subject.inventory))
     for entry in inventory:
-        if LEAN_STATEMENT_SHA256_V1.get(entry.name) != entry.statement_sha256:
-            _reject("LEAN_STATEMENT_DRIFT", LEAN_PROOF_PATH_V1, entry.name)
-    surface_sha256 = sha256_hex_v1(lean_definition_surface_v1(proof).encode("utf-8"))
-    if surface_sha256 != LEAN_DEFINITION_SURFACE_SHA256_V1:
-        _reject("LEAN_DEFINITION_SURFACE_DRIFT", LEAN_PROOF_PATH_V1, surface_sha256[:16])
-    toolchain = lean_toolchain_v1(_blob(snapshot, LEAN_TOOLCHAIN_PATH_V1).data.decode("utf-8"))
-    if toolchain != LEAN_TOOLCHAIN_V1:
-        _reject("LEAN_TOOLCHAIN_DRIFT", LEAN_TOOLCHAIN_PATH_V1, toolchain)
-    if not lean_import_root_declares_v1(_blob(snapshot, LEAN_ROOT_PATH_V1).data.decode("utf-8")):
-        _reject("LEAN_IMPORT_ROOT_MISSING", LEAN_ROOT_PATH_V1, LEAN_IMPORT_LINE_V1)
+        if subject.statement_sha256.get(entry.name) != entry.statement_sha256:
+            _reject("LEAN_STATEMENT_DRIFT", subject.path, entry.name)
+    surface_sha256 = sha256_hex_v1(lean_definition_surface_v1(proof, subject.path).encode("utf-8"))
+    if surface_sha256 != subject.definition_surface_sha256:
+        _reject("LEAN_DEFINITION_SURFACE_DRIFT", subject.path, surface_sha256[:16])
+    if not lean_import_root_declares_v1(_blob(snapshot, LEAN_ROOT_PATH_V1).data.decode("utf-8"), subject.import_line):
+        _reject("LEAN_IMPORT_ROOT_MISSING", LEAN_ROOT_PATH_V1, subject.import_line)
     return {
-        "toolchain": toolchain,
-        "namespace": ".".join(LEAN_NAMESPACE_V1),
+        "path": subject.path,
+        "namespace": ".".join(subject.namespace),
         "import_root_declares_module": True,
         "theorems": [entry.to_json() for entry in inventory],
         "statement_binding": LEAN_STATEMENT_BINDING_V1,
         "definition_surface_sha256": surface_sha256,
         "theorem_count": len(inventory),
-        "definitional_theorems": list(LEAN_DEFINITIONAL_THEOREMS_V1),
-        "substantive_theorem_count": len(inventory) - len(LEAN_DEFINITIONAL_THEOREMS_V1),
+        "definitional_theorems": list(subject.definitional_theorems),
+        "witness_theorems": list(subject.witness_theorems),
+        "substantive_theorem_count": len(inventory) - len(subject.definitional_theorems) - len(subject.witness_theorems),
         "placeholder_scan": {"match_count": 0, "axiom_check": True},
         "allowed_axioms": sorted(ALLOWED_LEAN_AXIOMS_V1),
-        "no_recovery_theorem": LEAN_NO_RECOVERY_THEOREM_V1,
         "replay_only": {
-            "direct_warning_as_error_check": "lean_direct_check",
-            "print_axioms_probe": "lean_axioms_probe",
-            "binding_gate_expected_passed": LEAN_GATE_EXPECTED_PASSED_V1,
+            "direct_warning_as_error_check": subject.direct_check_command,
+            "print_axioms_probe": subject.axioms_probe_command,
+            "binding_gate": subject.binding_gate_command,
+            "binding_gate_expected_passed": subject.gate_expected_passed,
         },
-        "claim_boundary": LEAN_CLAIM_BOUNDARY_V1,
+        "claim_boundary": subject.claim_boundary,
     }
 
 
-def _first_difference(pairs: tuple[tuple[str, str], ...]) -> str:
-    for index, (actual, expected) in enumerate(zip(pairs, THEOREM_INVENTORY_V1, strict=False)):
+def _project_lean(snapshot: SubjectSnapshotV1) -> dict[str, object]:
+    toolchain = lean_toolchain_v1(_blob(snapshot, LEAN_TOOLCHAIN_PATH_V1).data.decode("utf-8"))
+    if toolchain != LEAN_TOOLCHAIN_V1:
+        _reject("LEAN_TOOLCHAIN_DRIFT", LEAN_TOOLCHAIN_PATH_V1, toolchain)
+    relation = _project_lean_subject(snapshot, O008_LEAN_SUBJECT_V1)
+    return {
+        "toolchain": toolchain,
+        **relation,
+        "no_recovery_theorem": LEAN_NO_RECOVERY_THEOREM_V1,
+        "certificate_model": _project_lean_subject(snapshot, CERTIFICATE_LEAN_SUBJECT_V1),
+    }
+
+
+def _first_difference(pairs: tuple[tuple[str, str], ...], inventory: tuple[tuple[str, str], ...] = THEOREM_INVENTORY_V1) -> str:
+    for index, (actual, expected) in enumerate(zip(pairs, inventory, strict=False)):
         if actual != expected:
             return f"index {index}: {actual} != {expected}"
-    return f"count {len(pairs)} != {len(THEOREM_INVENTORY_V1)}"
+    return f"count {len(pairs)} != {len(inventory)}"
 
 
 def _check_python_record(shape: ClassShapeV1, fields: tuple[tuple[str, str], ...],
@@ -2559,6 +2735,7 @@ def _project_certificate(snapshot: SubjectSnapshotV1) -> dict[str, object]:
         "producer_registry": dict(CERTIFICATE_PRODUCER_KINDS_V1),
         "receipt_backed_producers": 0,
         "golden": certificate_fixture_surface_v1(fixture),
+        "lean_model": CERTIFICATE_LEAN_PATH_V1,
         "mounted": False,
     }
 
@@ -2678,6 +2855,9 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
     "lean_direct_check": {"stdout_sha256": EMPTY_SHA256_V1},
     "lean_axioms_probe": {"probe_sha256": "hex64", "theorems_probed": len(THEOREM_INVENTORY_V1)},
     "lean_binding_gate": {"passed": LEAN_GATE_EXPECTED_PASSED_V1},
+    "lean_certificate_direct_check": {"stdout_sha256": EMPTY_SHA256_V1},
+    "lean_certificate_axioms_probe": {"probe_sha256": "hex64", "theorems_probed": len(CERTIFICATE_THEOREM_INVENTORY_V1)},
+    "lean_certificate_binding_gate": {"passed": CERTIFICATE_LEAN_GATE_EXPECTED_PASSED_V1},
     "esso_validate": {"ir_hash": "esso_ir_hash"},
     "esso_verify_multi": {
         "verdict": "VERIFIED",
@@ -2831,7 +3011,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V6,
+        "schema": PACKET_SCHEMA_V7,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -2860,6 +3040,7 @@ def project_packet_v1(
     # Pin-consistency checks run last so a structural finding in a source is
     # reported before the derived pin drift it also causes.
     _check_lean_gate(snapshot, tuple(name for _, name in THEOREM_INVENTORY_V1))
+    _check_lean_gate(snapshot, tuple(name for _, name in CERTIFICATE_THEOREM_INVENTORY_V1), CERTIFICATE_LEAN_SUBJECT_V1)
     projection["hygiene_selection"] = _select_hygiene_packets(snapshot)
     return projection
 
@@ -2993,7 +3174,7 @@ def check_lane_map_v1(packet: Mapping[str, Any]) -> None:
 
 
 SIDECAR_IMPLEMENTATION_KEYS_V1: Final[frozenset[str]] = frozenset(
-    {"status", "python", "rust", "check_order", "reject_codes", "producer_registry", "receipt_backed_producers", "golden", "mounted"}
+    {"status", "python", "rust", "check_order", "reject_codes", "producer_registry", "receipt_backed_producers", "golden", "lean_model", "mounted"}
 )
 
 
@@ -3016,6 +3197,7 @@ def check_sidecar_v1(packet: Mapping[str, Any]) -> None:
         "reject_codes": list(CERTIFICATE_REJECT_CODES_V1),
         "producer_registry": dict(CERTIFICATE_PRODUCER_KINDS_V1),
         "receipt_backed_producers": 0,
+        "lean_model": CERTIFICATE_LEAN_PATH_V1,
         "mounted": False,
     }
     for key, value in fixed.items():
@@ -3226,13 +3408,16 @@ def _grade_lean(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> dict[str
         if version != LEAN_TOOLCHAIN_V1.rsplit("v", 1)[1]:
             _reject("REPLAY_LEAN_VERSION_DRIFT", obs.command_id, str(version))
         return {"lean_version": version}
-    if obs.command_id == "lean_direct_check":
+    if obs.command_id in {subject.direct_check_command for subject in LEAN_SUBJECTS_V1}:
         if obs.stdout.strip() or obs.stderr.strip():
             _reject("REPLAY_LEAN_OUTPUT_NONEMPTY", obs.command_id, "direct check produced output")
         return {"stdout_sha256": sha256_hex_v1(obs.stdout)}
+    subject = next((s for s in LEAN_SUBJECTS_V1 if s.axioms_probe_command == obs.command_id), None)
+    if subject is None:
+        _reject("REPLAY_RECORD_SHAPE", obs.command_id, "unknown lean command")
     axioms = parse_print_axioms_v1(obs.stdout)
-    namespace = ".".join(LEAN_NAMESPACE_V1)
-    for _, name in THEOREM_INVENTORY_V1:
+    namespace = ".".join(subject.namespace)
+    for _, name in subject.inventory:
         found = axioms.get(f"{namespace}.{name}")
         if found is None or not found <= ALLOWED_LEAN_AXIOMS_V1 or "sorryAx" in obs.stdout.decode():
             _reject("REPLAY_AXIOM_DRIFT", obs.command_id, name)
@@ -3369,10 +3554,11 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
     if obs.timed_out or obs.exit_code != 0:
         _reject("REPLAY_EXIT_CODE", obs.command_id, f"exit {obs.exit_code} timed_out={obs.timed_out}")
     esso = _section(packet, "esso_evidence")
-    if obs.command_id.startswith("lean_") and obs.command_id != "lean_binding_gate":
+    if obs.command_id.startswith("lean_") and not obs.command_id.endswith("binding_gate"):
         return _grade_lean(obs, packet)
-    if obs.command_id == "lean_binding_gate":
-        return _grade_pytest(obs, LEAN_GATE_EXPECTED_PASSED_V1)
+    for subject in LEAN_SUBJECTS_V1:
+        if obs.command_id == subject.binding_gate_command:
+            return _grade_pytest(obs, subject.gate_expected_passed)
     if obs.command_id == "esso_gate":
         return _grade_pytest(obs, ESSO_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "prior_restage_gate":
@@ -3602,6 +3788,7 @@ __all__ = [
     "canonical_packet_bytes_v1",
     "CERTIFICATE_CHECK_ORDER_V1",
     "certificate_fixture_surface_v1",
+    "CERTIFICATE_LEAN_SUBJECT_V1",
     "CERTIFICATE_PRODUCER_KINDS_V1",
     "CERTIFICATE_REJECT_CODES_V1",
     "ClassShapeV1",
@@ -3619,7 +3806,10 @@ __all__ = [
     "LEAN_DEFINITION_SURFACE_SHA256_V1",
     "lean_definition_surface_v1",
     "LEAN_STATEMENT_SHA256_V1",
+    "LEAN_SUBJECTS_V1",
     "lean_theorem_inventory_v1",
+    "LeanSubjectV1",
+    "O008_LEAN_SUBJECT_V1",
     "PacketTopologyV1",
     "parse_rustc_vv_v1",
     "project_packet_v1",

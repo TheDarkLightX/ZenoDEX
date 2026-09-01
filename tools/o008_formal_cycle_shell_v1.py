@@ -392,21 +392,26 @@ def _replay_env(command: core.ReplayCommandV1, environment: ReplayEnvironmentV1)
     return env
 
 
-def _probe_file(root: Path, environment: ReplayEnvironmentV1) -> tuple[Path, str]:
-    proof = (root / core.LEAN_PROOF_PATH_V1).read_text(encoding="utf-8")
-    namespace = ".".join(core.LEAN_NAMESPACE_V1)
-    probes = "\n".join(f"#print axioms {namespace}.{name}" for _, name in core.THEOREM_INVENTORY_V1)
-    text = proof + "\n" + probes + "\n"
-    target = environment.tmp_dir / "GlobalClaimantCustodyRelationV1Axioms.lean"
-    target.write_text(text, encoding="utf-8")
-    return target, core.sha256_hex_v1(text.encode("utf-8"))
+def _probe_files(root: Path, environment: ReplayEnvironmentV1) -> dict[str, tuple[Path, str]]:
+    """Write one `#print axioms` probe per pinned Lean subject; keyed by the argv token it replaces."""
+
+    probes: dict[str, tuple[Path, str]] = {}
+    for subject in core.LEAN_SUBJECTS_V1:
+        proof = (root / subject.path).read_text(encoding="utf-8")
+        namespace = ".".join(subject.namespace)
+        commands = "\n".join(f"#print axioms {namespace}.{name}" for _, name in subject.inventory)
+        text = proof + "\n" + commands + "\n"
+        target = environment.tmp_dir / f"{Path(subject.path).stem}Axioms.lean"
+        target.write_text(text, encoding="utf-8")
+        probes[subject.probe_token] = (target, core.sha256_hex_v1(text.encode("utf-8")))
+    return probes
 
 
-def _argv(command: core.ReplayCommandV1, environment: ReplayEnvironmentV1, probe: Path) -> list[str]:
+def _argv(command: core.ReplayCommandV1, environment: ReplayEnvironmentV1, probes: dict[str, tuple[Path, str]]) -> list[str]:
     substitutions = {
         core.PYTHON_TOKEN_V1: environment.python,
         core.ESSO_PYTHON_TOKEN_V1: environment.esso_python or "",
-        "<PROBE>": str(probe),
+        **{token: str(path) for token, (path, _) in probes.items()},
     }
     argv = [substitutions.get(token, token) for token in command.argv]
     if "" in argv:
@@ -419,10 +424,11 @@ def run_proof_replay_v1(
 ) -> tuple[core.ReplayObservationV1, ...]:
     """Execute the closed replay command list and return raw observations."""
 
-    probe, probe_sha256 = _probe_file(root, environment)
+    probes = _probe_files(root, environment)
+    probe_by_command = {subject.axioms_probe_command: probes[subject.probe_token][1] for subject in core.LEAN_SUBJECTS_V1}
     observations: list[core.ReplayObservationV1] = []
     for command in core.REPLAY_COMMANDS_V1:
-        argv = _argv(command, environment, probe)
+        argv = _argv(command, environment, probes)
         try:
             result = subprocess.run(
                 argv,
@@ -445,7 +451,7 @@ def run_proof_replay_v1(
                 result.stdout,
                 result.stderr,
                 False,
-                probe_sha256 if command.command_id == "lean_axioms_probe" else None,
+                probe_by_command.get(command.command_id),
             )
         )
     return tuple(observations)
