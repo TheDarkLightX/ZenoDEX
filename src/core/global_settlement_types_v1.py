@@ -9,11 +9,17 @@ release status.
 from __future__ import annotations
 
 import hashlib
+import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Final, Mapping, Protocol, runtime_checkable
+from types import FunctionType, ModuleType
+from typing import Final, cast
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes
+from .global_settlement_canonical_manifest_v1 import (
+    GLOBAL_SETTLEMENT_CANONICAL_ENUM_TYPE_SET_V1,
+    GLOBAL_SETTLEMENT_CANONICAL_SERIALIZER_TYPE_SET_V1,
+)
 
 GLOBAL_SETTLEMENT_ABI_V1: Final = "zenodex/global-settlement-abi/v1"
 FEE_RESIDUE_PRINCIPAL_V1: Final = "protocol:fee-unallocated-reserve"
@@ -42,11 +48,6 @@ MAX_ATOMS_V1: Final = (1 << 128) - 1
 MIN_DELTA_ATOMS_V1: Final = -(1 << 127)
 MAX_DELTA_ATOMS_V1: Final = (1 << 127) - 1
 ZERO_ROOT_V1: Final = "0x" + "00" * 32
-
-
-@runtime_checkable
-class _Canonicalizable(Protocol):
-    def to_canonical(self) -> object: ...
 
 
 def _require_nonnegative_int(value: object, *, name: str) -> int:
@@ -112,28 +113,88 @@ def _require_root(value: object, *, name: str, allow_zero: bool = False) -> str:
     return value
 
 
+def _canonical_type_key_v1(candidate_type: type[object]) -> tuple[str, str, str]:
+    module_name = type.__getattribute__(candidate_type, "__module__")
+    type_name = type.__getattribute__(candidate_type, "__qualname__")
+    if type(module_name) is not str or type(type_name) is not str:
+        raise TypeError("canonical type identity is invalid")
+    if not module_name or not type_name.isidentifier():
+        raise TypeError("canonical type identity is invalid")
+    return module_name, type_name, f"{module_name}.{type_name}"
+
+
+def _require_loaded_canonical_type_v1(
+    candidate_type: type[object],
+    *,
+    module_name: str,
+    type_name: str,
+) -> None:
+    module = sys.modules.get(module_name)
+    if type(module) is not ModuleType:
+        raise TypeError("canonical type module is not loaded")
+    namespace = ModuleType.__getattribute__(module, "__dict__")
+    if type(namespace) is not dict or namespace.get(type_name) is not candidate_type:
+        raise TypeError("canonical type identity is not current")
+
+
+def _canonical_registered_projection_v1(value: object) -> tuple[bool, object]:
+    candidate_type = type(value)
+    module_name, type_name, qualified_name = _canonical_type_key_v1(candidate_type)
+    if qualified_name in GLOBAL_SETTLEMENT_CANONICAL_ENUM_TYPE_SET_V1:
+        _require_loaded_canonical_type_v1(
+            candidate_type,
+            module_name=module_name,
+            type_name=type_name,
+        )
+        return True, object.__getattribute__(value, "_value_")
+    if qualified_name not in GLOBAL_SETTLEMENT_CANONICAL_SERIALIZER_TYPE_SET_V1:
+        return False, None
+    _require_loaded_canonical_type_v1(
+        candidate_type,
+        module_name=module_name,
+        type_name=type_name,
+    )
+    namespace = type.__getattribute__(candidate_type, "__dict__")
+    serializer = namespace.get("to_canonical")
+    if type(serializer) is not FunctionType:
+        raise TypeError("canonical serializer is not class-owned")
+    return True, serializer(value)
+
+
 def _canonical_value(value: object) -> object:
-    if value is None or type(value) in {bool, int, str}:
+    value_type = type(value)
+    if value is None or value_type is bool or value_type is int or value_type is str:
         return value
-    if isinstance(value, Enum):
-        return _canonical_value(value.value)
-    if isinstance(value, bool | int | str):
-        raise TypeError("canonical scalar subclasses are unsupported")
-    if type(value) is tuple or type(value) is list:
-        return [_canonical_value(item) for item in value]
-    if isinstance(value, tuple | list):
-        raise TypeError("canonical sequence subclasses are unsupported")
-    if type(value) is dict:
-        if any(type(key) is not str for key in value):
+    if value_type is tuple or value_type is list:
+        sequence = cast(tuple[object, ...] | list[object], value)
+        return [_canonical_value(item) for item in sequence]
+    if value_type is dict:
+        untyped_mapping = cast(dict[object, object], value)
+        if any(type(key) is not str for key in untyped_mapping):
             raise TypeError("canonical mapping keys must be strings")
+        mapping = cast(dict[str, object], value)
         return {
             key: _canonical_value(item)
-            for key, item in sorted(value.items(), key=lambda pair: pair[0])
+            for key, item in sorted(mapping.items(), key=lambda pair: pair[0])
         }
-    if isinstance(value, Mapping):
+    admitted, projected = _canonical_registered_projection_v1(value)
+    if admitted:
+        return _canonical_value(projected)
+    candidate_mro = type.__getattribute__(value_type, "__mro__")
+    if any(
+        candidate_base is scalar_base
+        for candidate_base in candidate_mro
+        for scalar_base in (bool, int, str)
+    ):
+        raise TypeError("canonical scalar subclasses are unsupported")
+    if any(
+        candidate_base is sequence_base
+        for candidate_base in candidate_mro
+        for sequence_base in (tuple, list)
+    ):
+        raise TypeError("canonical sequence subclasses are unsupported")
+    if any(candidate_base is dict for candidate_base in candidate_mro):
         raise TypeError("canonical mapping subclasses are unsupported")
-    if isinstance(value, _Canonicalizable):
-        return _canonical_value(value.to_canonical())
     raise TypeError("unsupported canonical value type")
 
 
