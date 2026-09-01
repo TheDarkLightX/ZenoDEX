@@ -34,11 +34,11 @@ EXPECTED_CALL_COUNTS_V1: Final[dict[str, int]] = {
     "canonical_economic_command_body_bytes_v1": 1,
     "canonical_global_bytes_v1": 48,
     "hash_economic_command_body_v1": 4,
-    "hash_global_v1": 214,
+    "hash_global_v1": 215,
 }
 EXPECTED_CALL_FILE_COUNT_V1: Final = 92
 EXPECTED_SOURCE_CLOSURE_SHA256_V1: Final = (
-    "ff8bbf536d9369574053abb1b4b0d5fafc98b7e0ca857a30746882f405b69ca3"
+    "2c637f53a74adb73d3c2190b16aa6fe0ac20d3b231eabb06e1208f78c8b317fc"
 )
 
 

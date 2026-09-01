@@ -126,82 +126,205 @@ fn require_nonzero_sparse_amounts_v1(state: &GlobalEconomicStateV1) -> AbiResult
     Ok(())
 }
 
-fn add_claimant_backing_total_v1<'a>(
-    totals: &mut BTreeMap<(&'a str, &'a str), u128>,
-    key: (&'a str, &'a str),
-    amount_atoms: u128,
-) -> AbiResultV1<()> {
-    let total = totals
-        .get(&key)
-        .copied()
-        .unwrap_or(0)
-        .checked_add(amount_atoms)
-        .ok_or(AbiErrorV1::Conservation(
-            "economic refinement claimant backing total overflow",
-        ))?;
-    totals.insert(key, total);
+/// Closed reject codes of the state-visible necessary claimant-backing checks.
+///
+/// Precedence is fixed and shared with Python: any checked-u128 overflow while
+/// folding the custody, entitlement, or OPEN-terminal tables rejects first;
+/// then R1 (entitlements in a control domain exceed custody there); then R2 (a
+/// claimant's OPEN terminal total exceeds that claimant's entitlements).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClaimantBackingRejectCodeV1 {
+    ClaimantBackingTotalOverflow,
+    LiabilitiesExceedSameControlDomainBacking,
+    OpenTerminalExceedsClaimantEntitlements,
+}
+
+impl ClaimantBackingRejectCodeV1 {
+    pub const ALL: [Self; 3] = [
+        Self::ClaimantBackingTotalOverflow,
+        Self::LiabilitiesExceedSameControlDomainBacking,
+        Self::OpenTerminalExceedsClaimantEntitlements,
+    ];
+
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::ClaimantBackingTotalOverflow => "CLAIMANT_BACKING_TOTAL_OVERFLOW",
+            Self::LiabilitiesExceedSameControlDomainBacking => {
+                "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING"
+            }
+            Self::OpenTerminalExceedsClaimantEntitlements => {
+                "OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS"
+            }
+        }
+    }
+
+    /// The exact message carried by `AbiErrorV1::Conservation`; byte-identical to Python.
+    pub const fn message(self) -> &'static str {
+        match self {
+            Self::ClaimantBackingTotalOverflow => {
+                "economic refinement claimant backing total overflows"
+            }
+            Self::LiabilitiesExceedSameControlDomainBacking => {
+                "economic refinement liabilities exceed same-domain custody backing"
+            }
+            Self::OpenTerminalExceedsClaimantEntitlements => {
+                "economic refinement open terminal obligations exceed claimant liabilities"
+            }
+        }
+    }
+
+    pub fn from_message(message: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|code| code.message() == message)
+    }
+
+    const fn error(self) -> AbiErrorV1 {
+        AbiErrorV1::Conservation(self.message())
+    }
+}
+
+pub const CLAIMANT_BACKING_VIEW_SCHEMA_V1: &str = "zenodex/claimant-backing-view/v1";
+pub const CLAIMANT_BACKING_VIEW_HASH_DOMAIN_V1: &str = "claimant-backing-view-v1";
+
+/// One folded `(asset, key, amount_atoms)` total; `key` is a control domain or a claimant.
+pub type BackingTotalV1 = (String, String, u128);
+
+/// Owned aggregate of exactly the columns the necessary checks read.
+///
+/// The view has no reserve or balance column, so reserve or balance masking of
+/// a claimant entitlement is unrepresentable in the checked input. `view_root`
+/// is the shared Python/Rust commitment to the folded totals.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ClaimantBackingViewV1 {
+    pub schema: String,
+    pub custody_by_control_domain: Vec<BackingTotalV1>,
+    pub entitlements_by_control_domain: Vec<BackingTotalV1>,
+    pub entitlements_by_claimant: Vec<BackingTotalV1>,
+    pub open_terminals_by_claimant: Vec<BackingTotalV1>,
+}
+
+impl ClaimantBackingViewV1 {
+    pub fn view_root(&self) -> AbiResultV1<RootV1> {
+        hash_global_v1(CLAIMANT_BACKING_VIEW_HASH_DOMAIN_V1, self)
+    }
+}
+
+fn fold_backing_totals_v1<'a>(
+    rows: impl Iterator<Item = (&'a str, &'a str, u128)>,
+) -> AbiResultV1<Vec<BackingTotalV1>> {
+    let mut totals = BTreeMap::<(&'a str, &'a str), u128>::new();
+    for (asset, key, amount_atoms) in rows {
+        let total = totals
+            .get(&(asset, key))
+            .copied()
+            .unwrap_or(0)
+            .checked_add(amount_atoms)
+            .ok_or(ClaimantBackingRejectCodeV1::ClaimantBackingTotalOverflow.error())?;
+        totals.insert((asset, key), total);
+    }
+    Ok(totals
+        .into_iter()
+        .map(|((asset, key), amount)| (asset.to_owned(), key.to_owned(), amount))
+        .collect())
+}
+
+/// Fold the V1 custody, liability, and OPEN terminal tables into the backing view.
+///
+/// Reserves and balances are never read. Every fold uses checked u128
+/// arithmetic and rejects with the overflow code before any inequality is
+/// evaluated.
+pub fn derive_claimant_backing_view_v1(
+    state: &GlobalEconomicStateV1,
+) -> AbiResultV1<ClaimantBackingViewV1> {
+    Ok(ClaimantBackingViewV1 {
+        schema: CLAIMANT_BACKING_VIEW_SCHEMA_V1.to_owned(),
+        custody_by_control_domain: fold_backing_totals_v1(state.custody.iter().map(|row| {
+            (
+                row.asset.as_str(),
+                row.custody_domain.as_str(),
+                row.amount_atoms,
+            )
+        }))?,
+        entitlements_by_control_domain: fold_backing_totals_v1(state.liabilities.iter().map(
+            |row| {
+                (
+                    row.asset.as_str(),
+                    row.custody_domain.as_str(),
+                    row.amount_atoms,
+                )
+            },
+        ))?,
+        entitlements_by_claimant: fold_backing_totals_v1(
+            state
+                .liabilities
+                .iter()
+                .map(|row| (row.asset.as_str(), row.owner.as_str(), row.amount_atoms)),
+        )?,
+        open_terminals_by_claimant: fold_backing_totals_v1(
+            state
+                .terminal_obligations
+                .iter()
+                .filter(|obligation| obligation.status == TerminalObligationStatusV1::OPEN)
+                .map(|obligation| {
+                    (
+                        obligation.asset.as_str(),
+                        obligation.claimant.as_str(),
+                        obligation.amount_atoms,
+                    )
+                }),
+        )?,
+    })
+}
+
+fn exceeds_backing_v1(claims: &[BackingTotalV1], backing: &[BackingTotalV1]) -> bool {
+    let available: BTreeMap<(&str, &str), u128> = backing
+        .iter()
+        .map(|(asset, key, amount)| ((asset.as_str(), key.as_str()), *amount))
+        .collect();
+    claims.iter().any(|(asset, key, amount)| {
+        *amount
+            > available
+                .get(&(asset.as_str(), key.as_str()))
+                .copied()
+                .unwrap_or(0)
+    })
+}
+
+/// Reject R1 (same-control-domain backing) then R2 (claimant coverage), in that order.
+pub fn require_claimant_backing_v1(view: &ClaimantBackingViewV1) -> AbiResultV1<()> {
+    if exceeds_backing_v1(
+        &view.entitlements_by_control_domain,
+        &view.custody_by_control_domain,
+    ) {
+        return Err(ClaimantBackingRejectCodeV1::LiabilitiesExceedSameControlDomainBacking.error());
+    }
+    if exceeds_backing_v1(
+        &view.open_terminals_by_claimant,
+        &view.entitlements_by_claimant,
+    ) {
+        return Err(ClaimantBackingRejectCodeV1::OpenTerminalExceedsClaimantEntitlements.error());
+    }
     Ok(())
+}
+
+/// Map an exact claimant-backing error to its closed code; `None` for any other error.
+pub fn classify_claimant_backing_error_v1(
+    error: &AbiErrorV1,
+) -> Option<ClaimantBackingRejectCodeV1> {
+    match error {
+        AbiErrorV1::Conservation(message) => ClaimantBackingRejectCodeV1::from_message(message),
+        _ => None,
+    }
 }
 
 /// Reject necessary backing failures visible in V1 state bytes.
 ///
 /// This cannot bind an opaque lane root to its private claimant projection or
-/// recover a terminal obligation's omitted custody domain and principal.
+/// recover a terminal obligation's omitted control domain and principal.
 /// Exact reconciliation still requires verifier-derived, root-bound evidence.
 fn require_state_only_necessary_claimant_backing_v1(
     state: &GlobalEconomicStateV1,
 ) -> AbiResultV1<()> {
-    let mut custody_by_domain = BTreeMap::<(&str, &str), u128>::new();
-    let mut liabilities_by_domain = BTreeMap::<(&str, &str), u128>::new();
-    let mut liabilities_by_claimant = BTreeMap::<(&str, &str), u128>::new();
-    for row in &state.custody {
-        add_claimant_backing_total_v1(
-            &mut custody_by_domain,
-            (row.asset.as_str(), row.custody_domain.as_str()),
-            row.amount_atoms,
-        )?;
-    }
-    for row in &state.liabilities {
-        add_claimant_backing_total_v1(
-            &mut liabilities_by_domain,
-            (row.asset.as_str(), row.custody_domain.as_str()),
-            row.amount_atoms,
-        )?;
-        add_claimant_backing_total_v1(
-            &mut liabilities_by_claimant,
-            (row.asset.as_str(), row.owner.as_str()),
-            row.amount_atoms,
-        )?;
-    }
-    if liabilities_by_domain
-        .iter()
-        .any(|(key, amount)| *amount > custody_by_domain.get(key).copied().unwrap_or(0))
-    {
-        return Err(AbiErrorV1::Conservation(
-            "economic refinement liabilities exceed same-domain custody backing",
-        ));
-    }
-
-    let mut open_terminal_by_claimant = BTreeMap::<(&str, &str), u128>::new();
-    for obligation in &state.terminal_obligations {
-        if obligation.status != TerminalObligationStatusV1::OPEN {
-            continue;
-        }
-        add_claimant_backing_total_v1(
-            &mut open_terminal_by_claimant,
-            (obligation.asset.as_str(), obligation.claimant.as_str()),
-            obligation.amount_atoms,
-        )?;
-    }
-    if open_terminal_by_claimant
-        .iter()
-        .any(|(key, amount)| *amount > liabilities_by_claimant.get(key).copied().unwrap_or(0))
-    {
-        return Err(AbiErrorV1::Conservation(
-            "economic refinement open terminal obligations exceed claimant liabilities",
-        ));
-    }
-    Ok(())
+    require_claimant_backing_v1(&derive_claimant_backing_view_v1(state)?)
 }
 
 fn require_supported_effects_v1(effect_plan: &GlobalEconomicEffectPlanV1) -> AbiResultV1<()> {

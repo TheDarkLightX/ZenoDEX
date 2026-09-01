@@ -21,8 +21,10 @@ or publication authority.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Final
+from enum import Enum
+from typing import Final, NoReturn
 
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, RouteCompositionJournalV1
 from .global_economic_refinement_snapshot_v1 import (
@@ -48,7 +50,9 @@ from .global_settlement_types_v1 import (
     GlobalEconomicEffectPlanV1,
     GlobalEconomicStateV1,
     TerminalObligationStatusV1,
+    _require_atoms_u128,
     _require_root,
+    _require_token,
     hash_global_v1,
 )
 
@@ -242,15 +246,185 @@ def _require_supported_effects_v1(effect_plan: GlobalEconomicEffectPlanV1) -> No
         raise ValueError("economic refinement reward and slash labels are unmapped")
 
 
-def _add_claimant_backing_total_v1(
-    totals: dict[tuple[str, str], int],
-    key: tuple[str, str],
-    amount_atoms: int,
-) -> None:
-    total = totals.get(key, 0) + amount_atoms
-    if total > MAX_ATOMS_V1:
-        raise ValueError("economic refinement claimant backing total overflows")
-    totals[key] = total
+class ClaimantBackingRejectCodeV1(str, Enum):
+    """Closed reject codes of the state-visible necessary claimant-backing checks.
+
+    Precedence is fixed: any checked-u128 overflow while folding the custody,
+    entitlement, or OPEN-terminal tables rejects first; then R1 (entitlements in
+    a control domain exceed custody there); then R2 (a claimant's OPEN terminal
+    total exceeds that claimant's entitlements). Python and Rust share the
+    codes and the exact message strings below.
+    """
+
+    CLAIMANT_BACKING_TOTAL_OVERFLOW = "CLAIMANT_BACKING_TOTAL_OVERFLOW"
+    LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING = (
+        "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING"
+    )
+    OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS = (
+        "OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS"
+    )
+
+
+CLAIMANT_BACKING_MESSAGE_BY_CODE_V1: Final[Mapping[ClaimantBackingRejectCodeV1, str]] = {
+    ClaimantBackingRejectCodeV1.CLAIMANT_BACKING_TOTAL_OVERFLOW: (
+        "economic refinement claimant backing total overflows"
+    ),
+    ClaimantBackingRejectCodeV1.LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING: (
+        "economic refinement liabilities exceed same-domain custody backing"
+    ),
+    ClaimantBackingRejectCodeV1.OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS: (
+        "economic refinement open terminal obligations exceed claimant liabilities"
+    ),
+}
+_CLAIMANT_BACKING_CODE_BY_MESSAGE_V1: Final = {
+    message: code for code, message in CLAIMANT_BACKING_MESSAGE_BY_CODE_V1.items()
+}
+CLAIMANT_BACKING_VIEW_SCHEMA_V1: Final = "zenodex/claimant-backing-view/v1"
+CLAIMANT_BACKING_VIEW_HASH_DOMAIN_V1: Final = "claimant-backing-view-v1"
+
+
+def _reject_claimant_backing_v1(code: ClaimantBackingRejectCodeV1) -> NoReturn:
+    raise ValueError(CLAIMANT_BACKING_MESSAGE_BY_CODE_V1[code])
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class BackingTotalV1:
+    """One folded (asset, key) atom total; ``key`` is a control domain or a claimant."""
+
+    asset: str
+    key: str
+    amount_atoms: int
+
+    def __post_init__(self) -> None:
+        _require_token(self.asset, name="backing total asset")
+        _require_token(self.key, name="backing total key")
+        _require_atoms_u128(self.amount_atoms, name="backing total atoms")
+
+    def to_canonical(self) -> list[object]:
+        return [self.asset, self.key, self.amount_atoms]
+
+
+def _require_backing_totals_v1(rows: tuple[BackingTotalV1, ...], name: str) -> None:
+    if any(type(row) is not BackingTotalV1 for row in rows):
+        raise TypeError(f"{name} totals must be exact BackingTotalV1 rows")
+    keys = [(row.asset, row.key) for row in rows]
+    if keys != sorted(set(keys)):
+        raise ValueError(f"{name} totals are not canonically ordered and unique")
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimantBackingViewV1:
+    """Owned aggregate of exactly the columns the necessary checks read.
+
+    The view has no reserve or balance column, so reserve or balance masking of
+    a claimant entitlement is unrepresentable in the checked input. ``view_root``
+    is the shared Python/Rust commitment to the folded totals.
+    """
+
+    custody_by_control_domain: tuple[BackingTotalV1, ...]
+    entitlements_by_control_domain: tuple[BackingTotalV1, ...]
+    entitlements_by_claimant: tuple[BackingTotalV1, ...]
+    open_terminals_by_claimant: tuple[BackingTotalV1, ...]
+
+    def __post_init__(self) -> None:
+        _require_backing_totals_v1(self.custody_by_control_domain, "custody")
+        _require_backing_totals_v1(self.entitlements_by_control_domain, "entitlement domain")
+        _require_backing_totals_v1(self.entitlements_by_claimant, "entitlement claimant")
+        _require_backing_totals_v1(self.open_terminals_by_claimant, "open terminal")
+
+    def to_canonical(self) -> dict[str, object]:
+        return {
+            "schema": CLAIMANT_BACKING_VIEW_SCHEMA_V1,
+            "custody_by_control_domain": [
+                row.to_canonical() for row in self.custody_by_control_domain
+            ],
+            "entitlements_by_control_domain": [
+                row.to_canonical() for row in self.entitlements_by_control_domain
+            ],
+            "entitlements_by_claimant": [
+                row.to_canonical() for row in self.entitlements_by_claimant
+            ],
+            "open_terminals_by_claimant": [
+                row.to_canonical() for row in self.open_terminals_by_claimant
+            ],
+        }
+
+    @property
+    def view_root(self) -> str:
+        return hash_global_v1(CLAIMANT_BACKING_VIEW_HASH_DOMAIN_V1, self.to_canonical())
+
+
+def _fold_backing_totals_v1(
+    rows: Iterable[tuple[str, str, int]],
+) -> tuple[BackingTotalV1, ...]:
+    totals: dict[tuple[str, str], int] = {}
+    for asset, key, amount_atoms in rows:
+        total = totals.get((asset, key), 0) + amount_atoms
+        if total > MAX_ATOMS_V1:
+            _reject_claimant_backing_v1(
+                ClaimantBackingRejectCodeV1.CLAIMANT_BACKING_TOTAL_OVERFLOW
+            )
+        totals[(asset, key)] = total
+    return tuple(
+        BackingTotalV1(asset, key, amount) for (asset, key), amount in sorted(totals.items())
+    )
+
+
+def derive_claimant_backing_view_v1(state: GlobalEconomicStateV1) -> ClaimantBackingViewV1:
+    """Fold the V1 custody, liability, and OPEN terminal tables into the backing view.
+
+    Reserves and balances are never read. Every fold uses checked u128
+    arithmetic and rejects with the overflow code before any inequality is
+    evaluated.
+    """
+
+    open_terminals = [
+        (obligation.asset, obligation.claimant, obligation.amount_atoms)
+        for obligation in state.terminal_obligations
+        if obligation.status is TerminalObligationStatusV1.OPEN
+    ]
+    return ClaimantBackingViewV1(
+        custody_by_control_domain=_fold_backing_totals_v1(
+            (row.asset, row.custody_domain, row.amount_atoms) for row in state.custody
+        ),
+        entitlements_by_control_domain=_fold_backing_totals_v1(
+            (row.asset, row.custody_domain, row.amount_atoms) for row in state.liabilities
+        ),
+        entitlements_by_claimant=_fold_backing_totals_v1(
+            (row.asset, row.owner, row.amount_atoms) for row in state.liabilities
+        ),
+        open_terminals_by_claimant=_fold_backing_totals_v1(open_terminals),
+    )
+
+
+def _exceeds_backing_v1(
+    claims: tuple[BackingTotalV1, ...], backing: tuple[BackingTotalV1, ...]
+) -> bool:
+    available = {(row.asset, row.key): row.amount_atoms for row in backing}
+    return any(row.amount_atoms > available.get((row.asset, row.key), 0) for row in claims)
+
+
+def require_claimant_backing_v1(view: ClaimantBackingViewV1) -> None:
+    """Reject R1 (same-control-domain backing) then R2 (claimant coverage), in that order."""
+
+    if _exceeds_backing_v1(view.entitlements_by_control_domain, view.custody_by_control_domain):
+        _reject_claimant_backing_v1(
+            ClaimantBackingRejectCodeV1.LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING
+        )
+    if _exceeds_backing_v1(view.open_terminals_by_claimant, view.entitlements_by_claimant):
+        _reject_claimant_backing_v1(
+            ClaimantBackingRejectCodeV1.OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS
+        )
+
+
+def classify_claimant_backing_error_v1(
+    error: BaseException,
+) -> ClaimantBackingRejectCodeV1 | None:
+    """Map an exact claimant-backing message to its closed code; None for any other error."""
+
+    if type(error) is not ValueError:
+        return None
+    return _CLAIMANT_BACKING_CODE_BY_MESSAGE_V1.get(str(error))
 
 
 def _require_state_only_necessary_claimant_backing_v1(
@@ -259,55 +433,12 @@ def _require_state_only_necessary_claimant_backing_v1(
     """Reject necessary backing failures visible in V1 state bytes.
 
     This check cannot bind an opaque lane root to its private claimant
-    projection or recover a terminal obligation's omitted custody domain and
+    projection or recover a terminal obligation's omitted control domain and
     principal. Exact reconciliation therefore still requires verifier-derived,
     root-bound allocation evidence. Passing this guard grants no authority.
     """
 
-    custody_by_domain: dict[tuple[str, str], int] = {}
-    liabilities_by_domain: dict[tuple[str, str], int] = {}
-    liabilities_by_claimant: dict[tuple[str, str], int] = {}
-    for row in state.custody:
-        _add_claimant_backing_total_v1(
-            custody_by_domain,
-            (row.asset, row.custody_domain),
-            row.amount_atoms,
-        )
-    for row in state.liabilities:
-        _add_claimant_backing_total_v1(
-            liabilities_by_domain,
-            (row.asset, row.custody_domain),
-            row.amount_atoms,
-        )
-        _add_claimant_backing_total_v1(
-            liabilities_by_claimant,
-            (row.asset, row.owner),
-            row.amount_atoms,
-        )
-    if any(
-        amount > custody_by_domain.get(key, 0)
-        for key, amount in liabilities_by_domain.items()
-    ):
-        raise ValueError(
-            "economic refinement liabilities exceed same-domain custody backing"
-        )
-
-    open_terminal_by_claimant: dict[tuple[str, str], int] = {}
-    for obligation in state.terminal_obligations:
-        if obligation.status is not TerminalObligationStatusV1.OPEN:
-            continue
-        _add_claimant_backing_total_v1(
-            open_terminal_by_claimant,
-            (obligation.asset, obligation.claimant),
-            obligation.amount_atoms,
-        )
-    if any(
-        amount > liabilities_by_claimant.get(key, 0)
-        for key, amount in open_terminal_by_claimant.items()
-    ):
-        raise ValueError(
-            "economic refinement open terminal obligations exceed claimant liabilities"
-        )
+    require_claimant_backing_v1(derive_claimant_backing_view_v1(state))
 
 
 def _require_fee_mirror_v1(effect_plan: GlobalEconomicEffectPlanV1) -> None:
@@ -490,9 +621,18 @@ def refine_route_global_economic_state_effects_v1(
 
 
 __all__ = [
+    "CLAIMANT_BACKING_MESSAGE_BY_CODE_V1",
+    "CLAIMANT_BACKING_VIEW_HASH_DOMAIN_V1",
+    "CLAIMANT_BACKING_VIEW_SCHEMA_V1",
     "GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_SCHEMA_V1",
+    "BackingTotalV1",
+    "ClaimantBackingRejectCodeV1",
+    "ClaimantBackingViewV1",
     "GlobalEconomicStateEffectRefinementCandidateV1",
     "GlobalEconomicStateEffectRefinementV1",
+    "classify_claimant_backing_error_v1",
+    "derive_claimant_backing_view_v1",
+    "require_claimant_backing_v1",
     "_snapshot_global_economic_state_effect_refinement_v1",
     "refine_global_economic_state_effects_v1",
     "refine_route_global_economic_state_effects_v1",

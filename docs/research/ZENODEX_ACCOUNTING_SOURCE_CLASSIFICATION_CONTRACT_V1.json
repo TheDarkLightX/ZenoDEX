@@ -1,0 +1,72 @@
+{
+  "schema": "zenodex/accounting-source-classification-contract/v1",
+  "created_date": "2026-09-01",
+  "authority": "NONE",
+  "status": "RESEARCH_CONTRACT_V1_WIRE_NAMES_BYTE_STABLE",
+  "normative_source": {
+    "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
+    "sha256": "32985ee88b0b15a0b6ef1408e60ac1767f93e20eade434090011e144ecd56990",
+    "vocabulary_lines": "84-96",
+    "partition_lines": "170-173"
+  },
+  "normative_partition": "controlled_atoms = claimant_entitlements + named_unencumbered_reserves + pending_registered_external_obligations",
+  "key_control_statement": "Key control determines practical custody; the protocol does not characterize same-ledger balances as a separate form of custody. The ABI V1 field name custody_domain means accounting control domain only and does not assert possession of user keys.",
+  "vocabulary": {
+    "control_domain": "an accounting control domain label on the same ledger; the protocol-controlled scope in which entitlements are reconciled (V1 wire name custody_domain)",
+    "controlled_location": "atoms held in a protocol-controlled accounting location such as a pool, margin account, escrow, or fee residue bucket (V1 table custody)",
+    "controlling_principal": "the principal that controls a controlled location (V1 field owner on a custody row)",
+    "claimant_entitlement": "atoms a claimant may withdraw from a control domain (V1 table liabilities; V1 field owner on a liability row names the claimant)",
+    "unencumbered_reserve": "named protocol-owned atoms with no claimant (V1 table reserves); never backing for a claimant entitlement",
+    "key_controlled_account": "self-custody balance controlled by a key (V1 table balances, control domain accounts); never backing for a claimant entitlement",
+    "pending_external_obligation": "a registered external-delivery row awaiting acknowledgment (V1 table outbox; asset and amount are absent from the V1 row and must come from the sidecar)",
+    "terminal_obligation": "a claim that must reach a terminal drain or tombstone (V1 table terminal_obligations; control domain and controlling principal are absent from the V1 row)"
+  },
+  "v1_alias_table": [
+    {"wire_type": "EconomicAmountV1", "wire_field": "custody_domain", "meaning": "control_domain", "byte_stable": true},
+    {"wire_type": "EconomicAmountV1", "wire_field": "owner", "meaning": "controlling_principal on custody rows; claimant on liability rows; reserve principal on reserve rows; account key on balance rows", "byte_stable": true},
+    {"wire_type": "EconomicAmountV1", "wire_field": "amount_atoms", "meaning": "unsigned 128-bit integer atoms at the profile-bound eight-decimal precision", "byte_stable": true},
+    {"wire_type": "GlobalEconomicStateV1", "wire_field": "custody", "meaning": "controlled_location totals per (asset, controlling_principal, control_domain)", "byte_stable": true},
+    {"wire_type": "GlobalEconomicStateV1", "wire_field": "liabilities", "meaning": "claimant_entitlement totals per (asset, claimant, control_domain)", "byte_stable": true},
+    {"wire_type": "GlobalEconomicStateV1", "wire_field": "reserves", "meaning": "unencumbered_reserve totals per (asset, principal, control_domain)", "byte_stable": true},
+    {"wire_type": "GlobalEconomicStateV1", "wire_field": "balances", "meaning": "key_controlled_account totals", "byte_stable": true},
+    {"wire_type": "GlobalEconomicStateV1", "wire_field": "terminal_obligations", "meaning": "terminal_obligation rows (V1 projection lacks control_domain and controlling_principal)", "byte_stable": true},
+    {"wire_type": "GlobalEconomicStateV1", "wire_field": "outbox", "meaning": "pending_external_obligation rows (V1 projection lacks asset and amount_atoms)", "byte_stable": true}
+  ],
+  "disjoint_partitions": ["balances", "custody", "reserves"],
+  "conservation": "sum(balances) + sum(custody) + sum(reserves) = supply per asset; entitlements are claims against custody, never a fourth owned bucket",
+  "source_classes": [
+    {"class": "CLAIMANT_ENTITLEMENT", "v1_source": "liabilities row", "required_bindings": ["asset", "integer_scale", "u128_width", "claimant", "control_domain", "lane_provenance", "occurrence", "profile_root", "release_root", "writer_epoch", "canonical_order"], "current_profile_status": "REQUIRED"},
+    {"class": "UNENCUMBERED_CONTROLLED_LOCATION", "v1_source": "custody atoms not matched by an entitlement in the same control domain", "required_bindings": ["asset", "integer_scale", "u128_width", "controlling_principal", "control_domain", "lane_provenance", "canonical_order"], "current_profile_status": "REJECTED_EXACT_PARTITION"},
+    {"class": "UNENCUMBERED_RESERVE", "v1_source": "reserves row", "required_bindings": ["asset", "integer_scale", "u128_width", "reserve_principal", "control_domain", "lane_provenance", "canonical_order"], "current_profile_status": "REQUIRED_CLAIMANT_FREE"},
+    {"class": "PENDING_EXTERNAL_OBLIGATION", "v1_source": "outbox row plus sidecar asset and amount", "required_bindings": ["asset", "integer_scale", "u128_width", "destination", "commitment", "control_domain", "source_principal", "lane_provenance", "occurrence", "canonical_order"], "current_profile_status": "EMPTY_UNTIL_EXTERNAL_PROFILE"},
+    {"class": "TERMINAL_OBLIGATION", "v1_source": "terminal_obligations row plus sidecar control_domain and controlling_principal", "required_bindings": ["asset", "integer_scale", "u128_width", "claimant", "control_domain", "controlling_principal", "terminal_identity", "lane_provenance", "lane_state_root", "canonical_order"], "current_profile_status": "REQUIRED"}
+  ],
+  "exact_one_classification": "every controlled source atom is classified exactly once per (asset, control_domain); omission, duplication, and cross-domain assignment reject",
+  "reserve_interpretation": "NAMED_UNENCUMBERED_NO_CLAIMANT",
+  "arithmetic": {"width": "u128", "overflow": "REJECT", "rounding": "NONE", "residue": "carried explicitly as a named reserve row"},
+  "claimant_backing_guard": {
+    "python": "src/core/global_economic_state_effect_refinement_v1.py",
+    "rust": "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
+    "view_schema": "zenodex/claimant-backing-view/v1",
+    "view_hash_domain": "claimant-backing-view-v1",
+    "reject_precedence": ["CLAIMANT_BACKING_TOTAL_OVERFLOW", "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING", "OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS"],
+    "golden_vector": "tests/data/global_claimant_backing_guard_v1_golden.json",
+    "renderer": "tools/render_global_claimant_backing_guard_v1_golden.py"
+  },
+  "blocked_pending_policy": {
+    "UP-01": "fee allocation percentages among purchase-and-burn, hosting, staking, treasury, reserves, residue",
+    "UP-02": "hosting claimant eligibility and terminal disposition",
+    "UP-04": "zUSD collateral, Stability Pool, and release coexistence reserves",
+    "UP-05": "perps insurance priority and bankruptcy allocation",
+    "UP-09": "proof-reward funding and claimant eligibility",
+    "UP-11": "Tau-origin asset registration and external finality (pending external obligations stay empty)",
+    "UP-13": "generic-transfer fees and managed-issuance authority",
+    "UP-15": "ZDEX reserve lifecycle and staking claims",
+    "UP-17": "fixed-point scales beyond eight-decimal asset amounts"
+  },
+  "nonclaims": [
+    "This contract renames nothing on the V1 wire; every V1 field name and byte stays stable and the vocabulary applies to new code, models, and documents only.",
+    "The claimant-backing guard proves only the two state-visible necessary inequalities; exact all-lane reconciliation requires the GlobalAccountingAllocationCertificateV1 producers.",
+    "No production, release, settlement, verifier, migration, publication, or value-moving authority is granted."
+  ]
+}

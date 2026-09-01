@@ -95,9 +95,9 @@ THV1_PACKET = (
     / "tests"
     / "evidence"
     / "test_hygiene"
-    / "THV1-20260901-global-settlement-formal-core-semantic-restage-v1.json"
+    / "THV1-20260901-global-settlement-formal-core-semantic-restage-v2.json"
 )
-THV1_EVIDENCE_ID = "THV1-20260901-global-settlement-formal-core-semantic-restage-v1"
+THV1_EVIDENCE_ID = "THV1-20260901-global-settlement-formal-core-semantic-restage-v2"
 THV1_REQUIRED_PIN_PATHS = frozenset(
     {
         "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
@@ -124,10 +124,10 @@ ENFORCED_PINS = {
         "13871fb586d7e5c1106edd5c0a9fdcd6f817016925027a6bdfb5ca8f53f29f58"
     ),
     "src/core/global_economic_state_effect_refinement_v1.py": (
-        "2c80fe364241de0fa2c93c258767dd93ad65233fbb58de71af398b3b5c1c2d54"
+        "abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697"
     ),
     "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs": (
-        "44352e36e147c59ca397e571237d48eebd91787066df26fb7a5b65b2a78b2672"
+        "0a63e93e58f0a1b8c2f897005839d6151f02a924ed706530d604ffc7150d6c10"
     ),
     "src/core/zdex_fee_allocation_types_v1.py": (
         "b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df"

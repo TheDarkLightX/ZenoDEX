@@ -72,13 +72,13 @@ LEAN_ROOT_PATH_V1: Final = "lean-mathlib/Proofs.lean"
 LEAN_TOOLCHAIN_PATH_V1: Final = "lean-mathlib/lean-toolchain"
 LEAN_GATE_PATH_V1: Final = "tests/formal/test_lean_global_claimant_custody_relation_v1.py"
 THV1_PATH_V1: Final = (
-    "tests/evidence/test_hygiene/THV1-20260901-o008-formal-cycle-admission-v2.json"
+    "tests/evidence/test_hygiene/THV1-20260901-o008-formal-cycle-admission-v3.json"
 )
 BLUEPRINT_PATH_V1: Final = "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md"
 PRIOR_ESSO_GATE_PATH_V1: Final = "tests/formal/test_esso_global_settlement_core_v1.py"
 PRIOR_THV1_PATH_V1: Final = (
     "tests/evidence/test_hygiene/"
-    "THV1-20260901-global-settlement-formal-core-semantic-restage-v1.json"
+    "THV1-20260901-global-settlement-formal-core-semantic-restage-v2.json"
 )
 
 SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (

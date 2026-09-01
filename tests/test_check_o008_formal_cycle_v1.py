@@ -778,16 +778,29 @@ def test_cli_infrastructure_failures_exit_2(tmp_path: Path) -> None:
 
 
 def test_committed_packet_lifecycle_at_repository_head() -> None:
-    """The live repository is admitted once P exists; before that the legacy packet is rejected."""
+    """The live repository is admitted at P; a later source commit S' keeps admission and loses applicability.
+
+    Three exact stages: a legacy packet is rejected before any P exists; at P (HEAD is the
+    packet commit) the packet is admitted and applicable; at a source commit after P the
+    packet stays admitted while the changed pinned sources are reported as drift and the
+    verdict stays fail-closed until the next packet commit re-freezes them.
+    """
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") == core.PACKET_SCHEMA_V2:
-        assert report["ok"] is True, report["errors"]
-        assert report["packet_admitted"] is True and report["current_applicable"] is True
-    else:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V2:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
+    elif report["head_commit"] == report["packet_commit"]:
+        assert report["ok"] is True, report["errors"]
+        assert report["packet_admitted"] is True and report["current_applicable"] is True
+        assert report["current_source_drift"] == []
+    else:
+        # A source commit after P: the verdict is fail-closed unless every pinned source and the
+        # pin set itself still equal the committed packet.
+        consistent = report["errors"] == [] and report["current_source_drift"] == []
+        assert report["ok"] is consistent
+        assert report["current_applicable"] is (report["packet_admitted"] and report["current_source_drift"] == [])
     assert report["claim_ceiling"] == core.CLAIM_CEILING_V1
     assert report["proof_replay"]["status"] == "NOT_RUN"
 

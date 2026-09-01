@@ -903,7 +903,7 @@ fn claimant_relation_accepts_u128_boundary_and_rejects_aggregate_overflow() {
     assert_eq!(
         refine_global_economic_state_effects_v1(&candidate(&overflow, &overflow, &effects,)),
         Err(AbiErrorV1::Conservation(
-            "economic refinement claimant backing total overflow"
+            "economic refinement claimant backing total overflows"
         ))
     );
 }
