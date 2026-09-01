@@ -1,0 +1,155 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260831-o008a-dependency-resolution-admission-v2",
+  "created_date": "2026-08-31",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "claim_scope": "Source-bound O-008A supplemental admission of the externally selected SOURCE_PINNED_PATCH_OR_FORK path and controlled local isolated Cargo/RISC0 research execution using root-filesystem-backed build storage. Live preflight thresholds are mandatory; /dev/shm build output, Crucial volumes, network access, qualification, and all protocol authority remain excluded.",
+  "invariant_ids": [
+    "O008A-ADMISSION-EXTERNAL-PREMISE",
+    "O008A-ADMISSION-EXACT-SUBJECTS",
+    "O008A-ADMISSION-SOURCE-PINNED-OPTION",
+    "O008A-ADMISSION-ROOT-BACKED-LOCAL-EXECUTION",
+    "O008A-ADMISSION-LIVE-RESOURCE-PREFLIGHT",
+    "O008A-ADMISSION-CRUCIAL-VOLUME-EXCLUSION",
+    "O008A-ADMISSION-ZERO-AUTHORITY"
+  ],
+  "failure_modes": [
+    "the external directive is presented as machine verified",
+    "the selection is rebound to another plan, admission, registry, or blocker",
+    "a resolution option other than SOURCE_PINNED_PATCH_OR_FORK is admitted",
+    "build output is redirected to the smaller /dev/shm filesystem",
+    "a Cargo, target, or temporary path uses a Crucial or recovery-evidence volume",
+    "resource thresholds are skipped or understated before a build",
+    "network execution is admitted",
+    "the packet promotes dependency safety, qualification, release, or protocol authority",
+    "Stage B changes any path other than the canonical admission artifact"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/o008a_dependency_resolution_admission_v2.py",
+      "sha256": "baee9966b4c6d867378b8340f8b8514f69c6da804837315d4dddffb8f064d195"
+    },
+    {
+      "path": "tools/build_o008a_dependency_resolution_admission_v2.py",
+      "sha256": "89132830480342ac2a2ce5159ab5d754a666b741a92bb866259a0152ff8915bc"
+    },
+    {
+      "path": "tools/check_o008a_dependency_resolution_admission_v2.py",
+      "sha256": "b86d7d0d27c0e2d5fb76b33e50603f45ec4ba8513fb0f5e950ae01f0776e47ff"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_o008a_dependency_resolution_admission_v2.py",
+      "sha256": "8e92d74912670132c87838880383583edbb09595187a185fc0de58ef4764e059",
+      "node_ids": [
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_bdd_selected_path_admits_only_controlled_local_research_execution",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_protected_governance_inputs_are_exact_and_unchanged",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_admission_keeps_dependency_and_qualification_claims_open",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_resource_observation_selects_root_backed_storage_but_remains_volatile",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_external_directive_premise_is_rejected",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_governed_subject_is_rejected",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_selected_option_is_rejected",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_authority_promotion_is_rejected",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_network_authorization_is_rejected",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_tmpfs_build_storage_is_rejected",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_crucial_volume_use_is_rejected",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_resource_preflight_understatement_is_rejected",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_duplicate_json_key_is_a_typed_reject",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_stage_lifecycle_requires_artifact_only_stage_b",
+        "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_canonical_projection_roundtrip_and_self_hashes"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "promote the external user directive to a machine-verified premise",
+      "killed_by": "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_external_directive_premise_is_rejected"
+    },
+    {
+      "description": "rebind the packet to a different blocker subject",
+      "killed_by": "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_governed_subject_is_rejected"
+    },
+    {
+      "description": "replace the selected source-pinned option with a waiver",
+      "killed_by": "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_selected_option_is_rejected"
+    },
+    {
+      "description": "promote release authority above NONE",
+      "killed_by": "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_authority_promotion_is_rejected"
+    },
+    {
+      "description": "authorize network access inside the local execution scope",
+      "killed_by": "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_network_authorization_is_rejected"
+    },
+    {
+      "description": "redirect build output to /dev/shm",
+      "killed_by": "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_tmpfs_build_storage_is_rejected"
+    },
+    {
+      "description": "authorize build use of a Crucial volume",
+      "killed_by": "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_crucial_volume_use_is_rejected"
+    },
+    {
+      "description": "reduce the root free-space preflight floor to one byte",
+      "killed_by": "tests/test_check_o008a_dependency_resolution_admission_v2.py::test_mutation_resource_preflight_understatement_is_rejected"
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "boundary",
+    "negative_regression",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange the exact Stage A projection or one-defect mutation, act through the pure validator or public checker, and assert the exact admitted result or typed rejection code."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The model consumes immutable committed bytes and returns typed rejection. It performs no Cargo, RISC0, network, release, settlement, migration, or value-moving effect."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "governance_selection",
+      "points": [
+        "the exact source-pinned option accepts",
+        "another option or another governed subject rejects"
+      ]
+    },
+    {
+      "name": "execution_scope",
+      "points": [
+        "isolated local Cargo and RISC0 execution on a root-backed build directory accepts",
+        "/dev/shm, Crucial, removable, recovery-evidence, repository, or network-backed execution rejects"
+      ]
+    },
+    {
+      "name": "resource_preflight",
+      "points": [
+        "fresh root-space, projected-headroom, memory, inode, and one-build checks accept",
+        "a missing or understated threshold rejects"
+      ]
+    },
+    {
+      "name": "authority",
+      "points": [
+        "all authority fields remain NONE",
+        "any authority promotion rejects"
+      ]
+    }
+  ],
+  "nonclaims": [
+    "The external user directive is not machine verified.",
+    "No dependency patch or fork is validated by this packet.",
+    "Recorded free-space values are volatile and do not replace the mandatory live preflight.",
+    "No build data is authorized on /dev/shm, any Crucial volume, or a removable or recovery-evidence volume.",
+    "No Cargo, RISC0, network, build, image, receipt, or proof operation was run for this packet.",
+    "O-008A and the dependency-policy conflict remain open.",
+    "No release, production, verifier, settlement, migration, or value-movement authority is granted."
+  ]
+}
