@@ -274,7 +274,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V5.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v4", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v4"),
+        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V6.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v5", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v5"),
         pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
@@ -343,6 +343,48 @@ def test_weakened_statement_is_rejected_on_fresh_projection(
     assert (captured.value.code, captured.value.detail) == ("LEAN_STATEMENT_DRIFT", theorem)
     outcome = core.admit_packet_v1(packet, _context(mutated, packet))
     assert _codes(outcome)[0] == "SOURCE_PIN_BLOB_DRIFT"
+
+
+LEAN_REGION_ANCHOR = "def balancedState : State where"
+
+
+@pytest.mark.parametrize(
+    ("inserted", "code", "detail"),
+    [
+        # Opus C1'''' P1-2 (mounted survivor): a notation in an elided proof region rewrites a later statement.
+        pytest.param("notation:max \"NecessaryRelation\" => (fun _ : State => True)\n\n", "LEAN_COMMAND_FORBIDDEN", "notation", id="notation_shadowed_statement"),
+        pytest.param("macro_rules | `(NecessaryRelation) => `(True)\n\n", "LEAN_COMMAND_FORBIDDEN", "macro_rules", id="macro_rules_in_region"),
+        pytest.param("open Classical in\n", "LEAN_COMMAND_FORBIDDEN", "open command", id="open_command_in_region"),
+        pytest.param("partial def spin (n : Nat) : Nat := spin n\n\n", "LEAN_COMMAND_FORBIDDEN", "partial", id="partial_def_in_region"),
+        pytest.param("instance : LE Nat := ⟨fun _ _ => True⟩\n\n", "LEAN_COMMAND_FORBIDDEN", "instance", id="instance_in_region"),
+        pytest.param("export Nat (succ)\n\n", "LEAN_COMMAND_FORBIDDEN", "export", id="export_in_region"),
+        pytest.param("local notation \"X\" => True\n\n", "LEAN_COMMAND_FORBIDDEN", "local", id="local_notation_in_region"),
+        pytest.param("deriving instance Repr for State\n\n", "LEAN_COMMAND_FORBIDDEN", "instance", id="deriving_instance_in_region"),
+        pytest.param("Foo bar baz\n\n", "LEAN_UNRECOGNISED_ITEM", "Foo bar baz", id="unknown_column_zero_item"),
+        pytest.param("  def evilHelper : Nat := 0\n\n", "LEAN_UNRECOGNISED_ITEM", "indented declaration", id="indented_def_in_region"),
+        pytest.param("  end GlobalClaimantCustodyRelationV1\n\n", "LEAN_NAMESPACE_DRIFT", "", id="indented_end_in_region"),
+        pytest.param("#eval 1\n\n", "LEAN_DEFINITION_SURFACE_DRIFT", "", id="eval_command_joins_surface"),
+    ],
+)
+def test_lean_commands_smuggled_into_proof_regions_are_rejected(
+    snapshot: core.SubjectSnapshotV1, inserted: str, code: str, detail: str
+) -> None:
+    """Nothing but indented proof text may sit between a statement and the next recognised item."""
+
+    mutated = _edit(snapshot, core.LEAN_PROOF_PATH_V1, LEAN_REGION_ANCHOR, inserted + LEAN_REGION_ANCHOR)
+    with pytest.raises(core.AdmissionRejectV1) as captured:
+        core.project_packet_v1(mutated, created_date=CREATED, author_replay_record={"status": "NOT_RUN"})
+    assert captured.value.code == code and detail in captured.value.detail
+    if code == "LEAN_COMMAND_FORBIDDEN":
+        # The surface hash alone would not have seen it: the region is elided by construction.
+        assert _project_code(mutated) == code
+
+
+def test_lean_constructor_and_field_named_open_are_not_commands(snapshot: core.SubjectSnapshotV1) -> None:
+    text = snapshot.blobs[core.LEAN_PROOF_PATH_V1].data.decode("utf-8")
+    assert "| open" in text and ".open" in text
+    core.lean_command_closure_v1(text)
+    assert set(core._LEAN_FORBIDDEN_WORDS_V1) >= {"notation", "macro_rules", "instance", "scoped", "attribute", "set_option"}
 
 
 def test_definition_surface_binds_meaning_and_leaves_proofs_to_replay(snapshot: core.SubjectSnapshotV1, packet: dict[str, Any]) -> None:
@@ -497,6 +539,14 @@ TERMINAL_MACRO = "bounded_state_vec_deserializer_v1!(\n    deserialize_terminal_
         pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, '"REGISTERED_EMPTY_BLOCKED"', '"RECEIPT_BACKED"', "", "CERTIFICATE_PRODUCER_DRIFT", id="certificate_fixture_receipt_backed_producer"),
         pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, '"authority": "NONE"', '"authority": "SHADOW"', "", "CERTIFICATE_FIXTURE_DRIFT", id="certificate_fixture_authority"),
         pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, "{", "{{", "", "CERTIFICATE_FIXTURE_UNPARSEABLE", id="certificate_fixture_malformed"),
+        # Opus C1'''' P1-1 (mounted survivor): a second macro_rules of the pinned name shadows the pinned body.
+        pytest.param(core.RUST_STATE_PATH_V1, TERMINAL_MACRO, "macro_rules! bounded_state_vec_deserializer_v1 {\n    ($function:ident, $row:ty, $maximum:expr, $label:literal) => {\n        fn $function<'de, D>(deserializer: D) -> Result<Vec<$row>, D::Error>\n        where D: Deserializer<'de>,\n        { evil_widen_rows_v1::<D, $row, $maximum>(deserializer, $label) }\n    };\n}\n" + TERMINAL_MACRO, "\nfn evil_widen_rows_v1<'de, D, T, const MAXIMUM: usize>(_deserializer: D, _label: &'static str) -> Result<Vec<T>, D::Error> where D: Deserializer<'de> { unimplemented!() }\n", "RUST_MACRO_REDEFINED", id="second_macro_definition_shadows_pinned_body"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nmacro_rules! lenient_rows_v1 {\n    ($function:ident) => {\n        fn $function() {}\n    };\n}\nlenient_rows_v1!(lenient_helper);\n", "RUST_MACRO_DEFINES_ITEM", id="second_macro_under_another_name_defining_fn"),
+        # Opus C1'''' P3-1: state.rs is a whole-file pin; any extra item drifts.
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nfn extra_helper_v1() {}\n", "RUST_STATE_FILE_DRIFT", id="state_extra_fn"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\npub struct ExtraV1 {\n    pub value: u8,\n}\nimpl ExtraV1 {\n    pub fn get(&self) -> u8 {\n        self.value\n    }\n}\n", "RUST_STATE_FILE_DRIFT", id="state_extra_struct_impl"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nmod inner_v1 {}\n", "RUST_STATE_FILE_DRIFT", id="state_nested_mod"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserialize, Deserializer, Serialize}; // shadow", "", "RUST_STATE_FILE_DRIFT", id="state_comment_only_edit"),
         # Opus C1'' P2-1: gate bodies are pinned by normalised content, not only names and tables.
         pytest.param(core.RUST_GATE_PATH_V1, "        assert_unknown_field::<TerminalObligationV1>(value, extra);\n    }\n}", "    }\n}", "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_emptied_body"),
     ],
@@ -669,6 +719,7 @@ def test_rustc_version_parser_binds_release_commit_and_host() -> None:
         pytest.param("", "", "\nimport sys as _s\ndel _s.modules[__name__].TerminalObligationV1\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="attribute_delete"),
         pytest.param("", "", "\nfrom ctypes import pythonapi\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="ctypes_import"),
         pytest.param("", "", "\nclass _Holder:\n    pass\n\n\n_Holder.TerminalObligationV1 = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="class_attribute_store"),
+        pytest.param("", "", "\ndef __getattr__(name: str) -> object:\n    return int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr"),
         pytest.param("", "", "\nglobals()['TerminalObligationV1'] = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="globals_subscript_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\n_sys.modules[__name__] = None\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="sys_modules_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\nobject.__setattr__(_sys.modules[__name__], 'TerminalObligationV1', int)\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="object_setattr_rebinding"),
@@ -1424,7 +1475,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V5:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V6:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:

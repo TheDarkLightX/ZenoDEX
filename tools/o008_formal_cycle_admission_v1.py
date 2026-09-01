@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V5: Final = "zenodex/o008-formal-cycle-evidence/v5"
+PACKET_SCHEMA_V6: Final = "zenodex/o008-formal-cycle-evidence/v6"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -554,7 +554,9 @@ LEAN_STATEMENT_SHA256_V1: Final[dict[str, str]] = {
 LEAN_DEFINITION_SURFACE_SHA256_V1: Final = "cd1e010a3f82e1595c4cefa7fc7354bc8d972e77c669ed026d177bb8cf275b11"
 LEAN_STATEMENT_BINDING_V1: Final = (
     "theorem statements and the definitional surface are compared against hashes embedded in the"
-    " admission core at S; proof terms are free text checked only by replay"
+    " admission core at S, the file may use no notation, macro, syntax, instance, attribute, scope,"
+    " or open command, and each elided region is indented proof text with no declaration, so"
+    " only how a theorem is proved is left to replay"
 )
 LEAN_GATE_PIN_ORDER_V1: Final[tuple[str, ...]] = (
     LEAN_PROOF_PATH_V1,
@@ -623,6 +625,9 @@ BOUNDED_VEC_LIBRARY_TEMPLATE_V1: Final = "use std::{fmt, marker::PhantomData}; u
 # (Rust: whitespace-collapsed raw source, string literals and comments included (Opus C1''' P3-1);
 # Python: ast.dump of the module)
 # plus the named tests and tables, so a gate cannot keep its names and lose its assertions.
+# Whole-file pin of state.rs (whitespace-collapsed raw source): the scanned constructs are
+# belt-and-braces once the file itself is a reviewed constant (Opus C1'''' P1-1, P3-1).
+RUST_STATE_FILE_NORMALIZED_SHA256_V1: Final = "55c89650deb9f423a5be9759127f12f5404560fba885cc294b983377399c3337"
 RUST_GATE_NORMALIZED_SHA256_V1: Final = "38db418dee30744ae1e9cbf242ad07dd8dd7b7c32c93ebe6d6ba80334cdcfa51"
 # Whole-file pin of bounded_vec.rs (whitespace-collapsed raw source, cfg(test) module included), so
 # the unit tests replayed by rust_bounded_vec_unit_gate are the pinned ones (Opus C1''' P3-2).
@@ -663,8 +668,9 @@ INFORMATION_LOSS_BINDING_V1: Final[dict[str, str]] = {
         " crate::bounded_vec; the state module imports only serde, crate::canonical, crate::release,"
         " and that deserialiser, unaliased, never a container deserialiser or the macro name, and"
         " never a glob; each record container carries only deserialize_with naming a function"
-        " produced by exactly one item-position invocation of the local macro whose body and"
-        " implementation file are whole-file pinned; the crate root declares exactly the pinned"
+        " produced by exactly one item-position invocation of the local macro, which is defined"
+        " exactly once, may be the only fn-producing macro, and is pinned together with the whole"
+        " of state.rs and bounded_vec.rs; the crate root declares exactly the pinned"
         " module set with mod state and mod bounded_vec once each, no inline modules, and no use"
         " binding state, bounded_vec, canonical, release, or serde; manifest and lockfile pinned"
         " with default targets, exact versions, and no cargo config at the subject, HEAD, or"
@@ -746,7 +752,23 @@ _LEAN_DECL_RE: Final = re.compile(
     r"(?P<kind>theorem|lemma)[ \t]+(?P<name>[A-Za-z_][A-Za-z0-9_'.!?]*)",
     re.MULTILINE,
 )
-_LEAN_NAMESPACE_RE: Final = re.compile(r"^(namespace|end)[ \t]+(\S+)[ \t]*$", re.MULTILINE)
+_LEAN_NAMESPACE_RE: Final = re.compile(r"^[ \t]*(namespace|end)[ \t]+(\S+)[ \t]*$", re.MULTILINE)
+# Opus C1'''' P1-2: commands that can rebind what a later statement's tokens mean, add instances,
+# or open scopes are forbidden anywhere in the pinned proof file (whole words on comment-stripped
+# code; the `open` constructor of TerminalStatus survives because only the command form is banned),
+# and an elided proof region may contain only indented text without declarations.
+_LEAN_FORBIDDEN_WORDS_V1: Final[frozenset[str]] = frozenset({
+    "notation", "macro", "macro_rules", "syntax", "elab", "elab_rules", "declare_syntax_cat", "infix", "infixl",
+    "infixr", "prefix", "postfix", "export", "initialize", "builtin_initialize", "set_option", "attribute", "local",
+    "scoped", "partial", "unsafe", "opaque", "axiom", "mutual", "omit", "include", "variable", "universe", "section",
+    "instance", "class", "abbrev", "example", "simproc", "dsimproc", "register_simp_attr",
+})
+_LEAN_WORD_RE: Final = re.compile(r"(?<![A-Za-z0-9_.'])([A-Za-z_][A-Za-z0-9_]*)")
+_LEAN_OPEN_COMMAND_RE: Final = re.compile(r"^[ \t]*open\b", re.MULTILINE)
+_LEAN_INDENTED_DECL_RE: Final = re.compile(
+    r"^[ \t]+(?:@\[|def|theorem|lemma|structure|inductive|namespace|end|import)\b", re.MULTILINE
+)
+_LEAN_COLUMN_ZERO_RE: Final = re.compile(r"^(?![ \t\n|])", re.MULTILINE)
 _RUST_FIELD_RE: Final = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+?)\s*$", re.DOTALL)
 _RUST_MACRO_INVOCATION_RE: Final = re.compile(
     r"\b([A-Za-z_][A-Za-z0-9_]*)!\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*)?([\(\[{])"
@@ -1176,8 +1198,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V5:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V5}")
+    if packet.get("schema") != PACKET_SCHEMA_V6:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V6}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -1245,12 +1267,26 @@ _LEAN_ITEM_START_RE: Final = re.compile(
 )
 
 
+def lean_command_closure_v1(text: str) -> None:
+    """Reject any command that can change what a pinned statement means or add an instance."""
+
+    code = _lean_code(text)
+    for match in _LEAN_WORD_RE.finditer(code):
+        if match.group(1) in _LEAN_FORBIDDEN_WORDS_V1:
+            _reject("LEAN_COMMAND_FORBIDDEN", LEAN_PROOF_PATH_V1, f"{match.group(1)} at line {code.count(chr(10), 0, match.start()) + 1}")
+    opened = _LEAN_OPEN_COMMAND_RE.search(code)
+    if opened is not None:
+        _reject("LEAN_COMMAND_FORBIDDEN", LEAN_PROOF_PATH_V1, f"open command at line {code.count(chr(10), 0, opened.start()) + 1}")
+
+
 def lean_definition_surface_v1(text: str) -> str:
     """Return the normalised proof file with every theorem proof elided.
 
-    Imports, definitions, structures, inductives, and theorem statements stay; the proof
-    after each statement (up to the next column-zero item) is removed, so the surface hash
-    binds what the theorems mean and leaves how they are proved to replay.
+    Imports, definitions, structures, inductives, and theorem statements stay. The elided
+    region after a statement is the indented text up to the next column-zero line; that line
+    must start a recognised item (``LEAN_UNRECOGNISED_ITEM`` otherwise) and the region may
+    not contain an indented declaration, so the surface hash binds what the theorems mean
+    and leaves only how they are proved to replay (Opus C1'''' P1-2).
     """
 
     code = _lean_code(text)
@@ -1259,8 +1295,13 @@ def lean_definition_surface_v1(text: str) -> str:
     for match in _LEAN_DECL_RE.finditer(code):
         statement_end = _lean_statement_end(code, match.end())
         kept.append(code[cursor:statement_end])
-        following = _LEAN_ITEM_START_RE.search(code, statement_end)
+        following = _LEAN_COLUMN_ZERO_RE.search(code, statement_end + 1)
         cursor = following.start() if following else len(code)
+        if following is not None and cursor < len(code) and _LEAN_ITEM_START_RE.match(code, cursor) is None:
+            _reject("LEAN_UNRECOGNISED_ITEM", LEAN_PROOF_PATH_V1, code[cursor : cursor + 40].split(chr(10))[0])
+        indented = _LEAN_INDENTED_DECL_RE.search(code, statement_end, cursor)
+        if indented is not None:
+            _reject("LEAN_UNRECOGNISED_ITEM", LEAN_PROOF_PATH_V1, f"indented declaration at line {code.count(chr(10), 0, indented.start()) + 1}")
     kept.append(code[cursor:])
     return " ".join("".join(kept).split())
 
@@ -1422,7 +1463,11 @@ def python_dynamic_binding_scan_v1(
 ) -> None:
     """Reject dynamic name binding that an AST scan of definitions cannot see through."""
 
-    for node in ast.walk(_parse_python(source, path)):
+    module = _parse_python(source, path)
+    for statement in module.body:
+        if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef) and statement.name in {"__getattr__", "__dir__"}:
+            _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"module-level {statement.name} at line {statement.lineno}")
+    for node in ast.walk(module):
         if isinstance(node, ast.Import | ast.ImportFrom):
             imported = [alias.name for alias in node.names] if isinstance(node, ast.Import) else [node.module or ""]
             for name in imported:
@@ -1774,7 +1819,12 @@ def rust_lexical_closure_v1(
         _reject("RUST_EXTERN_CRATE_FORBIDDEN", path, "extern crate")
     # A macro is local only from its definition onward; item-position invocations must be
     # unqualified names of such macros.
-    definitions = {m.group(1): m.start() for m in re.finditer(r"\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)", code)}
+    definitions: dict[str, int] = {}
+    for definition in re.finditer(r"\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)", code):
+        # Opus C1'''' P1-1: a later macro_rules of the same name shadows the pinned one.
+        if definition.group(1) in definitions:
+            _reject("RUST_MACRO_REDEFINED", path, definition.group(1))
+        definitions[definition.group(1)] = definition.start()
     for match in _RUST_MACRO_INVOCATION_RE.finditer(code):
         tree = code[match.start(2) : _balanced_end(code, match.start(2))]
         head = code[match.start() : match.start() + 60]
@@ -1783,6 +1833,11 @@ def rust_lexical_closure_v1(
                 _reject("RUST_MACRO_DEFINES_ITEM", path, head)
             if _RUST_MACRO_INVOCATION_RE.search(tree):
                 _reject("RUST_MACRO_NESTED_INVOCATION", path, head)
+            # Only the pinned bounded-vec macro (defined once, body pinned by the container
+            # closure) may define a function; any other fn-producing macro is an item factory.
+            named = re.search(r"macro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)", code[match.start() : match.start(2)])
+            if re.search(r"\bfn\b", tree) and (named is None or named.group(1) != BOUNDED_VEC_MACRO_NAME_V1):
+                _reject("RUST_MACRO_DEFINES_ITEM", path, head)
         elif match.group(1) == "include_str" and allow_include_str:
             continue
         elif _brace_depth_at(code, match.start()) == 0:
@@ -2270,6 +2325,7 @@ def _project_lean(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     if placeholders:
         _reject("LEAN_PLACEHOLDER_PRESENT", LEAN_PROOF_PATH_V1, ",".join(placeholders))
     lean_namespace_check_v1(proof)
+    lean_command_closure_v1(proof)
     inventory = lean_theorem_inventory_v1(proof)
     pairs = tuple((entry.kind, entry.name) for entry in inventory)
     if pairs != THEOREM_INVENTORY_V1:
@@ -2528,6 +2584,8 @@ def _project_information_loss(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     _check_rust_record(terminal_rs, TERMINAL_FIELDS_RUST_V1, TERMINAL_FORBIDDEN_FIELDS_V1, "TERMINAL")
     _check_python_record(outbox_py, OUTBOX_FIELDS_PYTHON_V1, OUTBOX_FORBIDDEN_FIELDS_V1, "OUTBOX")
     _check_rust_record(outbox_rs, OUTBOX_FIELDS_RUST_V1, OUTBOX_FORBIDDEN_FIELDS_V1, "OUTBOX")
+    if sha256_hex_v1(_normalized(rust_source.decode("utf-8", errors="strict")).encode("utf-8")) != RUST_STATE_FILE_NORMALIZED_SHA256_V1:
+        _reject("RUST_STATE_FILE_DRIFT", RUST_STATE_PATH_V1, "whole file differs from the pinned bytes")
     return {
         "terminal_projection": _record_projection(
             terminal_py, terminal_rs, TERMINAL_ABSENT_FIELDS_V1, TERMINAL_CLASS_NAME_V1
@@ -2773,7 +2831,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V5,
+        "schema": PACKET_SCHEMA_V6,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -3557,6 +3615,7 @@ __all__ = [
     "exit_code_for_report_v1",
     "git_blob_oid_v1",
     "hygiene_lineage_key_v1",
+    "lean_command_closure_v1",
     "LEAN_DEFINITION_SURFACE_SHA256_V1",
     "lean_definition_surface_v1",
     "LEAN_STATEMENT_SHA256_V1",
