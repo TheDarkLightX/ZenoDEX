@@ -4096,18 +4096,14 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
             verifier,
         )
 
-    oversized_predecessor = replace(
-        source_state,
-        balances=tuple(
-            EconomicAmountV1(
-                f"owner-{index:04}",
-                "ZDEX",
-                "accounts",
-                index,
-            )
+    oversized_predecessor = replace(source_state, supplies=())
+    object.__setattr__(
+        oversized_predecessor,
+        "balances",
+        tuple(
+            EconomicAmountV1(f"owner-{index:04}", "ZDEX", "accounts", index)
             for index in range(4_097)
         ),
-        supplies=(),
     )
     object.__setattr__(
         oversized_predecessor.balances[0],

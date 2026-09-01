@@ -1,0 +1,136 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260901-global-settlement-v1-resource-bounds",
+  "created_date": "2026-09-01",
+  "claim_scope": "Research-only evidence that GlobalSettlementABI V1 Python effect plans and Python and Rust global states enforce matched finite collection ceilings before item traversal. Exact-limit inputs proceed to semantic validation, maximum-plus-one inputs reject at the bound, and below-limit canonical bytes and roots are unchanged.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSV1-RESOURCE-BOUNDS-BEFORE-TRAVERSAL",
+    "GSV1-PYTHON-RUST-RESOURCE-LIMIT-PARITY",
+    "GSV1-OVERSIZED-STATE-REJECTS-BEFORE-DOWNSTREAM-HASHING"
+  ],
+  "failure_modes": [
+    "a Python effect-plan collection allocates or traverses an unbounded number of hostile items",
+    "a Python or Rust global-state table reaches row validation without a finite V1 ceiling",
+    "Python and Rust enforce different V1 collection ceilings",
+    "a maximum-valid collection is rejected by an off-by-one bound",
+    "a maximum-plus-one collection reaches item behavior, hashing, or receipt verification before rejection"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "593ebe6f1800b4f764a44ca1a2d529c9e0097af5bab3c498964e1e364b5e3ab6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/canonical.rs",
+      "sha256": "6cce2178582ae4f38ff95fade6f544ae54b0d7568b7599dfa6214a56515cd46a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/state.rs",
+      "sha256": "1bd8e31d2e7e676cc92592f03707be7dbc9774ecfda674cc91b92e341e8062e2"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "8aa978e2b7bb8e9a8d906df4652b5a5a209eae7c8b77f24404ca5ab5e1e43fbf"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_state_resource_bounds.rs",
+      "sha256": "e716b98a9944321c4f448e06d790d4a18f80fb0e34bec268c58d497e59ca1bf5"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/effect_plan_resource_bounds.rs",
+      "sha256": "83f046da97b9542d0af4ffab13144f25074a000accbabc259706077f04e8c6d7"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_abi_v1_resource_bounds.py",
+      "sha256": "f7705ca92f29e6f27fa0fffbcd77527fba4be2aaf89ae4ff7629d0f51810cb5a",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_effect_plan_bounds_accept_limit_and_reject_next_before_traversal",
+        "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_global_state_bounds_accept_limit_and_reject_next_before_traversal",
+        "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_python_and_rust_v1_collection_limits_are_frozen_and_equal"
+      ]
+    },
+    {
+      "path": "tests/core/test_economic_initial_state_atom_coverage_v1.py",
+      "sha256": "2e3f60513e64ac3bea79d8bf8040b19dc7c1ea28f417cdea94b19131d026811c",
+      "node_ids": [
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_explicit_state_row_count_accepts_release_boundary_neighbors",
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_oversize_state_rejects_before_copy_validation_or_row_hashing"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "641c8c6771507b4a763417bd8c3fac5fa9a3df6eb66ed21ea67a085c5a403fb2",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_initial_state_rejects_predecessor_substitution_before_receipt"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "boundary",
+    "negative_regression",
+    "mutation",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each boundary regression arranges an exact V1 collection at the ceiling or one item above it, invokes the owning constructor or Rust validator, and observes semantic validation at the ceiling or the exact fail-closed bound rejection above it."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "These are immutable construction and validation boundaries. Rejected oversized inputs construct no accepted state, effect plan, witness, receipt, or effect."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "effect_plan_collection_cardinality",
+      "points": [
+        "exact declared maximum proceeds to semantic item validation",
+        "maximum plus one rejects before item traversal"
+      ]
+    },
+    {
+      "name": "global_state_collection_cardinality",
+      "points": [
+        "exact declared maximum proceeds to semantic item validation",
+        "maximum plus one rejects before item traversal"
+      ]
+    },
+    {
+      "name": "cross_language_limit_parity",
+      "points": [
+        "Python constants equal the frozen V1 limits",
+        "Rust constants equal the same frozen V1 limits"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "change any strict greater-than collection guard to greater-than-or-equal",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_global_state_bounds_accept_limit_and_reject_next_before_traversal"
+    },
+    {
+      "description": "move a collection guard after item validation or key projection",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_effect_plan_bounds_accept_limit_and_reject_next_before_traversal"
+    },
+    {
+      "description": "change one Python or Rust V1 collection constant independently",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_python_and_rust_v1_collection_limits_are_frozen_and_equal"
+    },
+    {
+      "description": "let an oversized migration predecessor reach row hashing or receipt verification",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_migration_initial_state_rejects_predecessor_substitution_before_receipt"
+    }
+  ],
+  "nonclaims": [
+    "This packet grants no production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "Rust serde deserialization can allocate vectors before semantic validation; a strict wire byte and preallocation boundary remains required.",
+    "The generic Python _Canonicalizable protocol, cycle and depth limits, canonical aggregate item limit, and canonical byte limit remain open.",
+    "The limits do not establish proof-cycle feasibility at every admitted maximum.",
+    "Passing these tests does not close O-008, any whole-value-movement gate, or the whole-program release gate."
+  ]
+}

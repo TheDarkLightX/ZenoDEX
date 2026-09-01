@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::canonical::{
     hash_global_v1, validate_schema_v1, validate_token_v1, AbiErrorV1, AbiResultV1, RootV1,
+    MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1, MAX_GLOBAL_ORACLE_ROWS_V1, MAX_GLOBAL_OUTBOX_ROWS_V1,
+    MAX_GLOBAL_REPLAY_ROWS_V1, MAX_GLOBAL_SUPPLY_ROWS_V1, MAX_GLOBAL_TERMINAL_ROWS_V1,
 };
 use crate::release::{
     EconomicProfileSnapshotV1, LaneIdV1, LaneRegistryV1, ReleaseStatusV1, ALL_LANE_IDS_V1,
@@ -183,6 +185,7 @@ pub struct GlobalEconomicStateV1 {
 
 impl GlobalEconomicStateV1 {
     pub fn validate(&self) -> AbiResultV1<()> {
+        self.validate_resource_bounds()?;
         validate_schema_v1(&self.schema)?;
         validate_token_v1(&self.chain_id, "global state chain id")?;
         self.deployment_root
@@ -255,6 +258,61 @@ impl GlobalEconomicStateV1 {
             |row| row.effect_id.clone(),
             OutboxStateV1::validate,
         )
+    }
+
+    fn validate_resource_bounds(&self) -> AbiResultV1<()> {
+        for (field, length, maximum) in [
+            (
+                "global state balances",
+                self.balances.len(),
+                MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
+            ),
+            (
+                "global state custody",
+                self.custody.len(),
+                MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
+            ),
+            (
+                "global state liabilities",
+                self.liabilities.len(),
+                MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
+            ),
+            (
+                "global state reserves",
+                self.reserves.len(),
+                MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
+            ),
+            (
+                "global state supplies",
+                self.supplies.len(),
+                MAX_GLOBAL_SUPPLY_ROWS_V1,
+            ),
+            (
+                "global state oracle occurrences",
+                self.oracle_occurrences.len(),
+                MAX_GLOBAL_ORACLE_ROWS_V1,
+            ),
+            (
+                "global state replay state",
+                self.replay_state.len(),
+                MAX_GLOBAL_REPLAY_ROWS_V1,
+            ),
+            (
+                "global state terminal obligations",
+                self.terminal_obligations.len(),
+                MAX_GLOBAL_TERMINAL_ROWS_V1,
+            ),
+            (
+                "global state outbox",
+                self.outbox.len(),
+                MAX_GLOBAL_OUTBOX_ROWS_V1,
+            ),
+        ] {
+            if length > maximum {
+                return Err(AbiErrorV1::InvalidBounds(field));
+            }
+        }
+        Ok(())
     }
 
     pub fn state_root(&self) -> AbiResultV1<RootV1> {

@@ -23,6 +23,18 @@ MAX_ROUTE_MODULES_V1: Final = 8
 MAX_EPOCH_COMMANDS_V1: Final = 64
 MAX_EPOCH_LEAF_OCCURRENCES_V1: Final = 64
 MAX_POLICY_BINDINGS_V1: Final = 256
+MAX_EFFECT_PLAN_ROWS_V1: Final = 4_096
+MAX_EFFECT_PLAN_ASSET_CONSERVATION_ROWS_V1: Final = 256
+MAX_EFFECT_PLAN_FEE_CONSERVATION_ROWS_V1: Final = 256
+MAX_EFFECT_PLAN_LANE_WRITES_V1: Final = 12
+MAX_EFFECT_PLAN_OCCURRENCE_CONSUMPTIONS_V1: Final = 4_096
+MAX_EFFECT_PLAN_EXTERNAL_OUTBOX_ROWS_V1: Final = 4_096
+MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1: Final = 4_096
+MAX_GLOBAL_SUPPLY_ROWS_V1: Final = 256
+MAX_GLOBAL_ORACLE_ROWS_V1: Final = 4_096
+MAX_GLOBAL_REPLAY_ROWS_V1: Final = 4_096
+MAX_GLOBAL_TERMINAL_ROWS_V1: Final = 4_096
+MAX_GLOBAL_OUTBOX_ROWS_V1: Final = 4_096
 MAX_JOURNAL_BYTES_V1: Final = 1_048_576
 MAX_CYCLE_BUDGET_V1: Final = 1 << 40
 MAX_U64_V1: Final = (1 << 64) - 1
@@ -191,8 +203,11 @@ def _require_sorted_unique_tokens(
     *,
     name: str,
     allow_empty: bool = True,
+    maximum: int | None = None,
 ) -> tuple[str, ...]:
     items = _require_tuple(values, name=name)
+    if maximum is not None and len(items) > maximum:
+        raise ValueError(f"{name} exceeds its {maximum}-item ceiling")
     normalized = tuple(_require_token(item, name=f"{name}[{index}]") for index, item in enumerate(items))
     if not allow_empty and not normalized:
         raise ValueError(f"{name} must not be empty")
@@ -1281,8 +1296,11 @@ def _require_ordered_objects(
     name: str,
     expected_type: type[object],
     key: str,
+    maximum: int | None = None,
 ) -> tuple[object, ...]:
     items = _require_tuple(values, name=name)
+    if maximum is not None and len(items) > maximum:
+        raise ValueError(f"{name} exceeds its {maximum}-item ceiling")
     if any(type(item) is not expected_type for item in items):
         raise TypeError(f"{name} contains an invalid value")
     keys = tuple(getattr(item, key) for item in items)
@@ -1328,24 +1346,28 @@ class GlobalEconomicStateV1:
                 name=f"global state {field_name}",
                 expected_type=EconomicAmountV1,
                 key="key",
+                maximum=MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
             )
         _require_ordered_objects(
             self.supplies,
             name="global state supplies",
             expected_type=AssetSupplyV1,
             key="asset",
+            maximum=MAX_GLOBAL_SUPPLY_ROWS_V1,
         )
         _require_ordered_objects(
             self.oracle_occurrences,
             name="global state oracle occurrences",
             expected_type=OracleOccurrenceStateV1,
             key="oracle_id",
+            maximum=MAX_GLOBAL_ORACLE_ROWS_V1,
         )
         _require_ordered_objects(
             self.replay_state,
             name="global state replay state",
             expected_type=ReplayStateV1,
             key="replay_id",
+            maximum=MAX_GLOBAL_REPLAY_ROWS_V1,
         )
         replay_occurrence_ids = tuple(row.occurrence_id for row in self.replay_state)
         if len(replay_occurrence_ids) != len(set(replay_occurrence_ids)):
@@ -1355,6 +1377,7 @@ class GlobalEconomicStateV1:
             name="global state terminal obligations",
             expected_type=TerminalObligationV1,
             key="obligation_id",
+            maximum=MAX_GLOBAL_TERMINAL_ROWS_V1,
         )
         _require_root(self.history_root, name="global state history root", allow_zero=True)
         _require_ordered_objects(
@@ -1362,6 +1385,7 @@ class GlobalEconomicStateV1:
             name="global state outbox",
             expected_type=OutboxStateV1,
             key="effect_id",
+            maximum=MAX_GLOBAL_OUTBOX_ROWS_V1,
         )
 
     @property
@@ -1628,28 +1652,33 @@ class GlobalEconomicEffectPlanV1:
             name="effect plan rows",
             expected_type=EconomicEffectRowV1,
             key="key",
+            maximum=MAX_EFFECT_PLAN_ROWS_V1,
         )
         _require_ordered_objects(
             self.asset_conservation,
             name="effect plan asset conservation",
             expected_type=AssetConservationRowV1,
             key="asset",
+            maximum=MAX_EFFECT_PLAN_ASSET_CONSERVATION_ROWS_V1,
         )
         _require_ordered_objects(
             self.fee_conservation,
             name="effect plan fee conservation",
             expected_type=FeeConservationRowV1,
             key="asset",
+            maximum=MAX_EFFECT_PLAN_FEE_CONSERVATION_ROWS_V1,
         )
         _require_ordered_objects(
             self.lane_writes,
             name="effect plan lane writes",
             expected_type=LaneWriteV1,
             key="lane_id",
+            maximum=MAX_EFFECT_PLAN_LANE_WRITES_V1,
         )
         consumptions = _require_sorted_unique_tokens(
             self.occurrence_consumptions,
             name="effect plan occurrence consumptions",
+            maximum=MAX_EFFECT_PLAN_OCCURRENCE_CONSUMPTIONS_V1,
         )
         for index, occurrence_id in enumerate(consumptions):
             _require_root(occurrence_id, name=f"effect plan occurrence consumption[{index}]")
@@ -1658,6 +1687,7 @@ class GlobalEconomicEffectPlanV1:
             name="effect plan external outbox",
             expected_type=ExternalOutboxEnqueueV1,
             key="effect_id",
+            maximum=MAX_EFFECT_PLAN_EXTERNAL_OUTBOX_ROWS_V1,
         )
         self._validate_issue_burn_projection()
         self._validate_fee_projection()
@@ -1828,6 +1858,18 @@ __all__ = [
     "MAX_EPOCH_COMMANDS_V1",
     "MAX_EPOCH_LEAF_OCCURRENCES_V1",
     "MAX_POLICY_BINDINGS_V1",
+    "MAX_EFFECT_PLAN_ROWS_V1",
+    "MAX_EFFECT_PLAN_ASSET_CONSERVATION_ROWS_V1",
+    "MAX_EFFECT_PLAN_FEE_CONSERVATION_ROWS_V1",
+    "MAX_EFFECT_PLAN_LANE_WRITES_V1",
+    "MAX_EFFECT_PLAN_OCCURRENCE_CONSUMPTIONS_V1",
+    "MAX_EFFECT_PLAN_EXTERNAL_OUTBOX_ROWS_V1",
+    "MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1",
+    "MAX_GLOBAL_SUPPLY_ROWS_V1",
+    "MAX_GLOBAL_ORACLE_ROWS_V1",
+    "MAX_GLOBAL_REPLAY_ROWS_V1",
+    "MAX_GLOBAL_TERMINAL_ROWS_V1",
+    "MAX_GLOBAL_OUTBOX_ROWS_V1",
     "MAX_JOURNAL_BYTES_V1",
     "MAX_CYCLE_BUDGET_V1",
     "MAX_U64_V1",

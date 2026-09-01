@@ -19,6 +19,7 @@ from src.core.economic_initial_state_atom_coverage_v1 import (
 )
 from src.core.global_settlement_types_v1 import (
     ALL_LANE_IDS_V1,
+    MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
     AssetSupplyV1,
     EconomicAmountV1,
     GlobalEconomicStateV1,
@@ -334,11 +335,14 @@ def test_manifest_row_bound_and_exact_integer_index_bva() -> None:
 
 def _state_with_balance_count(row_count: int) -> GlobalEconomicStateV1:
     state = _state()
-    return replace(
+    balances = tuple(
+        EconomicAmountV1(f"owner-{index:04}", "ZDEX", "accounts", index)
+        for index in range(row_count)
+    )
+    bounded_state = replace(
         state,
-        balances=tuple(
-            EconomicAmountV1(f"owner-{index:04}", "ZDEX", "accounts", index)
-            for index in range(row_count)
+        balances=(
+            balances if row_count <= MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1 else ()
         ),
         supplies=(),
         custody=(),
@@ -346,6 +350,9 @@ def _state_with_balance_count(row_count: int) -> GlobalEconomicStateV1:
         reserves=(),
         terminal_obligations=(),
     )
+    if row_count > MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1:
+        object.__setattr__(bounded_state, "balances", balances)
+    return bounded_state
 
 
 @pytest.mark.parametrize("row_count", (4_095, 4_096))
