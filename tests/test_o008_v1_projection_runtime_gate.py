@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
+import os
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,17 @@ ROOT = Path(__file__).resolve().parents[1]
 TYPES_PATH = "src/core/global_settlement_types_v1.py"
 TERMINAL_FIELDS = ("obligation_id", "lane_id", "claimant", "asset", "amount_atoms", "status")
 OUTBOX_FIELDS = ("effect_id", "destination_id", "payload_hash", "commit_id", "status")
+# Unknown keyword names the records must reject; pinned by the admission core to its own
+# forbidden-field constants so the gate cannot quietly shrink its coverage.
+TERMINAL_UNKNOWN_FIELDS = (
+    "liability_domain",
+    "control_domain",
+    "custody_domain",
+    "custody_principal",
+    "controlling_principal",
+    "source_principal",
+)
+OUTBOX_UNKNOWN_FIELDS = ("asset", "amount_atoms")
 ROOT_HEX = "0x" + "1" * 64
 
 
@@ -51,7 +63,7 @@ def test_outbox_record_runtime_fields_and_canonical_keys_are_exact() -> None:
     assert tuple(_outbox().to_canonical()) == OUTBOX_FIELDS
 
 
-@pytest.mark.parametrize("extra", ["liability_domain", "custody_principal"])
+@pytest.mark.parametrize("extra", TERMINAL_UNKNOWN_FIELDS, ids=TERMINAL_UNKNOWN_FIELDS)
 def test_terminal_record_rejects_unknown_fields_at_construction(extra: str) -> None:
     with pytest.raises(TypeError):
         TerminalObligationV1(
@@ -59,7 +71,7 @@ def test_terminal_record_rejects_unknown_fields_at_construction(extra: str) -> N
         )
 
 
-@pytest.mark.parametrize("extra", ["asset", "amount_atoms"])
+@pytest.mark.parametrize("extra", OUTBOX_UNKNOWN_FIELDS, ids=OUTBOX_UNKNOWN_FIELDS)
 def test_outbox_record_rejects_unknown_fields_at_construction(extra: str) -> None:
     with pytest.raises(TypeError):
         OutboxStateV1(ROOT_HEX, "dest-1", ROOT_HEX, ROOT_HEX, OutboxStatusV1.PENDING, **{extra: 1})
@@ -73,6 +85,23 @@ def test_records_are_frozen_slots_classes_defined_in_the_pinned_module() -> None
         assert not hasattr(instance, "__dict__")
         with pytest.raises(dataclasses.FrozenInstanceError):
             setattr(instance, dataclasses.fields(cls)[0].name, "mutated")
+
+
+def test_records_reject_seeded_unknown_kwargs() -> None:
+    """Property check: every generated unknown keyword is rejected at construction (seed printed)."""
+
+    seed = int.from_bytes(os.urandom(8), "big")
+    print(f"seeded_unknown_kwargs seed={seed:#018x}")
+    state = seed | 1
+    for _ in range(64):
+        state ^= (state >> 12) & 0xFFFF_FFFF_FFFF_FFFF
+        state ^= (state << 25) & 0xFFFF_FFFF_FFFF_FFFF
+        state ^= (state >> 27) & 0xFFFF_FFFF_FFFF_FFFF
+        key = f"k_{(state * 0x2545F4914F6CDD1D) & 0xFFFF_FFFF_FFFF_FFFF:016x}"
+        with pytest.raises(TypeError):
+            TerminalObligationV1("terminal-1", LaneIdV1.ASSET_TRANSFER, "alice", "USD", 1, TerminalObligationStatusV1.OPEN, **{key: "x"})
+        with pytest.raises(TypeError):
+            OutboxStateV1(ROOT_HEX, "dest-1", ROOT_HEX, ROOT_HEX, OutboxStatusV1.PENDING, **{key: "x"})
 
 
 def test_state_containers_hold_exactly_the_record_types() -> None:

@@ -30,6 +30,7 @@ import hashlib
 import json
 import re
 import tomllib
+import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final, NoReturn
@@ -73,6 +74,18 @@ RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
 RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
 RUST_MANIFEST_PATH_V1: Final = "zk/global_settlement_abi_v1/Cargo.toml"
 RUST_GATE_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/v1_projection_gate.rs"
+RUST_BOUNDED_VEC_PATH_V1: Final = "zk/global_settlement_abi_v1/src/bounded_vec.rs"
+RUST_LOCKFILE_PATH_V1: Final = "zk/global_settlement_abi_v1/Cargo.lock"
+# Cargo reads these from the crate directory upward; none may exist at the subject commit,
+# at HEAD, or in the worktree, so no config can redirect sources, wrap rustc, or add flags.
+CARGO_CONFIG_FORBIDDEN_PATHS_V1: Final[tuple[str, ...]] = (
+    ".cargo/config.toml",
+    ".cargo/config",
+    "zk/.cargo/config.toml",
+    "zk/.cargo/config",
+    "zk/global_settlement_abi_v1/.cargo/config.toml",
+    "zk/global_settlement_abi_v1/.cargo/config",
+)
 RUST_CRATE_DIR_V1: Final = "zk/global_settlement_abi_v1"
 RUST_CRATE_NAME_V1: Final = "zenodex-global-settlement-abi-v1"
 RUST_GATE_TARGET_V1: Final = "v1_projection_gate"
@@ -99,6 +112,8 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (RUST_STATE_PATH_V1, "rust_v1_wire_schema"),
     (RUST_LIB_PATH_V1, "rust_crate_root_module_closure"),
     (RUST_MANIFEST_PATH_V1, "rust_crate_manifest_closure"),
+    (RUST_BOUNDED_VEC_PATH_V1, "rust_bounded_vec_deserializer_closure"),
+    (RUST_LOCKFILE_PATH_V1, "rust_crate_lockfile"),
     (PYTHON_GATE_PATH_V1, "python_runtime_projection_gate"),
     (RUST_GATE_PATH_V1, "rust_compiled_projection_gate"),
     (ESSO_MODEL_PATH_V1, "bounded_exact_target_model"),
@@ -136,6 +151,8 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     RUST_STATE_PATH_V1,
     RUST_LIB_PATH_V1,
     RUST_MANIFEST_PATH_V1,
+    RUST_BOUNDED_VEC_PATH_V1,
+    RUST_LOCKFILE_PATH_V1,
     PYTHON_REFINEMENT_PATH_V1,
     RUST_REFINEMENT_PATH_V1,
     GOLDEN_RENDERER_PATH_V1,
@@ -202,7 +219,8 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     " under five substantive invariants",
     "Lean proves the bounded necessary relation, the exact current-profile relation, exact"
     " deposit/drain preservation, strict weakening of the aggregate and reserve-inclusive"
-    " predicates, reserve independence, and V1 terminal control-domain information loss",
+    " predicates, reserve independence (definitional, disclosed), and V1 terminal"
+    " control-domain information loss",
     "the old bounded formal blueprint no longer maps terminal metadata into the owned-atom sum",
     "all twelve lanes were audited for exact reconciliation source data",
     "the smallest wire-compatible sidecar contract and its missing producer/proof obligations"
@@ -330,6 +348,10 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " therefore grants evidence-only authority.",
     "Recorded proof replay results are packet-author observations; packet admission reports"
     " proof replay as NOT_RUN unless the checker executed the recorded tools.",
+    "Without proof replay the author record's python and rust versions and the Lean axioms"
+    " probe hash are shape-checked only; fresh replay is what compares them.",
+    "Selected test-hygiene packets are bound by pin only; their evidence families and mutation"
+    " tables are validated by tools/check_test_hygiene_v1.py, which this checker does not run.",
     "No production, release, settlement, verifier, migration, publication, or value-moving"
     " authority is granted.",
 )
@@ -393,6 +415,14 @@ ALLOWED_LEAN_AXIOMS_V1: Final[frozenset[str]] = frozenset(
     {"propext", "Quot.sound", "Classical.choice"}
 )
 LEAN_NO_RECOVERY_THEOREM_V1: Final = "terminalProjection_hasNoUniversalDomainRecovery"
+# Theorems whose proofs are `Iff.rfl`/`rfl` and whose docstrings disclose that; reported
+# separately so the theorem count never overstates derived content.
+LEAN_DEFINITIONAL_THEOREMS_V1: Final[tuple[str, ...]] = (
+    "necessaryRelation_independent_of_reserves",
+    "exactCurrentProfileCustody_independent_of_reserves",
+    "deposit_preserves_reserves",
+    "drain_preserves_reserves",
+)
 LEAN_GATE_EXPECTED_PASSED_V1: Final = 6
 LEAN_CLAIM_BOUNDARY_V1: Final = (
     "bounded cardinality relation over natural-number atoms; no canonical bytes, cryptographic"
@@ -478,6 +508,41 @@ TERMINAL_FORBIDDEN_FIELDS_V1: Final[tuple[str, ...]] = (
 OUTBOX_FORBIDDEN_FIELDS_V1: Final[tuple[str, ...]] = ("asset", "amount_atoms")
 TERMINAL_ABSENT_FIELDS_V1: Final[tuple[str, ...]] = ("liability_domain", "custody_principal")
 STATE_CLASS_NAME_V1: Final = "GlobalEconomicStateV1"
+CONTAINER_DESERIALIZERS_V1: Final[dict[str, str]] = {
+    "terminal_obligations": "deserialize_terminal_obligations_v1",
+    "outbox": "deserialize_outbox_v1",
+}
+BOUNDED_VEC_MACRO_NAME_V1: Final = "bounded_state_vec_deserializer_v1"
+# Whitespace-normalised body of the local macro that produces every container deserialiser.
+BOUNDED_VEC_MACRO_BODY_V1: Final = "($function:ident, $row:ty, $maximum:expr, $label:literal) => { fn $function<'de, D>(deserializer: D) -> Result<Vec<$row>, D::Error> where D: Deserializer<'de>, { deserialize_bounded_vec_v1::<D, $row, $maximum>(deserializer, $label) } };"
+# Whitespace-normalised fragments of bounded_vec.rs that fix the decoding path: the visitor
+# decodes every element through `T: Deserialize` (the record's derive) and nothing else.
+BOUNDED_VEC_REQUIRED_FRAGMENTS_V1: Final[tuple[str, ...]] = (
+    "pub(crate) fn deserialize_bounded_vec_v1<'de, D, T, const MAXIMUM: usize>( deserializer: D, label: &'static str, ) -> Result<Vec<T>, D::Error> where D: Deserializer<'de>, T: Deserialize<'de>, { deserializer.deserialize_seq(BoundedVecVisitorV1::<T, MAXIMUM> { label, marker: PhantomData, }) }",
+    "impl<'de, T, const MAXIMUM: usize> Visitor<'de> for BoundedVecVisitorV1<T, MAXIMUM> where T: Deserialize<'de>, { type Value = Vec<T>;",
+    'match sequence.next_element()? { Some(value) => values.push(value), None => return Ok(values), }',
+)
+# Closed content of the two compiled/imported projection gates.
+# The only file the compiled gate may embed: the pinned golden fixture, by its crate-relative path.
+RUST_GATE_INCLUDES_V1: Final[tuple[str, ...]] = ("../../../tests/data/global_claimant_backing_guard_v1_golden.json",)
+RUST_GATE_TESTS_V1: Final[tuple[str, ...]] = (
+    "terminal_record_serialises_fields_in_declared_order",
+    "outbox_record_serialises_fields_in_declared_order",
+    "terminal_record_rejects_unknown_fields",
+    "outbox_record_rejects_unknown_fields",
+    "state_container_rejects_unknown_terminal_field_through_the_compiled_type",
+    "state_container_rejects_unknown_outbox_field_through_the_compiled_type",
+    "records_and_containers_reject_seeded_unknown_keys",
+)
+PYTHON_GATE_TESTS_V1: Final[tuple[str, ...]] = (
+    "test_terminal_record_runtime_fields_and_canonical_keys_are_exact",
+    "test_outbox_record_runtime_fields_and_canonical_keys_are_exact",
+    "test_terminal_record_rejects_unknown_fields_at_construction",
+    "test_outbox_record_rejects_unknown_fields_at_construction",
+    "test_records_are_frozen_slots_classes_defined_in_the_pinned_module",
+    "test_records_reject_seeded_unknown_kwargs",
+    "test_state_containers_hold_exactly_the_record_types",
+)
 CONTAINER_RECORD_FIELDS_V1: Final[tuple[tuple[str, str], ...]] = (
     ("terminal_obligations", "TerminalObligationV1"),
     ("outbox", "OutboxStateV1"),
@@ -514,8 +579,14 @@ REPLAY_STATUS_EXECUTED_PASS_V1: Final = "EXECUTED_PASS"
 REPLAY_STATUS_EXECUTED_FAIL_V1: Final = "EXECUTED_FAIL"
 REPLAY_STATUS_REFUSED_V1: Final = "REFUSED"
 PYTHON_TOKEN_V1: Final = "<PYTHON>"
-PYTHON_GATE_EXPECTED_PASSED_V1: Final = 8
-RUST_GATE_EXPECTED_PASSED_V1: Final = 5
+PYTHON_GATE_EXPECTED_PASSED_V1: Final = 13
+RUST_GATE_EXPECTED_PASSED_V1: Final = 7
+RUST_REFINEMENT_GATE_EXPECTED_PASSED_V1: Final = 41
+RUST_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 3
+RUST_REFINEMENT_GATE_TARGET_V1: Final = "global_economic_state_effect_refinement"
+RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
+PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
+_CARGO_VERSION_RE: Final = re.compile(r"^cargo ([0-9]+\.[0-9]+\.[0-9]+)")
 EMPTY_SHA256_V1: Final = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 _SEMVER_RE: Final = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 _CARGO_SUMMARY_RE: Final = re.compile(
@@ -539,6 +610,9 @@ _RUST_MACRO_INVOCATION_RE: Final = re.compile(
     r"\b([A-Za-z_][A-Za-z0-9_]*)!\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*)?([\(\[{])"
 )
 _RUST_ITEM_KEYWORD_RE: Final = re.compile(r"\b(?:struct|enum|union|trait|impl|type|mod|use|extern)\b")
+# `use` statements tokenised from stripped code: anchored on statement boundaries, not lines.
+_RUST_USE_RE: Final = re.compile(r"(?:^|[;{}])\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([^;{}]+);")
+_RUST_TEST_FN_RE: Final = re.compile(r"#\[test\]\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)")
 _RUST_ATTR_PREFIX_RE: Final = re.compile(
     r"((?:#\[[^\]]*\]\s*)+)(?:pub(?:\([^)]*\))?\s+)?$", re.DOTALL
 )
@@ -595,6 +669,7 @@ class SubjectSnapshotV1:
     subject_tree: str
     blobs: Mapping[str, SourceBlobV1]
     hygiene_packets: Mapping[str, SourceBlobV1] = field(default_factory=dict)
+    forbidden_paths_present: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -616,6 +691,7 @@ class PacketTopologyV1:
 class CurrentSourceStateV1:
     head_blob_ids: Mapping[str, str | None]
     worktree_sha256: Mapping[str, str | None]
+    forbidden_paths_present: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -795,6 +871,38 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         f"exit 0; {RUST_GATE_EXPECTED_PASSED_V1} passed",
         1800,
     ),
+    ReplayCommandV1(
+        "rust_version",
+        ("cargo", "--version"),
+        RUST_CRATE_DIR_V1,
+        (),
+        "exit 0; one cargo version line",
+        60,
+    ),
+    ReplayCommandV1(
+        "rust_refinement_gate",
+        ("cargo", "test", "--offline", "--locked", "--test", RUST_REFINEMENT_GATE_TARGET_V1),
+        RUST_CRATE_DIR_V1,
+        ("CARGO_TARGET_DIR", "CARGO_INCREMENTAL"),
+        f"exit 0; {RUST_REFINEMENT_GATE_EXPECTED_PASSED_V1} passed",
+        1800,
+    ),
+    ReplayCommandV1(
+        "python_golden_gate",
+        (PYTHON_TOKEN_V1, "-m", "pytest", "-q", "-p", "no:cacheprovider", GOLDEN_PYTHON_TEST_PATH_V1),
+        ".",
+        (),
+        f"exit 0; {PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1} passed",
+        600,
+    ),
+    ReplayCommandV1(
+        "rust_golden_gate",
+        ("cargo", "test", "--offline", "--locked", "--test", RUST_GOLDEN_GATE_TARGET_V1),
+        RUST_CRATE_DIR_V1,
+        ("CARGO_TARGET_DIR", "CARGO_INCREMENTAL"),
+        f"exit 0; {RUST_GOLDEN_GATE_EXPECTED_PASSED_V1} passed",
+        1800,
+    ),
 )
 REPLAY_COMMAND_IDS_V1: Final[tuple[str, ...]] = tuple(c.command_id for c in REPLAY_COMMANDS_V1)
 
@@ -832,8 +940,15 @@ def _closed_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+_ASCII_PRINTABLE_RE: Final = re.compile(r"[\x20-\x7e]*")
+
+
 def _validate_json_value(value: object, context: str) -> None:
-    if value is None or type(value) in {bool, int, str}:
+    if type(value) is str:
+        if _ASCII_PRINTABLE_RE.fullmatch(value) is None:
+            _reject("PACKET_NON_ASCII", context, "string must be printable ASCII")
+        return
+    if value is None or type(value) in {bool, int}:
         return
     if type(value) is list:
         for index, item in enumerate(value):
@@ -1067,17 +1182,35 @@ def python_class_shape_v1(source: bytes, class_name: str, path: str) -> ClassSha
 
 
 def python_container_field_annotations_v1(source: bytes, class_name: str, path: str) -> dict[str, str]:
-    """Return ``{field: annotation}`` of a module-level class without the record-only closure."""
+    """Return ``{field: annotation}`` of a module-level class under the same closure as the records."""
 
-    module = _parse_python(source, path)
-    found = [n for n in module.body if isinstance(n, ast.ClassDef) and n.name == class_name]
-    if len(found) != 1:
-        _reject("PYTHON_CLASS_MISSING", path, class_name)
+    node = _top_level_class(_parse_python(source, path), class_name, path)
     return {
         item.target.id: ast.unparse(item.annotation)
-        for item in found[0].body
+        for item in node.body
         if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name)
     }
+
+
+_PYTHON_DYNAMIC_CALLS_V1: Final[frozenset[str]] = frozenset(
+    {"exec", "eval", "compile", "__import__", "globals", "locals", "vars", "setattr", "delattr"}
+)
+# A gate file may call setattr on an instance under test; module rebinding stays forbidden.
+_PYTHON_GATE_DYNAMIC_CALLS_V1: Final[frozenset[str]] = _PYTHON_DYNAMIC_CALLS_V1 - {"setattr", "delattr"}
+
+
+def python_dynamic_binding_scan_v1(
+    source: bytes, path: str, forbidden: frozenset[str] = _PYTHON_DYNAMIC_CALLS_V1
+) -> None:
+    """Reject dynamic name binding that an AST scan of definitions cannot see through."""
+
+    for node in ast.walk(_parse_python(source, path)):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in forbidden:
+            _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"{node.func.id}() at line {node.lineno}")
+        if isinstance(node, ast.Subscript) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            target = ast.unparse(node.value)
+            if target.endswith(".modules") or target in {"globals()", "locals()", "vars()"}:
+                _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"{target}[...] at line {node.lineno}")
 
 
 def _top_level_assignments(module: ast.Module) -> dict[str, ast.expr]:
@@ -1273,8 +1406,11 @@ def _split_depth_zero_commas(body: str) -> list[str]:
     items: list[str] = []
     depth = 0
     current: list[str] = []
+    previous = ""
     for char in body:
-        depth += {"(": 1, "[": 1, "<": 1, ")": -1, "]": -1, ">": -1}.get(char, 0)
+        if not (char == ">" and previous == "-"):
+            depth += {"(": 1, "[": 1, "<": 1, ")": -1, "]": -1, ">": -1}.get(char, 0)
+        previous = char
         if char == "," and depth == 0:
             items.append("".join(current))
             current = []
@@ -1349,7 +1485,15 @@ def _rust_record_attributes(code: str, start: int, name: str, path: str) -> None
         _reject("RUST_STRUCT_ATTRIBUTES_DRIFT", path, f"{name} must derive Serialize and Deserialize")
 
 
-def rust_lexical_closure_v1(source: bytes, path: str, record_names: tuple[str, ...]) -> str:
+def rust_lexical_closure_v1(
+    source: bytes,
+    path: str,
+    record_names: tuple[str, ...],
+    *,
+    allow_cfg_test: bool = False,
+    defines_bounded_vec: bool = False,
+    allow_include_str: tuple[str, ...] = (),
+) -> str:
     """Reject the source constructs that let a textual struct scan diverge from the compiled type.
 
     Without ``cfg``, ``include!``, ``#[path]``, item-defining or nested-invoking local
@@ -1364,13 +1508,21 @@ def rust_lexical_closure_v1(source: bytes, path: str, record_names: tuple[str, .
     except UnicodeDecodeError as exc:
         _reject("RUST_SOURCE_UNPARSEABLE", path, type(exc).__name__)
     code = strip_rust_noncode_v1(text)
-    if re.search(r"#!?\[\s*cfg", code):
-        _reject("RUST_CFG_FORBIDDEN", path, "cfg or cfg_attr attribute")
-    if re.search(r"\binclude(?:_str|_bytes)?!", code):
+    for cfg in re.finditer(r"#!?\[\s*cfg[^\]]*\]", code):
+        if not (allow_cfg_test and " ".join(cfg.group(0).split()) == "#[cfg(test)]"):
+            _reject("RUST_CFG_FORBIDDEN", path, "cfg or cfg_attr attribute")
+    if re.search(r"\binclude(?:_bytes)?!", code):
         _reject("RUST_INCLUDE_FORBIDDEN", path, "include macro")
+    includes = re.findall(r'\binclude_str!\s*\(\s*"([^"]*)"\s*\)', text)
+    if len(includes) != len(re.findall(r"\binclude_str!", code)) or any(t not in allow_include_str for t in includes):
+        _reject("RUST_INCLUDE_FORBIDDEN", path, "include_str outside the allowed targets")
     if re.search(r"#!?\[\s*path\s*=", code):
         _reject("RUST_PATH_ATTRIBUTE_FORBIDDEN", path, "path attribute")
-    local_macros = set(re.findall(r"\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)", code))
+    if re.search(r"\bextern\s+crate\b", code):
+        _reject("RUST_EXTERN_CRATE_FORBIDDEN", path, "extern crate")
+    # A macro is local only from its definition onward; item-position invocations must be
+    # unqualified names of such macros.
+    definitions = {m.group(1): m.start() for m in re.finditer(r"\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)", code)}
     for match in _RUST_MACRO_INVOCATION_RE.finditer(code):
         tree = code[match.start(2) : _balanced_end(code, match.start(2))]
         head = code[match.start() : match.start() + 60]
@@ -1379,15 +1531,25 @@ def rust_lexical_closure_v1(source: bytes, path: str, record_names: tuple[str, .
                 _reject("RUST_MACRO_DEFINES_ITEM", path, head)
             if _RUST_MACRO_INVOCATION_RE.search(tree):
                 _reject("RUST_MACRO_NESTED_INVOCATION", path, head)
+        elif match.group(1) == "include_str" and allow_include_str:
+            continue
         elif _brace_depth_at(code, match.start()) == 0:
-            if match.group(1) not in local_macros:
+            qualified = code[max(0, match.start() - 2) : match.start()] == "::"
+            defined_before = definitions.get(match.group(1))
+            if qualified or defined_before is None or defined_before > match.start():
                 _reject("RUST_FOREIGN_ITEM_MACRO", path, head)
             if _RUST_ITEM_KEYWORD_RE.search(tree):
                 _reject("RUST_MACRO_DEFINES_ITEM", path, head)
-    for use in re.finditer(r"^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([^;]+);", code, re.MULTILINE):
+    for use in _RUST_USE_RE.finditer(code):
         target = " ".join(use.group(1).split())
         if re.search(r"\b(?:Serialize|Deserialize|Serializer|Deserializer)\b", target) and not target.startswith("serde::"):
             _reject("RUST_SERDE_IMPORT_DRIFT", path, target[:60])
+        if (
+            not defines_bounded_vec
+            and "deserialize_bounded_vec_v1" in target
+            and target != "crate::bounded_vec::deserialize_bounded_vec_v1"
+        ):
+            _reject("RUST_BOUNDED_VEC_IMPORT_DRIFT", path, target[:60])
     return code
 
 
@@ -1414,12 +1576,96 @@ def rust_struct_shape_v1(source: bytes, struct_name: str, path: str) -> StructSh
     )
 
 
+def _rust_fields_with_attributes(body: str, path: str) -> dict[str, tuple[str, str]]:
+    """Return ``{field: (attribute block, type)}`` for a struct whose fields may carry attributes."""
+
+    fields: dict[str, tuple[str, str]] = {}
+    for item in _split_depth_zero_commas(body):
+        text = item.strip()
+        attributes: list[str] = []
+        while text.startswith("#["):
+            end = text.find("]")
+            attributes.append(" ".join(text[: end + 1].split()) if end >= 0 else text)
+            text = text[end + 1 :].lstrip() if end >= 0 else ""
+        text = re.sub(r"^pub(?:\([^)]*\))?\s+", "", text)
+        match = _RUST_FIELD_RE.match(text)
+        if match is None:
+            _reject("RUST_FIELD_UNPARSEABLE", path, item.strip()[:60])
+        fields[match.group(1)] = (" ".join(attributes), " ".join(match.group(2).split()))
+    return fields
+
+
 def rust_container_field_types_v1(source: bytes, struct_name: str, path: str) -> dict[str, str]:
     """Return ``{field: type}`` of a top-level struct whose fields may carry attributes."""
 
     code = strip_rust_noncode_v1(source.decode("utf-8", errors="strict"))
     _, body_start, body_end = _rust_struct_body(code, struct_name, path)
-    return dict(_rust_fields(code[body_start:body_end], path, allow_attributes=True))
+    return {name: kind for name, (_, kind) in _rust_fields_with_attributes(code[body_start:body_end], path).items()}
+
+
+def _normalized(text: str) -> str:
+    return " ".join(text.split())
+
+
+def rust_container_deserializer_closure_v1(source: bytes, path: str) -> None:
+    """Bind the two record containers' deserialisers to the local bounded-vec macro.
+
+    The only attribute a record container may carry is
+    ``#[serde(deserialize_with = "<fn>")]`` naming the closed deserialiser for that
+    container; that function must be produced by exactly one item-position
+    invocation of the local ``bounded_state_vec_deserializer_v1!`` macro with the
+    record type, must not be defined as a plain ``fn`` anywhere, and the macro body
+    must equal the pinned template, so the only decoding path for a record is
+    serde's derive on the record type (``deny_unknown_fields``) through
+    ``Vec<T>``'s bounded sequence visitor.
+    """
+
+    code = strip_rust_noncode_v1(source.decode("utf-8", errors="strict"))
+    _, body_start, body_end = _rust_struct_body(code, STATE_CLASS_NAME_V1, path)
+    fields = _rust_fields_with_attributes(code[body_start:body_end], path)
+    macro = re.search(r"\bmacro_rules!\s*" + BOUNDED_VEC_MACRO_NAME_V1 + r"\s*\{", code)
+    if macro is None:
+        _reject("RUST_BOUNDED_VEC_MACRO_MISSING", path, BOUNDED_VEC_MACRO_NAME_V1)
+    body = code[macro.end() : _balanced_end(code, macro.end() - 1) - 1]
+    if _normalized(body) != BOUNDED_VEC_MACRO_BODY_V1:
+        _reject("RUST_BOUNDED_VEC_MACRO_DRIFT", path, _normalized(body)[:80])
+    for container, record in CONTAINER_RECORD_FIELDS_V1:
+        function = CONTAINER_DESERIALIZERS_V1[container]
+        attributes, _ = fields.get(container, ("", ""))
+        # String literals are blanked in stripped code, so the literal reads as whitespace here.
+        if re.fullmatch(r"#\[serde\(deserialize_with =\s*\)\]", attributes) is None:
+            _reject("RUST_CONTAINER_ATTRIBUTE_DRIFT", path, f"{container}: {attributes[:60]}")
+        # Strings are blanked in stripped code; bind the name through the raw source.
+        raw = source.decode("utf-8", errors="strict")
+        expected_attribute = f'#[serde(deserialize_with = "{function}")]\n    pub {container}:'
+        if raw.count(expected_attribute) != 1:
+            _reject("RUST_CONTAINER_ATTRIBUTE_DRIFT", path, f"{container}: deserialize_with must name {function}")
+        invocations = re.findall(
+            r"\b" + BOUNDED_VEC_MACRO_NAME_V1 + r"!\(\s*" + function + r"\s*,\s*" + record + r"\s*,\s*MAX_GLOBAL_[A-Z_]+_V1\s*,",
+            code,
+        )
+        if len(invocations) != 1 or re.search(r"\bfn\s+" + function + r"\b", code):
+            _reject("RUST_CONTAINER_DESERIALIZER_DRIFT", path, f"{function}: {len(invocations)} macro invocations")
+
+
+def rust_bounded_vec_closure_v1(source: bytes, path: str) -> None:
+    """The bounded-vec deserialiser file is closed and carries the pinned decoding fragments."""
+
+    code = rust_lexical_closure_v1(
+        source, path, (TERMINAL_CLASS_NAME_V1, OUTBOX_CLASS_NAME_V1), allow_cfg_test=True, defines_bounded_vec=True
+    )
+    # The `#[cfg(test)] mod tests { ... }` block never compiles into the library; drop it.
+    library = code
+    test_module = re.search(r"#\[cfg\(test\)\]\s*mod\s+tests\s*\{", code)
+    if test_module is not None:
+        library = code[: test_module.start()] + code[_balanced_end(code, test_module.end() - 1) :]
+    normalized = _normalized(library)
+    for fragment in BOUNDED_VEC_REQUIRED_FRAGMENTS_V1:
+        if fragment not in normalized:
+            _reject("RUST_BOUNDED_VEC_DRIFT", path, fragment[:60])
+    manual_deserialize = re.search(r"\bimpl\b[^{]*\bDeserialize\b[^{]*\bfor\b", library)
+    if len(re.findall(r"\bimpl\b", library)) != 1 or manual_deserialize is not None:
+        _reject("RUST_BOUNDED_VEC_DRIFT", path, "exactly one impl block and no Deserialize impl")
 
 
 def rust_crate_root_closure_v1(source: bytes, path: str) -> None:
@@ -1446,9 +1692,12 @@ def rust_manifest_closure_v1(source: bytes, path: str) -> None:
     lib = manifest.get("lib")
     if isinstance(lib, dict) and ("path" in lib or "name" in lib):
         _reject("CARGO_LIB_TARGET_OVERRIDE", path, ",".join(sorted(lib)))
-    for key in ("test", "bench", "example", "bin", "patch", "replace", "build"):
+    for key in ("test", "bench", "example", "bin", "patch", "replace", "build", "workspace", "features", "profile"):
         if key in manifest:
             _reject("CARGO_TARGET_OVERRIDE_FORBIDDEN", path, key)
+    for key in ("autobins", "autoexamples", "autotests", "autobenches", "build", "links", "workspace"):
+        if key in package:
+            _reject("CARGO_TARGET_OVERRIDE_FORBIDDEN", path, f"package.{key}")
     if "build" in package:
         _reject("CARGO_TARGET_OVERRIDE_FORBIDDEN", path, "package.build")
     for table in ("dependencies", "dev-dependencies", "build-dependencies"):
@@ -1458,6 +1707,9 @@ def rust_manifest_closure_v1(source: bytes, path: str) -> None:
         for crate, spec in rows.items():
             if isinstance(spec, dict) and any(k in spec for k in ("path", "git", "registry", "package")):
                 _reject("CARGO_DEPENDENCY_SOURCE_OVERRIDE", path, f"{table}.{crate}")
+            version = spec.get("version") if isinstance(spec, dict) else spec
+            if not isinstance(version, str) or not version.startswith("="):
+                _reject("CARGO_DEPENDENCY_VERSION_NOT_EXACT", path, f"{table}.{crate}")
 
 
 # ---------------------------------------------------------------------------
@@ -1592,6 +1844,8 @@ def _project_lean(snapshot: SubjectSnapshotV1) -> dict[str, object]:
         "import_root_declares_module": True,
         "theorems": [entry.to_json() for entry in inventory],
         "theorem_count": len(inventory),
+        "definitional_theorems": list(LEAN_DEFINITIONAL_THEOREMS_V1),
+        "substantive_theorem_count": len(inventory) - len(LEAN_DEFINITIONAL_THEOREMS_V1),
         "placeholder_scan": {"match_count": 0, "axiom_check": True},
         "allowed_axioms": sorted(ALLOWED_LEAN_AXIOMS_V1),
         "no_recovery_theorem": LEAN_NO_RECOVERY_THEOREM_V1,
@@ -1661,11 +1915,65 @@ def _record_projection(python: ClassShapeV1, rust: StructShapeV1, absent: tuple[
     }
 
 
+def _rust_str_array(raw: str, name: str, path: str) -> tuple[str, ...]:
+    match = re.search(r"const " + name + r": \[&str; (\d+)\] = \[([^\]]*)\];", raw)
+    if match is None:
+        _reject("RUST_GATE_CONTENT_DRIFT", path, f"{name} array missing")
+    items = tuple(re.findall(r'"([^"]*)"', match.group(2)))
+    if len(items) != int(match.group(1)):
+        _reject("RUST_GATE_CONTENT_DRIFT", path, f"{name} length")
+    return items
+
+
+def _check_projection_gates(snapshot: SubjectSnapshotV1) -> dict[str, object]:
+    """Pin the content of the compiled and imported projection gates, not only their bytes."""
+
+    rust_raw = _blob(snapshot, RUST_GATE_PATH_V1).data.decode("utf-8", errors="strict")
+    rust_code = rust_lexical_closure_v1(
+        _blob(snapshot, RUST_GATE_PATH_V1).data, RUST_GATE_PATH_V1, (), allow_include_str=RUST_GATE_INCLUDES_V1
+    )
+    rust_tests = tuple(_RUST_TEST_FN_RE.findall(rust_code))
+    if rust_tests != RUST_GATE_TESTS_V1:
+        _reject("RUST_GATE_CONTENT_DRIFT", RUST_GATE_PATH_V1, ",".join(rust_tests)[:80])
+    terminal_names = tuple(name for name, _ in TERMINAL_FIELDS_RUST_V1)
+    outbox_names = tuple(name for name, _ in OUTBOX_FIELDS_RUST_V1)
+    expected_arrays = (
+        ("TERMINAL_FIELDS", terminal_names),
+        ("OUTBOX_FIELDS", outbox_names),
+        ("TERMINAL_FORBIDDEN", TERMINAL_FORBIDDEN_FIELDS_V1),
+        ("OUTBOX_FORBIDDEN", OUTBOX_FORBIDDEN_FIELDS_V1),
+    )
+    for name, expected in expected_arrays:
+        if _rust_str_array(rust_raw, name, RUST_GATE_PATH_V1) != expected:
+            _reject("RUST_GATE_CONTENT_DRIFT", RUST_GATE_PATH_V1, name)
+    python_source = _blob(snapshot, PYTHON_GATE_PATH_V1).data
+    module = _parse_python(python_source, PYTHON_GATE_PATH_V1)
+    python_tests = tuple(n.name for n in module.body if isinstance(n, ast.FunctionDef) and n.name.startswith("test_"))
+    if python_tests != PYTHON_GATE_TESTS_V1:
+        _reject("PYTHON_GATE_CONTENT_DRIFT", PYTHON_GATE_PATH_V1, ",".join(python_tests)[:80])
+    python_dynamic_binding_scan_v1(python_source, PYTHON_GATE_PATH_V1, _PYTHON_GATE_DYNAMIC_CALLS_V1)
+    if python_sequence_constant_v1(python_source, "TERMINAL_FIELDS", PYTHON_GATE_PATH_V1) != terminal_names:
+        _reject("PYTHON_GATE_CONTENT_DRIFT", PYTHON_GATE_PATH_V1, "TERMINAL_FIELDS")
+    if python_sequence_constant_v1(python_source, "OUTBOX_FIELDS", PYTHON_GATE_PATH_V1) != outbox_names:
+        _reject("PYTHON_GATE_CONTENT_DRIFT", PYTHON_GATE_PATH_V1, "OUTBOX_FIELDS")
+    if python_sequence_constant_v1(python_source, "TERMINAL_UNKNOWN_FIELDS", PYTHON_GATE_PATH_V1) != TERMINAL_FORBIDDEN_FIELDS_V1:
+        _reject("PYTHON_GATE_CONTENT_DRIFT", PYTHON_GATE_PATH_V1, "TERMINAL_UNKNOWN_FIELDS")
+    if python_sequence_constant_v1(python_source, "OUTBOX_UNKNOWN_FIELDS", PYTHON_GATE_PATH_V1) != OUTBOX_FORBIDDEN_FIELDS_V1:
+        _reject("PYTHON_GATE_CONTENT_DRIFT", PYTHON_GATE_PATH_V1, "OUTBOX_UNKNOWN_FIELDS")
+    return {
+        "rust": {"path": RUST_GATE_PATH_V1, "tests": list(rust_tests), "expected_passed": RUST_GATE_EXPECTED_PASSED_V1},
+        "python": {"path": PYTHON_GATE_PATH_V1, "tests": list(python_tests), "expected_passed": PYTHON_GATE_EXPECTED_PASSED_V1},
+        "seeded_unknown_keys": "both gates generate unknown keys from a printed seed and require rejection of every one",
+    }
+
+
 def _check_container_bindings(python_source: bytes, rust_source: bytes) -> None:
     """The V1 state containers hold exactly the scanned record types."""
 
     python_fields = python_container_field_annotations_v1(python_source, STATE_CLASS_NAME_V1, PYTHON_TYPES_PATH_V1)
+    python_dynamic_binding_scan_v1(python_source, PYTHON_TYPES_PATH_V1)
     rust_fields = rust_container_field_types_v1(rust_source, STATE_CLASS_NAME_V1, RUST_STATE_PATH_V1)
+    rust_container_deserializer_closure_v1(rust_source, RUST_STATE_PATH_V1)
     for container, record in CONTAINER_RECORD_FIELDS_V1:
         if python_fields.get(container) != f"tuple[{record}, ...]":
             _reject("PYTHON_STATE_FIELD_TYPE_DRIFT", PYTHON_TYPES_PATH_V1, f"{container}: {python_fields.get(container)}")
@@ -1679,7 +1987,12 @@ def _project_information_loss(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     rust_lexical_closure_v1(rust_source, RUST_STATE_PATH_V1, (TERMINAL_CLASS_NAME_V1, OUTBOX_CLASS_NAME_V1))
     rust_crate_root_closure_v1(_blob(snapshot, RUST_LIB_PATH_V1).data, RUST_LIB_PATH_V1)
     rust_manifest_closure_v1(_blob(snapshot, RUST_MANIFEST_PATH_V1).data, RUST_MANIFEST_PATH_V1)
+    rust_bounded_vec_closure_v1(_blob(snapshot, RUST_BOUNDED_VEC_PATH_V1).data, RUST_BOUNDED_VEC_PATH_V1)
+    _blob(snapshot, RUST_LOCKFILE_PATH_V1)
+    if snapshot.forbidden_paths_present:
+        _reject("CARGO_CONFIG_PRESENT", snapshot.forbidden_paths_present[0], "cargo config present at the subject commit")
     _check_container_bindings(python_source, rust_source)
+    gates = _check_projection_gates(snapshot)
     terminal_py = python_class_shape_v1(python_source, TERMINAL_CLASS_NAME_V1, PYTHON_TYPES_PATH_V1)
     terminal_rs = rust_struct_shape_v1(rust_source, TERMINAL_CLASS_NAME_V1, RUST_STATE_PATH_V1)
     outbox_py = python_class_shape_v1(python_source, OUTBOX_CLASS_NAME_V1, PYTHON_TYPES_PATH_V1)
@@ -1697,6 +2010,7 @@ def _project_information_loss(snapshot: SubjectSnapshotV1) -> dict[str, object]:
         ),
         "scope": INFORMATION_LOSS_SCOPE_V1,
         "binding": dict(INFORMATION_LOSS_BINDING_V1),
+        "projection_gates": gates,
         "opaque_bindings": list(OPAQUE_BINDINGS_V1),
         "accepted_known_gaps": list(ACCEPTED_KNOWN_GAPS_V1),
         "formal_result": INFORMATION_LOSS_FORMAL_RESULT_V1,
@@ -1754,7 +2068,7 @@ def _select_hygiene_packets(snapshot: SubjectSnapshotV1) -> list[dict[str, objec
 
 
 AUTHOR_RUN_KEYS_V1: Final[frozenset[str]] = frozenset({"command_id", "exit_code", "comparable"})
-AUTHOR_TOOLCHAIN_KEYS_V1: Final[frozenset[str]] = frozenset({"esso_code_hash", "lean", "python", "solvers"})
+AUTHOR_TOOLCHAIN_KEYS_V1: Final[frozenset[str]] = frozenset({"esso_code_hash", "lean", "python", "rust", "solvers"})
 LEAN_VERSION_V1: Final = LEAN_TOOLCHAIN_V1.rsplit("v", 1)[1]
 # Closed comparable schema per replay command: key -> ("hex64" | "semver" | "verdict" | "solvers" | exact value).
 COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
@@ -1774,6 +2088,10 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
     "python_version": {"python_version": "semver"},
     "python_projection_gate": {"passed": PYTHON_GATE_EXPECTED_PASSED_V1},
     "rust_projection_gate": {"passed": RUST_GATE_EXPECTED_PASSED_V1},
+    "rust_version": {"cargo_version": "semver"},
+    "rust_refinement_gate": {"passed": RUST_REFINEMENT_GATE_EXPECTED_PASSED_V1},
+    "python_golden_gate": {"passed": PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1},
+    "rust_golden_gate": {"passed": RUST_GOLDEN_GATE_EXPECTED_PASSED_V1},
 }
 
 
@@ -1815,15 +2133,24 @@ def _validate_toolchain(record: Mapping[str, Any]) -> dict[str, object]:
     toolchain = record.get("toolchain")
     where = "proof_replay.author_record.toolchain"
     if not isinstance(toolchain, dict) or set(toolchain) != AUTHOR_TOOLCHAIN_KEYS_V1:
-        _reject("REPLAY_RECORD_SHAPE", where, "exactly esso_code_hash, lean, python, solvers")
+        _reject("REPLAY_RECORD_SHAPE", where, "exactly esso_code_hash, lean, python, rust, solvers")
     expected = {"esso_code_hash": ESSO_CODE_COMMIT_V1, "lean": LEAN_VERSION_V1, "solvers": dict(ESSO_SOLVERS_V1)}
     for key, value in expected.items():
         if toolchain.get(key) != value:
             _reject("REPLAY_RECORD_TOOLCHAIN_DRIFT", f"{where}.{key}", str(toolchain.get(key))[:80])
-    python = toolchain.get("python")
-    if not isinstance(python, str) or _SEMVER_RE.fullmatch(python) is None:
-        _reject("REPLAY_RECORD_TOOLCHAIN_DRIFT", f"{where}.python", str(python)[:80])
-    return {"esso_code_hash": ESSO_CODE_COMMIT_V1, "lean": LEAN_VERSION_V1, "python": python, "solvers": dict(ESSO_SOLVERS_V1)}
+    versions: dict[str, str] = {}
+    for key in ("python", "rust"):
+        reported = toolchain.get(key)
+        if not isinstance(reported, str) or _SEMVER_RE.fullmatch(reported) is None:
+            _reject("REPLAY_RECORD_TOOLCHAIN_DRIFT", f"{where}.{key}", str(reported)[:80])
+        versions[key] = reported
+    return {
+        "esso_code_hash": ESSO_CODE_COMMIT_V1,
+        "lean": LEAN_VERSION_V1,
+        "python": versions["python"],
+        "rust": versions["rust"],
+        "solvers": dict(ESSO_SOLVERS_V1),
+    }
 
 
 def validate_author_replay_record_v1(record: object, esso: Mapping[str, Any]) -> dict[str, object]:
@@ -1852,9 +2179,10 @@ def validate_author_replay_record_v1(record: object, esso: Mapping[str, Any]) ->
     if tuple(str(run["command_id"]) for run in validated) != REPLAY_COMMAND_IDS_V1:
         _reject("REPLAY_RECORD_SHAPE", "proof_replay.author_record.runs", "one run per command in order")
     toolchain = _validate_toolchain(record)
-    python_run = next(run["comparable"] for run in validated if run["command_id"] == "python_version")
-    if not isinstance(python_run, dict) or python_run.get("python_version") != toolchain["python"]:
-        _reject("REPLAY_RECORD_TOOLCHAIN_DRIFT", "proof_replay.author_record.toolchain.python", "differs from python_version run")
+    for key, command_id, field_name in (("python", "python_version", "python_version"), ("rust", "rust_version", "cargo_version")):
+        run = next(run["comparable"] for run in validated if run["command_id"] == command_id)
+        if not isinstance(run, dict) or run.get(field_name) != toolchain[key]:
+            _reject("REPLAY_RECORD_TOOLCHAIN_DRIFT", f"proof_replay.author_record.toolchain.{key}", f"differs from {command_id} run")
     return {"status": "EXECUTED", "runs": validated, "toolchain": toolchain}
 
 
@@ -2066,7 +2394,7 @@ def check_nonclaims_v1(packet: Mapping[str, Any]) -> None:
         for pointer, text in _string_scalars(value, key)
     ]
     for pointer, text in scalars:
-        folded = " ".join(text.split()).lower()
+        folded = " ".join(unicodedata.normalize("NFKC", text).split()).lower()
         hits = [token for token in FORBIDDEN_PROMOTION_TOKENS_V1 if token in folded]
         if hits:
             _reject("PROMOTION_TOKEN_PRESENT", pointer, hits[0])
@@ -2118,6 +2446,7 @@ def check_current_applicability_v1(
             drift.append(path)
         elif current.worktree_sha256.get(path) != blob.sha256:
             drift.append(path)
+    drift.extend(path for path in current.forbidden_paths_present if path not in drift)
     return tuple(drift)
 
 
@@ -2280,6 +2609,18 @@ def _grade_cargo(obs: ReplayObservationV1, expected: int) -> dict[str, object]:
     return {"passed": passed}
 
 
+def parse_cargo_version_v1(stdout: bytes) -> str | None:
+    match = _CARGO_VERSION_RE.match(stdout.decode("utf-8", errors="replace").strip())
+    return match.group(1) if match else None
+
+
+def _grade_rust_version(obs: ReplayObservationV1) -> dict[str, object]:
+    version = parse_cargo_version_v1(obs.stdout)
+    if version is None:
+        _reject("REPLAY_RUST_VERSION_UNPARSEABLE", obs.command_id, obs.stdout[:40].decode("utf-8", "replace"))
+    return {"cargo_version": version}
+
+
 def _grade_python_version(obs: ReplayObservationV1) -> dict[str, object]:
     version = parse_python_version_v1(obs.stdout)
     if version is None:
@@ -2314,6 +2655,13 @@ def _grade_esso(obs: ReplayObservationV1, esso: Mapping[str, Any]) -> dict[str, 
     verified = report.get("verdict") == "VERIFIED" and report.get("solvers_agreed") is True
     if not verified or report.get("failed_queries") != 0 or report.get("inconclusive_queries") != 0:
         _reject("REPLAY_ESSO_VERDICT", obs.command_id, str(report.get("verdict")))
+    expected_queries = len(ESSO_QUERIES_V1)
+    queries_raw = payload.get("queries")
+    query_ids = set(queries_raw) if isinstance(queries_raw, dict) else set()
+    if report.get("total_queries") != expected_queries or report.get("passed_queries") != expected_queries:
+        _reject("REPLAY_ESSO_QUERY_COUNT_DRIFT", obs.command_id, f"{report.get('total_queries')}/{report.get('passed_queries')}")
+    if query_ids != set(ESSO_QUERIES_V1):
+        _reject("REPLAY_ESSO_QUERY_SET_DRIFT", obs.command_id, ",".join(sorted(query_ids)))
     if versions.get("esso_code_hash") != esso.get("esso_code_commit"):
         _reject("REPLAY_ESSO_CODE_COMMIT_DRIFT", obs.command_id, str(versions.get("esso_code_hash")))
     solvers = _solver_versions(versions.get("solvers"), esso.get("solvers"))
@@ -2363,6 +2711,14 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_pytest(obs, PYTHON_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "rust_projection_gate":
         return _grade_cargo(obs, RUST_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "rust_version":
+        return _grade_rust_version(obs)
+    if obs.command_id == "rust_refinement_gate":
+        return _grade_cargo(obs, RUST_REFINEMENT_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "rust_golden_gate":
+        return _grade_cargo(obs, RUST_GOLDEN_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "python_golden_gate":
+        return _grade_pytest(obs, PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1)
     return _grade_esso(obs, esso)
 
 
@@ -2408,6 +2764,7 @@ def observed_toolchain_v1(runs: Sequence[Mapping[str, object]]) -> dict[str, obj
         "esso_code_hash": esso.get("esso_code_hash"),
         "lean": comparable.get("lean_version", {}).get("lean_version"),
         "python": comparable.get("python_version", {}).get("python_version"),
+        "rust": comparable.get("rust_version", {}).get("cargo_version"),
         "solvers": esso.get("solvers"),
     }
 

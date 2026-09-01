@@ -168,8 +168,11 @@ def read_subject_snapshot_v1(git: GitReadPortV1, subject_commit: str) -> core.Su
         mode, oid = entry
         data = read_blob_v1(git, oid, path)
         blobs[path] = _source_blob(path, mode, oid, data)
+    forbidden = tuple(
+        path for path in core.CARGO_CONFIG_FORBIDDEN_PATHS_V1 if tree_entry_v1(git, subject_commit, path) is not None
+    )
     return core.SubjectSnapshotV1(
-        subject_commit, parents[0], tree, blobs, _read_hygiene_packets(git, subject_commit)
+        subject_commit, parents[0], tree, blobs, _read_hygiene_packets(git, subject_commit), forbidden
     )
 
 
@@ -273,7 +276,12 @@ def read_current_source_state_v1(
         head_blob_ids[path] = None if entry is None else entry[1]
         raw = working_bytes_v1(root, path)
         worktree_sha256[path] = None if raw is None else core.sha256_hex_v1(raw)
-    return core.CurrentSourceStateV1(head_blob_ids, worktree_sha256)
+    forbidden = tuple(
+        path
+        for path in core.CARGO_CONFIG_FORBIDDEN_PATHS_V1
+        if tree_entry_v1(git, head, path) is not None or (root / path).exists()
+    )
+    return core.CurrentSourceStateV1(head_blob_ids, worktree_sha256, forbidden)
 
 
 def read_executing_tools_v1(cli_file: Path) -> core.ExecutingToolsV1:

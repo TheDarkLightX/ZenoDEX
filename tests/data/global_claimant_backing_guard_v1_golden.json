@@ -40,15 +40,15 @@
       "expected_code": "OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS",
       "vector": "rejects_claimant_swap_hidden_by_asset_aggregate"
     },
+    "skip the checked fold for the custody table": {
+      "expected_code": "CLAIMANT_BACKING_TOTAL_OVERFLOW",
+      "vector": "rejects_custody_aggregate_overflow"
+    },
     "swap the R1/R2 precedence": {
       "expected_code": "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING",
       "vector": "precedence_domain_before_claimant"
     },
-    "use unchecked addition in the custody fold": {
-      "expected_code": "CLAIMANT_BACKING_TOTAL_OVERFLOW",
-      "vector": "rejects_custody_aggregate_overflow"
-    },
-    "use unchecked addition in the entitlement fold": {
+    "use unchecked addition in the shared fold helper": {
       "expected_code": "CLAIMANT_BACKING_TOTAL_OVERFLOW",
       "vector": "rejects_entitlement_aggregate_overflow"
     }

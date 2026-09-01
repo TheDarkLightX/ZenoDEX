@@ -254,17 +254,17 @@ def overCollateralisedAllocation : ExactAllocationWitness overCollateralisedStat
 
 /-- The `noUnclassified` premise of
 `exactAllocation_noUnclassified_implies_exactCurrentProfileRelation` cannot be
-dropped: `overCollateralisedAllocation` is a well-formed exact allocation
-witness whose hot unencumbered-custody bucket is four, not zero, and
-`overCollateralised_isBacked_notExact` shows its state fails exact
-current-profile custody. -/
+dropped: an exact allocation witness alone does not imply the exact
+current-profile relation.  The counterexample is `overCollateralisedState` with
+`overCollateralisedAllocation` (hot unencumbered-custody bucket four, not
+zero); `overCollateralised_isBacked_notExact` shows that state fails exact
+current-profile custody, so the universal claim over all states and
+witnesses is refuted. -/
 theorem noUnclassified_premise_is_necessary :
-    ¬ ∀ domain, overCollateralisedAllocation.unencumberedCustody domain = 0 := by
-  intro allZero
-  have hotUnclassified :
-      overCollateralisedAllocation.unencumberedCustody .hot = 4 := rfl
-  have hotZero := allZero .hot
-  omega
+    ¬ ∀ (s : State) (_ : ExactAllocationWitness s), ExactCurrentProfileRelation s := by
+  intro universal
+  exact overCollateralised_isBacked_notExact.2
+    (universal overCollateralisedState overCollateralisedAllocation).2
 
 /-! ## Exact coordinate transitions -/
 

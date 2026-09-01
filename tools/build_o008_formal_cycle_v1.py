@@ -99,6 +99,16 @@ def build_v1(args: argparse.Namespace) -> dict[str, Any]:
     json_path = root / args.output_json
     md_path = root / args.output_md
     if args.check:
+        committed = shell.working_bytes_v1(root, str(args.output_json))
+        if committed is not None:
+            recorded = core.decode_json_object_v1(committed, context=str(args.output_json), require_canonical=False)
+            recorded_status = recorded.get("proof_replay", {}).get("author_record", {}).get("status")
+            if recorded_status != record["status"]:
+                core._reject(
+                    "CHECK_MODE_MISMATCH",
+                    str(args.output_json),
+                    f"committed author record is {recorded_status}; this check runs {record['status']} (use --replay accordingly)",
+                )
         drift = [
             str(path)
             for path, expected in ((args.output_json, json_bytes), (args.output_md, md_bytes))

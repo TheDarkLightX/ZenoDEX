@@ -52,6 +52,7 @@ CORE_IMPORT_ALLOWLIST = frozenset(
         "dataclasses",
         "typing",
         "tomllib",
+        "unicodedata",
         "yaml",
         "tools.scan_lean_proof_placeholders_v1",
     }
@@ -272,6 +273,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
         pytest.param(lambda raw: raw.replace(b"/v3", b"/v2", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v2"),
+        pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
         pytest.param(lambda raw: b"{", "PACKET_JSON_MALFORMED", id="malformed"),
@@ -397,6 +399,27 @@ LIVE_MACRO = (
         pytest.param(core.RUST_MANIFEST_PATH_V1, "", "", "\n[patch.crates-io]\nserde = { path = \"../serde\" }\n", "CARGO_TARGET_OVERRIDE_FORBIDDEN", id="cargo_patch"),
         pytest.param(core.RUST_MANIFEST_PATH_V1, 'serde = { version = "=1.0.228", features = ["derive"] }', 'serde = { path = "../serde", features = ["derive"] }', "", "CARGO_DEPENDENCY_SOURCE_OVERRIDE", id="cargo_serde_path"),
         pytest.param(core.RUST_MANIFEST_PATH_V1, 'name = "zenodex-global-settlement-abi-v1"', 'name = "zenodex-global-settlement-abi-v2"', "", "CARGO_PACKAGE_NAME_DRIFT", id="cargo_package_name"),
+        pytest.param(core.RUST_MANIFEST_PATH_V1, "", "", "\n[workspace]\nmembers = []\n", "CARGO_TARGET_OVERRIDE_FORBIDDEN", id="cargo_workspace"),
+        pytest.param(core.RUST_MANIFEST_PATH_V1, 'name = "zenodex-global-settlement-abi-v1"', 'name = "zenodex-global-settlement-abi-v1"\nautotests = false', "", "CARGO_TARGET_OVERRIDE_FORBIDDEN", id="cargo_autotests"),
+        pytest.param(core.RUST_MANIFEST_PATH_V1, 'serde = { version = "=1.0.228", features = ["derive"] }', 'serde = { version = "1", features = ["derive"] }', "", "CARGO_DEPENDENCY_VERSION_NOT_EXACT", id="cargo_loose_serde_version"),
+        # Opus C1' P1-A: a plain-fn deserialize_with hook replacing the local bounded-vec macro.
+        pytest.param(core.RUST_STATE_PATH_V1, "bounded_state_vec_deserializer_v1!(\n    deserialize_terminal_obligations_v1,\n    TerminalObligationV1,\n    MAX_GLOBAL_TERMINAL_ROWS_V1,\n    \"global state terminal obligations\"\n);", "fn deserialize_terminal_obligations_v1<'de, D>(deserializer: D) -> Result<Vec<TerminalObligationV1>, D::Error>\nwhere\n    D: Deserializer<'de>,\n{\n    let rows: Vec<serde_json::Value> = Vec::deserialize(deserializer)?;\n    Ok(rows.into_iter().filter_map(|row| serde_json::from_value(row).ok()).collect())\n}", "", "RUST_CONTAINER_DESERIALIZER_DRIFT", id="terminal_deserialize_with_plain_fn"),
+        pytest.param(core.RUST_STATE_PATH_V1, "bounded_state_vec_deserializer_v1!(\n    deserialize_outbox_v1,\n    OutboxStateV1,\n    MAX_GLOBAL_OUTBOX_ROWS_V1,\n    \"global state outbox\"\n);", "fn deserialize_outbox_v1<'de, D>(deserializer: D) -> Result<Vec<OutboxStateV1>, D::Error>\nwhere\n    D: Deserializer<'de>,\n{\n    Vec::deserialize(deserializer)\n}", "", "RUST_CONTAINER_DESERIALIZER_DRIFT", id="outbox_deserialize_with_plain_fn"),
+        pytest.param(core.RUST_STATE_PATH_V1, '    #[serde(deserialize_with = "deserialize_terminal_obligations_v1")]\n    pub terminal_obligations:', '    #[serde(deserialize_with = "deserialize_terminal_obligations_v1")]\n    #[serde(default)]\n    pub terminal_obligations:', "", "RUST_CONTAINER_ATTRIBUTE_DRIFT", id="container_extra_attribute"),
+        pytest.param(core.RUST_STATE_PATH_V1, '    #[serde(deserialize_with = "deserialize_terminal_obligations_v1")]\n    pub terminal_obligations:', '    #[serde(deserialize_with = "deserialize_lenient_terminal_v1")]\n    pub terminal_obligations:', "", "RUST_CONTAINER_ATTRIBUTE_DRIFT", id="container_deserializer_renamed"),
+        pytest.param(core.RUST_STATE_PATH_V1, "            deserialize_bounded_vec_v1::<D, $row, $maximum>(deserializer, $label)", "            deserialize_bounded_vec_v1::<D, $row, { $maximum * 2 }>(deserializer, $label)", "", "RUST_BOUNDED_VEC_MACRO_DRIFT", id="bounded_vec_macro_body_drift"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\ncrate::late_items!();\nmacro_rules! late_items { () => {}; }\n", "RUST_FOREIGN_ITEM_MACRO", id="path_qualified_item_macro"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nlate_items!();\nmacro_rules! late_items { () => {}; }\n", "RUST_FOREIGN_ITEM_MACRO", id="macro_defined_after_invocation"),
+        pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nextern crate hex as serde;\n", "RUST_EXTERN_CRATE_FORBIDDEN", id="extern_crate_alias"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserializer, Serialize}; const _X: u8 = 0; use crate::shadow::Deserialize as _E;", "", "RUST_SERDE_IMPORT_DRIFT", id="same_line_foreign_import"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use crate::bounded_vec::deserialize_bounded_vec_v1;", "use crate::lenient_vec::deserialize_bounded_vec_v1;", "", "RUST_BOUNDED_VEC_IMPORT_DRIFT", id="bounded_vec_import_redirected"),
+        pytest.param(core.RUST_BOUNDED_VEC_PATH_V1, "", "", "\nimpl<'de> Deserialize<'de> for u8 {}\n", "RUST_BOUNDED_VEC_DRIFT", id="bounded_vec_manual_deserialize"),
+        pytest.param(core.RUST_BOUNDED_VEC_PATH_V1, "                Some(value) => values.push(value),", "                Some(value) => values.push(value.clone()),", "", "RUST_BOUNDED_VEC_DRIFT", id="bounded_vec_visitor_drift"),
+        pytest.param(core.RUST_BOUNDED_VEC_PATH_V1, "#[cfg(test)]\nmod tests {", "#[cfg(feature = \"lenient\")]\nmod tests {", "", "RUST_CFG_FORBIDDEN", id="bounded_vec_non_test_cfg"),
+        pytest.param(core.RUST_GATE_PATH_V1, "", "", "\n#[test]\nfn extra_vacuous() {\n    assert!(true);\n}\n", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_extra_test"),
+        pytest.param(core.RUST_GATE_PATH_V1, '    "custody_principal",\n', '', "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_forbidden_shrunk"),
+        pytest.param(core.RUST_GATE_PATH_V1, '    "obligation_id",\n    "lane_id",\n', '    "lane_id",\n    "obligation_id",\n', "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_fields_reordered"),
+        pytest.param(core.RUST_GATE_PATH_V1, 'include_str!("../../../tests/data/global_claimant_backing_guard_v1_golden.json")', 'include_str!("../../../tests/data/other.json")', "", "RUST_INCLUDE_FORBIDDEN", id="rust_gate_other_include"),
     ],
 )
 def test_rust_lexical_closure_rejects_decoys(
@@ -406,6 +429,44 @@ def test_rust_lexical_closure_rejects_decoys(
     if tail:
         mutated = _append(mutated, path, tail)
     assert _project_code(mutated) == code
+
+
+def test_vacuous_gate_files_are_rejected(snapshot: core.SubjectSnapshotV1) -> None:
+    vacuous_rust = "".join(f"#[test]\nfn t{i}() {{\n    assert!(true);\n}}\n" for i in range(core.RUST_GATE_EXPECTED_PASSED_V1))
+    assert _project_code(_with_blob(snapshot, core.RUST_GATE_PATH_V1, vacuous_rust.encode())) == "RUST_GATE_CONTENT_DRIFT"
+    vacuous_python = "".join(f"def test_t{i}() -> None:\n    assert True\n\n\n" for i in range(core.PYTHON_GATE_EXPECTED_PASSED_V1))
+    assert _project_code(_with_blob(snapshot, core.PYTHON_GATE_PATH_V1, vacuous_python.encode())) == "PYTHON_GATE_CONTENT_DRIFT"
+
+
+def test_cargo_config_present_at_subject_is_rejected(snapshot: core.SubjectSnapshotV1) -> None:
+    mutated = replace(snapshot, forbidden_paths_present=(core.CARGO_CONFIG_FORBIDDEN_PATHS_V1[0],))
+    assert _project_code(mutated) == "CARGO_CONFIG_PRESENT"
+
+
+def test_cargo_config_in_worktree_blocks_applicability(snapshot: core.SubjectSnapshotV1, packet: dict[str, Any]) -> None:
+    context = _context(snapshot, packet)
+    current = replace(context.current, forbidden_paths_present=(core.CARGO_CONFIG_FORBIDDEN_PATHS_V1[-1],))
+    outcome = core.admit_packet_v1(packet, replace(context, current=current))
+    assert outcome.packet_admitted and not outcome.current_applicable
+    assert outcome.current_source_drift == (core.CARGO_CONFIG_FORBIDDEN_PATHS_V1[-1],)
+
+
+def test_arrow_in_a_field_type_does_not_swallow_fields() -> None:
+    body = "pub a: u8,\n    pub cb: fn(u8) -> u8,\n    pub c: u8"
+    fields = core._rust_fields(body, core.RUST_STATE_PATH_V1, allow_attributes=False)
+    assert fields == (("a", "u8"), ("cb", "fn(u8) -> u8"), ("c", "u8"))
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected"),
+    [
+        pytest.param(b"cargo 1.87.0 (99624be96 2025-05-06)\n", "1.87.0", id="cargo_banner"),
+        pytest.param(b"rustc 1.87.0\n", None, id="rustc_banner"),
+        pytest.param(b"", None, id="empty"),
+    ],
+)
+def test_cargo_version_parser(stdout: bytes, expected: str | None) -> None:
+    assert core.parse_cargo_version_v1(stdout) == expected
 
 
 @pytest.mark.parametrize(
@@ -418,6 +479,10 @@ def test_rust_lexical_closure_rejects_decoys(
         pytest.param("@dataclass(frozen=True, slots=True, order=True)\nclass TerminalObligationV1:", "@dataclass(frozen=FROZEN, slots=True, order=True)\nclass TerminalObligationV1:", "", "PYTHON_CLASS_DECORATORS_DRIFT", id="non_literal_dataclass_keyword"),
         pytest.param('    def to_canonical(self) -> dict[str, object]:\n        return {\n            "obligation_id": self.obligation_id,', '    def to_canonical(self) -> dict[str, object]:\n        if self.amount_atoms:\n            return {"obligation_id": self.obligation_id}\n        return {\n            "obligation_id": self.obligation_id,', "", "PYTHON_CANONICAL_SHAPE", id="canonical_early_return"),
         pytest.param("    terminal_obligations: tuple[TerminalObligationV1, ...] = ()", "    terminal_obligations: tuple[object, ...] = ()", "", "PYTHON_STATE_FIELD_TYPE_DRIFT", id="state_container_annotation"),
+        pytest.param("", "", "\nclass _Other:\n    pass\n\n\nGlobalEconomicStateV1 = _Other\n", "PYTHON_CLASS_REBOUND", id="container_class_rebound"),
+        pytest.param("", "", "\nexec('TerminalObligation' + 'V1 = int')\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="exec_rebinding"),
+        pytest.param("", "", "\nglobals()['TerminalObligationV1'] = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="globals_subscript_rebinding"),
+        pytest.param("", "", "\nimport sys as _sys\n_sys.modules[__name__] = None\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="sys_modules_rebinding"),
     ],
 )
 def test_python_closure_rejects_decoys(snapshot: core.SubjectSnapshotV1, old: str, new: str, tail: str, code: str) -> None:
@@ -613,6 +678,13 @@ def test_executing_tool_drift_fails_closed(snapshot: core.SubjectSnapshotV1, pac
 # ---------------------------------------------------------------------------
 
 
+def _cargo_summary(passed: int) -> bytes:
+    return (
+        f"running {passed} tests\ntest result: ok. {passed} passed; 0 failed; 0 ignored; 0 measured;"
+        " 0 filtered out; finished in 0.01s\n"
+    ).encode()
+
+
 def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObservationV1]:
     esso = packet["esso_evidence"]
     namespace = ".".join(core.LEAN_NAMESPACE_V1)
@@ -624,11 +696,14 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "ok": True,
         "determinism": True,
         "fingerprints": [esso["fingerprint"], esso["fingerprint"]],
+        "queries": {query: {"final_result": "unsat"} for query in core.ESSO_QUERIES_V1},
         "report": {
             "verdict": "VERIFIED",
             "solvers_agreed": True,
             "failed_queries": 0,
             "inconclusive_queries": 0,
+            "total_queries": len(core.ESSO_QUERIES_V1),
+            "passed_queries": len(core.ESSO_QUERIES_V1),
             "tool_versions": {
                 "esso_code_hash": esso["esso_code_commit"],
                 "solvers": {"z3": "4.15.4", "cvc5": "This is cvc5 version 1.1.2"},
@@ -646,10 +721,11 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "prior_restage_gate": f"{core.PRIOR_ESSO_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
         "python_version": b"3.12.3\n",
         "python_projection_gate": f"{core.PYTHON_GATE_EXPECTED_PASSED_V1} passed in 0.30s\n".encode(),
-        "rust_projection_gate": (
-            f"running {core.RUST_GATE_EXPECTED_PASSED_V1} tests\ntest result: ok. {core.RUST_GATE_EXPECTED_PASSED_V1} passed;"
-            " 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n"
-        ).encode(),
+        "rust_projection_gate": _cargo_summary(core.RUST_GATE_EXPECTED_PASSED_V1),
+        "rust_version": b"cargo 1.87.0 (99624be96 2025-05-06)\n",
+        "rust_refinement_gate": _cargo_summary(core.RUST_REFINEMENT_GATE_EXPECTED_PASSED_V1),
+        "python_golden_gate": f"{core.PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
+        "rust_golden_gate": _cargo_summary(core.RUST_GOLDEN_GATE_EXPECTED_PASSED_V1),
     }
     return {
         command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id == "lean_axioms_probe" else None)
@@ -732,6 +808,7 @@ def test_executed_record_round_trips_through_validation(packet: dict[str, Any]) 
         "esso_code_hash": core.ESSO_CODE_COMMIT_V1,
         "lean": core.LEAN_VERSION_V1,
         "python": "3.12.3",
+        "rust": "1.87.0",
         "solvers": dict(core.ESSO_SOLVERS_V1),
     }
 
@@ -748,6 +825,8 @@ def _run(record: dict[str, Any], command_id: str) -> dict[str, Any]:
         pytest.param(lambda r: r["toolchain"].__setitem__("esso_code_hash", "0" * 40), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_code_hash_forged"),
         pytest.param(lambda r: r["toolchain"].__setitem__("python", "3.12.3-authority"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_python_malformed"),
         pytest.param(lambda r: r["toolchain"].__setitem__("python", "3.11.0"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_python_differs_from_run"),
+        pytest.param(lambda r: r["toolchain"].__setitem__("rust", "9.9.9"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_rust_differs_from_run"),
+        pytest.param(lambda r: r["toolchain"].pop("rust"), "REPLAY_RECORD_SHAPE", id="toolchain_rust_missing"),
         pytest.param(lambda r: r["toolchain"].__setitem__("authority", "GRANTED"), "REPLAY_RECORD_SHAPE", id="toolchain_authority_key"),
         pytest.param(lambda r: r["toolchain"]["solvers"].__setitem__("authority", "GRANTED"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_nested_authority_key"),
         pytest.param(lambda r: r.__setitem__("formal_core_complete", True), "REPLAY_RECORD_SHAPE", id="record_extra_key"),
@@ -817,6 +896,11 @@ def test_python_version_parser_requires_one_semver_line(stdout: bytes, expected:
         pytest.param("rust_projection_gate", lambda o: replace(o, stdout=b"test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="cargo_count_drift"),
         pytest.param("python_projection_gate", lambda o: replace(o, stdout=b"7 passed in 0.1s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="python_gate_count_drift"),
         pytest.param("python_version", lambda o: replace(o, stdout=b"Python 3.12.3\n"), "REPLAY_PYTHON_VERSION_UNPARSEABLE", id="python_version_banner"),
+        pytest.param("rust_version", lambda o: replace(o, stdout=b"rustc 1.87.0\n"), "REPLAY_RUST_VERSION_UNPARSEABLE", id="rust_version_banner"),
+        pytest.param("rust_refinement_gate", lambda o: replace(o, stdout=_cargo_summary(40)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_refinement_count"),
+        pytest.param("rust_golden_gate", lambda o: replace(o, stdout=_cargo_summary(2)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_golden_count"),
+        pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"total_queries": 3', b'"total_queries": 0').replace(b'"passed_queries": 3', b'"passed_queries": 0')), "REPLAY_ESSO_QUERY_COUNT_DRIFT", id="esso_zero_queries"),
+        pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_drain_claim"', b'"inductive_other_claim"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_query_set_drift"),
     ],
 )
 def test_new_gate_observation_mutations_are_executed_fail(
@@ -874,7 +958,11 @@ def test_closed_constants_are_internally_consistent() -> None:
     assert all(status in core.LANE_STATUS_VOCABULARY_V1 for _, status, _ in core.LANE_SOURCE_DATA_V1)
     assert "COMPLETE" not in core.LANE_STATUS_VOCABULARY_V1
     assert len(core.SIDECAR_CHECKS_V1) == 10 and len(core.SIDECAR_FIELDS_V1) == 9
-    assert len(core.NONCLAIMS_V1) == 8
+    assert len(core.NONCLAIMS_V1) == 10
+    assert set(core.RUST_GATE_TESTS_V1) >= {"records_and_containers_reject_seeded_unknown_keys"}
+    assert core.RUST_GATE_EXPECTED_PASSED_V1 == len(core.RUST_GATE_TESTS_V1)
+    assert core.PYTHON_GATE_EXPECTED_PASSED_V1 >= len(core.PYTHON_GATE_TESTS_V1)
+    assert set(core.LEAN_DEFINITIONAL_THEOREMS_V1) <= {name for _, name in core.THEOREM_INVENTORY_V1}
     assert len(set(core.SOURCE_PIN_PATHS_V1)) == len(core.SOURCE_PIN_PATHS_V1)
     assert set(core.EXECUTING_TOOL_PATHS_V1) <= set(core.SOURCE_PIN_PATHS_V1)
     assert set(core.THV1_REQUIRED_PIN_PATHS_V1) <= set(core.SOURCE_PIN_PATHS_V1)
@@ -1034,6 +1122,39 @@ def test_cli_wrong_parent_and_envelope_drift(chain: Path, tmp_path_factory: pyte
     _commit_all(variant, "packet on the wrong parent")
     code, report = _run_cli(variant)
     assert code == 1 and "PACKET_PARENT_NOT_SUBJECT" in [e["code"] for e in report["errors"]]
+
+
+def test_cli_source_commit_after_p_is_fail_closed(chain: Path, tmp_path_factory: pytest.TempPathFactory) -> None:
+    """Stage 3 of the lifecycle, exercised on a synthetic chain: a pinned source changes after P."""
+
+    variant = tmp_path_factory.mktemp("o008-after-p") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(chain), str(variant)], check=True, capture_output=True, timeout=120)
+    target = variant / core.PYTHON_GATE_PATH_V1
+    target.write_text(target.read_text(encoding="utf-8") + "\n# drift after P\n", encoding="utf-8")
+    _commit_all(variant, "source commit after P")
+    code, report = _run_cli(variant)
+    assert code == 1 and report["ok"] is False
+    assert report["packet_admitted"] is True and report["current_applicable"] is False
+    assert report["current_source_drift"] == [core.PYTHON_GATE_PATH_V1]
+    assert report["head_commit"] != report["packet_commit"]
+
+
+def test_builder_check_mode_mismatch_is_named(chain: Path) -> None:
+    """A committed EXECUTED record checked without --replay is a mode mismatch, not byte drift."""
+
+    subject = _git(chain, "rev-parse", "HEAD^")
+    packet = json.loads((chain / core.PACKET_JSON_PATH_V1).read_bytes())
+    executed = copy.deepcopy(packet)
+    executed["proof_replay"]["author_record"] = {"status": "EXECUTED", "runs": [], "toolchain": {}}
+    original = (chain / core.PACKET_JSON_PATH_V1).read_bytes()
+    (chain / core.PACKET_JSON_PATH_V1).write_bytes(core.canonical_packet_bytes_v1(executed))
+    try:
+        args = builder._parse_args(["--root", str(chain), "--subject-commit", subject, "--created-date", CREATED, "--check"])
+        with pytest.raises(core.AdmissionRejectV1) as captured:
+            builder.build_v1(args)
+    finally:
+        (chain / core.PACKET_JSON_PATH_V1).write_bytes(original)
+    assert captured.value.code == "CHECK_MODE_MISMATCH"
 
 
 def test_cli_infrastructure_failures_exit_2(tmp_path: Path) -> None:

@@ -382,8 +382,9 @@ MUTATION_KILLERS_V1: Final[dict[str, tuple[str, str]]] = {
     "count balances as custody backing": ("excludes_balances_from_backing", _R1),
     "key claimant coverage by control domain instead of claimant": ("rejects_claimant_swap_hidden_by_asset_aggregate", _R2),
     "drop the OPEN status filter": ("ignores_drained_terminal_amount", ACCEPT_V1),
-    "use unchecked addition in the entitlement fold": ("rejects_entitlement_aggregate_overflow", _OVERFLOW),
-    "use unchecked addition in the custody fold": ("rejects_custody_aggregate_overflow", _OVERFLOW),
+    # One shared fold helper serves every table; both overflow vectors pin it.
+    "use unchecked addition in the shared fold helper": ("rejects_entitlement_aggregate_overflow", _OVERFLOW),
+    "skip the checked fold for the custody table": ("rejects_custody_aggregate_overflow", _OVERFLOW),
     "swap the R1/R2 precedence": ("precedence_domain_before_claimant", _R1),
     "evaluate R1 before folding the terminal table": ("precedence_terminal_overflow_before_domain", _OVERFLOW),
     "key backing by asset only": ("multi_asset_rejects_other_asset_shortfall", _R1),
@@ -426,7 +427,8 @@ def _mutation_killers_v1(vectors: Mapping[str, Any]) -> dict[str, dict[str, str]
     table: dict[str, dict[str, str]] = {}
     for mutation, (vector_name, expected_code) in MUTATION_KILLERS_V1.items():
         vector = vectors[vector_name]
-        assert isinstance(vector, dict)
+        if not isinstance(vector, dict):
+            raise TypeError(f"rendered vector {vector_name} is not an object")
         outcome = vector["expected_outcome"]
         actual = ACCEPT_V1 if outcome["status"] == "ACCEPT" else str(outcome["code"])
         if actual != expected_code:
