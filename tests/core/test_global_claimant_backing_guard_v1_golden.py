@@ -88,8 +88,18 @@ def test_histories_reference_recorded_vectors_in_order() -> None:
 
 def test_mutation_killers_name_recorded_vectors_with_the_expected_polarity() -> None:
     fixture = _fixture()
-    for mutation, vector_name in fixture["mutation_killers"].items():
-        assert vector_name in fixture["vectors"], mutation
+    killers = fixture["mutation_killers"]
+    assert set(killers) == set(renderer.MUTATION_KILLERS_V1)
+    seen_codes: set[str] = set()
+    for mutation, killer in killers.items():
+        assert set(killer) == {"vector", "expected_code"}, mutation
+        outcome = fixture["vectors"][killer["vector"]]["expected_outcome"]
+        if killer["expected_code"] == renderer.ACCEPT_V1:
+            assert outcome == {"status": "ACCEPT"}, mutation
+        else:
+            assert outcome["status"] == "REJECT" and outcome["code"] == killer["expected_code"], mutation
+            seen_codes.add(killer["expected_code"])
+    assert seen_codes == {code.value for code in ClaimantBackingRejectCodeV1}
 
 
 def test_view_has_no_reserve_or_balance_column() -> None:

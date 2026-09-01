@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
-use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
+use crate::canonical::{hash_global_v1, validate_token_v1, AbiErrorV1, AbiResultV1, RootV1};
 use crate::effects::{
     EconomicEffectKindV1, GlobalEconomicEffectPlanV1, FEE_RESIDUE_CONTROL_DOMAIN_V1,
     FEE_RESIDUE_PRINCIPAL_V1,
@@ -195,14 +195,79 @@ pub type BackingTotalV1 = (String, String, u128);
 /// is the shared Python/Rust commitment to the folded totals.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ClaimantBackingViewV1 {
-    pub schema: String,
-    pub custody_by_control_domain: Vec<BackingTotalV1>,
-    pub entitlements_by_control_domain: Vec<BackingTotalV1>,
-    pub entitlements_by_claimant: Vec<BackingTotalV1>,
-    pub open_terminals_by_claimant: Vec<BackingTotalV1>,
+    schema: String,
+    custody_by_control_domain: Vec<BackingTotalV1>,
+    entitlements_by_control_domain: Vec<BackingTotalV1>,
+    entitlements_by_claimant: Vec<BackingTotalV1>,
+    open_terminals_by_claimant: Vec<BackingTotalV1>,
+}
+
+fn validate_backing_table_v1(label: &'static str, table: &[BackingTotalV1]) -> AbiResultV1<()> {
+    for (asset, key, _) in table {
+        validate_token_v1(asset, label)?;
+        validate_token_v1(key, label)?;
+    }
+    let ordered = table.windows(2).all(|pair| {
+        (pair[0].0.as_str(), pair[0].1.as_str()) < (pair[1].0.as_str(), pair[1].1.as_str())
+    });
+    if !ordered {
+        return Err(AbiErrorV1::InvalidOrder(label));
+    }
+    Ok(())
 }
 
 impl ClaimantBackingViewV1 {
+    /// Build a view from folded totals; the schema is fixed and every table must be
+    /// strictly increasing by `(asset, key)` with token-shaped names, mirroring the
+    /// Python `__post_init__` so no hand-built view can carry duplicate keys.
+    pub fn new(
+        custody_by_control_domain: Vec<BackingTotalV1>,
+        entitlements_by_control_domain: Vec<BackingTotalV1>,
+        entitlements_by_claimant: Vec<BackingTotalV1>,
+        open_terminals_by_claimant: Vec<BackingTotalV1>,
+    ) -> AbiResultV1<Self> {
+        validate_backing_table_v1("claimant backing custody table", &custody_by_control_domain)?;
+        validate_backing_table_v1(
+            "claimant backing entitlement domain table",
+            &entitlements_by_control_domain,
+        )?;
+        validate_backing_table_v1(
+            "claimant backing entitlement claimant table",
+            &entitlements_by_claimant,
+        )?;
+        validate_backing_table_v1(
+            "claimant backing open terminal table",
+            &open_terminals_by_claimant,
+        )?;
+        Ok(Self {
+            schema: CLAIMANT_BACKING_VIEW_SCHEMA_V1.to_owned(),
+            custody_by_control_domain,
+            entitlements_by_control_domain,
+            entitlements_by_claimant,
+            open_terminals_by_claimant,
+        })
+    }
+
+    pub fn schema(&self) -> &str {
+        &self.schema
+    }
+
+    pub fn custody_by_control_domain(&self) -> &[BackingTotalV1] {
+        &self.custody_by_control_domain
+    }
+
+    pub fn entitlements_by_control_domain(&self) -> &[BackingTotalV1] {
+        &self.entitlements_by_control_domain
+    }
+
+    pub fn entitlements_by_claimant(&self) -> &[BackingTotalV1] {
+        &self.entitlements_by_claimant
+    }
+
+    pub fn open_terminals_by_claimant(&self) -> &[BackingTotalV1] {
+        &self.open_terminals_by_claimant
+    }
+
     pub fn view_root(&self) -> AbiResultV1<RootV1> {
         hash_global_v1(CLAIMANT_BACKING_VIEW_HASH_DOMAIN_V1, self)
     }
@@ -235,44 +300,46 @@ fn fold_backing_totals_v1<'a>(
 pub fn derive_claimant_backing_view_v1(
     state: &GlobalEconomicStateV1,
 ) -> AbiResultV1<ClaimantBackingViewV1> {
-    Ok(ClaimantBackingViewV1 {
-        schema: CLAIMANT_BACKING_VIEW_SCHEMA_V1.to_owned(),
-        custody_by_control_domain: fold_backing_totals_v1(state.custody.iter().map(|row| {
+    let custody_by_control_domain = fold_backing_totals_v1(state.custody.iter().map(|row| {
+        (
+            row.asset.as_str(),
+            row.custody_domain.as_str(),
+            row.amount_atoms,
+        )
+    }))?;
+    let entitlements_by_control_domain =
+        fold_backing_totals_v1(state.liabilities.iter().map(|row| {
             (
                 row.asset.as_str(),
                 row.custody_domain.as_str(),
                 row.amount_atoms,
             )
-        }))?,
-        entitlements_by_control_domain: fold_backing_totals_v1(state.liabilities.iter().map(
-            |row| {
+        }))?;
+    let entitlements_by_claimant = fold_backing_totals_v1(
+        state
+            .liabilities
+            .iter()
+            .map(|row| (row.asset.as_str(), row.owner.as_str(), row.amount_atoms)),
+    )?;
+    let open_terminals_by_claimant = fold_backing_totals_v1(
+        state
+            .terminal_obligations
+            .iter()
+            .filter(|obligation| obligation.status == TerminalObligationStatusV1::OPEN)
+            .map(|obligation| {
                 (
-                    row.asset.as_str(),
-                    row.custody_domain.as_str(),
-                    row.amount_atoms,
+                    obligation.asset.as_str(),
+                    obligation.claimant.as_str(),
+                    obligation.amount_atoms,
                 )
-            },
-        ))?,
-        entitlements_by_claimant: fold_backing_totals_v1(
-            state
-                .liabilities
-                .iter()
-                .map(|row| (row.asset.as_str(), row.owner.as_str(), row.amount_atoms)),
-        )?,
-        open_terminals_by_claimant: fold_backing_totals_v1(
-            state
-                .terminal_obligations
-                .iter()
-                .filter(|obligation| obligation.status == TerminalObligationStatusV1::OPEN)
-                .map(|obligation| {
-                    (
-                        obligation.asset.as_str(),
-                        obligation.claimant.as_str(),
-                        obligation.amount_atoms,
-                    )
-                }),
-        )?,
-    })
+            }),
+    )?;
+    ClaimantBackingViewV1::new(
+        custody_by_control_domain,
+        entitlements_by_control_domain,
+        entitlements_by_claimant,
+        open_terminals_by_claimant,
+    )
 }
 
 fn exceeds_backing_v1(claims: &[BackingTotalV1], backing: &[BackingTotalV1]) -> bool {

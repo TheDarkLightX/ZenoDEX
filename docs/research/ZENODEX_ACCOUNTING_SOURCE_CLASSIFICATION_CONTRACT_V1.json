@@ -22,36 +22,171 @@
     "terminal_obligation": "a claim that must reach a terminal drain or tombstone (V1 table terminal_obligations; control domain and controlling principal are absent from the V1 row)"
   },
   "v1_alias_table": [
-    {"wire_type": "EconomicAmountV1", "wire_field": "custody_domain", "meaning": "control_domain", "byte_stable": true},
-    {"wire_type": "EconomicAmountV1", "wire_field": "owner", "meaning": "controlling_principal on custody rows; claimant on liability rows; reserve principal on reserve rows; account key on balance rows", "byte_stable": true},
-    {"wire_type": "EconomicAmountV1", "wire_field": "amount_atoms", "meaning": "unsigned 128-bit integer atoms at the profile-bound eight-decimal precision", "byte_stable": true},
-    {"wire_type": "GlobalEconomicStateV1", "wire_field": "custody", "meaning": "controlled_location totals per (asset, controlling_principal, control_domain)", "byte_stable": true},
-    {"wire_type": "GlobalEconomicStateV1", "wire_field": "liabilities", "meaning": "claimant_entitlement totals per (asset, claimant, control_domain)", "byte_stable": true},
-    {"wire_type": "GlobalEconomicStateV1", "wire_field": "reserves", "meaning": "unencumbered_reserve totals per (asset, principal, control_domain)", "byte_stable": true},
-    {"wire_type": "GlobalEconomicStateV1", "wire_field": "balances", "meaning": "key_controlled_account totals", "byte_stable": true},
-    {"wire_type": "GlobalEconomicStateV1", "wire_field": "terminal_obligations", "meaning": "terminal_obligation rows (V1 projection lacks control_domain and controlling_principal)", "byte_stable": true},
-    {"wire_type": "GlobalEconomicStateV1", "wire_field": "outbox", "meaning": "pending_external_obligation rows (V1 projection lacks asset and amount_atoms)", "byte_stable": true}
+    {
+      "wire_type": "EconomicAmountV1",
+      "wire_field": "custody_domain",
+      "meaning": "control_domain",
+      "byte_stable": true
+    },
+    {
+      "wire_type": "EconomicAmountV1",
+      "wire_field": "owner",
+      "meaning": "controlling_principal on custody rows; claimant on liability rows; reserve principal on reserve rows; account key on balance rows",
+      "byte_stable": true
+    },
+    {
+      "wire_type": "EconomicAmountV1",
+      "wire_field": "amount_atoms",
+      "meaning": "unsigned 128-bit integer atoms at the profile-bound eight-decimal precision",
+      "byte_stable": true
+    },
+    {
+      "wire_type": "GlobalEconomicStateV1",
+      "wire_field": "custody",
+      "meaning": "controlled_location totals per (asset, controlling_principal, control_domain)",
+      "byte_stable": true
+    },
+    {
+      "wire_type": "GlobalEconomicStateV1",
+      "wire_field": "liabilities",
+      "meaning": "claimant_entitlement totals per (asset, claimant, control_domain)",
+      "byte_stable": true
+    },
+    {
+      "wire_type": "GlobalEconomicStateV1",
+      "wire_field": "reserves",
+      "meaning": "unencumbered_reserve totals per (asset, principal, control_domain)",
+      "byte_stable": true
+    },
+    {
+      "wire_type": "GlobalEconomicStateV1",
+      "wire_field": "balances",
+      "meaning": "key_controlled_account totals",
+      "byte_stable": true
+    },
+    {
+      "wire_type": "GlobalEconomicStateV1",
+      "wire_field": "terminal_obligations",
+      "meaning": "terminal_obligation rows (V1 projection lacks control_domain and controlling_principal)",
+      "byte_stable": true
+    },
+    {
+      "wire_type": "GlobalEconomicStateV1",
+      "wire_field": "outbox",
+      "meaning": "pending_external_obligation rows (V1 projection lacks asset and amount_atoms)",
+      "byte_stable": true
+    }
   ],
-  "disjoint_partitions": ["balances", "custody", "reserves"],
+  "disjoint_partitions": [
+    "balances",
+    "custody",
+    "reserves"
+  ],
   "conservation": "sum(balances) + sum(custody) + sum(reserves) = supply per asset; entitlements are claims against custody, never a fourth owned bucket",
   "source_classes": [
-    {"class": "CLAIMANT_ENTITLEMENT", "v1_source": "liabilities row", "required_bindings": ["asset", "integer_scale", "u128_width", "claimant", "control_domain", "lane_provenance", "occurrence", "profile_root", "release_root", "writer_epoch", "canonical_order"], "current_profile_status": "REQUIRED"},
-    {"class": "UNENCUMBERED_CONTROLLED_LOCATION", "v1_source": "custody atoms not matched by an entitlement in the same control domain", "required_bindings": ["asset", "integer_scale", "u128_width", "controlling_principal", "control_domain", "lane_provenance", "canonical_order"], "current_profile_status": "REJECTED_EXACT_PARTITION"},
-    {"class": "UNENCUMBERED_RESERVE", "v1_source": "reserves row", "required_bindings": ["asset", "integer_scale", "u128_width", "reserve_principal", "control_domain", "lane_provenance", "canonical_order"], "current_profile_status": "REQUIRED_CLAIMANT_FREE"},
-    {"class": "PENDING_EXTERNAL_OBLIGATION", "v1_source": "outbox row plus sidecar asset and amount", "required_bindings": ["asset", "integer_scale", "u128_width", "destination", "commitment", "control_domain", "source_principal", "lane_provenance", "occurrence", "canonical_order"], "current_profile_status": "EMPTY_UNTIL_EXTERNAL_PROFILE"},
-    {"class": "TERMINAL_OBLIGATION", "v1_source": "terminal_obligations row plus sidecar control_domain and controlling_principal", "required_bindings": ["asset", "integer_scale", "u128_width", "claimant", "control_domain", "controlling_principal", "terminal_identity", "lane_provenance", "lane_state_root", "canonical_order"], "current_profile_status": "REQUIRED"}
+    {
+      "class": "CLAIMANT_ENTITLEMENT",
+      "v1_source": "liabilities row",
+      "required_bindings": [
+        "asset",
+        "integer_scale",
+        "u128_width",
+        "claimant",
+        "control_domain",
+        "lane_provenance",
+        "occurrence",
+        "profile_root",
+        "release_root",
+        "writer_epoch",
+        "canonical_order"
+      ],
+      "current_profile_status": "REQUIRED"
+    },
+    {
+      "class": "UNENCUMBERED_CONTROLLED_LOCATION",
+      "v1_source": "custody atoms not matched by an entitlement in the same control domain",
+      "required_bindings": [
+        "asset",
+        "integer_scale",
+        "u128_width",
+        "controlling_principal",
+        "control_domain",
+        "lane_provenance",
+        "canonical_order"
+      ],
+      "current_profile_status": "REJECTED_EXACT_PARTITION"
+    },
+    {
+      "class": "UNENCUMBERED_RESERVE",
+      "v1_source": "reserves row",
+      "required_bindings": [
+        "asset",
+        "integer_scale",
+        "u128_width",
+        "reserve_principal",
+        "control_domain",
+        "lane_provenance",
+        "canonical_order"
+      ],
+      "current_profile_status": "REQUIRED_CLAIMANT_FREE"
+    },
+    {
+      "class": "PENDING_EXTERNAL_OBLIGATION",
+      "v1_source": "outbox row plus sidecar asset and amount",
+      "required_bindings": [
+        "asset",
+        "integer_scale",
+        "u128_width",
+        "destination",
+        "commitment",
+        "control_domain",
+        "source_principal",
+        "lane_provenance",
+        "occurrence",
+        "canonical_order"
+      ],
+      "current_profile_status": "EMPTY_UNTIL_EXTERNAL_PROFILE"
+    },
+    {
+      "class": "TERMINAL_OBLIGATION",
+      "v1_source": "terminal_obligations row plus sidecar control_domain and controlling_principal",
+      "required_bindings": [
+        "asset",
+        "integer_scale",
+        "u128_width",
+        "claimant",
+        "control_domain",
+        "controlling_principal",
+        "terminal_identity",
+        "lane_provenance",
+        "lane_state_root",
+        "canonical_order"
+      ],
+      "current_profile_status": "REQUIRED"
+    }
   ],
   "exact_one_classification": "every controlled source atom is classified exactly once per (asset, control_domain); omission, duplication, and cross-domain assignment reject",
   "reserve_interpretation": "NAMED_UNENCUMBERED_NO_CLAIMANT",
-  "arithmetic": {"width": "u128", "overflow": "REJECT", "rounding": "NONE", "residue": "carried explicitly as a named reserve row"},
+  "arithmetic": {
+    "width": "u128",
+    "overflow": "REJECT",
+    "rounding": "NONE",
+    "residue": "carried explicitly as a named reserve row"
+  },
   "claimant_backing_guard": {
     "python": "src/core/global_economic_state_effect_refinement_v1.py",
     "rust": "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
     "view_schema": "zenodex/claimant-backing-view/v1",
     "view_hash_domain": "claimant-backing-view-v1",
-    "reject_precedence": ["CLAIMANT_BACKING_TOTAL_OVERFLOW", "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING", "OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS"],
+    "reject_precedence": [
+      "CLAIMANT_BACKING_TOTAL_OVERFLOW",
+      "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING",
+      "OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS"
+    ],
     "golden_vector": "tests/data/global_claimant_backing_guard_v1_golden.json",
-    "renderer": "tools/render_global_claimant_backing_guard_v1_golden.py"
+    "renderer": "tools/render_global_claimant_backing_guard_v1_golden.py",
+    "precedence_change": "Since source commit 85c45bd629f6793e06d995a335ec92fc8a5926e6 the composed guard folds all four tables before evaluating any inequality, so a state whose OPEN-terminal fold overflows and whose entitlements exceed same-domain custody reports CLAIMANT_BACKING_TOTAL_OVERFLOW; before that commit the R1 inequality was evaluated before the terminal fold and such a state reported LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING. Both directions fail closed; the change is pinned by the golden vector precedence_terminal_overflow_before_domain.",
+    "custody_fold_overflow": "reachable: GlobalEconomicStateV1 validates rows, not supply equality, so custody rows of one asset can sum past u128; pinned by the golden vector rejects_custody_aggregate_overflow"
   },
   "blocked_pending_policy": {
     "UP-01": "fee allocation percentages among purchase-and-burn, hosting, staking, treasury, reserves, residue",

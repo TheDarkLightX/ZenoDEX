@@ -4,7 +4,8 @@ Date: 2026-08-26 (repair 1: 2026-08-27; closure repair 2: 2026-08-27; naming
 repair 3: 2026-08-27; admission-coherence repair 4: 2026-08-27; Max-review
 repair 5: 2026-08-27; residue-refinement repair 6: 2026-08-29;
 residue-evidence repair 7: 2026-08-29; semantic-restage repair 8: 2026-09-01;
-claimant-backing-view re-pin 9: 2026-09-01)
+claimant-backing-view re-pin 9: 2026-09-01;
+checked-view-constructor re-pin 10: 2026-09-01)
 
 Task: `FORMAL-MODEL-001` (`rlm-subagent-task/v1`, role `implementer`)
 
@@ -25,7 +26,7 @@ own file. No commit was amended.
 Status: `RESEARCH_ONLY_UNMOUNTED`, `BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY`
 
 Admission: `FORMAL_EVIDENCE_ADMITTED_RESEARCH_ONLY` under
-`THV1-20260901-global-settlement-formal-core-semantic-restage-v2`
+`THV1-20260901-global-settlement-formal-core-semantic-restage-v3`
 
 Integration admission: `BLOCKED_SUBJECT_RECEIPT_AND_MAX_REVIEW`
 
@@ -101,7 +102,7 @@ means this blueprint must be re-reviewed before it is trusted. Rows marked
 | --- | --- | --- |
 | `src/core/global_settlement_types_v1.py` | `13871fb586d7e5c1106edd5c0a9fdcd6f817016925027a6bdfb5ca8f53f29f58` | enforced |
 | `src/core/global_economic_state_effect_refinement_v1.py` | `abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697` | enforced |
-| `zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs` | `0a63e93e58f0a1b8c2f897005839d6151f02a924ed706530d604ffc7150d6c10` | enforced |
+| `zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs` | `e91f27cd2f38db434b1d8c77ef72a34508ec4ab744dff3843261fe263139316f` | enforced |
 | `src/core/zdex_fee_allocation_types_v1.py` | `b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df` | enforced |
 | `src/core/zdex_fee_allocation_v1.py` | `8f976781349e31ae9fd3c48b8534ae4fbfe74e8ce33e6b62c6a627c8109bad84` | enforced |
 | `zk/global_settlement_abi_v1/src/effects.rs` | `0e691ba4be7be58ded9a87ba28f1cd747b67bf5cdfd4c39bbe232480fe20b7f6` | enforced |

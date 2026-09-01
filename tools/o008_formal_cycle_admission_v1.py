@@ -64,6 +64,10 @@ PYTHON_REFINEMENT_PATH_V1: Final = "src/core/global_economic_state_effect_refine
 RUST_REFINEMENT_PATH_V1: Final = (
     "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs"
 )
+GOLDEN_RENDERER_PATH_V1: Final = "tools/render_global_claimant_backing_guard_v1_golden.py"
+GOLDEN_FIXTURE_PATH_V1: Final = "tests/data/global_claimant_backing_guard_v1_golden.json"
+GOLDEN_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_claimant_backing_guard_v1_golden.py"
+GOLDEN_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/claimant_backing_guard_golden.rs"
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
 RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
@@ -87,6 +91,10 @@ PRIOR_ESSO_GATE_PATH_V1: Final = "tests/formal/test_esso_global_settlement_core_
 SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (PYTHON_REFINEMENT_PATH_V1, "python_visible_necessary_checks"),
     (RUST_REFINEMENT_PATH_V1, "rust_visible_necessary_checks"),
+    (GOLDEN_RENDERER_PATH_V1, "claimant_backing_guard_golden_renderer"),
+    (GOLDEN_FIXTURE_PATH_V1, "claimant_backing_guard_golden_fixture"),
+    (GOLDEN_PYTHON_TEST_PATH_V1, "claimant_backing_guard_golden_python_replay"),
+    (GOLDEN_RUST_TEST_PATH_V1, "claimant_backing_guard_golden_rust_replay"),
     (PYTHON_TYPES_PATH_V1, "python_v1_wire_schema"),
     (RUST_STATE_PATH_V1, "rust_v1_wire_schema"),
     (RUST_LIB_PATH_V1, "rust_crate_root_module_closure"),
@@ -130,6 +138,10 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     RUST_MANIFEST_PATH_V1,
     PYTHON_REFINEMENT_PATH_V1,
     RUST_REFINEMENT_PATH_V1,
+    GOLDEN_RENDERER_PATH_V1,
+    GOLDEN_FIXTURE_PATH_V1,
+    GOLDEN_PYTHON_TEST_PATH_V1,
+    GOLDEN_RUST_TEST_PATH_V1,
     PYTHON_GATE_PATH_V1,
     RUST_GATE_PATH_V1,
     GATE_TESTS_PATH_V1,
@@ -184,6 +196,8 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     "Python and Rust reject V1-state-visible same-control-domain claimant underbacking",
     "Python and Rust reject aggregate OPEN-terminal amounts above the same claimant's"
     " visible entitlements",
+    "Python and Rust replay one rendered claimant-backing golden vector: states, view bytes,"
+    " view roots, closed reject codes with fixed precedence, and byte-identical messages",
     "ESSO proves the bounded exact claimant/control-domain partition inductive with Z3 and CVC5"
     " under five substantive invariants",
     "Lean proves the bounded necessary relation, the exact current-profile relation, exact"

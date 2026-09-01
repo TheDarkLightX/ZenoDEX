@@ -1,0 +1,239 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260901-claimant-backing-guard-golden-v2",
+  "created_date": "2026-09-01",
+  "claim_scope": "Append-only re-pin after candidate C2-prime repaired the Opus C2 review findings: the custody fold overflow is reachable (GlobalEconomicStateV1 validates rows, not supply equality) and is now pinned by the vector rejects_custody_aggregate_overflow; the composed guard has, since source commit 85c45bd629f6793e06d995a335ec92fc8a5926e6, folded all four tables before evaluating any inequality, so a state whose OPEN-terminal fold overflows and whose entitlements exceed same-domain custody reports CLAIMANT_BACKING_TOTAL_OVERFLOW where the pre-C2 guard reported LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING (both fail closed); the mutation-killer table now declares and checks each killer's expected outcome code; the Rust view is validated by a checked constructor. Research-only source-bound evidence that the state-visible necessary claimant-backing checks of the global economic refinement fold exactly custody, claimant-entitlement, and OPEN-terminal totals into a typed ClaimantBackingViewV1 with no reserve or balance column, reject through a closed three-code enum with fixed precedence and byte-identical messages in Python and Rust, and are bound across both languages by one rendered golden vector; and that the accounting source classification contract pins the normative partition and the V1 alias table without renaming any wire field.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CLAIMANT-BACKING-SAME-CONTROL-DOMAIN-R1",
+    "CLAIMANT-BACKING-OPEN-TERMINAL-COVERED-R2",
+    "CLAIMANT-BACKING-VIEW-HAS-NO-RESERVE-OR-BALANCE-COLUMN",
+    "CLAIMANT-BACKING-CLOSED-REJECT-PRECEDENCE",
+    "CLAIMANT-BACKING-PYTHON-RUST-MESSAGE-PARITY",
+    "CANONICAL-MANIFEST-CALL-SITE-INVENTORY-EXACT",
+    "ACCOUNTING-CONTRACT-V1-WIRE-NAMES-BYTE-STABLE"
+  ],
+  "failure_modes": [
+    "a reserve or balance row masks a missing claimant entitlement",
+    "a claimant's OPEN terminal total exceeds that claimant's entitlements",
+    "an unchecked fold wraps a u128 total",
+    "Python and Rust disagree on the reject code, message, or precedence for one state",
+    "the shared golden vector is edited by hand instead of rendered",
+    "a new canonical hash call site enters the closure without re-admission"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
+      "sha256": "e91f27cd2f38db434b1d8c77ef72a34508ec4ab744dff3843261fe263139316f"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_economic_state_effect_refinement.rs",
+      "sha256": "fb35a1edc49e4207c4eb951375aee02812df734ca9698066a56e22a5502e813e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/claimant_backing_guard_golden.rs",
+      "sha256": "3d52352ccd9fe613910c6abdddad153cea418f53dbf2004e7a9b7ca2234f2077"
+    },
+    {
+      "path": "tools/check_global_settlement_canonical_manifest_v1.py",
+      "sha256": "d728fba2df4732494e841db7a8f74d47c9ce58a5f548e03546bd043bd4846ce4"
+    },
+    {
+      "path": "tools/render_global_claimant_backing_guard_v1_golden.py",
+      "sha256": "1118f36960a5f884006694d1aac908c652d17b75683e862271333c649094778f"
+    },
+    {
+      "path": "tests/data/global_claimant_backing_guard_v1_golden.json",
+      "sha256": "5caab921045b7023e8f76447d8a20a9f966985e8c3da8f265dba35ea3994a50e"
+    },
+    {
+      "path": "docs/research/ZENODEX_ACCOUNTING_SOURCE_CLASSIFICATION_CONTRACT_V1.json",
+      "sha256": "d679e3c1bd11c2cb0856120192d45dacbbeef5ae32c40c8086c8a9b07a078a6c"
+    },
+    {
+      "path": "docs/research/ZENODEX_ACCOUNTING_SOURCE_CLASSIFICATION_CONTRACT_V1.md",
+      "sha256": "c18f1ea2b931a11c42b44c33ef9ba4e44b249be905f58bbdde2164c6951b0916"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_claimant_backing_guard_v1_golden.py",
+      "sha256": "7439b01af9b5d5d89b960ec4bdf372141860c2de083fa93b486afab65bb2e919",
+      "node_ids": [
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_fixture_is_the_renderer_output",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_fixture_header_and_message_table_are_shared",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[accepts_domainless_terminal_ambiguity_known_gap]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[accepts_empty_state]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[accepts_exact_cross_domain_claimant_coverage]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[accepts_open_zero_amount_terminal]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[accepts_u128_backing_boundary]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[exact_equality_accepts]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[excludes_balances_from_backing]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[excludes_reserves_from_backing]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[history_1_after_deposit_5]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[history_2_after_deposit_3]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[history_3_after_drain_4]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[history_4_custody_only_drain_rejects]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[ignores_drained_terminal_amount]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[ignores_tombstoned_terminal_amount]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[multi_asset_domains_are_independent]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[multi_asset_rejects_other_asset_shortfall]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[one_atom_short_rejects]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[open_terminal_exact_accepts]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[open_terminal_one_atom_over_rejects]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[precedence_domain_before_claimant]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[precedence_entitlement_overflow_before_domain]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[precedence_terminal_overflow_before_domain]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[rejects_claimant_swap_hidden_by_asset_aggregate]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[rejects_cross_domain_backing]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[rejects_custody_aggregate_overflow]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[rejects_entitlement_aggregate_overflow]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[rejects_open_terminal_aggregate_overflow]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_vector_replays_state_view_root_and_outcome[rejects_unbacked_liability]",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_histories_reference_recorded_vectors_in_order",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_view_has_no_reserve_or_balance_column",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_precedence_is_overflow_then_domain_then_claimant",
+        "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_classifier_maps_only_exact_guard_messages"
+      ]
+    },
+    {
+      "path": "tests/test_accounting_source_classification_contract_v1.py",
+      "sha256": "253579a254fa3fb04848a8c09bbe069501040e02f3234e6aea45a181ccbcf91e",
+      "node_ids": [
+        "tests/test_accounting_source_classification_contract_v1.py::test_contract_has_the_closed_shape_and_no_authority",
+        "tests/test_accounting_source_classification_contract_v1.py::test_normative_partition_is_pinned_to_the_safety_claim",
+        "tests/test_accounting_source_classification_contract_v1.py::test_alias_table_names_real_v1_wire_fields",
+        "tests/test_accounting_source_classification_contract_v1.py::test_guard_binding_matches_the_closed_enum_and_constants",
+        "tests/test_accounting_source_classification_contract_v1.py::test_source_classes_are_closed_and_policy_gated"
+      ]
+    },
+    {
+      "path": "tests/test_check_global_settlement_canonical_manifest_v1.py",
+      "sha256": "268eea0225294bb6df80b2d2659a1c774cdf90a070f730f91376b509f2c9b347",
+      "node_ids": [
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_repository_canonical_manifest_source_closure_passes",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_manifest_shape_rejects_missing_duplicate_and_unsorted_types",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_manifest_rejects_domain_import_or_executable_registration",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_instance_bound_serializer_dispatch",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_generic_enum_admission",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_weakened_loaded_type_identity",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_dynamic_import_and_registry_mutation",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_source_closure_digest_is_order_independent_and_content_sensitive"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "differential",
+    "replay",
+    "boundary",
+    "negative_regression",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each golden vector arranges one exact V1 state from a declarative spec, invokes the derive and require functions once per language, and asserts the exact view bytes, view root, reject code, and message."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The guard is a pure function over an immutable state and returns or raises without mutating it; the renderer refuses to write when a vector cannot be built and --check compares bytes without writing."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "backing_totals",
+      "points": [
+        "exact equality accepts",
+        "one atom short rejects R1",
+        "one atom short of a claimant's OPEN total rejects R2",
+        "u128 max accepts",
+        "u128 max plus one atom rejects overflow"
+      ]
+    },
+    {
+      "name": "terminal_status",
+      "points": [
+        "OPEN counts",
+        "DRAINED excluded",
+        "TOMBSTONED excluded"
+      ]
+    },
+    {
+      "name": "control_domains",
+      "points": [
+        "one domain",
+        "two domains with cross-domain surplus",
+        "same claimant across domains"
+      ]
+    },
+    {
+      "name": "vector_count",
+      "points": [
+        "exactly twenty-eight named vectors in both languages",
+        "every history and mutation killer names a recorded vector",
+        "the fixture equals the renderer output byte for byte"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "drop the same-domain check (R1)",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity"
+    },
+    {
+      "description": "drop the open-terminal check (R2)",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity"
+    },
+    {
+      "description": "count reserves or balances as claimant backing",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_view_has_no_reserve_or_balance_column"
+    },
+    {
+      "description": "swap R1/R2 precedence or report overflow after R1",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_precedence_is_overflow_then_domain_then_claimant"
+    },
+    {
+      "description": "drift a reject message between Python and Rust",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_fixture_header_and_message_table_are_shared"
+    },
+    {
+      "description": "use unchecked addition in a backing fold",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity"
+    },
+    {
+      "description": "count DRAINED or TOMBSTONED terminals as open",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity"
+    },
+    {
+      "description": "use unchecked addition in the custody fold",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity"
+    },
+    {
+      "description": "declare a mutation killer with the wrong outcome polarity",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity"
+    },
+    {
+      "description": "fold entitlements across control domains",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity"
+    },
+    {
+      "description": "change the view schema or hash domain",
+      "killed_by": "tests/core/test_global_claimant_backing_guard_v1_golden.py::test_fixture_is_the_renderer_output"
+    },
+    {
+      "description": "add a hash_global_v1 call site without re-admitting the manifest",
+      "killed_by": "tests/test_check_global_settlement_canonical_manifest_v1.py::test_repository_canonical_manifest_source_closure_passes"
+    }
+  ],
+  "nonclaims": [
+    "The checks are necessary conditions only; exact all-lane reconciliation requires the allocation certificate producers.",
+    "A custody fold overflow within one asset is reachable in a valid V1 state (the state type validates rows, not supply equality) and is pinned by a golden vector; the unreachability claim in the v1 packet was false and is withdrawn.",
+    "No wire field is renamed; the control-domain vocabulary applies to new code and documents only.",
+    "No production, release, settlement, verifier, migration, publication, or value-moving authority is granted."
+  ]
+}

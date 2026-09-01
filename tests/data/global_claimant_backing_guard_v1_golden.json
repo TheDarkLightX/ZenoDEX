@@ -12,23 +12,51 @@
     ]
   },
   "mutation_killers": {
-    "compare with >= instead of >": "exact_equality_accepts",
-    "count balances as custody backing": "excludes_balances_from_backing",
-    "count reserves as custody backing": "excludes_reserves_from_backing",
-    "drop the OPEN status filter": "ignores_drained_terminal_amount",
-    "evaluate R1 before folding the terminal table": "precedence_terminal_overflow_before_domain",
-    "key backing by asset only": "multi_asset_rejects_other_asset_shortfall",
-    "key claimant coverage by control domain instead of claimant": "rejects_claimant_swap_hidden_by_asset_aggregate",
-    "swap the R1/R2 precedence": "precedence_domain_before_claimant",
-    "use unchecked addition": "rejects_entitlement_aggregate_overflow"
+    "compare with >= instead of >": {
+      "expected_code": "ACCEPT",
+      "vector": "exact_equality_accepts"
+    },
+    "count balances as custody backing": {
+      "expected_code": "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING",
+      "vector": "excludes_balances_from_backing"
+    },
+    "count reserves as custody backing": {
+      "expected_code": "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING",
+      "vector": "excludes_reserves_from_backing"
+    },
+    "drop the OPEN status filter": {
+      "expected_code": "ACCEPT",
+      "vector": "ignores_drained_terminal_amount"
+    },
+    "evaluate R1 before folding the terminal table": {
+      "expected_code": "CLAIMANT_BACKING_TOTAL_OVERFLOW",
+      "vector": "precedence_terminal_overflow_before_domain"
+    },
+    "key backing by asset only": {
+      "expected_code": "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING",
+      "vector": "multi_asset_rejects_other_asset_shortfall"
+    },
+    "key claimant coverage by control domain instead of claimant": {
+      "expected_code": "OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS",
+      "vector": "rejects_claimant_swap_hidden_by_asset_aggregate"
+    },
+    "swap the R1/R2 precedence": {
+      "expected_code": "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING",
+      "vector": "precedence_domain_before_claimant"
+    },
+    "use unchecked addition in the custody fold": {
+      "expected_code": "CLAIMANT_BACKING_TOTAL_OVERFLOW",
+      "vector": "rejects_custody_aggregate_overflow"
+    },
+    "use unchecked addition in the entitlement fold": {
+      "expected_code": "CLAIMANT_BACKING_TOTAL_OVERFLOW",
+      "vector": "rejects_entitlement_aggregate_overflow"
+    }
   },
   "reject_messages": {
     "CLAIMANT_BACKING_TOTAL_OVERFLOW": "economic refinement claimant backing total overflows",
     "LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING": "economic refinement liabilities exceed same-domain custody backing",
     "OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS": "economic refinement open terminal obligations exceed claimant liabilities"
-  },
-  "unreachable_mutations": {
-    "custody fold overflow within one asset": "supply = custody + reserves + balances is validated as u128 at state construction, so custody rows of one asset cannot sum past u128 in a valid GlobalEconomicStateV1; the custody fold's checked addition is retained as defence in depth"
   },
   "vectors": {
     "accepts_domainless_terminal_ambiguity_known_gap": {
@@ -4174,6 +4202,154 @@
         "writer_epoch": 1
       },
       "state_bytes_sha256": "41f6f850c7a90f7c9fa76cc2a5df52cc4344fa426a19766990fbf73ee9e9451c"
+    },
+    "rejects_custody_aggregate_overflow": {
+      "expected_outcome": {
+        "code": "CLAIMANT_BACKING_TOTAL_OVERFLOW",
+        "message": "economic refinement claimant backing total overflows",
+        "status": "REJECT"
+      },
+      "expected_state_root": "0xb513b5f428ea3768a7d38eed8302715c270f6770629052259999d97d0fe1631e",
+      "expected_view": null,
+      "expected_view_root": null,
+      "obligation": "two custody rows in one control domain summing past u128 max reject with the overflow code; the state is constructible because GlobalEconomicStateV1 validates rows, not supply equality",
+      "spec": {
+        "balances": [],
+        "custody": [
+          [
+            "account-a",
+            "USD",
+            "perps-margin",
+            340282366920938463463374607431768211455
+          ],
+          [
+            "account-b",
+            "USD",
+            "perps-margin",
+            1
+          ]
+        ],
+        "liabilities": [],
+        "reserves": [],
+        "supplies": [
+          [
+            "USD",
+            340282366920938463463374607431768211455
+          ]
+        ],
+        "terminals": []
+      },
+      "state": {
+        "balances": [],
+        "chain_id": "zeno-claimant-backing-golden",
+        "custody": [
+          {
+            "amount_atoms": 340282366920938463463374607431768211455,
+            "asset": "USD",
+            "custody_domain": "perps-margin",
+            "owner": "account-a"
+          },
+          {
+            "amount_atoms": 1,
+            "asset": "USD",
+            "custody_domain": "perps-margin",
+            "owner": "account-b"
+          }
+        ],
+        "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000007918",
+        "height": 1,
+        "history_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "lane_roots": [
+          {
+            "enabled": true,
+            "lane_id": "ASSET_TRANSFER",
+            "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000065",
+            "state_root": "0x000000000000000000000000000000000000000000000000000000000000791a"
+          },
+          {
+            "enabled": true,
+            "lane_id": "SPOT_LIQUIDITY",
+            "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000066",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007d2"
+          },
+          {
+            "enabled": true,
+            "lane_id": "FARM_INCENTIVES",
+            "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000067",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007d3"
+          },
+          {
+            "enabled": true,
+            "lane_id": "ZDEX_TOKENOMICS",
+            "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000068",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007d4"
+          },
+          {
+            "enabled": true,
+            "lane_id": "ZUSD_MONETARY",
+            "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000069",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007d5"
+          },
+          {
+            "enabled": true,
+            "lane_id": "PERPS_MARKET",
+            "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000006a",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007d6"
+          },
+          {
+            "enabled": true,
+            "lane_id": "ORACLE_MARKET",
+            "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000006b",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007d7"
+          },
+          {
+            "enabled": true,
+            "lane_id": "SEALED_AUCTION",
+            "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000006c",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007d8"
+          },
+          {
+            "enabled": true,
+            "lane_id": "STRATEGY_ESCROW",
+            "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000006d",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007d9"
+          },
+          {
+            "enabled": true,
+            "lane_id": "PROOF_REWARDS",
+            "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000006e",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007da"
+          },
+          {
+            "enabled": true,
+            "lane_id": "EXTERNAL_CUSTODY",
+            "module_release_id": "0x000000000000000000000000000000000000000000000000000000000000006f",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007db"
+          },
+          {
+            "enabled": true,
+            "lane_id": "GOVERNANCE_MIGRATION",
+            "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000070",
+            "state_root": "0x00000000000000000000000000000000000000000000000000000000000007dc"
+          }
+        ],
+        "liabilities": [],
+        "oracle_occurrences": [],
+        "outbox": [],
+        "profile_root": "0x0000000000000000000000000000000000000000000000000000000000007919",
+        "replay_state": [],
+        "reserves": [],
+        "schema": "zenodex/global-settlement-abi/v1",
+        "supplies": [
+          {
+            "amount_atoms": 340282366920938463463374607431768211455,
+            "asset": "USD"
+          }
+        ],
+        "terminal_obligations": [],
+        "writer_epoch": 1
+      },
+      "state_bytes_sha256": "7757d66ea518375a7f9410e61681f073d70e745f8f0d1d1b5632d17145517b6c"
     },
     "rejects_entitlement_aggregate_overflow": {
       "expected_outcome": {

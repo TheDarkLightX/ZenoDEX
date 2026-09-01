@@ -29,8 +29,14 @@ struct Fixture {
     reject_messages: BTreeMap<String, String>,
     vectors: BTreeMap<String, Vector>,
     histories: BTreeMap<String, Vec<String>>,
-    mutation_killers: BTreeMap<String, String>,
-    unreachable_mutations: BTreeMap<String, String>,
+    mutation_killers: BTreeMap<String, MutationKiller>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MutationKiller {
+    vector: String,
+    expected_code: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -115,8 +121,8 @@ fn reject_message_table_is_shared_with_python() {
 fn every_vector_replays_state_view_root_and_outcome() {
     let fixture = load_fixture();
     assert!(
-        fixture.vectors.len() == 27,
-        "fixture must carry exactly the 27 named obligations rendered by Python"
+        fixture.vectors.len() == 28,
+        "fixture must carry exactly the 28 named obligations rendered by Python"
     );
     for (name, vector) in &fixture.vectors {
         assert!(!vector.obligation.is_empty(), "{name} needs an obligation");
@@ -167,8 +173,28 @@ fn histories_and_mutation_killers_name_recorded_vectors() {
             assert!(fixture.vectors.contains_key(step), "{history}: {step}");
         }
     }
-    for (mutation, vector) in &fixture.mutation_killers {
-        assert!(fixture.vectors.contains_key(vector), "{mutation}: {vector}");
+    let mut seen_codes = std::collections::BTreeSet::new();
+    for (mutation, killer) in &fixture.mutation_killers {
+        let vector = fixture
+            .vectors
+            .get(&killer.vector)
+            .unwrap_or_else(|| panic!("{mutation}: {}", killer.vector));
+        let outcome = &vector.expected_outcome;
+        if killer.expected_code == "ACCEPT" {
+            assert_eq!(outcome.status, "ACCEPT", "{mutation}");
+        } else {
+            assert_eq!(outcome.status, "REJECT", "{mutation}");
+            assert_eq!(
+                outcome.code.as_deref(),
+                Some(killer.expected_code.as_str()),
+                "{mutation}"
+            );
+            seen_codes.insert(killer.expected_code.clone());
+        }
     }
-    assert!(!fixture.unreachable_mutations.is_empty());
+    let all_codes: std::collections::BTreeSet<String> = ClaimantBackingRejectCodeV1::ALL
+        .into_iter()
+        .map(|code| code.code().to_owned())
+        .collect();
+    assert_eq!(seen_codes, all_codes);
 }

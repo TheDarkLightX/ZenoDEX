@@ -1066,11 +1066,25 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
         assert report["packet_admitted"] is True and report["current_applicable"] is True
         assert report["current_source_drift"] == []
     else:
-        # A source commit after P: the verdict is fail-closed unless every pinned source and the
-        # pin set itself still equal the committed packet.
-        consistent = report["errors"] == [] and report["current_source_drift"] == []
-        assert report["ok"] is consistent
-        assert report["current_applicable"] is (report["packet_admitted"] and report["current_source_drift"] == [])
+        # A source commit after P: derive the drift independently from Git and the worktree
+        # (never from the report) and require the fail-closed direction.
+        drifted: set[str] = set()
+        for pin in json.loads(raw).get("source_pins", ()):
+            path = str(pin["path"])
+            head_blob = subprocess.run(
+                ["git", "-C", str(ROOT), "rev-parse", "--verify", "-q", f"HEAD:{path}"],
+                capture_output=True, text=True, check=False, timeout=60,
+            ).stdout.strip()
+            target = ROOT / path
+            current = core.sha256_hex_v1(target.read_bytes()) if target.is_file() else None
+            if head_blob != pin["git_blob"] or current != pin["sha256"]:
+                drifted.add(path)
+        if drifted or not report["packet_admitted"]:
+            assert report["ok"] is False and report["current_applicable"] is False
+        if report["packet_admitted"]:
+            assert set(report["current_source_drift"]) >= drifted
+            if not report["current_source_drift"]:
+                assert report["ok"] is True and report["current_applicable"] is True
     assert report["claim_ceiling"] == core.CLAIM_CEILING_V1
     assert report["proof_replay"]["status"] == "NOT_RUN"
 

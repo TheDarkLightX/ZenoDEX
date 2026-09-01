@@ -34,6 +34,7 @@ if str(REPO_ROOT) not in sys.path:
 from src.core.global_economic_state_effect_refinement_v1 import (  # noqa: E402
     CLAIMANT_BACKING_MESSAGE_BY_CODE_V1,
     CLAIMANT_BACKING_VIEW_HASH_DOMAIN_V1,
+    ClaimantBackingRejectCodeV1,
     ClaimantBackingViewV1,
     classify_claimant_backing_error_v1,
     derive_claimant_backing_view_v1,
@@ -110,10 +111,16 @@ def build_state_v1(spec: Mapping[str, Any]) -> GlobalEconomicStateV1:
     balances = list(spec.get("balances", ()))
     liabilities = list(spec.get("liabilities", ()))
     owned = [*custody, *reserves, *balances]
-    supplies = tuple(
-        AssetSupplyV1(asset, sum(int(str(row[3])) for row in owned if row[1] == asset))
-        for asset in sorted({str(row[1]) for row in owned})
-    )
+    explicit = spec.get("supplies")
+    if explicit is None:
+        supplies = tuple(
+            AssetSupplyV1(asset, sum(int(str(row[3])) for row in owned if row[1] == asset))
+            for asset in sorted({str(row[1]) for row in owned})
+        )
+    else:
+        # GlobalEconomicStateV1 validates rows, not supply equality; an explicit override
+        # lets a vector exercise folds whose true sum exceeds any single u128 supply.
+        supplies = tuple(AssetSupplyV1(str(asset), int(str(atoms))) for asset, atoms in explicit)
     return GlobalEconomicStateV1(
         chain_id=CHAIN_ID_V1,
         deployment_root=_root(31_000),
@@ -160,14 +167,18 @@ def _spec(
     reserves: Sequence[Row] = (),
     balances: Sequence[Row] = (),
     terminals: Sequence[Terminal] = (),
+    supplies: Sequence[tuple[str, int]] | None = None,
 ) -> dict[str, list[list[object]]]:
-    return {
+    spec: dict[str, list[list[object]]] = {
         "custody": [list(row) for row in custody],
         "liabilities": [list(row) for row in liabilities],
         "reserves": [list(row) for row in reserves],
         "balances": [list(row) for row in balances],
         "terminals": [list(row) for row in terminals],
     }
+    if supplies is not None:
+        spec["supplies"] = [[asset, atoms] for asset, atoms in supplies]
+    return spec
 
 
 OPEN: Final = TerminalObligationStatusV1.OPEN.value
@@ -246,6 +257,14 @@ VECTORS_V1: Final[dict[str, tuple[str, dict[str, list[list[object]]]]]] = {
         _spec(
             custody=[("account", "USD", "perps-margin", MAX)],
             liabilities=[("alice", "USD", "perps-margin", MAX), ("bob", "USD", "perps-margin", 1)],
+        ),
+    ),
+    "rejects_custody_aggregate_overflow": (
+        "two custody rows in one control domain summing past u128 max reject with the overflow code;"
+        " the state is constructible because GlobalEconomicStateV1 validates rows, not supply equality",
+        _spec(
+            custody=[("account-a", "USD", "perps-margin", MAX), ("account-b", "USD", "perps-margin", 1)],
+            supplies=[("USD", MAX)],
         ),
     ),
     "rejects_open_terminal_aggregate_overflow": (
@@ -350,25 +369,25 @@ HISTORIES_V1: Final[dict[str, list[str]]] = {
     ],
 }
 
-# Bounded refutations: mutations that cannot be reached by any valid V1 state.
-UNREACHABLE_MUTATIONS_V1: Final[dict[str, str]] = {
-    "custody fold overflow within one asset": (
-        "supply = custody + reserves + balances is validated as u128 at state construction,"
-        " so custody rows of one asset cannot sum past u128 in a valid GlobalEconomicStateV1;"
-        " the custody fold's checked addition is retained as defence in depth"
-    ),
-}
+ACCEPT_V1: Final = "ACCEPT"
+_OVERFLOW = ClaimantBackingRejectCodeV1.CLAIMANT_BACKING_TOTAL_OVERFLOW.value
+_R1 = ClaimantBackingRejectCodeV1.LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING.value
+_R2 = ClaimantBackingRejectCodeV1.OPEN_TERMINAL_EXCEEDS_CLAIMANT_ENTITLEMENTS.value
 
-MUTATION_KILLERS_V1: Final[dict[str, str]] = {
-    "count reserves as custody backing": "excludes_reserves_from_backing",
-    "count balances as custody backing": "excludes_balances_from_backing",
-    "key claimant coverage by control domain instead of claimant": "rejects_claimant_swap_hidden_by_asset_aggregate",
-    "drop the OPEN status filter": "ignores_drained_terminal_amount",
-    "use unchecked addition": "rejects_entitlement_aggregate_overflow",
-    "swap the R1/R2 precedence": "precedence_domain_before_claimant",
-    "evaluate R1 before folding the terminal table": "precedence_terminal_overflow_before_domain",
-    "key backing by asset only": "multi_asset_rejects_other_asset_shortfall",
-    "compare with >= instead of >": "exact_equality_accepts",
+# Named mutation killers: mutation -> (vector, expected outcome code). The render step
+# asserts that every declared expectation equals the vector's evaluated outcome, so a
+# killer whose polarity is wrong cannot be rendered.
+MUTATION_KILLERS_V1: Final[dict[str, tuple[str, str]]] = {
+    "count reserves as custody backing": ("excludes_reserves_from_backing", _R1),
+    "count balances as custody backing": ("excludes_balances_from_backing", _R1),
+    "key claimant coverage by control domain instead of claimant": ("rejects_claimant_swap_hidden_by_asset_aggregate", _R2),
+    "drop the OPEN status filter": ("ignores_drained_terminal_amount", ACCEPT_V1),
+    "use unchecked addition in the entitlement fold": ("rejects_entitlement_aggregate_overflow", _OVERFLOW),
+    "use unchecked addition in the custody fold": ("rejects_custody_aggregate_overflow", _OVERFLOW),
+    "swap the R1/R2 precedence": ("precedence_domain_before_claimant", _R1),
+    "evaluate R1 before folding the terminal table": ("precedence_terminal_overflow_before_domain", _OVERFLOW),
+    "key backing by asset only": ("multi_asset_rejects_other_asset_shortfall", _R1),
+    "compare with >= instead of >": ("exact_equality_accepts", ACCEPT_V1),
 }
 
 
@@ -397,9 +416,23 @@ def render_fixture_v1() -> dict[str, object]:
         },
         "vectors": vectors,
         "histories": HISTORIES_V1,
-        "mutation_killers": MUTATION_KILLERS_V1,
-        "unreachable_mutations": UNREACHABLE_MUTATIONS_V1,
+        "mutation_killers": _mutation_killers_v1(vectors),
     }
+
+
+def _mutation_killers_v1(vectors: Mapping[str, Any]) -> dict[str, dict[str, str]]:
+    """Render the killer table after checking every declared polarity against the vectors."""
+
+    table: dict[str, dict[str, str]] = {}
+    for mutation, (vector_name, expected_code) in MUTATION_KILLERS_V1.items():
+        vector = vectors[vector_name]
+        assert isinstance(vector, dict)
+        outcome = vector["expected_outcome"]
+        actual = ACCEPT_V1 if outcome["status"] == "ACCEPT" else str(outcome["code"])
+        if actual != expected_code:
+            raise ValueError(f"mutation killer polarity drift: {mutation}: {vector_name} yields {actual}, declared {expected_code}")
+        table[mutation] = {"vector": vector_name, "expected_code": expected_code}
+    return table
 
 
 def render_bytes_v1() -> bytes:

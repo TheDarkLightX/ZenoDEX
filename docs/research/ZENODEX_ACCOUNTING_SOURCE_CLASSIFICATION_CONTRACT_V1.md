@@ -74,6 +74,16 @@ balance column. Reject precedence is closed and shared:
 `tests/data/global_claimant_backing_guard_v1_golden.json` binds states, view
 bytes, view roots, and exact codes and messages across both languages.
 
+Precedence change (recorded, not silent): since source commit
+`85c45bd629f6793e06d995a335ec92fc8a5926e6` the composed guard folds all four
+tables before evaluating any inequality, so a state whose OPEN-terminal fold
+overflows and whose entitlements exceed same-domain custody reports
+`CLAIMANT_BACKING_TOTAL_OVERFLOW`; before that commit R1 was evaluated before
+the terminal fold and such a state reported
+`LIABILITIES_EXCEED_SAME_CONTROL_DOMAIN_BACKING`. Both directions fail closed.
+A custody fold overflow is reachable (the state type validates rows, not supply
+equality) and is pinned by the vector `rejects_custody_aggregate_overflow`.
+
 ## Blocked pending policy
 
 UP-01, UP-02, UP-04, UP-05, UP-09, UP-11, UP-13, UP-15, and UP-17 gate the
