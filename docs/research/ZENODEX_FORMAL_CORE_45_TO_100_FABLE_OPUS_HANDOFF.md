@@ -2,10 +2,14 @@
 
 Date: 2026-09-01
 
-Use this handoff with Fable 5 and Opus 5. The earlier `35-45%` estimate is
-planning context. It is not an evidence-derived completion score. Completion is
-defined by the admitted Plan V2.1 obligations, capability rows, and all twelve
-value-movement gates passing on one exact release subject.
+Use this handoff with Fable 5 as the primary end-to-end implementation and
+integration owner while Codex is unavailable. Opus 5 supplies independent
+proof and authority review. Codex may later audit the exact Fable candidate;
+that later audit does not prevent Fable from completing every workflow stage
+and preparing a fully replayable candidate now. The earlier `35-45%` estimate
+is planning context. It is not an evidence-derived completion score.
+Completion is defined by the admitted Plan V2.1 obligations, capability rows,
+and all twelve value-movement gates passing on one exact release subject.
 
 ## Shared workspace and plan coordinates
 
@@ -89,11 +93,17 @@ production, settlement, release, verifier, and value-moving authority: NONE
 Re-freeze this state from Git and the live checkers. The branch may contain
 additional ESSO and admission-checker repairs by the time this prompt is used.
 
-## Prompt for Fable 5
+## Prompt for Fable 5, primary end-to-end owner
 
 ```text
-You are the semantic integrator for the ZenoDEX Formal Functional Core Closure
-Campaign.
+You are the primary end-to-end implementation, formalization, verification,
+integration, and evidence owner for the ZenoDEX Formal Functional Core Closure
+Campaign while Codex is unavailable. Take responsibility for the entire
+workflow from the current branch state through one exact candidate that can be
+independently replayed and reviewed. Coordinate any subagents yourself, review
+their exact commits, integrate them serially, and repair every valid finding.
+Do not wait for Codex to perform an intermediate step. Codex can later audit
+your final exact candidate and evidence bundle.
 
 Repository coordinates and authority:
 - Preserve /home/trevormoc/Downloads/Autonomous Tau DEX. It may contain user work.
@@ -121,6 +131,21 @@ Models, Fable, Opus, ESSO, SMT, Lean, RISC0, Tau, simulations, and agents are
 suggestion or bounded-checking systems. Deterministic admission, replay,
 verifier, release, and commit-port gates own promotion. Keep all authority at
 NONE during construction. Do not certify your own candidate.
+
+Ownership and continuity:
+- Own plan reconciliation, implementation, formal proofs, model checking,
+  runtime parity, proof-system integration, Tau integration, publisher and
+  migration work, testing, evidence capture, exact-hash review coordination,
+  and final handoff.
+- Use your own isolated integration branch and worktree. You are the only
+  integrator on it. Give every worker a separate worktree and disjoint write
+  set.
+- At every pause, commit coherent work and write a durable checkpoint containing
+  exact head, parent, tree, completed obligations, failed gates, active workers,
+  replay commands, artifacts, and the next dependency-ordered action.
+- Continue until all plan-defined closure conditions pass or a genuine user
+  policy decision blocks progress. Tool cost, task size, or the absence of
+  Codex is not itself a blocker.
 
 First task, evidence-admission repair:
 1. Audit the latest integration head. Treat 94dd23f29 as a REVISE baseline.
@@ -207,6 +232,11 @@ preserve candidate, parent, tree, source and requirement hashes, the minimized
 pre-fix counterexample, post-fix evidence, exact commands, toolchains, exits and
 output hashes, parity evidence, assumptions, nonclaims, and deterministic gate
 output. Request an independent exact-hash Opus proof and authority review.
+Resolve every valid Opus finding in a new child candidate and obtain a fresh
+review of the new hash. Preserve rejected candidates and review artifacts as
+provenance. When Codex returns, provide the final candidate hash and a compact
+replay index so Codex can perform a separate audit without reconstructing the
+campaign from chat history.
 
 Stop immediately for an undefined economic, custody, finality, migration, or
 terminal policy. Keep formal_core_complete=false and authority NONE until one
@@ -312,4 +342,3 @@ alternate value writer, a release-selected verifier and publisher, migration
 and recovery evidence, and independent exact-hash reviews. Otherwise report the
 exact numerator, denominator, blockers, and safest next proof obligation.
 ```
-
