@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V8: Final = "zenodex/o008-formal-cycle-evidence/v8"
+PACKET_SCHEMA_V9: Final = "zenodex/o008-formal-cycle-evidence/v9"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -404,7 +404,8 @@ CERTIFICATE_PRODUCER_KINDS_V1: Final[dict[str, str]] = {
     lane: {"EXTERNAL_CUSTODY": "REGISTERED_EMPTY_DISABLED", "PROOF_REWARDS": "REGISTERED_EMPTY_BLOCKED"}.get(lane, "NO_PRODUCER")
     for lane in EXPECTED_LANES_V1
 }
-CERTIFICATE_FIXTURE_VECTORS_V1: Final = 25
+CERTIFICATE_FIXTURE_VECTORS_V1: Final = 26
+CERTIFICATE_FIXTURE_ACCEPTED_V1: Final = 3
 CERTIFICATE_FRAGMENT_ROW_FIELDS_V1: Final[tuple[str, ...]] = (
     "controlled_locations", "claimant_entitlements", "unencumbered_reserves", "pending_external_obligations", "terminal_bindings"
 )
@@ -574,9 +575,10 @@ LEAN_STATEMENT_SHA256_V1: Final[dict[str, str]] = {
 LEAN_DEFINITION_SURFACE_SHA256_V1: Final = "cd1e010a3f82e1595c4cefa7fc7354bc8d972e77c669ed026d177bb8cf275b11"
 LEAN_STATEMENT_BINDING_V1: Final = (
     "theorem statements and the definitional surface are compared against hashes embedded in the"
-    " admission core at S, the file may use no notation, macro, syntax, instance, attribute, scope,"
-    " or open command, and each elided region is indented proof text with no declaration, so"
-    " only how a theorem is proved is left to replay"
+    " admission core at S; the file contains no string or char literal (no double quote) and no #"
+    " command and may use no notation, macro, syntax, instance, attribute, scope, or open command;"
+    " each elided region is indented proof text with no declaration, so only how a theorem is"
+    " proved is left to replay"
 )
 LEAN_GATE_PIN_ORDER_V1: Final[tuple[str, ...]] = (
     LEAN_PROOF_PATH_V1,
@@ -867,17 +869,17 @@ BOUNDED_VEC_MACRO_BODY_V1: Final = "($function:ident, $row:ty, $maximum:expr, $l
 # the only decoding path for a container is this visitor, which decodes every element
 # through `T: Deserialize` (the record's derive) and nothing else.
 BOUNDED_VEC_LIBRARY_TEMPLATE_V1: Final = "use std::{fmt, marker::PhantomData}; use serde::de::{Error, IgnoredAny, SeqAccess, Visitor}; use serde::{Deserialize, Deserializer}; pub(crate) fn deserialize_bounded_vec_v1<'de, D, T, const MAXIMUM: usize>( deserializer: D, label: &'static str, ) -> Result<Vec<T>, D::Error> where D: Deserializer<'de>, T: Deserialize<'de>, { deserializer.deserialize_seq(BoundedVecVisitorV1::<T, MAXIMUM> { label, marker: PhantomData, }) } struct BoundedVecVisitorV1<T, const MAXIMUM: usize> { label: &'static str, marker: PhantomData<T>, } impl<'de, T, const MAXIMUM: usize> Visitor<'de> for BoundedVecVisitorV1<T, MAXIMUM> where T: Deserialize<'de>, { type Value = Vec<T>; fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result { write!(formatter, , self.label) } fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error> where A: SeqAccess<'de>, { if sequence.size_hint().is_some_and(|size| size > MAXIMUM) { return Err(A::Error::custom(format_args!( , self.label ))); } let mut values = Vec::with_capacity(sequence.size_hint().unwrap_or(0).min(MAXIMUM)); while values.len() < MAXIMUM { match sequence.next_element()? { Some(value) => values.push(value), None => return Ok(values), } } if sequence.next_element::<IgnoredAny>()?.is_some() { return Err(A::Error::custom(format_args!( , self.label ))); } Ok(values) } }"
-# Closed content of the two compiled/imported projection gates: normalised-content hashes
-# (Rust: whitespace-collapsed raw source, string literals and comments included (Opus C1''' P3-1);
-# Python: ast.dump of the module)
+# Closed content of the two compiled/imported projection gates (Rust: exact sha256 of the
+# committed bytes; Python: ast.dump of the module)
 # plus the named tests and tables, so a gate cannot keep its names and lose its assertions.
-# Whole-file pin of state.rs (whitespace-collapsed raw source): the scanned constructs are
-# belt-and-braces once the file itself is a reviewed constant (Opus C1'''' P1-1, P3-1).
-RUST_STATE_FILE_NORMALIZED_SHA256_V1: Final = "55c89650deb9f423a5be9759127f12f5404560fba885cc294b983377399c3337"
-RUST_GATE_NORMALIZED_SHA256_V1: Final = "38db418dee30744ae1e9cbf242ad07dd8dd7b7c32c93ebe6d6ba80334cdcfa51"
-# Whole-file pin of bounded_vec.rs (whitespace-collapsed raw source, cfg(test) module included), so
-# the unit tests replayed by rust_bounded_vec_unit_gate are the pinned ones (Opus C1''' P3-2).
-BOUNDED_VEC_FILE_NORMALIZED_SHA256_V1: Final = "eb70f210499100de84e3669756d18beece43ee5b1a90ee9be7758f0397ac3943"
+# Whole-file pins are exact sha256 of the committed bytes (Opus P10 P1-B2: whitespace
+# normalisation let a `//` comment absorb the following code line without moving the hash).
+# The scanned constructs are belt-and-braces once each file is a reviewed constant.
+RUST_STATE_FILE_SHA256_V1: Final = "44f6874589e72c7fefdcac8b6c220fb311c6dc0f1e53bb3b962e32a6d593b98c"
+RUST_GATE_SHA256_V1: Final = "d807778ab2a7169a7e9e2bb8f8b020a53cb3e106dae74ae37dc9106cf587753f"
+# Whole-file pin of bounded_vec.rs (exact bytes, cfg(test) module included), so the unit test
+# replayed by rust_bounded_vec_unit_gate is the pinned one (Opus C1''' P3-2).
+BOUNDED_VEC_FILE_SHA256_V1: Final = "eb4539f793405c0120c7e95424c51daea6c78b7c5b9584b7bfdbbcf63a0b3be6"
 PYTHON_GATE_AST_SHA256_V1: Final = "c84dbf97e4bd3021ec46bb6557b5b71d93e1eebe848959b9278926a05fe1fad6"
 # The only file the compiled gate may embed: the pinned golden fixture, by its crate-relative path.
 RUST_GATE_INCLUDES_V1: Final[tuple[str, ...]] = ("../../../tests/data/global_claimant_backing_guard_v1_golden.json",)
@@ -976,7 +978,9 @@ RUST_REFINEMENT_GATE_TARGET_V1: Final = "global_economic_state_effect_refinement
 RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
-CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 31
+CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 33
+CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
+CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 2
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
 _CARGO_VERSION_RE: Final = re.compile(r"^cargo ([0-9]+\.[0-9]+\.[0-9]+)")
 _RUSTC_FIELD_RE: Final = re.compile(r"^(release|commit-hash|host): (\S+)$", re.MULTILINE)
@@ -1411,6 +1415,14 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         f"exit 0; {CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1} passed",
         1800,
     ),
+    ReplayCommandV1(
+        "rust_certificate_unit_gate",
+        ("cargo", "test", "--offline", "--locked", "--lib", "--", CERTIFICATE_RUST_UNIT_FILTER_V1),
+        RUST_CRATE_DIR_V1,
+        ("CARGO_TARGET_DIR", "CARGO_INCREMENTAL"),
+        f"exit 0; {CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1} passed",
+        1800,
+    ),
 )
 REPLAY_COMMAND_IDS_V1: Final[tuple[str, ...]] = tuple(c.command_id for c in REPLAY_COMMANDS_V1)
 
@@ -1504,8 +1516,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V8:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V8}")
+    if packet.get("schema") != PACKET_SCHEMA_V9:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V9}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -1571,6 +1583,23 @@ _LEAN_ITEM_START_RE: Final = re.compile(
     r"namespace|end|open|section|variable|universe|set_option|attribute|deriving|import|#[a-z_]+)\b",
     re.MULTILINE,
 )
+
+
+def lean_literal_closure_v1(text: str, path: str = LEAN_PROOF_PATH_V1) -> None:
+    """No string or char literal may exist in a pinned proof file, and no `#` command.
+
+    Opus P10 P1-B1: a double quote inside a char literal opens a phantom string for the
+    comment/string stripper, and a quote inside a line comment closes it, hiding arbitrary
+    commands from every lexical closure while Lean compiles them. With no `"` anywhere in
+    the raw file no string can open, so the stripper's string state is unreachable; `#`
+    commands (`#exit`, `#eval`, ...) are refused on the stripped code.
+    """
+
+    if '"' in text:
+        _reject("LEAN_DOUBLE_QUOTE_FORBIDDEN", path, f"line {text.count(chr(10), 0, text.index(chr(34))) + 1}")
+    hash_command = re.search(r"^[ \t]*#", _lean_code(text, path), re.MULTILINE)
+    if hash_command is not None:
+        _reject("LEAN_COMMAND_FORBIDDEN", path, f"# command at line {text.count(chr(10), 0, hash_command.start()) + 1}")
 
 
 def lean_command_closure_v1(text: str, path: str = LEAN_PROOF_PATH_V1) -> None:
@@ -1762,6 +1791,28 @@ _PYTHON_GATE_DYNAMIC_CALLS_V1: Final[frozenset[str]] = _PYTHON_DYNAMIC_CALLS_V1 
 _PYTHON_FORBIDDEN_MODULES_V1: Final[frozenset[str]] = frozenset({"importlib", "ctypes", "gc", "builtins"})
 
 
+_PYTHON_MODULE_HOOKS_V1: Final[frozenset[str]] = frozenset({"__getattr__", "__dir__"})
+
+
+def _statement_binding_nodes(statement: ast.stmt) -> list[ast.AST]:
+    """The nodes a module-level statement binds directly (never descending into bodies)."""
+
+    if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Global):
+        return [statement]
+    if isinstance(statement, ast.Import | ast.ImportFrom):
+        return list(statement.names)
+    targets: list[ast.expr] = []
+    if isinstance(statement, ast.Assign):
+        targets = list(statement.targets)
+    elif isinstance(statement, ast.AnnAssign | ast.AugAssign):
+        targets = [statement.target]
+    elif isinstance(statement, ast.For | ast.AsyncFor):
+        targets = [statement.target]
+    elif isinstance(statement, ast.With | ast.AsyncWith):
+        targets = [item.optional_vars for item in statement.items if item.optional_vars is not None]
+    return [node for target in targets for node in ast.walk(target)]
+
+
 def _is_self_name(node: ast.expr) -> bool:
     return isinstance(node, ast.Name) and node.id == "self"
 
@@ -1773,8 +1824,9 @@ def python_dynamic_binding_scan_v1(
 
     module = _parse_python(source, path)
     for statement in module.body:
-        if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef) and statement.name in {"__getattr__", "__dir__"}:
-            _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"module-level {statement.name} at line {statement.lineno}")
+        for hook in _PYTHON_MODULE_HOOKS_V1:
+            if any(_binds_name(node, hook) for node in _statement_binding_nodes(statement)):
+                _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"module-level {hook} at line {statement.lineno}")
     for node in ast.walk(module):
         if isinstance(node, ast.Import | ast.ImportFrom):
             imported = [alias.name for alias in node.names] if isinstance(node, ast.Import) else [node.module or ""]
@@ -2334,7 +2386,7 @@ def rust_bounded_vec_closure_v1(source: bytes, path: str) -> None:
         library = code[: test_module.start()] + code[_balanced_end(code, test_module.end() - 1) :]
     if _normalized(library) != BOUNDED_VEC_LIBRARY_TEMPLATE_V1:
         _reject("RUST_BOUNDED_VEC_DRIFT", path, "library portion differs from the pinned template")
-    if sha256_hex_v1(_normalized(source.decode("utf-8", errors="strict")).encode("utf-8")) != BOUNDED_VEC_FILE_NORMALIZED_SHA256_V1:
+    if sha256_hex_v1(source) != BOUNDED_VEC_FILE_SHA256_V1:
         _reject("RUST_BOUNDED_VEC_DRIFT", path, "whole file differs from the pinned bytes (test module included)")
 
 
@@ -2640,6 +2692,7 @@ def _project_lean_subject(snapshot: SubjectSnapshotV1, subject: LeanSubjectV1) -
     """Project one pinned Lean subject: inventory, statement and surface hashes, command closure."""
 
     proof = _blob(snapshot, subject.path).data.decode("utf-8")
+    lean_literal_closure_v1(proof, subject.path)
     placeholders = lean_placeholder_matches_v1(proof, subject.path)
     if placeholders:
         _reject("LEAN_PLACEHOLDER_PRESENT", subject.path, ",".join(placeholders))
@@ -2767,8 +2820,8 @@ def _check_projection_gates(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     rust_code = rust_lexical_closure_v1(
         _blob(snapshot, RUST_GATE_PATH_V1).data, RUST_GATE_PATH_V1, (), allow_include_str=RUST_GATE_INCLUDES_V1
     )
-    if sha256_hex_v1(_normalized(rust_raw).encode("utf-8")) != RUST_GATE_NORMALIZED_SHA256_V1:
-        _reject("RUST_GATE_CONTENT_DRIFT", RUST_GATE_PATH_V1, "normalised content differs from the pinned gate")
+    if _blob(snapshot, RUST_GATE_PATH_V1).sha256 != RUST_GATE_SHA256_V1:
+        _reject("RUST_GATE_CONTENT_DRIFT", RUST_GATE_PATH_V1, "bytes differ from the pinned gate")
     rust_tests = tuple(_RUST_TEST_FN_RE.findall(rust_code))
     if rust_tests != RUST_GATE_TESTS_V1:
         _reject("RUST_GATE_CONTENT_DRIFT", RUST_GATE_PATH_V1, ",".join(rust_tests)[:80])
@@ -2821,7 +2874,11 @@ def _check_container_bindings(python_source: bytes, rust_source: bytes) -> None:
 
 
 def certificate_fixture_surface_v1(fixture: object) -> dict[str, object]:
-    """Validate the decoded golden fixture against the closed certificate surface and summarise it."""
+    """Validate the decoded golden fixture against the closed certificate surface and summarise it.
+
+    Total over decoded JSON: every nested shape is type-checked before use, so a hostile
+    fixture yields ``CERTIFICATE_FIXTURE_DRIFT`` rather than an untyped exception.
+    """
 
     path = CERTIFICATE_FIXTURE_PATH_V1
     if not isinstance(fixture, dict):
@@ -2833,10 +2890,13 @@ def certificate_fixture_surface_v1(fixture: object) -> dict[str, object]:
     messages = fixture.get("reject_messages")
     if not isinstance(messages, dict) or tuple(sorted(messages)) != tuple(sorted(CERTIFICATE_REJECT_CODES_V1)):
         _reject("CERTIFICATE_FIXTURE_DRIFT", path, "reject_messages")
-    if tuple(fixture.get("check_order", ())) != CERTIFICATE_CHECK_ORDER_V1:
+    order = fixture.get("check_order")
+    if not isinstance(order, list) or tuple(order) != CERTIFICATE_CHECK_ORDER_V1:
         _reject("CERTIFICATE_FIXTURE_DRIFT", path, "check_order")
     registry = fixture.get("producer_registry")
-    kinds = {lane: entry.get("producer_kind") for lane, entry in registry.items()} if isinstance(registry, dict) else {}
+    if not isinstance(registry, dict) or not all(isinstance(entry, dict) for entry in registry.values()):
+        _reject("CERTIFICATE_PRODUCER_DRIFT", path, "registry shape")
+    kinds = {str(lane): entry.get("producer_kind") for lane, entry in registry.items()}
     if kinds != CERTIFICATE_PRODUCER_KINDS_V1:
         drifted = sorted(f"{lane}:{kind}" for lane, kind in kinds.items() if CERTIFICATE_PRODUCER_KINDS_V1.get(lane) != kind)
         _reject("CERTIFICATE_PRODUCER_DRIFT", path, drifted[0] if drifted else "registry")
@@ -2845,14 +2905,21 @@ def certificate_fixture_surface_v1(fixture: object) -> dict[str, object]:
         _reject("CERTIFICATE_FIXTURE_DRIFT", path, "vectors")
     accepted: list[str] = []
     for name, vector in sorted(vectors.items()):
-        outcome = vector.get("expected_outcome", {}) if isinstance(vector, dict) else {}
+        if not isinstance(vector, dict) or not isinstance(vector.get("expected_outcome"), dict):
+            _reject("CERTIFICATE_FIXTURE_DRIFT", path, f"vector {name} shape")
+        outcome = vector["expected_outcome"]
         if outcome.get("status") != "ACCEPT":
             continue
-        fragments = vector.get("certificate", {}).get("ordered_lane_fragments", ())
+        certificate = vector.get("certificate")
+        fragments = certificate.get("ordered_lane_fragments") if isinstance(certificate, dict) else None
+        if not isinstance(fragments, list) or not all(isinstance(fragment, dict) for fragment in fragments):
+            _reject("CERTIFICATE_FIXTURE_DRIFT", path, f"accepted vector {name} certificate shape")
         for fragment in fragments:
             if fragment.get("enabled") is not False or any(fragment.get(field) for field in CERTIFICATE_FRAGMENT_ROW_FIELDS_V1):
                 _reject("CERTIFICATE_FIXTURE_DRIFT", path, f"accepted vector {name} is not registered-empty")
-        accepted.append(name)
+        accepted.append(str(name))
+    if len(accepted) != CERTIFICATE_FIXTURE_ACCEPTED_V1:
+        _reject("CERTIFICATE_FIXTURE_DRIFT", path, f"{len(accepted)} accepted vectors")
     return {
         "fixture": path,
         "vectors": len(vectors),
@@ -2916,7 +2983,7 @@ def _project_information_loss(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     _check_rust_record(terminal_rs, TERMINAL_FIELDS_RUST_V1, TERMINAL_FORBIDDEN_FIELDS_V1, "TERMINAL")
     _check_python_record(outbox_py, OUTBOX_FIELDS_PYTHON_V1, OUTBOX_FORBIDDEN_FIELDS_V1, "OUTBOX")
     _check_rust_record(outbox_rs, OUTBOX_FIELDS_RUST_V1, OUTBOX_FORBIDDEN_FIELDS_V1, "OUTBOX")
-    if sha256_hex_v1(_normalized(rust_source.decode("utf-8", errors="strict")).encode("utf-8")) != RUST_STATE_FILE_NORMALIZED_SHA256_V1:
+    if sha256_hex_v1(rust_source) != RUST_STATE_FILE_SHA256_V1:
         _reject("RUST_STATE_FILE_DRIFT", RUST_STATE_PATH_V1, "whole file differs from the pinned bytes")
     return {
         "terminal_projection": _record_projection(
@@ -3041,6 +3108,7 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
     "rust_bounded_vec_unit_gate": {"passed": RUST_BOUNDED_VEC_UNIT_GATE_EXPECTED_PASSED_V1},
     "python_certificate_golden_gate": {"passed": CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1},
     "rust_certificate_golden_gate": {"passed": CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1},
+    "rust_certificate_unit_gate": {"passed": CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1},
 }
 
 
@@ -3179,7 +3247,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V8,
+        "schema": PACKET_SCHEMA_V9,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -3764,6 +3832,8 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_pytest(obs, CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "rust_certificate_golden_gate":
         return _grade_cargo(obs, CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "rust_certificate_unit_gate":
+        return _grade_cargo(obs, CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "python_golden_gate":
         return _grade_pytest(obs, PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1)
     return _grade_esso(obs, esso)
@@ -3989,6 +4059,7 @@ __all__ = [
     "lean_command_closure_v1",
     "LEAN_DEFINITION_SURFACE_SHA256_V1",
     "lean_definition_surface_v1",
+    "lean_literal_closure_v1",
     "LEAN_STATEMENT_SHA256_V1",
     "LEAN_SUBJECTS_V1",
     "lean_theorem_inventory_v1",

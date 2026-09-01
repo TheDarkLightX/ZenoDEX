@@ -145,6 +145,23 @@ def test_row_level_checks_are_exercised_on_synthetic_fragments() -> None:
     assert overflowed.value.code is cert.AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW
 
 
+def test_duplicate_effect_id_across_lanes_is_rejected() -> None:
+    """Opus P10 P2-A1: a pending external row repeated across lanes is a double-counted obligation."""
+
+    state = renderer.build_state_v1(renderer._spec(outbox=[("0x" + "ab" * 32, "bridge-a", "0x" + "cd" * 32, "0x" + "ef" * 32, "PENDING")]))
+    base = cert.build_registered_empty_certificate_v1(state)
+    row = cert.PendingExternalObligationRowV1("0x" + "ab" * 32, "USD", 7, "bridge-a", "0x" + "cd" * 32, "spot-pool", "pool-a")
+    first = renderer._fragment_with_rows(base.ordered_lane_fragments[0], pending_external_obligations=(row,))
+    second = renderer._fragment_with_rows(base.ordered_lane_fragments[1], pending_external_obligations=(row,))
+    duplicated = renderer._certificate_with_fragments(base, (first, second, *base.ordered_lane_fragments[2:]))
+    with pytest.raises(cert._Reject) as captured:
+        cert._check_external_obligations(duplicated, state)
+    assert captured.value.code is cert.AllocationCertificateRejectCodeV1.EXTERNAL_OBLIGATION_BINDING_DRIFT
+    assert captured.value.detail == "duplicate 0x" + "ab" * 32
+    single = renderer._certificate_with_fragments(base, (first, *base.ordered_lane_fragments[1:]))
+    cert._check_external_obligations(single, state)
+
+
 def _certificate_for(base: cert.GlobalAccountingAllocationCertificateV1, fragment: cert.LaneAllocationFragmentV1) -> cert.GlobalAccountingAllocationCertificateV1:
     from dataclasses import replace
 

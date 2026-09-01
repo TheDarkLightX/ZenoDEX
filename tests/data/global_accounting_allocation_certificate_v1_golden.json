@@ -33,6 +33,10 @@
       "expected_code": "LANE_AGGREGATE_DRIFT",
       "vector": "rejects_custody_without_controlled_locations"
     },
+    "check the lane bindings lane-major instead of check-major": {
+      "expected_code": "LANE_STATE_ROOT_DRIFT",
+      "vector": "rejects_later_lane_root_drift_before_earlier_lane_rows"
+    },
     "count ACKNOWLEDGED outbox rows as pending": {
       "expected_code": "ACCEPT",
       "vector": "accepts_acknowledged_outbox_without_external_rows"
@@ -6515,6 +6519,368 @@
       },
       "expected_state_root": "0x3a105289b117d5ccb5b5a32cfad5de1d2c57e72c0f8a8d74c8a4b098c061e5b3",
       "obligation": "a fragment bound to another lane root rejects LANE_STATE_ROOT_DRIFT",
+      "spec": {
+        "lanes_enabled": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      },
+      "state": {
+        "balances": [],
+        "chain_id": "zeno-allocation-certificate-golden",
+        "custody": [],
+        "deployment_root": "0x000000000000000000000000000000000000000000000000000000000000a028",
+        "height": 7,
+        "history_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "lane_roots": [
+          {
+            "enabled": false,
+            "lane_id": "ASSET_TRANSFER",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000c9",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bb9"
+          },
+          {
+            "enabled": false,
+            "lane_id": "SPOT_LIQUIDITY",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000ca",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bba"
+          },
+          {
+            "enabled": false,
+            "lane_id": "FARM_INCENTIVES",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cb",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbb"
+          },
+          {
+            "enabled": false,
+            "lane_id": "ZDEX_TOKENOMICS",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cc",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbc"
+          },
+          {
+            "enabled": false,
+            "lane_id": "ZUSD_MONETARY",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cd",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbd"
+          },
+          {
+            "enabled": false,
+            "lane_id": "PERPS_MARKET",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000ce",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbe"
+          },
+          {
+            "enabled": false,
+            "lane_id": "ORACLE_MARKET",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cf",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbf"
+          },
+          {
+            "enabled": false,
+            "lane_id": "SEALED_AUCTION",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d0",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc0"
+          },
+          {
+            "enabled": false,
+            "lane_id": "STRATEGY_ESCROW",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d1",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc1"
+          },
+          {
+            "enabled": false,
+            "lane_id": "PROOF_REWARDS",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d2",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc2"
+          },
+          {
+            "enabled": false,
+            "lane_id": "EXTERNAL_CUSTODY",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d3",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc3"
+          },
+          {
+            "enabled": false,
+            "lane_id": "GOVERNANCE_MIGRATION",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d4",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc4"
+          }
+        ],
+        "liabilities": [],
+        "oracle_occurrences": [],
+        "outbox": [],
+        "profile_root": "0x000000000000000000000000000000000000000000000000000000000000a029",
+        "replay_state": [],
+        "reserves": [],
+        "schema": "zenodex/global-settlement-abi/v1",
+        "supplies": [],
+        "terminal_obligations": [],
+        "writer_epoch": 3
+      },
+      "state_bytes_sha256": "304423ce57df3430ab6d6a5f6f221dadffc2f937290b42f139d70e561be8624c"
+    },
+    "rejects_later_lane_root_drift_before_earlier_lane_rows": {
+      "certificate": {
+        "allocation_root": "0x06427f5c9ac6682250273c6c050b4b6f047b74073346459ab48ac5656d864988",
+        "canonical_allocation_rows": [
+          {
+            "amount_atoms": 7,
+            "asset": "USD",
+            "claimant": "alice",
+            "control_domain": "spot-pool"
+          }
+        ],
+        "chain_context": {
+          "chain_id": "zeno-allocation-certificate-golden",
+          "deployment_root": "0x000000000000000000000000000000000000000000000000000000000000a028"
+        },
+        "field_ownership_root": "0x067631501b49b59b4edc54f9e16b5108bfcbb9b15f993307f3da4972d314e056",
+        "global_state_root": "0x3a105289b117d5ccb5b5a32cfad5de1d2c57e72c0f8a8d74c8a4b098c061e5b3",
+        "ordered_lane_fragments": [
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bb9",
+            "claimant_entitlements": [
+              {
+                "amount_atoms": 7,
+                "asset": "USD",
+                "claimant": "alice",
+                "control_domain": "spot-pool"
+              }
+            ],
+            "controlled_locations": [
+              {
+                "amount_atoms": 10,
+                "asset": "USD",
+                "control_domain": "spot-pool",
+                "controlling_principal": "pool-a"
+              }
+            ],
+            "enabled": false,
+            "lane_id": "ASSET_TRANSFER",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bb9",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000c9",
+            "pending_external_obligations": [
+              {
+                "amount_atoms": 1,
+                "asset": "USD",
+                "commitment_root": "0x000000000000000000000000000000000000000000000000000000000000232a",
+                "control_domain": "spot-pool",
+                "destination_id": "dest-1",
+                "effect_id": "0x0000000000000000000000000000000000000000000000000000000000002329",
+                "source_principal": "pool-a"
+              }
+            ],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [
+              {
+                "amount_atoms": 3,
+                "asset": "USD",
+                "claimant": "alice",
+                "control_domain": "spot-pool",
+                "controlling_principal": "pool-a",
+                "lane_id": "ASSET_TRANSFER",
+                "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bb9",
+                "obligation_id": "terminal-1"
+              }
+            ],
+            "unencumbered_reserves": [
+              {
+                "amount_atoms": 2,
+                "asset": "USD",
+                "control_domain": "spot-pool",
+                "reserve_principal": "protocol:fee-unallocated-reserve"
+              }
+            ]
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bba",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "SPOT_LIQUIDITY",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000053",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000ca",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bbb",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "FARM_INCENTIVES",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbb",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cb",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bbc",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "ZDEX_TOKENOMICS",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbc",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cc",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bbd",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "ZUSD_MONETARY",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbd",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cd",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bbe",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "PERPS_MARKET",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbe",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000ce",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bbf",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "ORACLE_MARKET",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbf",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cf",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bc0",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "SEALED_AUCTION",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc0",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d0",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bc1",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "STRATEGY_ESCROW",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc1",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d1",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bc2",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "PROOF_REWARDS",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc2",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d2",
+            "pending_external_obligations": [],
+            "producer_kind": "REGISTERED_EMPTY_BLOCKED",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bc3",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "EXTERNAL_CUSTODY",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc3",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d3",
+            "pending_external_obligations": [],
+            "producer_kind": "REGISTERED_EMPTY_DISABLED",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bc4",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "GOVERNANCE_MIGRATION",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc4",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d4",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          }
+        ],
+        "profile_root": "0x000000000000000000000000000000000000000000000000000000000000a029",
+        "reserve_interpretation": "NAMED_UNENCUMBERED_NO_CLAIMANT",
+        "schema": "zenodex/global-accounting-allocation-certificate/v1",
+        "terminal_binding_root": "0xcf929c9b23580dd0cfe2fbb5398fe48ccaf39509a10f4b76f282cbea662660ae",
+        "writer_epoch": 3
+      },
+      "certificate_bytes_sha256": "d21a974625d78ced0b002b6d4032472fee9d5aaada0113b5d608a1f380c22cb0",
+      "certificate_mutation": "synthetic_rows_first_then_forge_second_lane_root",
+      "derived": {
+        "allocation_root": "0x06427f5c9ac6682250273c6c050b4b6f047b74073346459ab48ac5656d864988",
+        "field_ownership_root": "0x067631501b49b59b4edc54f9e16b5108bfcbb9b15f993307f3da4972d314e056",
+        "lane_fragment_roots": [
+          "0x0e2176cfea53ec7a9ff199b4e85c8a76283c9164d92754e103990dae16fe28a9",
+          "0xbd67eeb51a2c7a337e4d1a50b86f9df0d9483a6a5be9c4ba8f401cb7321431d4",
+          "0xb79202482a0cc6d97eaccd5769e389b085857dfcfaba477949802efb74c74978",
+          "0x9a636c9ba7f7cf9122311e7b6c2588f5e13578d79b123ceb44b8393330095a7e",
+          "0xcf81c980927479f7af0ab61167b55d201a01d12ec2cf5a457c9760cee6b4f718",
+          "0x1dde2e02b3f30c0d4a5107c49d01e333f1f05173d9ea8102185b12f204377c26",
+          "0xceee24fc99836b5a9a3a0c072ebb4e81167607f750be91d789c1f1393d1138de",
+          "0x00a8a2f2043c41fc04b1da5780e52bbee60dba549862a96af1d50b68404fb9c3",
+          "0xeaccf407ca41b5ccd1682006f31d930180d84b1431922de831649eaa4c816fbd",
+          "0x5ccc1e43679755031930753e156c879deeb892d2458289b34c21005b612ff37a",
+          "0xdf476b2d02c49dd4d8e13be40cc4072090fa988ea51262aabeff1c001fe3dbad",
+          "0x37a28e846c5accd20ebf25884e4b7ac2151adf98c6480feb968130083969927b"
+        ],
+        "terminal_binding_root": "0xcf929c9b23580dd0cfe2fbb5398fe48ccaf39509a10f4b76f282cbea662660ae"
+      },
+      "expected_outcome": {
+        "code": "LANE_STATE_ROOT_DRIFT",
+        "detail": "SPOT_LIQUIDITY",
+        "message": "allocation certificate lane fragment does not bind the committed lane state root",
+        "status": "REJECT"
+      },
+      "expected_state_root": "0x3a105289b117d5ccb5b5a32cfad5de1d2c57e72c0f8a8d74c8a4b098c061e5b3",
+      "obligation": "a forged root on the second lane outranks rows on the disabled first lane: LANE_STATE_ROOT_DRIFT precedes DISABLED_LANE_NOT_EMPTY (check-major)",
       "spec": {
         "lanes_enabled": [
           false,

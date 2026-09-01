@@ -125,7 +125,6 @@ GLOBAL_SETTLEMENT_CANONICAL_ENUM_TYPES_V1: Final[tuple[str, ...]] = (
     "src.core.economic_receipt_verifier_registry_v1.EconomicReceiptVerifierSelectionPurposeV1",
     "src.core.external_custody_disabled_lane_v1.ExternalCustodyCommandKindV1",
     "src.core.global_accounting_allocation_certificate_v1.AllocationCertificateRejectCodeV1",
-    "src.core.global_accounting_allocation_certificate_v1.AllocationClassV1",
     "src.core.global_accounting_allocation_certificate_v1.LaneProducerKindV1",
     "src.core.global_accounting_allocation_certificate_v1.ReserveInterpretationV1",
     "src.core.global_economic_authority_head_v1.GlobalEconomicAuthorityStatusV1",

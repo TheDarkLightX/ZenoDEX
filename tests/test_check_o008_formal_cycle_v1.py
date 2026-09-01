@@ -274,7 +274,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V8.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v7", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v7"),
+        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V9.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v8", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v8"),
         pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
@@ -352,18 +352,25 @@ LEAN_REGION_ANCHOR = "def balancedState : State where"
     ("inserted", "code", "detail"),
     [
         # Opus C1'''' P1-2 (mounted survivor): a notation in an elided proof region rewrites a later statement.
-        pytest.param("notation:max \"NecessaryRelation\" => (fun _ : State => True)\n\n", "LEAN_COMMAND_FORBIDDEN", "notation", id="notation_shadowed_statement"),
+        pytest.param("notation:max \"NecessaryRelation\" => (fun _ : State => True)\n\n", "LEAN_DOUBLE_QUOTE_FORBIDDEN", "line", id="notation_shadowed_statement"),
+        pytest.param("notation:max NecessaryRelation => (fun _ : State => True)\n\n", "LEAN_COMMAND_FORBIDDEN", "notation", id="quote_free_notation_in_region"),
         pytest.param("macro_rules | `(NecessaryRelation) => `(True)\n\n", "LEAN_COMMAND_FORBIDDEN", "macro_rules", id="macro_rules_in_region"),
         pytest.param("open Classical in\n", "LEAN_COMMAND_FORBIDDEN", "open command", id="open_command_in_region"),
         pytest.param("partial def spin (n : Nat) : Nat := spin n\n\n", "LEAN_COMMAND_FORBIDDEN", "partial", id="partial_def_in_region"),
         pytest.param("instance : LE Nat := ⟨fun _ _ => True⟩\n\n", "LEAN_COMMAND_FORBIDDEN", "instance", id="instance_in_region"),
         pytest.param("export Nat (succ)\n\n", "LEAN_COMMAND_FORBIDDEN", "export", id="export_in_region"),
-        pytest.param("local notation \"X\" => True\n\n", "LEAN_COMMAND_FORBIDDEN", "local", id="local_notation_in_region"),
+        pytest.param("local notation \"X\" => True\n\n", "LEAN_DOUBLE_QUOTE_FORBIDDEN", "line", id="local_notation_in_region"),
+        pytest.param("local instance : Inhabited Nat := ⟨0⟩\n\n", "LEAN_COMMAND_FORBIDDEN", "local", id="local_instance_in_region"),
         pytest.param("deriving instance Repr for State\n\n", "LEAN_COMMAND_FORBIDDEN", "instance", id="deriving_instance_in_region"),
         pytest.param("Foo bar baz\n\n", "LEAN_UNRECOGNISED_ITEM", "Foo bar baz", id="unknown_column_zero_item"),
         pytest.param("  def evilHelper : Nat := 0\n\n", "LEAN_UNRECOGNISED_ITEM", "indented declaration", id="indented_def_in_region"),
         pytest.param("  end GlobalClaimantCustodyRelationV1\n\n", "LEAN_NAMESPACE_DRIFT", "", id="indented_end_in_region"),
-        pytest.param("#eval 1\n\n", "LEAN_DEFINITION_SURFACE_DRIFT", "", id="eval_command_joins_surface"),
+        pytest.param("#eval 1\n\n", "LEAN_COMMAND_FORBIDDEN", "# command", id="eval_command_forbidden"),
+        pytest.param("#exit\n\n", "LEAN_COMMAND_FORBIDDEN", "# command", id="exit_command_forbidden"),
+        # Opus P10 P1-B1 (mounted survivor): a char literal holding a double quote opened a phantom
+        # string for the stripper and a quote in a line comment closed it, hiding the commands between.
+        pytest.param("axiom opusEvilAxiom : False\ninstance opusEvilInstance : Inhabited Nat := ⟨0⟩\n-- close the phantom string with a quote inside a line comment: \"\n", "LEAN_DOUBLE_QUOTE_FORBIDDEN", "line", id="quote_in_comment"),
+        pytest.param("theorem opusChar : Char = Char := rfl\n-- the opener used to be: have _dq : Char := '\"'\n", "LEAN_DOUBLE_QUOTE_FORBIDDEN", "line", id="char_literal_quote"),
     ],
 )
 def test_lean_commands_smuggled_into_proof_regions_are_rejected(
@@ -378,6 +385,21 @@ def test_lean_commands_smuggled_into_proof_regions_are_rejected(
     if code == "LEAN_COMMAND_FORBIDDEN":
         # The surface hash alone would not have seen it: the region is elided by construction.
         assert _project_code(mutated) == code
+
+
+def test_opus_p10_phantom_string_injection_is_rejected_before_stripping(snapshot: core.SubjectSnapshotV1) -> None:
+    """The exact P10 vehicle: a `'"'` char literal inside a proof plus a closing quote in a comment."""
+
+    opener = "  intro universal\n  have _dq : Char := '\"'\n"
+    payload = "axiom opusEvilAxiom : False\ninstance opusEvilInstance : Inhabited Nat := ⟨0⟩\n-- close the phantom string: \"\n"
+    mutated = _edit(snapshot, core.LEAN_PROOF_PATH_V1, "  intro universal\n", opener + payload)
+    text = mutated.blobs[core.LEAN_PROOF_PATH_V1].data.decode("utf-8")
+    # The stripper alone blanks the payload (the class defect); the literal closure refuses the file first.
+    assert "opusEvilAxiom" not in core._lean_code(text)
+    with pytest.raises(core.AdmissionRejectV1) as captured:
+        core.lean_literal_closure_v1(text)
+    assert captured.value.code == "LEAN_DOUBLE_QUOTE_FORBIDDEN"
+    assert _project_code(mutated) == "LEAN_DOUBLE_QUOTE_FORBIDDEN"
 
 
 def test_lean_constructor_and_field_named_open_are_not_commands(snapshot: core.SubjectSnapshotV1) -> None:
@@ -542,7 +564,8 @@ TERMINAL_MACRO = "bounded_state_vec_deserializer_v1!(\n    deserialize_terminal_
         # C4b: the certificate Lean model is a second pinned Lean subject under the same closures.
         pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "    t.openTerminal c d ≤ t.liability c d := by", "    t.openTerminal c d ≤ t.liability c d + 1 := by", "", "LEAN_STATEMENT_DRIFT", id="certificate_lean_statement_weakened"),
         pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "def TerminalBound (f : LaneFragment) : Prop :=\n  ∀ c d, f.terminal c d ≤ f.entitlement c d", "def TerminalBound (f : LaneFragment) : Prop :=\n  ∀ c d, f.terminal c d ≤ f.entitlement c d + f.reserve d", "", "LEAN_DEFINITION_SURFACE_DRIFT", id="certificate_lean_definition_weakened"),
-        pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "", "", "\nnotation:max \"RowsEqual\" => (fun _ _ => True)\n", "LEAN_COMMAND_FORBIDDEN", id="certificate_lean_notation"),
+        pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "", "", "\nnotation:max \"RowsEqual\" => (fun _ _ => True)\n", "LEAN_DOUBLE_QUOTE_FORBIDDEN", id="certificate_lean_notation"),
+        pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "", "", "\nmacro_rules | `(RowsEqual) => `(True)\n", "LEAN_COMMAND_FORBIDDEN", id="certificate_lean_macro_rules"),
         pytest.param(core.LEAN_ROOT_PATH_V1, "import Proofs.GlobalAccountingAllocationCertificateV1\n", "", "", "LEAN_IMPORT_ROOT_MISSING", id="certificate_lean_import_dropped"),
         pytest.param(core.CERTIFICATE_LEAN_GATE_PATH_V1, '    "lanePartition_premise_is_necessary",\n', "", "", "LEAN_GATE_THEOREMS_DRIFT", id="certificate_lean_gate_theorem_dropped"),
         # C4c: the certificate ESSO model is a second pinned ESSO subject under the same closures.
@@ -553,11 +576,17 @@ TERMINAL_MACRO = "bounded_state_vec_deserializer_v1!(\n    deserialize_terminal_
         # Opus C1'''' P1-1 (mounted survivor): a second macro_rules of the pinned name shadows the pinned body.
         pytest.param(core.RUST_STATE_PATH_V1, TERMINAL_MACRO, "macro_rules! bounded_state_vec_deserializer_v1 {\n    ($function:ident, $row:ty, $maximum:expr, $label:literal) => {\n        fn $function<'de, D>(deserializer: D) -> Result<Vec<$row>, D::Error>\n        where D: Deserializer<'de>,\n        { evil_widen_rows_v1::<D, $row, $maximum>(deserializer, $label) }\n    };\n}\n" + TERMINAL_MACRO, "\nfn evil_widen_rows_v1<'de, D, T, const MAXIMUM: usize>(_deserializer: D, _label: &'static str) -> Result<Vec<T>, D::Error> where D: Deserializer<'de> { unimplemented!() }\n", "RUST_MACRO_REDEFINED", id="second_macro_definition_shadows_pinned_body"),
         pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nmacro_rules! lenient_rows_v1 {\n    ($function:ident) => {\n        fn $function() {}\n    };\n}\nlenient_rows_v1!(lenient_helper);\n", "RUST_MACRO_DEFINES_ITEM", id="second_macro_under_another_name_defining_fn"),
+        # Opus P10 P1-B2 (mounted survivor): folding the code after a `//` comment into that comment
+        # left the whitespace-normalised hash unchanged; the pins are exact bytes now.
+        pytest.param(core.RUST_GATE_PATH_V1, "        // xorshift64*: deterministic from the printed seed.\n        state ^= state >> 12;\n", "        // xorshift64*: deterministic from the printed seed. state ^= state >> 12;\n", "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_comment_absorbs_code"),
+        pytest.param(core.RUST_GATE_PATH_V1, "    let mut state = seed | 1;\n", "    let mut state = seed | 1;\n\n", "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_whitespace_only_edit"),
+        pytest.param(core.RUST_BOUNDED_VEC_PATH_V1, "    use super::deserialize_bounded_vec_v1;\n", "    use  super::deserialize_bounded_vec_v1;\n", "", "RUST_BOUNDED_VEC_DRIFT", id="bounded_vec_whitespace_only_edit"),
         # Opus C1'''' P3-1: state.rs is a whole-file pin; any extra item drifts.
         pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nfn extra_helper_v1() {}\n", "RUST_STATE_FILE_DRIFT", id="state_extra_fn"),
         pytest.param(core.RUST_STATE_PATH_V1, "", "", "\npub struct ExtraV1 {\n    pub value: u8,\n}\nimpl ExtraV1 {\n    pub fn get(&self) -> u8 {\n        self.value\n    }\n}\n", "RUST_STATE_FILE_DRIFT", id="state_extra_struct_impl"),
         pytest.param(core.RUST_STATE_PATH_V1, "", "", "\nmod inner_v1 {}\n", "RUST_STATE_FILE_DRIFT", id="state_nested_mod"),
         pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserialize, Deserializer, Serialize}; // shadow", "", "RUST_STATE_FILE_DRIFT", id="state_comment_only_edit"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use  serde::{Deserialize, Deserializer, Serialize};", "", "RUST_STATE_FILE_DRIFT", id="state_whitespace_only_edit"),
         # Opus C1'' P2-1: gate bodies are pinned by normalised content, not only names and tables.
         pytest.param(core.RUST_GATE_PATH_V1, "        assert_unknown_field::<TerminalObligationV1>(value, extra);\n    }\n}", "    }\n}", "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_emptied_body"),
     ],
@@ -592,6 +621,15 @@ def test_certificate_fixture_surface_rejects_non_empty_accepted_vectors(snapshot
     with pytest.raises(core.AdmissionRejectV1) as short:
         core.certificate_fixture_surface_v1(fewer)
     assert (short.value.code, short.value.detail) == ("CERTIFICATE_FIXTURE_DRIFT", "vectors")
+    for hostile, detail in (
+        ({**fixture, "producer_registry": {**fixture["producer_registry"], "ASSET_TRANSFER": "NO_PRODUCER"}}, "registry shape"),
+        ({**fixture, "vectors": {**fixture["vectors"], accepted: "vector"}}, f"vector {accepted} shape"),
+        ({**fixture, "vectors": {**fixture["vectors"], accepted: {**fixture["vectors"][accepted], "certificate": []}}}, f"accepted vector {accepted} certificate shape"),
+        ({**fixture, "vectors": {**fixture["vectors"], accepted: {**fixture["vectors"][accepted], "expected_outcome": {"status": "REJECT"}}}}, "2 accepted vectors"),
+    ):
+        with pytest.raises(core.AdmissionRejectV1) as typed:
+            core.certificate_fixture_surface_v1(hostile)
+        assert typed.value.detail == detail, detail
     missing_code = copy.deepcopy(fixture)
     missing_code["reject_messages"].pop("DERIVED_ROOT_DRIFT")
     with pytest.raises(core.AdmissionRejectV1) as codes:
@@ -731,6 +769,10 @@ def test_rustc_version_parser_binds_release_commit_and_host() -> None:
         pytest.param("", "", "\nfrom ctypes import pythonapi\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="ctypes_import"),
         pytest.param("", "", "\nclass _Holder:\n    pass\n\n\n_Holder.TerminalObligationV1 = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="class_attribute_store"),
         pytest.param("", "", "\ndef __getattr__(name: str) -> object:\n    return int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr"),
+        pytest.param("", "", "\n__getattr__ = lambda name: int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_lambda"),
+        pytest.param("", "", "\ndef _hook(name: str) -> object:\n    return int\n\n\n__getattr__ = _hook\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_alias"),
+        pytest.param("", "", "\n__dir__: object = None\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_dir_annassign"),
+        pytest.param("", "", "\nfrom os import getcwd as __getattr__\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_import_alias"),
         pytest.param("", "", "\nglobals()['TerminalObligationV1'] = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="globals_subscript_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\n_sys.modules[__name__] = None\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="sys_modules_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\nobject.__setattr__(_sys.modules[__name__], 'TerminalObligationV1', int)\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="object_setattr_rebinding"),
@@ -1030,6 +1072,7 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "rust_bounded_vec_unit_gate": _cargo_summary(core.RUST_BOUNDED_VEC_UNIT_GATE_EXPECTED_PASSED_V1),
         "python_certificate_golden_gate": f"{core.CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
         "rust_certificate_golden_gate": _cargo_summary(core.CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1),
+        "rust_certificate_unit_gate": _cargo_summary(core.CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1),
     }
     return {
         command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id in ("lean_axioms_probe", "lean_certificate_axioms_probe") else None)
@@ -1215,6 +1258,7 @@ def test_python_version_parser_requires_one_semver_line(stdout: bytes, expected:
         pytest.param("rust_bounded_vec_unit_gate", lambda o: replace(o, stdout=_cargo_summary(0)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_bounded_vec_unit_count"),
         pytest.param("python_certificate_golden_gate", lambda o: replace(o, stdout=b"30 passed in 1.0s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="python_certificate_count"),
         pytest.param("rust_certificate_golden_gate", lambda o: replace(o, stdout=_cargo_summary(2)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_certificate_count"),
+        pytest.param("rust_certificate_unit_gate", lambda o: replace(o, stdout=_cargo_summary(1)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_certificate_unit_count"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(f'"total_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"total_queries": 0').replace(f'"passed_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"passed_queries": 0')), "REPLAY_ESSO_QUERY_COUNT_DRIFT", id="esso_zero_queries"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_drain_claim"', b'"inductive_other_claim"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_query_set_drift"),
         pytest.param("esso_certificate_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_disable_lane"', b'"inductive_other_lane"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_certificate_query_set_drift"),
@@ -1524,7 +1568,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V8:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V9:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:

@@ -184,6 +184,7 @@ VECTORS_V1: Final[dict[str, tuple[str, dict[str, Any], str]]] = {
     "rejects_lane_enabled_flag_forged": ("a fragment claiming a disabled lane is enabled rejects LANE_STATE_ROOT_DRIFT", _spec(), "forge_first_enabled_flag"),
     "rejects_producer_kind_drift": ("a fragment claiming RECEIPT_BACKED rejects PRODUCER_KIND_DRIFT", _spec(), "claim_receipt_backed_first"),
     "rejects_disabled_lane_with_rows": ("a disabled lane fragment carrying rows rejects DISABLED_LANE_NOT_EMPTY", _spec(), "synthetic_rows_first"),
+    "rejects_later_lane_root_drift_before_earlier_lane_rows": ("a forged root on the second lane outranks rows on the disabled first lane: LANE_STATE_ROOT_DRIFT precedes DISABLED_LANE_NOT_EMPTY (check-major)", _spec(), "synthetic_rows_first_then_forge_second_lane_root"),
     "rejects_disabled_lane_with_single_reserve_row": ("even one reserve row on a disabled lane rejects DISABLED_LANE_NOT_EMPTY", _spec(), "single_reserve_row_first"),
     "rejects_liabilities_without_entitlement_rows": ("V1 liabilities with empty fragments reject ENTITLEMENT_ROWS_DRIFT", _spec(liabilities=[("alice", "USD", "spot-pool", 5)]), "identity"),
     "rejects_reserves_without_reserve_rows": ("V1 reserves with empty fragments reject RESERVE_ROWS_DRIFT", _spec(reserves=[("protocol:fee-unallocated-reserve", "USD", "zenoledger:protocol-fee-residue", 2)]), "identity"),
@@ -218,6 +219,10 @@ def _mutate(
         return _certificate_with_fragments(certificate, fragments[:-1])
     if name == "forge_first_lane_root":
         return _certificate_with_fragments(certificate, (replace(fragments[0], lane_state_root=_root(79)), *fragments[1:]))
+    if name == "synthetic_rows_first_then_forge_second_lane_root":
+        return _certificate_with_fragments(
+            certificate, (_synthetic_rows(fragments[0]), replace(fragments[1], lane_state_root=_root(83)), *fragments[2:])
+        )
     if name == "forge_first_enabled_flag":
         return _certificate_with_fragments(certificate, (replace(fragments[0], enabled=True), *fragments[1:]))
     if name == "claim_receipt_backed_first":
@@ -269,6 +274,7 @@ MUTATION_KILLERS_V1: Final[dict[str, tuple[str, str]]] = {
     "accept a fragment bound to a foreign lane root": ("rejects_lane_state_root_forged", "LANE_STATE_ROOT_DRIFT"),
     "trust the fragment's producer kind instead of the registry": ("rejects_producer_kind_drift", "PRODUCER_KIND_DRIFT"),
     "let a disabled lane carry rows": ("rejects_disabled_lane_with_rows", "DISABLED_LANE_NOT_EMPTY"),
+    "check the lane bindings lane-major instead of check-major": ("rejects_later_lane_root_drift_before_earlier_lane_rows", "LANE_STATE_ROOT_DRIFT"),
     "skip the liabilities equality": ("rejects_liabilities_without_entitlement_rows", "ENTITLEMENT_ROWS_DRIFT"),
     "skip the reserve partition equality": ("rejects_reserves_without_reserve_rows", "RESERVE_ROWS_DRIFT"),
     "ignore PENDING outbox rows": ("rejects_pending_outbox_without_external_rows", "EXTERNAL_OBLIGATION_BINDING_DRIFT"),

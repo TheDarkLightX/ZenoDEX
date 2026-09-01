@@ -67,16 +67,6 @@ NORMATIVE_PARTITION_V1: Final = (
 )
 
 
-class AllocationClassV1(str, Enum):
-    """Exactly-once classification of a controlled source atom."""
-
-    CLAIMANT_ENTITLEMENT = "CLAIMANT_ENTITLEMENT"
-    UNENCUMBERED_CONTROLLED_LOCATION = "UNENCUMBERED_CONTROLLED_LOCATION"
-    UNENCUMBERED_RESERVE = "UNENCUMBERED_RESERVE"
-    PENDING_EXTERNAL_OBLIGATION = "PENDING_EXTERNAL_OBLIGATION"
-    TERMINAL_OBLIGATION = "TERMINAL_OBLIGATION"
-
-
 class ReserveInterpretationV1(str, Enum):
     """The single reserve interpretation decided on 2026-09-01: reserves are claimant-free."""
 
@@ -111,7 +101,14 @@ LANE_ALLOCATION_PRODUCER_REGISTRY_V1: Final[dict[LaneIdV1, tuple[LaneProducerKin
 
 
 class AllocationCertificateRejectCodeV1(str, Enum):
-    """Closed reject codes in check precedence (first failing check wins)."""
+    """Closed reject codes.
+
+    The realised precedence is ``CHECK_ORDER_V1``: the first failing check wins, each
+    lane-binding check (state root, producer kind, blocked producer, disabled lane
+    rows) runs over all twelve lanes before the next one starts, and
+    ``ALLOCATION_TOTAL_OVERFLOW`` is raised by whichever checked fold overflows first
+    (the exactly-once fold, the reserve fold, or the custody fold).
+    """
 
     HEADER_BINDING_DRIFT = "HEADER_BINDING_DRIFT"
     LANE_ORDER_DRIFT = "LANE_ORDER_DRIFT"
@@ -608,18 +605,25 @@ def _check_lane_order(certificate: GlobalAccountingAllocationCertificateV1) -> N
 
 
 def _check_lane_bindings(certificate: GlobalAccountingAllocationCertificateV1, state: GlobalEconomicStateV1) -> None:
-    for fragment, lane_root in zip(certificate.ordered_lane_fragments, state.lane_roots, strict=True):
+    """Check-major: every lane passes one binding check before any lane is tried against the next."""
+
+    pairs = tuple(zip(certificate.ordered_lane_fragments, state.lane_roots, strict=True))
+    for fragment, lane_root in pairs:
         if (fragment.module_release_id, fragment.enabled, fragment.lane_state_root) != (
             lane_root.module_release_id,
             lane_root.enabled,
             lane_root.state_root,
         ):
             _fail(AllocationCertificateRejectCodeV1.LANE_STATE_ROOT_DRIFT, fragment.lane_id.value)
-        registered_kind, blocked_on = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[fragment.lane_id]
+    for fragment, _ in pairs:
+        registered_kind, _ = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[fragment.lane_id]
         if fragment.producer_kind != registered_kind:
             _fail(AllocationCertificateRejectCodeV1.PRODUCER_KIND_DRIFT, f"{fragment.lane_id.value}:{fragment.producer_kind.value}")
+    for fragment, _ in pairs:
+        registered_kind, blocked_on = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[fragment.lane_id]
         if fragment.enabled and registered_kind is not LaneProducerKindV1.RECEIPT_BACKED:
             _fail(AllocationCertificateRejectCodeV1.BLOCKED_LANE_PRODUCER_MISSING, f"{fragment.lane_id.value}:{blocked_on}")
+    for fragment, _ in pairs:
         if not fragment.enabled and not fragment.is_empty:
             _fail(AllocationCertificateRejectCodeV1.DISABLED_LANE_NOT_EMPTY, fragment.lane_id.value)
 
@@ -672,11 +676,12 @@ def _check_reserve_rows(certificate: GlobalAccountingAllocationCertificateV1, st
 
 
 def _check_external_obligations(certificate: GlobalAccountingAllocationCertificateV1, state: GlobalEconomicStateV1) -> None:
-    pending = {
-        row.effect_id: row
-        for fragment in certificate.ordered_lane_fragments
-        for row in fragment.pending_external_obligations
-    }
+    pending: dict[str, PendingExternalObligationRowV1] = {}
+    for fragment in certificate.ordered_lane_fragments:
+        for row in fragment.pending_external_obligations:
+            if row.effect_id in pending:
+                _fail(AllocationCertificateRejectCodeV1.EXTERNAL_OBLIGATION_BINDING_DRIFT, f"duplicate {row.effect_id}")
+            pending[row.effect_id] = row
     outbox = {row.effect_id: row for row in state.outbox if row.status is OutboxStatusV1.PENDING}
     if set(pending) != set(outbox):
         _fail(AllocationCertificateRejectCodeV1.EXTERNAL_OBLIGATION_BINDING_DRIFT, "effect_id set")
@@ -852,7 +857,6 @@ __all__ = [
     "AllocationCertificateAcceptedV1",
     "AllocationCertificateRejectCodeV1",
     "AllocationCertificateRejectedV1",
-    "AllocationClassV1",
     "CHECK_ORDER_V1",
     "ChainContextV1",
     "ClaimantEntitlementRowV1",

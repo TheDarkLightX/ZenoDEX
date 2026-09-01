@@ -630,6 +630,7 @@ pub enum AllocationCertificateOutcomeV1 {
     Rejected(AllocationCertificateRejectedV1),
 }
 
+#[derive(Debug)]
 struct Reject(AllocationCertificateRejectCodeV1, String);
 
 fn fail<T>(
@@ -697,35 +698,46 @@ fn check_lane_bindings(
     certificate: &GlobalAccountingAllocationCertificateV1,
     state: &GlobalEconomicStateV1,
 ) -> Result<(), Reject> {
-    for (fragment, lane_root) in certificate
+    // Check-major: every lane passes one binding check before any lane is tried against the next.
+    let pairs: Vec<(&LaneAllocationFragmentV1, &crate::state::LaneStateRootV1)> = certificate
         .ordered_lane_fragments
         .iter()
         .zip(state.lane_roots.iter())
-    {
-        let lane = format!("{:?}", fragment.lane_id);
+        .collect();
+    for (fragment, lane_root) in &pairs {
         if fragment.module_release_id != lane_root.module_release_id
             || fragment.enabled != lane_root.enabled
             || fragment.lane_state_root != lane_root.state_root
         {
-            return fail(AllocationCertificateRejectCodeV1::LaneStateRootDrift, lane);
+            return fail(
+                AllocationCertificateRejectCodeV1::LaneStateRootDrift,
+                format!("{:?}", fragment.lane_id),
+            );
         }
-        let (registered_kind, blocked_on) = registry_entry_v1(fragment.lane_id);
+    }
+    for (fragment, _) in &pairs {
+        let (registered_kind, _) = registry_entry_v1(fragment.lane_id);
         if fragment.producer_kind != registered_kind {
             return fail(
                 AllocationCertificateRejectCodeV1::ProducerKindDrift,
-                format!("{lane}:{:?}", fragment.producer_kind),
+                format!("{:?}:{:?}", fragment.lane_id, fragment.producer_kind),
             );
         }
+    }
+    for (fragment, _) in &pairs {
+        let (registered_kind, blocked_on) = registry_entry_v1(fragment.lane_id);
         if fragment.enabled && registered_kind != LaneProducerKindV1::RECEIPT_BACKED {
             return fail(
                 AllocationCertificateRejectCodeV1::BlockedLaneProducerMissing,
-                format!("{lane}:{blocked_on}"),
+                format!("{:?}:{blocked_on}", fragment.lane_id),
             );
         }
+    }
+    for (fragment, _) in &pairs {
         if !fragment.enabled && !fragment.is_empty() {
             return fail(
                 AllocationCertificateRejectCodeV1::DisabledLaneNotEmpty,
-                lane,
+                format!("{:?}", fragment.lane_id),
             );
         }
     }
@@ -871,16 +883,30 @@ fn check_reserve_rows(
     Ok(())
 }
 
+/// Collect every lane's pending external rows by effect id; a repeated id across lanes is a
+/// double-counted obligation and rejects (mirrors the terminal-binding duplicate guard).
+fn pending_external_rows(
+    fragments: &[LaneAllocationFragmentV1],
+) -> Result<BTreeMap<&str, &PendingExternalObligationRowV1>, Reject> {
+    let mut pending: BTreeMap<&str, &PendingExternalObligationRowV1> = BTreeMap::new();
+    for fragment in fragments {
+        for row in &fragment.pending_external_obligations {
+            if pending.insert(row.effect_id.as_str(), row).is_some() {
+                return fail(
+                    AllocationCertificateRejectCodeV1::ExternalObligationBindingDrift,
+                    format!("duplicate {}", row.effect_id.as_str()),
+                );
+            }
+        }
+    }
+    Ok(pending)
+}
+
 fn check_external_obligations(
     certificate: &GlobalAccountingAllocationCertificateV1,
     state: &GlobalEconomicStateV1,
 ) -> Result<(), Reject> {
-    let pending: BTreeMap<&str, &PendingExternalObligationRowV1> = certificate
-        .ordered_lane_fragments
-        .iter()
-        .flat_map(|fragment| fragment.pending_external_obligations.iter())
-        .map(|row| (row.effect_id.as_str(), row))
-        .collect();
+    let pending = pending_external_rows(&certificate.ordered_lane_fragments)?;
     let outbox: BTreeMap<&str, &crate::state::OutboxStateV1> = state
         .outbox
         .iter()
@@ -1163,4 +1189,66 @@ pub fn build_registered_empty_certificate_v1(
         canonical_allocation_rows: rows,
         reserve_interpretation: ReserveInterpretationV1::NAMED_UNENCUMBERED_NO_CLAIMANT,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        pending_external_rows, AllocationCertificateRejectCodeV1, LaneAllocationFragmentV1,
+    };
+
+    fn fragment(lane: &str, effect_ids: &[u8]) -> LaneAllocationFragmentV1 {
+        let rows: Vec<serde_json::Value> = effect_ids
+            .iter()
+            .map(|id| {
+                serde_json::json!({
+                    "effect_id": format!("0x{:064x}", *id as u64),
+                    "asset": "USD",
+                    "amount_atoms": 7u64,
+                    "destination_id": "bridge-a",
+                    "commitment_root": format!("0x{:064x}", 900u64),
+                    "control_domain": "spot-pool",
+                    "source_principal": "pool-a",
+                })
+            })
+            .collect();
+        serde_json::from_value(serde_json::json!({
+            "lane_id": lane,
+            "module_release_id": format!("0x{:064x}", 201u64),
+            "enabled": true,
+            "lane_state_root": format!("0x{:064x}", 301u64),
+            "producer_kind": "RECEIPT_BACKED",
+            "binding_root": format!("0x{:064x}", 301u64),
+            "controlled_locations": [],
+            "claimant_entitlements": [],
+            "unencumbered_reserves": [],
+            "pending_external_obligations": rows,
+            "terminal_bindings": [],
+        }))
+        .expect("fragment decodes")
+    }
+
+    #[test]
+    fn distinct_effect_ids_across_lanes_collect() {
+        let fragments = [
+            fragment("ASSET_TRANSFER", &[1]),
+            fragment("SPOT_LIQUIDITY", &[2]),
+        ];
+        let pending = pending_external_rows(&fragments).expect("distinct ids collect");
+        assert_eq!(pending.len(), 2);
+    }
+
+    #[test]
+    fn duplicate_effect_id_across_lanes_is_rejected() {
+        let fragments = [
+            fragment("ASSET_TRANSFER", &[1]),
+            fragment("SPOT_LIQUIDITY", &[1]),
+        ];
+        let reject = pending_external_rows(&fragments).expect_err("duplicate id rejects");
+        assert_eq!(
+            reject.0,
+            AllocationCertificateRejectCodeV1::ExternalObligationBindingDrift
+        );
+        assert_eq!(reject.1, format!("duplicate 0x{:064x}", 1u64));
+    }
 }
