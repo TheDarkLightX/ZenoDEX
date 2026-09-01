@@ -3,7 +3,7 @@
 Date: 2026-08-26 (repair 1: 2026-08-27; closure repair 2: 2026-08-27; naming
 repair 3: 2026-08-27; admission-coherence repair 4: 2026-08-27; Max-review
 repair 5: 2026-08-27; residue-refinement repair 6: 2026-08-29;
-residue-evidence repair 7: 2026-08-29)
+residue-evidence repair 7: 2026-08-29; semantic-restage repair 8: 2026-09-01)
 
 Task: `FORMAL-MODEL-001` (`rlm-subagent-task/v1`, role `implementer`)
 
@@ -24,7 +24,7 @@ own file. No commit was amended.
 Status: `RESEARCH_ONLY_UNMOUNTED`, `BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY`
 
 Admission: `FORMAL_EVIDENCE_ADMITTED_RESEARCH_ONLY` under
-`THV1-20260829-global-settlement-fee-residue-refinement-v1`
+`THV1-20260901-global-settlement-formal-core-semantic-restage-v1`
 
 Integration admission: `BLOCKED_SUBJECT_RECEIPT_AND_MAX_REVIEW`
 
@@ -98,12 +98,12 @@ means this blueprint must be re-reviewed before it is trusted. Rows marked
 
 | Pinned source | SHA-256 | Grade |
 | --- | --- | --- |
-| `src/core/global_settlement_types_v1.py` | `5d17cd8043dc93fea2b7fa5c8cd8b2dce94417ac8bb208e7a6082fd4ff154537` | enforced |
-| `src/core/global_economic_state_effect_refinement_v1.py` | `d0bf943a7b8eafb365cb40de6fd34a64be771e5bd1e105cdceda93a71ef75ce7` | enforced |
-| `zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs` | `d42c82a28fdb869ff54f61d9dfe9812d9c31b6691c3bdb728d0c3d5381d4449f` | enforced |
+| `src/core/global_settlement_types_v1.py` | `13871fb586d7e5c1106edd5c0a9fdcd6f817016925027a6bdfb5ca8f53f29f58` | enforced |
+| `src/core/global_economic_state_effect_refinement_v1.py` | `2c80fe364241de0fa2c93c258767dd93ad65233fbb58de71af398b3b5c1c2d54` | enforced |
+| `zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs` | `44352e36e147c59ca397e571237d48eebd91787066df26fb7a5b65b2a78b2672` | enforced |
 | `src/core/zdex_fee_allocation_types_v1.py` | `b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df` | enforced |
 | `src/core/zdex_fee_allocation_v1.py` | `8f976781349e31ae9fd3c48b8534ae4fbfe74e8ce33e6b62c6a627c8109bad84` | enforced |
-| `zk/global_settlement_abi_v1/src/effects.rs` | `e51f38d1a56cac7e61712ba786fe384d8aa7d6a14715715f1c90698292888bb6` | enforced |
+| `zk/global_settlement_abi_v1/src/effects.rs` | `0e691ba4be7be58ded9a87ba28f1cd747b67bf5cdfd4c39bbe232480fe20b7f6` | enforced |
 | `zk/global_settlement_abi_v1/src/zdex_fee_allocation.rs` | `2dc440b8a1711f75c5950e5e8c51fb9b709f709d16bf68e52aea15f3b6f0e78b` | enforced |
 | `zk/global_settlement_abi_v1/src/zdex_fee_allocation_types.rs` | `609fc31d4a987e5f86d1aff953f797f656e82dc9df090a3380763941b1b58b1e` | enforced |
 | `src/core/epoch_effect_composition_v1.py` | `a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045` | enforced |
@@ -456,7 +456,8 @@ incomplete.
 | Model | Source |
 | --- | --- |
 | `payer_X`, `rest_X` | `GlobalEconomicStateV1.balances` rows for the asset |
-| `fee_alloc_X`, `fee_residue_X`, `obligation_X` | state-bearing allocation rows, the exact ABI-defined fee-residue reserve row, and `terminal_obligations` amounts; the GAP-07 mapping is closed while residue ownership remains unselected |
+| `fee_alloc_X`, `fee_residue_X` | state-bearing allocation rows and the exact ABI-defined fee-residue reserve row; the GAP-07 mapping is closed while residue ownership remains unselected |
+| `obligation_X` | abstract owned accounting-location atoms only; no exact runtime source mapping is established. `GlobalEconomicStateV1.terminal_obligations` is metadata/liability state excluded from the runtime owned-atom sum, so it is not this bucket (`GAP-04`). |
 | `supply_X` | `GlobalEconomicStateV1.supplies` |
 | `height`, `bound_height` | `GlobalEconomicStateV1.height` and the command's bound pre-state identity |
 | `consumed_i`, `occurrence` | `replay_state` occurrence ids and `occurrence_consumptions` |
@@ -859,6 +860,10 @@ three files.
   widths, the base-5 image, and the conjunction scope of the solver result.
   Repair 6 closes only the exact fee-residue state-bearing mapping. It selects
   no ownership or disposition policy.
+- Semantic-restage repair 8 removes the former false mapping from
+  `obligation_X` to `GlobalEconomicStateV1.terminal_obligations`. The model's
+  aggregate obligation bucket still has no exact runtime source mapping, and
+  current V1 terminal rows still omit liability domain and source principal.
 - Additional correspondence omissions include single-subject aggregation,
   the collapsed two-parameter fee policy, informative-only reject-code mapping
   without source reject-order proof, model height advancement per accepted

@@ -95,9 +95,9 @@ THV1_PACKET = (
     / "tests"
     / "evidence"
     / "test_hygiene"
-    / "THV1-20260829-global-settlement-fee-residue-refinement-v1.json"
+    / "THV1-20260901-global-settlement-formal-core-semantic-restage-v1.json"
 )
-THV1_EVIDENCE_ID = "THV1-20260829-global-settlement-fee-residue-refinement-v1"
+THV1_EVIDENCE_ID = "THV1-20260901-global-settlement-formal-core-semantic-restage-v1"
 THV1_REQUIRED_PIN_PATHS = frozenset(
     {
         "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
@@ -121,13 +121,13 @@ THV1_REQUIRED_PIN_PATHS = frozenset(
 # Claim grade is source-pin evidence, never refinement evidence.
 ENFORCED_PINS = {
     "src/core/global_settlement_types_v1.py": (
-        "5d17cd8043dc93fea2b7fa5c8cd8b2dce94417ac8bb208e7a6082fd4ff154537"
+        "13871fb586d7e5c1106edd5c0a9fdcd6f817016925027a6bdfb5ca8f53f29f58"
     ),
     "src/core/global_economic_state_effect_refinement_v1.py": (
-        "d0bf943a7b8eafb365cb40de6fd34a64be771e5bd1e105cdceda93a71ef75ce7"
+        "2c80fe364241de0fa2c93c258767dd93ad65233fbb58de71af398b3b5c1c2d54"
     ),
     "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs": (
-        "d42c82a28fdb869ff54f61d9dfe9812d9c31b6691c3bdb728d0c3d5381d4449f"
+        "44352e36e147c59ca397e571237d48eebd91787066df26fb7a5b65b2a78b2672"
     ),
     "src/core/zdex_fee_allocation_types_v1.py": (
         "b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df"
@@ -136,7 +136,7 @@ ENFORCED_PINS = {
         "8f976781349e31ae9fd3c48b8534ae4fbfe74e8ce33e6b62c6a627c8109bad84"
     ),
     "zk/global_settlement_abi_v1/src/effects.rs": (
-        "e51f38d1a56cac7e61712ba786fe384d8aa7d6a14715715f1c90698292888bb6"
+        "0e691ba4be7be58ded9a87ba28f1cd747b67bf5cdfd4c39bbe232480fe20b7f6"
     ),
     "zk/global_settlement_abi_v1/src/zdex_fee_allocation.rs": (
         "2dc440b8a1711f75c5950e5e8c51fb9b709f709d16bf68e52aea15f3b6f0e78b"
@@ -1225,6 +1225,17 @@ def test_blueprint_pins_base_commit_and_semantic_source_hashes() -> None:
             "semantic source drift: re-review FORMAL-MODEL-001 before trusting the blueprint",
         )
     assert "tests/formal/test_esso_global_settlement_core_v1.py" in text
+
+
+def test_blueprint_does_not_count_terminal_metadata_as_owned_atoms() -> None:
+    text = _prose(BLUEPRINT.read_text(encoding="utf-8"))
+    assert "abstract owned accounting-location atoms only" in text
+    assert "terminal_obligations` is metadata/liability state excluded" in text
+    false_mapping = (
+        "`fee_alloc_X`, `fee_residue_X`, `obligation_X` | state-bearing allocation rows, "
+        "the exact ABI-defined fee-residue reserve row, and `terminal_obligations` amounts"
+    )
+    assert false_mapping not in text
 
 
 def test_blueprint_names_every_lane_invariant_reject_code_and_mutant(model: BoundedModel) -> None:
