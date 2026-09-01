@@ -32,7 +32,7 @@
     },
     {
       "path": "tools/check_global_settlement_canonical_manifest_v1.py",
-      "sha256": "505d6c664003c9f73e574f66ec083f20d30533c7190cc2710e9c482bc6d54147"
+      "sha256": "d9a96a01cfc5d041dff52dc8685468562d666dcfafabac202d990ce9411dcb15"
     }
   ],
   "removed_paths": [],

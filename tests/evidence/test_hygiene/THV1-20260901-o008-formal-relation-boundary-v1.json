@@ -33,6 +33,26 @@
     {
       "path": "tools/check_o008_formal_cycle_v1.py",
       "sha256": "ba21f8c6c564ae073e24a786bbc1dff180f4cd87f45f384845131839bfc3b7dd"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "2c80fe364241de0fa2c93c258767dd93ad65233fbb58de71af398b3b5c1c2d54"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
+      "sha256": "44352e36e147c59ca397e571237d48eebd91787066df26fb7a5b65b2a78b2672"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_economic_state_effect_refinement.rs",
+      "sha256": "1dd322d5e387830b036ac11816c48d0b4d790817b7129ec3d66199b2d9de45df"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalClaimantCustodyRelationV1.lean",
+      "sha256": "1fc04ed21c4615d483d037549ff151b3a5bd10bbdf263bcaa4ff992c4bf6b9d8"
+    },
+    {
+      "path": "src/kernels/dex/global_claimant_custody_certificate_v1.yaml",
+      "sha256": "492283e6791663550a424423571fc0cf1466cda604732dc2d3e6c027e6b2a60d"
     }
   ],
   "removed_paths": [],
@@ -52,11 +72,39 @@
         "tests/test_check_o008_formal_cycle_v1.py::test_duplicate_json_key_fails_closed",
         "tests/test_check_o008_formal_cycle_v1.py::test_packet_names_the_exact_v1_information_loss_and_nonclaims"
       ]
+    },
+    {
+      "path": "tests/formal/test_esso_global_claimant_custody_certificate_v1.py",
+      "sha256": "2046d51238f5100648fa54c16708d586fe77840ae0cb04389fc6c969a48aef07",
+      "node_ids": [
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_model_source_scope_and_claim_ceiling_are_exact",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_exact_relation_excludes_reserves_and_classifies_every_custody_atom",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_current_profile_equation_classifies_reserves_separately",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_aggregate_conservation_does_not_imply_domain_or_claimant_reconciliation",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_esso_two_solver_replay_is_exact_and_deterministic",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_each_invariant_has_a_minimal_inductive_solver_projection",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_v1_domainless_terminal_has_distinct_hidden_domain_preimages",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_v1_same_lane_root_accepts_claimant_substitution_without_projection_evidence"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_global_claimant_custody_relation_v1.py",
+      "sha256": "047b0026706f673941252311a090e9deee5101e91bfe875f3690a5217640a187",
+      "node_ids": [
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_exact_sources_are_pinned",
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_explicit_theorem_surface_is_compiler_checked",
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_repository_placeholder_scanner_accepts_the_proof",
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_theorem_surface_uses_only_standard_axioms",
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_lean_esso_and_runtime_sources_share_the_bounded_relation",
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_claim_ceiling_excludes_runtime_and_authority_promotion"
+      ]
     }
   ],
   "evidence_families": [
     "formal",
     "replay",
+    "boundary",
     "negative_regression",
     "mutation",
     "differential"
