@@ -38,6 +38,8 @@ S_PARENT_FAKE = "2" * 40
 S_TREE_FAKE = "3" * 40
 P_FAKE = "4" * 40
 CREATED = "2026-09-01"
+RUSTC_VV = b"rustc 1.87.0 (17067e9ac 2025-05-09)\nbinary: rustc\ncommit-hash: 17067e9ac6d7ecb70e50f92c1944e545188d2359\ncommit-date: 2025-05-09\nhost: x86_64-unknown-linux-gnu\nrelease: 1.87.0\nLLVM version: 20.1.1\n"
+RUSTC_TOOLCHAIN = {"rustc_commit_hash": "17067e9ac6d7ecb70e50f92c1944e545188d2359", "rustc_host": "x86_64-unknown-linux-gnu", "rustc_release": "1.87.0"}
 NOT_RUN = {"status": "NOT_RUN"}
 
 CORE_IMPORT_ALLOWLIST = frozenset(
@@ -272,7 +274,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(b"/v3", b"/v2", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v2"),
+        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V4.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v3", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v3"),
         pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
@@ -313,21 +315,49 @@ def test_reorder_theorems_is_inventory_drift(snapshot: core.SubjectSnapshotV1) -
     assert _project_code(_with_blob(snapshot, core.LEAN_PROOF_PATH_V1, swapped.encode())) == "LEAN_THEOREM_INVENTORY_DRIFT"
 
 
-def test_weakened_statement_changes_statement_hash(snapshot: core.SubjectSnapshotV1, packet: dict[str, Any]) -> None:
-    mutated = _edit(
-        snapshot,
-        core.LEAN_PROOF_PATH_V1,
-        "(backed : SameDomainLiabilitiesBacked state) :\n    AggregateLiabilitiesBacked state := by",
-        "(backed : SameDomainLiabilitiesBacked state) :\n    ReserveInclusiveBacking state := by",
-    )
+NECESSITY_THEOREM = "theorem noUnclassified_premise_is_necessary :\n    ¬ ∀ (s : State) (_ : ExactAllocationWitness s), ExactCurrentProfileRelation s := by\n  intro universal\n  exact overCollateralised_isBacked_notExact.2\n    (universal overCollateralisedState overCollateralisedAllocation).2"
+NECESSITY_WEAKENED = "theorem noUnclassified_premise_is_necessary : True := by\n  trivial"
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "theorem"),
+    [
+        pytest.param("(backed : SameDomainLiabilitiesBacked state) :\n    AggregateLiabilitiesBacked state := by", "(backed : SameDomainLiabilitiesBacked state) :\n    ReserveInclusiveBacking state := by", "sameDomainBacked_implies_aggregateBacked", id="swap_conclusion"),
+        # Codex C1'' P1 (Lean) exact survivor S'' = d40c9ac30: the necessity theorem restated as True.
+        pytest.param(NECESSITY_THEOREM, NECESSITY_WEAKENED, "noUnclassified_premise_is_necessary", id="codex_survivor_true_statement"),
+    ],
+)
+def test_weakened_statement_is_rejected_on_fresh_projection(
+    snapshot: core.SubjectSnapshotV1, packet: dict[str, Any], old: str, new: str, theorem: str
+) -> None:
+    """A weakened statement is rejected when the packet is regenerated, not only through a stale pin."""
+
+    mutated = _edit(snapshot, core.LEAN_PROOF_PATH_V1, old, new)
     inventory = core.lean_theorem_inventory_v1(mutated.blobs[core.LEAN_PROOF_PATH_V1].data.decode("utf-8"))
     original = {t["name"]: t["statement_sha256"] for t in packet["lean_evidence"]["theorems"]}
     changed = {entry.name: entry.statement_sha256 for entry in inventory}
-    assert set(original) == set(changed)
-    assert [name for name in original if original[name] != changed[name]] == ["sameDomainBacked_implies_aggregateBacked"]
+    assert set(original) == set(changed) == set(core.LEAN_STATEMENT_SHA256_V1)
+    assert [name for name in original if original[name] != changed[name]] == [theorem]
+    with pytest.raises(core.AdmissionRejectV1) as captured:
+        core.project_packet_v1(mutated, created_date=CREATED, author_replay_record={"status": "NOT_RUN"})
+    assert (captured.value.code, captured.value.detail) == ("LEAN_STATEMENT_DRIFT", theorem)
     outcome = core.admit_packet_v1(packet, _context(mutated, packet))
     assert _codes(outcome)[0] == "SOURCE_PIN_BLOB_DRIFT"
-    assert "LEAN_GATE_PIN_DRIFT" in _codes(outcome)
+
+
+def test_definition_surface_binds_meaning_and_leaves_proofs_to_replay(snapshot: core.SubjectSnapshotV1, packet: dict[str, Any]) -> None:
+    """Codex C1'' P1 (Lean): a weakened definition drifts the surface hash; a proof edit does not."""
+
+    proof = snapshot.blobs[core.LEAN_PROOF_PATH_V1].data.decode("utf-8")
+    surface = core.lean_definition_surface_v1(proof)
+    assert core.sha256_hex_v1(surface.encode("utf-8")) == core.LEAN_DEFINITION_SURFACE_SHA256_V1 == packet["lean_evidence"]["definition_surface_sha256"]
+    assert "intro universal" not in surface and "def ExactCurrentProfileCustody" in surface and "import" in surface
+    weakened = _edit(snapshot, core.LEAN_PROOF_PATH_V1, "def ExactCurrentProfileCustody (state : State) : Prop :=\n  ∀ domain, state.custody domain = liabilityInDomain state domain", "def ExactCurrentProfileCustody (state : State) : Prop :=\n  True")
+    assert _project_code(weakened) == "LEAN_DEFINITION_SURFACE_DRIFT"
+    proof_edit = _edit(snapshot, core.LEAN_PROOF_PATH_V1, "  intro universal\n  exact overCollateralised_isBacked_notExact.2", "  intro universal\n  exact (overCollateralised_isBacked_notExact).2")
+    assert core.lean_definition_surface_v1(proof_edit.blobs[core.LEAN_PROOF_PATH_V1].data.decode("utf-8")) == surface
+    # Proof terms are free text: only the self-pin drifts, and replay (direct check, axioms probe) judges the proof.
+    assert _project_code(proof_edit) == "LEAN_GATE_PIN_DRIFT"
 
 
 @pytest.mark.parametrize(
@@ -373,6 +403,9 @@ LIVE_MACRO = (
     "            pub asset: String,\n            pub amount_atoms: u128,\n            pub status: TerminalObligationStatusV1,\n"
     "        }\n    };\n}\ndefine_live_terminal_obligation_v1!(TerminalObligationV1);\n"
 )
+
+
+TERMINAL_MACRO = "bounded_state_vec_deserializer_v1!(\n    deserialize_terminal_obligations_v1,\n    TerminalObligationV1,\n    MAX_GLOBAL_TERMINAL_ROWS_V1,\n    \"global state terminal obligations\"\n);"
 
 
 @pytest.mark.parametrize(
@@ -431,6 +464,32 @@ LIVE_MACRO = (
         # Opus C1'' P1-2: the bounded-vec file is now a whole-template pin, not substrings.
         pytest.param(core.RUST_BOUNDED_VEC_PATH_V1, "        let mut values = Vec::with_capacity(sequence.size_hint().unwrap_or(0).min(MAXIMUM));", "        let mut values = Vec::with_capacity(MAXIMUM);", "", "RUST_BOUNDED_VEC_DRIFT", id="bounded_vec_body_edit_outside_old_fragments"),
         pytest.param(core.RUST_BOUNDED_VEC_PATH_V1, "", "", "\nfn lenient_helper() {}\n", "RUST_BOUNDED_VEC_DRIFT", id="bounded_vec_extra_fn"),
+        # Codex C1'' P1 (Rust) survivor layers: block-local macro decoy, imported deserialiser, new crate module.
+        pytest.param(core.RUST_STATE_PATH_V1, TERMINAL_MACRO, "const _: () = {\n    bounded_state_vec_deserializer_v1!(\n        deserialize_terminal_obligations_v1,\n        TerminalObligationV1,\n        MAX_GLOBAL_TERMINAL_ROWS_V1,\n        \"global state terminal obligations\"\n    );\n};", "", "RUST_CONTAINER_DESERIALIZER_DRIFT", id="block_local_macro_decoy"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use crate::bounded_vec::deserialize_bounded_vec_v1;", "use crate::bounded_vec::deserialize_bounded_vec_v1;\nuse crate::evil_deserializer::deserialize_terminal_obligations_v1;", "", "RUST_STATE_IMPORT_DRIFT", id="imported_container_deserializer"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use crate::bounded_vec::deserialize_bounded_vec_v1;", "use crate::bounded_vec::deserialize_bounded_vec_v1;\nuse crate::canonical::lenient_rows_v1 as deserialize_outbox_v1;", "", "RUST_STATE_IMPORT_DRIFT", id="aliased_container_deserializer"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use crate::bounded_vec::deserialize_bounded_vec_v1;", "use crate::bounded_vec::deserialize_bounded_vec_v1;\nuse std::collections::BTreeMap;", "", "RUST_STATE_IMPORT_DRIFT", id="import_outside_closed_roots"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use crate::bounded_vec::deserialize_bounded_vec_v1;", "use crate::bounded_vec::{self};", "", "RUST_STATE_IMPORT_DRIFT", id="bounded_vec_module_import"),
+        pytest.param(core.RUST_LIB_PATH_V1, "mod state;", "mod state;\nmod evil_deserializer;", "", "RUST_CRATE_MODULE_SET_DRIFT", id="lib_extra_module"),
+        pytest.param(core.RUST_LIB_PATH_V1, "mod effects;", "mod effects { pub fn lenient() {} }", "", "RUST_CRATE_MODULE_SET_DRIFT", id="lib_inline_module"),
+        pytest.param(core.RUST_LIB_PATH_V1, "mod effects;", "", "", "RUST_CRATE_MODULE_SET_DRIFT", id="lib_dropped_module"),
+        # Opus C1''' P1-1: attribute-prefixed use statements are scanned like any other.
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserialize, Deserializer, Serialize};\n#[allow(unused_imports)] use crate::canonical::deserialize_bounded_vec_v1;", "", "RUST_BOUNDED_VEC_IMPORT_DRIFT", id="attribute_prefixed_redirect"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserialize, Deserializer, Serialize};\n#[rustfmt::skip] use crate::canonical::*;", "", "RUST_GLOB_IMPORT_FORBIDDEN", id="attribute_prefixed_glob"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserializer, Serialize};\n#[doc = \"x\"] use crate::shadow::Deserialize;", "", "RUST_SERDE_IMPORT_DRIFT", id="attribute_prefixed_foreign_deserialize"),
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserialize, Deserializer, Serialize};\n#[deprecated(note = \"[x]\")] use crate::evil::deserialize_outbox_v1;", "", "RUST_STATE_IMPORT_DRIFT", id="attribute_with_brackets_prefixed_import"),
+        # Opus C1''' P3-3: serde prelude names bind only as serde::<name>.
+        pytest.param(core.RUST_STATE_PATH_V1, "use serde::{Deserialize, Deserializer, Serialize};", "use serde::{Deserializer, Serialize};\nuse serde::de::Deserialize;", "", "RUST_SERDE_IMPORT_DRIFT", id="serde_submodule_prelude_name"),
+        # Opus C1''' P1-2: the crate root cannot rebind what state.rs resolves through crate::.
+        pytest.param(core.RUST_LIB_PATH_V1, "mod bounded_vec;", "mod evil_shim;\nuse evil_shim::bounded_vec;", "", "RUST_STATE_MODULE_DECLARATION_DRIFT", id="lib_bounded_vec_rebound_through_new_module"),
+        pytest.param(core.RUST_LIB_PATH_V1, "mod bounded_vec;", "", "", "RUST_STATE_MODULE_DECLARATION_DRIFT", id="lib_drops_mod_bounded_vec"),
+        pytest.param(core.RUST_LIB_PATH_V1, "mod bounded_vec;", "mod bounded_vec { pub(crate) fn deserialize_bounded_vec_v1() {} }", "", "RUST_STATE_MODULE_DECLARATION_DRIFT", id="lib_inline_mod_bounded_vec"),
+        pytest.param(core.RUST_LIB_PATH_V1, "", "", "\npub use effects::bounded_vec;\n", "RUST_CRATE_ROOT_REBINDING", id="lib_reexports_bounded_vec_name"),
+        pytest.param(core.RUST_LIB_PATH_V1, "", "", "\nuse canonical::hash_global_v1 as serde;\n", "RUST_CRATE_ROOT_REBINDING", id="lib_aliases_serde_name"),
+        pytest.param(core.RUST_LIB_PATH_V1, "", "", "\n#[allow(unused_imports)] use effects::canonical;\n", "RUST_CRATE_ROOT_REBINDING", id="lib_attribute_prefixed_rebinding"),
+        # Opus C1''' P3-1/P3-2: raw-text pins for the gate and the whole bounded_vec.rs file.
+        pytest.param(core.RUST_GATE_PATH_V1, 'error.to_string().contains("unknown field")', 'error.to_string().contains("")', "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_string_literal_weakened"),
+        pytest.param(core.RUST_BOUNDED_VEC_PATH_V1, "    use super::deserialize_bounded_vec_v1;\n", "    use super::deserialize_bounded_vec_v1;\n    fn extra_unpinned() {}\n", "", "RUST_BOUNDED_VEC_DRIFT", id="bounded_vec_test_module_edit"),
         # Opus C1'' P2-1: gate bodies are pinned by normalised content, not only names and tables.
         pytest.param(core.RUST_GATE_PATH_V1, "        assert_unknown_field::<TerminalObligationV1>(value, extra);\n    }\n}", "    }\n}", "", "RUST_GATE_CONTENT_DRIFT", id="rust_gate_emptied_body"),
     ],
@@ -442,6 +501,27 @@ def test_rust_lexical_closure_rejects_decoys(
     if tail:
         mutated = _append(mutated, path, tail)
     assert _project_code(mutated) == code
+
+
+def test_codex_c1dprime_survivor_is_rejected_at_every_layer(snapshot: core.SubjectSnapshotV1) -> None:
+    """Codex C1'' P1 (Rust) mounted survivor S' = 6c8499030: each closure layer rejects on its own."""
+
+    state_path, lib_path = core.RUST_STATE_PATH_V1, core.RUST_LIB_PATH_V1
+    decoy = "const _: () = {\n    bounded_state_vec_deserializer_v1!(\n        deserialize_terminal_obligations_v1,\n        TerminalObligationV1,\n        MAX_GLOBAL_TERMINAL_ROWS_V1,\n        \"global state terminal obligations\"\n    );\n};"
+    survivor = _edit(_edit(snapshot, state_path, TERMINAL_MACRO, decoy), state_path, "use crate::bounded_vec::deserialize_bounded_vec_v1;", "use crate::bounded_vec::deserialize_bounded_vec_v1;\nuse crate::evil_deserializer::deserialize_terminal_obligations_v1;")
+    survivor = _edit(survivor, lib_path, "mod effects;", "mod evil_deserializer;\nmod effects;")
+    state_source = survivor.blobs[state_path].data
+    with pytest.raises(core.AdmissionRejectV1) as decoy_reject:
+        core.rust_container_deserializer_closure_v1(state_source, state_path)
+    assert decoy_reject.value.code == "RUST_CONTAINER_DESERIALIZER_DRIFT" and "0 item-position" in decoy_reject.value.detail
+    with pytest.raises(core.AdmissionRejectV1) as import_reject:
+        core.rust_state_import_closure_v1(state_source, state_path)
+    assert import_reject.value.code == "RUST_STATE_IMPORT_DRIFT" and "deserialize_terminal_obligations_v1" in import_reject.value.detail
+    with pytest.raises(core.AdmissionRejectV1) as module_reject:
+        core.rust_crate_root_closure_v1(survivor.blobs[lib_path].data, lib_path)
+    assert (module_reject.value.code, module_reject.value.detail) == ("RUST_CRATE_MODULE_SET_DRIFT", "evil_deserializer")
+    assert _project_code(survivor) == "RUST_STATE_IMPORT_DRIFT"
+    assert core.RUST_CRATE_MODULES_V1 == tuple(sorted(set(core.RUST_CRATE_MODULES_V1))) and "state" in core.RUST_CRATE_MODULES_V1
 
 
 def test_gate_body_edits_are_rejected_even_with_pinned_names(snapshot: core.SubjectSnapshotV1) -> None:
@@ -475,6 +555,30 @@ def test_cargo_config_in_worktree_blocks_applicability(snapshot: core.SubjectSna
     assert outcome.current_source_drift == (core.CARGO_CONFIG_FORBIDDEN_PATHS_V1[-1],)
 
 
+def test_replay_environment_is_sanitized(tmp_path: Path, packet: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    """Codex C1'' P2: host cargo config, flags, wrappers, and rustup overrides never reach a replayed tool."""
+
+    for name, value in (("RUSTFLAGS", "--cfg evil"), ("RUSTC_WRAPPER", "/evil/wrapper"), ("CARGO_BUILD_RUSTFLAGS", "-Zevil"), ("RUSTUP_TOOLCHAIN", "evil"), ("PYTHONPATH", "/evil")):
+        monkeypatch.setenv(name, value)
+    environment = shell.prepare_replay_environment_v1(python=PY, esso_python="/usr/bin/python3", esso_pythonpath="/esso", tmp_dir=tmp_path)
+    cargo_home = tmp_path / "cargo-home"
+    assert sorted(p.name for p in cargo_home.iterdir()) == ["registry"] and (cargo_home / "registry").is_symlink()
+    assert not any((cargo_home / name).exists() for name in ("config", "config.toml")) and not (tmp_path / "home" / ".cargo").exists()
+    cargo = next(c for c in core.REPLAY_COMMANDS_V1 if c.command_id == "rust_projection_gate")
+    env = shell._replay_env(cargo, environment)
+    assert env["HOME"] == str(tmp_path / "home") and env["TMPDIR"] == str(tmp_path / "tmp") and env["CARGO_HOME"] == str(cargo_home)
+    assert env["CARGO_TARGET_DIR"] == str(tmp_path / "cargo-target") and env["CARGO_INCREMENTAL"] == "0"
+    allowed = {"LANG", "LC_ALL", "PYTHONDONTWRITEBYTECODE", "PYTHONHASHSEED", "HOME", "TMPDIR", "PATH", "CARGO_HOME", "RUSTUP_HOME", "ELAN_HOME", "CARGO_TARGET_DIR", "CARGO_INCREMENTAL", "CARGO_BUILD_JOBS"}
+    assert set(env) <= allowed and "PYTHONPATH" not in env
+    assert env["PATH"].endswith(":/usr/bin:/bin") and all(Path(d, "cargo").exists() or Path(d, "lake").exists() or d in ("/usr/bin", "/bin") for d in env["PATH"].split(":"))
+    esso = next(c for c in core.REPLAY_COMMANDS_V1 if c.command_id == "esso_validate")
+    esso_env = shell._replay_env(esso, environment)
+    assert esso_env["PYTHONPATH"] == "/esso" and esso_env["HOME"] == env["HOME"] and "CARGO_TARGET_DIR" not in esso_env
+    assert set(esso_env) <= allowed | {"PYTHONPATH", "PYTHONUSERBASE", "ZENO_ESSO_PYTHON"}
+    assert packet["proof_replay"]["environment_policy"] == core.REPLAY_ENV_POLICY_V1
+    assert set(core.REPLAY_ENV_POLICY_V1["fixed"]) == {"LANG", "LC_ALL", "PYTHONDONTWRITEBYTECODE", "PYTHONHASHSEED", "CARGO_INCREMENTAL", "CARGO_BUILD_JOBS"}
+
+
 def test_arrow_in_a_field_type_does_not_swallow_fields() -> None:
     body = "pub a: u8,\n    pub cb: fn(u8) -> u8,\n    pub c: u8"
     fields = core._rust_fields(body, core.RUST_STATE_PATH_V1, allow_attributes=False)
@@ -493,6 +597,21 @@ def test_cargo_version_parser(stdout: bytes, expected: str | None) -> None:
     assert core.parse_cargo_version_v1(stdout) == expected
 
 
+def test_rustc_version_parser_binds_release_commit_and_host() -> None:
+    assert core.parse_rustc_vv_v1(RUSTC_VV) == RUSTC_TOOLCHAIN
+    rejected = (
+        b"",
+        b"release: 1.87.0\n",
+        RUSTC_VV.replace(b"commit-hash: 17067e9ac6d7ecb70e50f92c1944e545188d2359", b"commit-hash: unknown"),
+        RUSTC_VV.replace(b"release: 1.87.0", b"release: 1.92.0-nightly"),
+        RUSTC_VV.replace(b"host: x86_64-unknown-linux-gnu", b"host: x86_64 unknown"),
+    )
+    for stdout in rejected:
+        assert core.parse_rustc_vv_v1(stdout) is None, stdout
+    assert set(core.COMPARABLE_SCHEMA_V1["rust_compiler_version"]) == set(RUSTC_TOOLCHAIN) == core.RUSTC_TOOLCHAIN_KEYS_V1
+    assert core.observed_toolchain_v1([{"command_id": "rust_compiler_version", "comparable": RUSTC_TOOLCHAIN}])["rustc"] == RUSTC_TOOLCHAIN
+
+
 @pytest.mark.parametrize(
     ("old", "new", "tail", "code"),
     [
@@ -505,6 +624,14 @@ def test_cargo_version_parser(stdout: bytes, expected: str | None) -> None:
         pytest.param("    terminal_obligations: tuple[TerminalObligationV1, ...] = ()", "    terminal_obligations: tuple[object, ...] = ()", "", "PYTHON_STATE_FIELD_TYPE_DRIFT", id="state_container_annotation"),
         pytest.param("", "", "\nclass _Other:\n    pass\n\n\nGlobalEconomicStateV1 = _Other\n", "PYTHON_CLASS_REBOUND", id="container_class_rebound"),
         pytest.param("", "", "\nexec('TerminalObligation' + 'V1 = int')\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="exec_rebinding"),
+        # Opus C1''' P2-1: stores through attributes or computed bases rebind past the AST closure.
+        pytest.param("", "", "\nimport sys as _s\n_s.modules[__name__].TerminalObligationV1 = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="sys_modules_attribute_store"),
+        pytest.param("", "", "\nimport sys as _s\n_m = _s.modules[__name__]\n_m.TerminalObligationV1 = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="two_step_attribute_store"),
+        pytest.param("", "", "\nimport importlib as _i\n_i.import_module(__name__).TerminalObligationV1 = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="importlib_attribute_store"),
+        pytest.param("", "", "\nimport sys as _s\ngetattr(_s.modules[__name__], '__dict__')['TerminalObligationV1'] = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="getattr_dict_subscript_store"),
+        pytest.param("", "", "\nimport sys as _s\ndel _s.modules[__name__].TerminalObligationV1\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="attribute_delete"),
+        pytest.param("", "", "\nfrom ctypes import pythonapi\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="ctypes_import"),
+        pytest.param("", "", "\nclass _Holder:\n    pass\n\n\n_Holder.TerminalObligationV1 = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="class_attribute_store"),
         pytest.param("", "", "\nglobals()['TerminalObligationV1'] = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="globals_subscript_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\n_sys.modules[__name__] = None\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="sys_modules_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\nobject.__setattr__(_sys.modules[__name__], 'TerminalObligationV1', int)\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="object_setattr_rebinding"),
@@ -749,9 +876,11 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "python_projection_gate": f"{core.PYTHON_GATE_EXPECTED_PASSED_V1} passed in 0.30s\n".encode(),
         "rust_projection_gate": _cargo_summary(core.RUST_GATE_EXPECTED_PASSED_V1),
         "rust_version": b"cargo 1.87.0 (99624be96 2025-05-06)\n",
+        "rust_compiler_version": RUSTC_VV,
         "rust_refinement_gate": _cargo_summary(core.RUST_REFINEMENT_GATE_EXPECTED_PASSED_V1),
         "python_golden_gate": f"{core.PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
         "rust_golden_gate": _cargo_summary(core.RUST_GOLDEN_GATE_EXPECTED_PASSED_V1),
+        "rust_bounded_vec_unit_gate": _cargo_summary(core.RUST_BOUNDED_VEC_UNIT_GATE_EXPECTED_PASSED_V1),
     }
     return {
         command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id == "lean_axioms_probe" else None)
@@ -835,6 +964,7 @@ def test_executed_record_round_trips_through_validation(packet: dict[str, Any]) 
         "lean": core.LEAN_VERSION_V1,
         "python": "3.12.3",
         "rust": "1.87.0",
+        "rustc": RUSTC_TOOLCHAIN,
         "solvers": dict(core.ESSO_SOLVERS_V1),
     }
 
@@ -853,6 +983,12 @@ def _run(record: dict[str, Any], command_id: str) -> dict[str, Any]:
         pytest.param(lambda r: r["toolchain"].__setitem__("python", "3.11.0"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_python_differs_from_run"),
         pytest.param(lambda r: r["toolchain"].__setitem__("rust", "9.9.9"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_rust_differs_from_run"),
         pytest.param(lambda r: r["toolchain"].pop("rust"), "REPLAY_RECORD_SHAPE", id="toolchain_rust_missing"),
+        # Codex C1'' P2: rustc identity (release, commit hash, host) is part of the closed toolchain block.
+        pytest.param(lambda r: r["toolchain"]["rustc"].__setitem__("rustc_commit_hash", "0" * 40), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_rustc_differs_from_run"),
+        pytest.param(lambda r: r["toolchain"]["rustc"].__setitem__("rustc_host", "x86_64/../evil"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_rustc_host_malformed"),
+        pytest.param(lambda r: r["toolchain"]["rustc"].pop("rustc_host"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_rustc_host_missing"),
+        pytest.param(lambda r: r["toolchain"].pop("rustc"), "REPLAY_RECORD_SHAPE", id="toolchain_rustc_missing"),
+        pytest.param(lambda r: _run(r, "rust_compiler_version")["comparable"].__setitem__("rustc_release", "1.92.0-nightly"), "REPLAY_RECORD_COMPARABLE_DRIFT", id="comparable_rustc_nightly"),
         pytest.param(lambda r: r["toolchain"].__setitem__("authority", "GRANTED"), "REPLAY_RECORD_SHAPE", id="toolchain_authority_key"),
         pytest.param(lambda r: r["toolchain"]["solvers"].__setitem__("authority", "GRANTED"), "REPLAY_RECORD_TOOLCHAIN_DRIFT", id="toolchain_nested_authority_key"),
         pytest.param(lambda r: r.__setitem__("formal_core_complete", True), "REPLAY_RECORD_SHAPE", id="record_extra_key"),
@@ -923,8 +1059,11 @@ def test_python_version_parser_requires_one_semver_line(stdout: bytes, expected:
         pytest.param("python_projection_gate", lambda o: replace(o, stdout=b"7 passed in 0.1s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="python_gate_count_drift"),
         pytest.param("python_version", lambda o: replace(o, stdout=b"Python 3.12.3\n"), "REPLAY_PYTHON_VERSION_UNPARSEABLE", id="python_version_banner"),
         pytest.param("rust_version", lambda o: replace(o, stdout=b"rustc 1.87.0\n"), "REPLAY_RUST_VERSION_UNPARSEABLE", id="rust_version_banner"),
+        pytest.param("rust_compiler_version", lambda o: replace(o, stdout=b"rustc 1.87.0 (17067e9ac 2025-05-09)\n"), "REPLAY_RUSTC_VERSION_UNPARSEABLE", id="rustc_vv_truncated"),
+        pytest.param("rust_compiler_version", lambda o: replace(o, stdout=RUSTC_VV.replace(b"release: 1.87.0", b"release: 1.92.0-nightly")), "REPLAY_RUSTC_VERSION_UNPARSEABLE", id="rustc_vv_nightly"),
         pytest.param("rust_refinement_gate", lambda o: replace(o, stdout=_cargo_summary(40)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_refinement_count"),
         pytest.param("rust_golden_gate", lambda o: replace(o, stdout=_cargo_summary(2)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_golden_count"),
+        pytest.param("rust_bounded_vec_unit_gate", lambda o: replace(o, stdout=_cargo_summary(0)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_bounded_vec_unit_count"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(f'"total_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"total_queries": 0').replace(f'"passed_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"passed_queries": 0')), "REPLAY_ESSO_QUERY_COUNT_DRIFT", id="esso_zero_queries"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_drain_claim"', b'"inductive_other_claim"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_query_set_drift"),
     ],
@@ -984,7 +1123,7 @@ def test_closed_constants_are_internally_consistent() -> None:
     assert all(status in core.LANE_STATUS_VOCABULARY_V1 for _, status, _ in core.LANE_SOURCE_DATA_V1)
     assert "COMPLETE" not in core.LANE_STATUS_VOCABULARY_V1
     assert len(core.SIDECAR_CHECKS_V1) == 10 and len(core.SIDECAR_FIELDS_V1) == 9
-    assert len(core.NONCLAIMS_V1) == 10
+    assert len(core.NONCLAIMS_V1) == 11
     assert set(core.RUST_GATE_TESTS_V1) >= {"records_and_containers_reject_seeded_unknown_keys"}
     assert core.RUST_GATE_EXPECTED_PASSED_V1 == len(core.RUST_GATE_TESTS_V1)
     assert core.PYTHON_GATE_EXPECTED_PASSED_V1 >= len(core.PYTHON_GATE_TESTS_V1)
@@ -1103,6 +1242,27 @@ def test_builder_refuses_to_write_on_rejected_subject(chain: Path, tmp_path: Pat
     assert not (tmp_path / "out.json").exists() and not (tmp_path / "out.md").exists()
 
 
+def test_builder_refuses_a_fresh_chain_with_a_weakened_theorem(chain: Path, tmp_path: Path) -> None:
+    """Codex C1'' P1 (Lean): regenerating S/P for a weakened statement is refused outright."""
+
+    repo = tmp_path / "weakened"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(chain), str(repo)], check=True, capture_output=True, timeout=120)
+    _git(repo, "checkout", "--quiet", "--detach", "HEAD^")
+    lean = repo / core.LEAN_PROOF_PATH_V1
+    text = lean.read_text(encoding="utf-8")
+    assert NECESSITY_THEOREM in text
+    lean.write_text(text.replace(NECESSITY_THEOREM, NECESSITY_WEAKENED, 1), encoding="utf-8")
+    subject = _commit_all(repo, "adversarial source: weaken the necessity theorem to True")
+    args = builder._parse_args(
+        ["--root", str(repo), "--subject-commit", subject, "--created-date", CREATED,
+         "--output-json", str(tmp_path / "out.json"), "--output-md", str(tmp_path / "out.md")]
+    )
+    with pytest.raises(core.AdmissionRejectV1) as captured:
+        builder.build_v1(args)
+    assert (captured.value.code, captured.value.detail) == ("LEAN_STATEMENT_DRIFT", "noUnclassified_premise_is_necessary")
+    assert not (tmp_path / "out.json").exists() and not (tmp_path / "out.md").exists()
+
+
 def test_cli_worktree_packet_edit_is_drift(chain: Path) -> None:
     target = chain / core.PACKET_JSON_PATH_V1
     original = target.read_bytes()
@@ -1205,7 +1365,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V3:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V4:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:

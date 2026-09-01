@@ -61,7 +61,7 @@ def _replay(
             core.AdmissionErrorV1("REPLAY_REFUSED_WORKTREE_DRIFT", "proof_replay", "sources drifted"),
         )
     with tempfile.TemporaryDirectory(prefix="o008-replay-") as tmp:
-        environment = shell.ReplayEnvironmentV1(
+        environment = shell.prepare_replay_environment_v1(
             python=args.python,
             esso_python=args.esso_python,
             esso_pythonpath=args.esso_pythonpath,

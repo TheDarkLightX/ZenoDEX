@@ -65,7 +65,7 @@ def _author_record(root: Path, snapshot: core.SubjectSnapshotV1, args: argparse.
         snapshot, created_date=args.created_date, author_replay_record={"status": "NOT_RUN"}
     )
     with tempfile.TemporaryDirectory(prefix="o008-build-replay-") as tmp:
-        environment = shell.ReplayEnvironmentV1(
+        environment = shell.prepare_replay_environment_v1(
             python=args.python,
             esso_python=args.esso_python,
             esso_pythonpath=args.esso_pythonpath,

@@ -10,6 +10,7 @@ produces plain values consumed by the pure core in
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -35,9 +36,14 @@ GIT_ENV_V1: Final[dict[str, str]] = {
     "PATH": "/usr/bin:/bin",
 }
 GIT_TIMEOUT_SECONDS_V1: Final = 20
-REPLAY_ENV_PASSTHROUGH_V1: Final[tuple[str, ...]] = (
-    "PATH", "HOME", "ELAN_HOME", "TMPDIR", "CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN"
-)
+REPLAY_TOOLS_V1: Final[tuple[str, ...]] = ("cargo", "rustc", "lake", "lean")
+REPLAY_FIXED_ENV_V1: Final[dict[str, str]] = {
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONHASHSEED": "0",
+}
+REPLAY_CARGO_ENV_V1: Final[dict[str, str]] = {"CARGO_INCREMENTAL": "0", "CARGO_BUILD_JOBS": "8"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,22 +310,85 @@ def read_executing_tools_v1(cli_file: Path) -> core.ExecutingToolsV1:
 
 @dataclass(frozen=True, slots=True)
 class ReplayEnvironmentV1:
+    """Resolved, sanitized inputs of one replay run (see ``core.REPLAY_ENV_POLICY_V1``)."""
+
     python: str
     esso_python: str | None
     esso_pythonpath: str | None
     tmp_dir: Path
+    tool_path: str
+    rustup_home: str | None
+    elan_home: str | None
+    esso_python_user_base: str | None
+
+
+def _host_dir(env_name: str, default: Path) -> Path:
+    value = os.environ.get(env_name)
+    return Path(value) if value else default
+
+
+def prepare_replay_environment_v1(
+    *, python: str, esso_python: str | None, esso_pythonpath: str | None, tmp_dir: Path
+) -> ReplayEnvironmentV1:
+    """Create the sanitized replay homes and resolve the replay tools once.
+
+    Codex C1'' P2: nothing from the invoking user's environment reaches a replayed tool
+    beyond ``core.REPLAY_ENV_POLICY_V1``. HOME and TMPDIR are empty replay-local
+    directories, the Cargo home holds only a link to the host crate registry (offline
+    sources) and no config file, PATH is rebuilt from the resolved tool locations, and the
+    rustup and elan homes are passed as toolchain stores only.
+    """
+
+    host_home = Path(os.path.expanduser("~"))
+    tool_dirs: list[str] = []
+    for tool in REPLAY_TOOLS_V1:
+        location = shutil.which(tool)
+        if location is None:
+            core._reject("INFRA_REPLAY_TOOL_UNAVAILABLE", tool, "not on PATH")
+        directory = str(Path(location).parent)
+        if directory not in tool_dirs:
+            tool_dirs.append(directory)
+    for name in ("home", "tmp", "cargo-home"):
+        (tmp_dir / name).mkdir(parents=True, exist_ok=False)
+    registry = _host_dir("CARGO_HOME", host_home / ".cargo") / "registry"
+    if not registry.is_dir():
+        core._reject("INFRA_REPLAY_TOOL_UNAVAILABLE", "cargo", "host crate registry missing")
+    (tmp_dir / "cargo-home" / "registry").symlink_to(registry, target_is_directory=True)
+    rustup_home = _host_dir("RUSTUP_HOME", host_home / ".rustup")
+    elan_home = _host_dir("ELAN_HOME", host_home / ".elan")
+    user_base = _host_dir("PYTHONUSERBASE", host_home / ".local")
+    return ReplayEnvironmentV1(
+        python=python,
+        esso_python=esso_python,
+        esso_pythonpath=esso_pythonpath,
+        tmp_dir=tmp_dir,
+        tool_path=":".join([*tool_dirs, "/usr/bin", "/bin"]),
+        rustup_home=str(rustup_home) if rustup_home.is_dir() else None,
+        elan_home=str(elan_home) if elan_home.is_dir() else None,
+        esso_python_user_base=str(user_base) if user_base.is_dir() else None,
+    )
 
 
 def _replay_env(command: core.ReplayCommandV1, environment: ReplayEnvironmentV1) -> dict[str, str]:
-    env = {name: os.environ[name] for name in REPLAY_ENV_PASSTHROUGH_V1 if name in os.environ}
-    env.update({"LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONHASHSEED": "0"})
+    env = dict(REPLAY_FIXED_ENV_V1)
+    env["HOME"] = str(environment.tmp_dir / "home")
+    env["TMPDIR"] = str(environment.tmp_dir / "tmp")
+    env["PATH"] = environment.tool_path
+    env["CARGO_HOME"] = str(environment.tmp_dir / "cargo-home")
+    if environment.rustup_home:
+        env["RUSTUP_HOME"] = environment.rustup_home
+    if environment.elan_home:
+        env["ELAN_HOME"] = environment.elan_home
+    esso_command = "PYTHONPATH" in command.env_names or "ZENO_ESSO_PYTHON" in command.env_names
+    if esso_command and environment.esso_python_user_base:
+        env["PYTHONUSERBASE"] = environment.esso_python_user_base
     if "PYTHONPATH" in command.env_names and environment.esso_pythonpath:
         env["PYTHONPATH"] = environment.esso_pythonpath
     if "ZENO_ESSO_PYTHON" in command.env_names and environment.esso_python:
         env["ZENO_ESSO_PYTHON"] = environment.esso_python
     if "CARGO_TARGET_DIR" in command.env_names:
         env["CARGO_TARGET_DIR"] = str(environment.tmp_dir / "cargo-target")
-        env["CARGO_INCREMENTAL"] = "0"
+        env.update(REPLAY_CARGO_ENV_V1)
     return env
 
 
