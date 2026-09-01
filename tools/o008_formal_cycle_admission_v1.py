@@ -384,11 +384,12 @@ ESSO_INVARIANTS_V1: Final[tuple[str, ...]] = (
     "inv_open_terminals_fit_exact_allocations",
     "inv_accept_requires_exact_bound_evidence",
 )
-ESSO_ACTIONS_V1: Final[tuple[str, ...]] = ("open_claim", "drain_claim")
+ESSO_ACTIONS_V1: Final[tuple[str, ...]] = ("open_claim", "drain_claim", "deposit_reserve")
 ESSO_QUERIES_V1: Final[tuple[str, ...]] = (
     "init_implies_inv",
     "inductive_open_claim",
     "inductive_drain_claim",
+    "inductive_deposit_reserve",
 )
 ESSO_NAMED_MUTANTS_V1: Final[tuple[str, ...]] = (
     "accept_without_global_root_binding",
@@ -396,12 +397,13 @@ ESSO_NAMED_MUTANTS_V1: Final[tuple[str, ...]] = (
     "claimant_column_substitution",
     "terminal_domain_erasure",
     "drain_cross_domain_custody_substitution",
+    "reserve_masking_open_claim",
 )
 ESSO_CODE_COMMIT_V1: Final = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
 ESSO_SOLVERS_V1: Final[dict[str, str]] = {"z3": "4.15.4", "cvc5": "1.1.2"}
 ESSO_DETERMINISM_TRIALS_V1: Final = 2
 ESSO_SOLVER_TIMEOUT_MS_V1: Final = 10000
-ESSO_GATE_EXPECTED_PASSED_V1: Final = 18
+ESSO_GATE_EXPECTED_PASSED_V1: Final = 20
 ESSO_CLAIM_BOUNDARY_V1: Final = (
     "finite one-asset two-control-domain two-claimant model with at most eight atoms per cell"
 )
@@ -2201,6 +2203,8 @@ def project_packet_v1(
                         ("subject_tree", snapshot.subject_tree)):
         if _HEX40_RE.fullmatch(value) is None:
             _reject("SUBJECT_COMMIT_INVALID", name, value)
+    # Source pins first: a missing pinned path is reported before any content-level finding.
+    source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
         "schema": PACKET_SCHEMA_V3,
@@ -2212,7 +2216,7 @@ def project_packet_v1(
         "packet_write_set": [{"status": s, "path": p} for s, p in PACKET_WRITE_SET_V1],
         "claim_ceiling": dict(CLAIM_CEILING_V1),
         "completion_scope": list(COMPLETION_SCOPE_V1),
-        "source_pins": _project_source_pins(snapshot),
+        "source_pins": source_pins,
         "esso_evidence": esso_evidence,
         "lean_evidence": _project_lean(snapshot),
         "v1_information_loss": _project_information_loss(snapshot),

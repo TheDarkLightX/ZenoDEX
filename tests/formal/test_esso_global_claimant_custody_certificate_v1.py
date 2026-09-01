@@ -46,12 +46,13 @@ from src.core.perps_margin_types_v1 import (
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = ROOT / "src" / "kernels" / "dex" / "global_claimant_custody_certificate_v1.yaml"
 
-RECORDED_SOURCE_SHA256 = "b28d930697b232711fd392f09f60b377ad2e498adcab92beacdd2d83d8e0192a"
-RECORDED_IR_HASH = "sha256:a4d1d07f6c9d9587e3848599ebdd9fdb0a4126d6c3c8f217b12249106e7b9dcf"
-RECORDED_FINGERPRINT = "e37705902eb04f48aee9ab1fac333396b80a317716aeb64f51ebdb72cb3fde82"
+RECORDED_SOURCE_SHA256 = "e3c841e25db8051c1fe1903cc441db5b2f378f87d997d5d31c528dba3ced39f9"
+RECORDED_IR_HASH = "sha256:08fce65c258f145667cdf0df33e1c8464d6ca24f572fd39e4c21bf25778f9158"
+RECORDED_FINGERPRINT = "256b0dcbb7c25c9581d6b16db8f2a5b44512d18c9cadf420477d6c63e38dfc86"
 RECORDED_ESSO_CODE_HASH = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
 
-EXPECTED_ACTIONS = {"open_claim", "drain_claim"}
+EXPECTED_ACTIONS = {"open_claim", "drain_claim", "deposit_reserve"}
+RESERVE_STATE_VARS = {"reserve_d0", "reserve_d1"}
 EXPECTED_INVARIANTS = {
     "inv_exact_custody_partition_d0",
     "inv_exact_custody_partition_d1",
@@ -214,7 +215,8 @@ def test_model_source_scope_and_claim_ceiling_are_exact() -> None:
     for phrase in (
         "one asset, two custody domains, two claimants",
         "current no-unclassified profile",
-        "Reserves are outside this bounded exact claimant/custody slice",
+        "Reserves are modelled as inert named atoms",
+        "reserve can never stand in for missing custody",
         "Exact reserve reconciliation remains open",
         "caller-provided true Boolean would not be authority",
         "does not prove current V1 runtime refinement",
@@ -239,16 +241,39 @@ def test_exact_partition_model_has_no_unclassified_or_reserve_escape_hatch() -> 
             ],
         }
 
-    claimed_surface = json.dumps(
-        {
-            "state_vars": document["state_vars"],
-            "invariants": document["invariants"],
-        },
-        sort_keys=True,
+    # Reserves exist only as inert state: no invariant, no guard or update of the claimant
+    # actions, and no observable-free hiding place may mention them.
+    claimed_invariants = json.dumps(document["invariants"], sort_keys=True)
+    assert "reserve_" not in claimed_invariants
+    state_ids = {row["id"] for row in document["state_vars"]}
+    assert RESERVE_STATE_VARS <= state_ids
+    assert RESERVE_STATE_VARS <= set(document["observables"]["state_vars"])
+    assert {f"allocation_{claimant}_{domain}" for claimant in ("alice", "bob") for domain in ("d0", "d1")} <= set(
+        document["observables"]["state_vars"]
     )
-    assert "reserve_" not in claimed_surface
-    assert "unclassified_" not in claimed_surface
-    assert "g_pre_" not in claimed_surface
+    for action in document["actions"]:
+        text = json.dumps({"guard": action["guard"], "updates": action["updates"]}, sort_keys=True)
+        if action["id"] == "deposit_reserve":
+            assert {row["var"] for row in action["updates"]} == RESERVE_STATE_VARS
+            assert "custody_" not in text and "allocation_" not in text and "liability_" not in text and "open_" not in text
+        else:
+            assert "reserve_" not in text, action["id"]
+    surface = json.dumps({"state_vars": document["state_vars"], "invariants": document["invariants"]}, sort_keys=True)
+    assert "unclassified_" not in surface
+    assert "g_pre_" not in surface
+
+
+def test_ir_hash_binds_the_observable_surface(tmp_path: Path) -> None:
+    """Dropping one observable changes the model ir_hash the packet pins (observables are ABI)."""
+
+    document = _document()
+    observables = list(document["observables"]["state_vars"])
+    document["observables"]["state_vars"] = [name for name in observables if name != "allocation_alice_d0"]
+    variant = tmp_path / "hidden_allocation.yaml"
+    variant.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    rc, result = _run_esso(_esso_python(), "validate", str(variant))
+    assert rc == 0 and result["ok"] is True
+    assert result["ir_hash"] != RECORDED_IR_HASH
 
 
 def test_runtime_rejects_aggregate_only_cross_domain_backing() -> None:
@@ -328,7 +353,9 @@ def test_esso_two_solver_replay_is_exact_and_deterministic() -> None:
         "init_implies_inv",
         "inductive_open_claim",
         "inductive_drain_claim",
+        "inductive_deposit_reserve",
     }
+    assert report["total_queries"] == 4 and report["passed_queries"] == 4
 
 
 SUFFICIENT_INVARIANT_SUPPORT = {
@@ -421,6 +448,14 @@ def test_each_invariant_has_a_sufficient_inductive_solver_projection(
             "inductive_drain_claim",
             "inv_exact_custody_partition_d0",
             id="drain_cross_domain_custody_substitution",
+        ),
+        pytest.param(
+            '      - var: "custody_d0"\n        expr:\n          op: "ite"\n          cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }\n          then: { op: "+", args: [{ var: "custody_d0" }, { param: "amount" }] }\n          else: { var: "custody_d0" }\n',
+            '      - var: "reserve_d0"\n        expr:\n          op: "ite"\n          cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }\n          then: { op: "+", args: [{ var: "reserve_d0" }, { param: "amount" }] }\n          else: { var: "reserve_d0" }\n',
+            "reserve_masking_open_claim",
+            "inductive_open_claim",
+            "inv_exact_custody_partition_d0",
+            id="reserve_masking_open_claim",
         ),
     ),
 )

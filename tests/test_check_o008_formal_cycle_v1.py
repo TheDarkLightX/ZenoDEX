@@ -899,7 +899,7 @@ def test_python_version_parser_requires_one_semver_line(stdout: bytes, expected:
         pytest.param("rust_version", lambda o: replace(o, stdout=b"rustc 1.87.0\n"), "REPLAY_RUST_VERSION_UNPARSEABLE", id="rust_version_banner"),
         pytest.param("rust_refinement_gate", lambda o: replace(o, stdout=_cargo_summary(40)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_refinement_count"),
         pytest.param("rust_golden_gate", lambda o: replace(o, stdout=_cargo_summary(2)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_golden_count"),
-        pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"total_queries": 3', b'"total_queries": 0').replace(b'"passed_queries": 3', b'"passed_queries": 0')), "REPLAY_ESSO_QUERY_COUNT_DRIFT", id="esso_zero_queries"),
+        pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(f'"total_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"total_queries": 0').replace(f'"passed_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"passed_queries": 0')), "REPLAY_ESSO_QUERY_COUNT_DRIFT", id="esso_zero_queries"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_drain_claim"', b'"inductive_other_claim"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_query_set_drift"),
     ],
 )

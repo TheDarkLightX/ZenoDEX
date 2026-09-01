@@ -17,8 +17,14 @@ meta:
     liability equals its allocation in that domain. Each OPEN terminal amount
     is bounded by the exact claimant/domain allocation.
 
-    Reserves are outside this bounded exact claimant/custody slice. Exact
-    reserve reconciliation remains open and is not a claimed invariant here.
+    Reserves are modelled as inert named atoms (reserve_d0, reserve_d1) that
+    no invariant reads: deposit_reserve moves atoms into a reserve without
+    touching custody, allocations, liabilities, or terminals, so the exact
+    claimant/custody relation is invariant under reserve movements and a
+    reserve can never stand in for missing custody (the named mutant
+    reserve_masking_open_claim routes an open claim's custody into a reserve
+    and breaks the partition). Exact reserve reconciliation remains open and
+    is not a claimed invariant here.
 
     open_claim and drain_claim model only an accepted exact relation update.
     Their Boolean parameters are adversarial abstract premises. They represent
@@ -39,6 +45,12 @@ observables:
   state_vars:
     - "custody_d0"
     - "custody_d1"
+    - "reserve_d0"
+    - "reserve_d1"
+    - "allocation_alice_d0"
+    - "allocation_alice_d1"
+    - "allocation_bob_d0"
+    - "allocation_bob_d1"
     - "liability_alice_d0"
     - "liability_alice_d1"
     - "liability_bob_d0"
@@ -48,6 +60,10 @@ observables:
     - "open_bob_d0"
     - "open_bob_d1"
     - "g_decision"
+    - "g_global_root_bound"
+    - "g_lane_projection_root_bound"
+    - "g_header_bound"
+    - "g_terminal_projection_exact"
   effects:
     - "accepted"
     - "decision"
@@ -69,6 +85,8 @@ types:
 state_vars:
   - { id: "custody_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "custody_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "reserve_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "reserve_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "allocation_alice_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "allocation_alice_d1", role: "data", type: { kind: "int", min: 0, max: 8 } }
   - { id: "allocation_bob_d0", role: "data", type: { kind: "int", min: 0, max: 8 } }
@@ -90,6 +108,8 @@ state_vars:
 init:
   - { var: "custody_d0", expr: { const: 1 } }
   - { var: "custody_d1", expr: { const: 1 } }
+  - { var: "reserve_d0", expr: { const: 0 } }
+  - { var: "reserve_d1", expr: { const: 0 } }
   - { var: "allocation_alice_d0", expr: { const: 1 } }
   - { var: "allocation_alice_d1", expr: { const: 0 } }
   - { var: "allocation_bob_d0", expr: { const: 0 } }
@@ -553,3 +573,36 @@ actions:
     effects:
       accepted: { bool: true }
       decision: { enum: "DRAINED" }
+
+  - id: "deposit_reserve"
+    description: "Move atoms into a named reserve; reads and writes no claimant, custody, or terminal coordinate."
+    params:
+      - { id: "domain", type: { ref: "Domain" } }
+      - { id: "amount", type: { kind: "int", min: 1, max: 2 } }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }
+              then: { var: "reserve_d0" }
+              else: { var: "reserve_d1" }
+            - { param: "amount" }
+        - { const: 8 }
+    updates:
+      - var: "reserve_d0"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "domain" }, { enum: "D0" }] }
+          then: { op: "+", args: [{ var: "reserve_d0" }, { param: "amount" }] }
+          else: { var: "reserve_d0" }
+      - var: "reserve_d1"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "domain" }, { enum: "D1" }] }
+          then: { op: "+", args: [{ var: "reserve_d1" }, { param: "amount" }] }
+          else: { var: "reserve_d1" }
+    effects:
+      accepted: { bool: true }
+      decision: { var: "g_decision" }
