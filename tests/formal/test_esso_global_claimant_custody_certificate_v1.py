@@ -38,10 +38,10 @@ from src.core.global_settlement_types_v1 import (
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = ROOT / "src" / "kernels" / "dex" / "global_claimant_custody_certificate_v1.yaml"
 
-RECORDED_SOURCE_SHA256 = "1fe5238d3f7444a611ecdc2c802a145e7d9ef19558cab485452959010d1a05d4"
-RECORDED_IR_HASH = "sha256:a86a2b43893e5c9ad22c44e986d6e4d69c422de9d12d88029c4197c665ab65c1"
+RECORDED_SOURCE_SHA256 = "492283e6791663550a424423571fc0cf1466cda604732dc2d3e6c027e6b2a60d"
+RECORDED_IR_HASH = "sha256:833ada0215f0a4f07e6e9695f06a3c740d3e89eee175f6d14027b25a947b4578"
 RECORDED_FINGERPRINT = "e37705902eb04f48aee9ab1fac333396b80a317716aeb64f51ebdb72cb3fde82"
-RECORDED_ESSO_CODE_HASH = "1145cf77668b6d86cda83d79820b13a65fbde12f"
+RECORDED_ESSO_CODE_HASH = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
 
 EXPECTED_ACTIONS = {"open_claim", "drain_claim"}
 EXPECTED_INVARIANTS = {
@@ -49,6 +49,8 @@ EXPECTED_INVARIANTS = {
     "inv_exact_custody_partition_d1",
     "inv_exact_claimant_domain_liabilities",
     "inv_open_terminals_fit_exact_allocations",
+    "inv_current_profile_has_no_unclassified_custody",
+    "inv_controlled_claim_reserve_equation",
     "inv_accept_requires_exact_bound_evidence",
     "inv_reserves_are_not_claimant_backing",
 }
@@ -173,16 +175,36 @@ def test_exact_relation_excludes_reserves_and_classifies_every_custody_atom() ->
     invariant_text = json.dumps(document["invariants"], sort_keys=True)
 
     assert "allocation_alice_d0" in invariant_text
-    assert "unencumbered_d0" in invariant_text
+    assert "unclassified_d0" in invariant_text
     assert "liability_alice_d0" in invariant_text
     assert "open_alice_d0" in invariant_text
-    assert "reserve_d0" not in json.dumps(document["invariants"][:4], sort_keys=True)
+    assert "inv_controlled_claim_reserve_equation" in invariant_text
 
     custody = 2
     allocations = 1
-    unencumbered = 0
-    assert custody >= allocations + unencumbered
-    assert custody != allocations + unencumbered, "weak inequality leaves one atom unclassified"
+    unclassified = 0
+    assert custody >= allocations + unclassified
+    assert custody != allocations + unclassified, "weak inequality leaves one atom unclassified"
+
+
+def test_current_profile_equation_classifies_reserves_separately() -> None:
+    document = _document()
+    invariants = {row["id"]: row for row in document["invariants"]}
+    equation = json.dumps(
+        invariants["inv_controlled_claim_reserve_equation"],
+        sort_keys=True,
+    )
+    no_unclassified = json.dumps(
+        invariants["inv_current_profile_has_no_unclassified_custody"],
+        sort_keys=True,
+    )
+
+    assert equation.count("reserve_d0") == 2
+    assert equation.count("reserve_d1") == 2
+    assert "liability_alice_d0" in equation
+    assert "liability_bob_d1" in equation
+    assert "unclassified_d0" in no_unclassified
+    assert '"const": 0' in no_unclassified
 
 
 def test_aggregate_conservation_does_not_imply_domain_or_claimant_reconciliation() -> None:
@@ -231,6 +253,53 @@ def test_esso_two_solver_replay_is_exact_and_deterministic() -> None:
         "inductive_open_claim",
         "inductive_drain_claim",
     }
+
+
+INVARIANT_SUPPORT = {
+    "inv_exact_custody_partition_d0": {"inv_open_terminals_fit_exact_allocations"},
+    "inv_exact_custody_partition_d1": {"inv_open_terminals_fit_exact_allocations"},
+    "inv_exact_claimant_domain_liabilities": {"inv_open_terminals_fit_exact_allocations"},
+    "inv_open_terminals_fit_exact_allocations": set(),
+    "inv_current_profile_has_no_unclassified_custody": set(),
+    "inv_controlled_claim_reserve_equation": set(),
+    "inv_accept_requires_exact_bound_evidence": set(),
+    "inv_reserves_are_not_claimant_backing": set(),
+}
+
+
+@pytest.mark.parametrize("invariant_id", sorted(EXPECTED_INVARIANTS))
+@pytest.mark.skipif(_esso_python() is None, reason="ESSO unavailable; formal replay is INCOMPLETE")
+def test_each_invariant_has_a_minimal_inductive_solver_projection(
+    tmp_path: Path,
+    invariant_id: str,
+) -> None:
+    document = _document()
+    selected_ids = {invariant_id, *INVARIANT_SUPPORT[invariant_id]}
+    selected = [row for row in document["invariants"] if row["id"] in selected_ids]
+    assert {row["id"] for row in selected} == selected_ids
+    document["invariants"] = selected
+    projection = tmp_path / f"{invariant_id}.yaml"
+    projection.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    python = _esso_python()
+    assert python is not None
+
+    rc, result = _run_esso(
+        python,
+        "verify-multi",
+        str(projection),
+        "--solvers",
+        "z3,cvc5",
+        "--determinism-trials",
+        "2",
+        "--timeout-ms",
+        "10000",
+    )
+
+    assert rc == 0 and result["ok"] is True, json.dumps(result, indent=2, sort_keys=True)
+    assert result["report"]["verdict"] == "VERIFIED"
+    assert result["report"]["failed_queries"] == 0
+    assert result["report"]["inconclusive_queries"] == 0
+    assert result["report"]["solvers_agreed"] is True
 
 
 @pytest.mark.parametrize(
