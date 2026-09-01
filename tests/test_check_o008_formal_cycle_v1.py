@@ -274,7 +274,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V9.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v8", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v8"),
+        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V10.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v9", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v9"),
         pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
@@ -561,6 +561,8 @@ TERMINAL_MACRO = "bounded_state_vec_deserializer_v1!(\n    deserialize_terminal_
         pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, '"REGISTERED_EMPTY_BLOCKED"', '"RECEIPT_BACKED"', "", "CERTIFICATE_PRODUCER_DRIFT", id="certificate_fixture_receipt_backed_producer"),
         pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, '"authority": "NONE"', '"authority": "SHADOW"', "", "CERTIFICATE_FIXTURE_DRIFT", id="certificate_fixture_authority"),
         pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, "{", "{{", "", "CERTIFICATE_FIXTURE_UNPARSEABLE", id="certificate_fixture_malformed"),
+        # C5: accepted fixture fragments of registered-empty lanes must sit at the pinned empty-state roots.
+        pytest.param(core.CERTIFICATE_FIXTURE_PATH_V1, '"lane_state_root": "' + core.CERTIFICATE_REGISTERED_EMPTY_ROOTS_V1["EXTERNAL_CUSTODY"] + '"', '"lane_state_root": "0x' + "7" * 64 + '"', "", "CERTIFICATE_FIXTURE_DRIFT", id="certificate_fixture_registered_root_forged"),
         # C4b: the certificate Lean model is a second pinned Lean subject under the same closures.
         pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "    t.openTerminal c d ≤ t.liability c d := by", "    t.openTerminal c d ≤ t.liability c d + 1 := by", "", "LEAN_STATEMENT_DRIFT", id="certificate_lean_statement_weakened"),
         pytest.param(core.CERTIFICATE_LEAN_PATH_V1, "def TerminalBound (f : LaneFragment) : Prop :=\n  ∀ c d, f.terminal c d ≤ f.entitlement c d", "def TerminalBound (f : LaneFragment) : Prop :=\n  ∀ c d, f.terminal c d ≤ f.entitlement c d + f.reserve d", "", "LEAN_DEFINITION_SURFACE_DRIFT", id="certificate_lean_definition_weakened"),
@@ -637,6 +639,14 @@ def test_certificate_fixture_surface_rejects_non_empty_accepted_vectors(snapshot
     assert codes.value.detail == "reject_messages"
     assert core.CERTIFICATE_CHECK_ORDER_V1[1:-1] == core.SIDECAR_CHECKS_V1
     assert set(core.CERTIFICATE_PRODUCER_KINDS_V1) == set(core.EXPECTED_LANES_V1) and "RECEIPT_BACKED" not in core.CERTIFICATE_PRODUCER_KINDS_V1.values()
+    assert set(core.CERTIFICATE_REGISTERED_EMPTY_ROOTS_V1) == {lane for lane, kind in core.CERTIFICATE_PRODUCER_KINDS_V1.items() if kind.startswith("REGISTERED_EMPTY")}
+    moved = copy.deepcopy(fixture)
+    for fragment in moved["vectors"][accepted]["certificate"]["ordered_lane_fragments"]:
+        if fragment["lane_id"] == "EXTERNAL_CUSTODY":
+            fragment["lane_state_root"] = "0x" + "7" * 64
+    with pytest.raises(core.AdmissionRejectV1) as moved_reject:
+        core.certificate_fixture_surface_v1(moved)
+    assert "registered-empty root" in moved_reject.value.detail
 
 
 def test_codex_c1dprime_survivor_is_rejected_at_every_layer(snapshot: core.SubjectSnapshotV1) -> None:
@@ -1073,6 +1083,8 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "python_certificate_golden_gate": f"{core.CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
         "rust_certificate_golden_gate": _cargo_summary(core.CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1),
         "rust_certificate_unit_gate": _cargo_summary(core.CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1),
+        "python_producer_gate": f"{core.PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
+        "rust_producer_gate": _cargo_summary(core.PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1),
     }
     return {
         command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id in ("lean_axioms_probe", "lean_certificate_axioms_probe") else None)
@@ -1259,6 +1271,8 @@ def test_python_version_parser_requires_one_semver_line(stdout: bytes, expected:
         pytest.param("python_certificate_golden_gate", lambda o: replace(o, stdout=b"30 passed in 1.0s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="python_certificate_count"),
         pytest.param("rust_certificate_golden_gate", lambda o: replace(o, stdout=_cargo_summary(2)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_certificate_count"),
         pytest.param("rust_certificate_unit_gate", lambda o: replace(o, stdout=_cargo_summary(1)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_certificate_unit_count"),
+        pytest.param("python_producer_gate", lambda o: replace(o, stdout=b"4 passed in 1.0s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="python_producer_count"),
+        pytest.param("rust_producer_gate", lambda o: replace(o, stdout=_cargo_summary(1)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_producer_count"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(f'"total_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"total_queries": 0').replace(f'"passed_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"passed_queries": 0')), "REPLAY_ESSO_QUERY_COUNT_DRIFT", id="esso_zero_queries"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_drain_claim"', b'"inductive_other_claim"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_query_set_drift"),
         pytest.param("esso_certificate_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_disable_lane"', b'"inductive_other_lane"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_certificate_query_set_drift"),
@@ -1568,7 +1582,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V9:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V10:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:

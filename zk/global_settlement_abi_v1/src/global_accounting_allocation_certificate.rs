@@ -127,6 +127,7 @@ pub enum AllocationCertificateRejectCodeV1 {
     ProducerKindDrift,
     BlockedLaneProducerMissing,
     DisabledLaneNotEmpty,
+    RegisteredEmptyRootDrift,
     AllocationTotalOverflow,
     SourceAtomNotAssignedExactlyOnce,
     EntitlementRowsDrift,
@@ -138,13 +139,14 @@ pub enum AllocationCertificateRejectCodeV1 {
 }
 
 impl AllocationCertificateRejectCodeV1 {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::HeaderBindingDrift,
         Self::LaneOrderDrift,
         Self::LaneStateRootDrift,
         Self::ProducerKindDrift,
         Self::BlockedLaneProducerMissing,
         Self::DisabledLaneNotEmpty,
+        Self::RegisteredEmptyRootDrift,
         Self::AllocationTotalOverflow,
         Self::SourceAtomNotAssignedExactlyOnce,
         Self::EntitlementRowsDrift,
@@ -163,6 +165,7 @@ impl AllocationCertificateRejectCodeV1 {
             Self::ProducerKindDrift => "PRODUCER_KIND_DRIFT",
             Self::BlockedLaneProducerMissing => "BLOCKED_LANE_PRODUCER_MISSING",
             Self::DisabledLaneNotEmpty => "DISABLED_LANE_NOT_EMPTY",
+            Self::RegisteredEmptyRootDrift => "REGISTERED_EMPTY_ROOT_DRIFT",
             Self::AllocationTotalOverflow => "ALLOCATION_TOTAL_OVERFLOW",
             Self::SourceAtomNotAssignedExactlyOnce => "SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE",
             Self::EntitlementRowsDrift => "ENTITLEMENT_ROWS_DRIFT",
@@ -183,6 +186,9 @@ impl AllocationCertificateRejectCodeV1 {
             Self::ProducerKindDrift => "allocation certificate lane fragment producer kind differs from the registry",
             Self::BlockedLaneProducerMissing => "allocation certificate enabled lane has no receipt-backed fragment producer",
             Self::DisabledLaneNotEmpty => "allocation certificate disabled lane fragment carries rows",
+            Self::RegisteredEmptyRootDrift => {
+                "allocation certificate registered-empty lane is not bound to its empty lane state root"
+            }
             Self::AllocationTotalOverflow => "allocation certificate total overflows",
             Self::SourceAtomNotAssignedExactlyOnce => "allocation certificate controlled source atoms are not assigned exactly once",
             Self::EntitlementRowsDrift => "allocation certificate claimant entitlement rows differ from the V1 liabilities",
@@ -741,7 +747,40 @@ fn check_lane_bindings(
             );
         }
     }
+    for (fragment, _) in &pairs {
+        let registered_root = registered_empty_lane_root_v1(fragment.lane_id).map_err(|_| {
+            Reject(
+                AllocationCertificateRejectCodeV1::RegisteredEmptyRootDrift,
+                format!("{:?}: empty lane state root unavailable", fragment.lane_id),
+            )
+        })?;
+        if let Some(registered_root) = registered_root {
+            if fragment.lane_state_root != registered_root {
+                return fail(
+                    AllocationCertificateRejectCodeV1::RegisteredEmptyRootDrift,
+                    format!("{:?}", fragment.lane_id),
+                );
+            }
+        }
+    }
     Ok(())
+}
+
+/// The unique empty typed lane state root of a registered-empty lane (wave A), if the lane has one.
+pub fn registered_empty_lane_root_v1(lane: LaneIdV1) -> AbiResultV1<Option<RootV1>> {
+    match lane {
+        LaneIdV1::EXTERNAL_CUSTODY => {
+            crate::external_custody_disabled_lane::ExternalCustodyDisabledStateV1::new()
+                .state_root()
+                .map(Some)
+        }
+        LaneIdV1::PROOF_REWARDS => {
+            crate::proof_rewards_policy_blocked_lane::ProofRewardsPolicyBlockedStateV1::new()
+                .state_root()
+                .map(Some)
+        }
+        _ => Ok(None),
+    }
 }
 
 fn fold_or_reject<K: Ord + Clone>(

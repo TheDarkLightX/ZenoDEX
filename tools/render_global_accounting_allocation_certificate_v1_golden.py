@@ -57,11 +57,15 @@ def _root(value: int) -> str:
     return f"0x{value:064x}"
 
 
-def _lane_roots(enabled: Sequence[bool]) -> tuple[LaneStateRootV1, ...]:
-    return tuple(
-        LaneStateRootV1(lane_id, _root(200 + index), flag, _root(3_000 + index))
-        for index, (lane_id, flag) in enumerate(zip(ALL_LANE_IDS_V1, enabled, strict=True), start=1)
-    )
+def _lane_roots(enabled: Sequence[bool], foreign_registered_empty_root: bool = False) -> tuple[LaneStateRootV1, ...]:
+    """Lane roots: registered-empty lanes sit at their empty state root unless a foreign root is requested."""
+
+    roots: list[LaneStateRootV1] = []
+    for index, (lane_id, flag) in enumerate(zip(ALL_LANE_IDS_V1, enabled, strict=True), start=1):
+        registered = cert.REGISTERED_EMPTY_LANE_ROOTS_V1.get(lane_id)
+        root = _root(3_000 + index) if registered is None or foreign_registered_empty_root else registered
+        roots.append(LaneStateRootV1(lane_id, _root(200 + index), flag, root))
+    return tuple(roots)
 
 
 def _amounts(rows: Sequence[Row]) -> tuple[EconomicAmountV1, ...]:
@@ -102,7 +106,7 @@ def build_state_v1(spec: dict[str, Any]) -> GlobalEconomicStateV1:
         writer_epoch=3,
         height=7,
         profile_root=_root(41_001),
-        lane_roots=_lane_roots(enabled),
+        lane_roots=_lane_roots(enabled, bool(spec.get("foreign_registered_empty_root", False))),
         supplies=supplies,
         custody=_amounts([(r[0], r[1], r[2], int(r[3])) for r in custody]),
         liabilities=_amounts([(r[0], r[1], r[2], int(r[3])) for r in liabilities]),
@@ -184,6 +188,7 @@ VECTORS_V1: Final[dict[str, tuple[str, dict[str, Any], str]]] = {
     "rejects_lane_enabled_flag_forged": ("a fragment claiming a disabled lane is enabled rejects LANE_STATE_ROOT_DRIFT", _spec(), "forge_first_enabled_flag"),
     "rejects_producer_kind_drift": ("a fragment claiming RECEIPT_BACKED rejects PRODUCER_KIND_DRIFT", _spec(), "claim_receipt_backed_first"),
     "rejects_disabled_lane_with_rows": ("a disabled lane fragment carrying rows rejects DISABLED_LANE_NOT_EMPTY", _spec(), "synthetic_rows_first"),
+    "rejects_registered_empty_lane_with_foreign_root": ("a registered-empty lane committed at a root other than its empty state root rejects REGISTERED_EMPTY_ROOT_DRIFT", _spec(foreign_registered_empty_root=True), "identity"),
     "rejects_later_lane_root_drift_before_earlier_lane_rows": ("a forged root on the second lane outranks rows on the disabled first lane: LANE_STATE_ROOT_DRIFT precedes DISABLED_LANE_NOT_EMPTY (check-major)", _spec(), "synthetic_rows_first_then_forge_second_lane_root"),
     "rejects_disabled_lane_with_single_reserve_row": ("even one reserve row on a disabled lane rejects DISABLED_LANE_NOT_EMPTY", _spec(), "single_reserve_row_first"),
     "rejects_liabilities_without_entitlement_rows": ("V1 liabilities with empty fragments reject ENTITLEMENT_ROWS_DRIFT", _spec(liabilities=[("alice", "USD", "spot-pool", 5)]), "identity"),
@@ -274,6 +279,7 @@ MUTATION_KILLERS_V1: Final[dict[str, tuple[str, str]]] = {
     "accept a fragment bound to a foreign lane root": ("rejects_lane_state_root_forged", "LANE_STATE_ROOT_DRIFT"),
     "trust the fragment's producer kind instead of the registry": ("rejects_producer_kind_drift", "PRODUCER_KIND_DRIFT"),
     "let a disabled lane carry rows": ("rejects_disabled_lane_with_rows", "DISABLED_LANE_NOT_EMPTY"),
+    "accept a registered-empty lane at a foreign root": ("rejects_registered_empty_lane_with_foreign_root", "REGISTERED_EMPTY_ROOT_DRIFT"),
     "check the lane bindings lane-major instead of check-major": ("rejects_later_lane_root_drift_before_earlier_lane_rows", "LANE_STATE_ROOT_DRIFT"),
     "skip the liabilities equality": ("rejects_liabilities_without_entitlement_rows", "ENTITLEMENT_ROWS_DRIFT"),
     "skip the reserve partition equality": ("rejects_reserves_without_reserve_rows", "RESERVE_ROWS_DRIFT"),

@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V9: Final = "zenodex/o008-formal-cycle-evidence/v9"
+PACKET_SCHEMA_V10: Final = "zenodex/o008-formal-cycle-evidence/v10"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -79,6 +79,10 @@ CERTIFICATE_LEAN_PATH_V1: Final = "lean-mathlib/Proofs/GlobalAccountingAllocatio
 CERTIFICATE_LEAN_GATE_PATH_V1: Final = "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py"
 CERTIFICATE_ESSO_MODEL_PATH_V1: Final = "src/kernels/dex/global_accounting_allocation_certificate_v1.yaml"
 CERTIFICATE_ESSO_GATE_PATH_V1: Final = "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py"
+PRODUCERS_PYTHON_PATH_V1: Final = "src/core/global_accounting_lane_producers_v1.py"
+PRODUCERS_RUST_PATH_V1: Final = "zk/global_settlement_abi_v1/src/global_accounting_lane_producers.rs"
+PRODUCERS_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_lane_producers_v1.py"
+PRODUCERS_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/global_accounting_lane_producers.rs"
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
 RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
@@ -130,6 +134,10 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (CERTIFICATE_LEAN_GATE_PATH_V1, "allocation_certificate_lean_binding_gate"),
     (CERTIFICATE_ESSO_MODEL_PATH_V1, "allocation_certificate_bounded_esso_model"),
     (CERTIFICATE_ESSO_GATE_PATH_V1, "allocation_certificate_esso_replay_gate"),
+    (PRODUCERS_PYTHON_PATH_V1, "registered_empty_lane_producers_python"),
+    (PRODUCERS_RUST_PATH_V1, "registered_empty_lane_producers_rust"),
+    (PRODUCERS_PYTHON_TEST_PATH_V1, "registered_empty_lane_producers_python_replay"),
+    (PRODUCERS_RUST_TEST_PATH_V1, "registered_empty_lane_producers_rust_replay"),
     (PYTHON_TYPES_PATH_V1, "python_v1_wire_schema"),
     (RUST_STATE_PATH_V1, "rust_v1_wire_schema"),
     (RUST_LIB_PATH_V1, "rust_crate_root_module_closure"),
@@ -191,6 +199,10 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     CERTIFICATE_LEAN_GATE_PATH_V1,
     CERTIFICATE_ESSO_MODEL_PATH_V1,
     CERTIFICATE_ESSO_GATE_PATH_V1,
+    PRODUCERS_PYTHON_PATH_V1,
+    PRODUCERS_RUST_PATH_V1,
+    PRODUCERS_PYTHON_TEST_PATH_V1,
+    PRODUCERS_RUST_TEST_PATH_V1,
     PYTHON_GATE_PATH_V1,
     RUST_GATE_PATH_V1,
     GATE_TESTS_PATH_V1,
@@ -269,6 +281,10 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     " invariants (lane partition, row equality, custody aggregate, terminal bound, producer gate, lane"
     " binding, and the derived normative partition and same-domain backing) with eight named mutants"
     " each attributed to one invariant by a two-solver counterexample",
+    "the EXTERNAL_CUSTODY and PROOF_REWARDS registered-empty fragment producers are pure functions"
+    " of the committed lane root that certify the lane is disabled and committed at the root of its"
+    " unique empty typed lane state, in Python and Rust, and the certificate checker rejects a"
+    " registered-empty lane committed at any other root",
 )
 
 EXPECTED_LANES_V1: Final[tuple[str, ...]] = (
@@ -390,6 +406,7 @@ CERTIFICATE_REJECT_CODES_V1: Final[tuple[str, ...]] = (
     "PRODUCER_KIND_DRIFT",
     "BLOCKED_LANE_PRODUCER_MISSING",
     "DISABLED_LANE_NOT_EMPTY",
+    "REGISTERED_EMPTY_ROOT_DRIFT",
     "ALLOCATION_TOTAL_OVERFLOW",
     "SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE",
     "ENTITLEMENT_ROWS_DRIFT",
@@ -404,8 +421,14 @@ CERTIFICATE_PRODUCER_KINDS_V1: Final[dict[str, str]] = {
     lane: {"EXTERNAL_CUSTODY": "REGISTERED_EMPTY_DISABLED", "PROOF_REWARDS": "REGISTERED_EMPTY_BLOCKED"}.get(lane, "NO_PRODUCER")
     for lane in EXPECTED_LANES_V1
 }
-CERTIFICATE_FIXTURE_VECTORS_V1: Final = 26
+CERTIFICATE_FIXTURE_VECTORS_V1: Final = 27
 CERTIFICATE_FIXTURE_ACCEPTED_V1: Final = 3
+# C5 (wave A): the unique empty typed lane state roots the registered-empty lanes are bound to;
+# every accepted fixture fragment of these lanes must sit at exactly this root.
+CERTIFICATE_REGISTERED_EMPTY_ROOTS_V1: Final[dict[str, str]] = {
+    "EXTERNAL_CUSTODY": "0x760d222dd2e3dde6b65195d6f9a20b6d855a51743a194d9766481b042ae8d51d",
+    "PROOF_REWARDS": "0xd322bac2dd8f9fa0a67c4036b87f41ba7dc9f1d849dada1cc65e5463c67fdf74",
+}
 CERTIFICATE_FRAGMENT_ROW_FIELDS_V1: Final[tuple[str, ...]] = (
     "controlled_locations", "claimant_entitlements", "unencumbered_reserves", "pending_external_obligations", "terminal_bindings"
 )
@@ -978,7 +1001,10 @@ RUST_REFINEMENT_GATE_TARGET_V1: Final = "global_economic_state_effect_refinement
 RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
-CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 33
+CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 34
+PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 5
+PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
+PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 2
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 2
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
@@ -1423,6 +1449,22 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         f"exit 0; {CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1} passed",
         1800,
     ),
+    ReplayCommandV1(
+        "python_producer_gate",
+        (PYTHON_TOKEN_V1, "-m", "pytest", "-q", "-p", "no:cacheprovider", PRODUCERS_PYTHON_TEST_PATH_V1),
+        ".",
+        (),
+        f"exit 0; {PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1} passed",
+        600,
+    ),
+    ReplayCommandV1(
+        "rust_producer_gate",
+        ("cargo", "test", "--offline", "--locked", "--test", PRODUCERS_RUST_GATE_TARGET_V1),
+        RUST_CRATE_DIR_V1,
+        ("CARGO_TARGET_DIR", "CARGO_INCREMENTAL"),
+        f"exit 0; {PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1} passed",
+        1800,
+    ),
 )
 REPLAY_COMMAND_IDS_V1: Final[tuple[str, ...]] = tuple(c.command_id for c in REPLAY_COMMANDS_V1)
 
@@ -1516,8 +1558,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V9:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V9}")
+    if packet.get("schema") != PACKET_SCHEMA_V10:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V10}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -2418,6 +2460,7 @@ RUST_CRATE_MODULES_V1: Final[tuple[str, ...]] = (
     "epoch_effect_composition",
     "external_custody_disabled_lane",
     "global_accounting_allocation_certificate",
+    "global_accounting_lane_producers",
     "global_economic_replay_refinement",
     "global_economic_state_delta",
     "global_economic_state_effect_refinement",
@@ -2917,6 +2960,9 @@ def certificate_fixture_surface_v1(fixture: object) -> dict[str, object]:
         for fragment in fragments:
             if fragment.get("enabled") is not False or any(fragment.get(field) for field in CERTIFICATE_FRAGMENT_ROW_FIELDS_V1):
                 _reject("CERTIFICATE_FIXTURE_DRIFT", path, f"accepted vector {name} is not registered-empty")
+            registered_root = CERTIFICATE_REGISTERED_EMPTY_ROOTS_V1.get(str(fragment.get("lane_id")))
+            if registered_root is not None and fragment.get("lane_state_root") != registered_root:
+                _reject("CERTIFICATE_FIXTURE_DRIFT", path, f"accepted vector {name} lane {fragment.get('lane_id')} is not at its registered-empty root")
         accepted.append(str(name))
     if len(accepted) != CERTIFICATE_FIXTURE_ACCEPTED_V1:
         _reject("CERTIFICATE_FIXTURE_DRIFT", path, f"{len(accepted)} accepted vectors")
@@ -2956,6 +3002,12 @@ def _project_certificate(snapshot: SubjectSnapshotV1) -> dict[str, object]:
         "producer_registry": dict(CERTIFICATE_PRODUCER_KINDS_V1),
         "receipt_backed_producers": 0,
         "golden": certificate_fixture_surface_v1(fixture),
+        "registered_empty_producers": {
+            "python": PRODUCERS_PYTHON_PATH_V1,
+            "rust": PRODUCERS_RUST_PATH_V1,
+            "lanes": dict(CERTIFICATE_REGISTERED_EMPTY_ROOTS_V1),
+            "binding": "a registered-empty lane is accepted only when its committed lane root is the root of its unique empty typed lane state (REGISTERED_EMPTY_ROOT_DRIFT otherwise); the producer is a pure function of that committed root",
+        },
         "lean_model": CERTIFICATE_LEAN_PATH_V1,
         "esso_model": CERTIFICATE_ESSO_MODEL_PATH_V1,
         "mounted": False,
@@ -3109,6 +3161,8 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
     "python_certificate_golden_gate": {"passed": CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1},
     "rust_certificate_golden_gate": {"passed": CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1},
     "rust_certificate_unit_gate": {"passed": CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1},
+    "python_producer_gate": {"passed": PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1},
+    "rust_producer_gate": {"passed": PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1},
 }
 
 
@@ -3247,7 +3301,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V9,
+        "schema": PACKET_SCHEMA_V10,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -3410,7 +3464,7 @@ def check_lane_map_v1(packet: Mapping[str, Any]) -> None:
 
 
 SIDECAR_IMPLEMENTATION_KEYS_V1: Final[frozenset[str]] = frozenset(
-    {"status", "python", "rust", "check_order", "reject_codes", "producer_registry", "receipt_backed_producers", "golden", "lean_model", "esso_model", "mounted"}
+    {"status", "python", "rust", "check_order", "reject_codes", "producer_registry", "receipt_backed_producers", "golden", "registered_empty_producers", "lean_model", "esso_model", "mounted"}
 )
 
 
@@ -3443,6 +3497,9 @@ def check_sidecar_v1(packet: Mapping[str, Any]) -> None:
     golden = implementation.get("golden")
     if not isinstance(golden, dict) or golden.get("vectors") != CERTIFICATE_FIXTURE_VECTORS_V1 or golden.get("fixture") != CERTIFICATE_FIXTURE_PATH_V1:
         _reject("SIDECAR_DRIFT", "required_sidecar.implementation.golden", str(golden)[:80])
+    producers = implementation.get("registered_empty_producers")
+    if not isinstance(producers, dict) or producers.get("lanes") != dict(CERTIFICATE_REGISTERED_EMPTY_ROOTS_V1):
+        _reject("SIDECAR_DRIFT", "required_sidecar.implementation.registered_empty_producers", str(producers)[:80])
 
 
 def _string_scalars(value: object, pointer: str) -> list[tuple[str, str]]:
@@ -3834,6 +3891,10 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_cargo(obs, CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "rust_certificate_unit_gate":
         return _grade_cargo(obs, CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "python_producer_gate":
+        return _grade_pytest(obs, PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "rust_producer_gate":
+        return _grade_cargo(obs, PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "python_golden_gate":
         return _grade_pytest(obs, PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1)
     return _grade_esso(obs, esso)

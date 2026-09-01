@@ -138,8 +138,8 @@ fn every_vector_replays_outcome_and_derived_roots() {
     let fixture = load_fixture();
     assert_eq!(
         fixture.vectors.len(),
-        26,
-        "fixture must carry the 26 named vectors"
+        27,
+        "fixture must carry the 27 named vectors"
     );
     for (name, vector) in &fixture.vectors {
         assert!(

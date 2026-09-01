@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Final, Protocol, TypeVar, cast
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
+from .external_custody_disabled_lane_v1 import ExternalCustodyDisabledStateV1
 from .global_settlement_types_v1 import (
     ALL_LANE_IDS_V1,
     GlobalEconomicStateV1,
@@ -50,6 +51,7 @@ from .global_settlement_types_v1 import (
     _require_tuple,
     hash_global_v1,
 )
+from .proof_rewards_policy_blocked_lane_v1 import ProofRewardsPolicyBlockedStateV1
 
 GLOBAL_ACCOUNTING_ALLOCATION_CERTIFICATE_SCHEMA_V1: Final = (
     "zenodex/global-accounting-allocation-certificate/v1"
@@ -84,6 +86,13 @@ class LaneProducerKindV1(str, Enum):
 
 # Exhaustive over LaneIdV1: the producer kind the registry supports today and the
 # obligation that blocks a receipt-backed producer. No lane is receipt-backed yet.
+# The unique empty typed lane state each registered-empty lane must be committed at: a
+# registered-empty fragment is exact-empty because the lane's own state is the empty state,
+# and the certificate binds the committed lane root to that state's root (C5, wave A).
+REGISTERED_EMPTY_LANE_ROOTS_V1: Final[dict[LaneIdV1, str]] = {
+    LaneIdV1.EXTERNAL_CUSTODY: ExternalCustodyDisabledStateV1().state_root,
+    LaneIdV1.PROOF_REWARDS: ProofRewardsPolicyBlockedStateV1().state_root,
+}
 LANE_ALLOCATION_PRODUCER_REGISTRY_V1: Final[dict[LaneIdV1, tuple[LaneProducerKindV1, str]]] = {
     LaneIdV1.ASSET_TRANSFER: (LaneProducerKindV1.NO_PRODUCER, "VM-04 wave B asset-transfer fragment producer"),
     LaneIdV1.SPOT_LIQUIDITY: (LaneProducerKindV1.NO_PRODUCER, "VM-04 wave C spot-liquidity producer; UP-01 UP-12 UP-14"),
@@ -116,6 +125,7 @@ class AllocationCertificateRejectCodeV1(str, Enum):
     PRODUCER_KIND_DRIFT = "PRODUCER_KIND_DRIFT"
     BLOCKED_LANE_PRODUCER_MISSING = "BLOCKED_LANE_PRODUCER_MISSING"
     DISABLED_LANE_NOT_EMPTY = "DISABLED_LANE_NOT_EMPTY"
+    REGISTERED_EMPTY_ROOT_DRIFT = "REGISTERED_EMPTY_ROOT_DRIFT"
     ALLOCATION_TOTAL_OVERFLOW = "ALLOCATION_TOTAL_OVERFLOW"
     SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE = "SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE"
     ENTITLEMENT_ROWS_DRIFT = "ENTITLEMENT_ROWS_DRIFT"
@@ -133,6 +143,7 @@ ALLOCATION_CERTIFICATE_REJECT_MESSAGE_BY_CODE_V1: Final[dict[AllocationCertifica
     AllocationCertificateRejectCodeV1.PRODUCER_KIND_DRIFT: "allocation certificate lane fragment producer kind differs from the registry",
     AllocationCertificateRejectCodeV1.BLOCKED_LANE_PRODUCER_MISSING: "allocation certificate enabled lane has no receipt-backed fragment producer",
     AllocationCertificateRejectCodeV1.DISABLED_LANE_NOT_EMPTY: "allocation certificate disabled lane fragment carries rows",
+    AllocationCertificateRejectCodeV1.REGISTERED_EMPTY_ROOT_DRIFT: "allocation certificate registered-empty lane is not bound to its empty lane state root",
     AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW: "allocation certificate total overflows",
     AllocationCertificateRejectCodeV1.SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE: "allocation certificate controlled source atoms are not assigned exactly once",
     AllocationCertificateRejectCodeV1.ENTITLEMENT_ROWS_DRIFT: "allocation certificate claimant entitlement rows differ from the V1 liabilities",
@@ -626,6 +637,10 @@ def _check_lane_bindings(certificate: GlobalAccountingAllocationCertificateV1, s
     for fragment, _ in pairs:
         if not fragment.enabled and not fragment.is_empty:
             _fail(AllocationCertificateRejectCodeV1.DISABLED_LANE_NOT_EMPTY, fragment.lane_id.value)
+    for fragment, _ in pairs:
+        registered_root = REGISTERED_EMPTY_LANE_ROOTS_V1.get(fragment.lane_id)
+        if registered_root is not None and fragment.lane_state_root != registered_root:
+            _fail(AllocationCertificateRejectCodeV1.REGISTERED_EMPTY_ROOT_DRIFT, fragment.lane_id.value)
 
 
 def _fold(rows: Iterable[tuple[tuple[str, ...], int]], label: str = "fold") -> dict[tuple[str, ...], int]:
@@ -865,6 +880,7 @@ __all__ = [
     "GLOBAL_ACCOUNTING_ALLOCATION_CERTIFICATE_SCHEMA_V1",
     "GlobalAccountingAllocationCertificateV1",
     "LANE_ALLOCATION_PRODUCER_REGISTRY_V1",
+    "REGISTERED_EMPTY_LANE_ROOTS_V1",
     "LANE_FRAGMENT_ROOT_DOMAIN_V1",
     "LaneAllocationFragmentV1",
     "LaneProducerKindV1",
