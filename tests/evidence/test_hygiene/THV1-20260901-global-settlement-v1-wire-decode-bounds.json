@@ -1,0 +1,123 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260901-global-settlement-v1-wire-decode-bounds",
+  "created_date": "2026-09-01",
+  "claim_scope": "Research-only evidence that Rust GlobalEconomicStateV1 and GlobalEconomicEffectPlanV1 enforce their existing semantic row ceilings during sequence deserialization. Exact-limit JSON decodes, maximum-plus-one rejects, exact-size hints reject before reading an item, streaming JSON rejects without consuming a hostile tail, mounted economic-initial-state input maps an oversized nested state to Decode, and accepted canonical bytes and roots remain unchanged.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSV1-RUST-WIRE-DECODE-BOUNDED-BEFORE-VECTOR-GROWTH",
+    "GSV1-ACCEPTED-CANONICAL-BYTES-AND-ROOTS-PRESERVED",
+    "GSV1-MOUNTED-OVERSIZED-NESTED-STATE-REJECTS-AT-DECODE"
+  ],
+  "failure_modes": [
+    "a Rust decoder materializes a global state or effect-plan vector beyond its semantic V1 ceiling",
+    "an exact-size sequence reserves or reads an item after declaring an oversized length",
+    "a streaming sequence consumes attacker-controlled tail data after observing the first excess row",
+    "a mounted economic-initial-state input prepares an oversized nested global state",
+    "a valid V1 state changes canonical bytes or state root after bounded decoding is introduced"
+  ],
+  "source_pins": [
+    {
+      "path": "zk/global_settlement_abi_v1/src/bounded_vec.rs",
+      "sha256": "eb4539f793405c0120c7e95424c51daea6c78b7c5b9584b7bfdbbcf63a0b3be6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/effects.rs",
+      "sha256": "0e691ba4be7be58ded9a87ba28f1cd747b67bf5cdfd4c39bbe232480fe20b7f6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/state.rs",
+      "sha256": "44f6874589e72c7fefdcac8b6c220fb311c6dc0f1e53bb3b962e32a6d593b98c"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "7d623653f7ae1b4e5f0722d0c50804d207df894dea9597274b51e86246280476"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/wire_decode_resource_bounds.rs",
+      "sha256": "d7cbf421380d8e9d39d419f476e23168057b72beb8e99273bec61e75bda2cea6"
+    },
+    {
+      "path": "zk/economic_initial_state_risc0/shared/tests/initial_state_guest_contract.rs",
+      "sha256": "ef143a0cf2a08dc9595df5d49767a416be7f015f7e01d87374a9e7eb7ddad26c"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_global_settlement_v1_rust_wire_bounds.py",
+      "sha256": "3650413bd455d0b46d7af172d0c690be0d64c99b66f213c68101e714e776108a",
+      "node_ids": [
+        "tests/test_global_settlement_v1_rust_wire_bounds.py::test_rust_global_state_and_effect_wire_bounds",
+        "tests/test_global_settlement_v1_rust_wire_bounds.py::test_mounted_initial_state_rejects_oversized_nested_state_during_decode"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "boundary",
+    "negative_regression",
+    "mutation",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The tests arrange exact-limit and maximum-plus-one sequence inputs, invoke direct Rust deserialization or the mounted canonical guest decoder, and assert successful exact-limit decoding or fail-closed decode rejection with no prepared statement or effect."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "Deserialization is an immutable admission boundary. A rejected sequence constructs no accepted state, effect plan, witness, receipt, or external effect."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "global_state_vector_cardinality",
+      "points": [
+        "all ten vectors decode at their exact 12, 256, or 4096 limit",
+        "all ten vectors reject at their own maximum plus one"
+      ]
+    },
+    {
+      "name": "global_effect_plan_vector_cardinality",
+      "points": [
+        "all six vectors decode at their exact 12, 256, or 4096 limit",
+        "all six vectors reject at their own maximum plus one"
+      ]
+    },
+    {
+      "name": "sequence_decoder_behavior",
+      "points": [
+        "an oversized exact-size hint rejects before the iterator's first next call",
+        "a JSON sequence with maximum plus one valid rows rejects before parsing a malformed following tail"
+      ]
+    },
+    {
+      "name": "mounted_guest_boundary",
+      "points": [
+        "a valid nested state reaches canonical mounted processing",
+        "an oversized nested state maps to Decode before statement preparation"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "remove or raise any bounded deserializer on the ten global-state or six effect-plan vectors",
+      "killed_by": "tests/test_global_settlement_v1_rust_wire_bounds.py::test_rust_global_state_and_effect_wire_bounds"
+    },
+    {
+      "description": "reserve from an oversized exact sequence hint or consume the hostile tail after the first excess item",
+      "killed_by": "tests/test_global_settlement_v1_rust_wire_bounds.py::test_rust_global_state_and_effect_wire_bounds"
+    },
+    {
+      "description": "let the economic-initial-state decoder materialize an oversized nested global state",
+      "killed_by": "tests/test_global_settlement_v1_rust_wire_bounds.py::test_mounted_initial_state_rejects_oversized_nested_state_during_decode"
+    }
+  ],
+  "nonclaims": [
+    "This packet grants no production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "The wire-decode claim covers GlobalEconomicStateV1 and GlobalEconomicEffectPlanV1 only; the remaining GlobalSettlementABI V1 collection fields require a separate exact inventory before any whole-ABI resource-safety claim.",
+    "Mounted inputs retain independent outer byte ceilings, and this packet does not establish proof-cycle feasibility at every admitted maximum.",
+    "The Python canonical encoder's exact-type admission, cycle, depth, aggregate-item, and byte limits are separate obligations.",
+    "Passing these tests does not close O-008, any whole-value-movement gate, or the whole-program release gate."
+  ]
+}

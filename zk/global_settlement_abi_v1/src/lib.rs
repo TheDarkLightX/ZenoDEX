@@ -10,6 +10,7 @@ mod asset_transfer;
 mod asset_transfer_lane_module;
 mod asset_transfer_policy_registry;
 mod asset_transfer_types;
+mod bounded_vec;
 mod canonical;
 mod current_profile_lane_gate;
 mod economic_command_authentication;

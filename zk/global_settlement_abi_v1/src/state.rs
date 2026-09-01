@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::bounded_vec::deserialize_bounded_vec_v1;
 use crate::canonical::{
     hash_global_v1, validate_schema_v1, validate_token_v1, AbiErrorV1, AbiResultV1, RootV1,
     MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1, MAX_GLOBAL_ORACLE_ROWS_V1, MAX_GLOBAL_OUTBOX_ROWS_V1,
@@ -8,6 +9,8 @@ use crate::canonical::{
 use crate::release::{
     EconomicProfileSnapshotV1, LaneIdV1, LaneRegistryV1, ReleaseStatusV1, ALL_LANE_IDS_V1,
 };
+
+const MAX_GLOBAL_LANE_ROOTS_V1: usize = ALL_LANE_IDS_V1.len();
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -161,6 +164,78 @@ fn validate_ordered_by_v1<T, K: Ord>(
     Ok(())
 }
 
+macro_rules! bounded_state_vec_deserializer_v1 {
+    ($function:ident, $row:ty, $maximum:expr, $label:literal) => {
+        fn $function<'de, D>(deserializer: D) -> Result<Vec<$row>, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            deserialize_bounded_vec_v1::<D, $row, $maximum>(deserializer, $label)
+        }
+    };
+}
+
+bounded_state_vec_deserializer_v1!(
+    deserialize_lane_roots_v1,
+    LaneStateRootV1,
+    MAX_GLOBAL_LANE_ROOTS_V1,
+    "global state lane roots"
+);
+bounded_state_vec_deserializer_v1!(
+    deserialize_balances_v1,
+    EconomicAmountV1,
+    MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
+    "global state balances"
+);
+bounded_state_vec_deserializer_v1!(
+    deserialize_custody_v1,
+    EconomicAmountV1,
+    MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
+    "global state custody"
+);
+bounded_state_vec_deserializer_v1!(
+    deserialize_liabilities_v1,
+    EconomicAmountV1,
+    MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
+    "global state liabilities"
+);
+bounded_state_vec_deserializer_v1!(
+    deserialize_reserves_v1,
+    EconomicAmountV1,
+    MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
+    "global state reserves"
+);
+bounded_state_vec_deserializer_v1!(
+    deserialize_supplies_v1,
+    AssetSupplyV1,
+    MAX_GLOBAL_SUPPLY_ROWS_V1,
+    "global state supplies"
+);
+bounded_state_vec_deserializer_v1!(
+    deserialize_oracle_occurrences_v1,
+    OracleOccurrenceStateV1,
+    MAX_GLOBAL_ORACLE_ROWS_V1,
+    "global state oracle occurrences"
+);
+bounded_state_vec_deserializer_v1!(
+    deserialize_replay_state_v1,
+    ReplayStateV1,
+    MAX_GLOBAL_REPLAY_ROWS_V1,
+    "global state replay state"
+);
+bounded_state_vec_deserializer_v1!(
+    deserialize_terminal_obligations_v1,
+    TerminalObligationV1,
+    MAX_GLOBAL_TERMINAL_ROWS_V1,
+    "global state terminal obligations"
+);
+bounded_state_vec_deserializer_v1!(
+    deserialize_outbox_v1,
+    OutboxStateV1,
+    MAX_GLOBAL_OUTBOX_ROWS_V1,
+    "global state outbox"
+);
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GlobalEconomicStateV1 {
@@ -170,16 +245,26 @@ pub struct GlobalEconomicStateV1 {
     pub writer_epoch: u64,
     pub height: u64,
     pub profile_root: RootV1,
+    #[serde(deserialize_with = "deserialize_lane_roots_v1")]
     pub lane_roots: Vec<LaneStateRootV1>,
+    #[serde(deserialize_with = "deserialize_balances_v1")]
     pub balances: Vec<EconomicAmountV1>,
+    #[serde(deserialize_with = "deserialize_supplies_v1")]
     pub supplies: Vec<AssetSupplyV1>,
+    #[serde(deserialize_with = "deserialize_custody_v1")]
     pub custody: Vec<EconomicAmountV1>,
+    #[serde(deserialize_with = "deserialize_liabilities_v1")]
     pub liabilities: Vec<EconomicAmountV1>,
+    #[serde(deserialize_with = "deserialize_reserves_v1")]
     pub reserves: Vec<EconomicAmountV1>,
+    #[serde(deserialize_with = "deserialize_oracle_occurrences_v1")]
     pub oracle_occurrences: Vec<OracleOccurrenceStateV1>,
+    #[serde(deserialize_with = "deserialize_replay_state_v1")]
     pub replay_state: Vec<ReplayStateV1>,
+    #[serde(deserialize_with = "deserialize_terminal_obligations_v1")]
     pub terminal_obligations: Vec<TerminalObligationV1>,
     pub history_root: RootV1,
+    #[serde(deserialize_with = "deserialize_outbox_v1")]
     pub outbox: Vec<OutboxStateV1>,
 }
 

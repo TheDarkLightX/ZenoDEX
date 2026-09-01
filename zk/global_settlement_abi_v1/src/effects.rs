@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::bounded_vec::deserialize_bounded_vec_v1;
 use crate::canonical::{
     hash_global_v1, validate_root_sequence_v1, validate_schema_v1, validate_token_v1, AbiErrorV1,
     AbiResultV1, RootV1, MAX_EFFECT_PLAN_ASSET_CONSERVATION_ROWS_V1,
@@ -179,15 +180,69 @@ impl ExternalOutboxEnqueueV1 {
     }
 }
 
+macro_rules! bounded_effect_vec_deserializer_v1 {
+    ($function:ident, $row:ty, $maximum:expr, $label:literal) => {
+        fn $function<'de, D>(deserializer: D) -> Result<Vec<$row>, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            deserialize_bounded_vec_v1::<D, $row, $maximum>(deserializer, $label)
+        }
+    };
+}
+
+bounded_effect_vec_deserializer_v1!(
+    deserialize_effect_rows_v1,
+    EconomicEffectRowV1,
+    MAX_EFFECT_PLAN_ROWS_V1,
+    "economic effect plan rows"
+);
+bounded_effect_vec_deserializer_v1!(
+    deserialize_asset_conservation_rows_v1,
+    AssetConservationRowV1,
+    MAX_EFFECT_PLAN_ASSET_CONSERVATION_ROWS_V1,
+    "economic effect plan asset conservation rows"
+);
+bounded_effect_vec_deserializer_v1!(
+    deserialize_fee_conservation_rows_v1,
+    FeeConservationRowV1,
+    MAX_EFFECT_PLAN_FEE_CONSERVATION_ROWS_V1,
+    "economic effect plan fee conservation rows"
+);
+bounded_effect_vec_deserializer_v1!(
+    deserialize_lane_writes_v1,
+    LaneWriteV1,
+    MAX_EFFECT_PLAN_LANE_WRITES_V1,
+    "economic effect plan lane writes"
+);
+bounded_effect_vec_deserializer_v1!(
+    deserialize_occurrence_consumptions_v1,
+    RootV1,
+    MAX_EFFECT_PLAN_OCCURRENCE_CONSUMPTIONS_V1,
+    "economic effect plan occurrence consumptions"
+);
+bounded_effect_vec_deserializer_v1!(
+    deserialize_external_outbox_enqueue_v1,
+    ExternalOutboxEnqueueV1,
+    MAX_EFFECT_PLAN_EXTERNAL_OUTBOX_ROWS_V1,
+    "economic effect plan external outbox rows"
+);
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GlobalEconomicEffectPlanV1 {
     pub schema: String,
+    #[serde(deserialize_with = "deserialize_effect_rows_v1")]
     pub rows: Vec<EconomicEffectRowV1>,
+    #[serde(deserialize_with = "deserialize_asset_conservation_rows_v1")]
     pub asset_conservation: Vec<AssetConservationRowV1>,
+    #[serde(deserialize_with = "deserialize_fee_conservation_rows_v1")]
     pub fee_conservation: Vec<FeeConservationRowV1>,
+    #[serde(deserialize_with = "deserialize_lane_writes_v1")]
     pub lane_writes: Vec<LaneWriteV1>,
+    #[serde(deserialize_with = "deserialize_occurrence_consumptions_v1")]
     pub occurrence_consumptions: Vec<RootV1>,
+    #[serde(deserialize_with = "deserialize_external_outbox_enqueue_v1")]
     pub external_outbox_enqueue: Vec<ExternalOutboxEnqueueV1>,
 }
 

@@ -21,7 +21,7 @@ use zenodex_global_settlement_abi_v1::{
     RootV1, GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1,
     M6_ASSET_PRECISION_POLICY_ROOT_V1, M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1,
     M6_CAPABILITY_MANIFEST_ROOT_V1, M6_CAPABILITY_POLICY_KIND_V1,
-    M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
+    M6_CAPABILITY_PROFILE_COMMAND_KIND_V1, MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -286,6 +286,19 @@ fn guest_rejects_4097_rows_before_validating_the_hostile_first_row() {
     assert!(matches!(
         prepare_economic_initial_state_v1(input),
         Err(EconomicInitialStateGuestErrorV1::ExplicitRowCount)
+    ));
+}
+
+#[test]
+fn canonical_wire_decoder_maps_oversized_nested_state_to_decode() {
+    let mut input = fixture();
+    let row = input.state.balances[0].clone();
+    input.state.balances = vec![row; MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1 + 1];
+    let bytes = serde_json::to_vec(&input).unwrap();
+
+    assert!(matches!(
+        prepare_economic_initial_state_from_canonical_bytes_v1(&bytes),
+        Err(EconomicInitialStateGuestErrorV1::Decode)
     ));
 }
 
