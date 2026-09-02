@@ -945,6 +945,16 @@ theorem balanceOverflow_unreachable {ctx : Context} {pre : TransferState} {cmd :
       have hbound2 := sumOver_two_le hbal (Ne.symm hos) hs ho
       rcases hover with h1 | h1 | h1 <;> omega
 
+/-- The twelfth code is unreachable in this bounded model by construction: its
+guard is definitionally `True` (row finiteness is outside Scope), so
+`rejectCode` can never return it. This is the machine-checked licence for the
+coverage exemption in the challenge file. -/
+theorem rejectCode_ne_postStateResourceBoundExceeded
+    (ctx : Context) (pre : TransferState) (cmd : Command) :
+    rejectCode ctx pre cmd ≠ some .postStateResourceBoundExceeded := by
+  intro h
+  exact ((rejectCode_eq_some_iff ctx pre cmd _).mp h).1 trivial
+
 /-! ## 15. Fixtures
 
 The vector table shared with `Proofs.AssetTransferRefinementV1Challenge` and

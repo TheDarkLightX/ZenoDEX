@@ -11,7 +11,7 @@ publication authority. Rejections return the exact pre-state root and an empty
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .asset_transfer_types_v1 import (
     ACCOUNT_CUSTODY_DOMAIN_V1,
@@ -88,6 +88,8 @@ def _post_balances(
             values[(asset, owner)] = post_atoms
     if len(values) > MAX_ASSET_BALANCE_ROWS_V1:
         return AssetTransferRejectCodeV1.POST_STATE_RESOURCE_BOUND_EXCEEDED
+    # Every pre-state balance row is accounts-domain by construction (re-validated
+    # at the transition entry), so the rebuilt rows carry that same domain.
     return tuple(
         EconomicAmountV1(owner, row_asset, ACCOUNT_CUSTODY_DOMAIN_V1, amount_atoms)
         for (row_asset, owner), amount_atoms in sorted(values.items())
@@ -303,6 +305,14 @@ def transition_asset_transfer_v1(
         raise TypeError("asset transfer pre-state must be the exact typed value")
     if type(command) is not AssetTransferCommandV1:
         raise TypeError("asset transfer command must be the exact typed value")
+    # Opus P29 NEW-24: exact types close subclassing, not __post_init__-skipping
+    # (object.__new__). Re-run every construction invariant through the dataclass
+    # constructors, mirroring the managed sibling, before any fold reads a row: a
+    # forged pre-state with a custody-domain or unordered balance row is refused
+    # here instead of being relabelled or canonicalised by the balance fold.
+    context = replace(context)
+    pre_state = replace(pre_state)
+    command = replace(command)
     prepared = _prepare_transfer(context, pre_state, command)
     if isinstance(prepared, AssetTransferRejectCodeV1):
         return _reject(prepared, pre_state)

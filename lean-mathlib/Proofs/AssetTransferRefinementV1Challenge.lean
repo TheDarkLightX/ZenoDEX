@@ -212,9 +212,9 @@ theorem vectorLabels_eq :
 
 /-- Every rejection code the bounded model can emit is produced by some vector.
 `postStateResourceBoundExceeded` is excluded by scope: the model carries no row
-structure, its guard always passes, and `rejectCode` can never return it (see
-the V1 file's guard note); runtime reachability is pinned by the transition
-totality suite. -/
+structure, its guard always passes, and `rejectCode` can never return it
+(`rejectCode_ne_postStateResourceBoundExceeded` in the V1 file); runtime
+reachability is pinned by the transition totality suite. -/
 theorem report_vectors_cover_every_code :
     ∀ c : RejectCode, c ≠ .postStateResourceBoundExceeded → c.code ∈ vectorLabels := by
   intro c hc

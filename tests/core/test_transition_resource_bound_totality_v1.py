@@ -215,30 +215,15 @@ def _forged_state(state_type, template, **overrides):
     return forged
 
 
-def test_transfer_balance_overflow_is_a_defensive_guard_with_a_forgery_witness() -> None:
-    """Opus P26 NEW-18: BALANCE_OVERFLOW gains an asserting test (transfer side).
-
-    The guard is defensive checked arithmetic: AssetTransferStateV1 enforces
-    balances <= supply <= MAX_ATOMS_V1 at construction, so no domain-valid
-    pre-state can drive a recipient balance past the ceiling. Forging a state
-    whose balances exceed its supply via object.__new__ (bypassing
-    __post_init__) reaches the arm, which returns the closed typed reject
-    instead of wrapping or raising."""
-
-    from src.core.asset_transfer_module_v1 import transition_asset_transfer_v1
+def _transfer_totality_fixture():
     from src.core.asset_transfer_types_v1 import (
         ASSET_TRANSFER_COMMAND_KIND_V1,
         AssetTransferCommandV1,
         AssetTransferContextV1,
         AssetTransferPolicyV1,
-        AssetTransferRejectCodeV1,
         AssetTransferStateV1,
     )
-    from src.core.global_settlement_types_v1 import (
-        MAX_ATOMS_V1,
-        AssetSupplyV1,
-        EconomicAmountV1,
-    )
+    from src.core.global_settlement_types_v1 import AssetSupplyV1, EconomicAmountV1
 
     root = "0x" + "11" * 32
     template = AssetTransferStateV1(
@@ -250,6 +235,28 @@ def test_transfer_balance_overflow_is_a_defensive_guard_with_a_forgery_witness()
         ),
         supplies=(AssetSupplyV1("USD", 100),),
     )
+    context = AssetTransferContextV1("zenodex", root, root, 1, root, root, "sender", root)
+    command = AssetTransferCommandV1(
+        ASSET_TRANSFER_COMMAND_KIND_V1, "USD", "sender", "rich", 10, 0
+    )
+    return template, context, command
+
+
+def test_transfer_balance_overflow_is_a_defensive_arm_behind_input_re_validation() -> None:
+    """Opus P26 NEW-18 / P29 NEW-24: BALANCE_OVERFLOW (transfer side) sits behind
+    TWO layers, like the managed arm. In-domain, AssetTransferStateV1 enforces
+    balances <= supply <= MAX_ATOMS_V1 at construction, so no valid pre-state
+    can drive a balance past the ceiling; and a state forged past __post_init__
+    (object.__new__) is refused by the transition's entry re-validation before
+    any fold runs. The arm is checked-arithmetic totality whose witness is a
+    direct call on the balance fold with an oversized delta, so deleting the
+    arm still fails this test."""
+
+    from src.core.asset_transfer_module_v1 import _post_balances, transition_asset_transfer_v1
+    from src.core.asset_transfer_types_v1 import AssetTransferRejectCodeV1, AssetTransferStateV1
+    from src.core.global_settlement_types_v1 import MAX_ATOMS_V1, EconomicAmountV1
+
+    template, context, command = _transfer_totality_fixture()
     forged = _forged_state(
         AssetTransferStateV1,
         template,
@@ -258,13 +265,49 @@ def test_transfer_balance_overflow_is_a_defensive_guard_with_a_forgery_witness()
             EconomicAmountV1("sender", "USD", "accounts", 10),
         ),
     )
-    context = AssetTransferContextV1("zenodex", root, root, 1, root, root, "sender", root)
-    command = AssetTransferCommandV1(
-        ASSET_TRANSFER_COMMAND_KIND_V1, "USD", "sender", "rich", 10, 0
+    with pytest.raises(ValueError, match="balances exceed supply"):
+        transition_asset_transfer_v1(context, forged, command)
+    fold = _post_balances(template, asset="USD", deltas={"rich": MAX_ATOMS_V1})
+    assert fold is AssetTransferRejectCodeV1.BALANCE_OVERFLOW
+
+
+def test_transfer_re_validates_same_type_forged_pre_state() -> None:
+    """Opus P29 NEW-24: exact types close subclassing, not __post_init__-skipping.
+    A same-type forged pre-state (object.__new__) carrying a custody-domain
+    balance row was accepted and the untouched row silently relabelled to
+    accounts by the balance fold; non-canonical rows were silently canonicalised
+    into a pre_lane_root no constructible state can produce. The entry
+    re-validation refuses both before any fold runs, and the valid template
+    still transitions."""
+
+    from src.core.asset_transfer_module_v1 import transition_asset_transfer_v1
+    from src.core.asset_transfer_types_v1 import AssetTransferStateV1
+    from src.core.global_settlement_types_v1 import EconomicAmountV1
+
+    template, context, command = _transfer_totality_fixture()
+    custody_forged = _forged_state(
+        AssetTransferStateV1,
+        template,
+        balances=(
+            EconomicAmountV1("aaa", "USD", "custody", 100),
+            EconomicAmountV1("rich", "USD", "accounts", 90),
+            EconomicAmountV1("sender", "USD", "accounts", 10),
+        ),
     )
-    result = transition_asset_transfer_v1(context, forged, command)
-    assert type(result).__name__ == "AssetTransferRejectedV1"
-    assert result.code is AssetTransferRejectCodeV1.BALANCE_OVERFLOW
+    with pytest.raises(ValueError, match="wrong custody domain"):
+        transition_asset_transfer_v1(context, custody_forged, command)
+    unordered_forged = _forged_state(
+        AssetTransferStateV1,
+        template,
+        balances=(
+            EconomicAmountV1("sender", "USD", "accounts", 10),
+            EconomicAmountV1("rich", "USD", "accounts", 90),
+        ),
+    )
+    with pytest.raises(ValueError, match="canonically ordered"):
+        transition_asset_transfer_v1(context, unordered_forged, command)
+    accepted = transition_asset_transfer_v1(context, template, command)
+    assert type(accepted).__name__ == "AssetTransferAcceptedV1"
 
 
 def test_managed_issue_balance_overflow_is_a_defensive_guard_with_a_forgery_witness() -> None:

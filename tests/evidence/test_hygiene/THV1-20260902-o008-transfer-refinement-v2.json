@@ -1,0 +1,141 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260902-o008-transfer-refinement-v2",
+  "created_date": "2026-09-02",
+  "claim_scope": "v2 (Opus P29 NEW-22): the coverage exemption's licence is a theorem, rejectCode_ne_postStateResourceBoundExceeded (the twelfth code's guard is definitionally True, so the bounded model can never return it), cited by the challenge docstring instead of asserted in prose; the runtime transition re-validates its inputs at entry (NEW-24), leaving every corpus observation unchanged. Earlier: Candidate C8-p11 (Opus P27 NEW-19, the P1): the transfer reject family grew 11 to 12 at the PR #532 incorporation and the machine-checked refinement lineage was left behind, red and invisible to the packet replay. All four artifacts are extended in lock-step: the bounded Lean model gains the postStateResourceBoundExceeded constructor with an always-passing guard (row finiteness is not modeled, so the code is model-unreachable by scope, stated in the guard note and in the weakened challenge coverage theorem), the precedence tuple and the hand-authored corpus gain the twelfth code with an unreachable_codes row naming the runtime witness suite, and the 40-test gate is green again. The lineage joins the packet's pinned surface (five roles) and its gate becomes the twenty-ninth replay command, so this class of drift can no longer stay green through a full replay. Research-only; grants no authority.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TRANSFER-REFINEMENT-FOUR-ARTIFACTS-MOVE-IN-LOCKSTEP",
+    "TRANSFER-REFINEMENT-GATE-IS-A-REPLAY-COMMAND",
+    "TRANSFER-REFINEMENT-MODEL-UNREACHABLE-CODES-STATED",
+    "TRANSFER-REFINEMENT-MODEL-UNREACHABLE-CODE-IS-A-THEOREM"
+  ],
+  "failure_modes": [
+    "a reject-family extension leaves the Lean model, corpus, or precedence tuple behind while every replay stays green",
+    "a model-unreachable code is presented as covered by vectors"
+  ],
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferRefinementV1.lean",
+      "sha256": "2d9ed7beb6feb47b67afa63a40d1203bcca9004b49ba978b9927edded6a04932"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferRefinementV1Challenge.lean",
+      "sha256": "e13b34edc7ba40b99731310e50e8eba37739e255390ae21df92c1a797ced005b"
+    },
+    {
+      "path": "tools/check_asset_transfer_refinement_v1.py",
+      "sha256": "fe028fc1c5dd1957b5c9fbbdd621791536a2233e39aeabae8d380ac84fbaa41b"
+    },
+    {
+      "path": "tests/data/asset_transfer_refinement_v1.json",
+      "sha256": "e80f1c9c4863d873026f10aa7c2a5ca5ffa0b34fb0b741929e5b9d32839d3913"
+    },
+    {
+      "path": "src/core/asset_transfer_module_v1.py",
+      "sha256": "a888c4305ced488d9f737b070989fda1faac7ff897255003e6b095b0cdec4749"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/formal/test_lean_asset_transfer_refinement_v1.py",
+      "sha256": "d5d88be9b843158275cb536be96d7311e21ee6743b68c48f0bed6801dc64bd8d",
+      "node_ids": [
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_lean_target_compiles_without_warnings",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_placeholder_gate_is_repository_owned_and_fails_closed",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_lean_targets_have_no_placeholders_with_axiom_checking",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_all_named_claims_depend_only_on_standard_lean_axioms",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_axiom_dependency_parser_reveals_project_defined_axiom",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_claim_surface_is_explicit_and_clean",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_proof_states_every_abstraction_and_nonclaim",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_lean_guard_order_matches_python_enum_and_transition_source",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_runtime_sources_still_match_final_aggregation_and_precedence",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_width_literals_match_python_constants_in_source",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_report_reject_code_rows_match_python_enum",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_report_width_row_matches_python_constants",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_report_covers_exactly_the_vector_table",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_vector_matches_live_python_transition",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_alias_rows_aggregate_before_effect_projection",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_overflow_neighbor_is_outside_the_python_state_invariant",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_leaky_variant_is_killed_by_the_conservation_check",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_role_ordered_loop_agrees_with_intended_rule_on_every_vector",
+        "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_python_reject_is_a_no_op_for_every_rejected_vector"
+      ]
+    },
+    {
+      "path": "tests/core/test_transition_resource_bound_totality_v1.py",
+      "sha256": "81058067ef8079b9b5bd52b8f6ea2a4279ddbb2f67952566905250466f171a89",
+      "node_ids": [
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_asset_transfer_can_grow_to_exact_balance_row_ceiling",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_asset_transfer_growth_past_ceiling_is_closed_typed_noop",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_managed_asset_issue_can_grow_to_exact_balance_row_ceiling",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_managed_asset_issue_growth_past_ceiling_is_closed_typed_noop",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_reject_code_families_match_across_languages",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_balance_overflow_is_a_defensive_arm_behind_input_re_validation",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_re_validates_same_type_forged_pre_state",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_managed_issue_balance_overflow_is_a_defensive_guard_with_a_forgery_witness",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_refuses_state_subclasses"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "formal",
+    "replay",
+    "boundary",
+    "negative_regression",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each refinement test arranges the corpus or the compiled Lean report once and asserts exact rows, orders, and verdicts; the totality tests arrange one transition each."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The refinement oracle recomputes observations without mutating the corpus; rejected transitions are pinned to unchanged roots and empty effects."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "family_cardinality",
+      "points": [
+        "exact twelve codes in enum order in Python, Rust, Lean, tuple, and corpus",
+        "model-unreachable code carries an unreachable_codes row"
+      ]
+    },
+    {
+      "name": "guard_order",
+      "points": [
+        "Python if-chain is the enum prefix",
+        "Lean wire-string table equals the enum order",
+        "adjacent-pair witnesses per the corpus contract"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "grow the reject family in the runtime without extending the Lean model (Opus P27 NEW-19)",
+      "killed_by": "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_lean_guard_order_matches_python_enum_and_transition_source"
+    },
+    {
+      "description": "leave the report code table at the old cardinality",
+      "killed_by": "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_report_reject_code_rows_match_python_enum"
+    },
+    {
+      "description": "present the model-unreachable code as vector-covered",
+      "killed_by": "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_report_covers_exactly_the_vector_table"
+    },
+    {
+      "description": "admit a __post_init__-skipping state subclass into the transfer transition (Opus P27 NEW-21)",
+      "killed_by": "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_refuses_state_subclasses"
+    },
+    {
+      "description": "give the twelfth code's guard real content without touching the coverage exemption (Opus P29 NEW-22): the unreachability theorem no longer compiles",
+      "killed_by": "tests/formal/test_lean_asset_transfer_refinement_v1.py::test_lean_target_compiles_without_warnings"
+    }
+  ],
+  "nonclaims": [
+    "The bounded Lean model does not model row finiteness; the twelfth code is unreachable in the model by scope and its runtime reachability is pinned by the transition totality suite.",
+    "No production, release, settlement, verifier, migration, publication, or value-moving authority is granted."
+  ]
+}

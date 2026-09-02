@@ -123,6 +123,7 @@ TRANSFER_REFINEMENT_TOOL_PATH_V1: Final = "tools/check_asset_transfer_refinement
 TRANSFER_REFINEMENT_CORPUS_PATH_V1: Final = "tests/data/asset_transfer_refinement_v1.json"
 TRANSFER_REFINEMENT_GATE_PATH_V1: Final = "tests/formal/test_lean_asset_transfer_refinement_v1.py"
 TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1: Final = 40
+PARITY_GATE_PATH_V1: Final = "tests/core/test_global_settlement_abi_v1_resource_bounds.py"
 
 SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (PYTHON_REFINEMENT_PATH_V1, "python_visible_necessary_checks"),
@@ -172,6 +173,7 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (TRANSFER_REFINEMENT_TOOL_PATH_V1, "transfer_refinement_corpus_oracle"),
     (TRANSFER_REFINEMENT_CORPUS_PATH_V1, "transfer_refinement_bounded_corpus"),
     (TRANSFER_REFINEMENT_GATE_PATH_V1, "transfer_refinement_replay_gate"),
+    (PARITY_GATE_PATH_V1, "python_rust_bound_parity_gate"),
 )
 SOURCE_PIN_PATHS_V1: Final[tuple[str, ...]] = tuple(path for path, _ in SOURCE_PIN_ROLES_V1)
 EXECUTING_TOOL_PATHS_V1: Final[tuple[str, ...]] = (
@@ -225,6 +227,7 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     TRANSFER_REFINEMENT_TOOL_PATH_V1,
     TRANSFER_REFINEMENT_CORPUS_PATH_V1,
     TRANSFER_REFINEMENT_GATE_PATH_V1,
+    PARITY_GATE_PATH_V1,
 )
 
 PACKET_KEYS_V3: Final[frozenset[str]] = frozenset(

@@ -201,9 +201,8 @@ def test_every_canonical_rust_bound_has_a_python_twin() -> None:
     from src.core import global_settlement_types_v1 as types
 
     crate_src = Path(__file__).resolve().parents[2] / "zk/global_settlement_abi_v1/src"
-    rust_source = "\n".join(
-        rust_file.read_text(encoding="utf-8") for rust_file in sorted(crate_src.rglob("*.rs"))
-    )
+    rust_files = sorted(crate_src.rglob("*.rs"))
+    rust_source = "\n".join(rust_file.read_text(encoding="utf-8") for rust_file in rust_files)
 
     def evaluate(expression: str) -> int:
         expression = expression.strip()
@@ -225,10 +224,11 @@ def test_every_canonical_rust_bound_has_a_python_twin() -> None:
         re.S,
     )
     rust_bounds = {name: evaluate(expression) for name, expression in rust_matches}
-    # Opus P27 NEW-20: pin that the scan is genuinely recursive - the crate has
-    # .rs files below src/ top level, and reverting rglob to glob must fail here
-    # even while the bound sets coincide.
-    assert len(list(crate_src.rglob("*.rs"))) > len(list(crate_src.glob("*.rs")))
+    # Opus P27 NEW-20 / P29 NEW-23: pin that the scan is genuinely recursive by
+    # asserting on the file list the scan consumed (rust_files), not on a layout
+    # property re-derived here: reverting the scan to glob fails this line even
+    # while the bound sets coincide.
+    assert len(rust_files) > len(list(crate_src.glob("*.rs")))
     # Opus P24 NEW-12: duplicate names (comment-masking) must fail, not last-win.
     assert len(rust_matches) == len(rust_bounds)
     import importlib
