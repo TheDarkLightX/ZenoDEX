@@ -95,9 +95,9 @@ THV1_PACKET = (
     / "tests"
     / "evidence"
     / "test_hygiene"
-    / "THV1-20260901-global-settlement-formal-core-semantic-restage-v5.json"
+    / "THV1-20260901-global-settlement-formal-core-semantic-restage-v6.json"
 )
-THV1_EVIDENCE_ID = "THV1-20260901-global-settlement-formal-core-semantic-restage-v5"
+THV1_EVIDENCE_ID = "THV1-20260901-global-settlement-formal-core-semantic-restage-v6"
 THV1_REQUIRED_PIN_PATHS = frozenset(
     {
         "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
@@ -121,7 +121,7 @@ THV1_REQUIRED_PIN_PATHS = frozenset(
 # Claim grade is source-pin evidence, never refinement evidence.
 ENFORCED_PINS = {
     "src/core/global_settlement_types_v1.py": (
-        "8d37ed72fcf15cf7849179d4ff358f4fbbdc33905348f7ab790b2fe090e8044d"
+        "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
     ),
     "src/core/global_economic_state_effect_refinement_v1.py": (
         "abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697"

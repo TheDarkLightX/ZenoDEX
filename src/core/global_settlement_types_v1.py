@@ -1354,7 +1354,6 @@ class OutboxStateV1:
         }
 
 
-
 def _require_ordered_objects(
     values: object,
     *,

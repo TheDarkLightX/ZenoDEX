@@ -190,7 +190,8 @@ def test_python_and_rust_v1_collection_limits_are_frozen_and_equal() -> None:
 def test_every_canonical_rust_bound_has_a_python_twin() -> None:
     """Opus P21 NEW-4: total parity over canonical.rs, not a hand-maintained list.
 
-    Every `pub const MAX_...` in canonical.rs must resolve through this single
+    Every `pub const MAX_...` declaration in canonical.rs, whatever its integer
+    type or spacing, must resolve through this single
     mapping with an equal value; a newly added Rust bound with no Python twin
     fails the key-set equality below instead of silently matching no regex."""
 
@@ -220,8 +221,9 @@ def test_every_canonical_rust_bound_has_a_python_twin() -> None:
     rust_bounds = {
         name: evaluate(expression)
         for name, expression in re.findall(
-            r"pub const (MAX_[A-Z0-9_]+): (?:usize|u64|u128) = ([^;]+);",
+            r"pub const (MAX_[A-Z0-9_]+)\s*:\s*[a-z0-9]+\s*=\s*([^;]+);",
             rust_source,
+            re.S,
         )
     }
     python_twins = {
@@ -276,5 +278,78 @@ def test_transfer_growing_past_the_balance_ceiling_raises_at_construction() -> N
     command = AssetTransferCommandV1(
         ASSET_TRANSFER_COMMAND_KIND_V1, "USD", "acct-000001", "brand-new-owner", 1, 0
     )
-    with pytest.raises(ValueError, match="asset transfer balances"):
+    with pytest.raises(
+        ValueError,
+        match=rf"asset transfer balances exceeds its {MAX_ASSET_BALANCE_ROWS_V1}-item ceiling",
+    ):
         transition_asset_transfer_v1(context, pre_state, command)
+
+
+def test_managed_issue_growing_past_the_balance_ceiling_raises_at_construction() -> None:
+    """Opus P22 NEW-10: the managed-lifecycle docstring's ceiling claim is bound.
+
+    A fully validated pre-state at exactly the balance-row ceiling drives an
+    authorised issue to a new owner into ValueError from the post-state
+    constructor (the same ABI decode bound as the transfer boundary; Rust
+    returns Err(InvalidBounds) for the same input)."""
+
+    from src.core.global_settlement_types_v1 import (
+        MAX_ASSET_BALANCE_ROWS_V1,
+        AssetSupplyV1,
+        EconomicAmountV1,
+    )
+    from src.core.managed_asset_lifecycle_module_v1 import (
+        transition_managed_asset_lifecycle_v1,
+    )
+    from src.core.managed_asset_lifecycle_types_v1 import (
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+        ManagedAssetClassV1,
+        ManagedAssetLifecycleCommandV1,
+        ManagedAssetLifecycleContextV1,
+        ManagedAssetLifecyclePolicyV1,
+        ManagedAssetLifecycleStateV1,
+    )
+
+    def root(value: int) -> str:
+        return "0x" + f"{value:02x}" * 32
+
+    count = MAX_ASSET_BALANCE_ROWS_V1
+    rows = tuple(
+        EconomicAmountV1(f"acct-{index:06d}", "USD", "accounts", 1)
+        for index in range(count)
+    )
+    policy = ManagedAssetLifecyclePolicyV1(
+        asset="USD",
+        asset_class=ManagedAssetClassV1.REGISTERED_ORDINARY_TOKEN,
+        issue_authority_subject="issuer",
+        issue_policy_root=root(5),
+        burn_policy_root=root(6),
+        enabled=True,
+    )
+    pre_state = ManagedAssetLifecycleStateV1(
+        module_release_id=root(3),
+        policies=(policy,),
+        balances=rows,
+        supplies=(AssetSupplyV1("USD", count),),
+    )
+    context = ManagedAssetLifecycleContextV1(
+        chain_id="zenodex",
+        deployment_root=root(1),
+        profile_root=root(2),
+        writer_epoch=7,
+        module_release_id=root(3),
+        command_occurrence_id=root(4),
+        subject_id="issuer",
+        grant_root=root(5),
+    )
+    command = ManagedAssetLifecycleCommandV1(
+        command_kind=MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+        asset="USD",
+        account_owner="brand-new-owner",
+        amount_atoms=1,
+    )
+    with pytest.raises(
+        ValueError,
+        match=rf"managed asset lifecycle balances exceeds its {MAX_ASSET_BALANCE_ROWS_V1}-item ceiling",
+    ):
+        transition_managed_asset_lifecycle_v1(context, pre_state, command)

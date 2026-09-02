@@ -26,7 +26,7 @@ own file. No commit was amended.
 Status: `RESEARCH_ONLY_UNMOUNTED`, `BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY`
 
 Admission: `FORMAL_EVIDENCE_ADMITTED_RESEARCH_ONLY` under
-`THV1-20260901-global-settlement-formal-core-semantic-restage-v5`
+`THV1-20260901-global-settlement-formal-core-semantic-restage-v6`
 
 Integration admission: `BLOCKED_SUBJECT_RECEIPT_AND_MAX_REVIEW`
 
@@ -100,7 +100,7 @@ means this blueprint must be re-reviewed before it is trusted. Rows marked
 
 | Pinned source | SHA-256 | Grade |
 | --- | --- | --- |
-| `src/core/global_settlement_types_v1.py` | `8d37ed72fcf15cf7849179d4ff358f4fbbdc33905348f7ab790b2fe090e8044d` | enforced |
+| `src/core/global_settlement_types_v1.py` | `854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4` | enforced |
 | `src/core/global_economic_state_effect_refinement_v1.py` | `abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697` | enforced |
 | `zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs` | `e91f27cd2f38db434b1d8c77ef72a34508ec4ab744dff3843261fe263139316f` | enforced |
 | `src/core/zdex_fee_allocation_types_v1.py` | `b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df` | enforced |
