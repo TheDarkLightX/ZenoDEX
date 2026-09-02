@@ -27,6 +27,21 @@
 # The whole-ADT calls below rely on Tau's parse-time tuple flattening. A call
 # such as asset_transfer_result_ok(r) is therefore intentionally defined with
 # one parameter per flattened Result member.
+#
+# fee_within_cap applies min() directly with typed arguments. A wrapper of the
+# form `bounded_fee(required, cap):bv[16] := min(required, cap).` is echoed by
+# the REPL without its return annotation and leaves min's arguments untyped;
+# the engine then reports "Unresolved function or predicate symbol min(b2, b1)"
+# and still prints a T verdict (verified at 3c24bad9 and 1c1e58ae). Do not
+# reintroduce the wrapper.
+#
+# Idiom: `(x:T = x)` conjuncts bind a member's type without constraining it.
+# Nonzero tag requirements (asset, sender, recipient, chain, deployment,
+# profile, occurrence, grant) are research-domain conventions, not protocol
+# claims. The theorems in the `always` block are definitional projections of
+# these predicates (capability probes for ADT flattening, min and recurrences);
+# ZenoDEX transition semantics are bound separately by the vector-bound replay
+# in experiments/tau_adt_abi/render_tau_adt_abi_v2.py.
 
 set charvar off
 
@@ -35,8 +50,7 @@ type AssetTransferContextADT1 = {chain_id: bv[8], deployment_root: bv[16], profi
 type AssetTransferResultADT1 = {accepted: sbf, rejected: sbf, reject_code: bv[8], pre_state_root: bv[16], post_state_root: bv[16], effects_empty: sbf}.
 type AssetTransferEnvelopeADT1 = {context: AssetTransferContextADT1, command: AssetTransferCommandADT1, result: AssetTransferResultADT1, state_module_release: bv[16], required_fee_atoms: bv[16]}.
 
-bounded_fee(required, cap):bv[16] := min(required, cap).
-fee_within_cap(required, cap) := (bounded_fee(required:bv[16], cap:bv[16]) = required).
+fee_within_cap(required, cap) := (min(required:bv[16], cap:bv[16]) = required:bv[16]).
 asset_transfer_command_shape_ok(kind, asset, sender, recipient, amount, max_fee) := ((kind:bv[4] = {1}:bv[4]) && (asset:bv[8] != {0}:bv[8]) && (sender:bv[8] != {0}:bv[8]) && (recipient:bv[8] != {0}:bv[8]) && (sender != recipient) && (amount:bv[16] != {0}:bv[16]) && (max_fee:bv[16] = max_fee)).
 asset_transfer_context_binding_ok(chain, deployment, profile, epoch, module_release, occurrence, subject, grant, state_release, sender) := ((chain:bv[8] != {0}:bv[8]) && (deployment:bv[16] != {0}:bv[16]) && (profile:bv[16] != {0}:bv[16]) && (epoch:bv[16] = epoch) && (module_release:bv[16] = state_release:bv[16]) && (occurrence:bv[16] != {0}:bv[16]) && (subject:bv[8] = sender:bv[8]) && (grant:bv[16] != {0}:bv[16])).
 asset_transfer_result_ok(accepted, rejected, code, pre_root, post_root, effects_empty) := (((accepted:sbf = 1:sbf) && (rejected:sbf = 0:sbf) && (code:bv[8] = {0}:bv[8]) && (pre_root:bv[16] = pre_root) && (post_root:bv[16] = post_root) && (effects_empty:sbf = 0:sbf)) || ((accepted:sbf = 0:sbf) && (rejected:sbf = 1:sbf) && (code:bv[8] > {0}:bv[8]) && (code <= {12}:bv[8]) && (pre_root:bv[16] = post_root:bv[16]) && (effects_empty:sbf = 1:sbf))).
