@@ -215,12 +215,17 @@ fn reject_receipt_backed(
 /// Fold one accepted asset-transfer transition into a receipt-bound lane fragment (wave B).
 ///
 /// The Python authority is `produce_asset_transfer_fragment_v1` in
-/// `src/core/global_accounting_lane_producers_v1.py`; the check order and reject
-/// codes mirror it exactly. The controlled-side fold overflow is unreachable for
-/// well-formed accepted inputs (supply conservation bounds custody totals); the
-/// reachable path is the caller-provided entitlement rows. NONCLAIM: no verifier
-/// admits the journal yet (C9); the certificate registry keeps ASSET_TRANSFER at
-/// NO_PRODUCER until receipt admission exists. Research-only; authority NONE.
+/// `src/core/global_accounting_lane_producers_v1.py`. The shared check order and
+/// reject codes are pinned across both languages by the gated family test; the
+/// languages differ in where accepted-value invariants live (Python validates at
+/// construction, Rust validates here at check 0), so the same malformed bytes can
+/// fail construction in Python and `ACCEPTED_INVALID` here. The controlled-side
+/// fold overflow is unreachable for well-formed accepted inputs (supply
+/// conservation bounds custody totals); the reachable reject path is the
+/// caller-provided entitlement rows. A journal verifier exists
+/// (`lane_module_receipt_verification`) but this producer does not yet require
+/// it — C9a will take the witness; the certificate registry keeps ASSET_TRANSFER
+/// at NO_PRODUCER until receipt admission exists. Research-only; authority NONE.
 pub fn produce_asset_transfer_fragment_v1(
     accepted: &crate::asset_transfer_lane_module::AssetTransferLaneModuleAcceptedV1,
     lane_root: &LaneStateRootV1,
@@ -232,7 +237,8 @@ pub fn produce_asset_transfer_fragment_v1(
     let committed = &lane_root.state_root;
     // Opus P17 follow-through: the Rust accepted value is a plain struct with no
     // construction-time validation (Python's __post_init__ has no Rust twin), so the
-    // producer validates it first; defensively unreachable in Python, reachable here.
+    // producer validates it first. In Python this is unreachable through construction
+    // (__post_init__ validates; only object.__new__ forgery bypasses it); reachable here.
     if accepted.validate().is_err() {
         return Err(reject_receipt_backed(
             ReceiptBackedProducerRejectCodeV1::ACCEPTED_INVALID,

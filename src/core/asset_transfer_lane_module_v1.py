@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from typing import Final, TypeAlias
 
 from .asset_lane_projection_v1 import (
+    MAX_ASSET_LANE_CUSTODY_ROWS_V1,
     AssetLanePrivatePortV1,
     _snapshot_asset_lane_private_port_v1,
     project_asset_transfer_state_v1,
@@ -47,8 +48,8 @@ ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1: Final = (
 )
 
 
-MAX_ASSET_TRANSFER_CUSTODY_ROWS_V1: Final = 4096
-"""Mirrors the Rust projection's MAX_ASSET_CUSTODY_ROWS_V1 (Opus P18 P3-g twin asymmetry)."""
+MAX_ASSET_TRANSFER_CUSTODY_ROWS_V1: Final = MAX_ASSET_LANE_CUSTODY_ROWS_V1
+"""The projection custody ceiling (mirrors Rust MAX_ASSET_CUSTODY_ROWS_V1; Opus P18 P3-g, P19 N2)."""
 
 
 @dataclass(frozen=True, slots=True)

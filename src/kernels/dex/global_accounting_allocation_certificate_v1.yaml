@@ -61,11 +61,15 @@ meta:
 
     production, settlement authority, or whole-value-movement safety. No lane
 
-    producer is receipt-backed in the running code, so the only certificate it
+    producer is registered receipt-backed and none is on an acceptance path
 
-    accepts today is the registered-empty one; enable_lane models the future
+    (an implemented, unregistered wave-B producer exists), so the only
 
-    receipt-backed producers, not a present capability.
+    certificate the registry accepts today is the registered-empty one;
+
+    enable_lane models future registered receipt-backed producers, not a
+
+    present registry entry.
 
     '
 observables:

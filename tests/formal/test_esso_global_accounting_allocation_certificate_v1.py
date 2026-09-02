@@ -34,8 +34,8 @@ from tools import render_global_accounting_allocation_certificate_v1_golden as r
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = ROOT / "src" / "kernels" / "dex" / "global_accounting_allocation_certificate_v1.yaml"
 
-RECORDED_SOURCE_SHA256 = "07caf71835c5e8a6c671f4bcd967cc6c42c0ef77ba5875c56abe41265050a5a8"
-RECORDED_IR_HASH = "sha256:d4b31feeb6c9a618fa50e45391e9b1b8ffd88e2c5163a59a5317912b0bfb232b"
+RECORDED_SOURCE_SHA256 = "7afad7b256a19b1a162dd24dad5ca89f3ebe47c8c02f63bb60d1cfff7b709456"
+RECORDED_IR_HASH = "sha256:01a34e8dcd5bef3cb8a43b132d1679259e3a026dd36f17fbaf8331702faff3c8"
 RECORDED_FINGERPRINT = "7387e9f8974b2d1ce58406cf9cb3bd2a00af19b80fd26005579e3b454817f519"
 RECORDED_ESSO_CODE_HASH = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
 
@@ -268,8 +268,8 @@ def test_model_source_scope_and_claim_ceiling_are_exact() -> None:
         "caller-provided true Boolean would not be authority",
         "does not prove finite-width arithmetic, canonical bytes, roots, current V1 runtime refinement",
         "settlement authority",
-        "No lane producer is receipt-backed in the running code",
-        "enable_lane models the future receipt-backed producers, not a present capability",
+        "No lane producer is registered receipt-backed and none is on an acceptance path",
+        "enable_lane models future registered receipt-backed producers, not a present registry entry",
     ):
         assert phrase in notes, phrase
 

@@ -438,3 +438,94 @@ def test_rust_twin_reject_code_families_match_the_pinned_tuples() -> None:
             if isinstance(stmt, ast.Assign) and isinstance(stmt.targets[0], ast.Name)
         )
         assert names == expected, (class_name, names)
+
+    # Opus P19 N3: the Rust ALL array must list the declaration order exactly.
+    all_block = rust.split("pub const ALL: [Self; 11] = [", 1)[1].split("];", 1)[0]
+    all_names = tuple(re.findall(r"Self::([A-Z_]+),", all_block))
+    assert all_names == core.RECEIPT_BACKED_PRODUCER_REJECT_CODES_V1, all_names
+
+    # Opus P19 N4: the mirrored ceiling constants are bound mechanically, not by prose.
+    from src.core import asset_lane_projection_v1 as proj
+    from src.core.asset_transfer_lane_module_v1 import MAX_ASSET_TRANSFER_CUSTODY_ROWS_V1
+
+    canonical = Path(ROOT / "zk/global_settlement_abi_v1/src/canonical.rs").read_text()
+
+    def rust_usize(name: str) -> int:
+        match = re.search(rf"pub const {name}: usize = ([0-9_]+);", canonical)
+        assert match, name
+        return int(match.group(1).replace("_", ""))
+
+    assert proj.MAX_ASSET_LANE_BALANCE_ROWS_V1 == rust_usize("MAX_ASSET_BALANCE_ROWS_V1")
+    assert proj.MAX_ASSET_LANE_CUSTODY_ROWS_V1 == rust_usize("MAX_ASSET_CUSTODY_ROWS_V1")
+    assert proj.MAX_ASSET_LANE_SUPPLY_ROWS_V1 == rust_usize("MAX_ASSET_POLICY_ROWS_V1")
+    assert MAX_ASSET_TRANSFER_CUSTODY_ROWS_V1 == rust_usize("MAX_ASSET_CUSTODY_ROWS_V1")
+    cert_rs = Path(ROOT / "zk/global_settlement_abi_v1/src/global_accounting_allocation_certificate.rs").read_text()
+    match = re.search(r"pub const MAX_FRAGMENT_ROWS_V1: usize = ([0-9_]+);", cert_rs)
+    assert match, "rust MAX_FRAGMENT_ROWS_V1"
+    assert cert.MAX_FRAGMENT_ROWS_V1 == int(match.group(1).replace("_", ""))
+
+
+def test_projection_row_ceilings_reject_oversized_construction() -> None:
+    """Opus P19 N2: Python now bounds projection rows where Rust does (check 0 parity).
+
+    An accepted value carrying more than 4096 custody rows can no longer be
+    CONSTRUCTED in Python; the same bytes fail `accepted.validate()` at check 0
+    in Rust (`ACCEPTED_INVALID`), so no constructible input reaches different
+    reject codes across the twins for this class."""
+
+    from src.core.asset_lane_projection_v1 import (
+        MAX_ASSET_LANE_CUSTODY_ROWS_V1,
+        AssetLaneStateProjectionV1,
+    )
+    from src.core.global_settlement_types_v1 import EconomicAmountV1
+
+    rows = tuple(
+        EconomicAmountV1(f"pool-{index:05d}", "USD", "spot-pool", 1)
+        for index in range(MAX_ASSET_LANE_CUSTODY_ROWS_V1 + 1)
+    )
+    with pytest.raises(ValueError, match="asset lane custody"):
+        AssetLaneStateProjectionV1(
+            asset_policy_registry_root="0x" + "11" * 32,
+            fee_policy_registry_root="0x" + "22" * 32,
+            balances=(),
+            custody=rows,
+            supplies=(),
+        )
+
+
+def test_fragment_invalid_is_reachable_only_through_construction_forgery() -> None:
+    """Opus P19 N5: the defensive FRAGMENT_INVALID arm has a reachability witness.
+
+    Through validated constructions the projection ceilings (N2) and the canonical
+    gates make the arm unreachable in both languages; forging a duplicate custody
+    key via object.__new__ (bypassing every __post_init__) drives the fragment
+    constructor into a ValueError, which the producer converts to the closed
+    FRAGMENT_INVALID reject instead of leaking an exception."""
+
+    accepted, lane_root, prior, _entitlements = _wave_b_setup()
+    real_projection = accepted.private_port.post_state
+    duplicate = real_projection.custody[0]
+    forged_projection = object.__new__(type(real_projection))
+    for field in type(real_projection).__dataclass_fields__:
+        object.__setattr__(forged_projection, field, getattr(real_projection, field))
+    object.__setattr__(forged_projection, "custody", (duplicate, duplicate))
+    forged_port = object.__new__(type(accepted.private_port))
+    for field in type(accepted.private_port).__dataclass_fields__:
+        object.__setattr__(forged_port, field, getattr(accepted.private_port, field))
+    object.__setattr__(forged_port, "post_state", forged_projection)
+    forged = object.__new__(type(accepted))
+    for field in type(accepted).__dataclass_fields__:
+        object.__setattr__(forged, field, getattr(accepted, field))
+    object.__setattr__(forged, "private_port", forged_port)
+    doubled = (
+        cert.ClaimantEntitlementRowV1(
+            duplicate.asset,
+            "alice",
+            duplicate.custody_domain,
+            duplicate.amount_atoms * 2,
+        ),
+    )
+    reject = producers.produce_asset_transfer_fragment_v1(forged, lane_root, prior, doubled)
+    assert isinstance(reject, producers.ReceiptBackedProducerRejectedV1)
+    assert reject.code is producers.ReceiptBackedProducerRejectCodeV1.FRAGMENT_INVALID
+    assert reject.detail == "fragment validation"

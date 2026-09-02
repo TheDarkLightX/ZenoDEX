@@ -7,9 +7,10 @@ be that state's root; the producer is a pure function of the committed
 
 Wave B (ASSET_TRANSFER): ``produce_asset_transfer_fragment_v1`` folds one
 accepted lane-module transition into a receipt-bound fragment or rejects with
-a closed code; it emits ``producer_kind=RECEIPT_BACKED`` fragments, but no
-verifier admits the journal yet (C9) and the certificate registry keeps
-ASSET_TRANSFER at NO_PRODUCER, so no acceptance path uses them.
+a closed code; it emits ``producer_kind=RECEIPT_BACKED`` fragments. A journal
+verifier exists (``lane_module_receipt_verification_v1``) but this producer does
+not yet require it — C9a will take the witness — and the certificate registry
+keeps ASSET_TRANSFER at NO_PRODUCER, so no acceptance path uses them.
 
 Research-only evidence. It grants no writer, verifier, release, or
 publication authority.

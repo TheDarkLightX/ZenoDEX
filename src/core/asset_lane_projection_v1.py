@@ -28,6 +28,15 @@ from .global_settlement_types_v1 import (
 )
 from .managed_asset_lifecycle_types_v1 import ManagedAssetLifecycleStateV1
 
+MAX_ASSET_LANE_BALANCE_ROWS_V1: Final = 4096
+"""Mirrors the Rust projection bound MAX_ASSET_BALANCE_ROWS_V1 (Opus P19 N2)."""
+
+MAX_ASSET_LANE_CUSTODY_ROWS_V1: Final = 4096
+"""Mirrors the Rust projection bound MAX_ASSET_CUSTODY_ROWS_V1 (Opus P19 N2)."""
+
+MAX_ASSET_LANE_SUPPLY_ROWS_V1: Final = 256
+"""Mirrors the Rust projection bound MAX_ASSET_POLICY_ROWS_V1 (Opus P19 N2)."""
+
 ASSET_LANE_STATE_PROJECTION_SCHEMA_V1: Final = (
     "zenodex/asset-lane-state-projection/v1"
 )
@@ -74,18 +83,21 @@ class AssetLaneStateProjectionV1:
             name="asset lane balances",
             expected_type=EconomicAmountV1,
             key="key",
+            maximum=MAX_ASSET_LANE_BALANCE_ROWS_V1,
         )
         _require_ordered_objects(
             self.custody,
             name="asset lane custody",
             expected_type=EconomicAmountV1,
             key="key",
+            maximum=MAX_ASSET_LANE_CUSTODY_ROWS_V1,
         )
         _require_ordered_objects(
             self.supplies,
             name="asset lane supplies",
             expected_type=AssetSupplyV1,
             key="asset",
+            maximum=MAX_ASSET_LANE_SUPPLY_ROWS_V1,
         )
         for row in self.balances:
             if row.custody_domain != ACCOUNT_CUSTODY_DOMAIN_V1:
