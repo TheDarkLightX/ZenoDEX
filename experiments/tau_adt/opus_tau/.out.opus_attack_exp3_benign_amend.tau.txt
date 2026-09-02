@@ -1,0 +1,94 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # ATTACK on exp3 - a BENIGN, UNRELATED amendment destroys the ledger.
+
+tau> # Step 1 appends row orow=1 (ob[1] = R). Step 2 offers oflag[t]=1 on the
+
+tau> # amendment channel: it mentions neither ob nor ir, it is satisfiable and
+
+tau> # consistent, and it is accepted. One step later the accumulated ledger is
+
+tau> # GONE (ob[3] = F), and the F rows fed afterwards cannot bring it back.
+
+tau> # Compare opus_exp3_control_noamend.tau, which is the same machine and the
+
+tau> # same rows with no amendment accepted: there ob stays R.
+
+tau> # exp3's header calls the hazard "a satisfiable amendment that CONTRADICTS
+
+tau> # the running spec REPLACES it". The measured behaviour is stronger: ANY
+
+tau> # accepted revision resets the accumulated stream state.
+
+tau> # EXPECTED-OB: F R R F F
+
+tau> # ============================================================================
+
+tau> set charvar off
+charvar:             off
+
+tau> run u[t]:tau = ia[t]:tau && ob[t]:tau = (ob[t-1]:tau | ir[t]:tau)
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+ir[t]:tau|ob[t-1]:tau = ob[t]:tau
+
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+u[t]:tau = ia[t]:tau
+
+Execution step: 0
+ob[0] := F
+u[0]  := F
+	step: 1.113 ms
+
+Execution step: 1
+
+ia[1] : tau := o9[t]=0 && o9[t]=1
+
+ir[1] : tau := orow[t]=1
+ob[1] := always orow[t]:tau' = 0
+u[1]  := F
+(Warning) An update rule was provided on input stream ir but the update stream u solved to 0; the rule was not applied
+	step: 12.26 ms
+
+Execution step: 2
+
+ia[2] : tau := oflag[t]=1
+
+ir[2] : tau := o9[t]=0 && o9[t]=1
+ob[2] := always orow[t]:tau' = 0
+u[2]  := always oflag[t]:tau' = 0
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+oflag[t]:tau' = 0
+
+Updated specification (91 chars): always ob[t-1]:tau|ir[t]:tau = ob[t]:tau && u[t-1]:tau = ia[t-1]:tau && oflag[t-1]:tau' = 0
+
+	step: 12.526 ms
+
+Execution step: 3
+ob[3]    := F
+oflag[3] := F
+u[3]     := F
+	step: 0.883 ms
+
+Execution step: 4
+
+ia[4] : tau := o9[t]=0 && o9[t]=1
+
+ir[4] : tau := o9[t]=0 && o9[t]=1
+ob[4]    := F
+oflag[4] := T
+u[4]     := F
+	step: 10.901 ms
+
+Execution step: 5
+
+ia[5] : tau := 

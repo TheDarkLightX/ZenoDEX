@@ -1,0 +1,44 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ATTACK 3 on exp4: a POLICY-VIOLATING spend is admitted with code 9.
+
+tau> # The policy test is (policy & i1) != 0 -- CONSISTENCY. An admission kernel
+
+tau> # needs ENTAILMENT (i1 & policy' = 0). The spend "oact=1" performs the
+
+tau> # destructive action while asserting NO authorization: it is consistent with
+
+tau> # "oact -> oauth" (choose oauth=1) but does not entail it. Admitted: code 9.
+
+tau> # EXPECTED-CODES: 0,9
+
+tau> set charvar off
+charvar:             off
+
+tau> run ( (o0s[0]:tau = { oact[t]=1 -> oauth[t]=1 }) && (o0sp[0]:tau = 0) && ( ((o0sp[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x07 }:bv[8])) : ( ((o0s[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = (o0sp[t-1]:tau | i1[t]:tau)) && (o0res[t]:bv[8] = { #x09 }:bv[8])) : ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x08 }:bv[8])) ) ) )
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+o0sp[0]:tau = 0 && o0s[0]:tau = { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau && (o0sp[t-1]:tau i1[t]:tau = 0 || o0s[t]:tau = o0s[t-1]:tau && o0res[t]:bv[8] = { 7 }:bv[8] && o0sp[t-1]:tau = o0sp[t]:tau) && (o0sp[t-1]:tau i1[t]:tau != 0 || (o0s[t-1]:tau i1[t]:tau = 0 || o0res[t]:bv[8] = { 9 }:bv[8] && o0s[t]:tau = o0s[t-1]:tau && o0sp[t-1]:tau|i1[t]:tau = o0sp[t]:tau) && (o0s[t-1]:tau i1[t]:tau != 0 || o0res[t]:bv[8] = { 8 }:bv[8] && o0s[t]:tau = o0s[t-1]:tau && o0sp[t-1]:tau = o0sp[t]:tau)) && (i1[1]:tau { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau = 0 || o0res[1]:bv[8] = { 9 }:bv[8] && o0s[1]:tau = { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau && o0sp[1]:tau = i1[1]:tau) && (i1[1]:tau { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau != 0 || o0res[1]:bv[8] = { 8 }:bv[8] && o0sp[1]:tau = 0 && o0s[1]:tau = { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau)
+
+Execution step: 0
+o0res[0] := 0
+o0s[0]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[0]  := F
+	step: 40.873 ms
+
+Execution step: 1
+
+i1[1] : tau := oact[t]=1
+o0res[1] := 9
+o0s[1]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[1]  := always oact[t]:tau' = 0
+	step: 10.86 ms
+
+Execution step: 2
+
+i1[2] : tau := 

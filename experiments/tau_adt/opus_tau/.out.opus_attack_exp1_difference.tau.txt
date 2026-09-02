@@ -1,0 +1,141 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # ATTACK on exp1 / exp6 - the complement operators are unsound for any probe
+
+tau> # that is not time-constant. One root cause, stated and then repaired.
+
+tau> # ============================================================================
+
+tau> # A table is written { A } | { B }. A tau constant is read under an implicit
+
+tau> # `always`, so that value is (always A) OR (always B) - NOT always(A OR B).
+
+tau> # The two differ, and the gap is exactly the set of streams that move
+
+tau> # between rows over time. Every operator built on the COMPLEMENT of a table
+
+tau> # (exp1's MEMBERSHIP and DIFFERENCE, exp6's ADDED and REMOVED) inherits the
+
+tau> # gap: a row that sits in the table at every single instant is nevertheless
+
+tau> # outside it as a value, so DIFFERENCE keeps it and the audit diff flags it.
+
+tau> #
+
+tau> # Columns are sbf here on purpose: the same attack in bv[8] is real but the
+
+tau> # engine prints cvc5 translation failures alongside the verdict
+
+tau> # (see opus_cvc5_faildopen.md), and an attack should not need a caveat.
+
+tau> # Keys are two bits: key2 = (hi=1,lo=0), key3 = (hi=1,lo=1).
+
+tau> #   PRICED = { hi=1,lo=0 } | { hi=1,lo=1 }        the priced-key table
+
+tau> #   P      = { [t<3] -> key2 } && { [t>=3] -> key3 }   one time-varying row
+
+tau> # Run: tau -q < opus_attack_exp1_difference.tau
+
+tau> # EXPECTED-RESULTS: T T T T T T T F
+
+tau> 
+set charvar off
+charvar:             off
+
+tau> set maxsplits 1
+maxsplits:           1
+
+tau> 
+# (1) PRICED is a live table:
+
+tau> n ({ okhi[t]=1 && oklo[t]=0 } | { okhi[t]=1 && oklo[t]=1 }) != 0
+normalize_formula: 0.025 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (2) P is a live row:
+
+[ %1 ] tau> n { ([t < 3] -> (okhi[t]=1 && oklo[t]=0)) && ([t >= 3] -> (okhi[t]=1 && oklo[t]=1)) } != 0
+normalize_formula: 0.037 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (3) P's key is a PRICED key at EVERY instant: P entails always(okhi=1),
+
+[ %1 ] tau> # and okhi=1 holds in both priced rows and in neither unpriced one.
+
+[ %1 ] tau> n ({ ([t < 3] -> (okhi[t]=1 && oklo[t]=0)) && ([t >= 3] -> (okhi[t]=1 && oklo[t]=1)) } & { okhi[t]=1 }') = 0
+normalize_formula: 62.566 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (4) THE ATTACK: P nevertheless SURVIVES DIFFERENCE against PRICED - the
+
+[ %1 ] tau> # operator reports a row as unpriced whose key is priced at every step.
+
+[ %1 ] tau> n ({ ([t < 3] -> (okhi[t]=1 && oklo[t]=0)) && ([t >= 3] -> (okhi[t]=1 && oklo[t]=1)) } & ({ okhi[t]=1 && oklo[t]=0 } | { okhi[t]=1 && oklo[t]=1 })') != 0
+normalize_formula: 40.183 ms
+%1: T
+
+[ %1 ] tau> # Answer: T - (3) and (4) together are the contradiction.
+
+[ %1 ] tau> 
+# (5) CONTROL - a time-CONSTANT priced row is correctly swallowed, which is
+
+[ %1 ] tau> # why the bug is invisible to every test written with constant rows:
+
+[ %1 ] tau> n ({ okhi[t]=1 && oklo[t]=0 } & ({ okhi[t]=1 && oklo[t]=0 } | { okhi[t]=1 && oklo[t]=1 })') = 0
+normalize_formula: 0.849 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (6) THE ROOT CAUSE, one direction: the join of alwayses entails the
+
+[ %1 ] tau> # always of the join.
+
+[ %1 ] tau> n (({ okhi[t]=1 && oklo[t]=0 } | { okhi[t]=1 && oklo[t]=1 }) & { (okhi[t]=1 && oklo[t]=0) || (okhi[t]=1 && oklo[t]=1) }') = 0
+normalize_formula: 2.146 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (7) THE ROOT CAUSE, strictly: the converse fails - always-of-join has
+
+[ %1 ] tau> # models that the join-of-alwayses does not. That gap is the attack.
+
+[ %1 ] tau> n ({ (okhi[t]=1 && oklo[t]=0) || (okhi[t]=1 && oklo[t]=1) } & ({ okhi[t]=1 && oklo[t]=0 } | { okhi[t]=1 && oklo[t]=1 })') != 0
+normalize_formula: 13.653 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (8) THE REPAIR: build the table as ONE constant with an internal
+
+[ %1 ] tau> # disjunction. P is then correctly a member, and DIFFERENCE drops it.
+
+[ %1 ] tau> n ({ ([t < 3] -> (okhi[t]=1 && oklo[t]=0)) && ([t >= 3] -> (okhi[t]=1 && oklo[t]=1)) } & { (okhi[t]=1 && oklo[t]=0) || (okhi[t]=1 && oklo[t]=1) }') != 0
+normalize_formula: 57.601 ms
+%2: F
+
+[ %2 ] tau> # Answer: F - the meet with the complement is empty: P is inside the
+
+[ %2 ] tau> # repaired table, so the repaired DIFFERENCE correctly keeps nothing.
+
+[ %2 ] tau> 

@@ -1,0 +1,1 @@
+always ([t < 3] -> ex oz:bv[8] (ox[t]:bv[8] = oz + { #x01 }:bv[8])) && ([t >= 3] -> ox[t]:bv[8] = { #x02 }:bv[8]).

@@ -1,0 +1,2 @@
+set charvar off
+n ({ ([t < 3] -> ox[t]:bv[8] = { #x01 }:bv[8]) && ([t >= 3] -> ox[t]:bv[8] = { #x02 }:bv[8]) } & { ox[t]:bv[8] = { #x01 }:bv[8] }') = 0

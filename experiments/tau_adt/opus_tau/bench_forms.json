@@ -1,0 +1,170 @@
+[
+ {
+  "name": "A_direct_sat_17",
+  "s": 0.229,
+  "ans": "F",
+  "errs": 0
+ },
+ {
+  "name": "B_direct_valid_17",
+  "s": 0.207,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "C_value_one_17",
+  "s": 0.332,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "D_value_meet_17",
+  "s": 0.449,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "A_direct_sat_40",
+  "s": 0.499,
+  "ans": "F",
+  "errs": 0
+ },
+ {
+  "name": "B_direct_valid_40",
+  "s": 0.534,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "C_value_one_40",
+  "s": 1.374,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "D_value_meet_40",
+  "s": 1.834,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "A_direct_sat_80",
+  "s": 1.069,
+  "ans": "F",
+  "errs": 0
+ },
+ {
+  "name": "B_direct_valid_80",
+  "s": 1.055,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "C_value_one_80",
+  "s": 4.03,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "D_value_meet_80",
+  "s": 10.456,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "A_direct_sat_120",
+  "s": 1.999,
+  "ans": "F",
+  "errs": 0
+ },
+ {
+  "name": "B_direct_valid_120",
+  "s": 1.942,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "C_value_one_120",
+  "s": 12.692,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "D_value_meet_120",
+  "s": 37.261,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "A_direct_sat_200",
+  "s": 4.446,
+  "ans": "F",
+  "errs": 0
+ },
+ {
+  "name": "B_direct_valid_200",
+  "s": 4.554,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "C_value_one_200",
+  "s": 28.379,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "D_value_meet_200",
+  "s": 182.576,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "A_direct_sat_300",
+  "s": 8.837,
+  "ans": "F",
+  "errs": 0
+ },
+ {
+  "name": "B_direct_valid_300",
+  "s": 8.315,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "C_value_one_300",
+  "s": 94.428,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "D_value_meet_300",
+  "s": ">300.0",
+  "ans": "TIMEOUT",
+  "errs": 0
+ },
+ {
+  "name": "A_direct_sat_400",
+  "s": 14.976,
+  "ans": "F",
+  "errs": 0
+ },
+ {
+  "name": "B_direct_valid_400",
+  "s": 16.03,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "C_value_one_400",
+  "s": 148.101,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "D_value_meet_400",
+  "s": ">300.0",
+  "ans": "TIMEOUT",
+  "errs": 0
+ }
+]

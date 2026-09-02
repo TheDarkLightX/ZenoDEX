@@ -1,0 +1,116 @@
+[
+ {
+  "name": "conserve_bv8",
+  "s": 0.183,
+  "answers": "T F",
+  "errs": 0
+ },
+ {
+  "name": "conserve_bv16",
+  "s": 0.199,
+  "answers": "T F",
+  "errs": 0
+ },
+ {
+  "name": "conserve_bv32",
+  "s": 0.193,
+  "answers": "T F",
+  "errs": 0
+ },
+ {
+  "name": "conserve_bv64",
+  "s": 0.216,
+  "answers": "T F",
+  "errs": 0
+ },
+ {
+  "name": "table_rows2",
+  "s": 0.181,
+  "answers": "T T",
+  "errs": 0
+ },
+ {
+  "name": "table_rows4",
+  "s": 0.315,
+  "answers": "T T",
+  "errs": 0
+ },
+ {
+  "name": "table_rows8",
+  "s": 0.728,
+  "answers": "T T",
+  "errs": 0
+ },
+ {
+  "name": "table_rows16",
+  "s": 1.387,
+  "answers": "T T",
+  "errs": 0
+ },
+ {
+  "name": "table_rows32",
+  "s": 5.271,
+  "answers": "T T",
+  "errs": 0
+ },
+ {
+  "name": "table_rows64",
+  "s": 21.468,
+  "answers": "T T",
+  "errs": 0
+ },
+ {
+  "name": "adt_total_rows2",
+  "s": 0.076,
+  "answers": "T",
+  "errs": 0
+ },
+ {
+  "name": "adt_total_rows4",
+  "s": 0.117,
+  "answers": "T",
+  "errs": 0
+ },
+ {
+  "name": "adt_total_rows8",
+  "s": 0.198,
+  "answers": "T",
+  "errs": 0
+ },
+ {
+  "name": "adt_total_rows12",
+  "s": 0.26,
+  "answers": "T",
+  "errs": 0
+ },
+ {
+  "name": "kernel_steps3",
+  "s": 0.373,
+  "answers": "",
+  "errs": 0
+ },
+ {
+  "name": "kernel_steps6",
+  "s": 0.537,
+  "answers": "",
+  "errs": 0
+ },
+ {
+  "name": "kernel_steps10",
+  "s": 0.845,
+  "answers": "",
+  "errs": 0
+ },
+ {
+  "name": "kernel_steps15",
+  "s": 1.541,
+  "answers": "",
+  "errs": 0
+ },
+ {
+  "name": "kernel_steps15_factored",
+  "s": 1.581,
+  "answers": "",
+  "errs": 0
+ }
+]

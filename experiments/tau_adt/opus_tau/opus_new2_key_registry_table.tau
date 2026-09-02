@@ -1,0 +1,56 @@
+# ============================================================================
+# NEW TABLE KIND 2 - THE KEY-PROJECTED REGISTRY (a set table that is a set)
+# ============================================================================
+# A registry answers "has this key been used?". exp4 built one by joining
+# each admitted SPEND into the registry. That is not a set of keys - it is a
+# set of whole rows, and two rows can share a key while being disjoint as
+# values. The registry then misses the second one.
+#
+# The fix is a table kind, not a patch: registry rows are KEY-ONLY
+# projections, { onul = k }, and admission joins the KEY, never the row.
+# The payoff is a theorem quantified over ALL tau values, i.e. over every
+# spend an adversary can write, not over a list of cases we thought of:
+#
+#   for every spend x:  x != 0  and  x <= {onul=4}   =>   x & REGISTRY != 0
+#
+# ZenoDEX surface: the nullifier / replay-guard table. The same shape covers
+# any "used exactly once" set - order ids, intent hashes, epoch receipts.
+# Run: tau -q < opus_new2_key_registry_table.tau
+# EXPECTED-RESULTS: T T T T T T
+# (queries 5-6 carry type declarations, so %N restarts - read by ORDER)
+
+set charvar off
+set maxsplits 1
+
+# REGISTRY = { onul=4 } | { onul=9 }   (keys only, no payload columns)
+
+# (1) a spend of a registered key is caught however it is written - here the
+# same key with the OPPOSITE auth bit, which is the witness that breaks the
+# full-row registry:
+n (({ onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=0 }) & ({ onul[t]:bv[8] = { #x04 }:bv[8] } | { onul[t]:bv[8] = { #x09 }:bv[8] })) != 0
+# Answer: T
+
+# (2) ...and so is the same key with any extra column:
+n (({ onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1 && oextra[t]=1 }) & ({ onul[t]:bv[8] = { #x04 }:bv[8] } | { onul[t]:bv[8] = { #x09 }:bv[8] })) != 0
+# Answer: T
+
+# (3) UNSAT CONTROL - a fresh key is provably absent (admission is a proof):
+n (({ onul[t]:bv[8] = { #x06 }:bv[8] && oauth[t]=1 }) & ({ onul[t]:bv[8] = { #x04 }:bv[8] } | { onul[t]:bv[8] = { #x09 }:bv[8] })) = 0
+# Answer: T
+
+# (4) THE FAILURE OF THE FULL-ROW REGISTRY, as a value: the two spends that
+# share nullifier 4 are DISJOINT, so joining the first one does not cover
+# the second. This single line is the whole of exp4's double-spend bug.
+n (({ onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1 }) & ({ onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=0 })) = 0
+# Answer: T
+
+# (5) THE REGISTRY THEOREM, over every tau value: any nonzero spend whose
+# key is 4 (x entails { onul=4 }) necessarily meets the registry. The
+# quantifier ranges over all specifications, so this is not a case list.
+type Sp = {row: tau}. n all v:Sp (((v.row != 0) && ((v.row & { onul[t]:bv[8] = { #x04 }:bv[8] }') = 0)) -> ((v.row & ({ onul[t]:bv[8] = { #x04 }:bv[8] } | { onul[t]:bv[8] = { #x09 }:bv[8] })) != 0))
+# Answer: T
+
+# (6) NON-VACUITY for (5): the hypothesis is satisfiable, so the T above is
+# not free. (Answered as %1 again - the declaration restarts numbering.)
+type Sp = {row: tau}. n ex v:Sp ((v.row != 0) && ((v.row & { onul[t]:bv[8] = { #x04 }:bv[8] }') = 0))
+# Answer: T

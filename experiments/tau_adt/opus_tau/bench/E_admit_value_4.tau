@@ -1,0 +1,4 @@
+set charvar off
+set maxsplits 1
+
+n ({ oauth0[t]=1 && oauth1[t]=1 && oauth2[t]=1 && oauth3[t]=1 } & { (oact0[t]=1 -> oauth0[t]=1) && (oact1[t]=1 -> oauth1[t]=1) && (oact2[t]=1 -> oauth2[t]=1) && (oact3[t]=1 -> oauth3[t]=1) }') = 0

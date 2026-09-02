@@ -1,0 +1,4 @@
+set charvar off
+set maxsplits 1
+
+solve t:bv[8] = t && (({ oid[t]:bv[8] = { #x08 }:bv[8] && oqty[t]:bv[8] = { #x50 }:bv[8] }) & ({ oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0a }:bv[8] } | { oid[t]:bv[8] = { #x02 }:bv[8] && oqty[t]:bv[8] = { #x14 }:bv[8] } | { oid[t]:bv[8] = { #x03 }:bv[8] && oqty[t]:bv[8] = { #x1e }:bv[8] } | { oid[t]:bv[8] = { #x04 }:bv[8] && oqty[t]:bv[8] = { #x28 }:bv[8] } | { oid[t]:bv[8] = { #x05 }:bv[8] && oqty[t]:bv[8] = { #x32 }:bv[8] } | { oid[t]:bv[8] = { #x06 }:bv[8] && oqty[t]:bv[8] = { #x3c }:bv[8] } | { oid[t]:bv[8] = { #x07 }:bv[8] && oqty[t]:bv[8] = { #x46 }:bv[8] } | { oid[t]:bv[8] = { #x08 }:bv[8] && oqty[t]:bv[8] = { #x50 }:bv[8] })) != 0 && t = { #x08 }:bv[8]

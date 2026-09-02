@@ -1,0 +1,46 @@
+# ============================================================================
+# ATTACK on exp2 (a) - the conservation theorem is a ring identity, and it
+# holds precisely where the balance table is unsafe.
+# ============================================================================
+# exp2 (a) proves, for the pinned values 10 and 5 and the pinned amount 3,
+# that a transfer conserves the total. Nothing in that proof depends on the
+# amount: over bv[8] = Z/256 the statement (x-d)+(y+d) = x+y is an identity
+# for EVERY d, with no hypothesis at all. Query (3) proves the general form
+# outright. So the "conservation theorem" carries no safety content: it is
+# satisfied by the transfer that mints 256 units.
+# Run: tau -q < opus_attack_exp2_wraparound.tau
+# EXPECTED-RESULTS: T T T T T F
+
+set charvar off
+set maxsplits 1
+
+# (1) exp2's own theorem shape, re-run at the wrap boundary: transferring
+# 250 out of a balance of 10 still "conserves".
+type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal ((b.alice = { #x0A }:bv[8] && b.bob = { #x05 }:bv[8] && c.alice = b.alice - { #xFA }:bv[8] && c.bob = b.bob + { #xFA }:bv[8]) -> c.alice + c.bob = b.alice + b.bob)
+# Answer: T
+
+# (2) THE ATTACK: and in that same transfer the SENDER GAINS. alice goes
+# 10 -> 16 and bob 5 -> 255: 256 units created, sum preserved mod 256.
+type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal ((b.alice = { #x0A }:bv[8] && b.bob = { #x05 }:bv[8] && c.alice = b.alice - { #xFA }:bv[8] && c.bob = b.bob + { #xFA }:bv[8]) -> (c.alice = { #x10 }:bv[8] && c.bob = { #xFF }:bv[8]))
+# Answer: T
+
+# (3) WHY: conservation holds for every amount, unconditionally. There is
+# no hypothesis left to be violated - the theorem is the ring identity.
+type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal all d:bv[8] ((c.alice = b.alice - d && c.bob = b.bob + d) -> c.alice + c.bob = b.alice + b.bob)
+# Answer: T
+
+# (4) THE REPAIR, half one - a sufficiency guard makes "sender does not
+# gain" derivable:
+type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal all d:bv[8] ((d <= b.alice && c.alice = b.alice - d) -> c.alice <= b.alice)
+# Answer: T
+
+# (5) THE REPAIR, half two - a capacity guard makes "receiver does not
+# lose" derivable. Note 255 - d does not itself wrap, which is why the
+# guard is written this way and not as b.alice + b.bob <= 255 (that sum
+# wraps, and the guard would be vacuous).
+type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal all d:bv[8] ((b.bob <= { #xFF }:bv[8] - d && c.bob = b.bob + d) -> c.bob >= b.bob)
+# Answer: T
+
+# (6) UNSAT CONTROL for the repair - with both guards, no counterexample.
+type Bal = {alice: bv[8], bob: bv[8]}. n ex b:Bal ex c:Bal ex d:bv[8] (d <= b.alice && b.bob <= { #xFF }:bv[8] - d && c.alice = b.alice - d && c.bob = b.bob + d && c.alice > b.alice)
+# Answer: F

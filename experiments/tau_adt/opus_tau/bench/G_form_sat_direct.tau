@@ -1,0 +1,4 @@
+set charvar off
+set maxsplits 1
+
+sat always (oid[t]:bv[8] = { #x08 }:bv[8] && oqty[t]:bv[8] = { #x50 }:bv[8]).

@@ -1,0 +1,148 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # TOP FINDING, console variant - EVERY accepted revision resets the kernel.
+
+tau> # Same construction as opus_attack_exp4_gov_replay2.tau but with the spend
+
+tau> # channel i1 on the console, so i1 and i2 consume file lines round-robin.
+
+tau> # Codes: 0,9,7,7,0,8,0,8. The kernel resets to the boundary code TWICE -
+
+tau> # once at step 4 after the intended amendment, and again at step 6, because
+
+tau> # after the first revision the input-to-channel mapping shifts and a SPEND
+
+tau> # text lands on the amendment channel, where it is accepted as law. So the
+
+tau> # reset is not a one-off boundary artifact: it recurs on each revision, and
+
+tau> # after a revision the operator can no longer tell which channel an input
+
+tau> # will reach. Superseded as primary evidence by the file-driven variant,
+
+tau> # which isolates the reset without the channel-shift confound.
+
+tau> # EXPECTED-CODES: 0,9,7,7,0,8,0,8
+
+tau> # ============================================================================
+
+tau> set charvar off
+charvar:             off
+
+tau> run ( (o0s[0]:tau = { oact[t]=1 -> oauth[t]=1 }) && (o0sp[0]:tau = 0) && (u[t]:tau = i2[t]:tau) && ( ((o0sp[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x07 }:bv[8])) : ( ((o0s[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = (o0sp[t-1]:tau | i1[t]:tau)) && (o0res[t]:bv[8] = { #x09 }:bv[8])) : ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x08 }:bv[8])) ) ) )
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+o0sp[0]:tau = 0 && o0s[0]:tau = { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau && (o0sp[t-1]:tau i1[t]:tau = 0 || o0s[t]:tau = o0s[t-1]:tau && o0res[t]:bv[8] = { 7 }:bv[8] && o0sp[t-1]:tau = o0sp[t]:tau) && (o0sp[t-1]:tau i1[t]:tau != 0 || (o0s[t-1]:tau i1[t]:tau = 0 || o0res[t]:bv[8] = { 9 }:bv[8] && o0s[t]:tau = o0s[t-1]:tau && o0sp[t-1]:tau|i1[t]:tau = o0sp[t]:tau) && (o0s[t-1]:tau i1[t]:tau != 0 || o0res[t]:bv[8] = { 8 }:bv[8] && o0s[t]:tau = o0s[t-1]:tau && o0sp[t-1]:tau = o0sp[t]:tau)) && (i1[1]:tau { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau = 0 || o0res[1]:bv[8] = { 9 }:bv[8] && o0s[1]:tau = { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau && o0sp[1]:tau = i1[1]:tau) && (i1[1]:tau { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau != 0 || o0res[1]:bv[8] = { 8 }:bv[8] && o0sp[1]:tau = 0 && o0s[1]:tau = { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau)
+
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+u[t]:tau = i2[t]:tau
+
+Execution step: 0
+o0res[0] := 0
+o0s[0]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[0]  := F
+u[0]     := F
+	step: 35.089 ms
+
+Execution step: 1
+
+i1[1] : tau := onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+
+i2[1] : tau := o9[t]=0 && o9[t]=1
+o0res[1] := 9
+o0s[1]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[1]  := always oauth[t]:tau' = 0 && onul[t]:bv[8] = { 4 }:bv[8]
+u[1]     := F
+(Warning) An update rule was provided on input stream i1 but the update stream u solved to 0; the rule was not applied
+	step: 24.048 ms
+
+Execution step: 2
+
+i1[2] : tau := onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+
+i2[2] : tau := o9[t]=0 && o9[t]=1
+o0res[2] := 7
+o0s[2]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[2]  := always oauth[t]:tau' = 0 && onul[t]:bv[8] = { 4 }:bv[8]
+u[2]     := F
+(Warning) An update rule was provided on input stream i1 but the update stream u solved to 0; the rule was not applied
+	step: 21.773 ms
+
+Execution step: 3
+
+i1[3] : tau := onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+
+i2[3] : tau := oflag[t]=1
+o0res[3] := 7
+o0s[3]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[3]  := always oauth[t]:tau' = 0 && onul[t]:bv[8] = { 4 }:bv[8]
+u[3]     := always oflag[t]:tau' = 0
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+oflag[t]:tau' = 0
+
+Updated specification (472 chars): always (i1[t]:tau o0sp[t-1]:tau = 0 || o0sp[t]:tau = o0sp[t-1]:tau && o0res[t]:bv[8] = { 7 }:bv[8] && o0s[t-1]:tau = o0s[t]:tau) && (i1[t]:tau o0sp[t-1]:tau != 0 || (i1[t]:tau o0s[t-1]:tau = 0 || i1[t]:tau|o0sp[t-1]:tau = o0sp[t]:tau && o0res[t]:bv[8] = { 9 }:bv[8] && o0s[t-1]:tau = o0s[t]:tau) && (i1[t]:tau o0s[t-1]:tau != 0 || o0sp[t]:tau = o0sp[t-1]:tau && o0res[t]:bv[8] = { 8 }:bv[8] && o0s[t-1]:tau = o0s[t]:tau)) && u[t-1]:tau = i2[t-1]:tau && oflag[t-1]:tau' = 0
+
+	step: 23.824 ms
+
+Execution step: 4
+o0res[4] := 0
+o0s[4]   := F
+o0sp[4]  := F
+oflag[4] := F
+u[4]     := F
+	step: 9.292 ms
+
+Execution step: 5
+
+i2[5] : tau := onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+o0res[5] := 8
+o0s[5]   := F
+o0sp[5]  := F
+oflag[5] := T
+u[5]     := always oauth[t]:tau' = 0 && onul[t]:bv[8] = { 4 }:bv[8]
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+oauth[t]:tau' = 0
+
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+onul[t]:bv[8] = { 4 }:bv[8]
+
+Updated specification (528 chars): always (i1[t]:tau o0sp[t-1]:tau = 0 || o0sp[t]:tau = o0sp[t-1]:tau && o0res[t]:bv[8] = { 7 }:bv[8] && o0s[t-1]:tau = o0s[t]:tau) && (i1[t]:tau o0sp[t-1]:tau != 0 || (i1[t]:tau o0s[t-1]:tau = 0 || i1[t]:tau|o0sp[t-1]:tau = o0sp[t]:tau && o0res[t]:bv[8] = { 9 }:bv[8] && o0s[t-1]:tau = o0s[t]:tau) && (i1[t]:tau o0s[t-1]:tau != 0 || o0sp[t]:tau = o0sp[t-1]:tau && o0res[t]:bv[8] = { 8 }:bv[8] && o0s[t-1]:tau = o0s[t]:tau)) && u[t-1]:tau = i2[t-1]:tau && oflag[t-1]:tau' = 0 && oauth[t-1]:tau' = 0 && onul[t-1]:bv[8] = { 4 }:bv[8]
+
+	step: 20.876 ms
+
+Execution step: 6
+o0res[6] := 0
+o0s[6]   := F
+o0sp[6]  := F
+oauth[6] := F
+oflag[6] := F
+onul[6]  := 0
+u[6]     := F
+	step: 11.838 ms
+
+Execution step: 7
+
+i2[7] : tau := o9[t]=0 && o9[t]=1
+o0res[7] := 8
+o0s[7]   := F
+o0sp[7]  := F
+oauth[7] := T
+oflag[7] := T
+onul[7]  := 4
+u[7]     := F
+	step: 9.259 ms
+
+Execution step: 8
+
+i2[8] : tau := 

@@ -1,0 +1,27 @@
+[
+ {
+  "name": "K_policy2",
+  "s": 0.61,
+  "codes": "0,9,7"
+ },
+ {
+  "name": "K_policy4",
+  "s": 0.657,
+  "codes": "0,9,7"
+ },
+ {
+  "name": "K_policy8",
+  "s": 0.933,
+  "codes": "0,9,7"
+ },
+ {
+  "name": "K_policy16",
+  "s": 1.525,
+  "codes": "0,9,7"
+ },
+ {
+  "name": "K_policy32",
+  "s": 43.702,
+  "codes": "0,9,7"
+ }
+]

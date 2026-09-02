@@ -1,0 +1,49 @@
+# ============================================================================
+# NEW TABLE KIND 3 - THE GUARDED ESCROW TABLE (conservation that is a guard)
+# ============================================================================
+# exp2 proves "conservation under transfer" as
+#   (c.alice = b.alice - d && c.bob = b.bob + d) -> c.alice+c.bob = b.alice+b.bob
+# That is TRUE for every d, with no hypothesis at all - it is the ring
+# identity (x-d)+(y+d) = x+y in Z/256. It is a theorem about arithmetic, not
+# a safety property of a balance table, and it holds exactly where the table
+# is least safe: at d = 250 on a balance of 10 the sender's cell goes 10 ->
+# 16 and the receiver's 5 -> 255, minting 256 units, while the sum is
+# preserved mod 256. See opus_attack_exp2_wraparound.tau.
+#
+# A balance table kind therefore has to carry its guards as part of the
+# schema contract, and the conservation claim has to be stated jointly with
+# monotonicity - "no cell moved the wrong way" - which is what actually
+# fails at the wrap boundary. Three cells, one move:
+#
+#   GUARD  :  d <= e.user     (sufficiency: no underflow)
+#          &  e.escrow <= 255 - d   (capacity: no overflow; 255-d does not
+#                                    itself wrap, which is why it is written
+#                                    this way and not as e.user+e.escrow<=255)
+#   MOVE   :  f.user = e.user - d,  f.escrow = e.escrow + d,  f.vault = e.vault
+#
+# ZenoDEX surface: any two-table value movement - deposit/withdraw, escrow
+# lock/release, vault rebalancing - where the pair of tables must conserve
+# AND no participant may gain from the move.
+# Run: tau -q < opus_new3_guarded_escrow_table.tau
+# EXPECTED-RESULTS: T F T T
+
+set charvar off
+set maxsplits 1
+
+# (1) THE GUARDED THEOREM: conservation AND directional monotonicity.
+type Esc = {user: bv[8], escrow: bv[8], vault: bv[8]}. n all e:Esc all f:Esc all d:bv[8] ((d <= e.user && e.escrow <= { #xFF }:bv[8] - d && f.user = e.user - d && f.escrow = e.escrow + d && f.vault = e.vault) -> (f.user <= e.user && f.escrow >= e.escrow && f.user + f.escrow + f.vault = e.user + e.escrow + e.vault))
+# Answer: T
+
+# (2) UNSAT CONTROL: under the guard the depositor can never gain.
+type Esc = {user: bv[8], escrow: bv[8], vault: bv[8]}. n ex e:Esc ex f:Esc ex d:bv[8] (d <= e.user && e.escrow <= { #xFF }:bv[8] - d && f.user = e.user - d && f.escrow = e.escrow + d && f.vault = e.vault && f.user > e.user)
+# Answer: F
+
+# (3) THE ATTACK CONTROL - this is the one that matters. Drop the guard and
+# a depositor DOES gain while "conservation" still holds. A conservation
+# theorem without the guard is compatible with minting.
+type Esc = {user: bv[8], escrow: bv[8], vault: bv[8]}. n ex e:Esc ex f:Esc ex d:bv[8] (f.user = e.user - d && f.escrow = e.escrow + d && f.vault = e.vault && f.user > e.user && f.user + f.escrow + f.vault = e.user + e.escrow + e.vault)
+# Answer: T
+
+# (4) NON-VACUITY for (1): a real deposit satisfies the guard and moves value.
+type Esc = {user: bv[8], escrow: bv[8], vault: bv[8]}. n ex e:Esc ex f:Esc ex d:bv[8] (d <= e.user && e.escrow <= { #xFF }:bv[8] - d && f.user = e.user - d && f.escrow = e.escrow + d && f.vault = e.vault && d != { #x00 }:bv[8] && f.escrow > e.escrow)
+# Answer: T

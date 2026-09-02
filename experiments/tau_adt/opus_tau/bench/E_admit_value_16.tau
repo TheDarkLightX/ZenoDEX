@@ -1,0 +1,4 @@
+set charvar off
+set maxsplits 1
+
+n ({ oauth0[t]=1 && oauth1[t]=1 && oauth2[t]=1 && oauth3[t]=1 && oauth4[t]=1 && oauth5[t]=1 && oauth6[t]=1 && oauth7[t]=1 && oauth8[t]=1 && oauth9[t]=1 && oauth10[t]=1 && oauth11[t]=1 && oauth12[t]=1 && oauth13[t]=1 && oauth14[t]=1 && oauth15[t]=1 } & { (oact0[t]=1 -> oauth0[t]=1) && (oact1[t]=1 -> oauth1[t]=1) && (oact2[t]=1 -> oauth2[t]=1) && (oact3[t]=1 -> oauth3[t]=1) && (oact4[t]=1 -> oauth4[t]=1) && (oact5[t]=1 -> oauth5[t]=1) && (oact6[t]=1 -> oauth6[t]=1) && (oact7[t]=1 -> oauth7[t]=1) && (oact8[t]=1 -> oauth8[t]=1) && (oact9[t]=1 -> oauth9[t]=1) && (oact10[t]=1 -> oauth10[t]=1) && (oact11[t]=1 -> oauth11[t]=1) && (oact12[t]=1 -> oauth12[t]=1) && (oact13[t]=1 -> oauth13[t]=1) && (oact14[t]=1 -> oauth14[t]=1) && (oact15[t]=1 -> oauth15[t]=1) }') = 0

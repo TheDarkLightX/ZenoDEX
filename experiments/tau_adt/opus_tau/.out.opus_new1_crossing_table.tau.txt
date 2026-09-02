@@ -1,0 +1,123 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # NEW TABLE KIND 1 - THE CROSSING TABLE (order book as two table values)
+
+tau> # ============================================================================
+
+tau> # Every table kind in the tutorials answers "is this row present?". A book
+
+tau> # has to answer a RELATIONAL question instead: "do these two tables admit a
+
+tau> # pair whose prices cross?" The construction keeps both sides as ordinary
+
+tau> # table values over disjoint column streams and puts the matching law in a
+
+tau> # THIRD value, a pure inequality with no rows at all:
+
+tau> #
+
+tau> #   BIDS  = { obpx=5, obq=10 } | { obpx=7, obq=4 }
+
+tau> #   ASKS  = { oapx=6, oaq=8  } | { oapx=9, oaq=3 }
+
+tau> #   LAW   = { obpx >= oapx }                    <- the matching law
+
+tau> #   CROSS = BIDS & ASKS & LAW                   <- the matchable pair set
+
+tau> #
+
+tau> # Because bids and asks use different column streams their meet is the full
+
+tau> # cartesian product, and the law selects the crossing pairs out of it. The
+
+tau> # match is therefore not computed and compared - it is the value CROSS, and
+
+tau> # "the book crosses" is the single decidable question CROSS != 0.
+
+tau> #
+
+tau> # ZenoDEX surface: the CLOB admission gate. An orderbook batch can be
+
+tau> # admitted only if CROSS is non-empty, and the specific pair that clears is
+
+tau> # the membership witness (b2) - both decided without a matching engine.
+
+tau> # Run: tau -q < opus_new1_crossing_table.tau
+
+tau> # EXPECTED-RESULTS: T T T T T F
+
+tau> 
+set charvar off
+charvar:             off
+
+tau> set maxsplits 1
+maxsplits:           1
+
+tau> 
+# (1) both sides are live tables:
+
+tau> n ({ obpx[t]:bv[8] = { #x05 }:bv[8] && obq[t]:bv[8] = { #x0A }:bv[8] } | { obpx[t]:bv[8] = { #x07 }:bv[8] && obq[t]:bv[8] = { #x04 }:bv[8] }) != 0
+normalize_formula: 0.036 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+n ({ oapx[t]:bv[8] = { #x06 }:bv[8] && oaq[t]:bv[8] = { #x08 }:bv[8] } | { oapx[t]:bv[8] = { #x09 }:bv[8] && oaq[t]:bv[8] = { #x03 }:bv[8] }) != 0
+normalize_formula: 0.036 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (2) THE BOOK CROSSES: CROSS = BIDS & ASKS & LAW is non-empty.
+
+[ %1 ] tau> n (({ obpx[t]:bv[8] = { #x05 }:bv[8] && obq[t]:bv[8] = { #x0A }:bv[8] } | { obpx[t]:bv[8] = { #x07 }:bv[8] && obq[t]:bv[8] = { #x04 }:bv[8] }) & ({ oapx[t]:bv[8] = { #x06 }:bv[8] && oaq[t]:bv[8] = { #x08 }:bv[8] } | { oapx[t]:bv[8] = { #x09 }:bv[8] && oaq[t]:bv[8] = { #x03 }:bv[8] }) & { obpx[t]:bv[8] >= oapx[t]:bv[8] }) != 0
+normalize_formula: 0.036 ms
+%1: T
+
+[ %1 ] tau> # Answer: T - bid 7 meets ask 6.
+
+[ %1 ] tau> 
+# (3) THE CLEARING PAIR IS FORCED: CROSS entails (bid 7, ask 6). This is the
+
+[ %1 ] tau> # membership test, not overlap - the meet with the complement is empty, so
+
+[ %1 ] tau> # no other pair is in CROSS. The book has ONE crossing pair, provably.
+
+[ %1 ] tau> n ((({ obpx[t]:bv[8] = { #x05 }:bv[8] && obq[t]:bv[8] = { #x0A }:bv[8] } | { obpx[t]:bv[8] = { #x07 }:bv[8] && obq[t]:bv[8] = { #x04 }:bv[8] }) & ({ oapx[t]:bv[8] = { #x06 }:bv[8] && oaq[t]:bv[8] = { #x08 }:bv[8] } | { oapx[t]:bv[8] = { #x09 }:bv[8] && oaq[t]:bv[8] = { #x03 }:bv[8] }) & { obpx[t]:bv[8] >= oapx[t]:bv[8] }) & { obpx[t]:bv[8] = { #x07 }:bv[8] && oapx[t]:bv[8] = { #x06 }:bv[8] }') = 0
+normalize_formula: 7.567 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (4) UNSAT CONTROL - a book whose only bid is 5 does NOT cross asks at 6/9:
+
+[ %1 ] tau> n (({ obpx[t]:bv[8] = { #x05 }:bv[8] && obq[t]:bv[8] = { #x0A }:bv[8] }) & ({ oapx[t]:bv[8] = { #x06 }:bv[8] && oaq[t]:bv[8] = { #x08 }:bv[8] } | { oapx[t]:bv[8] = { #x09 }:bv[8] && oaq[t]:bv[8] = { #x03 }:bv[8] }) & { obpx[t]:bv[8] >= oapx[t]:bv[8] }) = 0
+normalize_formula: 0.03 ms
+%1: T
+
+[ %1 ] tau> # Answer: T - no crossing pair exists; the batch must not clear.
+
+[ %1 ] tau> 
+# (5) UNSAT CONTROL 2 - the law is what does the work. Drop LAW and the same
+
+[ %1 ] tau> # non-crossing book "matches" (the bare product is non-empty), so a T here
+
+[ %1 ] tau> # would be meaningless without (4):
+
+[ %1 ] tau> n (({ obpx[t]:bv[8] = { #x05 }:bv[8] && obq[t]:bv[8] = { #x0A }:bv[8] }) & ({ oapx[t]:bv[8] = { #x06 }:bv[8] && oaq[t]:bv[8] = { #x08 }:bv[8] } | { oapx[t]:bv[8] = { #x09 }:bv[8] && oaq[t]:bv[8] = { #x03 }:bv[8] })) = 0
+normalize_formula: 0.051 ms
+%2: F
+
+[ %2 ] tau> # Answer: F - without the matching law every bid "matches" every ask.
+
+[ %2 ] tau> 

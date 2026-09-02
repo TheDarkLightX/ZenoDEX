@@ -1,0 +1,14 @@
+# ============================================================================
+# CONTROL for opus_attack_exp3_benign_amend.tau - the ledger IS append-only
+# when no amendment is ever accepted. Every ia line here is unsatisfiable,
+# so pointwise revision never fires; the row appended at step 1 survives.
+# EXPECTED-OB: F R R R
+# ============================================================================
+set charvar off
+run u[t]:tau = ia[t]:tau && ob[t]:tau = (ob[t-1]:tau | ir[t]:tau)
+o9[t]=0 && o9[t]=1
+orow[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1

@@ -1,0 +1,38 @@
+# ============================================================================
+# EXPERIMENT 6 - the AUDIT DIFF table: symmetric difference of two table values
+# ============================================================================
+# H6: for two table values T1 (yesterday) and T2 (today), the audit delta
+#   ADDED   = T2 & T1'      (rows in today only)
+#   REMOVED = T1 & T2'      (rows in yesterday only)
+# is itself a table value with proofs: an appended row is in ADDED, a kept
+# row is in neither side of the diff, and a clean append-only step has
+# provably empty REMOVED. ZenoDEX use: auditing lane-table transitions
+# without replaying them - the delta is algebra on the two committed values.
+# Run: tau -q < exp6_audit_diff_table.tau
+# EXPECTED-RESULTS: T T T T T
+# T1 = { oid=1,oqty=10 } | { oid=2,oqty=20 }
+# T2 = T1 | { oid=3,oqty=30 }   (an append-only step)
+
+set charvar off
+set maxsplits 1
+
+# The appended row OVERLAPS ADDED = T2 & T1':
+n (({ oid[t]:bv[8] = { #x03 }:bv[8] && oqty[t]:bv[8] = { #x1E }:bv[8] }) & ((({ oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8] } | { oid[t]:bv[8] = { #x02 }:bv[8] && oqty[t]:bv[8] = { #x14 }:bv[8] }) | { oid[t]:bv[8] = { #x03 }:bv[8] && oqty[t]:bv[8] = { #x1E }:bv[8] }) & ({ oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8] } | { oid[t]:bv[8] = { #x02 }:bv[8] && oqty[t]:bv[8] = { #x14 }:bv[8] })')) != 0
+# Answer: T - the new row shows up in the ADDED delta.
+
+# A KEPT row does NOT appear in ADDED (it is swallowed by T1'):
+n (({ oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8] }) & ((({ oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8] } | { oid[t]:bv[8] = { #x02 }:bv[8] && oqty[t]:bv[8] = { #x14 }:bv[8] }) | { oid[t]:bv[8] = { #x03 }:bv[8] && oqty[t]:bv[8] = { #x1E }:bv[8] }) & ({ oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8] } | { oid[t]:bv[8] = { #x02 }:bv[8] && oqty[t]:bv[8] = { #x14 }:bv[8] })')) = 0
+# Answer: T - kept rows are invisible to the audit delta.
+
+# REMOVED = T1 & T2' is provably EMPTY for the append-only step:
+n ((({ oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8] } | { oid[t]:bv[8] = { #x02 }:bv[8] && oqty[t]:bv[8] = { #x14 }:bv[8] })) & ((({ oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8] } | { oid[t]:bv[8] = { #x02 }:bv[8] && oqty[t]:bv[8] = { #x14 }:bv[8] }) | { oid[t]:bv[8] = { #x03 }:bv[8] && oqty[t]:bv[8] = { #x1E }:bv[8] })')) = 0
+# Answer: T - append-only means nothing was removed, as a theorem (T1 <= T2).
+
+# CONTROL - against a DROPPING transition T3 = { oid=2 row } only, REMOVED
+# is NOT empty (the dropped row survives in the delta):
+n ((({ oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8] } | { oid[t]:bv[8] = { #x02 }:bv[8] && oqty[t]:bv[8] = { #x14 }:bv[8] })) & (({ oid[t]:bv[8] = { #x02 }:bv[8] && oqty[t]:bv[8] = { #x14 }:bv[8] })')) != 0
+# Answer: T - the audit catches the dropped oid=1 row.
+
+# And the dropped row itself is the witness (it is in T1 and outside T3):
+n (({ oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8] }) & (({ oid[t]:bv[8] = { #x02 }:bv[8] && oqty[t]:bv[8] = { #x14 }:bv[8] })')) != 0
+# Answer: T.

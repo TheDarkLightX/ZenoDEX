@@ -1,0 +1,92 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # ATTACK on exp3 - the amendment that rewrites the append-only LAW itself.
+
+tau> # Line 1 (ia[1]) is a benign tightening; line 2 (ir[1]) appends orow=1.
+
+tau> # Line 3 offers ob[t]=0 on the amendment channel. It is accepted, and the
+
+tau> # running specification becomes
+
+tau> #   (always u[t]=ia[t] && oflag[t]'=0)
+
+tau> #   && ((always ob[t-1]|ir[t] = ob[t] && ob[t-1] = 0) || (always ob[t]=0))
+
+tau> # The append law is now a DISJUNCT guarded by ob[t-1]=0: it no longer holds
+
+tau> # unconditionally. This is the documented replacement hazard - but note the
+
+tau> # ledger was already emptied at step 2 by the FIRST, benign amendment, which
+
+tau> # is the finding opus_attack_exp3_benign_amend.tau isolates.
+
+tau> # EXPECTED-OB: F R F F F
+
+tau> # ============================================================================
+
+tau> set charvar off
+charvar:             off
+
+tau> run u[t]:tau = ia[t]:tau && ob[t]:tau = (ob[t-1]:tau | ir[t]:tau)
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+ir[t]:tau|ob[t-1]:tau = ob[t]:tau
+
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+u[t]:tau = ia[t]:tau
+
+Execution step: 0
+ob[0] := F
+u[0]  := F
+	step: 1.112 ms
+
+Execution step: 1
+
+ia[1] : tau := oflag[t]=1
+
+ir[1] : tau := orow[t]=1
+ob[1] := always orow[t]:tau' = 0
+u[1]  := always oflag[t]:tau' = 0
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+oflag[t]:tau' = 0
+
+Updated specification (91 chars): always ob[t-1]:tau|ir[t]:tau = ob[t]:tau && u[t-1]:tau = ia[t-1]:tau && oflag[t-1]:tau' = 0
+
+	step: 11.096 ms
+
+Execution step: 2
+ob[2]    := F
+oflag[2] := F
+u[2]     := F
+	step: 0.915 ms
+
+Execution step: 3
+
+ia[3] : tau := ob[t]:tau = 0
+
+ir[3] : tau := o9[t]=0 && o9[t]=1
+ob[3]    := F
+oflag[3] := T
+u[3]     := always ob[t]:tau = 0
+Updated specification (143 chars): (always u[t]:tau = ia[t]:tau && oflag[t]:tau' = 0) && ((always ob[t-1]:tau|ir[t]:tau = ob[t]:tau && ob[t-1]:tau = 0) || (always ob[t]:tau = 0))
+
+	step: 24.889 ms
+
+Execution step: 4
+ob[4]    := F
+oflag[4] := F
+u[4]     := F
+	step: 2.931 ms
+
+Execution step: 5
+
+ia[5] : tau := 

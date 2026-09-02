@@ -1,0 +1,88 @@
+# ============================================================================
+# EXPERIMENT 5 - two further table kinds from the substrate  [REPAIRED]
+# (a) the TIME-INDEXED TABLE: one static tau value whose row set differs by
+#     epoch (constant time constraints inside the rows) - SELECT answers
+#     change over time on an unchanging value
+# (b) the FUNCTIONAL-DEPENDENCY table: what a fixed schema can and CANNOT say
+# ============================================================================
+# REPAIR NOTE (Opus, 2026-09-01). The original (a) used CONJUNCTIVE time
+# guards inside the row constants, e.g. { [t < 3] && oid[t] = 1 }. A tau
+# constant is read under an implicit `always`, so that reads "for all t,
+# t < 3" - false at t = 3 - and the whole row collapses to 0. The original
+# file therefore claimed T T T F for four DEAD values; the binary answered
+# F F F F and only the fourth "control" accidentally agreed. Verified:
+#   n { [t < 3] && oid[t]:bv[8] = { #x01 }:bv[8] } = 0    ->  T
+# The repair is the IMPLICATION form, which is the same shape the run-level
+# guard in exp2 (c) already used: the guard scopes the row to its epoch
+# instead of asserting the epoch.
+#   n { [t < 3] -> oid[t]:bv[8] = { #x01 }:bv[8] } != 0   ->  T
+#
+# REPAIR NOTE 2. The original (b) proved two propositional tautologies: the
+# first restated a hypothesis as its conclusion ("return h"), the second
+# asked for a violation of an FD it had already assumed. Neither said
+# anything about tables. They are replaced by the honest content: a fixed
+# ADT schema CANNOT enforce a functional dependency (M6), so an FD must be
+# carried as an explicit hypothesis - and once carried, real consequences
+# are derivable from it (M7, transitivity, with its non-vacuity witness M8).
+#
+# H5a: rows guarded by [t<N] -> ... give an epoch-versioned table: the same
+# reading is entailed inside its epoch and IMPOSSIBLE outside it.
+# H5b: uniqueness is not a property of the schema; it is a hypothesis.
+# Columns are sbf here on purpose: mixing constant time constraints with
+# bitvector columns makes the engine print a cvc5 translation failure
+# on STDOUT while still returning a verdict and exit code 0 - see
+# opus_tau/opus_cvc5_faildopen.md. Query (a6) keeps one bitvector claim in
+# the meet-only form, which does not trip the translator.
+# Run: tau -q < exp5_time_indexed_tables.tau     (0.7.0-alpha 0ac2756+)
+# EXPECTED-RESULTS: T T T T F T T T T
+
+set charvar off
+set maxsplits 1
+
+# --- (a) time-indexed table -------------------------------------------------
+# TT is ONE value. Before step 3 the key ohi carries payload oq = 1; from
+# step 3 on the same key carries oq = 0. No clock logic, no second table.
+
+# (a1) the table is live:
+n { ([t < 3] -> (ohi[t]=1 && oq[t]=1)) && ([t >= 3] -> (ohi[t]=1 && oq[t]=0)) } != 0
+# Answer: T
+
+# (a2) TT ENTAILS the early reading (membership, not mere overlap):
+n ({ ([t < 3] -> (ohi[t]=1 && oq[t]=1)) && ([t >= 3] -> (ohi[t]=1 && oq[t]=0)) } & { [t < 3] -> (ohi[t]=1 && oq[t]=1) }') = 0
+# Answer: T - inside its epoch the early reading is forced.
+
+# (a3) TT ENTAILS the late reading:
+n ({ ([t < 3] -> (ohi[t]=1 && oq[t]=1)) && ([t >= 3] -> (ohi[t]=1 && oq[t]=0)) } & { [t >= 3] -> (ohi[t]=1 && oq[t]=0) }') = 0
+# Answer: T - and after the boundary the late reading is forced.
+
+# (a4) CONTROL - the CROSS-EPOCH FORGERY is not merely unproven, it is
+# IMPOSSIBLE: claiming the early payload in the late window meets TT at 0.
+n ({ ([t < 3] -> (ohi[t]=1 && oq[t]=1)) && ([t >= 3] -> (ohi[t]=1 && oq[t]=0)) } & { [t >= 3] -> (ohi[t]=1 && oq[t]=1) }) = 0
+# Answer: T
+
+# (a5) CONTROL - and so it is certainly not entailed (the negative twin of
+# a2/a3: a T here would mean the forgery was a member of the table):
+n ({ ([t < 3] -> (ohi[t]=1 && oq[t]=1)) && ([t >= 3] -> (ohi[t]=1 && oq[t]=0)) } & { [t >= 3] -> (ohi[t]=1 && oq[t]=1) }') = 0
+# Answer: F
+
+# (a6) the same impossibility with real bitvector prices (10 early, 99 late),
+# stated as a meet so the cvc5 translator is not involved:
+n ({ ([t < 3] -> (oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8])) && ([t >= 3] -> (oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x63 }:bv[8])) } & { [t >= 3] -> (oid[t]:bv[8] = { #x01 }:bv[8] && oqty[t]:bv[8] = { #x0A }:bv[8]) }) = 0
+# Answer: T - a stale price cannot be selected after the epoch boundary.
+
+# --- (b) functional dependency: what the schema does NOT give you -----------
+
+# (b1) THE NEGATIVE RESULT: the schema alone does not enforce "id determines
+# qty". A table with equal ids and unequal quantities exists:
+type Row = {id: bv[8], qty: bv[8]}. type Tab = {r1: Row, r2: Row}. n ex t:Tab (t.r1.id = t.r2.id && t.r1.qty != t.r2.qty)
+# Answer: T - uniqueness is NOT a property of an ADT table type. It has to
+# be carried as a hypothesis in every query that needs it.
+
+# (b2) ...and once carried, it has real consequences. Over three rows the FD
+# is transitive - the conclusion appears in no hypothesis:
+type Row = {id: bv[8], qty: bv[8]}. type Tab3 = {r1: Row, r2: Row, r3: Row}. n all t:Tab3 ((((t.r1.id = t.r2.id) -> (t.r1.qty = t.r2.qty)) && ((t.r2.id = t.r3.id) -> (t.r2.qty = t.r3.qty)) && t.r1.id = t.r2.id && t.r2.id = t.r3.id) -> t.r1.qty = t.r3.qty)
+# Answer: T
+
+# (b3) NON-VACUITY for b2 - the hypotheses are jointly satisfiable:
+type Row = {id: bv[8], qty: bv[8]}. type Tab3 = {r1: Row, r2: Row, r3: Row}. n ex t:Tab3 (((t.r1.id = t.r2.id) -> (t.r1.qty = t.r2.qty)) && ((t.r2.id = t.r3.id) -> (t.r2.qty = t.r3.qty)) && t.r1.id = t.r2.id && t.r2.id = t.r3.id)
+# Answer: T

@@ -1,0 +1,21 @@
+# ============================================================================
+# ATTACK on exp3 - a BENIGN, UNRELATED amendment destroys the ledger.
+# Step 1 appends row orow=1 (ob[1] = R). Step 2 offers oflag[t]=1 on the
+# amendment channel: it mentions neither ob nor ir, it is satisfiable and
+# consistent, and it is accepted. One step later the accumulated ledger is
+# GONE (ob[3] = F), and the F rows fed afterwards cannot bring it back.
+# Compare opus_exp3_control_noamend.tau, which is the same machine and the
+# same rows with no amendment accepted: there ob stays R.
+# exp3's header calls the hazard "a satisfiable amendment that CONTRADICTS
+# the running spec REPLACES it". The measured behaviour is stronger: ANY
+# accepted revision resets the accumulated stream state.
+# EXPECTED-OB: F R R F F
+# ============================================================================
+set charvar off
+run u[t]:tau = ia[t]:tau && ob[t]:tau = (ob[t-1]:tau | ir[t]:tau)
+o9[t]=0 && o9[t]=1
+orow[t]=1
+oflag[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1

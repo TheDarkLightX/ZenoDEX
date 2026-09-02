@@ -1,0 +1,106 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # NEW KIND - THE KEY-PROJECTED ADMISSION KERNEL (repair of exp4)
+
+tau> # ============================================================================
+
+tau> # Three defects of exp4 are closed at once:
+
+tau> #  (1) the registry stores the WHOLE spend spec, so a spend sharing the
+
+tau> #      nullifier but conflicting elsewhere is disjoint from it and replays;
+
+tau> #  (2) the policy test is CONSISTENCY, so a spend that merely fails to
+
+tau> #      contradict policy is admitted without satisfying it;
+
+tau> #  (3) i1 is unconstrained, so the tautology (TOP) joins the registry and
+
+tau> #      poisons it forever.
+
+tau> # The repair adds a declared KEY channel i2 and a binding check the machine
+
+tau> # verifies itself, so the host cannot lie about the key:
+
+tau> #   code 6 malformed : i1 does not entail i2, or i2 is TOP (i2' = 0)
+
+tau> #   code 7 replay    : registry & i2 != 0        (key-projected overlap)
+
+tau> #   code 8 policy    : i1 does not ENTAIL policy (i1 & policy' != 0)
+
+tau> #   code 9 admitted  : registry := registry | i2 (the KEY, not the row)
+
+tau> # EXPECTED-CODES: 0,9,7,8,6
+
+tau> #   step 1  spend nullifier 4, authorized, key 4 declared      -> 9
+
+tau> #   step 2  ATTACK 1: replay nullifier 4 with oauth=0          -> 7
+
+tau> #   step 3  ATTACK 3: destructive act with no authorization    -> 8
+
+tau> #   step 4  ATTACK 2: TOP as spend and key                     -> 6
+
+tau> set charvar off
+charvar:             off
+
+tau> run ( (o0s[0]:tau = { oact[t]=1 -> oauth[t]=1 }) && (o0sp[0]:tau = 0) && ( (((i1[t]:tau & i2[t]:tau') != 0) || ((i2[t]:tau') = 0)) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x06 }:bv[8])) : ( ((o0sp[t-1]:tau & i2[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x07 }:bv[8])) : ( ((i1[t]:tau & o0s[t-1]:tau') != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x08 }:bv[8])) : ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = (o0sp[t-1]:tau | i2[t]:tau)) && (o0res[t]:bv[8] = { #x09 }:bv[8])) ) ) ) )
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+o0sp[0]:tau = 0 && o0s[0]:tau = { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau && (i2[t]:tau' i1[t]:tau = 0 && i2[t]:tau' != 0 || o0res[t]:bv[8] = { 6 }:bv[8] && o0s[t]:tau = o0s[t-1]:tau && o0sp[t-1]:tau = o0sp[t]:tau) && (i2[t]:tau' i1[t]:tau != 0 || i2[t]:tau' = 0 || (i2[t]:tau o0sp[t-1]:tau = 0 || o0s[t]:tau = o0s[t-1]:tau && o0res[t]:bv[8] = { 7 }:bv[8] && o0sp[t-1]:tau = o0sp[t]:tau) && (i2[t]:tau o0sp[t-1]:tau != 0 || (o0s[t-1]:tau' i1[t]:tau = 0 || o0res[t]:bv[8] = { 8 }:bv[8] && o0s[t]:tau = o0s[t-1]:tau && o0sp[t-1]:tau = o0sp[t]:tau) && (o0s[t-1]:tau' i1[t]:tau != 0 || o0res[t]:bv[8] = { 9 }:bv[8] && o0s[t]:tau = o0s[t-1]:tau && i2[t]:tau|o0sp[t-1]:tau = o0sp[t]:tau))) && (i2[1]:tau' i1[1]:tau = 0 && i2[1]:tau' != 0 || o0sp[1]:tau = 0 && o0s[1]:tau = { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau && o0res[1]:bv[8] = { 6 }:bv[8]) && (i2[1]:tau' i1[1]:tau != 0 || i2[1]:tau' = 0 || ({ sometimes oact[t]:tau' = 0 && oauth[t]:tau' != 0 }:tau i1[1]:tau = 0 || o0res[1]:bv[8] = { 8 }:bv[8] && o0sp[1]:tau = 0 && o0s[1]:tau = { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau) && ({ sometimes oact[t]:tau' = 0 && oauth[t]:tau' != 0 }:tau i1[1]:tau != 0 || o0sp[1]:tau = i2[1]:tau && o0res[1]:bv[8] = { 9 }:bv[8] && o0s[1]:tau = { always oact[t]:tau' != 0 || oauth[t]:tau' = 0 }:tau))
+
+Execution step: 0
+o0res[0] := 0
+o0s[0]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[0]  := F
+	step: 67.501 ms
+
+Execution step: 1
+
+i1[1] : tau := onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+
+i2[1] : tau := onul[t]:bv[8] = { #x04 }:bv[8]
+o0res[1] := 9
+o0s[1]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[1]  := always onul[t]:bv[8] = { 4 }:bv[8]
+	step: 36.894 ms
+
+Execution step: 2
+
+i1[2] : tau := onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=0
+
+i2[2] : tau := onul[t]:bv[8] = { #x04 }:bv[8]
+o0res[2] := 7
+o0s[2]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[2]  := always onul[t]:bv[8] = { 4 }:bv[8]
+	step: 30.566 ms
+
+Execution step: 3
+
+i1[3] : tau := oact[t]=1 && onul[t]:bv[8] = { #x05 }:bv[8]
+
+i2[3] : tau := onul[t]:bv[8] = { #x05 }:bv[8]
+o0res[3] := 8
+o0s[3]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[3]  := always onul[t]:bv[8] = { 4 }:bv[8]
+	step: 42.019 ms
+
+Execution step: 4
+
+i1[4] : tau := oz[t] = oz[t]
+
+i2[4] : tau := oz[t] = oz[t]
+o0res[4] := 6
+o0s[4]   := always oact[t]:tau' != 0 || oauth[t]:tau' = 0
+o0sp[4]  := always onul[t]:bv[8] = { 4 }:bv[8]
+	step: 20.259 ms
+
+Execution step: 5
+
+i1[5] : tau := 

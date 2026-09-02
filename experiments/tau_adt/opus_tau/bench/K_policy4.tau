@@ -1,0 +1,6 @@
+set charvar off
+run ( (o0s[0]:tau = { (oact0[t]=1 -> oauth0[t]=1) && (oact1[t]=1 -> oauth1[t]=1) && (oact2[t]=1 -> oauth2[t]=1) && (oact3[t]=1 -> oauth3[t]=1) }) && (o0sp[0]:tau = 0) && ( (((i1[t]:tau & i2[t]:tau') != 0) || ((i2[t]:tau') = 0)) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x06 }:bv[8])) : ( ((o0sp[t-1]:tau & i2[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x07 }:bv[8])) : ( ((i1[t]:tau & o0s[t-1]:tau') != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x08 }:bv[8])) : ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = (o0sp[t-1]:tau | i2[t]:tau)) && (o0res[t]:bv[8] = { #x09 }:bv[8])) ) ) ) )
+onul[t]:bv[8] = { #x04 }:bv[8] && oauth0[t]=1 && oauth1[t]=1 && oauth2[t]=1 && oauth3[t]=1
+onul[t]:bv[8] = { #x04 }:bv[8]
+onul[t]:bv[8] = { #x04 }:bv[8] && oauth0[t]=1 && oauth1[t]=1 && oauth2[t]=1 && oauth3[t]=1
+onul[t]:bv[8] = { #x04 }:bv[8]

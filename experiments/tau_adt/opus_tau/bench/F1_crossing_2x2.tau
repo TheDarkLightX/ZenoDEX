@@ -1,0 +1,4 @@
+set charvar off
+set maxsplits 1
+
+n (({ obpx[t]:bv[8] = { #x01 }:bv[8] && obq[t]:bv[8] = { #x0a }:bv[8] } | { obpx[t]:bv[8] = { #x03 }:bv[8] && obq[t]:bv[8] = { #x0a }:bv[8] }) & ({ oapx[t]:bv[8] = { #x02 }:bv[8] && oaq[t]:bv[8] = { #x0a }:bv[8] } | { oapx[t]:bv[8] = { #x04 }:bv[8] && oaq[t]:bv[8] = { #x0a }:bv[8] }) & { obpx[t]:bv[8] >= oapx[t]:bv[8] }) != 0

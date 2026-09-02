@@ -1,0 +1,105 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # REFUTED ATTACK - exp4's verdict branches ARE mutually exclusive and total.
+
+tau> # ============================================================================
+
+tau> # The brief asked whether two verdict branches of the exp4 kernel can be
+
+tau> # satisfied at once, or whether a step can get stuck with no branch firing.
+
+tau> # Neither is possible, and this is not an inspection claim: the formula-level
+
+tau> # ternary c ? A : B normalizes to (~c | A) & (c | B), a genuine if-then-else,
+
+tau> # which the engine prints itself when the run starts. Quantifying over the
+
+tau> # three tau values the conditions read (policy s, registry sp, input x)
+
+tau> # settles it over EVERY reachable configuration.
+
+tau> #
+
+tau> # This is a negative result and it is worth as much as the three positive
+
+tau> # breaks: exp4's control flow is sound. What is wrong with exp4 is what the
+
+tau> # branch CONDITIONS test - registry overlap on whole rows instead of keys,
+
+tau> # and policy consistency instead of policy entailment - not the branching.
+
+tau> # Run: tau -q < opus_refuted_exp4_branch_exclusivity.tau
+
+tau> # EXPECTED-RESULTS: T F F T T T
+
+tau> 
+set charvar off
+charvar:             off
+
+tau> set maxsplits 1
+maxsplits:           1
+
+tau> 
+# (1) TOTALITY - for every configuration some branch fires; no stuck step.
+
+tau> type Cfg = {s: tau, sp: tau, x: tau}. n all v:Cfg ((((v.sp & v.x) != 0)) || (((v.sp & v.x) = 0) && ((v.s & v.x) != 0)) || (((v.sp & v.x) = 0) && ((v.s & v.x) = 0)))
+[1] type Cfg = {s:tau, sp:tau, x:tau}
+normalize_formula: 0.623 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (2) EXCLUSIVITY, replay vs the rest - unsat control.
+
+[ %1 ] tau> type Cfg = {s: tau, sp: tau, x: tau}. n ex v:Cfg (((v.sp & v.x) != 0) && ((v.sp & v.x) = 0))
+[2] type Cfg = {s:tau, sp:tau, x:tau}
+normalize_formula: 0.278 ms
+%2: F
+
+[ %2 ] tau> # Answer: F
+
+[ %2 ] tau> 
+# (3) EXCLUSIVITY, admit vs policy-reject - unsat control.
+
+[ %2 ] tau> type Cfg = {s: tau, sp: tau, x: tau}. n ex v:Cfg (((v.sp & v.x) = 0) && ((v.s & v.x) != 0) && ((v.s & v.x) = 0))
+[3] type Cfg = {s:tau, sp:tau, x:tau}
+normalize_formula: 0.37 ms
+%2: F
+
+[ %2 ] tau> # Answer: F
+
+[ %2 ] tau> 
+# (4)-(6) NON-VACUITY - all three branches are reachable, so (1) is not a
+
+[ %2 ] tau> # statement about an empty space and (2)-(3) are not vacuous exclusions.
+
+[ %2 ] tau> type Cfg = {s: tau, sp: tau, x: tau}. n ex v:Cfg ((v.sp & v.x) != 0)
+[4] type Cfg = {s:tau, sp:tau, x:tau}
+normalize_formula: 0.324 ms
+%3: T
+
+[ %3 ] tau> # Answer: T
+
+[ %3 ] tau> type Cfg = {s: tau, sp: tau, x: tau}. n ex v:Cfg (((v.sp & v.x) = 0) && ((v.s & v.x) != 0))
+[5] type Cfg = {s:tau, sp:tau, x:tau}
+normalize_formula: 0.494 ms
+%3: T
+
+[ %3 ] tau> # Answer: T
+
+[ %3 ] tau> type Cfg = {s: tau, sp: tau, x: tau}. n ex v:Cfg (((v.sp & v.x) = 0) && ((v.s & v.x) = 0))
+[6] type Cfg = {s:tau, sp:tau, x:tau}
+normalize_formula: 0.444 ms
+%3: T
+
+[ %3 ] tau> # Answer: T
+
+[ %3 ] tau> 

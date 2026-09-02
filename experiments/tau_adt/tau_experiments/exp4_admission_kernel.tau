@@ -1,0 +1,27 @@
+# ============================================================================
+# EXPERIMENT 4 - a two-lattice admission kernel: spent-set (join) + policy (meet)
+# ============================================================================
+# H4: ONE run can hold both table kinds and decide admissions against both:
+#   policy[t] : tau   meet-accumulated law   (rules only tighten; nomic core)
+#   spent[t]  : tau   join-accumulated table (rows only extend; ledger)
+# and a spend admission = policy-consistency AND nullifier-freshness, decided
+# by the machine on its own state each step. Verdict codes:
+#   0 = boundary, 9 = admitted, 8 = policy-rejected, 7 = double-spend
+# This is the ZenoDEX shape: allowlist tightening + replay protection in one
+# decidable temporal machine with no external validator.
+# Run: tau -q < exp4_admission_kernel.tau
+# EXPECTED-CODES: 0,9,7,8
+# Steps (inputs at end of file):
+#  1: spend nullifier 4, policy-consistent        -> 9, spent grows by {onul=4}
+#  2: REPLAY nullifier 4                          -> 7, spent unchanged
+#  3: spend violating the entrenched core         -> 8, spent unchanged
+
+set charvar off
+
+# NOTE: nomic_03 file format - after `run`, every line is an input; bare tau
+# spec text without braces or trailing periods; EOF terminates the session.
+# Branches via nested ternaries: replay-check first, then policy consistency.
+run ( (o0s[0]:tau = { oact[t]=1 -> oauth[t]=1 }) && (o0sp[0]:tau = 0) && ( ((o0sp[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x07 }:bv[8])) : ( ((o0s[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = (o0sp[t-1]:tau | i1[t]:tau)) && (o0res[t]:bv[8] = { #x09 }:bv[8])) : ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x08 }:bv[8])) ) ) )
+onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+oact[t]=1 && oauth[t]=0

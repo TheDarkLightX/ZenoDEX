@@ -1,0 +1,11 @@
+# ATTACK 2 on exp4: PERMANENT DENIAL OF SERVICE from one input.
+# The spent set is join-accumulated with NO schema constraint on i1. A single
+# tautological input is the TOP element of the tau algebra; joining it makes
+# spent = TOP, after which (spent & x) != 0 for EVERY nonzero x -- every later
+# spend, however fresh, is rejected as a double-spend, forever.
+# EXPECTED-CODES: 0,9,7,7
+set charvar off
+run ( (o0s[0]:tau = { oact[t]=1 -> oauth[t]=1 }) && (o0sp[0]:tau = 0) && ( ((o0sp[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x07 }:bv[8])) : ( ((o0s[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = (o0sp[t-1]:tau | i1[t]:tau)) && (o0res[t]:bv[8] = { #x09 }:bv[8])) : ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x08 }:bv[8])) ) ) )
+oz[t] = oz[t]
+onul[t]:bv[8] = { #x09 }:bv[8] && oauth[t]=1
+onul[t]:bv[8] = { #x0B }:bv[8] && oauth[t]=1

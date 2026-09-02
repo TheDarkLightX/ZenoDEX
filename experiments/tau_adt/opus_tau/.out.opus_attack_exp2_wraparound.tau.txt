@@ -1,0 +1,113 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # ATTACK on exp2 (a) - the conservation theorem is a ring identity, and it
+
+tau> # holds precisely where the balance table is unsafe.
+
+tau> # ============================================================================
+
+tau> # exp2 (a) proves, for the pinned values 10 and 5 and the pinned amount 3,
+
+tau> # that a transfer conserves the total. Nothing in that proof depends on the
+
+tau> # amount: over bv[8] = Z/256 the statement (x-d)+(y+d) = x+y is an identity
+
+tau> # for EVERY d, with no hypothesis at all. Query (3) proves the general form
+
+tau> # outright. So the "conservation theorem" carries no safety content: it is
+
+tau> # satisfied by the transfer that mints 256 units.
+
+tau> # Run: tau -q < opus_attack_exp2_wraparound.tau
+
+tau> # EXPECTED-RESULTS: T T T T T F
+
+tau> 
+set charvar off
+charvar:             off
+
+tau> set maxsplits 1
+maxsplits:           1
+
+tau> 
+# (1) exp2's own theorem shape, re-run at the wrap boundary: transferring
+
+tau> # 250 out of a balance of 10 still "conserves".
+
+tau> type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal ((b.alice = { #x0A }:bv[8] && b.bob = { #x05 }:bv[8] && c.alice = b.alice - { #xFA }:bv[8] && c.bob = b.bob + { #xFA }:bv[8]) -> c.alice + c.bob = b.alice + b.bob)
+[1] type Bal = {alice:bv[8], bob:bv[8]}
+normalize_formula: 3.37 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (2) THE ATTACK: and in that same transfer the SENDER GAINS. alice goes
+
+[ %1 ] tau> # 10 -> 16 and bob 5 -> 255: 256 units created, sum preserved mod 256.
+
+[ %1 ] tau> type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal ((b.alice = { #x0A }:bv[8] && b.bob = { #x05 }:bv[8] && c.alice = b.alice - { #xFA }:bv[8] && c.bob = b.bob + { #xFA }:bv[8]) -> (c.alice = { #x10 }:bv[8] && c.bob = { #xFF }:bv[8]))
+[2] type Bal = {alice:bv[8], bob:bv[8]}
+normalize_formula: 2.149 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (3) WHY: conservation holds for every amount, unconditionally. There is
+
+[ %1 ] tau> # no hypothesis left to be violated - the theorem is the ring identity.
+
+[ %1 ] tau> type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal all d:bv[8] ((c.alice = b.alice - d && c.bob = b.bob + d) -> c.alice + c.bob = b.alice + b.bob)
+[3] type Bal = {alice:bv[8], bob:bv[8]}
+normalize_formula: 2.09 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (4) THE REPAIR, half one - a sufficiency guard makes "sender does not
+
+[ %1 ] tau> # gain" derivable:
+
+[ %1 ] tau> type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal all d:bv[8] ((d <= b.alice && c.alice = b.alice - d) -> c.alice <= b.alice)
+[4] type Bal = {alice:bv[8], bob:bv[8]}
+normalize_formula: 4.47 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (5) THE REPAIR, half two - a capacity guard makes "receiver does not
+
+[ %1 ] tau> # lose" derivable. Note 255 - d does not itself wrap, which is why the
+
+[ %1 ] tau> # guard is written this way and not as b.alice + b.bob <= 255 (that sum
+
+[ %1 ] tau> # wraps, and the guard would be vacuous).
+
+[ %1 ] tau> type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal all d:bv[8] ((b.bob <= { #xFF }:bv[8] - d && c.bob = b.bob + d) -> c.bob >= b.bob)
+[5] type Bal = {alice:bv[8], bob:bv[8]}
+normalize_formula: 5.137 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (6) UNSAT CONTROL for the repair - with both guards, no counterexample.
+
+[ %1 ] tau> type Bal = {alice: bv[8], bob: bv[8]}. n ex b:Bal ex c:Bal ex d:bv[8] (d <= b.alice && b.bob <= { #xFF }:bv[8] - d && c.alice = b.alice - d && c.bob = b.bob + d && c.alice > b.alice)
+[6] type Bal = {alice:bv[8], bob:bv[8]}
+normalize_formula: 9.429 ms
+%2: F
+
+[ %2 ] tau> # Answer: F
+
+[ %2 ] tau> 

@@ -1,0 +1,24 @@
+# ============================================================================
+# TOP FINDING, console variant - EVERY accepted revision resets the kernel.
+# Same construction as opus_attack_exp4_gov_replay2.tau but with the spend
+# channel i1 on the console, so i1 and i2 consume file lines round-robin.
+# Codes: 0,9,7,7,0,8,0,8. The kernel resets to the boundary code TWICE -
+# once at step 4 after the intended amendment, and again at step 6, because
+# after the first revision the input-to-channel mapping shifts and a SPEND
+# text lands on the amendment channel, where it is accepted as law. So the
+# reset is not a one-off boundary artifact: it recurs on each revision, and
+# after a revision the operator can no longer tell which channel an input
+# will reach. Superseded as primary evidence by the file-driven variant,
+# which isolates the reset without the channel-shift confound.
+# EXPECTED-CODES: 0,9,7,7,0,8,0,8
+# ============================================================================
+set charvar off
+run ( (o0s[0]:tau = { oact[t]=1 -> oauth[t]=1 }) && (o0sp[0]:tau = 0) && (u[t]:tau = i2[t]:tau) && ( ((o0sp[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x07 }:bv[8])) : ( ((o0s[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = (o0sp[t-1]:tau | i1[t]:tau)) && (o0res[t]:bv[8] = { #x09 }:bv[8])) : ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x08 }:bv[8])) ) ) )
+onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+o9[t]=0 && o9[t]=1
+onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+o9[t]=0 && o9[t]=1
+onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+oflag[t]=1
+onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+o9[t]=0 && o9[t]=1

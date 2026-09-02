@@ -1,0 +1,54 @@
+# ============================================================================
+# NEW TABLE KIND 1 - THE CROSSING TABLE (order book as two table values)
+# ============================================================================
+# Every table kind in the tutorials answers "is this row present?". A book
+# has to answer a RELATIONAL question instead: "do these two tables admit a
+# pair whose prices cross?" The construction keeps both sides as ordinary
+# table values over disjoint column streams and puts the matching law in a
+# THIRD value, a pure inequality with no rows at all:
+#
+#   BIDS  = { obpx=5, obq=10 } | { obpx=7, obq=4 }
+#   ASKS  = { oapx=6, oaq=8  } | { oapx=9, oaq=3 }
+#   LAW   = { obpx >= oapx }                    <- the matching law
+#   CROSS = BIDS & ASKS & LAW                   <- the matchable pair set
+#
+# Because bids and asks use different column streams their meet is the full
+# cartesian product, and the law selects the crossing pairs out of it. The
+# match is therefore not computed and compared - it is the value CROSS, and
+# "the book crosses" is the single decidable question CROSS != 0.
+#
+# ZenoDEX surface: the CLOB admission gate. An orderbook batch can be
+# admitted only if CROSS is non-empty, and the specific pair that clears is
+# the membership witness (b2) - both decided without a matching engine.
+# Run: tau -q < opus_new1_crossing_table.tau
+# EXPECTED-RESULTS: T T T T T F
+
+set charvar off
+set maxsplits 1
+
+# (1) both sides are live tables:
+n ({ obpx[t]:bv[8] = { #x05 }:bv[8] && obq[t]:bv[8] = { #x0A }:bv[8] } | { obpx[t]:bv[8] = { #x07 }:bv[8] && obq[t]:bv[8] = { #x04 }:bv[8] }) != 0
+# Answer: T
+
+n ({ oapx[t]:bv[8] = { #x06 }:bv[8] && oaq[t]:bv[8] = { #x08 }:bv[8] } | { oapx[t]:bv[8] = { #x09 }:bv[8] && oaq[t]:bv[8] = { #x03 }:bv[8] }) != 0
+# Answer: T
+
+# (2) THE BOOK CROSSES: CROSS = BIDS & ASKS & LAW is non-empty.
+n (({ obpx[t]:bv[8] = { #x05 }:bv[8] && obq[t]:bv[8] = { #x0A }:bv[8] } | { obpx[t]:bv[8] = { #x07 }:bv[8] && obq[t]:bv[8] = { #x04 }:bv[8] }) & ({ oapx[t]:bv[8] = { #x06 }:bv[8] && oaq[t]:bv[8] = { #x08 }:bv[8] } | { oapx[t]:bv[8] = { #x09 }:bv[8] && oaq[t]:bv[8] = { #x03 }:bv[8] }) & { obpx[t]:bv[8] >= oapx[t]:bv[8] }) != 0
+# Answer: T - bid 7 meets ask 6.
+
+# (3) THE CLEARING PAIR IS FORCED: CROSS entails (bid 7, ask 6). This is the
+# membership test, not overlap - the meet with the complement is empty, so
+# no other pair is in CROSS. The book has ONE crossing pair, provably.
+n ((({ obpx[t]:bv[8] = { #x05 }:bv[8] && obq[t]:bv[8] = { #x0A }:bv[8] } | { obpx[t]:bv[8] = { #x07 }:bv[8] && obq[t]:bv[8] = { #x04 }:bv[8] }) & ({ oapx[t]:bv[8] = { #x06 }:bv[8] && oaq[t]:bv[8] = { #x08 }:bv[8] } | { oapx[t]:bv[8] = { #x09 }:bv[8] && oaq[t]:bv[8] = { #x03 }:bv[8] }) & { obpx[t]:bv[8] >= oapx[t]:bv[8] }) & { obpx[t]:bv[8] = { #x07 }:bv[8] && oapx[t]:bv[8] = { #x06 }:bv[8] }') = 0
+# Answer: T
+
+# (4) UNSAT CONTROL - a book whose only bid is 5 does NOT cross asks at 6/9:
+n (({ obpx[t]:bv[8] = { #x05 }:bv[8] && obq[t]:bv[8] = { #x0A }:bv[8] }) & ({ oapx[t]:bv[8] = { #x06 }:bv[8] && oaq[t]:bv[8] = { #x08 }:bv[8] } | { oapx[t]:bv[8] = { #x09 }:bv[8] && oaq[t]:bv[8] = { #x03 }:bv[8] }) & { obpx[t]:bv[8] >= oapx[t]:bv[8] }) = 0
+# Answer: T - no crossing pair exists; the batch must not clear.
+
+# (5) UNSAT CONTROL 2 - the law is what does the work. Drop LAW and the same
+# non-crossing book "matches" (the bare product is non-empty), so a T here
+# would be meaningless without (4):
+n (({ obpx[t]:bv[8] = { #x05 }:bv[8] && obq[t]:bv[8] = { #x0A }:bv[8] }) & ({ oapx[t]:bv[8] = { #x06 }:bv[8] && oaq[t]:bv[8] = { #x08 }:bv[8] } | { oapx[t]:bv[8] = { #x09 }:bv[8] && oaq[t]:bv[8] = { #x03 }:bv[8] })) = 0
+# Answer: F - without the matching law every bid "matches" every ask.

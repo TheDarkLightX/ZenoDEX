@@ -1,0 +1,31 @@
+# ============================================================================
+# NEW KIND - THE KEY-PROJECTED ADMISSION KERNEL (repair of exp4)
+# ============================================================================
+# Three defects of exp4 are closed at once:
+#  (1) the registry stores the WHOLE spend spec, so a spend sharing the
+#      nullifier but conflicting elsewhere is disjoint from it and replays;
+#  (2) the policy test is CONSISTENCY, so a spend that merely fails to
+#      contradict policy is admitted without satisfying it;
+#  (3) i1 is unconstrained, so the tautology (TOP) joins the registry and
+#      poisons it forever.
+# The repair adds a declared KEY channel i2 and a binding check the machine
+# verifies itself, so the host cannot lie about the key:
+#   code 6 malformed : i1 does not entail i2, or i2 is TOP (i2' = 0)
+#   code 7 replay    : registry & i2 != 0        (key-projected overlap)
+#   code 8 policy    : i1 does not ENTAIL policy (i1 & policy' != 0)
+#   code 9 admitted  : registry := registry | i2 (the KEY, not the row)
+# EXPECTED-CODES: 0,9,7,8,6
+#   step 1  spend nullifier 4, authorized, key 4 declared      -> 9
+#   step 2  ATTACK 1: replay nullifier 4 with oauth=0          -> 7
+#   step 3  ATTACK 3: destructive act with no authorization    -> 8
+#   step 4  ATTACK 2: TOP as spend and key                     -> 6
+set charvar off
+run ( (o0s[0]:tau = { oact[t]=1 -> oauth[t]=1 }) && (o0sp[0]:tau = 0) && ( (((i1[t]:tau & i2[t]:tau') != 0) || ((i2[t]:tau') = 0)) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x06 }:bv[8])) : ( ((o0sp[t-1]:tau & i2[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x07 }:bv[8])) : ( ((i1[t]:tau & o0s[t-1]:tau') != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x08 }:bv[8])) : ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = (o0sp[t-1]:tau | i2[t]:tau)) && (o0res[t]:bv[8] = { #x09 }:bv[8])) ) ) ) )
+onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1
+onul[t]:bv[8] = { #x04 }:bv[8]
+onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=0
+onul[t]:bv[8] = { #x04 }:bv[8]
+oact[t]=1 && onul[t]:bv[8] = { #x05 }:bv[8]
+onul[t]:bv[8] = { #x05 }:bv[8]
+oz[t] = oz[t]
+oz[t] = oz[t]

@@ -1,0 +1,19 @@
+# ============================================================================
+# ATTACK on exp3 - the amendment that rewrites the append-only LAW itself.
+# Line 1 (ia[1]) is a benign tightening; line 2 (ir[1]) appends orow=1.
+# Line 3 offers ob[t]=0 on the amendment channel. It is accepted, and the
+# running specification becomes
+#   (always u[t]=ia[t] && oflag[t]'=0)
+#   && ((always ob[t-1]|ir[t] = ob[t] && ob[t-1] = 0) || (always ob[t]=0))
+# The append law is now a DISJUNCT guarded by ob[t-1]=0: it no longer holds
+# unconditionally. This is the documented replacement hazard - but note the
+# ledger was already emptied at step 2 by the FIRST, benign amendment, which
+# is the finding opus_attack_exp3_benign_amend.tau isolates.
+# EXPECTED-OB: F R F F F
+# ============================================================================
+set charvar off
+run u[t]:tau = ia[t]:tau && ob[t]:tau = (ob[t-1]:tau | ir[t]:tau)
+oflag[t]=1
+orow[t]=1
+ob[t]:tau = 0
+o9[t]=0 && o9[t]=1

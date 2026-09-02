@@ -1,0 +1,49 @@
+# ============================================================================
+# EXPERIMENT 2 - ZenoDEX-shaped table kinds from the ADT substrate
+# (a) balance table with proven conservation under transfer
+# (b) nullifier (spent) set with double-spend rejection
+# (c) epoch-windowed entitlement table via constant time constraints
+# ============================================================================
+# H2a: transfer = functional update of two cells; sum preservation is a theorem.
+# H2b: join-accumulated spent-set rejects a replayed nullifier by overlap test.
+# H2c: a row guarded by [t<N] expires: live inside the window, F outside.
+# Run: tau -q < exp2_zenodex_tables.tau
+# EXPECTED-RESULTS: T F T T
+# EXPECTED-TF: T T T F F F F
+
+set charvar off
+set maxsplits 1
+
+# --- (a) conservation across a transfer -------------------------------------
+# Balances as a fixed table {alice, bob}; a transfer of 3 from alice to bob is
+# a second table; the total is invariant - as a THEOREM over all such pairs:
+type Bal = {alice: bv[8], bob: bv[8]}. n all b:Bal all c:Bal ((b.alice = { #x0A }:bv[8] && b.bob = { #x05 }:bv[8] && c.alice = b.alice - { #x03 }:bv[8] && c.bob = b.bob + { #x03 }:bv[8]) -> c.alice + c.bob = b.alice + b.bob)
+# Answer: T - conservation: 7 + 8 = 10 + 5.
+
+# CONTROL: a lossy "transfer" (burns 1) cannot conserve:
+type Bal = {alice: bv[8], bob: bv[8]}. n ex b:Bal ex c:Bal (b.alice = { #x0A }:bv[8] && b.bob = { #x05 }:bv[8] && c.alice = b.alice - { #x03 }:bv[8] && c.bob = b.bob + { #x02 }:bv[8] && c.alice + c.bob = b.alice + b.bob)
+# Answer: F - no assignment makes the lossy update conserve.
+
+# --- (b) nullifier set: double-spend rejection ------------------------------
+# Spent set after two spends: { onul=4 } | { onul=9 }. A replay of nullifier 4
+# OVERLAPS the set (=> must reject); a fresh nullifier 6 does not (=> accept):
+n (({ onul[t]:bv[8] = { #x04 }:bv[8] }) & ({ onul[t]:bv[8] = { #x04 }:bv[8] } | { onul[t]:bv[8] = { #x09 }:bv[8] })) != 0
+# Answer: T - replayed nullifier detected by pure algebra.
+n (({ onul[t]:bv[8] = { #x06 }:bv[8] }) & ({ onul[t]:bv[8] = { #x04 }:bv[8] } | { onul[t]:bv[8] = { #x09 }:bv[8] })) = 0
+# Answer: T - fresh nullifier provably unspent (negative proof = admission).
+
+# --- (c) epoch-windowed entitlement via constant time constraints -----------
+# README-documented guard form: the entitlement stream is 1 for the first
+# three steps and 0 afterwards - an EXPIRING right, no clock logic needed.
+# The input i9 is BOUND INTO the formula so each console line drives exactly
+# one step (an unused input stream would let the run free-run past the file).
+# Expected oent lines (EXPECTED-TF): steps 0,1,2 -> T; every later observed
+# step -> F (the runtime emits two steady-state steps beyond the five inputs;
+# the expired window stays F forever, which is the claim).
+i9 : sbf := in console. oent : sbf := out console. o9 : sbf := out console. run always ([t < 3] -> oent[t] = 1) && ([t >= 3] -> oent[t] = 0) && (o9[t] = i9[t])
+0
+0
+0
+0
+0
+q

@@ -1,0 +1,32 @@
+# ============================================================================
+# TOP FINDING - governance destroys the admission kernel.
+# exp4's kernel plus a pointwise-revision channel (u[t] = i2[t]). Spends
+# arrive from io/spends.in: the SAME spend of nullifier 4, twelve times.
+# Steps 1-3 behave: 9 (admitted), 7, 7 (replay caught). At step 3 a benign
+# amendment (oflag=1, mentioning no kernel stream) is accepted. At step 4
+# the kernel is back at its boundary state - o0res 0, and the spent set
+# o0sp reset to F - so every nullifier ever spent is unspent again. The
+# file-bound spend channel is also detached by the revision, so the later
+# steps read i1 = 0 and answer 8 rather than re-admitting; the reset of the
+# spent set is the finding, and the code-9 replay is its corollary at a
+# state identical to step 0, not something this transcript re-observes.
+# EXPECTED-CODES: 0,9,7,7,0,8,8,8,8,8,8,8,8,8,8,8,8
+# ============================================================================
+set charvar off
+i1 : tau := in file("io/spends.in").
+run ( (o0s[0]:tau = { oact[t]=1 -> oauth[t]=1 }) && (o0sp[0]:tau = 0) && (u[t]:tau = i2[t]:tau) && ( ((o0sp[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x07 }:bv[8])) : ( ((o0s[t-1]:tau & i1[t]:tau) != 0) ? ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = (o0sp[t-1]:tau | i1[t]:tau)) && (o0res[t]:bv[8] = { #x09 }:bv[8])) : ((o0s[t]:tau = o0s[t-1]:tau) && (o0sp[t]:tau = o0sp[t-1]:tau) && (o0res[t]:bv[8] = { #x08 }:bv[8])) ) ) )
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+oflag[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1
+o9[t]=0 && o9[t]=1

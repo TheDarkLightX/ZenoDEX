@@ -1,0 +1,115 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # NEW TABLE KIND 3 - THE GUARDED ESCROW TABLE (conservation that is a guard)
+
+tau> # ============================================================================
+
+tau> # exp2 proves "conservation under transfer" as
+
+tau> #   (c.alice = b.alice - d && c.bob = b.bob + d) -> c.alice+c.bob = b.alice+b.bob
+
+tau> # That is TRUE for every d, with no hypothesis at all - it is the ring
+
+tau> # identity (x-d)+(y+d) = x+y in Z/256. It is a theorem about arithmetic, not
+
+tau> # a safety property of a balance table, and it holds exactly where the table
+
+tau> # is least safe: at d = 250 on a balance of 10 the sender's cell goes 10 ->
+
+tau> # 16 and the receiver's 5 -> 255, minting 256 units, while the sum is
+
+tau> # preserved mod 256. See opus_attack_exp2_wraparound.tau.
+
+tau> #
+
+tau> # A balance table kind therefore has to carry its guards as part of the
+
+tau> # schema contract, and the conservation claim has to be stated jointly with
+
+tau> # monotonicity - "no cell moved the wrong way" - which is what actually
+
+tau> # fails at the wrap boundary. Three cells, one move:
+
+tau> #
+
+tau> #   GUARD  :  d <= e.user     (sufficiency: no underflow)
+
+tau> #          &  e.escrow <= 255 - d   (capacity: no overflow; 255-d does not
+
+tau> #                                    itself wrap, which is why it is written
+
+tau> #                                    this way and not as e.user+e.escrow<=255)
+
+tau> #   MOVE   :  f.user = e.user - d,  f.escrow = e.escrow + d,  f.vault = e.vault
+
+tau> #
+
+tau> # ZenoDEX surface: any two-table value movement - deposit/withdraw, escrow
+
+tau> # lock/release, vault rebalancing - where the pair of tables must conserve
+
+tau> # AND no participant may gain from the move.
+
+tau> # Run: tau -q < opus_new3_guarded_escrow_table.tau
+
+tau> # EXPECTED-RESULTS: T F T T
+
+tau> 
+set charvar off
+charvar:             off
+
+tau> set maxsplits 1
+maxsplits:           1
+
+tau> 
+# (1) THE GUARDED THEOREM: conservation AND directional monotonicity.
+
+tau> type Esc = {user: bv[8], escrow: bv[8], vault: bv[8]}. n all e:Esc all f:Esc all d:bv[8] ((d <= e.user && e.escrow <= { #xFF }:bv[8] - d && f.user = e.user - d && f.escrow = e.escrow + d && f.vault = e.vault) -> (f.user <= e.user && f.escrow >= e.escrow && f.user + f.escrow + f.vault = e.user + e.escrow + e.vault))
+[1] type Esc = {user:bv[8], escrow:bv[8], vault:bv[8]}
+normalize_formula: 9.625 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (2) UNSAT CONTROL: under the guard the depositor can never gain.
+
+[ %1 ] tau> type Esc = {user: bv[8], escrow: bv[8], vault: bv[8]}. n ex e:Esc ex f:Esc ex d:bv[8] (d <= e.user && e.escrow <= { #xFF }:bv[8] - d && f.user = e.user - d && f.escrow = e.escrow + d && f.vault = e.vault && f.user > e.user)
+[2] type Esc = {user:bv[8], escrow:bv[8], vault:bv[8]}
+normalize_formula: 10.894 ms
+%2: F
+
+[ %2 ] tau> # Answer: F
+
+[ %2 ] tau> 
+# (3) THE ATTACK CONTROL - this is the one that matters. Drop the guard and
+
+[ %2 ] tau> # a depositor DOES gain while "conservation" still holds. A conservation
+
+[ %2 ] tau> # theorem without the guard is compatible with minting.
+
+[ %2 ] tau> type Esc = {user: bv[8], escrow: bv[8], vault: bv[8]}. n ex e:Esc ex f:Esc ex d:bv[8] (f.user = e.user - d && f.escrow = e.escrow + d && f.vault = e.vault && f.user > e.user && f.user + f.escrow + f.vault = e.user + e.escrow + e.vault)
+[3] type Esc = {user:bv[8], escrow:bv[8], vault:bv[8]}
+normalize_formula: 3.247 ms
+%3: T
+
+[ %3 ] tau> # Answer: T
+
+[ %3 ] tau> 
+# (4) NON-VACUITY for (1): a real deposit satisfies the guard and moves value.
+
+[ %3 ] tau> type Esc = {user: bv[8], escrow: bv[8], vault: bv[8]}. n ex e:Esc ex f:Esc ex d:bv[8] (d <= e.user && e.escrow <= { #xFF }:bv[8] - d && f.user = e.user - d && f.escrow = e.escrow + d && f.vault = e.vault && d != { #x00 }:bv[8] && f.escrow > e.escrow)
+[4] type Esc = {user:bv[8], escrow:bv[8], vault:bv[8]}
+normalize_formula: 6.457 ms
+%3: T
+
+[ %3 ] tau> # Answer: T
+
+[ %3 ] tau> 

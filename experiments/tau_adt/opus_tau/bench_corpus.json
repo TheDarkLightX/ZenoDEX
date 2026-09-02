@@ -1,0 +1,170 @@
+[
+ {
+  "file": "opus_attack_exp1_difference.tau",
+  "dir": "opus_tau",
+  "s": 0.725,
+  "queries": 8,
+  "run_steps": 0,
+  "per_query": 0.091
+ },
+ {
+  "file": "opus_attack_exp2_wraparound.tau",
+  "dir": "opus_tau",
+  "s": 0.536,
+  "queries": 6,
+  "run_steps": 0,
+  "per_query": 0.089
+ },
+ {
+  "file": "opus_attack_exp3_benign_amend.tau",
+  "dir": "opus_tau",
+  "s": 0.176,
+  "queries": 0,
+  "run_steps": 6,
+  "per_query": null
+ },
+ {
+  "file": "opus_attack_exp3_wipe.tau",
+  "dir": "opus_tau",
+  "s": 0.175,
+  "queries": 0,
+  "run_steps": 6,
+  "per_query": null
+ },
+ {
+  "file": "opus_attack_exp4_doublespend.tau",
+  "dir": "opus_tau",
+  "s": 0.364,
+  "queries": 0,
+  "run_steps": 4,
+  "per_query": null
+ },
+ {
+  "file": "opus_attack_exp4_gov_replay.tau",
+  "dir": "opus_tau",
+  "s": 0.571,
+  "queries": 0,
+  "run_steps": 9,
+  "per_query": null
+ },
+ {
+  "file": "opus_attack_exp4_gov_replay2.tau",
+  "dir": "opus_tau",
+  "s": 0.629,
+  "queries": 0,
+  "run_steps": 18,
+  "per_query": null
+ },
+ {
+  "file": "opus_attack_exp4_poison.tau",
+  "dir": "opus_tau",
+  "s": 0.366,
+  "queries": 0,
+  "run_steps": 5,
+  "per_query": null
+ },
+ {
+  "file": "opus_attack_exp4_policy.tau",
+  "dir": "opus_tau",
+  "s": 0.287,
+  "queries": 0,
+  "run_steps": 3,
+  "per_query": null
+ },
+ {
+  "file": "opus_exp3_control_noamend.tau",
+  "dir": "opus_tau",
+  "s": 0.167,
+  "queries": 0,
+  "run_steps": 5,
+  "per_query": null
+ },
+ {
+  "file": "opus_new1_crossing_table.tau",
+  "dir": "opus_tau",
+  "s": 0.663,
+  "queries": 6,
+  "run_steps": 0,
+  "per_query": 0.111
+ },
+ {
+  "file": "opus_new2_key_registry_table.tau",
+  "dir": "opus_tau",
+  "s": 0.54,
+  "queries": 6,
+  "run_steps": 0,
+  "per_query": 0.09
+ },
+ {
+  "file": "opus_new3_guarded_escrow_table.tau",
+  "dir": "opus_tau",
+  "s": 0.615,
+  "queries": 4,
+  "run_steps": 0,
+  "per_query": 0.154
+ },
+ {
+  "file": "opus_new_admission_kernel_v2.tau",
+  "dir": "opus_tau",
+  "s": 0.77,
+  "queries": 0,
+  "run_steps": 6,
+  "per_query": null
+ },
+ {
+  "file": "opus_refuted_exp4_branch_exclusivity.tau",
+  "dir": "opus_tau",
+  "s": 0.333,
+  "queries": 6,
+  "run_steps": 0,
+  "per_query": 0.055
+ },
+ {
+  "file": "exp1_relational_algebra.tau",
+  "dir": "tau_experiments",
+  "s": 0.807,
+  "queries": 8,
+  "run_steps": 0,
+  "per_query": 0.101
+ },
+ {
+  "file": "exp2_zenodex_tables.tau",
+  "dir": "tau_experiments",
+  "s": 0.501,
+  "queries": 4,
+  "run_steps": 8,
+  "per_query": 0.125
+ },
+ {
+  "file": "exp3_governed_ledger.tau",
+  "dir": "tau_experiments",
+  "s": 0.215,
+  "queries": 0,
+  "run_steps": 4,
+  "per_query": null
+ },
+ {
+  "file": "exp4_admission_kernel.tau",
+  "dir": "tau_experiments",
+  "s": 0.457,
+  "queries": 0,
+  "run_steps": 5,
+  "per_query": null
+ },
+ {
+  "file": "exp5_time_indexed_tables.tau",
+  "dir": "tau_experiments",
+  "s": 1.137,
+  "queries": 9,
+  "run_steps": 0,
+  "per_query": 0.126
+ },
+ {
+  "file": "exp6_audit_diff_table.tau",
+  "dir": "tau_experiments",
+  "s": 0.607,
+  "queries": 5,
+  "run_steps": 0,
+  "per_query": 0.121
+ }
+]

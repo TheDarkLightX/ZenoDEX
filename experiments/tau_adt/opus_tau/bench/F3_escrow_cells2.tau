@@ -1,0 +1,4 @@
+set charvar off
+set maxsplits 1
+
+type Esc = {a0: bv[8], a1: bv[8]}. n all e:Esc all f:Esc all d:bv[8] ((d <= e.a0 && e.a1 <= { #xff }:bv[8] - d && f.a0 = e.a0 - d && f.a1 = e.a1 + d) -> (f.a0 <= e.a0 && f.a1 >= e.a1 && f.a0 + f.a1 = e.a0 + e.a1))

@@ -1,0 +1,1 @@
+always ox[t]:bv[8] = ox[t-1]:bv[8] + { #x01 }:bv[8] && ([t < 3] -> ox[t]:bv[8] < { #x0A }:bv[8]).

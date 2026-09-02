@@ -1,0 +1,188 @@
+[
+ {
+  "name": "E_admit_value_4",
+  "s": 0.149,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_direct_4",
+  "s": 0.138,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_value_8",
+  "s": 0.268,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_direct_8",
+  "s": 0.211,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_value_16",
+  "s": 0.626,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_direct_16",
+  "s": 0.397,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_value_32",
+  "s": 2.973,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_direct_32",
+  "s": 0.868,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_value_64",
+  "s": 118.92,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_direct_64",
+  "s": 1.794,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_value_128",
+  "s": ">200.0",
+  "ans": "TIMEOUT",
+  "errs": 0
+ },
+ {
+  "name": "E_admit_direct_128",
+  "s": 5.665,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "F1_crossing_2x2",
+  "s": 0.378,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "F1_crossing_4x4",
+  "s": 0.474,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "F1_crossing_8x8",
+  "s": 2.446,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "F1_crossing_16x16",
+  "s": 32.512,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "F2_registry_2",
+  "s": 0.135,
+  "ans": "T T",
+  "errs": 0
+ },
+ {
+  "name": "F2_registry_4",
+  "s": 0.204,
+  "ans": "T T",
+  "errs": 0
+ },
+ {
+  "name": "F2_registry_8",
+  "s": 0.365,
+  "ans": "T T",
+  "errs": 0
+ },
+ {
+  "name": "F2_registry_16",
+  "s": 0.879,
+  "ans": "T T",
+  "errs": 0
+ },
+ {
+  "name": "F2_registry_32",
+  "s": 2.929,
+  "ans": "T T",
+  "errs": 0
+ },
+ {
+  "name": "F2_registry_64",
+  "s": 13.338,
+  "ans": "T T",
+  "errs": 0
+ },
+ {
+  "name": "F3_escrow_cells2",
+  "s": 0.125,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "F3_escrow_cells3",
+  "s": 0.139,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "F3_escrow_cells4",
+  "s": 0.193,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "F3_escrow_cells6",
+  "s": 0.167,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "F3_escrow_cells8",
+  "s": 0.213,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "G_form_n_membership",
+  "s": 0.44,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "G_form_n_overlap",
+  "s": 0.426,
+  "ans": "T",
+  "errs": 0
+ },
+ {
+  "name": "G_form_solve_witness",
+  "s": 0.428,
+  "ans": "1 bindings",
+  "errs": 0
+ },
+ {
+  "name": "G_form_sat_direct",
+  "s": 0.064,
+  "ans": "T",
+  "errs": 0
+ }
+]

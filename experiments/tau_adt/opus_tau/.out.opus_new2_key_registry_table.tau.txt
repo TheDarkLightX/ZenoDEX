@@ -1,0 +1,128 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # NEW TABLE KIND 2 - THE KEY-PROJECTED REGISTRY (a set table that is a set)
+
+tau> # ============================================================================
+
+tau> # A registry answers "has this key been used?". exp4 built one by joining
+
+tau> # each admitted SPEND into the registry. That is not a set of keys - it is a
+
+tau> # set of whole rows, and two rows can share a key while being disjoint as
+
+tau> # values. The registry then misses the second one.
+
+tau> #
+
+tau> # The fix is a table kind, not a patch: registry rows are KEY-ONLY
+
+tau> # projections, { onul = k }, and admission joins the KEY, never the row.
+
+tau> # The payoff is a theorem quantified over ALL tau values, i.e. over every
+
+tau> # spend an adversary can write, not over a list of cases we thought of:
+
+tau> #
+
+tau> #   for every spend x:  x != 0  and  x <= {onul=4}   =>   x & REGISTRY != 0
+
+tau> #
+
+tau> # ZenoDEX surface: the nullifier / replay-guard table. The same shape covers
+
+tau> # any "used exactly once" set - order ids, intent hashes, epoch receipts.
+
+tau> # Run: tau -q < opus_new2_key_registry_table.tau
+
+tau> # EXPECTED-RESULTS: T T T T T T
+
+tau> # (queries 5-6 carry type declarations, so %N restarts - read by ORDER)
+
+tau> 
+set charvar off
+charvar:             off
+
+tau> set maxsplits 1
+maxsplits:           1
+
+tau> 
+# REGISTRY = { onul=4 } | { onul=9 }   (keys only, no payload columns)
+
+tau> 
+# (1) a spend of a registered key is caught however it is written - here the
+
+tau> # same key with the OPPOSITE auth bit, which is the witness that breaks the
+
+tau> # full-row registry:
+
+tau> n (({ onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=0 }) & ({ onul[t]:bv[8] = { #x04 }:bv[8] } | { onul[t]:bv[8] = { #x09 }:bv[8] })) != 0
+normalize_formula: 0.028 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (2) ...and so is the same key with any extra column:
+
+[ %1 ] tau> n (({ onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1 && oextra[t]=1 }) & ({ onul[t]:bv[8] = { #x04 }:bv[8] } | { onul[t]:bv[8] = { #x09 }:bv[8] })) != 0
+normalize_formula: 0.026 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (3) UNSAT CONTROL - a fresh key is provably absent (admission is a proof):
+
+[ %1 ] tau> n (({ onul[t]:bv[8] = { #x06 }:bv[8] && oauth[t]=1 }) & ({ onul[t]:bv[8] = { #x04 }:bv[8] } | { onul[t]:bv[8] = { #x09 }:bv[8] })) = 0
+normalize_formula: 0.028 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (4) THE FAILURE OF THE FULL-ROW REGISTRY, as a value: the two spends that
+
+[ %1 ] tau> # share nullifier 4 are DISJOINT, so joining the first one does not cover
+
+[ %1 ] tau> # the second. This single line is the whole of exp4's double-spend bug.
+
+[ %1 ] tau> n (({ onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=1 }) & ({ onul[t]:bv[8] = { #x04 }:bv[8] && oauth[t]=0 })) = 0
+normalize_formula: 0.027 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (5) THE REGISTRY THEOREM, over every tau value: any nonzero spend whose
+
+[ %1 ] tau> # key is 4 (x entails { onul=4 }) necessarily meets the registry. The
+
+[ %1 ] tau> # quantifier ranges over all specifications, so this is not a case list.
+
+[ %1 ] tau> type Sp = {row: tau}. n all v:Sp (((v.row != 0) && ((v.row & { onul[t]:bv[8] = { #x04 }:bv[8] }') = 0)) -> ((v.row & ({ onul[t]:bv[8] = { #x04 }:bv[8] } | { onul[t]:bv[8] = { #x09 }:bv[8] })) != 0))
+[1] type Sp = {row:tau}
+normalize_formula: 1.109 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 
+# (6) NON-VACUITY for (5): the hypothesis is satisfiable, so the T above is
+
+[ %1 ] tau> # not free. (Answered as %1 again - the declaration restarts numbering.)
+
+[ %1 ] tau> type Sp = {row: tau}. n ex v:Sp ((v.row != 0) && ((v.row & { onul[t]:bv[8] = { #x04 }:bv[8] }') = 0))
+[2] type Sp = {row:tau}
+normalize_formula: 0.353 ms
+%1: T
+
+[ %1 ] tau> # Answer: T
+
+[ %1 ] tau> 

@@ -1,0 +1,34 @@
+# ============================================================================
+# EXPERIMENT 3 - schema evolution of a running ledger via pointwise revision
+# ============================================================================
+# H3: a live append-only ledger can accept a TIGHTENING amendment through the
+# special stream u mid-run (rows must carry a flag from then on), while an
+# unsatisfiable amendment is provably a no-op (u := F).
+# HAZARD under test: a satisfiable amendment that CONTRADICTS the running spec
+# REPLACES it (README pointwise-revision semantics) - so u-revision alone is
+# NOT entrenchment; exp4 shows the meet-machine that is. This file measures
+# the raw mechanism.
+# Run: tau -q < exp3_governed_ledger.tau
+# VALIDATED 2026-09-02 on 0.7.0-alpha (0ac2756f). Observed transcript:
+#   u[0]  := F                          (boundary; no proposal yet)
+#   ia[1] := oflag[t]=1                 <- file line 1
+#   ir[1] := o9[t]=0 && o9[t]=1        <- file line 2 (SAME step!)
+#   u[1]  := always oflag[t]' = 0       (the tightening, normal form of oflag=1)
+#   Updated specification: always ob[t-1]|ir[t] = ob[t] && u[t-1] = ia[t-1]
+#                          && oflag[t-1]' = 0     <- amendment MERGED, history-shifted
+#   ob[1] := F                          (the F row appended: join no-op, proven)
+#   u[2]  := F                          (no further proposal -> no update)
+# GOTCHA (recorded): several console-fed tau streams consume file lines
+# ROUND-ROBIN within one step - line 2 fed ir[1], not ia[2]. Plan input
+# files stream-by-stream-then-step, not line-per-step.
+# The run's own printed spec is the evidence; no machine contract here.
+
+set charvar off
+
+# The ledger machine: ob accumulates rows by join; amendments arrive on ia.
+# u[t] = ia[t]: every step, the proposal on ia is offered as a revision.
+# NOTE: after `run` every line is consumed as input; tau console inputs are
+# bare spec text, no braces, no trailing period, no blank lines, EOF ends.
+run u[t]:tau = ia[t]:tau && ob[t]:tau = (ob[t-1]:tau | ir[t]:tau)
+oflag[t]=1
+o9[t]=0 && o9[t]=1

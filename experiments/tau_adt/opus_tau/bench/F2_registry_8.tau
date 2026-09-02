@@ -1,0 +1,5 @@
+set charvar off
+set maxsplits 1
+
+n (({ onul[t]:bv[16] = { #x0008 }:bv[16] && oauth[t]=1 }) & ({ onul[t]:bv[16] = { #x0001 }:bv[16] } | { onul[t]:bv[16] = { #x0002 }:bv[16] } | { onul[t]:bv[16] = { #x0003 }:bv[16] } | { onul[t]:bv[16] = { #x0004 }:bv[16] } | { onul[t]:bv[16] = { #x0005 }:bv[16] } | { onul[t]:bv[16] = { #x0006 }:bv[16] } | { onul[t]:bv[16] = { #x0007 }:bv[16] } | { onul[t]:bv[16] = { #x0008 }:bv[16] })) != 0
+n (({ onul[t]:bv[16] = { #x1388 }:bv[16] }) & ({ onul[t]:bv[16] = { #x0001 }:bv[16] } | { onul[t]:bv[16] = { #x0002 }:bv[16] } | { onul[t]:bv[16] = { #x0003 }:bv[16] } | { onul[t]:bv[16] = { #x0004 }:bv[16] } | { onul[t]:bv[16] = { #x0005 }:bv[16] } | { onul[t]:bv[16] = { #x0006 }:bv[16] } | { onul[t]:bv[16] = { #x0007 }:bv[16] } | { onul[t]:bv[16] = { #x0008 }:bv[16] })) = 0

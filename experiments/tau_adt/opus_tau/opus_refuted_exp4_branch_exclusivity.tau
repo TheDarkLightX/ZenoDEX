@@ -1,0 +1,41 @@
+# ============================================================================
+# REFUTED ATTACK - exp4's verdict branches ARE mutually exclusive and total.
+# ============================================================================
+# The brief asked whether two verdict branches of the exp4 kernel can be
+# satisfied at once, or whether a step can get stuck with no branch firing.
+# Neither is possible, and this is not an inspection claim: the formula-level
+# ternary c ? A : B normalizes to (~c | A) & (c | B), a genuine if-then-else,
+# which the engine prints itself when the run starts. Quantifying over the
+# three tau values the conditions read (policy s, registry sp, input x)
+# settles it over EVERY reachable configuration.
+#
+# This is a negative result and it is worth as much as the three positive
+# breaks: exp4's control flow is sound. What is wrong with exp4 is what the
+# branch CONDITIONS test - registry overlap on whole rows instead of keys,
+# and policy consistency instead of policy entailment - not the branching.
+# Run: tau -q < opus_refuted_exp4_branch_exclusivity.tau
+# EXPECTED-RESULTS: T F F T T T
+
+set charvar off
+set maxsplits 1
+
+# (1) TOTALITY - for every configuration some branch fires; no stuck step.
+type Cfg = {s: tau, sp: tau, x: tau}. n all v:Cfg ((((v.sp & v.x) != 0)) || (((v.sp & v.x) = 0) && ((v.s & v.x) != 0)) || (((v.sp & v.x) = 0) && ((v.s & v.x) = 0)))
+# Answer: T
+
+# (2) EXCLUSIVITY, replay vs the rest - unsat control.
+type Cfg = {s: tau, sp: tau, x: tau}. n ex v:Cfg (((v.sp & v.x) != 0) && ((v.sp & v.x) = 0))
+# Answer: F
+
+# (3) EXCLUSIVITY, admit vs policy-reject - unsat control.
+type Cfg = {s: tau, sp: tau, x: tau}. n ex v:Cfg (((v.sp & v.x) = 0) && ((v.s & v.x) != 0) && ((v.s & v.x) = 0))
+# Answer: F
+
+# (4)-(6) NON-VACUITY - all three branches are reachable, so (1) is not a
+# statement about an empty space and (2)-(3) are not vacuous exclusions.
+type Cfg = {s: tau, sp: tau, x: tau}. n ex v:Cfg ((v.sp & v.x) != 0)
+# Answer: T
+type Cfg = {s: tau, sp: tau, x: tau}. n ex v:Cfg (((v.sp & v.x) = 0) && ((v.s & v.x) != 0))
+# Answer: T
+type Cfg = {s: tau, sp: tau, x: tau}. n ex v:Cfg (((v.sp & v.x) = 0) && ((v.s & v.x) = 0))
+# Answer: T

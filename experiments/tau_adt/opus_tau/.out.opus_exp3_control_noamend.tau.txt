@@ -1,0 +1,67 @@
+Welcome to the Tau Language Framework version 0.7.0-alpha (0ac2756f) by IDNI AG.
+This product is protected by patents and copyright. By using this product, you agree to the license terms. To view the license run "tau --license".
+
+For documentation, open issues and reporting issues please visit https://github.com/IDNI/tau-lang/
+
+For built-in help, type "help" or "help command".
+
+tau> # ============================================================================
+
+tau> # CONTROL for opus_attack_exp3_benign_amend.tau - the ledger IS append-only
+
+tau> # when no amendment is ever accepted. Every ia line here is unsatisfiable,
+
+tau> # so pointwise revision never fires; the row appended at step 1 survives.
+
+tau> # EXPECTED-OB: F R R R
+
+tau> # ============================================================================
+
+tau> set charvar off
+charvar:             off
+
+tau> run u[t]:tau = ia[t]:tau && ob[t]:tau = (ob[t-1]:tau | ir[t]:tau)
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+ir[t]:tau|ob[t-1]:tau = ob[t]:tau
+
+
+Temporal normalization of always specification reached fixpoint after 0 steps, yielding the result: 
+u[t]:tau = ia[t]:tau
+
+Execution step: 0
+ob[0] := F
+u[0]  := F
+	step: 0.965 ms
+
+Execution step: 1
+
+ia[1] : tau := o9[t]=0 && o9[t]=1
+
+ir[1] : tau := orow[t]=1
+ob[1] := always orow[t]:tau' = 0
+u[1]  := F
+(Warning) An update rule was provided on input stream ir but the update stream u solved to 0; the rule was not applied
+	step: 10.86 ms
+
+Execution step: 2
+
+ia[2] : tau := o9[t]=0 && o9[t]=1
+
+ir[2] : tau := o9[t]=0 && o9[t]=1
+ob[2] := always orow[t]:tau' = 0
+u[2]  := F
+	step: 11.343 ms
+
+Execution step: 3
+
+ia[3] : tau := o9[t]=0 && o9[t]=1
+
+ir[3] : tau := o9[t]=0 && o9[t]=1
+ob[3] := always orow[t]:tau' = 0
+u[3]  := F
+	step: 11.929 ms
+
+Execution step: 4
+
+ia[4] : tau := 

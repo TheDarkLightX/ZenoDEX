@@ -1,0 +1,62 @@
+# ============================================================================
+# ATTACK on exp1 / exp6 - the complement operators are unsound for any probe
+# that is not time-constant. One root cause, stated and then repaired.
+# ============================================================================
+# A table is written { A } | { B }. A tau constant is read under an implicit
+# `always`, so that value is (always A) OR (always B) - NOT always(A OR B).
+# The two differ, and the gap is exactly the set of streams that move
+# between rows over time. Every operator built on the COMPLEMENT of a table
+# (exp1's MEMBERSHIP and DIFFERENCE, exp6's ADDED and REMOVED) inherits the
+# gap: a row that sits in the table at every single instant is nevertheless
+# outside it as a value, so DIFFERENCE keeps it and the audit diff flags it.
+#
+# Columns are sbf here on purpose: the same attack in bv[8] is real but the
+# engine prints cvc5 translation failures alongside the verdict
+# (see opus_cvc5_faildopen.md), and an attack should not need a caveat.
+# Keys are two bits: key2 = (hi=1,lo=0), key3 = (hi=1,lo=1).
+#   PRICED = { hi=1,lo=0 } | { hi=1,lo=1 }        the priced-key table
+#   P      = { [t<3] -> key2 } && { [t>=3] -> key3 }   one time-varying row
+# Run: tau -q < opus_attack_exp1_difference.tau
+# EXPECTED-RESULTS: T T T T T T T F
+
+set charvar off
+set maxsplits 1
+
+# (1) PRICED is a live table:
+n ({ okhi[t]=1 && oklo[t]=0 } | { okhi[t]=1 && oklo[t]=1 }) != 0
+# Answer: T
+
+# (2) P is a live row:
+n { ([t < 3] -> (okhi[t]=1 && oklo[t]=0)) && ([t >= 3] -> (okhi[t]=1 && oklo[t]=1)) } != 0
+# Answer: T
+
+# (3) P's key is a PRICED key at EVERY instant: P entails always(okhi=1),
+# and okhi=1 holds in both priced rows and in neither unpriced one.
+n ({ ([t < 3] -> (okhi[t]=1 && oklo[t]=0)) && ([t >= 3] -> (okhi[t]=1 && oklo[t]=1)) } & { okhi[t]=1 }') = 0
+# Answer: T
+
+# (4) THE ATTACK: P nevertheless SURVIVES DIFFERENCE against PRICED - the
+# operator reports a row as unpriced whose key is priced at every step.
+n ({ ([t < 3] -> (okhi[t]=1 && oklo[t]=0)) && ([t >= 3] -> (okhi[t]=1 && oklo[t]=1)) } & ({ okhi[t]=1 && oklo[t]=0 } | { okhi[t]=1 && oklo[t]=1 })') != 0
+# Answer: T - (3) and (4) together are the contradiction.
+
+# (5) CONTROL - a time-CONSTANT priced row is correctly swallowed, which is
+# why the bug is invisible to every test written with constant rows:
+n ({ okhi[t]=1 && oklo[t]=0 } & ({ okhi[t]=1 && oklo[t]=0 } | { okhi[t]=1 && oklo[t]=1 })') = 0
+# Answer: T
+
+# (6) THE ROOT CAUSE, one direction: the join of alwayses entails the
+# always of the join.
+n (({ okhi[t]=1 && oklo[t]=0 } | { okhi[t]=1 && oklo[t]=1 }) & { (okhi[t]=1 && oklo[t]=0) || (okhi[t]=1 && oklo[t]=1) }') = 0
+# Answer: T
+
+# (7) THE ROOT CAUSE, strictly: the converse fails - always-of-join has
+# models that the join-of-alwayses does not. That gap is the attack.
+n ({ (okhi[t]=1 && oklo[t]=0) || (okhi[t]=1 && oklo[t]=1) } & ({ okhi[t]=1 && oklo[t]=0 } | { okhi[t]=1 && oklo[t]=1 })') != 0
+# Answer: T
+
+# (8) THE REPAIR: build the table as ONE constant with an internal
+# disjunction. P is then correctly a member, and DIFFERENCE drops it.
+n ({ ([t < 3] -> (okhi[t]=1 && oklo[t]=0)) && ([t >= 3] -> (okhi[t]=1 && oklo[t]=1)) } & { (okhi[t]=1 && oklo[t]=0) || (okhi[t]=1 && oklo[t]=1) }') != 0
+# Answer: F - the meet with the complement is empty: P is inside the
+# repaired table, so the repaired DIFFERENCE correctly keeps nothing.
