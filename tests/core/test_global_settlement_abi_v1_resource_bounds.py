@@ -190,8 +190,9 @@ def test_python_and_rust_v1_collection_limits_are_frozen_and_equal() -> None:
 def test_every_canonical_rust_bound_has_a_python_twin() -> None:
     """Opus P21 NEW-4: total parity over canonical.rs, not a hand-maintained list.
 
-    Every `pub const MAX_...` declaration in canonical.rs, whatever its integer
-    type or spacing, must resolve through this single
+    Every `pub const MAX_...` declaration in canonical.rs, whatever its type
+    spelling (primitive, CamelCase alias, or path-qualified) or spacing, must
+    resolve through this single
     mapping with an equal value; a newly added Rust bound with no Python twin
     fails the key-set equality below instead of silently matching no regex."""
 
@@ -221,7 +222,7 @@ def test_every_canonical_rust_bound_has_a_python_twin() -> None:
     rust_bounds = {
         name: evaluate(expression)
         for name, expression in re.findall(
-            r"pub const (MAX_[A-Z0-9_]+)\s*:\s*[a-z0-9]+\s*=\s*([^;]+);",
+            r"pub\s+const\s+(MAX_[A-Z0-9_]+)\s*:\s*[A-Za-z0-9_:]+\s*=\s*([^;]+);",
             rust_source,
             re.S,
         )
