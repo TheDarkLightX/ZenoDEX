@@ -1,0 +1,608 @@
+{
+ "capability_probes": {
+  "asset_always_theorem": {
+   "expected": "T",
+   "query": "valid ((all r:AssetTransferResultADT1 (asset_transfer_result_ok(r) -> (((r.rejected = 1:sbf) -> ((r.pre_state_root = r.post_state_root) && (r.effects_empty = 1:sbf) && (r.reject_code != {0}:bv[8]))) && ((r.accepted = 1:sbf) -> ((r.reject_code = {0}:bv[8]) && (r.effects_empty = 0:sbf)))))) && (all r:AssetTransferResultADT1 ((asset_transfer_result_ok(r) && (r.reject_code = {12}:bv[8])) -> ((r.accepted = 0:sbf) && (r.rejected = 1:sbf) && (r.pre_state_root = r.post_state_root) && (r.effects_empty = 1:sbf)))) && (all required:bv[16] all cap:bv[16] (fee_within_cap(required, cap) <-> (required <= cap))) && (all e:AssetTransferEnvelopeADT1 ((asset_transfer_command_shape_ok(e.command) && asset_transfer_context_binding_ok(e.context, e.state_module_release, e.command.sender) && fee_within_cap(e.required_fee_atoms, e.command.max_fee_atoms) && asset_transfer_result_ok(e.result)) -> ((e.command.sender != e.command.recipient) && (e.command.amount_atoms != {0}:bv[16]) && (e.context.module_release_id = e.state_module_release) && (e.context.subject_id = e.command.sender) && ((e.result.rejected = 1:sbf) -> ((e.result.pre_state_root = e.result.post_state_root) && (e.result.effects_empty = 1:sbf)))))))",
+   "verdict": "T"
+  },
+  "false_whole_adt_statement": {
+   "expected": "F",
+   "query": "valid all r:AssetTransferResultADT1 (asset_transfer_result_ok(r) -> (r.accepted = 1:sbf))",
+   "verdict": "F"
+  },
+  "fee_cap_min_equivalence": {
+   "expected": "T",
+   "query": "valid all required:bv[16] all cap:bv[16] (fee_within_cap(required, cap) <-> (required <= cap))",
+   "verdict": "T"
+  },
+  "fee_cap_min_strict_falsification": {
+   "expected": "F",
+   "query": "valid all required:bv[16] all cap:bv[16] (fee_within_cap(required, cap) <-> (required < cap))",
+   "verdict": "F"
+  },
+  "journal_always_theorem": {
+   "expected": "T",
+   "query": "valid ((all j:LaneModuleTransitionJournalADT1 (lane_module_journal_ok(j) -> (journal_header_ok(j.header) && journal_binding_ok(j.binding)))) && (all edge:LaneJournalEdgeADT1 ((lane_module_journal_ok(edge.previous) && lane_module_journal_ok(edge.next) && same_journal_header(edge.previous.header, edge.next.header) && (edge.previous.binding.command_occurrence_id != edge.next.binding.command_occurrence_id) && (edge.previous.binding.post_lane_root = edge.next.binding.pre_lane_root)) -> ((edge.next.binding.pre_lane_root = edge.previous.binding.post_lane_root) && (edge.previous.header.writer_epoch = edge.next.header.writer_epoch) && (edge.previous.header.module_release_id = edge.next.header.module_release_id)))) && (all x:bv[16] (replay_cursor[1](x) >= x)) && (replay_cursor[1](1:bv[16]) = 1:bv[16]) && (all x:bv[16] ((x != 1:bv[16]) -> (replay_cursor[1](x) = x + {1}:bv[16]))))",
+   "verdict": "T"
+  },
+  "pr534_asset_accepted_code_zero_projection": {
+   "expected": "T",
+   "query": "unsat ex r:AssetTransferResultADT1 (asset_transfer_result_ok(r) && (r.accepted = 1:sbf) && (r.reject_code != {0}:bv[8]))",
+   "verdict": "T"
+  },
+  "pr534_asset_code_12_closed_projection": {
+   "expected": "T",
+   "query": "valid all r:AssetTransferResultADT1 ((asset_transfer_result_ok(r) && (r.reject_code = {12}:bv[8])) -> ((r.rejected = 1:sbf) && (r.pre_state_root = r.post_state_root) && (r.effects_empty = 1:sbf)))",
+   "verdict": "T"
+  },
+  "pr534_asset_command_flattening": {
+   "expected": "T",
+   "query": "valid all c:AssetTransferCommandADT1 (asset_transfer_command_shape_ok(c) -> ((c.sender != c.recipient) && (c.amount_atoms != {0}:bv[16])))",
+   "verdict": "T"
+  },
+  "pr534_asset_context_nested_flattening": {
+   "expected": "T",
+   "query": "valid all e:AssetTransferEnvelopeADT1 (asset_transfer_context_binding_ok(e.context, e.state_module_release, e.command.sender) -> ((e.context.module_release_id = e.state_module_release) && (e.context.subject_id = e.command.sender)))",
+   "verdict": "T"
+  },
+  "pr534_asset_reject_noop_projection": {
+   "expected": "T",
+   "query": "valid all r:AssetTransferResultADT1 (asset_transfer_result_ok(r) -> ((r.rejected = 1:sbf) -> ((r.pre_state_root = r.post_state_root) && (r.effects_empty = 1:sbf))))",
+   "verdict": "T"
+  },
+  "pr534_asset_rejected_root_fixed_projection": {
+   "expected": "T",
+   "query": "unsat ex r:AssetTransferResultADT1 (asset_transfer_result_ok(r) && (r.rejected = 1:sbf) && (r.pre_state_root != r.post_state_root))",
+   "verdict": "T"
+  },
+  "pr534_cursor_advances_below_max": {
+   "expected": "T",
+   "query": "valid all x:bv[16] ((x != 1:bv[16]) -> (replay_cursor[1](x) = x + {1}:bv[16]))",
+   "verdict": "T"
+  },
+  "pr534_cursor_boundary_fffe": {
+   "expected": "T",
+   "query": "valid replay_cursor[3]({#xfffe}:bv[16]) = 1:bv[16]",
+   "verdict": "T"
+  },
+  "pr534_cursor_monotone": {
+   "expected": "T",
+   "query": "valid all x:bv[16] (replay_cursor[1](x) >= x)",
+   "verdict": "T"
+  },
+  "pr534_cursor_saturates_at_max": {
+   "expected": "T",
+   "query": "valid replay_cursor[1](1:bv[16]) = 1:bv[16]",
+   "verdict": "T"
+  },
+  "pr534_journal_edge_header_projection": {
+   "expected": "T",
+   "query": "valid all e:LaneJournalEdgeADT1 (same_journal_header(e.previous.header, e.next.header) -> ((e.previous.header.writer_epoch = e.next.header.writer_epoch) && (e.previous.header.module_release_id = e.next.header.module_release_id)))",
+   "verdict": "T"
+  },
+  "pr534_journal_effect_root_nonzero_projection": {
+   "expected": "T",
+   "query": "unsat ex j:LaneModuleTransitionJournalADT1 (lane_module_journal_ok(j) && (j.binding.effect_plan_root = {0}:bv[16]))",
+   "verdict": "T"
+  },
+  "pr534_journal_nested_flattening": {
+   "expected": "T",
+   "query": "valid all j:LaneModuleTransitionJournalADT1 (lane_module_journal_ok(j) -> (journal_header_ok(j.header) && journal_binding_ok(j.binding)))",
+   "verdict": "T"
+  }
+ },
+ "code_map": {
+  "ACCEPT": 0,
+  "BALANCE_OVERFLOW": 11,
+  "DISABLED_ASSET": 4,
+  "EFFECT_DELTA_OVERFLOW": 9,
+  "FEE_LIMIT_EXCEEDED": 8,
+  "INSUFFICIENT_BALANCE": 10,
+  "POST_STATE_RESOURCE_BOUND_EXCEEDED": 12,
+  "RELEASE_MISMATCH": 1,
+  "SELF_TRANSFER": 6,
+  "UNAUTHORIZED_SUBJECT": 5,
+  "UNKNOWN_ASSET": 3,
+  "UNKNOWN_COMMAND": 2,
+  "ZERO_AMOUNT": 7
+ },
+ "contract_codes": [
+  "EFFECT_DELTA_OVERFLOW",
+  "POST_STATE_RESOURCE_BOUND_EXCEEDED"
+ ],
+ "journal_spec_sha256": "82f47fdd414e1b4c9a16f6f92e85f6ba6858cc1bacf0f0589fa80e299ca8556d",
+ "lock_sha256": "55e44d31eff9bddb5b046b33527eda7cb0e6d7cf661c5c2229ee1b4dce6b098f",
+ "ok": true,
+ "recompute_codes": [
+  "RELEASE_MISMATCH",
+  "UNKNOWN_COMMAND",
+  "UNKNOWN_ASSET",
+  "DISABLED_ASSET",
+  "UNAUTHORIZED_SUBJECT",
+  "SELF_TRANSFER",
+  "ZERO_AMOUNT",
+  "FEE_LIMIT_EXCEEDED",
+  "INSUFFICIENT_BALANCE"
+ ],
+ "renderer_sha256": "851d2ce1da50b78ef4a2b820cd9de6d52c479dadf77e484e3b2eab89f5ce2a57",
+ "schema": "zenodex/tau-adt-abi-parity/v3",
+ "selftest": {
+  "broken_program": "FAIL_CLOSED(verdicts=[],errors=0,rc=0)",
+  "contract_mutated_effects": "F",
+  "contract_wrong_code": "F",
+  "weakened_chain_universal": "F",
+  "wrong_expectation_universal": "F"
+ },
+ "spec_path": "src/tau_specs/recommended/asset_transfer_adt_contract_v1.tau",
+ "spec_sha256": "abb81b858253e76511d5f47d470e7515806e4f79db32388ee5e6fdb382c6f480",
+ "tau_binary_sha256": "4be1965b15a4a6d074e8b4b93d7134e3edcd38ebce1109550d280e724ea6d6a7",
+ "tau_commit": "1c1e58aea7ddec04e48ce11cb0e6ed0cbe2a0d43",
+ "tau_version": "Tau Language Framework version 0.7.0-alpha (1c1e58ae)",
+ "transcript_sha256": "cde873220eb96a54475dfb92d1d1c1cc8fe35b4d10c89f589d1973d43bef27c3",
+ "unreachable_codes": {
+  "BALANCE_OVERFLOW": "the type enforces balances <= supply <= MAX_ATOMS_V1, so a transfer between well-formed balances cannot exceed the ceiling; only a forged state reaches it"
+ },
+ "vectors": [
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "cc8b0f902845621f362e13b49d29e3133dbe888b1c46ef1a8a6868e20c29b77c",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "66a73b75197b5f3a6c7baecfe2d6d311e23663ec7d8784da57042f0b8b6350a1",
+     "verdict": "T"
+    }
+   },
+   "python_code": "ACCEPT",
+   "python_effects_empty": false,
+   "python_noop": false,
+   "tier": "recompute",
+   "vector": "accept_plain"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "e6209e16a8ebe4cc51e237fe41129d48418aaa1ee5d1c0514b187edcd1686162",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "b17d2eae187297a7628f10865b578ae8133496a822ff4b7441109e33f1adda47",
+     "verdict": "T"
+    }
+   },
+   "python_code": "ACCEPT",
+   "python_effects_empty": false,
+   "python_noop": false,
+   "tier": "recompute",
+   "vector": "accept_balance_exact"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "57f6d791230881cb464950b3dbaa2fccfe4548b03b0be1f54a12cfb7929e69b4",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "f9444aa082af0dbd2af9312e73b3c8032b83daee9d3ff84cf79f49458bd5e87f",
+     "verdict": "T"
+    }
+   },
+   "python_code": "RELEASE_MISMATCH",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_release_mismatch"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "665992ea01c7baa1802bce3ee41400b14f0e8d13f601fc4a1852fb4f8ce9fdc6",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "75f84745ecd0d8aa31e7e0f6189fcb140779e4da364791d2967ea6d9dea96130",
+     "verdict": "T"
+    }
+   },
+   "python_code": "UNKNOWN_COMMAND",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_unknown_command"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "852d854387899060897d5c36e6dc70249dda4b183a7f894f8a09fac8c4ea4a1a",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "52ae0eacadfd8a7b182b84afe76dfd35c9be9d445aa97fcac6bbcb211b1bbe88",
+     "verdict": "T"
+    }
+   },
+   "python_code": "UNKNOWN_ASSET",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_unknown_asset"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "1c220545087d73477b079079331a19aa965d2f147f1a78d1b19e321cd65919e7",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "e8ce2c1c8fd106766b4789dcb8be77d145a374599d5865ce6e0a8f7748806a05",
+     "verdict": "T"
+    }
+   },
+   "python_code": "DISABLED_ASSET",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_disabled_asset"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "3e311da7a49c182d66d11ffd2712c117fab79ca52da49abc0699b76137292a27",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "92f1b1ed5079f77a665d63d5025b8e70440230642419cce0bae42012f5a48ee4",
+     "verdict": "T"
+    }
+   },
+   "python_code": "UNAUTHORIZED_SUBJECT",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_unauthorized_subject"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "0b3590b9ab887094de21c586d8194c3eccff9001fcef763ee992b224cb90db3c",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "7fc46e6a23758636a81ddba64305e7d319f9f4bbcceb2c680e8bfe6e52a7f31e",
+     "verdict": "T"
+    }
+   },
+   "python_code": "SELF_TRANSFER",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_self_transfer"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "d8c012261825767db1f4b62feb58bb110954ad9fff423af9c6f74aed6293b833",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "6a515e27aa123aea56be176aec2ee05f30a2acc7cd730952f02834cf757aa666",
+     "verdict": "T"
+    }
+   },
+   "python_code": "ZERO_AMOUNT",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_zero_amount"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "29a0017837eb283d93e5f0531563fcb8f8cd75e5a060a7e0b5ab3ef0d6943395",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "5333523077bcd840ce211cff9da45a1b36e4b25db185b1b77ebc0c2151b49b22",
+     "verdict": "T"
+    }
+   },
+   "python_code": "FEE_LIMIT_EXCEEDED",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_fee_limit"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "2473b02ea2c2802c345119883c043f5cbf6be17ec3b5856e3b4d4f7d8585bf9c",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "c27bed96b16820508c1a311a3d3968ba5ca64de3956dbcaf13e8eb935bc71c38",
+     "verdict": "T"
+    }
+   },
+   "python_code": "INSUFFICIENT_BALANCE",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_insufficient"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "90f7e279ab99df3cd1a3be2d0c28913f2b5c22c4d5f1227e5c50432b4892007e",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "023b342cf5b59ecd4d821a5da68f6ad61a1ff13ca0e8aa98e4fe977d8efdab00",
+     "verdict": "T"
+    }
+   },
+   "python_code": "ACCEPT",
+   "python_effects_empty": false,
+   "python_noop": false,
+   "tier": "recompute",
+   "vector": "accept_fee_at_limit"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "c1f6a9cfabb6b4abe62f27fc2123b397368081cbe629eca235c034a771c23506",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "8d0ba0e4ecd15170bd1346470720e0c3ac92ea1c5dcea508e1e7f09e52ecec34",
+     "verdict": "T"
+    }
+   },
+   "python_code": "FEE_LIMIT_EXCEEDED",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_fee_one_over"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "ed4eca4c4b8f145113b8de633d511aa2a2890f4d90a28225a8c21e5184d5ddb5",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "6c48b6ffba25ce9c77ef820aea12ad6baa1b6850c0576f98d7bcd8b93c0084f5",
+     "verdict": "T"
+    }
+   },
+   "python_code": "ACCEPT",
+   "python_effects_empty": false,
+   "python_noop": false,
+   "tier": "recompute",
+   "vector": "accept_balance_exact_fee"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "f6534133e9ec1c7f915a22386051c75ce8d02156c66bfc91f58fdc3b24e40146",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "6bdb8c76b7557a4faeb698b35b061b46eadc02f11703062bcf5b252504d89e84",
+     "verdict": "T"
+    }
+   },
+   "python_code": "INSUFFICIENT_BALANCE",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "reject_balance_one_short"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "abeb15b38f3c43ff37996cf17985bf8f307684ecf1b13c4bf8b6971822cc5df3",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "2879e6e0af61c06042619bab9f2f1f50a6b547ee6d38c47a09bcdfa824c1fab5",
+     "verdict": "T"
+    }
+   },
+   "python_code": "ACCEPT",
+   "python_effects_empty": false,
+   "python_noop": false,
+   "tier": "recompute",
+   "vector": "accept_in_band_max_sum"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "e79ae805484c5e54ded5c8236e9a65f616a53252b599189e1d9472cd2661d376",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "5aea6f8c44524632d7ae4810baa303e9ba0df377d70c4262c07a7516754436b3",
+     "verdict": "T"
+    }
+   },
+   "python_code": "RELEASE_MISMATCH",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "prec_release_beats_command"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "10d4e60d597b42a48d1dacd709794873a8de42d8a18797d5ef9475848d3e7de6",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "3fa932fc8899df8cd411f21714a7040d2fcf548ff0bef3e22ecd894c2f47af73",
+     "verdict": "T"
+    }
+   },
+   "python_code": "UNKNOWN_COMMAND",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "prec_command_beats_asset"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "66c1f6711b239833c454dcc26f38c9f9ca501c87e86a3d210baff1e7488292eb",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "010b262002a1119d25b3a6dd471439f82c62328dcaa25e88b95843dacf3ed0c9",
+     "verdict": "T"
+    }
+   },
+   "python_code": "UNKNOWN_ASSET",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "prec_asset_beats_disabled"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "4d81cc649e78f661c45b4e9f2d9a00e8281284986a6b8738bb9dc6c0c5754f1a",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "8729906168c1a53ee7a51006e54cd5be1fc83b92908336b4afa0024bafb38c05",
+     "verdict": "T"
+    }
+   },
+   "python_code": "DISABLED_ASSET",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "prec_disabled_beats_subject"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "c1a83f7fc1ebd696e189d67f0c83b88dc6aea277db3f90a43064a231940de0eb",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "94a57ab5cb4ffb907b8851ed36253342d147fc5165a8e246951796f0228d8ca8",
+     "verdict": "T"
+    }
+   },
+   "python_code": "UNAUTHORIZED_SUBJECT",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "prec_subject_beats_self"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "bd097801b07fd58a78553276bf437905d2b55ac714075bc85bfa46ca52f21de1",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "7e5f0c997bea99452450372a09f767963a2c7c44ae1ce31414d37544ba6de577",
+     "verdict": "T"
+    }
+   },
+   "python_code": "SELF_TRANSFER",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "prec_self_beats_zero"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "402ea82331ed7a11efe4a17c644faab28d696f05cc063d9c8b57ec0b50042fb0",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "1db3abd50ae43c055f658599145afc05a8c9b9f40fcb4c2ca6ee1edb7ea8e532",
+     "verdict": "T"
+    }
+   },
+   "python_code": "ZERO_AMOUNT",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "prec_zero_beats_fee"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "nonvacuity": {
+     "sha256": "29ac4e476b9b83c541d81e3b14100b6f81a6b3cc32683fa53360137b6a0d3b4f",
+     "verdict": "T"
+    },
+    "universal": {
+     "sha256": "f90649a394910835914ac74b70c9cd1ffaf8fade961a4d5114066aed7ee51eea",
+     "verdict": "T"
+    }
+   },
+   "python_code": "FEE_LIMIT_EXCEEDED",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "recompute",
+   "vector": "prec_fee_beats_insufficient"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "contract": {
+     "sha256": "57ba8687b48a83e4a57aeab54c72b965a32c451493696691446b5b4dac5c12e0",
+     "verdict": "T"
+    }
+   },
+   "python_code": "EFFECT_DELTA_OVERFLOW",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "contract",
+   "vector": "contract_effect_delta_overflow"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "contract": {
+     "sha256": "1c8849c4a4dbb386ff6460e62e97c53470dd6f1cf4884d5ac476c7695b1eaf28",
+     "verdict": "T"
+    }
+   },
+   "python_code": "POST_STATE_RESOURCE_BOUND_EXCEEDED",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "tier": "contract",
+   "vector": "contract_post_state_row_ceiling"
+  }
+ ],
+ "width": 16
+}

@@ -1,0 +1,193 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260902-tau-adt-logical-abi-v5",
+  "created_date": "2026-09-02",
+  "claim_scope": "Re-cut of PR #534 after independent review (receipt docs/research/reviews/ZENODEX_TAU_ADT_LOGICAL_ABI_PR534_REVIEW_95b3cd6e1568.md). Replayed unmodified at its exact pin 1c1e58ae the PR test failed: min() reached through the return-annotated bounded_fee wrapper was unresolved, the engine printed an error and still answered T, and the harness refused. The asset spec now applies min with typed arguments directly (always-theorem T, strict falsification F at 1c1e58ae and 3c24bad9). The PR's queries are retained as labelled capability probes (definitional projections of their own predicates plus min/recurrence builtin facts) and ZenoDEX transition semantics are bound by a vector tier: experiments/tau_adt_abi/render_tau_adt_abi_v2.py reads the ADT declarations verbatim from the spec, runs the real Python transition over 26 vectors (24 recompute: a universal implication over every result the recomputed guard chain admits plus a non-vacuity program; 2 contract: host-produced EFFECT_DELTA_OVERFLOW and the 4097-row ceiling checked by the spec's own result algebra), derives the reject-code map from AssetTransferRejectCodeV1 declaration order, and writes a receipt hash-bound to the spec, journal spec, lock and renderer bytes. The CI-pinned evidence is the offline receipt gate; live execution is opt-in and fails closed with TAU_PIN_UNAVAILABLE when requested without the binary. BALANCE_OVERFLOW is unreachable from a well-formed state and is recorded as such. Research-only; no authority; the theorems in the specs are not claims about the transition.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TAU-ADT-EXACT-UPSTREAM-SOURCE-LOCK",
+    "TAU-ADT-EXACT-SINGLE-VERDICT-FAIL-CLOSED",
+    "TAU-ADT-RECEIPT-HASH-BOUND-TO-SPEC-LOCK-RENDERER",
+    "TAU-ADT-VECTOR-BOUND-PARITY-11-REACHABLE-CODES",
+    "TAU-ADT-PYTHON-RUST-TAU-AGREEMENT-DIRECT-ON-26-VECTORS",
+    "TAU-ADT-UNIVERSAL-FORM-NOT-VACUOUS",
+    "TAU-ADT-REJECT-CODE-MAP-PINNED-TO-ENUM-ORDER",
+    "TAU-ADT-MIN-APPLIED-WITH-TYPED-ARGUMENTS",
+    "TAU-ADT-CAPABILITY-PROBES-LABELLED-DEFINITIONAL"
+  ],
+  "failure_modes": [
+    "a spec, lock or renderer edit is accepted without a fresh replay receipt",
+    "a Tau verdict line is trusted although the transcript carries an engine (Error)",
+    "min() is reached through a return-annotated definition wrapper and silently resolves to unsat",
+    "the guard chain recomputed in Tau admits a result the Python transition never produces (over-permissiveness hidden by an existential encoding)",
+    "a reachable reject code has no vector, or the reject-code map drifts from AssetTransferRejectCodeV1 declaration order",
+    "a rejected result changes the abstract state root or carries effects in Python, Rust or Tau",
+    "a definitional projection of an ADT predicate is presented as a transition-semantics claim",
+    "the evidence is replayed against a mutable source name instead of the exact locked Tau revision",
+    "Tau Tables are claimed or used before first-class Tables support is available"
+  ],
+  "source_pins": [
+    {
+      "path": "config/tau_lang_adt_research.lock",
+      "sha256": "55e44d31eff9bddb5b046b33527eda7cb0e6d7cf661c5c2229ee1b4dce6b098f"
+    },
+    {
+      "path": "src/tau_specs/recommended/asset_transfer_adt_contract_v1.tau",
+      "sha256": "abb81b858253e76511d5f47d470e7515806e4f79db32388ee5e6fdb382c6f480"
+    },
+    {
+      "path": "src/tau_specs/recommended/lane_transition_journal_adt_contract_v1.tau",
+      "sha256": "82f47fdd414e1b4c9a16f6f92e85f6ba6858cc1bacf0f0589fa80e299ca8556d"
+    },
+    {
+      "path": "tools/build_tau_adt_research_pin_v1.sh",
+      "sha256": "aa115ca2c35a311a0660bd1c65307942adcb09aa8a731d18cb803631bde69796"
+    },
+    {
+      "path": "experiments/tau_adt_abi/render_tau_adt_abi_v2.py",
+      "sha256": "851d2ce1da50b78ef4a2b820cd9de6d52c479dadf77e484e3b2eab89f5ce2a57"
+    },
+    {
+      "path": "experiments/tau_adt_abi/rust_leg/src/main.rs",
+      "sha256": "ed52222ae021ea81b93b2cd4368db7457ceb1308c02298f38c7d2e20d86392c1"
+    },
+    {
+      "path": "experiments/tau_adt_abi/rust_leg/Cargo.toml",
+      "sha256": "bbb78841af20529f0bc73bc5dc292dfe826d467296ad0a54f604f0d14545e582"
+    },
+    {
+      "path": "tests/data/tau_adt_logical_abi_replay_receipt_v1.json",
+      "sha256": "e4c30502442b84717089ea5186f5b0d8c93592ed8628ace7e162c99c6916ac22"
+    },
+    {
+      "path": "tests/data/tau_adt_logical_abi_rust_leg_v1.json",
+      "sha256": "29c16b8084810ec27581d9c2235631cc616d4cf74347b8db05941d3e6126444b"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/tau/test_tau_adt_logical_abi_v1.py",
+      "sha256": "92c69f9318676e9bf2f8883259e708a17e7de30558643ab3daa85bd1d8903652",
+      "node_ids": [
+        "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_source_contract",
+        "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_replay_receipt_v1",
+        "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_rust_leg_v1"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "replay",
+    "mutation",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Arrange: the renderer builds each vector by running the real Python transition and pins every ADT member of context, command and state to literals. Act: Tau decides a universal implication over every result the recomputed guard chain admits (plus a non-vacuity program), or, for contract vectors, the spec's own result algebra over the host-produced record; capability probes and falsification probes run first. Assert: exactly one T/F per program, (Error) fails closed, the receipt is hash-bound to the exact spec, lock and renderer bytes and verified offline."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every rejected vector's expected clause is built from the observed Python value (pre_state_root == post_state_root, effects.is_empty) and the recomputed Tau chain requires the same; the contract tier checks the host-produced record against the closed algebra; a rejection that mutated state would answer F."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "guard_edges",
+      "points": [
+        "fee at the cap accepts, one atom over rejects",
+        "balance exactly amount+fee accepts, one atom short rejects",
+        "amount+fee at the bv[16] band limit accepts"
+      ]
+    },
+    {
+      "name": "precedence_discriminators",
+      "points": [
+        "eight adjacent guard pairs where both guards want to fire; the oracle decides the code and Tau must agree",
+        "a precedence drift between implementations surfaces as a Tau parity F, not as a fixture edit"
+      ]
+    },
+    {
+      "name": "domain_ceilings",
+      "points": [
+        "MAX_ATOMS_V1-scale delta yields EFFECT_DELTA_OVERFLOW (contract tier)",
+        "4097 balance rows yield POST_STATE_RESOURCE_BOUND_EXCEEDED (contract tier)",
+        "BALANCE_OVERFLOW unreachable from a well-formed state"
+      ]
+    },
+    {
+      "name": "harness_verdict",
+      "points": [
+        "a wrong expectation answers F",
+        "a guard chain weakened to admit every result answers F",
+        "a broken program is FAIL_CLOSED, never T/F",
+        "the deliberately false whole-ADT statement answers F before any positive evidence"
+      ]
+    },
+    {
+      "name": "min_definition_shape",
+      "points": [
+        "min with typed arguments inline replays T",
+        "the return-annotated wrapper form reports an unresolved symbol and a bogus T (rejected by the harness)"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "reintroduce the return-annotated bounded_fee wrapper in the asset spec",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_source_contract"
+    },
+    {
+      "description": "edit either Tau spec, the lock or the renderer without regenerating the receipt (sha binding)",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_replay_receipt_v1"
+    },
+    {
+      "description": "grow or reorder AssetTransferRejectCodeV1 without moving the spec's closed code ceiling",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_source_contract"
+    },
+    {
+      "description": "forge a receipt with ok=false, a vector verdict F, a missing program, or a capability probe verdict that differs from its expectation",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_replay_receipt_v1"
+    },
+    {
+      "description": "drop the vector of any reachable reject code from the receipt (coverage of all eleven reachable codes plus accept)",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_replay_receipt_v1"
+    },
+    {
+      "description": "record a rejected vector whose observed Python value is not a no-op or carries effects",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_replay_receipt_v1"
+    },
+    {
+      "description": "render a wrong expected result for an accepting vector (selftest probe, recorded F)",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_replay_receipt_v1"
+    },
+    {
+      "description": "weaken the recomputed guard chain to admit every result (selftest probe, recorded F)",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_replay_receipt_v1"
+    },
+    {
+      "description": "pin a contract-tier record with the wrong reject code or with effects not empty (selftest probes, recorded F)",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_replay_receipt_v1"
+    },
+    {
+      "description": "feed a syntactically broken program (selftest probe, recorded FAIL_CLOSED)",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_replay_receipt_v1"
+    },
+    {
+      "description": "record a Rust-leg outcome that differs from the receipt's Python code for any vector, or drop/reorder a vector in either artifact",
+      "killed_by": "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_rust_leg_v1"
+    }
+  ],
+  "nonclaims": [
+    "This evidence grants no production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "bv[8]/bv[16] roots, identifiers and amounts are bounded abstract tags; this is not a 128-bit production arithmetic model; roots are equality tokens, not hashes.",
+    "The theorems in the two Tau specifications are definitional projections of their own predicates or builtin/recurrence facts (capability probes); they are not claims about the ZenoDEX transition.",
+    "The vector tier covers nine reject classes by recomputation and two by contract over host-produced records; BALANCE_OVERFLOW is unreachable from a well-formed state and is not covered by a vector.",
+    "The guard precedence recomputed in Tau is hand-mirrored from the Python transition and pinned by discriminator vectors, not derived from the Python source.",
+    "The Rust leg replays the identical 26 vectors through the real Rust transition and its committed output must agree with the receipt's Python codes vector-for-vector; the Rust leg does not execute Tau and the Tau verdicts are those of the receipt.",
+    "This evidence does not validate hashing, signatures, canonical serialization, receipt proofs, table storage, table roots, or Tau Net consensus integration; no Tau Tables construct appears.",
+    "This evidence does not close O-008 or any whole-value-movement gate and does not make any O-008 formal-cycle packet current.",
+    "The committed receipt is evidence for the exact bytes it names; a live replay is opt-in and never substitutes for the receipt gate."
+  ]
+}
