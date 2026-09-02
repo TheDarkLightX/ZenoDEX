@@ -3,17 +3,17 @@
 set charvar off
 set maxsplits 1
 # Two-row table is live.
-n ({ iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] } | { iid[t]:bv[8] = {2}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] }) != 0
-# SELECT WHERE iid=1 overlaps it.
-n ({ iid[t]:bv[8] = {1}:bv[8] } & ({ iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] } | { iid[t]:bv[8] = {2}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] })) != 0
+n ({ oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] } | { oiid[t]:bv[8] = {2}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] }) != 0
+# SELECT WHERE intent id=1 overlaps it.
+n ({ oiid[t]:bv[8] = {1}:bv[8] } & ({ oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] } | { oiid[t]:bv[8] = {2}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] })) != 0
 # Full row is a strict member: row <= table.
-n ({ iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] } & ({ iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] } | { iid[t]:bv[8] = {2}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] })') = 0
+n ({ oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] } & ({ oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] } | { oiid[t]:bv[8] = {2}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] })') = 0
 # Exact duplicate append is idempotent.
-n ({ iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] } | { iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] }) = { iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] }
+n ({ oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] } | { oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] }) = { oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] }
 # NEGATIVE ARCHITECTURAL CONTROL: after appending conflicting state, old row remains.
-n ({ iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] } & ({ iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] } | { iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {1}:bv[1] })) != 0
+n ({ oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] } & ({ oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] } | { oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {1}:bv[1] })) != 0
 # ...and new row also remains.
-n ({ iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {1}:bv[1] } & ({ iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] } | { iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {1}:bv[1] })) != 0
+n ({ oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {1}:bv[1] } & ({ oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] } | { oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {1}:bv[1] })) != 0
 # Therefore the conflicting relation is NOT equal to an overwrite containing only consumed=1.
-n ({ iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {0}:bv[1] } | { iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {1}:bv[1] }) = { iid[t]:bv[8] = {1}:bv[8] && consumed[t]:bv[1] = {1}:bv[1] }
+n ({ oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {0}:bv[1] } | { oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {1}:bv[1] }) = { oiid[t]:bv[8] = {1}:bv[8] && oconsumed[t]:bv[1] = {1}:bv[1] }
 quit
