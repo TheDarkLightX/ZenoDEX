@@ -28,6 +28,7 @@ from .asset_transfer_types_v1 import (
 )
 from .global_economic_proof_v1 import LaneModuleTransitionJournalV1
 from .global_settlement_types_v1 import (
+    MAX_ASSET_BALANCE_ROWS_V1,
     MAX_ATOMS_V1,
     MAX_DELTA_ATOMS_V1,
     MIN_DELTA_ATOMS_V1,
@@ -85,6 +86,8 @@ def _post_balances(
             values.pop((asset, owner), None)
         else:
             values[(asset, owner)] = post_atoms
+    if len(values) > MAX_ASSET_BALANCE_ROWS_V1:
+        return AssetTransferRejectCodeV1.POST_STATE_RESOURCE_BOUND_EXCEEDED
     return tuple(
         EconomicAmountV1(owner, row_asset, ACCOUNT_CUSTODY_DOMAIN_V1, amount_atoms)
         for (row_asset, owner), amount_atoms in sorted(values.items())
@@ -285,13 +288,10 @@ def transition_asset_transfer_v1(
 ) -> AssetTransferResultV1:
     """Apply one transfer with fixed rejection precedence and no hidden inputs.
 
-    The shared row ceilings (MAX_ASSET_*_ROWS_V1) are ABI decode bounds enforced
-    at state construction, not transition rejects: a transfer that would grow the
-    post-state past a ceiling raises ValueError from the post-state constructor
-    in Python and returns Err(InvalidBounds) from accepted.validate() in Rust
-    (Opus P21 NEW-6; the boundary is pinned by
-    test_transfer_growing_past_the_balance_ceiling_raises_at_construction).
-    Totalising this boundary into a typed reject code is deferred to lane work.
+    ABI row ceilings still reject oversized input states at construction. For a
+    valid pre-state at the balance-row ceiling, any accepted-looking transfer
+    that would grow the post-state beyond that ceiling is totalised here as
+    ``POST_STATE_RESOURCE_BOUND_EXCEEDED`` before post-state construction.
     """
 
     if not isinstance(context, AssetTransferContextV1):

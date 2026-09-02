@@ -29,6 +29,7 @@ pub enum AssetTransferRejectCodeV1 {
     EFFECT_DELTA_OVERFLOW,
     INSUFFICIENT_BALANCE,
     BALANCE_OVERFLOW,
+    POST_STATE_RESOURCE_BOUND_EXCEEDED,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

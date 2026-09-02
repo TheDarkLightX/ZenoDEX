@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from .global_economic_proof_v1 import LaneModuleTransitionJournalV1
 from .global_settlement_types_v1 import (
+    MAX_ASSET_BALANCE_ROWS_V1,
     MAX_ATOMS_V1,
     MAX_DELTA_ATOMS_V1,
     MIN_DELTA_ATOMS_V1,
@@ -160,6 +161,8 @@ def _post_balances(
         values.pop(key, None)
     else:
         values[key] = post_atoms
+    if len(values) > MAX_ASSET_BALANCE_ROWS_V1:
+        return ManagedAssetLifecycleRejectCodeV1.POST_STATE_RESOURCE_BOUND_EXCEEDED
     return tuple(
         EconomicAmountV1(owner, asset, ACCOUNT_CUSTODY_DOMAIN_V1, amount_atoms)
         for (asset, owner), amount_atoms in sorted(values.items())
@@ -401,11 +404,10 @@ def transition_managed_asset_lifecycle_v1(
 ) -> ManagedAssetLifecycleResultV1:
     """Apply one profile-bound generic issue or self-burn transition.
 
-    The shared row ceilings (MAX_ASSET_*_ROWS_V1) are ABI decode bounds enforced
-    at state construction, not transition rejects: a command that would grow the
-    post-state past a ceiling raises ValueError from the post-state constructor
-    in Python and returns Err(InvalidBounds) in Rust (Opus P21 NEW-6). Totalising
-    this boundary into a typed reject code is deferred to lane work.
+    ABI row ceilings still reject oversized input states at construction. For a
+    valid pre-state at the balance-row ceiling, any issue that would grow the
+    post-state beyond that ceiling is totalised as
+    ``POST_STATE_RESOURCE_BOUND_EXCEEDED`` before post-state construction.
     """
 
     context = _snapshot_context(context)
