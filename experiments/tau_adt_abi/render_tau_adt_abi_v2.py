@@ -531,5 +531,25 @@ def main() -> int:
     return 0 if ok else 1
 
 
+def emit_vectors() -> int:
+    """Frozen vector set for the Rust leg (identical inputs, expected code from the oracle)."""
+    rows = []
+    for v in build_vectors():
+        o = python_outcome(v)
+        assert o.code == v.intent, (v.vector_id, o.code)
+        rows.append({
+            "vector_id": v.vector_id, "tier": v.tier,
+            "release_tag": ROOT_TAG[v.release], "subject": v.subject, "kind": v.kind, "asset": v.asset,
+            "sender": v.sender, "recipient": v.recipient, "amount": str(v.amount), "max_fee": str(v.max_fee),
+            "state_release_tag": ROOT_TAG[v.state_release], "policy_asset": v.policy_asset, "fee": str(v.fee),
+            "enabled": v.enabled, "s_bal": str(v.s_bal), "r_bal": str(v.r_bal), "t_bal": str(v.t_bal),
+            "extra_rows": v.extra_rows, "expected": o.code or "ACCEPT",
+        })
+    print(json.dumps({"schema": "zenodex/tau-adt-abi-vectors/v2", "vectors": rows}, sort_keys=True))
+    return 0
+
+
 if __name__ == "__main__":
+    if "--emit-vectors" in sys.argv:
+        raise SystemExit(emit_vectors())
     raise SystemExit(main())

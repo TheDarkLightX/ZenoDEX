@@ -13,6 +13,11 @@ Two tests, both runnable without a Tau binary:
   answered T, every falsification probe F (or FAIL_CLOSED), and the vectors
   must cover every reject code that is reachable from a well-formed state.
 
+* ``test_tau_adt_logical_abi_rust_leg_v1`` checks the committed Rust-leg
+  output (the real Rust transition replayed on the identical vector set) agrees
+  vector-for-vector with the Python codes recorded in the receipt, which makes
+  the three-way statement Python == Rust == Tau direct on these vectors.
+
 Live execution against the pinned binary is ``test_tau_adt_logical_abi_live_v1``
 (opt-in; it never counts as evidence by itself). Research-only; authority NONE.
 """
@@ -39,7 +44,9 @@ ASSET_SPEC = ROOT / "src" / "tau_specs" / "recommended" / "asset_transfer_adt_co
 JOURNAL_SPEC = ROOT / "src" / "tau_specs" / "recommended" / "lane_transition_journal_adt_contract_v1.tau"
 RENDERER = ROOT / "experiments" / "tau_adt_abi" / "render_tau_adt_abi_v2.py"
 RECEIPT = ROOT / "tests" / "data" / "tau_adt_logical_abi_replay_receipt_v1.json"
+RUST_LEG = ROOT / "tests" / "data" / "tau_adt_logical_abi_rust_leg_v1.json"
 RECEIPT_SCHEMA = "zenodex/tau-adt-abi-parity/v3"
+RUST_LEG_SCHEMA = "zenodex/tau-adt-abi-rust-leg/v2"
 _COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 _SHA_RE = re.compile(r"[0-9a-f]{64}")
 
@@ -172,3 +179,14 @@ def test_tau_adt_logical_abi_replay_receipt_v1() -> None:
     assert seen == (all_codes - UNREACHABLE_BY_CONSTRUCTION) | {"ACCEPT"}, sorted(all_codes - seen)
     assert set(receipt["recompute_codes"]) <= seen and set(receipt["contract_codes"]) <= seen
     assert {"EFFECT_DELTA_OVERFLOW", "POST_STATE_RESOURCE_BOUND_EXCEEDED"} == set(receipt["contract_codes"])
+
+
+def test_tau_adt_logical_abi_rust_leg_v1() -> None:
+    receipt = json.loads(RECEIPT.read_text(encoding="utf-8"))
+    leg = json.loads(RUST_LEG.read_text(encoding="utf-8"))
+    assert leg["schema"] == RUST_LEG_SCHEMA
+    assert leg["ok"] is True
+    python_rows = [(row["vector"], row["tier"], row["python_code"]) for row in receipt["vectors"]]
+    rust_rows = [(row["vector"], row["tier"], row["rust"]) for row in leg["vectors"]]
+    assert rust_rows == python_rows
+    assert all(row["parity"] is True and row["rust"] == row["expected"] for row in leg["vectors"])
