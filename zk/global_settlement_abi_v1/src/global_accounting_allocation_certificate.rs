@@ -128,6 +128,7 @@ pub enum AllocationCertificateRejectCodeV1 {
     BlockedLaneProducerMissing,
     DisabledLaneNotEmpty,
     RegisteredEmptyRootDrift,
+    BindingRootDrift,
     AllocationTotalOverflow,
     SourceAtomNotAssignedExactlyOnce,
     EntitlementRowsDrift,
@@ -139,7 +140,7 @@ pub enum AllocationCertificateRejectCodeV1 {
 }
 
 impl AllocationCertificateRejectCodeV1 {
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::HeaderBindingDrift,
         Self::LaneOrderDrift,
         Self::LaneStateRootDrift,
@@ -147,6 +148,7 @@ impl AllocationCertificateRejectCodeV1 {
         Self::BlockedLaneProducerMissing,
         Self::DisabledLaneNotEmpty,
         Self::RegisteredEmptyRootDrift,
+        Self::BindingRootDrift,
         Self::AllocationTotalOverflow,
         Self::SourceAtomNotAssignedExactlyOnce,
         Self::EntitlementRowsDrift,
@@ -166,6 +168,7 @@ impl AllocationCertificateRejectCodeV1 {
             Self::BlockedLaneProducerMissing => "BLOCKED_LANE_PRODUCER_MISSING",
             Self::DisabledLaneNotEmpty => "DISABLED_LANE_NOT_EMPTY",
             Self::RegisteredEmptyRootDrift => "REGISTERED_EMPTY_ROOT_DRIFT",
+            Self::BindingRootDrift => "BINDING_ROOT_DRIFT",
             Self::AllocationTotalOverflow => "ALLOCATION_TOTAL_OVERFLOW",
             Self::SourceAtomNotAssignedExactlyOnce => "SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE",
             Self::EntitlementRowsDrift => "ENTITLEMENT_ROWS_DRIFT",
@@ -188,6 +191,9 @@ impl AllocationCertificateRejectCodeV1 {
             Self::DisabledLaneNotEmpty => "allocation certificate disabled lane fragment carries rows",
             Self::RegisteredEmptyRootDrift => {
                 "allocation certificate registered-empty lane is not bound to its empty lane state root"
+            }
+            Self::BindingRootDrift => {
+                "the fragment binding root does not equal its committed lane state root"
             }
             Self::AllocationTotalOverflow => "allocation certificate total overflows",
             Self::SourceAtomNotAssignedExactlyOnce => "allocation certificate controlled source atoms are not assigned exactly once",
@@ -763,6 +769,17 @@ fn check_lane_bindings(
             }
         }
     }
+    for (fragment, _) in &pairs {
+        // Opus P15 P2-1: with no receipt-backed producer registered, every producer path
+        // commits binding_root = lane_state_root; an unvalidated root-shaped field must not
+        // exist. C9's receipt admission replaces this rule for RECEIPT_BACKED lanes.
+        if fragment.binding_root != fragment.lane_state_root {
+            return fail(
+                AllocationCertificateRejectCodeV1::BindingRootDrift,
+                format!("{:?}", fragment.lane_id),
+            );
+        }
+    }
     Ok(())
 }
 
@@ -1323,6 +1340,145 @@ mod tests {
         ];
         let pending = pending_external_rows(&fragments).expect("distinct ids collect");
         assert_eq!(pending.len(), 2);
+    }
+
+    fn fixture_value() -> serde_json::Value {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("tests/data/global_accounting_allocation_certificate_v1_golden.json");
+        serde_json::from_slice(&std::fs::read(path).expect("fixture readable"))
+            .expect("fixture JSON")
+    }
+
+    fn overflow_fragment(rows: serde_json::Value) -> LaneAllocationFragmentV1 {
+        let mut base = serde_json::json!({
+            "lane_id": "ASSET_TRANSFER",
+            "module_release_id": format!("0x{:064x}", 201u64),
+            "enabled": true,
+            "lane_state_root": format!("0x{:064x}", 301u64),
+            "producer_kind": "RECEIPT_BACKED",
+            "binding_root": format!("0x{:064x}", 301u64),
+            "controlled_locations": [],
+            "claimant_entitlements": [],
+            "unencumbered_reserves": [],
+            "pending_external_obligations": [],
+            "terminal_bindings": [],
+        });
+        for (key, value) in rows.as_object().expect("rows object") {
+            base[key] = value.clone();
+        }
+        serde_json::from_value(base).expect("fragment decodes")
+    }
+
+    fn certificate_with(
+        fragment: LaneAllocationFragmentV1,
+    ) -> super::GlobalAccountingAllocationCertificateV1 {
+        super::GlobalAccountingAllocationCertificateV1 {
+            schema: super::GLOBAL_ACCOUNTING_ALLOCATION_CERTIFICATE_SCHEMA_V1.to_owned(),
+            global_state_root: super::RootV1::parse(format!("0x{:064x}", 1u64), "root", false)
+                .expect("root"),
+            profile_root: super::RootV1::parse(format!("0x{:064x}", 2u64), "root", false)
+                .expect("root"),
+            writer_epoch: 1,
+            chain_context: super::ChainContextV1 {
+                chain_id: "chain".to_owned(),
+                deployment_root: super::RootV1::parse(format!("0x{:064x}", 3u64), "root", false)
+                    .expect("root"),
+            },
+            ordered_lane_fragments: vec![fragment],
+            canonical_allocation_rows: Vec::new(),
+            field_ownership_root: super::RootV1::parse(format!("0x{:064x}", 4u64), "root", false)
+                .expect("root"),
+            terminal_binding_root: super::RootV1::parse(format!("0x{:064x}", 5u64), "root", false)
+                .expect("root"),
+            allocation_root: super::RootV1::parse(format!("0x{:064x}", 6u64), "root", false)
+                .expect("root"),
+            reserve_interpretation: super::ReserveInterpretationV1::NAMED_UNENCUMBERED_NO_CLAIMANT,
+        }
+    }
+
+    #[test]
+    fn fold_overflow_details_match_the_shared_labels() {
+        // Opus P15 P2-2: the folds are unreachable through the registry gate, so each call
+        // site's reject detail is pinned here against the fixture's shared labels; the Python
+        // golden test does the same, closing the cross-language detail divergence.
+        let fixture = fixture_value();
+        let labels: Vec<String> = fixture["fold_overflow_labels"]
+            .as_array()
+            .expect("labels array")
+            .iter()
+            .map(|v| v.as_str().expect("label string").to_owned())
+            .collect();
+        let state: super::GlobalEconomicStateV1 = serde_json::from_value(
+            fixture["vectors"]["accepts_registered_empty_certificate_over_empty_state"]["state"]
+                .clone(),
+        )
+        .expect("state decodes");
+        let max = u128::MAX;
+        let controlled = serde_json::json!({"controlled_locations": [
+            {"asset": "USD", "controlling_principal": "pool-a", "control_domain": "spot-pool", "amount_atoms": max},
+            {"asset": "USD", "controlling_principal": "pool-b", "control_domain": "spot-pool", "amount_atoms": max},
+        ]});
+        let reject = super::check_exactly_once(&certificate_with(overflow_fragment(controlled)))
+            .expect_err("controlled fold overflows");
+        assert_eq!(
+            reject.0,
+            AllocationCertificateRejectCodeV1::AllocationTotalOverflow
+        );
+        assert_eq!(reject.1, labels[0].replace("{lane}", "ASSET_TRANSFER"));
+        let assignments = serde_json::json!({
+            "controlled_locations": [{"asset": "USD", "controlling_principal": "pool-a", "control_domain": "spot-pool", "amount_atoms": max}],
+            "claimant_entitlements": [
+                {"asset": "USD", "claimant": "alice", "control_domain": "spot-pool", "amount_atoms": max},
+                {"asset": "USD", "claimant": "bob", "control_domain": "spot-pool", "amount_atoms": max},
+            ],
+        });
+        let reject = super::check_exactly_once(&certificate_with(overflow_fragment(assignments)))
+            .expect_err("assignments fold overflows");
+        assert_eq!(
+            reject.0,
+            AllocationCertificateRejectCodeV1::AllocationTotalOverflow
+        );
+        assert_eq!(reject.1, labels[1].replace("{lane}", "ASSET_TRANSFER"));
+        let reserve_row = serde_json::json!({"unencumbered_reserves": [
+            {"asset": "USD", "reserve_principal": "protocol:fee-unallocated-reserve", "control_domain": "spot-pool", "amount_atoms": max},
+        ]});
+        let mut certificate = certificate_with(overflow_fragment(reserve_row.clone()));
+        certificate
+            .ordered_lane_fragments
+            .push(overflow_fragment(reserve_row));
+        let reject =
+            super::check_reserve_rows(&certificate, &state).expect_err("reserves fold overflows");
+        assert_eq!(
+            reject.0,
+            AllocationCertificateRejectCodeV1::AllocationTotalOverflow
+        );
+        assert_eq!(reject.1, labels[2]);
+        let claims = serde_json::json!({"terminal_bindings": [
+            {"obligation_id": "t1", "claimant": "alice", "asset": "USD", "amount_atoms": max, "control_domain": "spot-pool", "controlling_principal": "pool-a", "lane_id": "ASSET_TRANSFER", "lane_state_root": format!("0x{:064x}", 301u64)},
+            {"obligation_id": "t2", "claimant": "alice", "asset": "USD", "amount_atoms": max, "control_domain": "spot-pool", "controlling_principal": "pool-a", "lane_id": "ASSET_TRANSFER", "lane_state_root": format!("0x{:064x}", 301u64)},
+        ]});
+        let reject = super::check_terminal_totals(&certificate_with(overflow_fragment(claims)))
+            .expect_err("terminal totals fold overflows");
+        assert_eq!(
+            reject.0,
+            AllocationCertificateRejectCodeV1::AllocationTotalOverflow
+        );
+        assert_eq!(reject.1, labels[3]);
+        let custody_row = serde_json::json!({"controlled_locations": [
+            {"asset": "USD", "controlling_principal": "pool-a", "control_domain": "spot-pool", "amount_atoms": max},
+        ]});
+        let mut certificate = certificate_with(overflow_fragment(custody_row.clone()));
+        certificate
+            .ordered_lane_fragments
+            .push(overflow_fragment(custody_row));
+        let reject =
+            super::check_lane_aggregates(&certificate, &state).expect_err("custody fold overflows");
+        assert_eq!(
+            reject.0,
+            AllocationCertificateRejectCodeV1::AllocationTotalOverflow
+        );
+        assert_eq!(reject.1, labels[4]);
     }
 
     #[test]

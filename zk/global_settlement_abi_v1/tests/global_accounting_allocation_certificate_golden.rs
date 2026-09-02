@@ -22,7 +22,7 @@ use zenodex_global_settlement_abi_v1::{
     LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
 };
 
-const FIXTURE_SCHEMA: &str = "zenodex/global-accounting-allocation-certificate-v1-golden/v1";
+const FIXTURE_SCHEMA: &str = "zenodex/global-accounting-allocation-certificate-v1-golden/v2";
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -32,6 +32,7 @@ struct Fixture {
     certificate_schema: String,
     reject_messages: BTreeMap<String, String>,
     check_order: Vec<String>,
+    fold_overflow_labels: Vec<String>,
     producer_registry: BTreeMap<String, RegistryEntry>,
     vectors: BTreeMap<String, Vector>,
     mutation_killers: BTreeMap<String, MutationKiller>,
@@ -117,6 +118,17 @@ fn reject_message_table_check_order_and_registry_are_shared() {
         .collect();
     assert_eq!(fixture.reject_messages, expected);
     assert_eq!(fixture.check_order.len(), 12);
+    assert_eq!(
+        fixture.fold_overflow_labels,
+        [
+            "{lane} controlled",
+            "{lane} assignments",
+            "reserves",
+            "terminal totals",
+            "custody"
+        ],
+        "the shared fold-overflow labels are pinned; the src unit tests exercise each fold against them"
+    );
     let lanes: Vec<String> = ALL_LANE_IDS_V1
         .iter()
         .map(|lane| format!("{lane:?}"))
@@ -138,8 +150,8 @@ fn every_vector_replays_outcome_and_derived_roots() {
     let fixture = load_fixture();
     assert_eq!(
         fixture.vectors.len(),
-        27,
-        "fixture must carry the 27 named vectors"
+        28,
+        "fixture must carry the 28 named vectors"
     );
     for (name, vector) in &fixture.vectors {
         assert!(

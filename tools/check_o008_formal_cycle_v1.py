@@ -68,7 +68,21 @@ def _replay(
             tmp_dir=Path(tmp),
         )
         observations = shell.run_proof_replay_v1(root, environment)
+    current = {
+        path: (core.sha256_hex_v1(raw) if (raw := shell.working_bytes_v1(root, path)) is not None else None)
+        for path in core.applicability_paths_v1(packet)
+    }
+    mutated = core.replay_worktree_mutation_errors_v1(packet, current)
     evaluation = core.evaluate_proof_replay_v1(packet, observations)
+    if mutated:
+        # Opus P15 P1-1: a replayed command rewrote pinned bytes; every later observation is
+        # untrustworthy, so the replay fails closed regardless of recorded gate results.
+        evaluation = core.ReplayEvaluationV1(
+            core.REPLAY_STATUS_EXECUTED_FAIL_V1,
+            (*evaluation.errors, *mutated),
+            evaluation.runs,
+            evaluation.toolchain,
+        )
     return evaluation, core.compare_author_record_v1(packet, evaluation)
 
 

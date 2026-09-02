@@ -30,9 +30,9 @@ FIXTURE = ROOT / "tests" / "data" / "global_accounting_allocation_certificate_v1
 NAMESPACE = "Proofs.GlobalAccountingAllocationCertificateV1"
 PINNED_SOURCES = {
     PROOF: "6c7b6a7b8120d5da697ac9404f23ca0a14cbcda52a39df9e5e3775cb26e51db5",
-    PYTHON_CHECKER: "40a7b47ca2911195bf57eb4f22ad948e3fc0e15d3260d3db87cbe9c5a380736d",
-    RUST_TWIN: "cc030fc63b68e63778fb81d7a01ee4590cf645a7cc476804b186f42724096b8b",
-    FIXTURE: "50cabf660c1ffdb08e93d2e3bac987479cd25f9625e857a05c264c47f8c6ca68",
+    PYTHON_CHECKER: "dcda13aab1a9f5471c77430334acf2ab7e164e5449f73ba0d38dcce50b251606",
+    RUST_TWIN: "541338ba58606b802ec6c211e1b9f97883c0c3851d7e1add7c6e1315282d24a0",
+    FIXTURE: "f73d369a38d809f737dafb74cd3e2013d520fbc151326361cfe904565fd1d8d3",
 }
 
 THEOREMS = (

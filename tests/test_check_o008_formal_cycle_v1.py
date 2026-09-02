@@ -274,7 +274,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V11.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v10", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v10"),
+        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V12.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v11", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v11"),
         pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
@@ -372,6 +372,10 @@ LEAN_REGION_ANCHOR = "def balancedState : State where"
         pytest.param("\u00a0\u2028#exit\n\n", "LEAN_COMMAND_FORBIDDEN", "# command", id="unicode_space_exit_command"),
         # Opus P13 P2-3: `«a--»` is one identifier to Lean and a line comment to the stripper.
         pytest.param("theorem «a--» : True := trivial\n\n", "LEAN_GUILLEMET_FORBIDDEN", "line", id="guillemet_identifier_opens_comment"),
+        # Opus P15 P1-1: a command after a term on the same indented line inside an elided region.
+        pytest.param("theorem opusMid : True := by\n  trivial #eval (1 : Nat)\n\n", "LEAN_COMMAND_FORBIDDEN", "# command", id="mid_line_eval_after_proof_text"),
+        pytest.param("theorem opusIndent : True := by\n  trivial\n  #eval (1 : Nat)\n\n", "LEAN_COMMAND_FORBIDDEN", "# command", id="indented_eval_inside_region"),
+        pytest.param("theorem opusRun : True := by\n  trivial\n  run_cmd pure ()\n\n", "LEAN_COMMAND_FORBIDDEN", "run_cmd", id="run_cmd_inside_region"),
         pytest.param("def «x» : Nat := 0\n\n", "LEAN_GUILLEMET_FORBIDDEN", "line", id="guillemet_identifier"),
         # Opus P10 P1-B1 (mounted survivor): a char literal holding a double quote opened a phantom
         # string for the stripper and a quote in a line comment closed it, hiding the commands between.
@@ -799,6 +803,17 @@ def test_rustc_version_parser_binds_release_commit_and_host() -> None:
         pytest.param("", "", "\nfor __dir__ in ():\n    pass\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_dir_for_target"),
         pytest.param("", "", "\nwith open(__file__) as __getattr__:\n    pass\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_with_target"),
         pytest.param("", "", "\n[__getattr__ for __getattr__ in ()]\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_comprehension_target"),
+        # Opus P15 P1-2: a def/class nested in any module-level compound statement binds in module scope.
+        pytest.param("", "", "\nif True:\n    def __getattr__(name: str) -> object:\n        return int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_def_inside_if"),
+        pytest.param("", "", "\ntry:\n    def __getattr__(name: str) -> object:\n        return int\nexcept Exception:\n    pass\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_def_inside_try"),
+        pytest.param("", "", "\nfor _ in (1,):\n    def __dir__() -> list[str]:\n        return []\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_dir_def_inside_for"),
+        pytest.param("", "", "\nwhile True:\n    async def __getattr__(name: str) -> object:\n        return int\n    break\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_async_def_inside_while"),
+        pytest.param("", "", "\nwith open(__file__):\n    class __getattr__:\n        pass\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_class_inside_with"),
+        pytest.param("", "", "\nmatch 1:\n    case 1:\n        def __getattr__(name: str) -> object:\n            return int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_def_inside_match_case"),
+        pytest.param("", "", "\nif True:\n    @staticmethod\n    def __getattr__(name: str) -> object:\n        return int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_decorated_def_inside_if"),
+        pytest.param("", "", "\ndef _outer() -> None:\n    def __getattr__(name: str) -> object:\n        return int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="module_getattr_def_inside_function"),
+        # Opus P15 P1-2 second vehicle: star imports can supply any name, including a hook.
+        pytest.param("", "", "\nfrom os.path import *\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="star_import"),
         pytest.param("", "", "\nglobals()['TerminalObligationV1'] = int\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="globals_subscript_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\n_sys.modules[__name__] = None\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="sys_modules_rebinding"),
         pytest.param("", "", "\nimport sys as _sys\nobject.__setattr__(_sys.modules[__name__], 'TerminalObligationV1', int)\n", "PYTHON_DYNAMIC_BINDING_FORBIDDEN", id="object_setattr_rebinding"),
@@ -810,6 +825,33 @@ def test_python_closure_rejects_decoys(snapshot: core.SubjectSnapshotV1, old: st
     if tail:
         mutated = _append(mutated, core.PYTHON_TYPES_PATH_V1, tail)
     assert _project_code(mutated) == code
+
+
+def test_hook_named_method_under_a_class_ancestor_is_allowed(snapshot: core.SubjectSnapshotV1) -> None:
+    """A def under any ClassDef ancestor binds a class attribute, never a module hook (Opus P15 P1-2)."""
+
+    tail = "\n\nclass _OpusHolder:\n    if True:\n        def __getattr__(self, name: str) -> object:\n            return int\n"
+    mutated = _append(snapshot, core.PYTHON_TYPES_PATH_V1, tail)
+    core.python_dynamic_binding_scan_v1(mutated.blobs[core.PYTHON_TYPES_PATH_V1].data, core.PYTHON_TYPES_PATH_V1)
+
+
+def test_replay_worktree_mutation_is_fail_closed(packet: dict[str, Any]) -> None:
+    """Opus P15 P1-1 escalation: bytes changed by a replayed command must fail the replay."""
+
+    paths = core.applicability_paths_v1(packet)
+    expected = core.replay_expected_sha_by_path_v1(packet)
+    assert set(paths) == set(expected), "every applicability path carries a pin in the packet"
+    clean: dict[str, str | None] = dict(expected)
+    assert core.replay_worktree_mutation_errors_v1(packet, clean) == ()
+    mutated = dict(clean)
+    victim = sorted(paths)[0]
+    mutated[victim] = "0" * 64
+    errors = core.replay_worktree_mutation_errors_v1(packet, mutated)
+    assert [(error.code, error.path) for error in errors] == [("REPLAY_WORKTREE_MUTATED", victim)]
+    missing = dict(clean)
+    missing[victim] = None
+    errors = core.replay_worktree_mutation_errors_v1(packet, missing)
+    assert [(error.code, error.path) for error in errors] == [("REPLAY_WORKTREE_MUTATED", victim)]
 
 
 def test_deleted_lean_file_is_missing_pin(snapshot: core.SubjectSnapshotV1) -> None:
@@ -1598,7 +1640,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V11:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V12:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:

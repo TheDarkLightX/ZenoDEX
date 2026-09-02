@@ -15,7 +15,14 @@
     "checked_u128_arithmetic_and_canonical_order",
     "derived_roots"
   ],
-  "fixture_schema": "zenodex/global-accounting-allocation-certificate-v1-golden/v1",
+  "fixture_schema": "zenodex/global-accounting-allocation-certificate-v1-golden/v2",
+  "fold_overflow_labels": [
+    "{lane} controlled",
+    "{lane} assignments",
+    "reserves",
+    "terminal totals",
+    "custody"
+  ],
   "mutation_killers": {
     "accept a fragment bound to a foreign lane root": {
       "expected_code": "LANE_STATE_ROOT_DRIFT",
@@ -76,6 +83,10 @@
     "skip the reserve partition equality": {
       "expected_code": "RESERVE_ROWS_DRIFT",
       "vector": "rejects_reserves_without_reserve_rows"
+    },
+    "trust the fragment's binding root": {
+      "expected_code": "BINDING_ROOT_DRIFT",
+      "vector": "rejects_forged_binding_root"
     },
     "trust the fragment's producer kind instead of the registry": {
       "expected_code": "PRODUCER_KIND_DRIFT",
@@ -146,6 +157,7 @@
   },
   "reject_messages": {
     "ALLOCATION_TOTAL_OVERFLOW": "allocation certificate total overflows",
+    "BINDING_ROOT_DRIFT": "the fragment binding root does not equal its committed lane state root",
     "BLOCKED_LANE_PRODUCER_MISSING": "allocation certificate enabled lane has no receipt-backed fragment producer",
     "DERIVED_ROOT_DRIFT": "allocation certificate derived roots differ from the recomputed roots",
     "DISABLED_LANE_NOT_EMPTY": "allocation certificate disabled lane fragment carries rows",
@@ -3721,6 +3733,319 @@
       },
       "expected_state_root": "0x292f4193ab2a1e7d5833a3863071a1b154670c95df79719e28b1bbaaea44ae79",
       "obligation": "a forged allocation root rejects DERIVED_ROOT_DRIFT",
+      "spec": {
+        "lanes_enabled": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      },
+      "state": {
+        "balances": [],
+        "chain_id": "zeno-allocation-certificate-golden",
+        "custody": [],
+        "deployment_root": "0x000000000000000000000000000000000000000000000000000000000000a028",
+        "height": 7,
+        "history_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "lane_roots": [
+          {
+            "enabled": false,
+            "lane_id": "ASSET_TRANSFER",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000c9",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bb9"
+          },
+          {
+            "enabled": false,
+            "lane_id": "SPOT_LIQUIDITY",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000ca",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bba"
+          },
+          {
+            "enabled": false,
+            "lane_id": "FARM_INCENTIVES",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cb",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbb"
+          },
+          {
+            "enabled": false,
+            "lane_id": "ZDEX_TOKENOMICS",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cc",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbc"
+          },
+          {
+            "enabled": false,
+            "lane_id": "ZUSD_MONETARY",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cd",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbd"
+          },
+          {
+            "enabled": false,
+            "lane_id": "PERPS_MARKET",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000ce",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbe"
+          },
+          {
+            "enabled": false,
+            "lane_id": "ORACLE_MARKET",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cf",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbf"
+          },
+          {
+            "enabled": false,
+            "lane_id": "SEALED_AUCTION",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d0",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc0"
+          },
+          {
+            "enabled": false,
+            "lane_id": "STRATEGY_ESCROW",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d1",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc1"
+          },
+          {
+            "enabled": false,
+            "lane_id": "PROOF_REWARDS",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d2",
+            "state_root": "0xd322bac2dd8f9fa0a67c4036b87f41ba7dc9f1d849dada1cc65e5463c67fdf74"
+          },
+          {
+            "enabled": false,
+            "lane_id": "EXTERNAL_CUSTODY",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d3",
+            "state_root": "0x760d222dd2e3dde6b65195d6f9a20b6d855a51743a194d9766481b042ae8d51d"
+          },
+          {
+            "enabled": false,
+            "lane_id": "GOVERNANCE_MIGRATION",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d4",
+            "state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc4"
+          }
+        ],
+        "liabilities": [],
+        "oracle_occurrences": [],
+        "outbox": [],
+        "profile_root": "0x000000000000000000000000000000000000000000000000000000000000a029",
+        "replay_state": [],
+        "reserves": [],
+        "schema": "zenodex/global-settlement-abi/v1",
+        "supplies": [],
+        "terminal_obligations": [],
+        "writer_epoch": 3
+      },
+      "state_bytes_sha256": "74dad6f955f7ed05a7cc08b2ece1a13d43c07c9bf856a762559715d4d9887cb5"
+    },
+    "rejects_forged_binding_root": {
+      "certificate": {
+        "allocation_root": "0x13722168676533104461c474f4378f59b780d7cba6691ea061eff148e9273f24",
+        "canonical_allocation_rows": [],
+        "chain_context": {
+          "chain_id": "zeno-allocation-certificate-golden",
+          "deployment_root": "0x000000000000000000000000000000000000000000000000000000000000a028"
+        },
+        "field_ownership_root": "0x121d23f2021f5e3771b04f84370c3e098ae4466c3beeefacb19e1c712d08d4a8",
+        "global_state_root": "0x292f4193ab2a1e7d5833a3863071a1b154670c95df79719e28b1bbaaea44ae79",
+        "ordered_lane_fragments": [
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000054",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "ASSET_TRANSFER",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bb9",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000c9",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bba",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "SPOT_LIQUIDITY",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bba",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000ca",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bbb",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "FARM_INCENTIVES",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbb",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cb",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bbc",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "ZDEX_TOKENOMICS",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbc",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cc",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bbd",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "ZUSD_MONETARY",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbd",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cd",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bbe",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "PERPS_MARKET",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbe",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000ce",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bbf",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "ORACLE_MARKET",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bbf",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000cf",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bc0",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "SEALED_AUCTION",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc0",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d0",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bc1",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "STRATEGY_ESCROW",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc1",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d1",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0xd322bac2dd8f9fa0a67c4036b87f41ba7dc9f1d849dada1cc65e5463c67fdf74",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "PROOF_REWARDS",
+            "lane_state_root": "0xd322bac2dd8f9fa0a67c4036b87f41ba7dc9f1d849dada1cc65e5463c67fdf74",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d2",
+            "pending_external_obligations": [],
+            "producer_kind": "REGISTERED_EMPTY_BLOCKED",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x760d222dd2e3dde6b65195d6f9a20b6d855a51743a194d9766481b042ae8d51d",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "EXTERNAL_CUSTODY",
+            "lane_state_root": "0x760d222dd2e3dde6b65195d6f9a20b6d855a51743a194d9766481b042ae8d51d",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d3",
+            "pending_external_obligations": [],
+            "producer_kind": "REGISTERED_EMPTY_DISABLED",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          },
+          {
+            "binding_root": "0x0000000000000000000000000000000000000000000000000000000000000bc4",
+            "claimant_entitlements": [],
+            "controlled_locations": [],
+            "enabled": false,
+            "lane_id": "GOVERNANCE_MIGRATION",
+            "lane_state_root": "0x0000000000000000000000000000000000000000000000000000000000000bc4",
+            "module_release_id": "0x00000000000000000000000000000000000000000000000000000000000000d4",
+            "pending_external_obligations": [],
+            "producer_kind": "NO_PRODUCER",
+            "terminal_bindings": [],
+            "unencumbered_reserves": []
+          }
+        ],
+        "profile_root": "0x000000000000000000000000000000000000000000000000000000000000a029",
+        "reserve_interpretation": "NAMED_UNENCUMBERED_NO_CLAIMANT",
+        "schema": "zenodex/global-accounting-allocation-certificate/v1",
+        "terminal_binding_root": "0x4e07f1afc75fc32b4ee7f5166912fa25037f57d61ebe5d38ecc6e736251ec874",
+        "writer_epoch": 3
+      },
+      "certificate_bytes_sha256": "efec2f2943fb8ac25cda851e0f92d06fb6f12fd9b5ac9a3dcd435c3dce186f7b",
+      "certificate_mutation": "forge_binding_root",
+      "derived": {
+        "allocation_root": "0x13722168676533104461c474f4378f59b780d7cba6691ea061eff148e9273f24",
+        "field_ownership_root": "0x121d23f2021f5e3771b04f84370c3e098ae4466c3beeefacb19e1c712d08d4a8",
+        "lane_fragment_roots": [
+          "0x17f8da3d10860152d8ffdf099f862b898408b2c6512ba73577d808bcdd961ff7",
+          "0x7df80e466fce6976401683fa931cac49701630615480e756103f5a1beaeff859",
+          "0xb79202482a0cc6d97eaccd5769e389b085857dfcfaba477949802efb74c74978",
+          "0x9a636c9ba7f7cf9122311e7b6c2588f5e13578d79b123ceb44b8393330095a7e",
+          "0xcf81c980927479f7af0ab61167b55d201a01d12ec2cf5a457c9760cee6b4f718",
+          "0x1dde2e02b3f30c0d4a5107c49d01e333f1f05173d9ea8102185b12f204377c26",
+          "0xceee24fc99836b5a9a3a0c072ebb4e81167607f750be91d789c1f1393d1138de",
+          "0x00a8a2f2043c41fc04b1da5780e52bbee60dba549862a96af1d50b68404fb9c3",
+          "0xeaccf407ca41b5ccd1682006f31d930180d84b1431922de831649eaa4c816fbd",
+          "0xac40bdb313486f9c0c0facfa7a9b6a22006353d76a2add8caebb1fe49879a684",
+          "0x80eec34bf4a73456210184bbbb43f4867956b61cc94e85eef50bf770bdaa27e5",
+          "0x37a28e846c5accd20ebf25884e4b7ac2151adf98c6480feb968130083969927b"
+        ],
+        "terminal_binding_root": "0x4e07f1afc75fc32b4ee7f5166912fa25037f57d61ebe5d38ecc6e736251ec874"
+      },
+      "expected_outcome": {
+        "code": "BINDING_ROOT_DRIFT",
+        "detail": "ASSET_TRANSFER",
+        "message": "the fragment binding root does not equal its committed lane state root",
+        "status": "REJECT"
+      },
+      "expected_state_root": "0x292f4193ab2a1e7d5833a3863071a1b154670c95df79719e28b1bbaaea44ae79",
+      "obligation": "a binding root that is not the committed lane state root rejects BINDING_ROOT_DRIFT",
       "spec": {
         "lanes_enabled": [
           false,

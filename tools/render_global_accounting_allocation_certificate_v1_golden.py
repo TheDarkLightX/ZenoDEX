@@ -47,7 +47,19 @@ from src.core.global_settlement_types_v1 import (  # noqa: E402
 )
 
 FIXTURE_PATH_V1: Final = ROOT / "tests" / "data" / "global_accounting_allocation_certificate_v1_golden.json"
-FIXTURE_SCHEMA_V1: Final = "zenodex/global-accounting-allocation-certificate-v1-golden/v1"
+FIXTURE_SCHEMA_V1: Final = "zenodex/global-accounting-allocation-certificate-v1-golden/v2"
+
+# Opus P15 P2-2: the overflow folds are unreachable through the top-level checker while no
+# receipt-backed producer is registered, so their reject details cannot be pinned by recorded
+# vectors; both language sides instead exercise the fold sites directly against these shared
+# literals ({lane} is the lane id value).
+FOLD_OVERFLOW_LABELS_V1: Final = (
+    "{lane} controlled",
+    "{lane} assignments",
+    "reserves",
+    "terminal totals",
+    "custody",
+)
 CHAIN_ID_V1: Final = "zeno-allocation-certificate-golden"
 MAX: Final = (1 << 128) - 1
 Row = tuple[str, str, str, int]
@@ -202,6 +214,7 @@ VECTORS_V1: Final[dict[str, tuple[str, dict[str, Any], str]]] = {
     "rejects_forged_field_ownership_root": ("a forged field-ownership root rejects DERIVED_ROOT_DRIFT", _spec(), "forge_field_ownership_root"),
     "rejects_forged_terminal_binding_root": ("a forged terminal-binding root rejects DERIVED_ROOT_DRIFT", _spec(), "forge_terminal_binding_root"),
     "pins_roots_of_a_fully_classified_synthetic_fragment": ("a well-formed fragment with every row type pins cross-language roots (rejected only because the lane is disabled)", _spec(), "synthetic_rows_last"),
+    "rejects_forged_binding_root": ("a binding root that is not the committed lane state root rejects BINDING_ROOT_DRIFT", _spec(), "forge_binding_root"),
     "pins_roots_of_u128_boundary_rows": ("u128 maximum atoms in every row type hash identically in both languages", _spec(), "u128_rows_last"),
 }
 
@@ -253,6 +266,8 @@ def _mutate(
             ),
         )
         return _certificate_with_fragments(certificate, (*fragments[:-1], last))
+    if name == "forge_binding_root":
+        return _certificate_with_fragments(certificate, (replace(fragments[0], binding_root=_root(84)), *fragments[1:]))
     if name == "forge_allocation_root":
         return replace(certificate, allocation_root=_root(80))
     if name == "forge_field_ownership_root":
@@ -289,6 +304,7 @@ MUTATION_KILLERS_V1: Final[dict[str, tuple[str, str]]] = {
     "count DRAINED terminals as open": ("accepts_drained_terminal_without_binding_row", "ACCEPT"),
     "skip the custody aggregate equality": ("rejects_custody_without_controlled_locations", "LANE_AGGREGATE_DRIFT"),
     "trust the recorded allocation root": ("rejects_forged_allocation_root", "DERIVED_ROOT_DRIFT"),
+    "trust the fragment's binding root": ("rejects_forged_binding_root", "BINDING_ROOT_DRIFT"),
     "trust the recorded field-ownership root": ("rejects_forged_field_ownership_root", "DERIVED_ROOT_DRIFT"),
     "trust the recorded terminal-binding root": ("rejects_forged_terminal_binding_root", "DERIVED_ROOT_DRIFT"),
     "accept the registered-empty certificate over a non-empty state": ("rejects_custody_without_controlled_locations", "LANE_AGGREGATE_DRIFT"),
@@ -335,6 +351,7 @@ def render_fixture_v1() -> dict[str, object]:
         }
     return {
         "fixture_schema": FIXTURE_SCHEMA_V1,
+        "fold_overflow_labels": list(FOLD_OVERFLOW_LABELS_V1),
         "authority": "NONE",
         "certificate_schema": cert.GLOBAL_ACCOUNTING_ALLOCATION_CERTIFICATE_SCHEMA_V1,
         "reject_messages": {code.value: message for code, message in cert.ALLOCATION_CERTIFICATE_REJECT_MESSAGE_BY_CODE_V1.items()},

@@ -219,7 +219,7 @@ def _assert_counterexample_falsifies(
     The inductive query assumes exactly the invariants present in the verified model, so
     ``assumed_invariants`` names them (``None`` means the full original set, the mutant run).
     Omitted (unconstrained) variables make evaluation three-valued: the attributed invariant must be
-    definitely False on the post state; an assumed pre invariant must never be definitely False.
+    definitely False on the post state; every assumed pre invariant must be definitely True.
     """
 
     enums = _enum_index(original)
@@ -238,7 +238,9 @@ def _assert_counterexample_falsifies(
                 if value is not None and declared.get("kind") == "int":
                     assert declared["min"] <= value <= declared["max"], (solver, row["id"], suffix, value)
         for invariant_id, expr in invariants.items():
-            assert _evaluate(expr, values, enums, "") is not False, (solver, invariant_id, "pre")
+            # Opus P15 P3-3: fail-closed — a solver model omitting a variable an assumed invariant
+            # needs would otherwise make this check vacuous (None satisfied `is not False`).
+            assert _evaluate(expr, values, enums, "") is True, (solver, invariant_id, "pre")
         assert _evaluate(invariants[attributed_invariant], values, enums, "_post") is False, (solver, attributed_invariant)
 
 

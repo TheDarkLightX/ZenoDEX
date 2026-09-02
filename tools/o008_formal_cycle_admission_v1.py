@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V11: Final = "zenodex/o008-formal-cycle-evidence/v11"
+PACKET_SCHEMA_V12: Final = "zenodex/o008-formal-cycle-evidence/v12"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -253,6 +253,8 @@ CLAIM_CEILING_V1: Final[dict[str, object]] = {
     **{field: "NONE" for field in AUTHORITY_FIELDS_V1},
 }
 
+CERTIFICATE_FIXTURE_VECTORS_V1: Final = 28
+
 COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     "Python and Rust reject V1-state-visible same-control-domain claimant underbacking",
     "Python and Rust reject aggregate OPEN-terminal amounts above the same claimant's"
@@ -271,8 +273,9 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     " are specified under the control-domain vocabulary",
     "the GlobalAccountingAllocationCertificateV1 checker is implemented in Python and Rust with a"
     " producer registry exhaustive over the twelve lanes and no receipt-backed producer, and both"
-    " replay one rendered golden vector of twenty-five state/certificate pairs with closed reject"
-    " codes; only the registered-empty certificate over an all-lanes-disabled state is accepted",
+    f" replay one rendered golden vector of {CERTIFICATE_FIXTURE_VECTORS_V1} state/certificate pairs"
+    " with closed reject codes; only the registered-empty certificate over an all-lanes-disabled"
+    " state is accepted",
     "a bounded Lean model of the certificate relation derives the normative partition, same-domain"
     " backing, open-terminal coverage, exact current-profile custody under zero reserves and external"
     " obligations, and that without a receipt-backed producer only the registered-empty certificate is"
@@ -398,7 +401,7 @@ REQUIRED_SIDECAR_V1: Final[dict[str, object]] = {
 # reject codes, producer registry (no receipt-backed lane), and the shared golden fixture, so the
 # implementation claim below is a projection of pinned sources and never a free-text status.
 CERTIFICATE_SCHEMA_V1: Final = "zenodex/global-accounting-allocation-certificate/v1"
-CERTIFICATE_FIXTURE_SCHEMA_V1: Final = "zenodex/global-accounting-allocation-certificate-v1-golden/v1"
+CERTIFICATE_FIXTURE_SCHEMA_V1: Final = "zenodex/global-accounting-allocation-certificate-v1-golden/v2"
 CERTIFICATE_CHECK_ORDER_V1: Final[tuple[str, ...]] = ("header_binding", *SIDECAR_CHECKS_V1, "derived_roots")
 CERTIFICATE_REJECT_CODES_V1: Final[tuple[str, ...]] = (
     "HEADER_BINDING_DRIFT",
@@ -408,6 +411,7 @@ CERTIFICATE_REJECT_CODES_V1: Final[tuple[str, ...]] = (
     "BLOCKED_LANE_PRODUCER_MISSING",
     "DISABLED_LANE_NOT_EMPTY",
     "REGISTERED_EMPTY_ROOT_DRIFT",
+    "BINDING_ROOT_DRIFT",
     "ALLOCATION_TOTAL_OVERFLOW",
     "SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE",
     "ENTITLEMENT_ROWS_DRIFT",
@@ -422,7 +426,6 @@ CERTIFICATE_PRODUCER_KINDS_V1: Final[dict[str, str]] = {
     lane: {"EXTERNAL_CUSTODY": "REGISTERED_EMPTY_DISABLED", "PROOF_REWARDS": "REGISTERED_EMPTY_BLOCKED"}.get(lane, "NO_PRODUCER")
     for lane in EXPECTED_LANES_V1
 }
-CERTIFICATE_FIXTURE_VECTORS_V1: Final = 27
 CERTIFICATE_FIXTURE_ACCEPTED_V1: Final = 3
 # C5 (wave A): the unique empty typed lane state roots the registered-empty lanes are bound to;
 # every accepted fixture fragment of these lanes must sit at exactly this root.
@@ -600,9 +603,10 @@ LEAN_DEFINITION_SURFACE_SHA256_V1: Final = "cd1e010a3f82e1595c4cefa7fc7354bc8d97
 LEAN_STATEMENT_BINDING_V1: Final = (
     "theorem statements and the definitional surface are compared against hashes embedded in the"
     " admission core at S (the definition-surface hash carries the binding; the lexical closures are"
-    " defence in depth): the file contains no double quote or guillemet, no # command, and no"
-    " notation, macro, syntax, instance, attribute, scope, or open command; each elided region is"
-    " indented proof text with no declaration, so only how a theorem is proved is left to replay"
+    " defence in depth): the file contains no double quote or guillemet and no # character anywhere"
+    " in its stripped code, and may use no notation, macro, syntax, instance, attribute, scope, open,"
+    " run_cmd, or run_elab command; each elided region is indented, #-free, forbidden-word-free proof"
+    " text with no declaration"
 )
 LEAN_GATE_PIN_ORDER_V1: Final[tuple[str, ...]] = (
     LEAN_PROOF_PATH_V1,
@@ -1002,12 +1006,12 @@ RUST_REFINEMENT_GATE_TARGET_V1: Final = "global_economic_state_effect_refinement
 RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
-CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 35
+CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 37
 PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 5
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
 PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 2
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
-CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 3
+CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 4
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
 _CARGO_VERSION_RE: Final = re.compile(r"^cargo ([0-9]+\.[0-9]+\.[0-9]+)")
 _RUSTC_FIELD_RE: Final = re.compile(r"^(release|commit-hash|host): (\S+)$", re.MULTILINE)
@@ -1039,6 +1043,7 @@ _LEAN_FORBIDDEN_WORDS_V1: Final[frozenset[str]] = frozenset({
     "infixr", "prefix", "postfix", "export", "initialize", "builtin_initialize", "set_option", "attribute", "local",
     "scoped", "partial", "unsafe", "opaque", "axiom", "mutual", "omit", "include", "variable", "universe", "section",
     "instance", "class", "abbrev", "example", "simproc", "dsimproc", "register_simp_attr",
+    "run_cmd", "run_elab",
 })
 _LEAN_WORD_RE: Final = re.compile(r"(?<![A-Za-z0-9_.'])([A-Za-z_][A-Za-z0-9_]*)")
 _LEAN_OPEN_COMMAND_RE: Final = re.compile(r"^[ \t]*open\b", re.MULTILINE)
@@ -1559,8 +1564,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V11:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V11}")
+    if packet.get("schema") != PACKET_SCHEMA_V12:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V12}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -1644,8 +1649,11 @@ def lean_literal_closure_v1(text: str, path: str = LEAN_PROOF_PATH_V1) -> None:
     for guillemet in ("\u00ab", "\u00bb"):
         if guillemet in text:
             _reject("LEAN_GUILLEMET_FORBIDDEN", path, f"line {text.count(chr(10), 0, text.index(guillemet)) + 1}")
-    # Opus P13 P3-5: any Unicode whitespace may precede a `#` command.
-    hash_command = re.search(r"^\s*#", _lean_code(text, path), re.MULTILINE)
+    # Opus P15 P1-1: `^`-anchoring let a mid-line `#eval` after proof text in an elided
+    # region execute IO during replay. Lean accepts a command wherever a command may begin,
+    # so the `#` character is banned anywhere in the stripped code (both pinned files carry
+    # zero `#` outside comments; a char literal '#' is also rejected, fail-closed).
+    hash_command = re.search(r"#", _lean_code(text, path))
     if hash_command is not None:
         _reject("LEAN_COMMAND_FORBIDDEN", path, f"# command at line {text.count(chr(10), 0, hash_command.start()) + 1}")
 
@@ -1842,6 +1850,19 @@ _PYTHON_FORBIDDEN_MODULES_V1: Final[frozenset[str]] = frozenset({"importlib", "c
 _PYTHON_MODULE_HOOKS_V1: Final[frozenset[str]] = frozenset({"__getattr__", "__dir__"})
 
 
+def _scan_hook_definitions_v1(node: ast.AST, path: str, *, under_class: bool) -> None:
+    """Reject any def/class binding a module hook name outside a class body (by ancestry)."""
+
+    for child in ast.iter_child_nodes(node):
+        if (
+            isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+            and not under_class
+            and child.name in _PYTHON_MODULE_HOOKS_V1
+        ):
+            _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"{child.name} definition at line {child.lineno}")
+        _scan_hook_definitions_v1(child, path, under_class=under_class or isinstance(child, ast.ClassDef))
+
+
 def _binds_hook_name(node: ast.AST, name: str) -> bool:
     """True when ``node`` binds ``name`` by any form other than a def/class (handled at module level)."""
 
@@ -1877,10 +1898,13 @@ def python_dynamic_binding_scan_v1(
         for hook in _PYTHON_MODULE_HOOKS_V1:
             if _binds_hook_name(node, hook):
                 _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"binding of {hook} at line {getattr(node, 'lineno', 0)}")
-    for statement in module.body:
-        if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) and statement.name in _PYTHON_MODULE_HOOKS_V1:
-            _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"module-level {statement.name} at line {statement.lineno}")
+    # Opus P15 P1-2: a def/class nested in any module-level compound statement still binds in
+    # module scope; only a definition under a ClassDef ancestor binds a class attribute instead.
+    _scan_hook_definitions_v1(module, path, under_class=False)
     for node in ast.walk(module):
+        if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names):
+            # Opus P15 P1-2 second vehicle: `from m import *` can supply any name, including a hook.
+            _reject("PYTHON_DYNAMIC_BINDING_FORBIDDEN", path, f"import * at line {node.lineno}")
         if isinstance(node, ast.Import | ast.ImportFrom):
             imported = [alias.name for alias in node.names] if isinstance(node, ast.Import) else [node.module or ""]
             for name in imported:
@@ -3312,7 +3336,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V11,
+        "schema": PACKET_SCHEMA_V12,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -3909,6 +3933,43 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
     if obs.command_id == "python_golden_gate":
         return _grade_pytest(obs, PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1)
     return _grade_esso(obs, esso)
+
+
+def replay_expected_sha_by_path_v1(packet: dict[str, object]) -> dict[str, str]:
+    """The packet's expected worktree sha for every applicability path: source pins plus selected hygiene packets."""
+
+    expected: dict[str, str] = {}
+    rows = packet.get("source_pins")
+    if isinstance(rows, list):
+        for row in rows:
+            if isinstance(row, dict):
+                expected[str(row.get("path"))] = str(row.get("sha256"))
+    selection = packet.get("hygiene_selection")
+    if isinstance(selection, list):
+        for row in selection:
+            if isinstance(row, dict):
+                expected[str(row.get("packet_path"))] = str(row.get("packet_sha256"))
+    return expected
+
+
+def replay_worktree_mutation_errors_v1(
+    packet: dict[str, object], current_sha_by_path: dict[str, str | None]
+) -> tuple[AdmissionErrorV1, ...]:
+    """Errors for every applicability path whose worktree bytes changed during replay.
+
+    Opus P15 P1-1 escalation: replay command #2 can execute IO, so the worktree must be
+    re-verified against the packet's own pins (source pins plus selected hygiene packets)
+    after the last command; a missing path or an applicability path the packet carries no
+    pin for is a mutation, fail-closed.
+    """
+
+    expected = replay_expected_sha_by_path_v1(packet)
+    errors: list[AdmissionErrorV1] = []
+    for path in applicability_paths_v1(packet):
+        pinned = expected.get(path)
+        if pinned is None or current_sha_by_path.get(path) != pinned:
+            errors.append(AdmissionErrorV1("REPLAY_WORKTREE_MUTATED", path, "worktree changed during replay"))
+    return tuple(errors)
 
 
 def evaluate_proof_replay_v1(

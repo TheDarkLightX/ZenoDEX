@@ -126,6 +126,7 @@ class AllocationCertificateRejectCodeV1(str, Enum):
     BLOCKED_LANE_PRODUCER_MISSING = "BLOCKED_LANE_PRODUCER_MISSING"
     DISABLED_LANE_NOT_EMPTY = "DISABLED_LANE_NOT_EMPTY"
     REGISTERED_EMPTY_ROOT_DRIFT = "REGISTERED_EMPTY_ROOT_DRIFT"
+    BINDING_ROOT_DRIFT = "BINDING_ROOT_DRIFT"
     ALLOCATION_TOTAL_OVERFLOW = "ALLOCATION_TOTAL_OVERFLOW"
     SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE = "SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE"
     ENTITLEMENT_ROWS_DRIFT = "ENTITLEMENT_ROWS_DRIFT"
@@ -144,6 +145,7 @@ ALLOCATION_CERTIFICATE_REJECT_MESSAGE_BY_CODE_V1: Final[dict[AllocationCertifica
     AllocationCertificateRejectCodeV1.BLOCKED_LANE_PRODUCER_MISSING: "allocation certificate enabled lane has no receipt-backed fragment producer",
     AllocationCertificateRejectCodeV1.DISABLED_LANE_NOT_EMPTY: "allocation certificate disabled lane fragment carries rows",
     AllocationCertificateRejectCodeV1.REGISTERED_EMPTY_ROOT_DRIFT: "allocation certificate registered-empty lane is not bound to its empty lane state root",
+    AllocationCertificateRejectCodeV1.BINDING_ROOT_DRIFT: "the fragment binding root does not equal its committed lane state root",
     AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW: "allocation certificate total overflows",
     AllocationCertificateRejectCodeV1.SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE: "allocation certificate controlled source atoms are not assigned exactly once",
     AllocationCertificateRejectCodeV1.ENTITLEMENT_ROWS_DRIFT: "allocation certificate claimant entitlement rows differ from the V1 liabilities",
@@ -641,9 +643,15 @@ def _check_lane_bindings(certificate: GlobalAccountingAllocationCertificateV1, s
         registered_root = REGISTERED_EMPTY_LANE_ROOTS_V1.get(fragment.lane_id)
         if registered_root is not None and fragment.lane_state_root != registered_root:
             _fail(AllocationCertificateRejectCodeV1.REGISTERED_EMPTY_ROOT_DRIFT, fragment.lane_id.value)
+    for fragment, _ in pairs:
+        # Opus P15 P2-1: with no receipt-backed producer registered, every producer path commits
+        # binding_root = lane_state_root; an unvalidated root-shaped field must not exist. C9's
+        # receipt admission replaces this rule for RECEIPT_BACKED lanes with the receipt root.
+        if fragment.binding_root != fragment.lane_state_root:
+            _fail(AllocationCertificateRejectCodeV1.BINDING_ROOT_DRIFT, fragment.lane_id.value)
 
 
-def _fold(rows: Iterable[tuple[tuple[str, ...], int]], label: str = "fold") -> dict[tuple[str, ...], int]:
+def _fold(rows: Iterable[tuple[tuple[str, ...], int]], label: str) -> dict[tuple[str, ...], int]:
     totals: dict[tuple[str, ...], int] = {}
     for key, amount in rows:
         total = totals.get(key, 0) + amount
@@ -657,7 +665,10 @@ def _check_exactly_once(certificate: GlobalAccountingAllocationCertificateV1) ->
     """Per lane and (asset, control_domain): controlled = entitlements + reserves + pending external."""
 
     for fragment in certificate.ordered_lane_fragments:
-        controlled = _fold(((r.asset, r.control_domain), r.amount_atoms) for r in fragment.controlled_locations)
+        controlled = _fold(
+            (((r.asset, r.control_domain), r.amount_atoms) for r in fragment.controlled_locations),
+            f"{fragment.lane_id.value} controlled",
+        )
         assigned = _fold(
             [((r.asset, r.control_domain), r.amount_atoms) for r in fragment.claimant_entitlements]
             + [((r.asset, r.control_domain), r.amount_atoms) for r in fragment.unencumbered_reserves]
@@ -680,9 +691,12 @@ def _check_entitlement_rows(certificate: GlobalAccountingAllocationCertificateV1
 
 def _check_reserve_rows(certificate: GlobalAccountingAllocationCertificateV1, state: GlobalEconomicStateV1) -> None:
     totals = _fold(
-        ((r.asset, r.reserve_principal, r.control_domain), r.amount_atoms)
-        for fragment in certificate.ordered_lane_fragments
-        for r in fragment.unencumbered_reserves
+        (
+            ((r.asset, r.reserve_principal, r.control_domain), r.amount_atoms)
+            for fragment in certificate.ordered_lane_fragments
+            for r in fragment.unencumbered_reserves
+        ),
+        "reserves",
     )
     reserves = tuple((row.asset, row.owner, row.custody_domain, row.amount_atoms) for row in state.reserves)
     rows = tuple((asset, principal, domain, amount) for (asset, principal, domain), amount in sorted(totals.items()))
@@ -754,7 +768,8 @@ def _check_terminal_totals(certificate: GlobalAccountingAllocationCertificateV1)
 
     for fragment in certificate.ordered_lane_fragments:
         claimed = _fold(
-            ((r.asset, r.claimant, r.control_domain), r.amount_atoms) for r in fragment.terminal_bindings
+            (((r.asset, r.claimant, r.control_domain), r.amount_atoms) for r in fragment.terminal_bindings),
+            "terminal totals",
         )
         entitled: dict[tuple[str, ...], int] = {
             (r.asset, r.claimant, r.control_domain): r.amount_atoms for r in fragment.claimant_entitlements
@@ -766,9 +781,12 @@ def _check_terminal_totals(certificate: GlobalAccountingAllocationCertificateV1)
 
 def _check_lane_aggregates(certificate: GlobalAccountingAllocationCertificateV1, state: GlobalEconomicStateV1) -> None:
     custody = _fold(
-        ((r.asset, r.controlling_principal, r.control_domain), r.amount_atoms)
-        for fragment in certificate.ordered_lane_fragments
-        for r in fragment.controlled_locations
+        (
+            ((r.asset, r.controlling_principal, r.control_domain), r.amount_atoms)
+            for fragment in certificate.ordered_lane_fragments
+            for r in fragment.controlled_locations
+        ),
+        "custody",
     )
     expected = tuple((row.asset, row.owner, row.custody_domain, row.amount_atoms) for row in state.custody)
     rows = tuple((asset, principal, domain, amount) for (asset, principal, domain), amount in sorted(custody.items()))

@@ -49,12 +49,14 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _require_worktree_equals_subject(root: Path, snapshot: core.SubjectSnapshotV1) -> None:
+def _require_worktree_equals_subject(
+    root: Path, snapshot: core.SubjectSnapshotV1, code: str = "REPLAY_REFUSED_WORKTREE_DRIFT"
+) -> None:
     for path in core.SOURCE_PIN_PATHS_V1:
         blob = snapshot.blobs.get(path)
         raw = shell.working_bytes_v1(root, path)
         if blob is None or raw is None or core.sha256_hex_v1(raw) != blob.sha256:
-            core._reject("REPLAY_REFUSED_WORKTREE_DRIFT", path, "worktree differs from subject")
+            core._reject(code, path, "worktree differs from subject")
 
 
 def _author_record(root: Path, snapshot: core.SubjectSnapshotV1, args: argparse.Namespace) -> dict[str, Any]:
@@ -72,6 +74,9 @@ def _author_record(root: Path, snapshot: core.SubjectSnapshotV1, args: argparse.
             tmp_dir=Path(tmp),
         )
         observations = shell.run_proof_replay_v1(root, environment)
+    # Opus P15 P1-1: a replayed command may have executed IO; nothing after this line may
+    # trust the worktree unless it still equals the subject byte for byte.
+    _require_worktree_equals_subject(root, snapshot, code="REPLAY_WORKTREE_MUTATED")
     evaluation = core.evaluate_proof_replay_v1(preview, observations)
     if evaluation.status != core.REPLAY_STATUS_EXECUTED_PASS_V1:
         first = evaluation.errors[0] if evaluation.errors else None

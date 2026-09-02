@@ -72,11 +72,19 @@ pub fn produce_registered_empty_fragment_v1(
         LaneProducerKindV1::REGISTERED_EMPTY_DISABLED
             | LaneProducerKindV1::REGISTERED_EMPTY_BLOCKED
     );
-    let empty_root = registered_empty_lane_root_v1(lane_root.lane_id)
-        .ok()
-        .flatten();
-    let Some(empty_root) = (if registered_empty { empty_root } else { None }) else {
+    if !registered_empty {
         return Err(reject(LaneProducerRejectCodeV1::LANE_NOT_REGISTERED_EMPTY));
+    }
+    // Opus P15 P3-2: never swallow the root computation error into a different reject code.
+    // Python's equivalent failure is an import-time error; here it maps to the root-drift
+    // code, and a unit test pins that both registered-empty lanes compute their root.
+    let empty_root = match registered_empty_lane_root_v1(lane_root.lane_id) {
+        Ok(Some(root)) => root,
+        Ok(None) | Err(_) => {
+            return Err(reject(
+                LaneProducerRejectCodeV1::REGISTERED_EMPTY_ROOT_DRIFT,
+            ));
+        }
     };
     if lane_root.enabled {
         return Err(reject(LaneProducerRejectCodeV1::LANE_ENABLED));
@@ -99,4 +107,18 @@ pub fn produce_registered_empty_fragment_v1(
         pending_external_obligations: Vec::new(),
         terminal_bindings: Vec::new(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn registered_empty_lane_roots_are_available() {
+        use crate::global_accounting_allocation_certificate::registered_empty_lane_root_v1;
+        use crate::release::LaneIdV1;
+        // Pins Opus P15 P3-2's error path unreachable: both registered-empty lanes compute a root.
+        for lane in [LaneIdV1::EXTERNAL_CUSTODY, LaneIdV1::PROOF_REWARDS] {
+            let root = registered_empty_lane_root_v1(lane).expect("root computes");
+            assert!(root.is_some(), "{lane:?} must have a registered-empty root");
+        }
+    }
 }

@@ -197,3 +197,80 @@ def test_terminal_rows_are_bounded_in_aggregate_per_entitlement_cell() -> None:
             _certificate_for(base, renderer._fragment_with_rows(lane, terminal_bindings=(_claim("t1", 1),)))
         )
     assert unentitled.value.code is cert.AllocationCertificateRejectCodeV1.TERMINAL_BINDING_DRIFT
+
+
+def test_fold_overflow_details_match_the_shared_labels() -> None:
+    """Opus P15 P2-2: the fold sites are unreachable through the registry gate, so their reject
+    details are pinned cross-language by exercising each fold directly against the fixture labels."""
+
+    labels = _fixture()["fold_overflow_labels"]
+    assert labels == list(renderer.FOLD_OVERFLOW_LABELS_V1)
+    state = renderer.build_state_v1(renderer._spec())
+    base = cert.build_registered_empty_certificate_v1(state)
+    lane = base.ordered_lane_fragments[0]
+    lane_label = lane.lane_id.value
+
+    def _controlled(*amounts: int) -> cert.LaneAllocationFragmentV1:
+        return renderer._fragment_with_rows(
+            lane,
+            controlled_locations=tuple(
+                cert.ControlledLocationRowV1("USD", f"pool-{i}", "spot-pool", amount) for i, amount in enumerate(amounts)
+            ),
+        )
+
+    with pytest.raises(cert._Reject) as controlled:
+        cert._check_exactly_once(_certificate_for(base, _controlled(renderer.MAX, renderer.MAX)))
+    assert (controlled.value.code, controlled.value.detail) == (
+        cert.AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW,
+        labels[0].format(lane=lane_label),
+    )
+    assigned = renderer._fragment_with_rows(
+        _controlled(renderer.MAX),
+        claimant_entitlements=(
+            cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", renderer.MAX),
+            cert.ClaimantEntitlementRowV1("USD", "bob", "spot-pool", renderer.MAX),
+        ),
+    )
+    with pytest.raises(cert._Reject) as assignments:
+        cert._check_exactly_once(_certificate_for(base, assigned))
+    assert (assignments.value.code, assignments.value.detail) == (
+        cert.AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW,
+        labels[1].format(lane=lane_label),
+    )
+    reserve = renderer._fragment_with_rows(
+        lane,
+        unencumbered_reserves=(cert.UnencumberedReserveRowV1("USD", "protocol:fee-unallocated-reserve", "spot-pool", renderer.MAX),),
+    )
+    second = renderer._fragment_with_rows(
+        base.ordered_lane_fragments[1],
+        unencumbered_reserves=(cert.UnencumberedReserveRowV1("USD", "protocol:fee-unallocated-reserve", "spot-pool", renderer.MAX),),
+    )
+    from dataclasses import replace
+
+    with pytest.raises(cert._Reject) as reserves:
+        cert._check_reserve_rows(
+            replace(base, ordered_lane_fragments=(reserve, second, *base.ordered_lane_fragments[2:])), state
+        )
+    assert (reserves.value.code, reserves.value.detail) == (
+        cert.AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW,
+        labels[2],
+    )
+    claims = tuple(
+        cert.TerminalBindingRowV1(f"t{i}", "alice", "USD", renderer.MAX, "spot-pool", "pool-a", lane.lane_id, lane.lane_state_root)
+        for i in (1, 2)
+    )
+    with pytest.raises(cert._Reject) as totals:
+        cert._check_terminal_totals(_certificate_for(base, renderer._fragment_with_rows(lane, terminal_bindings=claims)))
+    assert (totals.value.code, totals.value.detail) == (
+        cert.AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW,
+        labels[3],
+    )
+    with pytest.raises(cert._Reject) as custody:
+        cert._check_lane_aggregates(
+            replace(base, ordered_lane_fragments=(_controlled(renderer.MAX), _controlled(renderer.MAX), *base.ordered_lane_fragments[2:])),
+            state,
+        )
+    assert (custody.value.code, custody.value.detail) == (
+        cert.AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW,
+        labels[4],
+    )
