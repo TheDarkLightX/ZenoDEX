@@ -236,7 +236,28 @@ def main() -> int:
     return 0 if ok else 1
 
 
+def emit_vectors() -> int:
+    """Emit the frozen vector set (with oracle outcomes) for the Rust leg."""
+
+    rows = []
+    for vector in build_vectors():
+        accepted, code, _noop, _eff = python_outcome(vector)
+        s_bal, r_bal, t_bal, fee_flat, enabled = vector.state
+        rows.append({
+            "vector_id": vector.vector_id,
+            "s_bal": s_bal, "r_bal": r_bal, "t_bal": t_bal,
+            "fee_flat": fee_flat, "enabled": enabled,
+            "amount": vector.amount, "max_fee": vector.max_fee,
+            "recipient": vector.recipient,
+            "expected": code or "ACCEPT",
+        })
+    print(json.dumps({"schema": "zenodex/tau-adt-abi-vectors/v1", "vectors": rows}))
+    return 0
+
+
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         raise SystemExit(selftest())
+    if "--emit-vectors" in sys.argv:
+        raise SystemExit(emit_vectors())
     raise SystemExit(main())

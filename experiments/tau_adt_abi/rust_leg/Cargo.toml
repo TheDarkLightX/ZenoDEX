@@ -1,0 +1,11 @@
+[package]
+name = "tau_adt_abi_rust_leg"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zenodex-global-settlement-abi-v1 = { path = "../../../zk/global_settlement_abi_v1" }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "=1.0.148", features = ["arbitrary_precision"] }
+
+[workspace]
