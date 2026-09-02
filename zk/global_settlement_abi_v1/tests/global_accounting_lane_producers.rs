@@ -93,3 +93,224 @@ fn producer_rejects_enabled_foreign_root_and_unregistered_lanes() {
         "registered-empty lane is enabled"
     );
 }
+
+// --- wave B: the receipt-backed ASSET_TRANSFER producer ---------------------
+
+use zenodex_global_settlement_abi_v1::{
+    produce_asset_transfer_fragment_v1, transition_asset_transfer_lane_module_v1, AssetSupplyV1,
+    AssetTransferCommandV1, AssetTransferContextV1, AssetTransferLaneModuleAcceptedV1,
+    AssetTransferLaneModuleInputV1, AssetTransferLaneModuleResultV1, AssetTransferPolicyV1,
+    AssetTransferStateV1, ClaimantEntitlementRowV1, EconomicAmountV1, LaneAllocationFragmentV1,
+    LaneProducerKindV1, ReceiptBackedProducerRejectCodeV1, ASSET_TRANSFER_COMMAND_KIND_V1,
+    ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1, ASSET_TRANSFER_MODULE_SCHEMA_V1,
+};
+
+fn wave_b_root(value: u64) -> RootV1 {
+    RootV1::parse(format!("0x{value:064x}"), "test root", false).expect("test root must parse")
+}
+
+fn wave_b_accepted(custody: Vec<EconomicAmountV1>) -> AssetTransferLaneModuleAcceptedV1 {
+    let custody_total: u128 = custody.iter().map(|row| row.amount_atoms).sum();
+    let input = AssetTransferLaneModuleInputV1 {
+        schema: ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1.to_owned(),
+        context: AssetTransferContextV1 {
+            chain_id: "zeno-asset-test".to_owned(),
+            deployment_root: wave_b_root(1),
+            profile_root: wave_b_root(2),
+            writer_epoch: 7,
+            module_release_id: wave_b_root(3),
+            command_occurrence_id: wave_b_root(4),
+            subject_id: "alice".to_owned(),
+            grant_root: wave_b_root(5),
+        },
+        pre_state: AssetTransferStateV1 {
+            schema: ASSET_TRANSFER_MODULE_SCHEMA_V1.to_owned(),
+            module_release_id: wave_b_root(3),
+            policies: vec![AssetTransferPolicyV1 {
+                asset: "USD".to_owned(),
+                fee_owner: "treasury".to_owned(),
+                transfer_fee_atoms: 2,
+                enabled: true,
+            }],
+            balances: vec![
+                EconomicAmountV1 {
+                    owner: "alice".to_owned(),
+                    asset: "USD".to_owned(),
+                    custody_domain: "accounts".to_owned(),
+                    amount_atoms: 100,
+                },
+                EconomicAmountV1 {
+                    owner: "bob".to_owned(),
+                    asset: "USD".to_owned(),
+                    custody_domain: "accounts".to_owned(),
+                    amount_atoms: 10,
+                },
+                EconomicAmountV1 {
+                    owner: "treasury".to_owned(),
+                    asset: "USD".to_owned(),
+                    custody_domain: "accounts".to_owned(),
+                    amount_atoms: 5,
+                },
+            ],
+            supplies: vec![AssetSupplyV1 {
+                asset: "USD".to_owned(),
+                amount_atoms: 115 + custody_total,
+            }],
+        },
+        command: AssetTransferCommandV1 {
+            command_kind: ASSET_TRANSFER_COMMAND_KIND_V1.to_owned(),
+            asset: "USD".to_owned(),
+            sender: "alice".to_owned(),
+            recipient: "bob".to_owned(),
+            amount_atoms: 30,
+            max_fee_atoms: 2,
+        },
+        asset_policy_registry_root: wave_b_root(11),
+        fee_policy_registry_root: wave_b_root(12),
+        custody,
+    };
+    let result = transition_asset_transfer_lane_module_v1(&input)
+        .expect("typed lane module transition must evaluate");
+    let AssetTransferLaneModuleResultV1::Accepted(accepted) = result else {
+        panic!("valid lane module transition must accept")
+    };
+    *accepted
+}
+
+fn wave_b_setup() -> (
+    AssetTransferLaneModuleAcceptedV1,
+    LaneStateRootV1,
+    LaneAllocationFragmentV1,
+    Vec<ClaimantEntitlementRowV1>,
+) {
+    let accepted = wave_b_accepted(vec![EconomicAmountV1 {
+        owner: "pool-a".to_owned(),
+        asset: "USD".to_owned(),
+        custody_domain: "spot-pool".to_owned(),
+        amount_atoms: 5,
+    }]);
+    let journal = &accepted.module_journal;
+    let lane_root = LaneStateRootV1 {
+        lane_id: LaneIdV1::ASSET_TRANSFER,
+        module_release_id: wave_b_root(3),
+        enabled: true,
+        state_root: journal.post_lane_root.clone(),
+    };
+    let prior = LaneAllocationFragmentV1 {
+        lane_id: LaneIdV1::ASSET_TRANSFER,
+        module_release_id: wave_b_root(3),
+        enabled: true,
+        lane_state_root: journal.pre_lane_root.clone(),
+        producer_kind: LaneProducerKindV1::RECEIPT_BACKED,
+        binding_root: journal.pre_lane_root.clone(),
+        controlled_locations: Vec::new(),
+        claimant_entitlements: Vec::new(),
+        unencumbered_reserves: Vec::new(),
+        pending_external_obligations: Vec::new(),
+        terminal_bindings: Vec::new(),
+    };
+    let entitlements = vec![ClaimantEntitlementRowV1 {
+        asset: "USD".to_owned(),
+        claimant: "alice".to_owned(),
+        control_domain: "spot-pool".to_owned(),
+        amount_atoms: 5,
+    }];
+    (accepted, lane_root, prior, entitlements)
+}
+
+#[test]
+fn receipt_backed_producer_accepts_and_binds_the_receipt_root() {
+    let (accepted, lane_root, prior, entitlements) = wave_b_setup();
+    let fragment = produce_asset_transfer_fragment_v1(&accepted, &lane_root, &prior, &entitlements)
+        .expect("bound transition must produce");
+    assert_eq!(fragment.lane_id, LaneIdV1::ASSET_TRANSFER);
+    assert!(fragment.enabled);
+    assert_eq!(fragment.producer_kind, LaneProducerKindV1::RECEIPT_BACKED);
+    assert_eq!(
+        fragment.lane_state_root,
+        accepted.module_journal.post_lane_root
+    );
+    assert_eq!(fragment.binding_root, accepted.module_journal.receipt_root);
+    assert_eq!(fragment.controlled_locations.len(), 1);
+    assert_eq!(
+        fragment.controlled_locations[0].controlling_principal,
+        "pool-a"
+    );
+    assert_eq!(fragment.claimant_entitlements, entitlements);
+    assert!(fragment.terminal_bindings.is_empty());
+}
+
+#[test]
+fn receipt_backed_producer_rejects_binding_drifts_in_precedence_order() {
+    let (accepted, lane_root, prior, entitlements) = wave_b_setup();
+    let disabled = LaneStateRootV1 {
+        enabled: false,
+        ..lane_root.clone()
+    };
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &disabled, &prior, &entitlements)
+        .expect_err("disabled lane rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::LANE_DISABLED
+    );
+    let forged = LaneStateRootV1 {
+        state_root: wave_b_root(999),
+        ..lane_root.clone()
+    };
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &forged, &prior, &entitlements)
+        .expect_err("forged post root rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::JOURNAL_ROOT_DRIFT
+    );
+    let stale = LaneAllocationFragmentV1 {
+        lane_state_root: wave_b_root(888),
+        binding_root: wave_b_root(888),
+        ..prior.clone()
+    };
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &lane_root, &stale, &entitlements)
+        .expect_err("stale prior rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL
+    );
+    let short = vec![ClaimantEntitlementRowV1 {
+        asset: "USD".to_owned(),
+        claimant: "alice".to_owned(),
+        control_domain: "spot-pool".to_owned(),
+        amount_atoms: 4,
+    }];
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &lane_root, &prior, &short)
+        .expect_err("uncovered atoms reject");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::ENTITLEMENT_COVERAGE_DRIFT
+    );
+    assert_eq!(reject.detail, "coverage");
+}
+
+#[test]
+fn receipt_backed_producer_rejects_entitlement_fold_overflow() {
+    let (accepted, lane_root, prior, _) = wave_b_setup();
+    let overflowing = vec![
+        ClaimantEntitlementRowV1 {
+            asset: "USD".to_owned(),
+            claimant: "alice".to_owned(),
+            control_domain: "spot-pool".to_owned(),
+            amount_atoms: u128::MAX,
+        },
+        ClaimantEntitlementRowV1 {
+            asset: "USD".to_owned(),
+            claimant: "bob".to_owned(),
+            control_domain: "spot-pool".to_owned(),
+            amount_atoms: u128::MAX,
+        },
+    ];
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &lane_root, &prior, &overflowing)
+        .expect_err("entitlement fold overflows");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::CONTROLLED_FOLD_OVERFLOW
+    );
+    assert_eq!(reject.detail, "entitlements");
+}

@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V12: Final = "zenodex/o008-formal-cycle-evidence/v12"
+PACKET_SCHEMA_V13: Final = "zenodex/o008-formal-cycle-evidence/v13"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -276,6 +276,11 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     f" replay one rendered golden vector of {CERTIFICATE_FIXTURE_VECTORS_V1} state/certificate pairs"
     " with closed reject codes; only the registered-empty certificate over an all-lanes-disabled"
     " state is accepted",
+    "the first receipt-backed fragment producer (wave B, ASSET_TRANSFER) is implemented in Python and"
+    " Rust as a pure fold of one accepted lane-module transition, binding the fragment to the journal"
+    " receipt root with eight closed reject codes; the certificate registry keeps ASSET_TRANSFER at"
+    " NO_PRODUCER until receipt admission exists, so no acceptance path uses it and the controlled-side"
+    " fold ceiling is unreachable for well-formed inputs whose supply conservation bounds custody totals",
     "a bounded Lean model of the certificate relation derives the normative partition, same-domain"
     " backing, open-terminal coverage, exact current-profile custody under zero reserves and external"
     " obligations, and that without a receipt-backed producer only the registered-empty certificate is"
@@ -1007,9 +1012,9 @@ RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
 CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 37
-PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 5
+PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 14
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
-PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 2
+PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 4
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
@@ -1564,8 +1569,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V12:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V12}")
+    if packet.get("schema") != PACKET_SCHEMA_V13:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V13}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -3036,6 +3041,13 @@ def _project_certificate(snapshot: SubjectSnapshotV1) -> dict[str, object]:
         "reject_codes": list(codes),
         "producer_registry": dict(CERTIFICATE_PRODUCER_KINDS_V1),
         "receipt_backed_producers": 0,
+        "receipt_backed_producer_implementations": {
+            "asset_transfer": {
+                "python": PRODUCERS_PYTHON_PATH_V1,
+                "rust": PRODUCERS_RUST_PATH_V1,
+                "binding": "produce_asset_transfer_fragment_v1 folds one accepted asset-transfer transition into a fragment whose binding_root is the journal receipt root, refusing lane, release, post-root, carry-forward, terminal-root, coverage, and fold-ceiling drift with closed codes; the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER until receipt admission exists (C9), so no acceptance path uses this producer and the registry count above stays 0",
+            }
+        },
         "golden": certificate_fixture_surface_v1(fixture),
         "registered_empty_producers": {
             "python": PRODUCERS_PYTHON_PATH_V1,
@@ -3336,7 +3348,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V12,
+        "schema": PACKET_SCHEMA_V13,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -3499,7 +3511,21 @@ def check_lane_map_v1(packet: Mapping[str, Any]) -> None:
 
 
 SIDECAR_IMPLEMENTATION_KEYS_V1: Final[frozenset[str]] = frozenset(
-    {"status", "python", "rust", "check_order", "reject_codes", "producer_registry", "receipt_backed_producers", "golden", "registered_empty_producers", "lean_model", "esso_model", "mounted"}
+    {
+        "status",
+        "python",
+        "rust",
+        "check_order",
+        "reject_codes",
+        "producer_registry",
+        "receipt_backed_producers",
+        "receipt_backed_producer_implementations",
+        "golden",
+        "registered_empty_producers",
+        "lean_model",
+        "esso_model",
+        "mounted",
+    }
 )
 
 
@@ -3522,6 +3548,13 @@ def check_sidecar_v1(packet: Mapping[str, Any]) -> None:
         "reject_codes": list(CERTIFICATE_REJECT_CODES_V1),
         "producer_registry": dict(CERTIFICATE_PRODUCER_KINDS_V1),
         "receipt_backed_producers": 0,
+        "receipt_backed_producer_implementations": {
+            "asset_transfer": {
+                "python": PRODUCERS_PYTHON_PATH_V1,
+                "rust": PRODUCERS_RUST_PATH_V1,
+                "binding": "produce_asset_transfer_fragment_v1 folds one accepted asset-transfer transition into a fragment whose binding_root is the journal receipt root, refusing lane, release, post-root, carry-forward, terminal-root, coverage, and fold-ceiling drift with closed codes; the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER until receipt admission exists (C9), so no acceptance path uses this producer and the registry count above stays 0",
+            }
+        },
         "lean_model": CERTIFICATE_LEAN_PATH_V1,
         "esso_model": CERTIFICATE_ESSO_MODEL_PATH_V1,
         "mounted": False,

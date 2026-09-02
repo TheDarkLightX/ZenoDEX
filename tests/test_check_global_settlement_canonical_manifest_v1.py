@@ -28,8 +28,8 @@ def test_repository_canonical_manifest_source_closure_passes() -> None:
     report = check_repository(REPO_ROOT)
 
     assert report["ok"] is True, report["errors"]
-    assert report["serializer_type_count"] == 103
-    assert report["enum_type_count"] == 34
+    assert report["serializer_type_count"] == 104
+    assert report["enum_type_count"] == 35
     assert report["canonical_helper_call_file_count"] == 93
     assert report["source_closure_file_count"] == 95
 

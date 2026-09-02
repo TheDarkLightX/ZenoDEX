@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::canonical::RootV1;
 use crate::global_accounting_allocation_certificate::{
-    registered_empty_lane_root_v1, registry_entry_v1, LaneAllocationFragmentV1, LaneProducerKindV1,
+    registered_empty_lane_root_v1, registry_entry_v1, ClaimantEntitlementRowV1,
+    ControlledLocationRowV1, LaneAllocationFragmentV1, LaneProducerKindV1,
 };
 use crate::release::LaneIdV1;
 use crate::state::LaneStateRootV1;
@@ -103,6 +104,226 @@ pub fn produce_registered_empty_fragment_v1(
         binding_root: lane_root.state_root.clone(),
         controlled_locations: Vec::new(),
         claimant_entitlements: Vec::new(),
+        unencumbered_reserves: Vec::new(),
+        pending_external_obligations: Vec::new(),
+        terminal_bindings: Vec::new(),
+    })
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(non_camel_case_types)]
+pub enum ReceiptBackedProducerRejectCodeV1 {
+    JOURNAL_LANE_DRIFT,
+    LANE_DISABLED,
+    MODULE_RELEASE_DRIFT,
+    JOURNAL_ROOT_DRIFT,
+    STALE_JOURNAL,
+    TERMINAL_ROOT_NOT_EMPTY,
+    ENTITLEMENT_COVERAGE_DRIFT,
+    CONTROLLED_FOLD_OVERFLOW,
+}
+
+impl ReceiptBackedProducerRejectCodeV1 {
+    pub const ALL: [Self; 8] = [
+        Self::JOURNAL_LANE_DRIFT,
+        Self::LANE_DISABLED,
+        Self::MODULE_RELEASE_DRIFT,
+        Self::JOURNAL_ROOT_DRIFT,
+        Self::STALE_JOURNAL,
+        Self::TERMINAL_ROOT_NOT_EMPTY,
+        Self::ENTITLEMENT_COVERAGE_DRIFT,
+        Self::CONTROLLED_FOLD_OVERFLOW,
+    ];
+
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::JOURNAL_LANE_DRIFT => "JOURNAL_LANE_DRIFT",
+            Self::LANE_DISABLED => "LANE_DISABLED",
+            Self::MODULE_RELEASE_DRIFT => "MODULE_RELEASE_DRIFT",
+            Self::JOURNAL_ROOT_DRIFT => "JOURNAL_ROOT_DRIFT",
+            Self::STALE_JOURNAL => "STALE_JOURNAL",
+            Self::TERMINAL_ROOT_NOT_EMPTY => "TERMINAL_ROOT_NOT_EMPTY",
+            Self::ENTITLEMENT_COVERAGE_DRIFT => "ENTITLEMENT_COVERAGE_DRIFT",
+            Self::CONTROLLED_FOLD_OVERFLOW => "CONTROLLED_FOLD_OVERFLOW",
+        }
+    }
+
+    pub const fn message(self) -> &'static str {
+        match self {
+            Self::JOURNAL_LANE_DRIFT => "journal and committed root name different lanes",
+            Self::LANE_DISABLED => "receipt-backed production requires an enabled lane",
+            Self::MODULE_RELEASE_DRIFT => {
+                "journal module release differs from the committed lane release"
+            }
+            Self::JOURNAL_ROOT_DRIFT => "journal post root differs from the committed lane root",
+            Self::STALE_JOURNAL => "journal pre root does not continue the prior fragment",
+            Self::TERMINAL_ROOT_NOT_EMPTY => {
+                "asset transfer journal must commit no terminal obligations"
+            }
+            Self::ENTITLEMENT_COVERAGE_DRIFT => {
+                "entitlement rows do not cover the controlled atoms exactly"
+            }
+            Self::CONTROLLED_FOLD_OVERFLOW => {
+                "controlled or entitlement fold exceeds the u128 ceiling"
+            }
+        }
+    }
+}
+
+/// A receipt-backed producer refusal: nothing is produced, every input left unchanged.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReceiptBackedProducerRejectedV1 {
+    pub code: ReceiptBackedProducerRejectCodeV1,
+    pub lane_id: LaneIdV1,
+    pub committed_lane_root: RootV1,
+    pub detail: String,
+}
+
+fn reject_receipt_backed(
+    code: ReceiptBackedProducerRejectCodeV1,
+    lane_id: LaneIdV1,
+    committed_lane_root: &RootV1,
+    detail: &str,
+) -> ReceiptBackedProducerRejectedV1 {
+    ReceiptBackedProducerRejectedV1 {
+        code,
+        lane_id,
+        committed_lane_root: committed_lane_root.clone(),
+        detail: detail.to_owned(),
+    }
+}
+
+/// Fold one accepted asset-transfer transition into a receipt-bound lane fragment (wave B).
+///
+/// The Python authority is `produce_asset_transfer_fragment_v1` in
+/// `src/core/global_accounting_lane_producers_v1.py`; the check order and reject
+/// codes mirror it exactly. The controlled-side fold overflow is unreachable for
+/// well-formed accepted inputs (supply conservation bounds custody totals); the
+/// reachable path is the caller-provided entitlement rows. NONCLAIM: no verifier
+/// admits the journal yet (C9); the certificate registry keeps ASSET_TRANSFER at
+/// NO_PRODUCER until receipt admission exists. Research-only; authority NONE.
+pub fn produce_asset_transfer_fragment_v1(
+    accepted: &crate::asset_transfer_lane_module::AssetTransferLaneModuleAcceptedV1,
+    lane_root: &LaneStateRootV1,
+    prior_fragment: &LaneAllocationFragmentV1,
+    claimant_entitlements: &[ClaimantEntitlementRowV1],
+) -> Result<LaneAllocationFragmentV1, ReceiptBackedProducerRejectedV1> {
+    use std::collections::BTreeMap;
+
+    let journal = &accepted.module_journal;
+    let committed = &lane_root.state_root;
+    if journal.lane_id != LaneIdV1::ASSET_TRANSFER || lane_root.lane_id != LaneIdV1::ASSET_TRANSFER
+    {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::JOURNAL_LANE_DRIFT,
+            lane_root.lane_id,
+            committed,
+            &format!(
+                "journal {:?} vs committed {:?}",
+                journal.lane_id, lane_root.lane_id
+            ),
+        ));
+    }
+    if !lane_root.enabled {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::LANE_DISABLED,
+            lane_root.lane_id,
+            committed,
+            "lane disabled",
+        ));
+    }
+    if journal.module_release_id != lane_root.module_release_id {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::MODULE_RELEASE_DRIFT,
+            lane_root.lane_id,
+            committed,
+            "module release",
+        ));
+    }
+    if journal.post_lane_root != *committed {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::JOURNAL_ROOT_DRIFT,
+            lane_root.lane_id,
+            committed,
+            "post root",
+        ));
+    }
+    if journal.pre_lane_root != prior_fragment.lane_state_root {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL,
+            lane_root.lane_id,
+            committed,
+            "pre root",
+        ));
+    }
+    if !journal.terminal_obligations_root.is_zero() {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::TERMINAL_ROOT_NOT_EMPTY,
+            lane_root.lane_id,
+            committed,
+            "terminal root",
+        ));
+    }
+    let mut controlled: BTreeMap<(String, String), u128> = BTreeMap::new();
+    for row in &accepted.private_port.post_state.custody {
+        let key = (row.asset.clone(), row.custody_domain.clone());
+        let entry = controlled.entry(key).or_insert(0);
+        *entry = match entry.checked_add(row.amount_atoms) {
+            Some(total) => total,
+            None => {
+                return Err(reject_receipt_backed(
+                    ReceiptBackedProducerRejectCodeV1::CONTROLLED_FOLD_OVERFLOW,
+                    lane_root.lane_id,
+                    committed,
+                    "controlled",
+                ));
+            }
+        };
+    }
+    let mut assigned: BTreeMap<(String, String), u128> = BTreeMap::new();
+    for row in claimant_entitlements {
+        let key = (row.asset.clone(), row.control_domain.clone());
+        let entry = assigned.entry(key).or_insert(0);
+        *entry = match entry.checked_add(row.amount_atoms) {
+            Some(total) => total,
+            None => {
+                return Err(reject_receipt_backed(
+                    ReceiptBackedProducerRejectCodeV1::CONTROLLED_FOLD_OVERFLOW,
+                    lane_root.lane_id,
+                    committed,
+                    "entitlements",
+                ));
+            }
+        };
+    }
+    if controlled != assigned {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::ENTITLEMENT_COVERAGE_DRIFT,
+            lane_root.lane_id,
+            committed,
+            "coverage",
+        ));
+    }
+    Ok(LaneAllocationFragmentV1 {
+        lane_id: lane_root.lane_id,
+        module_release_id: lane_root.module_release_id.clone(),
+        enabled: true,
+        lane_state_root: committed.clone(),
+        producer_kind: LaneProducerKindV1::RECEIPT_BACKED,
+        binding_root: journal.receipt_root.clone(),
+        controlled_locations: accepted
+            .private_port
+            .post_state
+            .custody
+            .iter()
+            .map(|row| ControlledLocationRowV1 {
+                asset: row.asset.clone(),
+                controlling_principal: row.owner.clone(),
+                control_domain: row.custody_domain.clone(),
+                amount_atoms: row.amount_atoms,
+            })
+            .collect(),
+        claimant_entitlements: claimant_entitlements.to_vec(),
         unencumbered_reserves: Vec::new(),
         pending_external_obligations: Vec::new(),
         terminal_bindings: Vec::new(),
