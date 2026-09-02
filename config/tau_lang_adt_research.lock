@@ -1,0 +1,6 @@
+schema=zenodex.tau_lang_adt_research_lock.v1
+repo=https://github.com/IDNI/tau-lang.git
+commit=3c24bad9ee4c00c5d677fa465797189671823c01
+profile=research
+purpose=ZenoDEX ADT logical ABI V1 replay; ADTs/functions/recurrences/whole-value arguments/min-max
+nonclaim=This pin does not imply Tau Tables availability or production Tau Net compatibility.
