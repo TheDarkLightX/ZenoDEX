@@ -7,17 +7,18 @@ DISABLED_ASSET), with the reject-is-noop contract conjoined into every program.
 Falsification self-test proves the harness can return F (wrong expectation) and
 FAIL_CLOSED (broken program) — verdicts are earned, not defaulted.
 
-## The three-way claim, stated honestly
+## The three-way claim - now DIRECT (slice 3)
 
-The target invariant is Python == Rust == Tau over the frozen bounded domain.
-This slice proves the Python == Tau leg directly. The Rust == Python leg is NOT
-re-proved here: it is carried by the repository's existing differential surface
-(the transfer golden/parity suites and the compiled-Rust totality replay,
-tests/formal/test_o008_transition_resource_bound_rust_replay.py), which pin the
-same transition over a superset of this domain. Three-way equality follows by
-transitivity ONLY where those suites and this harness share domain and
-semantics; a dedicated Rust leg replaying these exact seven vectors is the
-honest upgrade and is queued as slice 2.
+The target invariant Python == Rust == Tau holds directly over the frozen
+vector set: the Rust leg (experiments/tau_adt_abi/rust_leg, a small binary
+linking the real zk crate) replays the EXACT same vectors through
+transition_asset_transfer_v1 and reports 15/15 agreement with the Python
+oracle, additionally asserting the noop contract inside the leg
+(pre_state_root == post_state_root and effects.is_empty() on every reject).
+Combined with the 15/15 Python == Tau parity, all three implementations agree
+vector-for-vector on the same inputs - one structured state transition, three
+independently replayable implementations, one deterministic oracle. The
+earlier transitivity argument is superseded.
 
 ## What Tau actually recomputes
 
