@@ -46,7 +46,7 @@ def test_committed_manifest_is_accepted() -> None:
     report = check_manifest(ROOT, MANIFEST)
     assert report["ok"] is True, report["errors"][:4]
     assert report["axis_count"] == 125
-    assert report["status_counts"] == {"bounded_replay": 113, "inductive_esso": 12}
+    assert report["status_counts"] == {"bounded_replay": 114, "inductive_esso": 11}
 
 
 def test_dropping_a_row_names_the_unmapped_axis(workspace: Path) -> None:
@@ -133,3 +133,89 @@ def test_duplicate_row_is_rejected(workspace: Path) -> None:
     report = _check(workspace)
     assert report["ok"] is False
     assert any("duplicate row" in e for e in report["errors"])
+
+
+def _two_inductive(manifest: dict) -> tuple[dict, dict]:
+    rows = [row for row in manifest["rows"] if row["status"] == "inductive_esso"]
+    return rows[0], rows[1]
+
+
+def test_swapped_model_receipt_pair_is_rejected(workspace: Path) -> None:
+    """Opus review P1-1: a row pointing at another axis's artifacts must fail."""
+
+    manifest = _load(workspace)
+    first, second = _two_inductive(manifest)
+    for key in ("model_path", "model_sha256", "receipt_path", "receipt_sha256"):
+        second[key] = first[key]
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("does not name the registered model" in e for e in report["errors"])
+    assert any("duplicate model_path" in e or "duplicate receipt_path" in e for e in report["errors"])
+
+
+def test_receipt_certifying_a_different_model_is_rejected(workspace: Path) -> None:
+    """Opus review P1-1: the receipt's own model binding must match the row."""
+
+    manifest = _load(workspace)
+    first, second = _two_inductive(manifest)
+
+    second["receipt_path"] = first["receipt_path"]
+    second["receipt_sha256"] = first["receipt_sha256"]
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("certifies a different model path" in e for e in report["errors"])
+
+
+def test_hand_written_verified_receipt_is_rejected(workspace: Path) -> None:
+    """Opus review P1-2: a verdict without two-solver query evidence must fail."""
+
+    import hashlib
+
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    forged = (
+        '{"ok": true, "model": {"path": "%s"}, "solvers": ["z3", "cvc5"], "queries": {}, '
+        '"report": {"verdict": "VERIFIED", "solvers_agreed": true, "failed_queries": 0, '
+        '"inconclusive_queries": 0, "model_id": "%s"}}'
+    ) % (row["model_path"], row["model_path"].rsplit("/", 1)[-1].removesuffix(".yaml"))
+    (workspace / row["receipt_path"]).write_text(forged)
+    row["receipt_sha256"] = hashlib.sha256(forged.encode()).hexdigest()
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("carries no queries" in e for e in report["errors"])
+
+
+def test_single_solver_receipt_is_rejected(workspace: Path) -> None:
+    """Opus review P1-2: stripping cvc5 while keeping solvers_agreed must fail."""
+
+    import hashlib
+    import json as jsonlib
+
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    target = workspace / row["receipt_path"]
+    receipt = jsonlib.loads(target.read_text())
+    receipt["solvers"] = ["z3"]
+    for query in receipt["queries"].values():
+        query.pop("cvc5", None)
+    rendered = jsonlib.dumps(receipt)
+    target.write_text(rendered)
+    row["receipt_sha256"] = hashlib.sha256(rendered.encode()).hexdigest()
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("not exactly z3+cvc5" in e or "lacks an unsat cvc5 result" in e for e in report["errors"])
+
+
+def test_downgraded_zusd_row_is_bounded_replay_with_the_review_note() -> None:
+    """Opus review P2: the zusd axis must not claim an inductive certificate."""
+
+    import json as jsonlib
+
+    manifest = jsonlib.loads(MANIFEST.read_text())
+    row = next(r for r in manifest["rows"] if r["axis_id"] == "zusd_oracle_recovery_split_brain")
+    assert row["status"] == "bounded_replay"
+    assert "downgraded from inductive_esso" in row["evidence_note"]

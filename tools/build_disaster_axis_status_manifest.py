@@ -26,6 +26,9 @@ MANIFEST_SCHEMA_V1 = "zenodex/disaster-axis-status-manifest/v1"
 MODEL_DIR = "experiments/disaster_inductive_promotion/models"
 RECEIPT_DIR = "experiments/disaster_inductive_promotion/receipts"
 
+# zusd_oracle_recovery_split_brain is deliberately NOT inductive_esso: the 2026-09-02
+# independent review showed its oracle freshness/quorum guards are not load-bearing
+# (all 15 deletable with VERIFIED preserved), so its model does not certify the axis.
 INDUCTIVE_MODEL_BY_AXIS = {
     "batch_refinement_mci_parity_boundary": "disaster_batch_refinement_mci_parity_boundary_inductive_v1",
     "batch_settler_greedy_adapter_boundary": "disaster_batch_settler_greedy_adapter_boundary_inductive_v1",
@@ -38,7 +41,6 @@ INDUCTIVE_MODEL_BY_AXIS = {
     "state_accounting_size_boundary": "disaster_state_accounting_size_boundary_inductive_v1",
     "vault_reward_carry_spendability": "disaster_vault_reward_carry_spendability_inductive_v1",
     "zusd_native_accounting_gate_boundary": "disaster_zusd_native_accounting_gate_boundary_inductive_v1",
-    "zusd_oracle_recovery_split_brain": "disaster_zusd_oracle_recovery_split_brain_inductive_v1",
 }
 
 
@@ -68,6 +70,14 @@ def build_manifest(root: Path) -> dict:
             row["model_sha256"] = _sha256(model)
             row["receipt_path"] = f"{RECEIPT_DIR}/{model_name}.verify_multi.json"
             row["receipt_sha256"] = _sha256(receipt)
+        elif axis_id == "zusd_oracle_recovery_split_brain":
+            row["status"] = "bounded_replay"
+            row["evidence_note"] = (
+                "downgraded from inductive_esso by independent review 2026-09-02: the authored "
+                "model's oracle freshness/quorum guards are jointly deletable with VERIFIED "
+                "preserved, so the inductive certificate does not certify this axis's semantics; "
+                "bounded 240s replay lane only until the model is strengthened"
+            )
         else:
             row["status"] = "bounded_replay"
             row["evidence_note"] = (

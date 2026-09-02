@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from tools.build_disaster_axis_status_manifest import (  # noqa: E402
+    INDUCTIVE_MODEL_BY_AXIS,
     MANIFEST_SCHEMA_V1,
     _axis_definition_sha,
 )
@@ -59,6 +60,11 @@ def check_manifest(root: Path, manifest_path: Path) -> dict:
             continue
         status_counts[status] = status_counts.get(status, 0) + 1
         if status in PROOF_STATUSES:
+            expected_model = INDUCTIVE_MODEL_BY_AXIS.get(axis_id)
+            if expected_model is None:
+                errors.append(f"{axis_id}: no inductive model is registered for this axis")
+            elif not str(row.get("model_path", "")).endswith(f"/{expected_model}.yaml"):
+                errors.append(f"{axis_id}: model_path does not name the registered model {expected_model}")
             for kind in ("model", "receipt"):
                 rel = row.get(f"{kind}_path")
                 pinned = row.get(f"{kind}_sha256")
@@ -87,6 +93,35 @@ def check_manifest(root: Path, manifest_path: Path) -> dict:
                         errors.append(f"{axis_id}: receipt solvers did not agree")
                     if report.get("failed_queries") != 0 or report.get("inconclusive_queries") != 0:
                         errors.append(f"{axis_id}: receipt has failed or inconclusive queries")
+                    # Opus review P1-1: the receipt must certify THIS row's model.
+                    if receipt.get("model", {}).get("path") != row.get("model_path"):
+                        errors.append(f"{axis_id}: receipt certifies a different model path")
+                    model_name = str(row.get("model_path", "")).rsplit("/", 1)[-1].removesuffix(".yaml")
+                    if report.get("model_id") != model_name:
+                        errors.append(f"{axis_id}: receipt model_id does not match the model")
+                    # Opus review P1-2: a VERIFIED verdict alone is forgeable; require the
+                    # two-solver query evidence itself.
+                    if list(receipt.get("solvers", [])) != ["z3", "cvc5"]:
+                        errors.append(f"{axis_id}: receipt solvers are not exactly z3+cvc5")
+                    queries = receipt.get("queries", {})
+                    if not isinstance(queries, dict) or not queries:
+                        errors.append(f"{axis_id}: receipt carries no queries")
+                    else:
+                        for query_name, query in queries.items():
+                            if not isinstance(query, dict) or query.get("agreed") is not True:
+                                errors.append(f"{axis_id}: query {query_name} lacks solver agreement")
+                                continue
+                            for solver in ("z3", "cvc5"):
+                                result = query.get(solver, {})
+                                if not isinstance(result, dict) or result.get("result") != "unsat":
+                                    errors.append(f"{axis_id}: query {query_name} lacks an unsat {solver} result")
+                        if report.get("passed_queries") != len(queries) or report.get("total_queries") != len(queries):
+                            errors.append(f"{axis_id}: receipt query counts disagree with its query set")
+    proof_rows = [row for row in rows if row.get("status") in PROOF_STATUSES]
+    for kind in ("model_path", "receipt_path"):
+        values = [row.get(kind) for row in proof_rows if row.get(kind)]
+        if len(values) != len(set(values)):
+            errors.append(f"duplicate {kind} shared across proof rows")
     unmapped = sorted(set(live) - seen)
     for axis_id in unmapped:
         errors.append(f"live axis has no status row: {axis_id}")

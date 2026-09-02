@@ -118,11 +118,8 @@
     {
       "axis_id": "zusd_oracle_recovery_split_brain",
       "axis_definition_sha256": "69df7734076e1e08a32a6c5f006d7824c39c2b780aa8629ff6dd466c7e9a57a9",
-      "status": "inductive_esso",
-      "model_path": "experiments/disaster_inductive_promotion/models/disaster_zusd_oracle_recovery_split_brain_inductive_v1.yaml",
-      "model_sha256": "f4b4d404524b7f73fc63acab369c200657499119a092a174ce7daf6d50661a7e",
-      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_zusd_oracle_recovery_split_brain_inductive_v1.verify_multi.json",
-      "receipt_sha256": "dfec3c769ea06e3a3a72f3e0e74da7d813f0f276f88e19a77b97f953c535065c"
+      "status": "bounded_replay",
+      "evidence_note": "downgraded from inductive_esso by independent review 2026-09-02: the authored model's oracle freshness/quorum guards are jointly deletable with VERIFIED preserved, so the inductive certificate does not certify this axis's semantics; bounded 240s replay lane only until the model is strengthened"
     },
     {
       "axis_id": "confidential_receipt_attestation_drift",
