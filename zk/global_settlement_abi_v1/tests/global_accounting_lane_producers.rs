@@ -372,9 +372,10 @@ fn receipt_backed_producer_rejects_lane_release_prior_and_terminal_drifts() {
         ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL
     );
     assert_eq!(reject.detail, "prior release");
-    // TERMINAL_ROOT_NOT_EMPTY (Opus P17 P2-3): a nonzero terminal root must reject.
-    // Mutating only the journal breaks accepted.validate() -> ACCEPTED_INVALID fires first,
-    // which is itself the tenth-code behaviour under test; both paths are pinned here.
+    // ACCEPTED_INVALID (Opus P18 P2-C): mutating only the journal breaks accepted.validate();
+    // this pins exactly that path, and only that path -- the reachable TERMINAL_ROOT_NOT_EMPTY
+    // check is pinned by the unit test in the producers module, which rebinds the port root and
+    // recomputes the receipt root so no earlier gate can fire.
     let mut mutated = accepted.clone();
     mutated.module_journal.terminal_obligations_root = wave_b_root(7);
     let reject = produce_asset_transfer_fragment_v1(&mutated, &lane_root, &prior, &entitlements)
@@ -383,18 +384,48 @@ fn receipt_backed_producer_rejects_lane_release_prior_and_terminal_drifts() {
         reject.code,
         ReceiptBackedProducerRejectCodeV1::ACCEPTED_INVALID
     );
-    let mut consistent = accepted.clone();
-    consistent.private_port.terminal_obligations_root = wave_b_root(7);
-    consistent.module_journal.terminal_obligations_root = wave_b_root(7);
-    let outcome =
-        produce_asset_transfer_fragment_v1(&consistent, &lane_root, &prior, &entitlements);
-    let reject = outcome.expect_err("nonzero terminal root rejects");
-    assert!(
-        reject.code == ReceiptBackedProducerRejectCodeV1::TERMINAL_ROOT_NOT_EMPTY
-            || reject.code == ReceiptBackedProducerRejectCodeV1::ACCEPTED_INVALID,
-        "terminal-root drift refused fail-closed, got {:?}",
-        reject.code
+    assert_eq!(reject.detail, "accepted validation");
+    // Prior-chain residual (Opus P18 P3-b): kind and enabled flag are now checked.
+    let wrong_kind_prior = LaneAllocationFragmentV1 {
+        producer_kind: LaneProducerKindV1::NO_PRODUCER,
+        ..prior.clone()
+    };
+    let reject =
+        produce_asset_transfer_fragment_v1(&accepted, &lane_root, &wrong_kind_prior, &entitlements)
+            .expect_err("non-receipt-backed prior rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL
     );
+    assert_eq!(reject.detail, "prior kind");
+    let disabled_prior = LaneAllocationFragmentV1 {
+        enabled: false,
+        ..prior.clone()
+    };
+    let reject =
+        produce_asset_transfer_fragment_v1(&accepted, &lane_root, &disabled_prior, &entitlements)
+            .expect_err("disabled prior rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL
+    );
+    assert_eq!(reject.detail, "prior disabled");
+    // Row ceiling (Opus P18 P2-D): a canonical table above the ceiling gets a closed reject.
+    let too_many: Vec<ClaimantEntitlementRowV1> = (0..5000)
+        .map(|i| ClaimantEntitlementRowV1 {
+            asset: "USD".to_owned(),
+            claimant: format!("c{i:06}"),
+            control_domain: "spot-pool".to_owned(),
+            amount_atoms: 1,
+        })
+        .collect();
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &lane_root, &prior, &too_many)
+        .expect_err("over-ceiling entitlements reject");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::ENTITLEMENT_ROWS_NOT_CANONICAL
+    );
+    assert_eq!(reject.detail, "row ceiling");
 }
 
 #[test]

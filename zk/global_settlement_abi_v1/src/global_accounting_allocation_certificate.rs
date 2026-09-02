@@ -10,8 +10,9 @@
 //! `check_global_accounting_allocation_certificate_v1` is a total function
 //! `Accept | Reject(code)` with the same closed, ordered reject precedence as Python;
 //! rejects carry the unchanged pre-state root. Every fold uses checked u128
-//! arithmetic; every table is canonically ordered and unique. No lane has a
-//! receipt-backed producer today, so an enabled lane rejects with
+//! arithmetic; every table is canonically ordered and unique. No lane is REGISTERED
+//! with a receipt-backed producer (an implemented, unregistered wave-B producer exists
+//! in the producers module), so an enabled lane rejects with
 //! `BlockedLaneProducerMissing`. Authority: NONE.
 
 use std::collections::BTreeMap;

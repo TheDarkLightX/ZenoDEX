@@ -177,6 +177,8 @@ def test_receipt_backed_producer_accepts_and_binds_the_receipt_root() -> None:
         pytest.param("stale_prior", "STALE_JOURNAL", "pre root", id="stale_journal"),
         pytest.param("prior_lane", "STALE_JOURNAL", "prior lane", id="stale_journal_prior_lane"),
         pytest.param("prior_release", "STALE_JOURNAL", "prior release", id="stale_journal_prior_release"),
+        pytest.param("prior_kind", "STALE_JOURNAL", "prior kind", id="stale_journal_prior_kind"),
+        pytest.param("prior_disabled", "STALE_JOURNAL", "prior disabled", id="stale_journal_prior_disabled"),
         pytest.param("coverage", "ENTITLEMENT_COVERAGE_DRIFT", "coverage", id="entitlement_coverage_drift"),
         pytest.param("unordered_entitlements", "ENTITLEMENT_ROWS_NOT_CANONICAL", "entitlement ordering", id="entitlement_rows_unordered"),
         pytest.param("duplicate_entitlements", "ENTITLEMENT_ROWS_NOT_CANONICAL", "entitlement ordering", id="entitlement_rows_duplicate"),
@@ -210,6 +212,10 @@ def test_receipt_backed_producer_rejects_each_binding_drift(
         )
     elif mutate == "prior_release":
         prior = replace(prior, module_release_id=_root(77))
+    elif mutate == "prior_kind":
+        prior = replace(prior, producer_kind=cert.LaneProducerKindV1.NO_PRODUCER)
+    elif mutate == "prior_disabled":
+        prior = replace(prior, enabled=False)
     elif mutate == "coverage":
         entitlements = (cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", 4),)
     elif mutate == "unordered_entitlements":
@@ -307,6 +313,7 @@ def test_receipt_backed_reject_family_is_closed_and_ordered() -> None:
         "ENTITLEMENT_ROWS_NOT_CANONICAL",
         "CONTROLLED_FOLD_OVERFLOW",
         "ENTITLEMENT_COVERAGE_DRIFT",
+        "FRAGMENT_INVALID",
     ]
     assert list(producers.RECEIPT_BACKED_PRODUCER_REJECT_MESSAGE_BY_CODE_V1) == list(
         producers.ReceiptBackedProducerRejectCodeV1
@@ -341,3 +348,93 @@ def test_receipt_backed_producer_rejects_nonzero_terminal_root() -> None:
     assert isinstance(outcome, producers.ReceiptBackedProducerRejectedV1)
     assert outcome.code is producers.ReceiptBackedProducerRejectCodeV1.TERMINAL_ROOT_NOT_EMPTY
     assert outcome.detail == "terminal root"
+
+
+def test_receipt_backed_producer_rejects_entitlement_row_ceiling() -> None:
+    """Opus P18 P2-D: a canonical, unique, nonzero, exactly-covering entitlement table above
+    the fragment row ceiling gets a closed reject, never an exception."""
+
+    from src.core.global_settlement_types_v1 import EconomicAmountV1
+
+    accepted = _wave_b_accepted(custody=(EconomicAmountV1("pool-a", "USD", "spot-pool", 5000),))
+    journal = accepted.module_journal
+    lane_root = LaneStateRootV1(LaneIdV1.ASSET_TRANSFER, _root(3), True, journal.post_lane_root)
+    prior = cert.LaneAllocationFragmentV1(
+        lane_id=LaneIdV1.ASSET_TRANSFER,
+        module_release_id=_root(3),
+        enabled=True,
+        lane_state_root=journal.pre_lane_root,
+        producer_kind=cert.LaneProducerKindV1.RECEIPT_BACKED,
+        binding_root=journal.pre_lane_root,
+    )
+    entitlements = tuple(
+        cert.ClaimantEntitlementRowV1("USD", f"c{i:06d}", "spot-pool", 1) for i in range(5000)
+    )
+    outcome = producers.produce_asset_transfer_fragment_v1(accepted, lane_root, prior, entitlements)
+    assert isinstance(outcome, producers.ReceiptBackedProducerRejectedV1)
+    assert outcome.code is producers.ReceiptBackedProducerRejectCodeV1.ENTITLEMENT_ROWS_NOT_CANONICAL
+    assert outcome.detail == "row ceiling"
+
+
+def test_receipt_backed_producer_preserves_the_shared_canonical_row_order() -> None:
+    """EconomicAmountV1.key is (asset, owner, domain) and the fragment's controlled key is
+    (asset, principal, domain) -- the SAME ordering, so a validated input cannot reach the
+    producer out of fragment order; the producer's re-sort is defensive. This pins that the
+    shared order is preserved end to end."""
+
+    from src.core.global_settlement_types_v1 import EconomicAmountV1
+
+    custody = (
+        EconomicAmountV1("pool-a", "USD", "spot-pool", 2),
+        EconomicAmountV1("pool-b", "USD", "spot-pool", 3),
+    )
+    accepted = _wave_b_accepted(custody=custody)
+    journal = accepted.module_journal
+    lane_root = LaneStateRootV1(LaneIdV1.ASSET_TRANSFER, _root(3), True, journal.post_lane_root)
+    prior = cert.LaneAllocationFragmentV1(
+        lane_id=LaneIdV1.ASSET_TRANSFER,
+        module_release_id=_root(3),
+        enabled=True,
+        lane_state_root=journal.pre_lane_root,
+        producer_kind=cert.LaneProducerKindV1.RECEIPT_BACKED,
+        binding_root=journal.pre_lane_root,
+    )
+    entitlements = (cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", 5),)
+    fragment = producers.produce_asset_transfer_fragment_v1(accepted, lane_root, prior, entitlements)
+    assert isinstance(fragment, cert.LaneAllocationFragmentV1)
+    assert [row.controlling_principal for row in fragment.controlled_locations] == ["pool-a", "pool-b"]
+
+
+def test_rust_twin_reject_code_families_match_the_pinned_tuples() -> None:
+    """Opus P18 P3-f: the Rust families carry no semantic pin in the packet; this test pins
+    the Rust wire codes AND the Python member NAMES against the core's tuples."""
+
+    import ast
+
+    from tools import o008_formal_cycle_admission_v1 as core
+
+    rust = Path(ROOT / "zk/global_settlement_abi_v1/src/global_accounting_lane_producers.rs").read_text()
+    import re
+
+    def rust_codes(enum_name: str) -> list[str]:
+        block = rust.split(f"pub enum {enum_name} {{", 1)[1].split("}", 1)[0]
+        variants = re.findall(r"^\s*([A-Z_]+),", block, re.M)
+        impl = rust.split(f"impl {enum_name}", 1)[1]
+        arms = dict(re.findall(r'Self::([A-Z_]+) => "([A-Z_]+)"', impl.split("pub const fn message", 1)[0]))
+        assert set(arms) == set(variants) and all(arms[v] == v for v in variants), (variants, arms)
+        return variants
+
+    assert tuple(rust_codes("LaneProducerRejectCodeV1")) == core.LANE_PRODUCER_REJECT_CODES_V1
+    assert tuple(rust_codes("ReceiptBackedProducerRejectCodeV1")) == core.RECEIPT_BACKED_PRODUCER_REJECT_CODES_V1
+    tree = ast.parse(Path(ROOT / "src/core/global_accounting_lane_producers_v1.py").read_text())
+    for class_name, expected in (
+        ("LaneProducerRejectCodeV1", core.LANE_PRODUCER_REJECT_CODES_V1),
+        ("ReceiptBackedProducerRejectCodeV1", core.RECEIPT_BACKED_PRODUCER_REJECT_CODES_V1),
+    ):
+        node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == class_name)
+        names = tuple(
+            stmt.targets[0].id
+            for stmt in node.body
+            if isinstance(stmt, ast.Assign) and isinstance(stmt.targets[0], ast.Name)
+        )
+        assert names == expected, (class_name, names)

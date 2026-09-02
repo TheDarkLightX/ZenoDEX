@@ -47,6 +47,10 @@ ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1: Final = (
 )
 
 
+MAX_ASSET_TRANSFER_CUSTODY_ROWS_V1: Final = 4096
+"""Mirrors the Rust projection's MAX_ASSET_CUSTODY_ROWS_V1 (Opus P18 P3-g twin asymmetry)."""
+
+
 @dataclass(frozen=True, slots=True)
 class AssetTransferLaneModuleInputV1:
     """Complete deterministic input for one transfer-module guest transition."""
@@ -78,6 +82,7 @@ class AssetTransferLaneModuleInputV1:
             name="asset transfer lane module custody",
             expected_type=EconomicAmountV1,
             key="key",
+            maximum=MAX_ASSET_TRANSFER_CUSTODY_ROWS_V1,
         )
         project_asset_transfer_state_v1(
             self.pre_state,

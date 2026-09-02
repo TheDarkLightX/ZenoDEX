@@ -73,7 +73,7 @@ struct AssetTransferLaneModuleReceiptBodyV1<'a> {
     terminal_obligations_root: &'a RootV1,
 }
 
-fn receipt_root(
+pub(crate) fn receipt_root(
     statement_root: &RootV1,
     module_journal: &LaneModuleTransitionJournalV1,
     private_port: &AssetLanePrivatePortV1,

@@ -25,6 +25,7 @@ from .asset_transfer_lane_module_v1 import AssetTransferLaneModuleAcceptedV1
 from .global_accounting_allocation_certificate_v1 import (
     LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
     MAX_ATOMS_U128_V1,
+    MAX_FRAGMENT_ROWS_V1,
     REGISTERED_EMPTY_LANE_ROOTS_V1,
     ClaimantEntitlementRowV1,
     ControlledLocationRowV1,
@@ -122,6 +123,7 @@ class ReceiptBackedProducerRejectCodeV1(str, Enum):
     ENTITLEMENT_ROWS_NOT_CANONICAL = "ENTITLEMENT_ROWS_NOT_CANONICAL"
     CONTROLLED_FOLD_OVERFLOW = "CONTROLLED_FOLD_OVERFLOW"
     ENTITLEMENT_COVERAGE_DRIFT = "ENTITLEMENT_COVERAGE_DRIFT"
+    FRAGMENT_INVALID = "FRAGMENT_INVALID"
 
 
 RECEIPT_BACKED_PRODUCER_REJECT_MESSAGE_BY_CODE_V1: Final[dict[ReceiptBackedProducerRejectCodeV1, str]] = {
@@ -135,6 +137,7 @@ RECEIPT_BACKED_PRODUCER_REJECT_MESSAGE_BY_CODE_V1: Final[dict[ReceiptBackedProdu
     ReceiptBackedProducerRejectCodeV1.ENTITLEMENT_ROWS_NOT_CANONICAL: "entitlement rows are not canonically ordered, unique, and nonzero",
     ReceiptBackedProducerRejectCodeV1.CONTROLLED_FOLD_OVERFLOW: "controlled or entitlement fold exceeds the u128 ceiling",
     ReceiptBackedProducerRejectCodeV1.ENTITLEMENT_COVERAGE_DRIFT: "entitlement rows do not cover the controlled atoms exactly",
+    ReceiptBackedProducerRejectCodeV1.FRAGMENT_INVALID: "the assembled fragment fails its own validation",
 }
 
 
@@ -186,9 +189,10 @@ def produce_asset_transfer_fragment_v1(
 
     Checks in precedence order; every reject is a no-op value naming its cause:
     0. the accepted value validates                          -> ACCEPTED_INVALID
-       (defensively unreachable here: the exact-type gate admits only
-       AssetTransferLaneModuleAcceptedV1, whose construction validates; the
-       Rust twin's plain struct makes this check reachable there)
+       (unreachable through construction here: the exact-type gate admits only
+       AssetTransferLaneModuleAcceptedV1 and every construction validates via
+       __post_init__ -- only object.__new__ forgery bypasses it; the Rust
+       twin's plain struct makes this check genuinely reachable there)
     1. journal lane == ASSET_TRANSFER == committed lane      -> JOURNAL_LANE_DRIFT
     2. committed lane enabled                                -> LANE_DISABLED
     3. journal release == committed release                  -> MODULE_RELEASE_DRIFT
@@ -206,14 +210,21 @@ def produce_asset_transfer_fragment_v1(
        reachable path is the caller-provided entitlement rows)
     9. entitlements cover the post custody exactly per
        (asset, control_domain)                               -> ENTITLEMENT_COVERAGE_DRIFT
+    10. the assembled fragment validates (defensive totality: the module input's
+        custody key (asset, owner, domain) already equals the fragment's
+        controlled key, the producer re-sorts anyway, and the row ceilings are
+        pre-checked)                                         -> FRAGMENT_INVALID
 
     The fragment's controlled locations are the accepted transition's post custody
     projection (owner -> controlling principal, custody_domain -> control domain);
     the asset-transfer module emits no reserves, external obligations, or terminal
     obligations, so those row families are empty. ``binding_root`` is the journal's
-    receipt root; NONCLAIM: no verifier admits that journal yet (C9), the caller is
-    trusted for ``accepted``, and the certificate registry keeps ASSET_TRANSFER at
-    NO_PRODUCER until receipt admission exists, so acceptance never precedes it.
+    receipt root; NONCLAIM: a journal verifier exists
+    (``lane_module_receipt_verification_v1`` mints ``VerifiedLaneModuleTransitionV1``)
+    but this producer does not yet require it -- C9a will take the witness instead of
+    the raw accepted value; the caller is trusted for ``accepted``, and the
+    certificate registry keeps ASSET_TRANSFER at NO_PRODUCER until receipt admission
+    exists, so acceptance never precedes it.
     Research-only evidence; authority NONE.
     """
 
@@ -252,6 +263,14 @@ def produce_asset_transfer_fragment_v1(
         return _reject_receipt_backed(
             ReceiptBackedProducerRejectCodeV1.STALE_JOURNAL, lane_root.lane_id, committed, "prior lane"
         )
+    if prior_fragment.producer_kind is not LaneProducerKindV1.RECEIPT_BACKED:
+        return _reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1.STALE_JOURNAL, lane_root.lane_id, committed, "prior kind"
+        )
+    if not prior_fragment.enabled:
+        return _reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1.STALE_JOURNAL, lane_root.lane_id, committed, "prior disabled"
+        )
     if prior_fragment.module_release_id != lane_root.module_release_id:
         return _reject_receipt_backed(
             ReceiptBackedProducerRejectCodeV1.STALE_JOURNAL, lane_root.lane_id, committed, "prior release"
@@ -263,6 +282,13 @@ def produce_asset_transfer_fragment_v1(
     if journal.terminal_obligations_root != ZERO_ROOT_V1:
         return _reject_receipt_backed(
             ReceiptBackedProducerRejectCodeV1.TERMINAL_ROOT_NOT_EMPTY, lane_root.lane_id, committed, "terminal root"
+        )
+    if len(claimant_entitlements) > MAX_FRAGMENT_ROWS_V1:
+        return _reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1.ENTITLEMENT_ROWS_NOT_CANONICAL,
+            lane_root.lane_id,
+            committed,
+            "row ceiling",
         )
     entitlement_keys = tuple((row.asset, row.claimant, row.control_domain) for row in claimant_entitlements)
     if entitlement_keys != tuple(sorted(set(entitlement_keys))):
@@ -304,19 +330,36 @@ def produce_asset_transfer_fragment_v1(
             committed,
             "coverage",
         )
-    return LaneAllocationFragmentV1(
-        lane_id=lane_root.lane_id,
-        module_release_id=lane_root.module_release_id,
-        enabled=True,
-        lane_state_root=committed,
-        producer_kind=LaneProducerKindV1.RECEIPT_BACKED,
-        binding_root=journal.receipt_root,
-        controlled_locations=tuple(
-            ControlledLocationRowV1(row.asset, row.owner, row.custody_domain, row.amount_atoms)
-            for row in accepted.private_port.post_state.custody
-        ),
-        claimant_entitlements=claimant_entitlements,
+    controlled_rows = tuple(
+        sorted(
+            (
+                ControlledLocationRowV1(row.asset, row.owner, row.custody_domain, row.amount_atoms)
+                for row in accepted.private_port.post_state.custody
+            ),
+            key=lambda row: row.key,
+        )
     )
+    try:
+        return LaneAllocationFragmentV1(
+            lane_id=lane_root.lane_id,
+            module_release_id=lane_root.module_release_id,
+            enabled=True,
+            lane_state_root=committed,
+            producer_kind=LaneProducerKindV1.RECEIPT_BACKED,
+            binding_root=journal.receipt_root,
+            controlled_locations=controlled_rows,
+            claimant_entitlements=claimant_entitlements,
+        )
+    except (TypeError, ValueError):
+        # Defensive totality (Opus P18 P2-D): the ceilings and canonical checks above make
+        # this unreachable in intent; if any residual constructor invariant fires, the
+        # caller still receives a closed reject, never an exception.
+        return _reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1.FRAGMENT_INVALID,
+            lane_root.lane_id,
+            committed,
+            "fragment validation",
+        )
 
 
 __all__ = [

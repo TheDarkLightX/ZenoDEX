@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V14: Final = "zenodex/o008-formal-cycle-evidence/v14"
+PACKET_SCHEMA_V15: Final = "zenodex/o008-formal-cycle-evidence/v15"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -278,7 +278,7 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     " state is accepted",
     "the first receipt-backed fragment producer (wave B, ASSET_TRANSFER) is implemented in Python and"
     " Rust as a pure fold of one accepted lane-module transition, binding the fragment to the journal"
-    " receipt root with ten closed reject codes; only the receipt root carries the custody rows and"
+    " receipt root with eleven closed reject codes; only the receipt root carries the custody rows and"
     " chain/epoch context, so fragment integrity rests on C9 receipt admission; the certificate"
     " registry keeps ASSET_TRANSFER at NO_PRODUCER until then, so no acceptance path uses it, and the"
     " controlled-side fold ceiling is unreachable for well-formed inputs whose supply conservation"
@@ -426,7 +426,9 @@ RECEIPT_BACKED_PRODUCER_REJECT_CODES_V1: Final[tuple[str, ...]] = (
     "ENTITLEMENT_ROWS_NOT_CANONICAL",
     "CONTROLLED_FOLD_OVERFLOW",
     "ENTITLEMENT_COVERAGE_DRIFT",
-)  # ACCEPTED_INVALID is Rust-reachable only; Python's exact-type gate makes it defensive there.
+    "FRAGMENT_INVALID",
+)  # ACCEPTED_INVALID and FRAGMENT_INVALID are defensive in Python (construction validates);
+#   both are genuinely reachable in Rust, whose plain structs carry no construction-time checks.
 
 CERTIFICATE_REJECT_CODES_V1: Final[tuple[str, ...]] = (
     "HEADER_BINDING_DRIFT",
@@ -863,7 +865,8 @@ CERTIFICATE_ESSO_SUBJECT_V1: Final = EssoSubjectV1(
     claim_boundary=(
         "bounded two-lane, one-domain, two-claimant inductive contract of the sidecar checker; no"
         " finite-width arithmetic, canonical bytes, roots, runtime refinement, receipt validity,"
-        " mounting, or authority; no lane producer is receipt-backed in the running code"
+        " mounting, or authority; no lane producer is REGISTERED receipt-backed and none is on an"
+        " acceptance path (an implemented, unregistered wave-B producer exists)"
     ),
 )
 ESSO_SUBJECTS_V1: Final[tuple[EssoSubjectV1, ...]] = (O008_ESSO_SUBJECT_V1, CERTIFICATE_ESSO_SUBJECT_V1)
@@ -1032,7 +1035,7 @@ RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
 CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 37
-PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 22
+PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 27
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
 PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 7
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
@@ -1589,8 +1592,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V14:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V14}")
+    if packet.get("schema") != PACKET_SCHEMA_V15:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V15}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -3073,7 +3076,7 @@ def _project_certificate(snapshot: SubjectSnapshotV1) -> dict[str, object]:
             "asset_transfer": {
                 "python": PRODUCERS_PYTHON_PATH_V1,
                 "rust": PRODUCERS_RUST_PATH_V1,
-                "binding": "produce_asset_transfer_fragment_v1 folds one accepted asset-transfer transition into a fragment whose binding_root is the journal receipt root, refusing lane, disabled-lane, release, post-root, carry-forward (prior lane, prior release, pre root), terminal-root, non-canonical-entitlement, fold-ceiling, and coverage drift with ten closed codes; only the receipt root carries custody rows and chain/epoch context (the committed lane root carries none of it), so fragment integrity rests on C9 receipt admission; until then the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER, no acceptance path uses this producer, and the registry count above stays 0",
+                "binding": "produce_asset_transfer_fragment_v1 folds one accepted asset-transfer transition into a fragment whose binding_root is the journal receipt root, refusing lane, disabled-lane, release, post-root, carry-forward (prior lane, prior release, pre root), terminal-root, non-canonical-entitlement, fold-ceiling, and coverage drift with eleven closed codes (accepted-validation, lane, disabled-lane, release, post-root, carry-forward incl. prior kind and enabled flag, terminal-root, non-canonical-or-over-ceiling entitlements, fold-ceiling, coverage, and defensive fragment-validation); only the receipt root carries custody rows and chain/epoch context (the committed lane root carries none of it), so fragment integrity rests on C9 receipt admission; until then the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER, no acceptance path uses this producer, and the registry count above stays 0",
             }
         },
         "golden": certificate_fixture_surface_v1(fixture),
@@ -3376,7 +3379,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V14,
+        "schema": PACKET_SCHEMA_V15,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -3580,7 +3583,7 @@ def check_sidecar_v1(packet: Mapping[str, Any]) -> None:
             "asset_transfer": {
                 "python": PRODUCERS_PYTHON_PATH_V1,
                 "rust": PRODUCERS_RUST_PATH_V1,
-                "binding": "produce_asset_transfer_fragment_v1 folds one accepted asset-transfer transition into a fragment whose binding_root is the journal receipt root, refusing lane, disabled-lane, release, post-root, carry-forward (prior lane, prior release, pre root), terminal-root, non-canonical-entitlement, fold-ceiling, and coverage drift with ten closed codes; only the receipt root carries custody rows and chain/epoch context (the committed lane root carries none of it), so fragment integrity rests on C9 receipt admission; until then the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER, no acceptance path uses this producer, and the registry count above stays 0",
+                "binding": "produce_asset_transfer_fragment_v1 folds one accepted asset-transfer transition into a fragment whose binding_root is the journal receipt root, refusing lane, disabled-lane, release, post-root, carry-forward (prior lane, prior release, pre root), terminal-root, non-canonical-entitlement, fold-ceiling, and coverage drift with eleven closed codes (accepted-validation, lane, disabled-lane, release, post-root, carry-forward incl. prior kind and enabled flag, terminal-root, non-canonical-or-over-ceiling entitlements, fold-ceiling, coverage, and defensive fragment-validation); only the receipt root carries custody rows and chain/epoch context (the committed lane root carries none of it), so fragment integrity rests on C9 receipt admission; until then the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER, no acceptance path uses this producer, and the registry count above stays 0",
             }
         },
         "lean_model": CERTIFICATE_LEAN_PATH_V1,

@@ -17,7 +17,8 @@ state)`` is a total function ``Accept | Reject(code)`` with a closed, ordered re
 precedence. Rejects carry the unchanged pre-state root and no effects. Every fold uses
 checked u128 arithmetic; every table is canonically ordered and unique.
 
-Current profile: no lane has a receipt-backed fragment producer (the registry below is
+Current profile: no lane is REGISTERED with a receipt-backed fragment producer (an
+implemented, unregistered wave-B producer exists in the producers module; the registry below is
 exhaustive over ``LaneIdV1`` and names the blocking obligation), so an enabled lane
 fragment rejects with ``BLOCKED_LANE_PRODUCER_MISSING`` naming the lane; only the
 all-lanes-disabled certificate over an empty economic state can be accepted today. That
