@@ -4,7 +4,8 @@ use serde::Serialize;
 
 use crate::asset_transfer_types::*;
 use crate::canonical::{
-    hash_global_v1, AbiErrorV1, AbiResultV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1, ZERO_ROOT_V1,
+    hash_global_v1, AbiErrorV1, AbiResultV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1,
+    MAX_ASSET_BALANCE_ROWS_V1, ZERO_ROOT_V1,
 };
 use crate::effects::{
     AssetConservationRowV1, EconomicEffectKindV1, EconomicEffectRowV1, FeeConservationRowV1,
@@ -100,6 +101,9 @@ fn post_balances(
         } else {
             values.insert(key, post);
         }
+    }
+    if values.len() > MAX_ASSET_BALANCE_ROWS_V1 {
+        return Err(AssetTransferRejectCodeV1::POST_STATE_RESOURCE_BOUND_EXCEEDED);
     }
     Ok(values
         .into_iter()
