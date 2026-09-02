@@ -274,7 +274,7 @@ def test_projection_catch_all_names_the_drifted_section(snapshot: core.SubjectSn
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":NaN', 1), "PACKET_JSON_FLOAT", id="nan_number"),
         pytest.param(lambda raw: raw.replace(b'"solver_timeout_ms":10000', b'"solver_timeout_ms":10000.0', 1), "PACKET_JSON_FLOAT", id="float_number"),
         pytest.param(lambda raw: json.dumps(json.loads(raw), indent=2).encode(), "PACKET_JSON_NONCANONICAL", id="pretty_printed"),
-        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V13.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v12", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v12"),
+        pytest.param(lambda raw: raw.replace(core.PACKET_SCHEMA_V14.encode("ascii"), b"zenodex/o008-formal-cycle-evidence/v13", 1), "PACKET_SCHEMA_DRIFT", id="old_schema_v13"),
         pytest.param(lambda raw: raw.replace(b'"created_date":"2026-09-01"', b'"created_date":"2026\\u201109-01"', 1), "PACKET_NON_ASCII", id="non_ascii_string"),
         pytest.param(lambda raw: raw.replace(b'{"claim_ceiling"', b'{"authority":"NONE","claim_ceiling"', 1), "PACKET_KEY_SET_DRIFT", id="unknown_top_key"),
         pytest.param(lambda raw: b"[]\n", "PACKET_NOT_OBJECT", id="not_an_object"),
@@ -1640,7 +1640,7 @@ def test_committed_packet_lifecycle_at_repository_head() -> None:
 
     report = cli.run_checker_v1(cli._parse_args(["--root", str(ROOT)]))
     raw = (ROOT / core.PACKET_JSON_PATH_V1).read_bytes()
-    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V13:
+    if json.loads(raw).get("schema") != core.PACKET_SCHEMA_V14:
         assert report["ok"] is False and report["packet_admitted"] is False
         assert report["errors"][0]["code"] == "PACKET_SCHEMA_DRIFT"
     elif report["head_commit"] == report["packet_commit"]:
@@ -1678,3 +1678,24 @@ def test_shell_working_bytes_refuses_symlink(tmp_path: Path) -> None:
     assert shell.working_bytes_v1(tmp_path, "real.txt") == b"x"
     assert shell.working_bytes_v1(tmp_path, "link.txt") is None
     assert shell.working_bytes_v1(tmp_path, "missing.txt") is None
+
+
+def test_producer_reject_code_families_are_mechanically_pinned(snapshot: core.SubjectSnapshotV1) -> None:
+    """Opus P17 P3-6: both producer reject-code families are pinned constants cross-checked
+    against the live enums; removing or reordering a member is a projection drift."""
+
+    assert core.RECEIPT_BACKED_PRODUCER_REJECT_CODES_V1[0] == "ACCEPTED_INVALID"
+    dropped = _edit(
+        snapshot,
+        core.PRODUCERS_PYTHON_PATH_V1,
+        '    ENTITLEMENT_COVERAGE_DRIFT = "ENTITLEMENT_COVERAGE_DRIFT"\n',
+        "",
+    )
+    assert _project_code(dropped) == "PRODUCER_REJECT_CODES_DRIFT"
+    reordered = _edit(
+        snapshot,
+        core.PRODUCERS_PYTHON_PATH_V1,
+        '    LANE_NOT_REGISTERED_EMPTY = "LANE_NOT_REGISTERED_EMPTY"\n    LANE_ENABLED = "LANE_ENABLED"\n',
+        '    LANE_ENABLED = "LANE_ENABLED"\n    LANE_NOT_REGISTERED_EMPTY = "LANE_NOT_REGISTERED_EMPTY"\n',
+    )
+    assert _project_code(reordered) == "PRODUCER_REJECT_CODES_DRIFT"

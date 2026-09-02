@@ -110,39 +110,45 @@ pub fn produce_registered_empty_fragment_v1(
     })
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[allow(non_camel_case_types)]
 pub enum ReceiptBackedProducerRejectCodeV1 {
+    ACCEPTED_INVALID,
     JOURNAL_LANE_DRIFT,
     LANE_DISABLED,
     MODULE_RELEASE_DRIFT,
     JOURNAL_ROOT_DRIFT,
     STALE_JOURNAL,
     TERMINAL_ROOT_NOT_EMPTY,
-    ENTITLEMENT_COVERAGE_DRIFT,
+    ENTITLEMENT_ROWS_NOT_CANONICAL,
     CONTROLLED_FOLD_OVERFLOW,
+    ENTITLEMENT_COVERAGE_DRIFT,
 }
 
 impl ReceiptBackedProducerRejectCodeV1 {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 10] = [
+        Self::ACCEPTED_INVALID,
         Self::JOURNAL_LANE_DRIFT,
         Self::LANE_DISABLED,
         Self::MODULE_RELEASE_DRIFT,
         Self::JOURNAL_ROOT_DRIFT,
         Self::STALE_JOURNAL,
         Self::TERMINAL_ROOT_NOT_EMPTY,
-        Self::ENTITLEMENT_COVERAGE_DRIFT,
+        Self::ENTITLEMENT_ROWS_NOT_CANONICAL,
         Self::CONTROLLED_FOLD_OVERFLOW,
+        Self::ENTITLEMENT_COVERAGE_DRIFT,
     ];
 
     pub const fn code(self) -> &'static str {
         match self {
+            Self::ACCEPTED_INVALID => "ACCEPTED_INVALID",
             Self::JOURNAL_LANE_DRIFT => "JOURNAL_LANE_DRIFT",
             Self::LANE_DISABLED => "LANE_DISABLED",
             Self::MODULE_RELEASE_DRIFT => "MODULE_RELEASE_DRIFT",
             Self::JOURNAL_ROOT_DRIFT => "JOURNAL_ROOT_DRIFT",
             Self::STALE_JOURNAL => "STALE_JOURNAL",
             Self::TERMINAL_ROOT_NOT_EMPTY => "TERMINAL_ROOT_NOT_EMPTY",
+            Self::ENTITLEMENT_ROWS_NOT_CANONICAL => "ENTITLEMENT_ROWS_NOT_CANONICAL",
             Self::ENTITLEMENT_COVERAGE_DRIFT => "ENTITLEMENT_COVERAGE_DRIFT",
             Self::CONTROLLED_FOLD_OVERFLOW => "CONTROLLED_FOLD_OVERFLOW",
         }
@@ -150,6 +156,7 @@ impl ReceiptBackedProducerRejectCodeV1 {
 
     pub const fn message(self) -> &'static str {
         match self {
+            Self::ACCEPTED_INVALID => "accepted transition value fails its own validation",
             Self::JOURNAL_LANE_DRIFT => "journal and committed root name different lanes",
             Self::LANE_DISABLED => "receipt-backed production requires an enabled lane",
             Self::MODULE_RELEASE_DRIFT => {
@@ -159,6 +166,9 @@ impl ReceiptBackedProducerRejectCodeV1 {
             Self::STALE_JOURNAL => "journal pre root does not continue the prior fragment",
             Self::TERMINAL_ROOT_NOT_EMPTY => {
                 "asset transfer journal must commit no terminal obligations"
+            }
+            Self::ENTITLEMENT_ROWS_NOT_CANONICAL => {
+                "entitlement rows are not canonically ordered, unique, and nonzero"
             }
             Self::ENTITLEMENT_COVERAGE_DRIFT => {
                 "entitlement rows do not cover the controlled atoms exactly"
@@ -210,8 +220,19 @@ pub fn produce_asset_transfer_fragment_v1(
 ) -> Result<LaneAllocationFragmentV1, ReceiptBackedProducerRejectedV1> {
     use std::collections::BTreeMap;
 
-    let journal = &accepted.module_journal;
     let committed = &lane_root.state_root;
+    // Opus P17 follow-through: the Rust accepted value is a plain struct with no
+    // construction-time validation (Python's __post_init__ has no Rust twin), so the
+    // producer validates it first; defensively unreachable in Python, reachable here.
+    if accepted.validate().is_err() {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::ACCEPTED_INVALID,
+            lane_root.lane_id,
+            committed,
+            "accepted validation",
+        ));
+    }
+    let journal = &accepted.module_journal;
     if journal.lane_id != LaneIdV1::ASSET_TRANSFER || lane_root.lane_id != LaneIdV1::ASSET_TRANSFER
     {
         return Err(reject_receipt_backed(
@@ -248,6 +269,22 @@ pub fn produce_asset_transfer_fragment_v1(
             "post root",
         ));
     }
+    if prior_fragment.lane_id != LaneIdV1::ASSET_TRANSFER {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL,
+            lane_root.lane_id,
+            committed,
+            "prior lane",
+        ));
+    }
+    if prior_fragment.module_release_id != lane_root.module_release_id {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL,
+            lane_root.lane_id,
+            committed,
+            "prior release",
+        ));
+    }
     if journal.pre_lane_root != prior_fragment.lane_state_root {
         return Err(reject_receipt_backed(
             ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL,
@@ -262,6 +299,38 @@ pub fn produce_asset_transfer_fragment_v1(
             lane_root.lane_id,
             committed,
             "terminal root",
+        ));
+    }
+    let entitlement_keys: Vec<(&str, &str, &str)> = claimant_entitlements
+        .iter()
+        .map(|row| {
+            (
+                row.asset.as_str(),
+                row.claimant.as_str(),
+                row.control_domain.as_str(),
+            )
+        })
+        .collect();
+    let mut sorted_unique = entitlement_keys.clone();
+    sorted_unique.sort_unstable();
+    sorted_unique.dedup();
+    if entitlement_keys != sorted_unique {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::ENTITLEMENT_ROWS_NOT_CANONICAL,
+            lane_root.lane_id,
+            committed,
+            "entitlement ordering",
+        ));
+    }
+    if claimant_entitlements
+        .iter()
+        .any(|row| row.amount_atoms == 0)
+    {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::ENTITLEMENT_ROWS_NOT_CANONICAL,
+            lane_root.lane_id,
+            committed,
+            "zero amount",
         ));
     }
     let mut controlled: BTreeMap<(String, String), u128> = BTreeMap::new();
@@ -304,7 +373,7 @@ pub fn produce_asset_transfer_fragment_v1(
             "coverage",
         ));
     }
-    Ok(LaneAllocationFragmentV1 {
+    let fragment = LaneAllocationFragmentV1 {
         lane_id: lane_root.lane_id,
         module_release_id: lane_root.module_release_id.clone(),
         enabled: true,
@@ -327,7 +396,18 @@ pub fn produce_asset_transfer_fragment_v1(
         unencumbered_reserves: Vec::new(),
         pending_external_obligations: Vec::new(),
         terminal_bindings: Vec::new(),
-    })
+    };
+    // Opus P17 P2-4: Rust has no __post_init__, so validate explicitly before returning;
+    // the twins must agree on accept-vs-refuse for every input class.
+    if fragment.validate().is_err() {
+        return Err(reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1::ENTITLEMENT_ROWS_NOT_CANONICAL,
+            lane_root.lane_id,
+            committed,
+            "fragment validation",
+        ));
+    }
+    Ok(fragment)
 }
 
 #[cfg(test)]

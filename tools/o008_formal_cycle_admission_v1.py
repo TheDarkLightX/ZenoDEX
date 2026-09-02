@@ -43,7 +43,7 @@ from tools.scan_lean_proof_placeholders_v1 import ScanError, scan_text, strip_le
 # Closed constants
 # ---------------------------------------------------------------------------
 
-PACKET_SCHEMA_V13: Final = "zenodex/o008-formal-cycle-evidence/v13"
+PACKET_SCHEMA_V14: Final = "zenodex/o008-formal-cycle-evidence/v14"
 REPORT_SCHEMA_V3: Final = "zenodex/o008-formal-cycle-admission-report/v3"
 PACKET_JSON_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json"
 PACKET_MD_PATH_V1: Final = "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.md"
@@ -278,9 +278,11 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     " state is accepted",
     "the first receipt-backed fragment producer (wave B, ASSET_TRANSFER) is implemented in Python and"
     " Rust as a pure fold of one accepted lane-module transition, binding the fragment to the journal"
-    " receipt root with eight closed reject codes; the certificate registry keeps ASSET_TRANSFER at"
-    " NO_PRODUCER until receipt admission exists, so no acceptance path uses it and the controlled-side"
-    " fold ceiling is unreachable for well-formed inputs whose supply conservation bounds custody totals",
+    " receipt root with ten closed reject codes; only the receipt root carries the custody rows and"
+    " chain/epoch context, so fragment integrity rests on C9 receipt admission; the certificate"
+    " registry keeps ASSET_TRANSFER at NO_PRODUCER until then, so no acceptance path uses it, and the"
+    " controlled-side fold ceiling is unreachable for well-formed inputs whose supply conservation"
+    " bounds custody totals",
     "a bounded Lean model of the certificate relation derives the normative partition, same-domain"
     " backing, open-terminal coverage, exact current-profile custody under zero reserves and external"
     " obligations, and that without a receipt-backed producer only the registered-empty certificate is"
@@ -408,6 +410,24 @@ REQUIRED_SIDECAR_V1: Final[dict[str, object]] = {
 CERTIFICATE_SCHEMA_V1: Final = "zenodex/global-accounting-allocation-certificate/v1"
 CERTIFICATE_FIXTURE_SCHEMA_V1: Final = "zenodex/global-accounting-allocation-certificate-v1-golden/v2"
 CERTIFICATE_CHECK_ORDER_V1: Final[tuple[str, ...]] = ("header_binding", *SIDECAR_CHECKS_V1, "derived_roots")
+LANE_PRODUCER_REJECT_CODES_V1: Final[tuple[str, ...]] = (
+    "LANE_NOT_REGISTERED_EMPTY",
+    "LANE_ENABLED",
+    "REGISTERED_EMPTY_ROOT_DRIFT",
+)
+RECEIPT_BACKED_PRODUCER_REJECT_CODES_V1: Final[tuple[str, ...]] = (
+    "ACCEPTED_INVALID",
+    "JOURNAL_LANE_DRIFT",
+    "LANE_DISABLED",
+    "MODULE_RELEASE_DRIFT",
+    "JOURNAL_ROOT_DRIFT",
+    "STALE_JOURNAL",
+    "TERMINAL_ROOT_NOT_EMPTY",
+    "ENTITLEMENT_ROWS_NOT_CANONICAL",
+    "CONTROLLED_FOLD_OVERFLOW",
+    "ENTITLEMENT_COVERAGE_DRIFT",
+)  # ACCEPTED_INVALID is Rust-reachable only; Python's exact-type gate makes it defensive there.
+
 CERTIFICATE_REJECT_CODES_V1: Final[tuple[str, ...]] = (
     "HEADER_BINDING_DRIFT",
     "LANE_ORDER_DRIFT",
@@ -1012,9 +1032,9 @@ RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
 CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 37
-PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 14
+PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 22
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
-PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
+PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 7
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 4
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
@@ -1569,8 +1589,8 @@ def decode_packet_v1(raw: bytes) -> dict[str, Any]:
     """Decode the committed packet bytes: schema, then canonical encoding, then key set."""
 
     packet = decode_json_object_v1(raw, context=PACKET_JSON_PATH_V1, require_canonical=False)
-    if packet.get("schema") != PACKET_SCHEMA_V13:
-        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V13}")
+    if packet.get("schema") != PACKET_SCHEMA_V14:
+        _reject("PACKET_SCHEMA_DRIFT", "schema", f"expected {PACKET_SCHEMA_V14}")
     if raw != canonical_packet_bytes_v1(packet):
         _reject("PACKET_JSON_NONCANONICAL", PACKET_JSON_PATH_V1, "noncanonical JSON encoding")
     if frozenset(packet) != PACKET_KEYS_V3:
@@ -3026,6 +3046,14 @@ def _project_certificate(snapshot: SubjectSnapshotV1) -> dict[str, object]:
     codes = python_enum_members_v1(python_source, CERTIFICATE_REJECT_CODE_CLASS_V1, CERTIFICATE_PYTHON_PATH_V1)
     if codes != CERTIFICATE_REJECT_CODES_V1:
         _reject("CERTIFICATE_REJECT_CODES_DRIFT", CERTIFICATE_PYTHON_PATH_V1, ",".join(codes)[:80])
+    producers_source = _blob(snapshot, PRODUCERS_PYTHON_PATH_V1).data
+    for enum_name, expected_codes in (
+        ("LaneProducerRejectCodeV1", LANE_PRODUCER_REJECT_CODES_V1),
+        ("ReceiptBackedProducerRejectCodeV1", RECEIPT_BACKED_PRODUCER_REJECT_CODES_V1),
+    ):
+        members = python_enum_members_v1(producers_source, enum_name, PRODUCERS_PYTHON_PATH_V1)
+        if members != expected_codes:
+            _reject("PRODUCER_REJECT_CODES_DRIFT", PRODUCERS_PYTHON_PATH_V1, f"{enum_name}: {','.join(members)[:60]}")
     python_dynamic_binding_scan_v1(python_source, CERTIFICATE_PYTHON_PATH_V1)
     _blob(snapshot, CERTIFICATE_RUST_PATH_V1)
     _blob(snapshot, CERTIFICATE_RENDERER_PATH_V1)
@@ -3045,7 +3073,7 @@ def _project_certificate(snapshot: SubjectSnapshotV1) -> dict[str, object]:
             "asset_transfer": {
                 "python": PRODUCERS_PYTHON_PATH_V1,
                 "rust": PRODUCERS_RUST_PATH_V1,
-                "binding": "produce_asset_transfer_fragment_v1 folds one accepted asset-transfer transition into a fragment whose binding_root is the journal receipt root, refusing lane, release, post-root, carry-forward, terminal-root, coverage, and fold-ceiling drift with closed codes; the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER until receipt admission exists (C9), so no acceptance path uses this producer and the registry count above stays 0",
+                "binding": "produce_asset_transfer_fragment_v1 folds one accepted asset-transfer transition into a fragment whose binding_root is the journal receipt root, refusing lane, disabled-lane, release, post-root, carry-forward (prior lane, prior release, pre root), terminal-root, non-canonical-entitlement, fold-ceiling, and coverage drift with ten closed codes; only the receipt root carries custody rows and chain/epoch context (the committed lane root carries none of it), so fragment integrity rests on C9 receipt admission; until then the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER, no acceptance path uses this producer, and the registry count above stays 0",
             }
         },
         "golden": certificate_fixture_surface_v1(fixture),
@@ -3348,7 +3376,7 @@ def project_packet_v1(
     source_pins = _project_source_pins(snapshot)
     esso_evidence = _project_esso(snapshot)
     projection = {
-        "schema": PACKET_SCHEMA_V13,
+        "schema": PACKET_SCHEMA_V14,
         "created_date": created_date,
         "subject_commit": snapshot.subject_commit,
         "subject_parent": snapshot.subject_parent,
@@ -3552,7 +3580,7 @@ def check_sidecar_v1(packet: Mapping[str, Any]) -> None:
             "asset_transfer": {
                 "python": PRODUCERS_PYTHON_PATH_V1,
                 "rust": PRODUCERS_RUST_PATH_V1,
-                "binding": "produce_asset_transfer_fragment_v1 folds one accepted asset-transfer transition into a fragment whose binding_root is the journal receipt root, refusing lane, release, post-root, carry-forward, terminal-root, coverage, and fold-ceiling drift with closed codes; the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER until receipt admission exists (C9), so no acceptance path uses this producer and the registry count above stays 0",
+                "binding": "produce_asset_transfer_fragment_v1 folds one accepted asset-transfer transition into a fragment whose binding_root is the journal receipt root, refusing lane, disabled-lane, release, post-root, carry-forward (prior lane, prior release, pre root), terminal-root, non-canonical-entitlement, fold-ceiling, and coverage drift with ten closed codes; only the receipt root carries custody rows and chain/epoch context (the committed lane root carries none of it), so fragment integrity rests on C9 receipt admission; until then the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER, no acceptance path uses this producer, and the registry count above stays 0",
             }
         },
         "lean_model": CERTIFICATE_LEAN_PATH_V1,

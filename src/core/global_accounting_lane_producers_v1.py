@@ -1,15 +1,18 @@
-"""Registered-empty lane fragment producers (wave A: EXTERNAL_CUSTODY, PROOF_REWARDS).
+"""Lane fragment producers: registered-empty (wave A) and receipt-backed (wave B).
 
-A registered-empty lane has exactly one representable typed state, the empty
-one, and its committed lane root must be that state's root. The producer is a
-pure function of the committed ``LaneStateRootV1``: it certifies that the lane
-is registered as empty, disabled, and committed at the empty state's root, and
-returns the exact-empty fragment the certificate checker requires. Any other
-root, an enabled lane, or an unregistered lane rejects with a closed code and
-produces nothing.
+Wave A (EXTERNAL_CUSTODY, PROOF_REWARDS): a registered-empty lane has exactly
+one representable typed state, the empty one, and its committed lane root must
+be that state's root; the producer is a pure function of the committed
+``LaneStateRootV1`` and returns the exact-empty fragment or a closed reject.
+
+Wave B (ASSET_TRANSFER): ``produce_asset_transfer_fragment_v1`` folds one
+accepted lane-module transition into a receipt-bound fragment or rejects with
+a closed code; it emits ``producer_kind=RECEIPT_BACKED`` fragments, but no
+verifier admits the journal yet (C9) and the certificate registry keeps
+ASSET_TRANSFER at NO_PRODUCER, so no acceptance path uses them.
 
 Research-only evidence. It grants no writer, verifier, release, or
-publication authority, and no lane producer is receipt-backed.
+publication authority.
 """
 
 from __future__ import annotations
@@ -109,25 +112,29 @@ def produce_registered_empty_fragment_v1(
 class ReceiptBackedProducerRejectCodeV1(str, Enum):
     """Closed reject codes of the receipt-backed fragment producers, in check precedence."""
 
+    ACCEPTED_INVALID = "ACCEPTED_INVALID"
     JOURNAL_LANE_DRIFT = "JOURNAL_LANE_DRIFT"
     LANE_DISABLED = "LANE_DISABLED"
     MODULE_RELEASE_DRIFT = "MODULE_RELEASE_DRIFT"
     JOURNAL_ROOT_DRIFT = "JOURNAL_ROOT_DRIFT"
     STALE_JOURNAL = "STALE_JOURNAL"
     TERMINAL_ROOT_NOT_EMPTY = "TERMINAL_ROOT_NOT_EMPTY"
-    ENTITLEMENT_COVERAGE_DRIFT = "ENTITLEMENT_COVERAGE_DRIFT"
+    ENTITLEMENT_ROWS_NOT_CANONICAL = "ENTITLEMENT_ROWS_NOT_CANONICAL"
     CONTROLLED_FOLD_OVERFLOW = "CONTROLLED_FOLD_OVERFLOW"
+    ENTITLEMENT_COVERAGE_DRIFT = "ENTITLEMENT_COVERAGE_DRIFT"
 
 
 RECEIPT_BACKED_PRODUCER_REJECT_MESSAGE_BY_CODE_V1: Final[dict[ReceiptBackedProducerRejectCodeV1, str]] = {
+    ReceiptBackedProducerRejectCodeV1.ACCEPTED_INVALID: "accepted transition value fails its own validation",
     ReceiptBackedProducerRejectCodeV1.JOURNAL_LANE_DRIFT: "journal and committed root name different lanes",
     ReceiptBackedProducerRejectCodeV1.LANE_DISABLED: "receipt-backed production requires an enabled lane",
     ReceiptBackedProducerRejectCodeV1.MODULE_RELEASE_DRIFT: "journal module release differs from the committed lane release",
     ReceiptBackedProducerRejectCodeV1.JOURNAL_ROOT_DRIFT: "journal post root differs from the committed lane root",
     ReceiptBackedProducerRejectCodeV1.STALE_JOURNAL: "journal pre root does not continue the prior fragment",
     ReceiptBackedProducerRejectCodeV1.TERMINAL_ROOT_NOT_EMPTY: "asset transfer journal must commit no terminal obligations",
-    ReceiptBackedProducerRejectCodeV1.ENTITLEMENT_COVERAGE_DRIFT: "entitlement rows do not cover the controlled atoms exactly",
+    ReceiptBackedProducerRejectCodeV1.ENTITLEMENT_ROWS_NOT_CANONICAL: "entitlement rows are not canonically ordered, unique, and nonzero",
     ReceiptBackedProducerRejectCodeV1.CONTROLLED_FOLD_OVERFLOW: "controlled or entitlement fold exceeds the u128 ceiling",
+    ReceiptBackedProducerRejectCodeV1.ENTITLEMENT_COVERAGE_DRIFT: "entitlement rows do not cover the controlled atoms exactly",
 }
 
 
@@ -178,18 +185,27 @@ def produce_asset_transfer_fragment_v1(
     """Fold one accepted asset-transfer transition into a receipt-bound lane fragment (wave B).
 
     Checks in precedence order; every reject is a no-op value naming its cause:
+    0. the accepted value validates                          -> ACCEPTED_INVALID
+       (defensively unreachable here: the exact-type gate admits only
+       AssetTransferLaneModuleAcceptedV1, whose construction validates; the
+       Rust twin's plain struct makes this check reachable there)
     1. journal lane == ASSET_TRANSFER == committed lane      -> JOURNAL_LANE_DRIFT
     2. committed lane enabled                                -> LANE_DISABLED
     3. journal release == committed release                  -> MODULE_RELEASE_DRIFT
     4. journal post root == committed state root             -> JOURNAL_ROOT_DRIFT
-    5. journal pre root == prior fragment's committed root   -> STALE_JOURNAL (carry-forward)
+    5. the prior fragment continues THIS lane's chain: prior lane is
+       ASSET_TRANSFER, prior release equals the committed release, and the
+       journal pre root equals the prior committed root      -> STALE_JOURNAL
+       (details "prior lane" / "prior release" / "pre root")
     6. journal terminal root is the zero root                -> TERMINAL_ROOT_NOT_EMPTY
-    7. entitlements cover the post custody exactly per (asset, control_domain)
-       under a checked fold                                  -> ENTITLEMENT_COVERAGE_DRIFT
-       (fold above the u128 ceiling                          -> CONTROLLED_FOLD_OVERFLOW;
-       unreachable on the controlled side for well-formed accepted inputs, whose
-       supply-conservation invariant bounds custody totals -- the reachable path
-       is the caller-provided entitlement rows, which no supply bounds)
+    7. entitlement rows are canonically ordered, unique by
+       (asset, claimant, control_domain), and nonzero        -> ENTITLEMENT_ROWS_NOT_CANONICAL
+    8. the folds stay under the u128 ceiling                 -> CONTROLLED_FOLD_OVERFLOW
+       (unreachable on the controlled side for well-formed accepted inputs,
+       whose supply-conservation invariant bounds custody totals -- the
+       reachable path is the caller-provided entitlement rows)
+    9. entitlements cover the post custody exactly per
+       (asset, control_domain)                               -> ENTITLEMENT_COVERAGE_DRIFT
 
     The fragment's controlled locations are the accepted transition's post custody
     projection (owner -> controlling principal, custody_domain -> control domain);
@@ -232,6 +248,14 @@ def produce_asset_transfer_fragment_v1(
         return _reject_receipt_backed(
             ReceiptBackedProducerRejectCodeV1.JOURNAL_ROOT_DRIFT, lane_root.lane_id, committed, "post root"
         )
+    if prior_fragment.lane_id is not LaneIdV1.ASSET_TRANSFER:
+        return _reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1.STALE_JOURNAL, lane_root.lane_id, committed, "prior lane"
+        )
+    if prior_fragment.module_release_id != lane_root.module_release_id:
+        return _reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1.STALE_JOURNAL, lane_root.lane_id, committed, "prior release"
+        )
     if journal.pre_lane_root != prior_fragment.lane_state_root:
         return _reject_receipt_backed(
             ReceiptBackedProducerRejectCodeV1.STALE_JOURNAL, lane_root.lane_id, committed, "pre root"
@@ -239,6 +263,21 @@ def produce_asset_transfer_fragment_v1(
     if journal.terminal_obligations_root != ZERO_ROOT_V1:
         return _reject_receipt_backed(
             ReceiptBackedProducerRejectCodeV1.TERMINAL_ROOT_NOT_EMPTY, lane_root.lane_id, committed, "terminal root"
+        )
+    entitlement_keys = tuple((row.asset, row.claimant, row.control_domain) for row in claimant_entitlements)
+    if entitlement_keys != tuple(sorted(set(entitlement_keys))):
+        return _reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1.ENTITLEMENT_ROWS_NOT_CANONICAL,
+            lane_root.lane_id,
+            committed,
+            "entitlement ordering",
+        )
+    if any(row.amount_atoms == 0 for row in claimant_entitlements):
+        return _reject_receipt_backed(
+            ReceiptBackedProducerRejectCodeV1.ENTITLEMENT_ROWS_NOT_CANONICAL,
+            lane_root.lane_id,
+            committed,
+            "zero amount",
         )
     controlled: dict[tuple[str, str], int] = {}
     for row in accepted.private_port.post_state.custody:

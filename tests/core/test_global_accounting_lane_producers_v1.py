@@ -175,7 +175,12 @@ def test_receipt_backed_producer_accepts_and_binds_the_receipt_root() -> None:
         pytest.param("release", "MODULE_RELEASE_DRIFT", "module release", id="module_release_drift"),
         pytest.param("post_root", "JOURNAL_ROOT_DRIFT", "post root", id="journal_root_drift"),
         pytest.param("stale_prior", "STALE_JOURNAL", "pre root", id="stale_journal"),
+        pytest.param("prior_lane", "STALE_JOURNAL", "prior lane", id="stale_journal_prior_lane"),
+        pytest.param("prior_release", "STALE_JOURNAL", "prior release", id="stale_journal_prior_release"),
         pytest.param("coverage", "ENTITLEMENT_COVERAGE_DRIFT", "coverage", id="entitlement_coverage_drift"),
+        pytest.param("unordered_entitlements", "ENTITLEMENT_ROWS_NOT_CANONICAL", "entitlement ordering", id="entitlement_rows_unordered"),
+        pytest.param("duplicate_entitlements", "ENTITLEMENT_ROWS_NOT_CANONICAL", "entitlement ordering", id="entitlement_rows_duplicate"),
+        pytest.param("zero_amount_entitlement", "ENTITLEMENT_ROWS_NOT_CANONICAL", "zero amount", id="entitlement_rows_zero_amount"),
     ),
 )
 def test_receipt_backed_producer_rejects_each_binding_drift(
@@ -194,8 +199,34 @@ def test_receipt_backed_producer_rejects_each_binding_drift(
         lane_root = replace(lane_root, state_root=_root(999))
     elif mutate == "stale_prior":
         prior = replace(prior, lane_state_root=_root(888), binding_root=_root(888))
+    elif mutate == "prior_lane":
+        prior = cert.LaneAllocationFragmentV1(
+            lane_id=LaneIdV1.EXTERNAL_CUSTODY,
+            module_release_id=prior.module_release_id,
+            enabled=False,
+            lane_state_root=prior.lane_state_root,
+            producer_kind=cert.LaneProducerKindV1.REGISTERED_EMPTY_DISABLED,
+            binding_root=prior.lane_state_root,
+        )
+    elif mutate == "prior_release":
+        prior = replace(prior, module_release_id=_root(77))
     elif mutate == "coverage":
         entitlements = (cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", 4),)
+    elif mutate == "unordered_entitlements":
+        entitlements = (
+            cert.ClaimantEntitlementRowV1("USD", "zed", "spot-pool", 2),
+            cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", 3),
+        )
+    elif mutate == "duplicate_entitlements":
+        entitlements = (
+            cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", 2),
+            cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", 3),
+        )
+    elif mutate == "zero_amount_entitlement":
+        entitlements = (
+            cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", 5),
+            cert.ClaimantEntitlementRowV1("USD", "zzz", "spot-pool", 0),
+        )
     outcome = producers.produce_asset_transfer_fragment_v1(accepted, lane_root, prior, entitlements)
     assert isinstance(outcome, producers.ReceiptBackedProducerRejectedV1)
     assert outcome.code.value == expected_code
@@ -238,3 +269,75 @@ def test_receipt_backed_producer_reject_is_a_no_op_value() -> None:
     assert canonical_global_bytes_v1(prior) == prior_before
     canonical = outcome.to_canonical()
     assert list(canonical) == ["code", "detail", "lane_id", "message", "committed_lane_root"]
+
+
+def test_receipt_backed_producer_precedence_pairs_are_pinned() -> None:
+    """Opus P17 P3-1/P3-3: pin two precedence PAIRS (two checks failing at once)."""
+
+    from dataclasses import replace
+
+    accepted, lane_root, prior, _ = _wave_b_setup()
+    max_atoms = cert.MAX_ATOMS_U128_V1
+    overflowing = (
+        cert.ClaimantEntitlementRowV1("USD", "alice", "spot-pool", max_atoms),
+        cert.ClaimantEntitlementRowV1("USD", "bob", "spot-pool", max_atoms),
+    )
+    disabled = replace(lane_root, enabled=False)
+    outcome = producers.produce_asset_transfer_fragment_v1(accepted, disabled, prior, overflowing)
+    assert isinstance(outcome, producers.ReceiptBackedProducerRejectedV1)
+    assert outcome.code is producers.ReceiptBackedProducerRejectCodeV1.LANE_DISABLED
+    outcome = producers.produce_asset_transfer_fragment_v1(accepted, lane_root, prior, overflowing)
+    assert isinstance(outcome, producers.ReceiptBackedProducerRejectedV1)
+    assert outcome.code is producers.ReceiptBackedProducerRejectCodeV1.CONTROLLED_FOLD_OVERFLOW
+    assert outcome.detail == "entitlements"
+
+
+def test_receipt_backed_reject_family_is_closed_and_ordered() -> None:
+    """The enum order is the documented check precedence; ACCEPTED_INVALID is defensively
+    unreachable in Python (the exact-type gate admits only validated constructions)."""
+
+    assert [code.value for code in producers.ReceiptBackedProducerRejectCodeV1] == [
+        "ACCEPTED_INVALID",
+        "JOURNAL_LANE_DRIFT",
+        "LANE_DISABLED",
+        "MODULE_RELEASE_DRIFT",
+        "JOURNAL_ROOT_DRIFT",
+        "STALE_JOURNAL",
+        "TERMINAL_ROOT_NOT_EMPTY",
+        "ENTITLEMENT_ROWS_NOT_CANONICAL",
+        "CONTROLLED_FOLD_OVERFLOW",
+        "ENTITLEMENT_COVERAGE_DRIFT",
+    ]
+    assert list(producers.RECEIPT_BACKED_PRODUCER_REJECT_MESSAGE_BY_CODE_V1) == list(
+        producers.ReceiptBackedProducerRejectCodeV1
+    )
+    with pytest.raises(TypeError):
+        producers.produce_asset_transfer_fragment_v1(object(), *_wave_b_setup()[1:])  # type: ignore[arg-type]
+
+
+def test_receipt_backed_producer_rejects_nonzero_terminal_root() -> None:
+    """Opus P17 P2-3: the terminal-root check is REACHABLE via a well-formed accepted value
+    (AssetLanePrivatePortV1 allows a nonzero terminal root; setting it consistently on the
+    port AND the journal, then recomputing the receipt root, satisfies every construction
+    binding), so it gets its test."""
+
+    from dataclasses import replace
+
+    from src.core.asset_transfer_lane_module_v1 import _receipt_root
+
+    accepted, lane_root, prior, entitlements = _wave_b_setup()
+    port = replace(accepted.private_port, terminal_obligations_root=_root(7))
+    journal_tmp = replace(
+        accepted.module_journal,
+        terminal_obligations_root=_root(7),
+        private_port_root=port.port_root,
+    )
+    journal = replace(
+        journal_tmp,
+        receipt_root=_receipt_root(accepted.statement_root, journal_tmp, port, accepted.effects),
+    )
+    mutated = replace(accepted, module_journal=journal, private_port=port)
+    outcome = producers.produce_asset_transfer_fragment_v1(mutated, lane_root, prior, entitlements)
+    assert isinstance(outcome, producers.ReceiptBackedProducerRejectedV1)
+    assert outcome.code is producers.ReceiptBackedProducerRejectCodeV1.TERMINAL_ROOT_NOT_EMPTY
+    assert outcome.detail == "terminal root"

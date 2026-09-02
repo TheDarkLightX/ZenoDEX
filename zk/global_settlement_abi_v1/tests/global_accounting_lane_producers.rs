@@ -314,3 +314,157 @@ fn receipt_backed_producer_rejects_entitlement_fold_overflow() {
     );
     assert_eq!(reject.detail, "entitlements");
 }
+
+#[test]
+fn receipt_backed_producer_rejects_lane_release_prior_and_terminal_drifts() {
+    let (accepted, lane_root, prior, entitlements) = wave_b_setup();
+    // JOURNAL_LANE_DRIFT: committed root names a foreign lane.
+    let foreign = LaneStateRootV1 {
+        lane_id: LaneIdV1::SPOT_LIQUIDITY,
+        ..lane_root.clone()
+    };
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &foreign, &prior, &entitlements)
+        .expect_err("foreign lane rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::JOURNAL_LANE_DRIFT
+    );
+    // MODULE_RELEASE_DRIFT.
+    let release = LaneStateRootV1 {
+        module_release_id: wave_b_root(99),
+        ..lane_root.clone()
+    };
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &release, &prior, &entitlements)
+        .expect_err("release drift rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::MODULE_RELEASE_DRIFT
+    );
+    // STALE_JOURNAL via a foreign-lane prior (Opus P17 P2-1 exploit shape).
+    let foreign_prior = LaneAllocationFragmentV1 {
+        lane_id: LaneIdV1::EXTERNAL_CUSTODY,
+        producer_kind: LaneProducerKindV1::REGISTERED_EMPTY_DISABLED,
+        enabled: false,
+        ..prior.clone()
+    };
+    let reject =
+        produce_asset_transfer_fragment_v1(&accepted, &lane_root, &foreign_prior, &entitlements)
+            .expect_err("foreign prior rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL
+    );
+    assert_eq!(reject.detail, "prior lane");
+    // STALE_JOURNAL via a prior at a different release.
+    let stale_release_prior = LaneAllocationFragmentV1 {
+        module_release_id: wave_b_root(77),
+        ..prior.clone()
+    };
+    let reject = produce_asset_transfer_fragment_v1(
+        &accepted,
+        &lane_root,
+        &stale_release_prior,
+        &entitlements,
+    )
+    .expect_err("prior release drift rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL
+    );
+    assert_eq!(reject.detail, "prior release");
+    // TERMINAL_ROOT_NOT_EMPTY (Opus P17 P2-3): a nonzero terminal root must reject.
+    // Mutating only the journal breaks accepted.validate() -> ACCEPTED_INVALID fires first,
+    // which is itself the tenth-code behaviour under test; both paths are pinned here.
+    let mut mutated = accepted.clone();
+    mutated.module_journal.terminal_obligations_root = wave_b_root(7);
+    let reject = produce_asset_transfer_fragment_v1(&mutated, &lane_root, &prior, &entitlements)
+        .expect_err("inconsistent accepted rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::ACCEPTED_INVALID
+    );
+    let mut consistent = accepted.clone();
+    consistent.private_port.terminal_obligations_root = wave_b_root(7);
+    consistent.module_journal.terminal_obligations_root = wave_b_root(7);
+    let outcome =
+        produce_asset_transfer_fragment_v1(&consistent, &lane_root, &prior, &entitlements);
+    let reject = outcome.expect_err("nonzero terminal root rejects");
+    assert!(
+        reject.code == ReceiptBackedProducerRejectCodeV1::TERMINAL_ROOT_NOT_EMPTY
+            || reject.code == ReceiptBackedProducerRejectCodeV1::ACCEPTED_INVALID,
+        "terminal-root drift refused fail-closed, got {:?}",
+        reject.code
+    );
+}
+
+#[test]
+fn receipt_backed_producer_rejects_non_canonical_entitlements() {
+    let (accepted, lane_root, prior, _) = wave_b_setup();
+    let unordered = vec![
+        ClaimantEntitlementRowV1 {
+            asset: "USD".to_owned(),
+            claimant: "zed".to_owned(),
+            control_domain: "spot-pool".to_owned(),
+            amount_atoms: 2,
+        },
+        ClaimantEntitlementRowV1 {
+            asset: "USD".to_owned(),
+            claimant: "alice".to_owned(),
+            control_domain: "spot-pool".to_owned(),
+            amount_atoms: 3,
+        },
+    ];
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &lane_root, &prior, &unordered)
+        .expect_err("unordered entitlements reject");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::ENTITLEMENT_ROWS_NOT_CANONICAL
+    );
+    assert_eq!(reject.detail, "entitlement ordering");
+    let zero = vec![
+        ClaimantEntitlementRowV1 {
+            asset: "USD".to_owned(),
+            claimant: "alice".to_owned(),
+            control_domain: "spot-pool".to_owned(),
+            amount_atoms: 5,
+        },
+        ClaimantEntitlementRowV1 {
+            asset: "USD".to_owned(),
+            claimant: "zzz".to_owned(),
+            control_domain: "spot-pool".to_owned(),
+            amount_atoms: 0,
+        },
+    ];
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &lane_root, &prior, &zero)
+        .expect_err("zero-amount entitlement rejects");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::ENTITLEMENT_ROWS_NOT_CANONICAL
+    );
+    assert_eq!(reject.detail, "zero amount");
+    // Precedence pair (Opus P17 P3-3): disabled + overflow -> LANE_DISABLED.
+    let disabled = LaneStateRootV1 {
+        enabled: false,
+        ..lane_root.clone()
+    };
+    let overflowing = vec![
+        ClaimantEntitlementRowV1 {
+            asset: "USD".to_owned(),
+            claimant: "alice".to_owned(),
+            control_domain: "spot-pool".to_owned(),
+            amount_atoms: u128::MAX,
+        },
+        ClaimantEntitlementRowV1 {
+            asset: "USD".to_owned(),
+            claimant: "bob".to_owned(),
+            control_domain: "spot-pool".to_owned(),
+            amount_atoms: u128::MAX,
+        },
+    ];
+    let reject = produce_asset_transfer_fragment_v1(&accepted, &disabled, &prior, &overflowing)
+        .expect_err("disabled wins over overflow");
+    assert_eq!(
+        reject.code,
+        ReceiptBackedProducerRejectCodeV1::LANE_DISABLED
+    );
+}
