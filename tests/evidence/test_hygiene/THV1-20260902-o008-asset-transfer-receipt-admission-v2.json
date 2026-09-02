@@ -1,0 +1,194 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260902-o008-asset-transfer-receipt-admission-v2",
+  "created_date": "2026-09-02",
+  "claim_scope": "Candidate C9a' (Opus P28 repairs, receipt R25 42ccb6624, grade C+): the admission rebuilds the caller's accepted value through the exact-typed snapshot as check (0) before any binding is read, so an ordinary subclass overriding a root-bearing property (the reviewer's F1 proof of concept: a private port reporting the genuine port_root over foreign custody rows) or a validation-bypassed object is refused at the type boundary; the same class is closed at construction by exact-type gates on the private port, its projections, the projection sources, and the accepted state, effects, and journal (F1 audit). Checks (1) and (3) are declared defensive with forgery witnesses (a forged module witness is the only way to vary a witness scalar under a matching journal root) and check (4) is declared producer-drift protection with a drifted-producer witness (F3, F4); the producer pass-through is exercised for three codes. NONCLAIMS recorded: claimant entitlements remain caller-chosen and are covered only per (asset, control_domain) total until C9b binds claimants at certificate consumption (F2, pinned by a nonclaim test that C9b must invert); no Rust twin of the admission exists yet (F5, an open gap for C9b); the producer docstrings in both languages state the landed admission in the present tense. Earlier: Candidate C9a: receipt admission for the ASSET_TRANSFER allocation fragment. verify_asset_transfer_fragment_receipt_v1 admits a fragment only through the receipt-verified module witness (VerifiedLaneModuleTransitionV1, mintable only by verify_asset_transfer_lane_module_receipt_v1 after a succinct-receipt check against the recomputed module journal under an ACTIVE_NEW release image): one journal-root equality binds the caller's accepted value to the proof, statement-root and command-occurrence checks double-bind defensively, the wave-B producer re-runs with its full closed check family, the produced binding_root must equal the witness-bound receipt root, and the result is the token-gated immutable VerifiedLaneAllocationFragmentV1. Closed five-code ReceiptWitnessRejectCodeV1 family plus untouched producer pass-through; every reject is a value. The accept-path test mints a REAL witness through the ABI fixture chain (no forgery on the accept path); the certificate registry still keeps ASSET_TRANSFER at NO_PRODUCER, so no acceptance path consumes this witness until C9b lands the registry flip behind a type gate. Research-only; grants no authority.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "C9A-FRAGMENT-ADMITTED-ONLY-THROUGH-MODULE-WITNESS",
+    "C9A-JOURNAL-ROOT-EQUALITY-BINDS-ACCEPTED-TO-PROOF",
+    "C9A-PRODUCER-CHECK-FAMILY-UNTOUCHED-ON-PASS-THROUGH",
+    "C9A-WITNESS-TOKEN-VERIFIER-ONLY",
+    "C9A-REJECT-IS-A-VALUE",
+    "C9A-ACCEPTED-REBUILT-THROUGH-EXACT-TYPED-SNAPSHOT-BEFORE-BINDING",
+    "C9A-ROOT-BEARING-NESTED-VALUES-EXACT-TYPED-AT-CONSTRUCTION",
+    "C9A-DEFENSIVE-CHECKS-HAVE-FORGERY-WITNESSES"
+  ],
+  "failure_modes": [
+    "a caller-forged accepted value reaches the fragment without a receipt-verified journal",
+    "a fragment binds a receipt root the witness never certified",
+    "the witness type gate is bypassed by a structurally similar object",
+    "a witness reject mutates an input or leaks an exception",
+    "a subclass overriding a root-bearing property carries foreign rows through the journal-root equality",
+    "claimant identity in an admitted fragment is mistaken for a receipt-bound fact"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/asset_transfer_receipt_admission_v1.py",
+      "sha256": "9fa2e1c0c961d5396a98e6463f3212e4e4eadc8e5f4ba821c7c6b3f08d8e7975"
+    },
+    {
+      "path": "src/core/lane_module_receipt_verification_v1.py",
+      "sha256": "768e6d82d3e7a5807b0b4501e84488f2d5e19bd3ca488488ed0710fbb09f4201"
+    },
+    {
+      "path": "src/core/global_accounting_lane_producers_v1.py",
+      "sha256": "0ad3e2b1b4fd4e50c9191256e2b3b6e1a9c1ec8d55517372ebc10c458e7e6b6e"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_v1.py",
+      "sha256": "c4032908e0d137e71a4930e5775e8283ae71d4acd801aebbe7a4a0139ea0f1eb"
+    },
+    {
+      "path": "src/core/asset_lane_projection_v1.py",
+      "sha256": "3517ce7219fceaac8d924aa7d915e5dafc3ff4172a401f7e9203ee89a6fa5418"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "0e311dff8828bc4c08b773b27c8b1be7ad7a627c6b33d172c0b8908877963521"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_asset_transfer_receipt_admission_v1.py",
+      "sha256": "940f77716d43d2f6764dd262a7ad1df6f8c0a14077696eecc8ff30c90051be1b",
+      "node_ids": [
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_token_is_verifier_only",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_admission_requires_the_module_witness_type",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_receipt_admitted_fragment_carries_the_witness_binding",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_admitted_controlled_rows_are_the_receipt_proved_custody_rows",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_foreign_accepted_value_is_rejected_at_the_journal_root",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_private_port_with_a_spoofed_root_is_refused_at_construction",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_planted_subclass_port_is_refused_by_the_admission_snapshot",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_projection_is_refused_by_the_port_gate",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_journal_with_a_spoofed_journal_root_is_refused",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_validation_bypassed_accepted_is_refused_by_the_snapshot",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_defensive_witness_checks_have_forgery_witnesses",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_binding_root_drift_is_producer_drift_protection",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_producer_rejects_pass_through_unchanged",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_is_closed_and_ordered",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_is_a_no_op_value",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_claimant_identity_is_not_bound_by_the_receipt_until_c9b"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "formal",
+    "replay",
+    "boundary",
+    "negative_regression",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each test arranges one witness/accepted pair through the real ABI fixture chain, invokes the verifier once, and asserts the exact type, code, detail, and carried binding scalars."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The verifier is a pure function over immutable inputs; the no-op test asserts the journal root and witness scalars are unchanged after a rejected admission."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "witness_binding",
+      "points": [
+        "journal-root equality accepts on the rebuilt value",
+        "admitted controlled rows equal the receipt-proved custody rows",
+        "foreign accepted rejects at the journal root",
+        "subclassed private port with a spoofed port root refused at construction and, when planted, by the snapshot",
+        "subclassed projection refused by the port gate",
+        "subclassed journal with a spoofed journal root refused at construction and by the snapshot",
+        "validation-bypassed accepted refused by the snapshot re-validation",
+        "forged witness scalars refused by the defensive checks",
+        "drifted producer refused by the binding-root check",
+        "producer rejects pass through unchanged for three codes"
+      ]
+    },
+    {
+      "name": "reject_family",
+      "points": [
+        "exact five closed witness codes in check order",
+        "one load-bearing binding (journal root); four defensive arms each with a forgery or drift witness",
+        "name equals value",
+        "eleven producer codes untouched"
+      ]
+    },
+    {
+      "name": "nonclaims",
+      "points": [
+        "claimant entitlements caller-chosen within (asset, control_domain) coverage until C9b (pinned)",
+        "no Rust twin of the admission (open gap for C9b)"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "admit a fragment from a caller-forged accepted value (foreign journal)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_foreign_accepted_value_is_rejected_at_the_journal_root"
+    },
+    {
+      "description": "construct the fragment witness outside the verifier",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_token_is_verifier_only"
+    },
+    {
+      "description": "pass a non-witness object through the type gate",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_admission_requires_the_module_witness_type"
+    },
+    {
+      "description": "admit a subclassed private port reporting a spoofed port root at construction (Opus P28 F1)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_private_port_with_a_spoofed_root_is_refused_at_construction"
+    },
+    {
+      "description": "drop the exact-typed snapshot before the binding (Opus P28 F1)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_planted_subclass_port_is_refused_by_the_admission_snapshot"
+    },
+    {
+      "description": "loosen the port's projection gates back to isinstance (Opus P28 F1)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_projection_is_refused_by_the_port_gate"
+    },
+    {
+      "description": "loosen the accepted journal gate back to isinstance (Opus P28 F1 audit)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_journal_with_a_spoofed_journal_root_is_refused"
+    },
+    {
+      "description": "skip re-validation of a validation-bypassed accepted value",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_validation_bypassed_accepted_is_refused_by_the_snapshot"
+    },
+    {
+      "description": "delete the witness-kind, statement-root, or occurrence check (Opus P28 F3)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_defensive_witness_checks_have_forgery_witnesses"
+    },
+    {
+      "description": "delete the binding-root check (Opus P28 F3/F4)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_binding_root_drift_is_producer_drift_protection"
+    },
+    {
+      "description": "emit foreign controlled rows for a receipt-proved custody row",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_admitted_controlled_rows_are_the_receipt_proved_custody_rows"
+    },
+    {
+      "description": "swallow or transform a producer reject",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_producer_rejects_pass_through_unchanged"
+    },
+    {
+      "description": "grow or reorder the witness reject family",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_is_closed_and_ordered"
+    },
+    {
+      "description": "mutate an input on a rejected admission",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_is_a_no_op_value"
+    },
+    {
+      "description": "silently change claimant coverage semantics before C9b (Opus P28 F2 nonclaim pin)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_claimant_identity_is_not_bound_by_the_receipt_until_c9b"
+    }
+  ],
+  "nonclaims": [
+    "claimant_entitlements remain caller-chosen: the producer covers them only per (asset, control_domain) total, so claimant identity and the split between claimants are not bound by the receipt until C9b binds them at certificate consumption.",
+    "No Rust twin of the admission exists; the Rust producer validates the accepted value at its check 0 instead (open gap for C9b).",
+    "The certificate registry keeps ASSET_TRANSFER at NO_PRODUCER; no acceptance path consumes the fragment witness until C9b lands the registry flip behind a type gate.",
+    "The module witness's succinct-receipt check is inherited from lane_module_receipt_verification_v1; this candidate adds no cryptographic claims of its own.",
+    "No production, release, settlement, verifier, migration, publication, or value-moving authority is granted."
+  ]
+}

@@ -4,10 +4,12 @@
 //! (EXTERNAL_CUSTODY, PROOF_REWARDS): a pure function of the committed
 //! `LaneStateRootV1` returning the exact-empty fragment or a closed reject. Wave B
 //! (ASSET_TRANSFER): `produce_asset_transfer_fragment_v1` folds one accepted
-//! lane-module transition into a receipt-bound fragment; a journal verifier exists
-//! (`lane_module_receipt_verification` mints `VerifiedLaneModuleTransitionV1`) but
-//! this producer does not yet require it (C9a will), and the certificate registry
-//! keeps ASSET_TRANSFER at NO_PRODUCER, so no acceptance path uses these fragments.
+//! lane-module transition into a receipt-bound fragment. The producer trusts its
+//! caller for `accepted`; the Python authority admits fragments one layer up in
+//! `asset_transfer_receipt_admission_v1` (C9a: module witness, exact-typed
+//! snapshot, producer re-run), which has no Rust twin yet (an open gap for C9b),
+//! and the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER, so no
+//! acceptance path uses these fragments until C9b.
 //! Research-only; no writer, verifier, release, or publication authority.
 
 use serde::{Deserialize, Serialize};
@@ -222,10 +224,12 @@ fn reject_receipt_backed(
 /// fail construction in Python and `ACCEPTED_INVALID` here. The controlled-side
 /// fold overflow is unreachable for well-formed accepted inputs (supply
 /// conservation bounds custody totals); the reachable reject path is the
-/// caller-provided entitlement rows. A journal verifier exists
-/// (`lane_module_receipt_verification`) but this producer does not yet require
-/// it — C9a will take the witness; the certificate registry keeps ASSET_TRANSFER
-/// at NO_PRODUCER until receipt admission exists. Research-only; authority NONE.
+/// caller-provided entitlement rows. NONCLAIM: this producer trusts its caller for
+/// `accepted` and covers claimant entitlements only per (asset, control_domain)
+/// total; the Python admission (`asset_transfer_receipt_admission_v1`, C9a) takes
+/// the module witness and re-runs the producer on an exact-typed snapshot, and has
+/// no Rust twin yet; the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER
+/// until C9b. Research-only; authority NONE.
 pub fn produce_asset_transfer_fragment_v1(
     accepted: &crate::asset_transfer_lane_module::AssetTransferLaneModuleAcceptedV1,
     lane_root: &LaneStateRootV1,

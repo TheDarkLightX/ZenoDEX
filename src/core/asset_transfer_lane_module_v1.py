@@ -211,8 +211,10 @@ class AssetTransferLaneModuleAcceptedV1:
     def __post_init__(self) -> None:
         _require_root(self.statement_root, name="asset transfer lane module statement")
         AssetTransferAcceptedV1(self.post_state, self.effects, self.module_journal)
-        if not isinstance(self.private_port, AssetLanePrivatePortV1):
-            raise TypeError("asset transfer lane module private port must be typed")
+        # Opus P28 F1: an ordinary subclass overriding port_root reported the
+        # genuine root over foreign custody rows, and isinstance admitted it.
+        if type(self.private_port) is not AssetLanePrivatePortV1:
+            raise TypeError("asset transfer lane module private port must be the exact typed value")
         if self.private_port.producer_module_schema != ASSET_TRANSFER_MODULE_SCHEMA_V1:
             raise ValueError("asset transfer lane module producer schema mismatch")
         if self.private_port.module_release_id != self.module_journal.module_release_id:

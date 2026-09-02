@@ -4,11 +4,34 @@
 module witness (``VerifiedLaneModuleTransitionV1``, mintable only by
 ``verify_asset_transfer_lane_module_receipt_v1`` after a succinct-receipt
 check against the recomputed module journal under an ACTIVE_NEW release
-image), binds the caller's accepted value to that witness root for root,
-re-runs the wave-B fragment producer, and mints the opaque
-``VerifiedLaneAllocationFragmentV1`` witness. The certificate registry still
-keeps ASSET_TRANSFER at NO_PRODUCER: nothing consumes this witness on an
-acceptance path until C9b lands the registry flip behind a type gate.
+image), rebuilds the caller's accepted value through the exact-typed
+snapshot, binds the rebuilt value to the witness at the journal root,
+re-runs the wave-B fragment producer on the rebuilt value, and mints the
+opaque ``VerifiedLaneAllocationFragmentV1`` witness. The certificate
+registry still keeps ASSET_TRANSFER at NO_PRODUCER: nothing consumes this
+witness on an acceptance path until C9b lands the registry flip behind a
+type gate.
+
+Why the snapshot comes first (Opus P28 F1): the journal-root equality binds
+nested values only through the roots in the journal preimage, and a root is
+read from the object that claims it. An ordinary subclass admitted by an
+``isinstance`` gate can override a root-bearing property to report the
+genuine root while carrying foreign rows, so the equality would hold for
+rows the receipt never proved. The snapshot refuses every nested value that
+is not the exact registered class and every scalar that is not an exact
+primitive, and re-runs every construction invariant on the rebuilt value,
+so the rows the producer reads are the rows whose roots the receipt proved.
+Snapshot refusals raise ``TypeError``/``ValueError`` like every type
+boundary on this path; every witness reject is a value.
+
+NONCLAIMS. ``claimant_entitlements`` remain caller-chosen: the producer
+covers them only per ``(asset, control_domain)`` total, so claimant identity
+and the split between claimants are not bound by the receipt until C9b binds
+them at certificate consumption. No Rust twin of this admission exists yet
+(an open gap for C9b; the Rust producer validates the accepted value at its
+check 0 instead). The succinct-receipt check itself is inherited from
+``lane_module_receipt_verification_v1``; this module adds no cryptographic
+claim of its own.
 
 Research-only evidence. It grants no writer, verifier, release, or
 publication authority.
@@ -20,7 +43,10 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Final
 
-from .asset_transfer_lane_module_v1 import AssetTransferLaneModuleAcceptedV1
+from .asset_transfer_lane_module_v1 import (
+    AssetTransferLaneModuleAcceptedV1,
+    _snapshot_asset_transfer_lane_module_accepted_v1,
+)
 from .global_accounting_allocation_certificate_v1 import (
     ClaimantEntitlementRowV1,
     LaneAllocationFragmentV1,
@@ -41,7 +67,14 @@ _VERIFIED_FRAGMENT_TOKEN: Final = object()
 
 
 class ReceiptWitnessRejectCodeV1(str, Enum):
-    """Closed witness-binding rejects, checked before the producer runs."""
+    """Closed witness-binding rejects, checked before the producer runs.
+
+    ``WITNESS_JOURNAL_ROOT_DRIFT`` is the one load-bearing binding. The
+    other four are defensive: the kind, statement, and occurrence checks can
+    differ only on a forged witness (the mint point derives every witness
+    scalar from the recomputed journal), and the binding-root check can
+    differ only on a drifted producer (it assigns that very root).
+    """
 
     WITNESS_KIND_DRIFT = "WITNESS_KIND_DRIFT"
     WITNESS_JOURNAL_ROOT_DRIFT = "WITNESS_JOURNAL_ROOT_DRIFT"
@@ -125,18 +158,32 @@ def verify_asset_transfer_fragment_receipt_v1(
 ):
     """Admit one fragment only through the receipt-verified module witness.
 
-    Check order: (1) the witness carries a succinct receipt (defensive; the
-    mint point enforces it); (2) the receipt-verified module journal root
-    equals ``accepted.module_journal.journal_root`` -- one equality binds the
-    caller's value to the proof; (3) the statement root and command occurrence
-    agree (defensive double-binding; both derive from the journal); then the
-    wave-B producer re-runs with its full check family, and (4) the produced
-    fragment's ``binding_root`` must equal the witness-bound receipt root.
-    Every reject is a value; no input is mutated.
+    Check order: (0) ``accepted`` is rebuilt through the exact-typed snapshot
+    (every nested value the exact registered class, every scalar an exact
+    primitive, every construction invariant re-run on the rebuilt value), so
+    a subclass overriding a root-bearing property or a validation-bypassed
+    object is refused before any binding is read; (1) the witness carries a
+    succinct receipt (defensive; the mint point enforces it); (2) the
+    receipt-verified module journal root equals the rebuilt
+    ``module_journal.journal_root`` -- the one equality that binds the
+    caller's value to the proof; (3) the statement root and command
+    occurrence agree (defensive double-binding: both are pinned by the journal
+    preimage, so only a forged witness can differ); then the wave-B producer
+    re-runs with its full check family on the rebuilt value, and (4) the
+    produced ``binding_root`` must equal the rebuilt journal's receipt root
+    (defensive producer-drift protection: the producer assigns that very
+    root, so only a drifted producer can differ; the witness carries no
+    receipt root, so this binds nothing to the witness). Every witness reject
+    is a value and no input is mutated; the type-boundary refusals of (0)
+    raise, as every type boundary on this path does.
     """
 
     if type(witness) is not VerifiedLaneModuleTransitionV1:
         raise TypeError("fragment admission requires the module receipt witness")
+    if type(lane_root) is not LaneStateRootV1:
+        raise TypeError("fragment admission requires the exact LaneStateRootV1")
+    owned = _snapshot_asset_transfer_lane_module_accepted_v1(accepted)
+    journal = owned.module_journal
     committed = lane_root.state_root
     if witness.receipt_kind is not ReceiptKindV1.SUCCINCT:
         return ReceiptWitnessRejectedV1(
@@ -145,21 +192,21 @@ def verify_asset_transfer_fragment_receipt_v1(
             committed,
             "witness kind",
         )
-    if witness.module_journal_root != accepted.module_journal.journal_root:
+    if witness.module_journal_root != journal.journal_root:
         return ReceiptWitnessRejectedV1(
             ReceiptWitnessRejectCodeV1.WITNESS_JOURNAL_ROOT_DRIFT,
             lane_root.lane_id,
             committed,
             "journal root",
         )
-    if witness.statement_root != accepted.statement_root:
+    if witness.statement_root != owned.statement_root:
         return ReceiptWitnessRejectedV1(
             ReceiptWitnessRejectCodeV1.WITNESS_STATEMENT_ROOT_DRIFT,
             lane_root.lane_id,
             committed,
             "statement root",
         )
-    if witness.command_occurrence_id != accepted.module_journal.command_occurrence_id:
+    if witness.command_occurrence_id != journal.command_occurrence_id:
         return ReceiptWitnessRejectedV1(
             ReceiptWitnessRejectCodeV1.WITNESS_OCCURRENCE_DRIFT,
             lane_root.lane_id,
@@ -167,11 +214,11 @@ def verify_asset_transfer_fragment_receipt_v1(
             "command occurrence",
         )
     produced = produce_asset_transfer_fragment_v1(
-        accepted, lane_root, prior_fragment, claimant_entitlements
+        owned, lane_root, prior_fragment, claimant_entitlements
     )
     if isinstance(produced, ReceiptBackedProducerRejectedV1):
         return produced
-    if produced.binding_root != accepted.module_journal.receipt_root:
+    if produced.binding_root != journal.receipt_root:
         return ReceiptWitnessRejectedV1(
             ReceiptWitnessRejectCodeV1.WITNESS_BINDING_ROOT_DRIFT,
             lane_root.lane_id,

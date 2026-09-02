@@ -21,8 +21,12 @@ from src.core.global_settlement_types_v1 import (
 
 
 def test_canonical_admission_manifest_is_frozen_sorted_and_disjoint() -> None:
-    assert len(GLOBAL_SETTLEMENT_CANONICAL_SERIALIZER_TYPES_V1) == 92
-    assert len(GLOBAL_SETTLEMENT_CANONICAL_ENUM_TYPES_V1) == 30
+    # 104 + 35 = 139 exact loaded types after the wave-B producer and certificate
+    # registrations (C8); this count was left at 92 + 30 and red from 2026-09-01
+    # until C9a'. Exact membership and the source-closure digest are pinned by
+    # tools/check_global_settlement_canonical_manifest_v1.py.
+    assert len(GLOBAL_SETTLEMENT_CANONICAL_SERIALIZER_TYPES_V1) == 104
+    assert len(GLOBAL_SETTLEMENT_CANONICAL_ENUM_TYPES_V1) == 35
     assert GLOBAL_SETTLEMENT_CANONICAL_SERIALIZER_TYPES_V1 == tuple(
         sorted(GLOBAL_SETTLEMENT_CANONICAL_SERIALIZER_TYPES_V1)
     )

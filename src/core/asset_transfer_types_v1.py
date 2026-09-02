@@ -214,12 +214,17 @@ class AssetTransferAcceptedV1:
     module_journal: LaneModuleTransitionJournalV1
 
     def __post_init__(self) -> None:
-        if not isinstance(self.post_state, AssetTransferStateV1):
-            raise TypeError("asset transfer accepted state is invalid")
-        if not isinstance(self.effects, GlobalEconomicEffectPlanV1) or self.effects.is_empty:
+        # Opus P28 F1 audit: exact types for every root-bearing nested value; a
+        # subclass could override state_root, effect_plan_root, or journal_root
+        # while the equalities below read the genuine roots.
+        if type(self.post_state) is not AssetTransferStateV1:
+            raise TypeError("asset transfer accepted state must be the exact typed value")
+        if type(self.effects) is not GlobalEconomicEffectPlanV1:
+            raise TypeError("asset transfer accepted effects must be the exact typed value")
+        if self.effects.is_empty:
             raise ValueError("asset transfer acceptance requires nonempty effects")
-        if not isinstance(self.module_journal, LaneModuleTransitionJournalV1):
-            raise TypeError("asset transfer module journal is invalid")
+        if type(self.module_journal) is not LaneModuleTransitionJournalV1:
+            raise TypeError("asset transfer accepted journal must be the exact typed value")
         if self.module_journal.lane_id is not LaneIdV1.ASSET_TRANSFER:
             raise ValueError("asset transfer journal has the wrong lane")
         if self.module_journal.module_release_id != self.post_state.module_release_id:

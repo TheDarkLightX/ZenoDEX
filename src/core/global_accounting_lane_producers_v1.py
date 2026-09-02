@@ -7,10 +7,13 @@ be that state's root; the producer is a pure function of the committed
 
 Wave B (ASSET_TRANSFER): ``produce_asset_transfer_fragment_v1`` folds one
 accepted lane-module transition into a receipt-bound fragment or rejects with
-a closed code; it emits ``producer_kind=RECEIPT_BACKED`` fragments. A journal
-verifier exists (``lane_module_receipt_verification_v1``) but this producer does
-not yet require it — C9a will take the witness — and the certificate registry
-keeps ASSET_TRANSFER at NO_PRODUCER, so no acceptance path uses them.
+a closed code; it emits ``producer_kind=RECEIPT_BACKED`` fragments. The producer
+trusts its caller for ``accepted``; receipt admission lives one layer up in
+``asset_transfer_receipt_admission_v1`` (C9a), which takes the module witness
+minted by ``lane_module_receipt_verification_v1``, rebuilds the accepted value
+through the exact-typed snapshot, and re-runs this producer on it. The
+certificate registry keeps ASSET_TRANSFER at NO_PRODUCER, so no acceptance path
+uses these fragments until C9b.
 
 Research-only evidence. It grants no writer, verifier, release, or
 publication authority.
@@ -220,12 +223,13 @@ def produce_asset_transfer_fragment_v1(
     projection (owner -> controlling principal, custody_domain -> control domain);
     the asset-transfer module emits no reserves, external obligations, or terminal
     obligations, so those row families are empty. ``binding_root`` is the journal's
-    receipt root; NONCLAIM: a journal verifier exists
-    (``lane_module_receipt_verification_v1`` mints ``VerifiedLaneModuleTransitionV1``)
-    but this producer does not yet require it -- C9a will take the witness instead of
-    the raw accepted value; the caller is trusted for ``accepted``, and the
-    certificate registry keeps ASSET_TRANSFER at NO_PRODUCER until receipt admission
-    exists, so acceptance never precedes it.
+    receipt root. NONCLAIM: this producer trusts its caller for ``accepted`` and
+    covers claimant entitlements only per (asset, control_domain) total; receipt
+    admission (``asset_transfer_receipt_admission_v1``, C9a) takes the module
+    witness minted by ``lane_module_receipt_verification_v1`` and re-runs this
+    producer on the exact-typed snapshot of ``accepted``, and the certificate
+    registry keeps ASSET_TRANSFER at NO_PRODUCER until C9b, so acceptance never
+    precedes admission.
     Research-only evidence; authority NONE.
     """
 

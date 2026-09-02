@@ -162,8 +162,8 @@ def project_asset_transfer_state_v1(
     fee_policy_registry_root: str,
     custody: tuple[EconomicAmountV1, ...] = (),
 ) -> AssetLaneStateProjectionV1:
-    if not isinstance(state, AssetTransferStateV1):
-        raise TypeError("asset transfer projection source must be typed")
+    if type(state) is not AssetTransferStateV1:
+        raise TypeError("asset transfer projection source must be the exact typed value")
     return AssetLaneStateProjectionV1(
         asset_policy_registry_root,
         fee_policy_registry_root,
@@ -180,8 +180,8 @@ def project_managed_asset_lifecycle_state_v1(
     fee_policy_registry_root: str,
     custody: tuple[EconomicAmountV1, ...] = (),
 ) -> AssetLaneStateProjectionV1:
-    if not isinstance(state, ManagedAssetLifecycleStateV1):
-        raise TypeError("managed asset projection source must be typed")
+    if type(state) is not ManagedAssetLifecycleStateV1:
+        raise TypeError("managed asset projection source must be the exact typed value")
     return AssetLaneStateProjectionV1(
         asset_policy_registry_root,
         fee_policy_registry_root,
@@ -205,10 +205,12 @@ class AssetLanePrivatePortV1:
         _require_token(self.producer_module_schema, name="asset lane producer schema")
         _require_root(self.module_release_id, name="asset lane port module release")
         _require_root(self.command_occurrence_id, name="asset lane port occurrence")
-        if not isinstance(self.pre_state, AssetLaneStateProjectionV1):
-            raise TypeError("asset lane port pre-state is invalid")
-        if not isinstance(self.post_state, AssetLaneStateProjectionV1):
-            raise TypeError("asset lane port post-state is invalid")
+        # Opus P28 F1: exact types, not isinstance -- a projection subclass can
+        # skip validation or override state_root while the port hashes it.
+        if type(self.pre_state) is not AssetLaneStateProjectionV1:
+            raise TypeError("asset lane port pre-state must be the exact typed value")
+        if type(self.post_state) is not AssetLaneStateProjectionV1:
+            raise TypeError("asset lane port post-state must be the exact typed value")
         _require_root(self.module_effect_plan_root, name="asset lane port effect plan")
         _require_root(
             self.terminal_obligations_root,
