@@ -206,7 +206,8 @@
       "model_path": "experiments/disaster_inductive_promotion/models/disaster_settlement_proof_recompute_gate_inductive_v1.yaml",
       "model_sha256": "603d6078a86b7ac69406aa21c8d8c4b8db18c0eedddc486a794350480f4e3ca7",
       "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_settlement_proof_recompute_gate_inductive_v1.verify_multi.json",
-      "receipt_sha256": "6dd99abea3362ca02a0547f778740299e1e25cae89801ce9b5a4533eaaaba026"
+      "receipt_sha256": "6dd99abea3362ca02a0547f778740299e1e25cae89801ce9b5a4533eaaaba026",
+      "caveat": "partial certification (independent review 2026-09-02): the root-match guard is removable with VERIFIED preserved because apply_settlement overwrites claimed_root; the strength half is enforced"
     },
     {
       "axis_id": "operations_parser_canonical_envelope",
@@ -239,7 +240,8 @@
       "model_path": "experiments/disaster_inductive_promotion/models/disaster_state_accounting_size_boundary_inductive_v1.yaml",
       "model_sha256": "860c4d2646ae99f44f1790c2ce2b7442fc6e6f2fb58677558f5ae16da6e49945",
       "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_state_accounting_size_boundary_inductive_v1.verify_multi.json",
-      "receipt_sha256": "36219f47871aa9f68f7a20e184f7dfd75123b33d6f9fef5c18895e8056593807"
+      "receipt_sha256": "36219f47871aa9f68f7a20e184f7dfd75123b33d6f9fef5c18895e8056593807",
+      "caveat": "partial certification (independent review 2026-09-02): the canonical-size guard is dead in-domain (max reachable ser_size 6 vs MAX_CANONICAL 30)"
     },
     {
       "axis_id": "zusd_api_token_policy_surface",

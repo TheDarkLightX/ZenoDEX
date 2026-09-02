@@ -15,7 +15,7 @@ import json
 import sys
 from pathlib import Path
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -63,12 +63,16 @@ def check_manifest(root: Path, manifest_path: Path) -> dict:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         return {"ok": False, "errors": [f"manifest unreadable: {error}"]}
+    if not isinstance(manifest, dict):
+        return {"ok": False, "errors": ["manifest is not an object"]}
     if manifest.get("schema") != MANIFEST_SCHEMA_V1:
         errors.append("manifest schema drift")
     if list(manifest.get("status_vocabulary", [])) != list(CLOSED_STATUSES):
         errors.append("status vocabulary drift")
     live = {axis["axis_id"]: axis for axis in DISASTER_SEARCH_EXPANSION_AXES}
     rows = manifest.get("rows", [])
+    if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+        return {"ok": False, "errors": ["manifest rows are not a list of objects"]}
     seen: set[str] = set()
     status_counts: dict[str, int] = {}
     for row in rows:
@@ -128,6 +132,10 @@ def check_manifest(root: Path, manifest_path: Path) -> dict:
                     model_name = str(row.get("model_path", "")).rsplit("/", 1)[-1].removesuffix(".yaml")
                     if report.get("model_id") != model_name:
                         errors.append(f"{axis_id}: receipt model_id does not match the model")
+                    # Opus round 3 T3: the receipt's two ir_hash fields must agree.
+                    full_hash = str(receipt_model.get("ir_hash", "")) if isinstance(receipt_model, dict) else ""
+                    if not full_hash.startswith("sha256:") or report.get("ir_hash") != full_hash[7:23]:
+                        errors.append(f"{axis_id}: receipt ir_hash fields are absent or inconsistent")
                     # Opus review P1-2: a VERIFIED verdict alone is forgeable; require the
                     # two-solver query evidence itself.
                     if list(receipt.get("solvers", [])) != ["z3", "cvc5"]:
@@ -179,13 +187,22 @@ def check_manifest(root: Path, manifest_path: Path) -> dict:
     }
 
 
+def check_manifest_total(root: Path, manifest_path: Path) -> dict:
+    """Totalised wrapper: any unexpected shape rejects instead of raising."""
+
+    try:
+        return check_manifest(root, manifest_path)
+    except Exception as error:  # noqa: BLE001 - fail-closed totality boundary
+        return {"ok": False, "errors": [f"checker error: {type(error).__name__}: {error}"]}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=str(REPO_ROOT))
     parser.add_argument("--manifest", default="tools/disaster_axis_status_manifest.json")
     args = parser.parse_args()
     root = Path(args.root).resolve()
-    report = check_manifest(root, root / args.manifest)
+    report = check_manifest_total(root, root / args.manifest)
     print(json.dumps(report, indent=2, sort_keys=False))
     return 0 if report["ok"] else 1
 

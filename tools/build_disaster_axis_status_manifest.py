@@ -29,6 +29,20 @@ RECEIPT_DIR = "experiments/disaster_inductive_promotion/receipts"
 # zusd_oracle_recovery_split_brain is deliberately NOT inductive_esso: the 2026-09-02
 # independent review showed its oracle freshness/quorum guards are not load-bearing
 # (all 15 deletable with VERIFIED preserved), so its model does not certify the axis.
+# Opus review round 3: known partial certifications stay inductive_esso but the
+# manifest must say so itself instead of requiring a reader to find the report.
+PARTIAL_CERTIFICATION_CAVEATS = {
+    "settlement_proof_recompute_gate": (
+        "partial certification (independent review 2026-09-02): the root-match guard is "
+        "removable with VERIFIED preserved because apply_settlement overwrites claimed_root; "
+        "the strength half is enforced"
+    ),
+    "state_accounting_size_boundary": (
+        "partial certification (independent review 2026-09-02): the canonical-size guard is "
+        "dead in-domain (max reachable ser_size 6 vs MAX_CANONICAL 30)"
+    ),
+}
+
 INDUCTIVE_MODEL_BY_AXIS = {
     "batch_refinement_mci_parity_boundary": "disaster_batch_refinement_mci_parity_boundary_inductive_v1",
     "batch_settler_greedy_adapter_boundary": "disaster_batch_settler_greedy_adapter_boundary_inductive_v1",
@@ -69,6 +83,9 @@ def build_manifest(root: Path) -> dict:
             row["model_sha256"] = _sha256(model)
             row["receipt_path"] = f"{RECEIPT_DIR}/{model_name}.verify_multi.json"
             row["receipt_sha256"] = _sha256(receipt)
+            caveat = PARTIAL_CERTIFICATION_CAVEATS.get(axis_id)
+            if caveat is not None:
+                row["caveat"] = caveat
         elif axis_id == "dex_settlement_recovery_proof_unit_boundary":
             row["status"] = "bounded_replay"
             row["evidence_note"] = (

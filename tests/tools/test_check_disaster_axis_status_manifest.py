@@ -372,3 +372,45 @@ def test_dex_settlement_recovery_row_is_downgraded_with_the_review_note() -> Non
     row = next(r for r in manifest["rows"] if r["axis_id"] == "dex_settlement_recovery_proof_unit_boundary")
     assert row["status"] == "bounded_replay"
     assert "downgraded from inductive_esso" in row["evidence_note"]
+
+
+def test_partial_certifications_carry_their_caveats() -> None:
+    """Opus round 3: the manifest is self-describing about partial certification."""
+
+    import json as jsonlib
+
+    manifest = jsonlib.loads(MANIFEST.read_text())
+    by_id = {row["axis_id"]: row for row in manifest["rows"]}
+    for axis_id, needle in (
+        ("settlement_proof_recompute_gate", "root-match guard is removable"),
+        ("state_accounting_size_boundary", "canonical-size guard is dead"),
+    ):
+        row = by_id[axis_id]
+        assert row["status"] == "inductive_esso"
+        assert needle in row["caveat"]
+
+
+def test_inconsistent_ir_hash_fields_are_rejected(workspace: Path) -> None:
+    """Opus round 3 T3: the receipt's two ir_hash fields must agree."""
+
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    _rebind_receipt(workspace, row, lambda r: r["model"].__setitem__("ir_hash", "sha256:" + "ab" * 32))
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("ir_hash fields are absent or inconsistent" in e for e in report["errors"])
+
+
+def test_hostile_manifest_shapes_reject_instead_of_crashing(workspace: Path) -> None:
+    """Opus round 3: totality over hostile shapes (no raise, always a verdict)."""
+
+    from tools.check_disaster_axis_status_manifest import check_manifest_total
+
+    target = workspace / "tools/disaster_axis_status_manifest.json"
+    for hostile in ('[]', '{"schema": 7}', '{"schema": "zenodex/disaster-axis-status-manifest/v1", "rows": 3}',
+                    '{"schema": "zenodex/disaster-axis-status-manifest/v1", "rows": [5]}', "not json at all"):
+        target.write_text(hostile)
+        report = check_manifest_total(workspace, target)
+        assert report["ok"] is False
+        assert report["errors"]
