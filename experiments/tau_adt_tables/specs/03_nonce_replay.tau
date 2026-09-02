@@ -1,0 +1,13 @@
+# ZenoDEX replay/nonce semantics and modular-boundary control
+# EXPECTED-RESULTS: T F F T
+set charvar off
+set maxsplits 1
+# With max excluded, increment implies strict increase.
+type Replay = {pre: bv[64], post: bv[64], accepted: bv[1]}. n all r:Replay ((r.accepted = {1}:bv[1] && r.pre != {#xffffffffffffffff}:bv[64] && r.post = r.pre + {1}:bv[64]) -> r.post > r.pre)
+# Without the bound the theorem fails because max+1 wraps to zero.
+type Replay = {pre: bv[64], post: bv[64], accepted: bv[1]}. n all r:Replay ((r.accepted = {1}:bv[1] && r.post = r.pre + {1}:bv[64]) -> r.post > r.pre)
+# Under the bounded accepted transition, replay/no-op is impossible.
+type Replay = {pre: bv[64], post: bv[64], accepted: bv[1]}. n ex r:Replay (r.accepted = {1}:bv[1] && r.pre != {#xffffffffffffffff}:bv[64] && r.post = r.pre + {1}:bv[64] && r.post = r.pre)
+# Boundary control: max+1 really wraps.
+n ({#xffffffffffffffff}:bv[64] + {1}:bv[64]) = {0}:bv[64]
+quit

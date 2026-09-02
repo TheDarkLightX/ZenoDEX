@@ -1,0 +1,16 @@
+# ZenoDEX CPMM transition arithmetic with explicit widening
+# Example: x=y=1000, amount_in=500, 30 bps fee.
+# EXPECTED-RESULTS: T T T T F
+set charvar off
+set maxsplits 1
+# floor(500 * 9970 / 10000) = 498
+n (((bv[64]) {500}:bv[32] * {9970}:bv[64]) / {10000}:bv[64]) = {498}:bv[64]
+# floor(1000 * 498 / (1000 + 498)) = 332
+n (({1000}:bv[64] * {498}:bv[64]) / ({1000}:bv[64] + {498}:bv[64])) = {332}:bv[64]
+# The actual post reserves (1500,668) have nondecreasing k.
+n ({1500}:bv[64] * {668}:bv[64]) >= ({1000}:bv[64] * {1000}:bv[64])
+# Giving out 334 would violate k.
+n ({1500}:bv[64] * {666}:bv[64]) < ({1000}:bv[64] * {1000}:bv[64])
+# It is NOT true that output 334 preserves k.
+n ({1500}:bv[64] * {666}:bv[64]) >= ({1000}:bv[64] * {1000}:bv[64])
+quit
