@@ -51,6 +51,7 @@ pub enum ManagedAssetLifecycleRejectCodeV1 {
     INSUFFICIENT_BALANCE,
     BALANCE_OVERFLOW,
     SUPPLY_OVERFLOW,
+    POST_STATE_RESOURCE_BOUND_EXCEEDED,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
