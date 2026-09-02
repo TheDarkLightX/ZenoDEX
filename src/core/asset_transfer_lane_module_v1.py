@@ -17,13 +17,15 @@ from .asset_lane_projection_v1 import (
     _snapshot_asset_lane_private_port_v1,
     project_asset_transfer_state_v1,
 )
-from .asset_transfer_module_v1 import transition_asset_transfer_v1
+from .asset_transfer_module_v1 import (
+    rebuild_asset_transfer_state_v1,
+    transition_asset_transfer_v1,
+)
 from .asset_transfer_types_v1 import (
     ASSET_TRANSFER_MODULE_SCHEMA_V1,
     AssetTransferAcceptedV1,
     AssetTransferCommandV1,
     AssetTransferContextV1,
-    AssetTransferPolicyV1,
     AssetTransferRejectedV1,
     AssetTransferStateV1,
 )
@@ -35,7 +37,6 @@ from .global_economic_refinement_snapshot_v1 import (
 )
 from .global_settlement_types_v1 import (
     ZERO_ROOT_V1,
-    AssetSupplyV1,
     EconomicAmountV1,
     GlobalEconomicEffectPlanV1,
     _require_ordered_objects,
@@ -114,29 +115,9 @@ class AssetTransferLaneModuleInputV1:
 def _snapshot_asset_transfer_state_v1(
     state: AssetTransferStateV1,
 ) -> AssetTransferStateV1:
-    _require_exact_dataclass_scalars_v1(
-        state,
-        name="asset transfer state",
-        tuple_fields=frozenset({"policies", "balances", "supplies"}),
-    )
-    return replace(
-        state,
-        policies=_snapshot_dataclass_tuple_v1(
-            state.policies,
-            AssetTransferPolicyV1,
-            "asset transfer policies",
-        ),
-        balances=_snapshot_dataclass_tuple_v1(
-            state.balances,
-            EconomicAmountV1,
-            "asset transfer balances",
-        ),
-        supplies=_snapshot_dataclass_tuple_v1(
-            state.supplies,
-            AssetSupplyV1,
-            "asset transfer supplies",
-        ),
-    )
+    # Single definition of the deep rebuild (Fable P31 NEW-27); the core transition
+    # entry uses the same function.
+    return rebuild_asset_transfer_state_v1(state)
 
 
 def _snapshot_asset_transfer_lane_module_input_v1(

@@ -1130,6 +1130,7 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "esso_certificate_gate": f"{core.CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1} passed in 40.00s\n".encode(),
         "prior_restage_gate": f"{core.PRIOR_ESSO_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
         "transfer_refinement_gate": f"{core.TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
+        "python_rust_bound_parity_gate": f"{core.PARITY_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
         "python_version": b"3.12.3\n",
         "python_projection_gate": f"{core.PYTHON_GATE_EXPECTED_PASSED_V1} passed in 0.30s\n".encode(),
         "rust_projection_gate": _cargo_summary(core.RUST_GATE_EXPECTED_PASSED_V1),
@@ -1701,3 +1702,20 @@ def test_producer_reject_code_families_are_mechanically_pinned(snapshot: core.Su
         '    LANE_ENABLED = "LANE_ENABLED"\n    LANE_NOT_REGISTERED_EMPTY = "LANE_NOT_REGISTERED_EMPTY"\n',
     )
     assert _project_code(reordered) == "PRODUCER_REJECT_CODES_DRIFT"
+
+
+def test_hygiene_selection_refuses_a_partly_stale_selected_packet(
+    snapshot: core.SubjectSnapshotV1, packet: dict[str, Any]
+) -> None:
+    """Fable P31 NEW-26: the repository gate requires every pin of the packet it selects to be
+    current; the packet-side selector mirrors it, so a packet whose pin for the required path
+    still matches but whose pin for some OTHER path is stale cannot be bound as evidence."""
+
+    chosen = _selected_packet(packet, core.CHECKER_PATH_V1)
+    thv1 = json.loads(snapshot.hygiene_packets[chosen].data)
+    other = next(
+        pin for pin in thv1["source_pins"] + thv1["test_pins"]
+        if pin["path"] not in core.THV1_REQUIRED_PIN_PATHS_V1
+    )
+    other["sha256"] = "0" * 64
+    assert _project_code(_with_packet(snapshot, chosen, json.dumps(thv1).encode())) == "THV1_SELECTED_PACKET_STALE"

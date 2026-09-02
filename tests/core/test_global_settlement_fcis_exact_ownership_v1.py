@@ -352,6 +352,7 @@ _ADMISSION_PATH_MODULES = (
     "src/core/asset_transfer_types_v1.py",
     "src/core/lane_module_receipt_verification_v1.py",
     "src/core/lane_module_release_route_binding_v1.py",
+    "src/core/receipt_backed_asset_lane_composition_v1.py",
 )
 
 # Every surviving isinstance on the receipt-admission path, keyed by
@@ -444,3 +445,148 @@ def test_asset_lane_composition_accepted_rejects_root_bearing_subclasses() -> No
             lane_journal=object(),  # type: ignore[arg-type]
         )
     del state
+
+
+# --- C9a''' (P30 verdict repairs): behavioural killers for every declared construction gate ------
+
+def _transfer_accepted_parts():
+    from tests.core.test_global_accounting_lane_producers_v1 import _wave_b_accepted
+
+    accepted = _wave_b_accepted()
+    return accepted.post_state, accepted.effects, accepted.module_journal
+
+
+@pytest.mark.parametrize("field", ["post_state", "effects", "module_journal"])
+def test_asset_transfer_accepted_rejects_root_bearing_subclasses(field: str) -> None:
+    """Fable P30 P2-1: each nested gate of AssetTransferAcceptedV1 has its own killer. A
+    subclass of the nested value reporting the genuine root (state_root, effect_plan_root,
+    journal_root) over foreign content is refused at the exact-type gate, so the root
+    comparisons in __post_init__ never read a property a subclass controls."""
+
+    from src.core.asset_transfer_types_v1 import AssetTransferAcceptedV1, AssetTransferStateV1
+    from src.core.global_economic_proof_v1 import LaneModuleTransitionJournalV1
+    from src.core.global_settlement_types_v1 import GlobalEconomicEffectPlanV1
+
+    post_state, effects, journal = _transfer_accepted_parts()
+    AssetTransferAcceptedV1(post_state, effects, journal)  # the genuine parts construct
+
+    if field == "post_state":
+        class SpoofedState(AssetTransferStateV1):
+            @property
+            def state_root(self) -> str:  # type: ignore[override]
+                return post_state.state_root
+        parts = (SpoofedState(**{n: getattr(post_state, n) for n in type(post_state).__dataclass_fields__}), effects, journal)
+    elif field == "effects":
+        class SpoofedPlan(GlobalEconomicEffectPlanV1):
+            @property
+            def effect_plan_root(self) -> str:  # type: ignore[override]
+                return effects.effect_plan_root
+        parts = (post_state, SpoofedPlan(**{n: getattr(effects, n) for n in type(effects).__dataclass_fields__}), journal)
+    else:
+        class SpoofedJournal(LaneModuleTransitionJournalV1):
+            @property
+            def journal_root(self) -> str:  # type: ignore[override]
+                return journal.journal_root
+        parts = (post_state, effects, SpoofedJournal(**{n: getattr(journal, n) for n in type(journal).__dataclass_fields__}))
+    with pytest.raises(TypeError, match="exact typed value"):
+        AssetTransferAcceptedV1(*parts)
+
+
+def test_projection_sources_reject_state_subclasses() -> None:
+    """Fable P30 P2-1: both projection sources are exact gates; a state subclass that
+    overrides the rows it projects is refused before any row is read."""
+
+    from src.core.asset_lane_projection_v1 import project_managed_asset_lifecycle_state_v1
+    from src.core.asset_transfer_types_v1 import AssetTransferStateV1
+    from src.core.global_settlement_types_v1 import AssetSupplyV1, EconomicAmountV1
+    from src.core.managed_asset_lifecycle_types_v1 import (
+        ManagedAssetClassV1,
+        ManagedAssetLifecyclePolicyV1,
+        ManagedAssetLifecycleStateV1,
+    )
+
+    post_state, _effects, _journal = _transfer_accepted_parts()
+
+    class LooseTransferState(AssetTransferStateV1):
+        """A plain subclass; the exact-type gate refuses it before any row is read."""
+
+    loose_transfer = LooseTransferState(**{n: getattr(post_state, n) for n in type(post_state).__dataclass_fields__})
+    with pytest.raises(TypeError, match="exact typed value"):
+        project_asset_transfer_state_v1(loose_transfer, asset_policy_registry_root=_root(7), fee_policy_registry_root=_root(8))
+
+    policy = ManagedAssetLifecyclePolicyV1(
+        asset="USD",
+        asset_class=ManagedAssetClassV1.REGISTERED_ORDINARY_TOKEN,
+        issue_authority_subject="issuer",
+        issue_policy_root=_root(5),
+        burn_policy_root=_root(6),
+        enabled=True,
+    )
+    managed = ManagedAssetLifecycleStateV1(
+        module_release_id=_root(3),
+        policies=(policy,),
+        balances=(EconomicAmountV1("rich", "USD", "accounts", 5),),
+        supplies=(AssetSupplyV1("USD", 5),),
+    )
+
+    class LooseManagedState(ManagedAssetLifecycleStateV1):
+        """A plain subclass; the exact-type gate refuses it before any row is read."""
+
+    loose_managed = LooseManagedState(**{n: getattr(managed, n) for n in type(managed).__dataclass_fields__})
+    with pytest.raises(TypeError, match="exact typed value"):
+        project_managed_asset_lifecycle_state_v1(loose_managed, asset_policy_registry_root=_root(7), fee_policy_registry_root=_root(8))
+
+
+@pytest.mark.parametrize("side", ["pre_state", "post_state"])
+def test_asset_lane_private_port_rejects_projection_subclasses(side: str) -> None:
+    """Opus P30 NEW-3: both port projection gates have a killer (the P30 test covered only
+    post_state)."""
+
+    from src.core.asset_lane_projection_v1 import AssetLanePrivatePortV1
+    from tests.core.test_global_accounting_lane_producers_v1 import _wave_b_accepted
+
+    port = _wave_b_accepted().private_port
+    genuine = getattr(port, side)
+    spoofed = _SpoofedProjection(
+        genuine.asset_policy_registry_root,
+        genuine.fee_policy_registry_root,
+        genuine.balances,
+        genuine.custody,
+        genuine.supplies,
+    )
+    kwargs = {n: getattr(port, n) for n in type(port).__dataclass_fields__}
+    kwargs[side] = spoofed
+    with pytest.raises(TypeError, match="exact typed value"):
+        AssetLanePrivatePortV1(**kwargs)
+
+
+def test_receipt_backed_composition_candidate_rejects_subclasses() -> None:
+    """Opus P30 NEW-4: the receipt-backed composition candidate's seven input gates are
+    exact; a private-port subclass reporting the genuine port root is refused at
+    construction, before any composition reads a root through a property."""
+
+    from src.core.asset_lane_projection_v1 import AssetLanePrivatePortV1
+    from src.core.receipt_backed_asset_lane_composition_v1 import (
+        ReceiptBackedAssetLaneCompositionCandidateV1,
+    )
+    from tests.core.test_global_accounting_lane_producers_v1 import _wave_b_accepted
+
+    accepted = _wave_b_accepted()
+    port = accepted.private_port
+
+    class SpoofedPort(AssetLanePrivatePortV1):
+        @property
+        def port_root(self) -> str:  # type: ignore[override]
+            return port.port_root
+
+    spoofed = SpoofedPort(**{n: getattr(port, n) for n in type(port).__dataclass_fields__})
+    with pytest.raises(TypeError, match="exact typed value"):
+        ReceiptBackedAssetLaneCompositionCandidateV1(
+            profile=object(),  # type: ignore[arg-type]
+            occurrence=object(),  # type: ignore[arg-type]
+            coordinator_context=object(),  # type: ignore[arg-type]
+            module_journal=accepted.module_journal,
+            private_port=spoofed,
+            module_effects=accepted.effects,
+            verified_module=object(),  # type: ignore[arg-type]
+        )

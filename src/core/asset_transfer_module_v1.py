@@ -27,6 +27,10 @@ from .asset_transfer_types_v1 import (
     AssetTransferStateV1,
 )
 from .global_economic_proof_v1 import LaneModuleTransitionJournalV1
+from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
+    _snapshot_dataclass_tuple_v1,
+)
 from .global_settlement_types_v1 import (
     MAX_ASSET_BALANCE_ROWS_V1,
     MAX_ATOMS_V1,
@@ -34,6 +38,7 @@ from .global_settlement_types_v1 import (
     MIN_DELTA_ATOMS_V1,
     ZERO_ROOT_V1,
     AssetConservationRowV1,
+    AssetSupplyV1,
     EconomicAmountV1,
     EconomicEffectKindV1,
     EconomicEffectRowV1,
@@ -54,6 +59,32 @@ def _reject(
         pre_state_root=pre_state.state_root,
         post_state_root=pre_state.state_root,
         effects=GlobalEconomicEffectPlanV1.empty(),
+    )
+
+
+def rebuild_asset_transfer_state_v1(state: AssetTransferStateV1) -> AssetTransferStateV1:
+    """Deep exact-typed rebuild of a transfer state: exact class, exact scalars, and every
+    policy, balance, and supply row reconstructed through its own constructor.
+
+    ``dataclasses.replace(state)`` re-runs only the outer ``__post_init__``, which checks row
+    types but never re-runs a row's own invariants, so a same-type row forged past its
+    constructor (a non-string fee owner, an out-of-width supply) passed through the outer
+    re-validation (Fable P31 NEW-27). This is the single definition the lane wrapper's
+    snapshot delegates to.
+    """
+
+    if type(state) is not AssetTransferStateV1:
+        raise TypeError("asset transfer state must have the exact typed value")
+    _require_exact_dataclass_scalars_v1(
+        state,
+        name="asset transfer state",
+        tuple_fields=frozenset({"policies", "balances", "supplies"}),
+    )
+    return replace(
+        state,
+        policies=_snapshot_dataclass_tuple_v1(state.policies, AssetTransferPolicyV1, "asset transfer policies"),
+        balances=_snapshot_dataclass_tuple_v1(state.balances, EconomicAmountV1, "asset transfer balances"),
+        supplies=_snapshot_dataclass_tuple_v1(state.supplies, AssetSupplyV1, "asset transfer supplies"),
     )
 
 
@@ -305,13 +336,14 @@ def transition_asset_transfer_v1(
         raise TypeError("asset transfer pre-state must be the exact typed value")
     if type(command) is not AssetTransferCommandV1:
         raise TypeError("asset transfer command must be the exact typed value")
-    # Opus P29 NEW-24: exact types close subclassing, not __post_init__-skipping
-    # (object.__new__). Re-run every construction invariant through the dataclass
-    # constructors, mirroring the managed sibling, before any fold reads a row: a
-    # forged pre-state with a custody-domain or unordered balance row is refused
-    # here instead of being relabelled or canonicalised by the balance fold.
+    # Opus P29 NEW-24 / Fable P31 NEW-27: exact types close subclassing, not
+    # __post_init__-skipping (object.__new__). Rebuild every input through its
+    # constructors, and the state DEEPLY (every policy, balance, and supply row
+    # through its own constructor), mirroring the managed sibling, before any fold
+    # reads a row: a forged pre-state with a custody-domain or unordered balance
+    # row, or a forged nested row, is refused here.
     context = replace(context)
-    pre_state = replace(pre_state)
+    pre_state = rebuild_asset_transfer_state_v1(pre_state)
     command = replace(command)
     prepared = _prepare_transfer(context, pre_state, command)
     if isinstance(prepared, AssetTransferRejectCodeV1):

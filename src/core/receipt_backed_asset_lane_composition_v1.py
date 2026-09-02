@@ -78,8 +78,10 @@ class ReceiptBackedAssetLaneCompositionCandidateV1:
             ),
         )
         for value, expected_type, label in expected_types:
-            if not isinstance(value, expected_type):
-                raise TypeError(f"receipt-backed lane {label} must be typed")
+            # Exact types (Opus P30 NEW-4): the composition reads roots through
+            # properties a subclass could override.
+            if type(value) is not expected_type:
+                raise TypeError(f"receipt-backed lane {label} must be the exact typed value")
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,8 +292,8 @@ def compose_receipt_backed_asset_lane_single_v1(
     verified by a separate boundary.
     """
 
-    if not isinstance(candidate, ReceiptBackedAssetLaneCompositionCandidateV1):
-        raise TypeError("receipt-backed asset lane candidate must be typed")
+    if type(candidate) is not ReceiptBackedAssetLaneCompositionCandidateV1:
+        raise TypeError("receipt-backed asset lane candidate must be the exact typed value")
     route = _require_profile_route_bindings_v1(candidate)
     _require_verified_module_binding_v1(candidate)
 
@@ -301,7 +303,7 @@ def compose_receipt_backed_asset_lane_single_v1(
         candidate.private_port,
         candidate.module_effects,
     )
-    if not isinstance(result, AssetLaneCompositionAcceptedV1):
+    if type(result) is not AssetLaneCompositionAcceptedV1:
         raise ValueError(f"asset lane composition rejected: {result.code.value}")
     if result.lane_journal.ordered_module_journal_roots != (
         candidate.verified_module.module_journal_root,

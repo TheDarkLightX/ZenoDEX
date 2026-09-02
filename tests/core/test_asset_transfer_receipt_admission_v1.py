@@ -274,11 +274,14 @@ def test_subclassed_projection_is_refused_by_the_port_gate() -> None:
 
 
 def test_subclassed_journal_with_a_spoofed_journal_root_is_refused() -> None:
-    """The journal is the other root-bearing value the binding reads: a
-    subclass reporting the genuine journal root over a foreign post-lane root
-    would carry the receipt onto a lane root it never certified. It is refused
-    at the accepted constructor's exact-type gate and, when planted through
-    object.__new__, by the admission snapshot."""
+    """The journal is the other root-bearing value the binding reads: a subclass
+    reporting the genuine journal root over a foreign PRE-lane root (with the
+    receipt root recomputed so every cross-check passes) would carry the receipt
+    onto a lane history it never certified. Only the exact-type gate refuses it
+    (Fable P30 P3-3): at the accepted constructor and, when planted through
+    object.__new__, at the admission snapshot."""
+
+    from src.core.asset_transfer_lane_module_v1 import _receipt_root
 
     accepted, witness, lane_root, prior = _admission_fixture()
     real_journal = accepted.module_journal
@@ -289,10 +292,14 @@ def test_subclassed_journal_with_a_spoofed_journal_root_is_refused() -> None:
             return real_journal.journal_root
 
     fields = {name: getattr(real_journal, name) for name in type(real_journal).__dataclass_fields__}
-    fields["post_lane_root"] = FOREIGN_ROOT
+    fields["pre_lane_root"] = FOREIGN_ROOT
+    draft = SpoofedJournal(**fields)
+    fields["receipt_root"] = _receipt_root(
+        accepted.statement_root, draft, accepted.private_port, accepted.effects
+    )
     spoofed = SpoofedJournal(**fields)
     assert spoofed.journal_root == witness.module_journal_root
-    assert spoofed.post_lane_root != real_journal.post_lane_root
+    assert spoofed.pre_lane_root != real_journal.pre_lane_root
     with pytest.raises(TypeError, match="exact typed value"):
         AssetTransferLaneModuleAcceptedV1(
             statement_root=accepted.statement_root,
@@ -486,3 +493,77 @@ def test_witness_reject_family_tuple_matches_the_enum() -> None:
     match when it lands with C9b."""
 
     assert RECEIPT_WITNESS_REJECT_CODES_V1 == tuple(code.value for code in ReceiptWitnessRejectCodeV1)
+
+
+# --- C9a''' (P30 verdict repairs) ------------------------------------------------------------------
+
+class _PlantedInt(int):
+    """An int subclass whose value and repr disagree: what a planted row can smuggle."""
+
+    def __repr__(self) -> str:  # pragma: no cover - the type gate refuses it before any use
+        return "10**30"
+
+
+def test_forged_witness_with_hostile_scalars_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Opus P30 NEW-1: object.__new__ on the module witness can plant a fields record with
+    None or subclass scalars; the admission validates every exported scalar before use, so
+    such a witness is refused at the type boundary instead of minting a fragment witness
+    that carries the planted value."""
+
+    accepted, witness, lane_root, prior = _admission_fixture()
+    for changes in ({"receipt_digest": None}, {"expected_image_id": ""}, {"module_journal_root": 12}):
+        forged = _forge_witness(witness, **changes)
+        with pytest.raises(TypeError):
+            verify_asset_transfer_fragment_receipt_v1(forged, accepted, lane_root, prior, ())
+
+
+def test_planted_entitlement_row_scalar_is_refused() -> None:
+    """Fable P30 P2-2: caller entitlement rows are rebuilt as exact rows before the producer,
+    so a row planted with an int-subclass amount (object.__new__) is refused instead of
+    reaching the minted witness with a value that reports two different totals."""
+
+    accepted, witness, lane_root, prior = _fixture(custody=(CUSTODIAN_ROW,))
+    row = cert.ClaimantEntitlementRowV1("USD", "custodian", "vault", 100)
+    planted = _plant(row, amount_atoms=_PlantedInt(100))
+    with pytest.raises(TypeError, match="exact primitive"):
+        verify_asset_transfer_fragment_receipt_v1(witness, accepted, lane_root, prior, (planted,))
+
+
+def test_lane_root_subclass_is_refused() -> None:
+    """Opus P30 NEW-2: the committed lane root gate is exact; a subclass overriding
+    state_root is refused before any witness check reads it."""
+
+    accepted, witness, _lane_root, prior = _admission_fixture()
+
+    class SpoofedLaneRoot(LaneStateRootV1):
+        """A plain subclass: dataclass fields cannot be shadowed by properties, and the
+        exact-type gate must refuse the subclass before any field is read."""
+
+    spoofed = SpoofedLaneRoot(
+        lane_id=LaneIdV1.ASSET_TRANSFER,
+        module_release_id=accepted.module_journal.module_release_id,
+        enabled=True,
+        state_root=accepted.module_journal.post_lane_root,
+    )
+    with pytest.raises(TypeError, match="exact LaneStateRootV1"):
+        verify_asset_transfer_fragment_receipt_v1(witness, accepted, spoofed, prior, ())
+
+
+def test_forged_prior_fragment_is_rebuilt_before_the_producer() -> None:
+    """Fable P30 P3-1: the prior fragment is rebuilt through its constructor with exact rows
+    and scalars, so a fragment planted past __post_init__ with non-canonical rows is refused;
+    a planted but well-formed lane_state_root remains bound only through STALE_JOURNAL, which
+    the module docstring declares as C9b's chain-continuity residual."""
+
+    accepted, witness, lane_root, prior = _admission_fixture()
+    rows = (
+        cert.ClaimantEntitlementRowV1("USD", "zed", "vault", 1),
+        cert.ClaimantEntitlementRowV1("USD", "abe", "vault", 1),
+    )
+    planted = _plant(prior, claimant_entitlements=rows)
+    with pytest.raises(ValueError, match="canonically ordered"):
+        verify_asset_transfer_fragment_receipt_v1(witness, accepted, lane_root, planted, ())
+    lying = _plant(prior, lane_state_root=FOREIGN_ROOT)
+    reject = verify_asset_transfer_fragment_receipt_v1(witness, accepted, lane_root, lying, ())
+    assert isinstance(reject, ReceiptBackedProducerRejectedV1)
+    assert reject.code is ReceiptBackedProducerRejectCodeV1.STALE_JOURNAL

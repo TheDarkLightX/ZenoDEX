@@ -130,7 +130,7 @@ def test_committed_corpus_passes_the_independent_oracle() -> None:
     # Assert
     assert report["ok"] is True, report["findings"]
     assert report["accepted_cases"] + report["rejected_cases"] == report["case_count"] == len(CORPUS.cases)
-    assert report["unreachable_codes"] == ["BALANCE_OVERFLOW"]
+    assert report["unreachable_codes"] == ["BALANCE_OVERFLOW", "POST_STATE_RESOURCE_BOUND_EXCEEDED"]
     assert report["production_authority"] is False
     assert CORPUS.validation_command.startswith("python3 tools/check_asset_transfer_refinement_v1")
 

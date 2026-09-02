@@ -36,11 +36,13 @@ from .global_economic_proof_v1 import (
     ReceiptKindV1,
     SuccinctReceiptVerifierV1,
 )
+from .global_economic_refinement_snapshot_v1 import _require_exact_dataclass_scalars_v1
 from .global_oracle_price_occurrence_v1 import VerifiedGlobalOraclePriceV1
 from .global_settlement_types_v1 import (
     EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
     ReleaseStatusV1,
+    _require_root,
     canonical_global_bytes_v1,
     hash_global_v1,
 )
@@ -235,6 +237,35 @@ class _VerifiedLaneModuleTransitionFieldsV1:
     command_occurrence_id: str
     receipt_digest: str
     receipt_kind: ReceiptKindV1
+
+
+def require_verified_lane_module_transition_scalars_v1(witness: object) -> None:
+    """Refuse a witness whose exported scalars are not the exact primitives the mint path writes.
+
+    The witness is token-minted, but ``object.__new__`` can plant a fields record carrying
+    ``None`` or subclass scalars; a consumer that compares or exports those scalars calls
+    this first so a forged witness cannot smuggle them through (Opus P30 NEW-1).
+    """
+
+    if type(witness) is not VerifiedLaneModuleTransitionV1:
+        raise TypeError("lane module witness must be the exact typed value")
+    fields = object.__getattribute__(witness, "_fields")
+    if type(fields) is not _VerifiedLaneModuleTransitionFieldsV1:
+        raise TypeError("lane module witness fields must be the exact typed record")
+    _require_exact_dataclass_scalars_v1(fields, name="lane module witness")
+    for name in (
+        "authenticated_command_binding_root",
+        "release_route_binding_root",
+        "module_journal_root",
+        "statement_root",
+        "command_occurrence_id",
+    ):
+        _require_root(getattr(fields, name), name=f"lane module witness {name}")
+    for name in ("expected_image_id", "module_journal_digest", "receipt_digest"):
+        if not getattr(fields, name):
+            raise TypeError(f"lane module witness {name} must be non-empty")
+    if type(fields.receipt_kind) is not ReceiptKindV1:
+        raise TypeError("lane module witness receipt kind is not closed")
 
 
 class VerifiedLaneModuleTransitionV1:

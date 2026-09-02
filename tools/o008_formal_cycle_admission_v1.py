@@ -124,6 +124,7 @@ TRANSFER_REFINEMENT_CORPUS_PATH_V1: Final = "tests/data/asset_transfer_refinemen
 TRANSFER_REFINEMENT_GATE_PATH_V1: Final = "tests/formal/test_lean_asset_transfer_refinement_v1.py"
 TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1: Final = 40
 PARITY_GATE_PATH_V1: Final = "tests/core/test_global_settlement_abi_v1_resource_bounds.py"
+PARITY_GATE_EXPECTED_PASSED_V1: Final = 17
 
 SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (PYTHON_REFINEMENT_PATH_V1, "python_visible_necessary_checks"),
@@ -1425,6 +1426,14 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         ".",
         (),
         f"exit 0; {TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1} passed",
+        1800,
+    ),
+    ReplayCommandV1(
+        "python_rust_bound_parity_gate",
+        (PYTHON_TOKEN_V1, "-m", "pytest", "-q", "-p", "no:cacheprovider", PARITY_GATE_PATH_V1),
+        ".",
+        (),
+        f"exit 0; {PARITY_GATE_EXPECTED_PASSED_V1} passed",
         1800,
     ),
     ReplayCommandV1(
@@ -3210,9 +3219,11 @@ def _select_hygiene_packets(snapshot: SubjectSnapshotV1) -> list[dict[str, objec
     packet is drift, and a selected packet that pins the O-008 packet itself is circular. The
     repository hygiene gate orders packets by the same lineage key
     (tools.test_hygiene_evidence_v1.hygiene_lineage_key_v1, pinned equal to this one by a
-    parity test) and additionally requires every pin of the packet it selects to be current;
-    before that alignment it iterated lexicographically, so a stale ``v9`` outranked ``v27``
-    for any path whose bytes it still matched and the two gates disagreed.
+    parity test) and requires every pin of the packet it selects to be current, which this
+    selector mirrors over the subject-visible pins (``THV1_SELECTED_PACKET_STALE``); before that
+    alignment it
+    iterated lexicographically, so a stale ``v9`` outranked ``v27`` for any path whose bytes
+    it still matched, and it bound a partly stale packet as evidence.
     """
 
     ordered = sorted(snapshot.hygiene_packets.values(), key=lambda blob: hygiene_lineage_key_v1(blob.path), reverse=True)
@@ -3236,6 +3247,16 @@ def _select_hygiene_packets(snapshot: SubjectSnapshotV1) -> list[dict[str, objec
                 "pin_sha256": expected,
             }
         )
+    # Fable P31 NEW-26: the repository gate requires EVERY pin of the packet it selects to be
+    # current; mirror it here over the pins the subject snapshot can see (after per-path
+    # selection, so a changed required path still reports its own THV1_PIN_DRIFT first). Pins
+    # on paths outside the subject snapshot are not verifiable in this pure core; the
+    # repository gate, which the chain runs against the parent and the campaign base, covers them.
+    for packet_path in sorted({str(row["packet_path"]) for row in selection}):
+        for pinned_path, pinned_sha in sorted(pins_by_packet[packet_path].items()):
+            current = snapshot.blobs.get(pinned_path)
+            if current is not None and current.sha256 != pinned_sha:
+                _reject("THV1_SELECTED_PACKET_STALE", packet_path, pinned_path)
     return selection
 
 
@@ -3270,6 +3291,7 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
     "esso_certificate_gate": {"passed": CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1},
     "prior_restage_gate": {"passed": PRIOR_ESSO_GATE_EXPECTED_PASSED_V1},
     "transfer_refinement_gate": {"passed": TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1},
+    "python_rust_bound_parity_gate": {"passed": PARITY_GATE_EXPECTED_PASSED_V1},
     "python_version": {"python_version": "semver"},
     "python_projection_gate": {"passed": PYTHON_GATE_EXPECTED_PASSED_V1},
     "rust_projection_gate": {"passed": RUST_GATE_EXPECTED_PASSED_V1},
@@ -4013,6 +4035,8 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_pytest(obs, PRIOR_ESSO_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "transfer_refinement_gate":
         return _grade_pytest(obs, TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "python_rust_bound_parity_gate":
+        return _grade_pytest(obs, PARITY_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "python_version":
         return _grade_python_version(obs)
     if obs.command_id == "python_projection_gate":

@@ -267,7 +267,20 @@ def test_transfer_balance_overflow_is_a_defensive_arm_behind_input_re_validation
     )
     with pytest.raises(ValueError, match="balances exceed supply"):
         transition_asset_transfer_v1(context, forged, command)
-    fold = _post_balances(template, asset="USD", deltas={"rich": MAX_ATOMS_V1})
+    # Width-honest witness (Fable P31 O-1): an in-width delta on a row that sits just past
+    # half the atom width pushes the post-balance over MAX_ATOMS_V1.
+    from src.core.asset_transfer_types_v1 import AssetTransferPolicyV1
+    from src.core.global_settlement_types_v1 import MAX_DELTA_ATOMS_V1, AssetSupplyV1
+    wide = AssetTransferStateV1(
+        module_release_id=template.module_release_id,
+        policies=(AssetTransferPolicyV1("USD", "sender", 0, True),),
+        balances=(
+            EconomicAmountV1("rich", "USD", "accounts", (1 << 127) + 1),
+            EconomicAmountV1("sender", "USD", "accounts", 10),
+        ),
+        supplies=(AssetSupplyV1("USD", (1 << 127) + 11),),
+    )
+    fold = _post_balances(wide, asset="USD", deltas={"rich": MAX_DELTA_ATOMS_V1})
     assert fold is AssetTransferRejectCodeV1.BALANCE_OVERFLOW
 
 
@@ -418,3 +431,27 @@ def test_transfer_refuses_state_subclasses() -> None:
     )
     with pytest.raises(TypeError, match="exact typed value"):
         transition_asset_transfer_v1(context, forged, command)
+
+
+def test_transfer_refuses_same_type_forged_nested_rows() -> None:
+    """Fable P31 NEW-27: outer re-validation checked row TYPES only, so a same-type row forged
+    past its own constructor (a non-string fee owner, an out-of-width supply) passed through
+    and reached the post-state and the journal. The entry rebuild is deep: every policy,
+    balance, and supply row is reconstructed through its own constructor, mirroring the
+    managed sibling, so both forgeries are refused before any fold runs."""
+
+    from src.core.asset_transfer_module_v1 import transition_asset_transfer_v1
+    from src.core.asset_transfer_types_v1 import AssetTransferPolicyV1, AssetTransferStateV1
+    from src.core.global_settlement_types_v1 import AssetSupplyV1
+
+    template, context, command = _transfer_totality_fixture()
+    forged_policy = _forged_state(AssetTransferPolicyV1, template.policies[0], fee_owner=123)
+    nested_policy = _forged_state(AssetTransferStateV1, template, policies=(forged_policy,))
+    with pytest.raises((TypeError, ValueError)):
+        transition_asset_transfer_v1(context, nested_policy, command)
+    forged_supply = _forged_state(AssetSupplyV1, template.supplies[0], amount_atoms=2**200)
+    nested_supply = _forged_state(AssetTransferStateV1, template, supplies=(forged_supply,))
+    with pytest.raises((TypeError, ValueError)):
+        transition_asset_transfer_v1(context, nested_supply, command)
+    accepted = transition_asset_transfer_v1(context, template, command)
+    assert type(accepted).__name__ == "AssetTransferAcceptedV1"

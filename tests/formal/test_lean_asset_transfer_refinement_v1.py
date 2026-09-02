@@ -101,6 +101,7 @@ CORE_CLAIMS = (
     "delta_untouched",
     "roleOrdered_eq_intended",
     "balanceOverflow_unreachable",
+    "rejectCode_ne_postStateResourceBoundExceeded",
     "demo_accepted_values",
     "aliasSender_values",
     "aliasRecipient_values",
@@ -130,7 +131,7 @@ CHALLENGE_CLAIMS = (
     "leaky_breaks_conservation_on_demo",
     "leaky_is_not_conservative",
     "honest_conserves_on_demo",
-    "report_vectors_cover_every_code",
+    "report_vectors_cover_every_emittable_code",
     "roleOrdered_agrees_on_every_vector",
 )
 

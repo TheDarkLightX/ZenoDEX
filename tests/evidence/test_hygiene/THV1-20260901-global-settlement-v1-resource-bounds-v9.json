@@ -1,0 +1,273 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260901-global-settlement-v1-resource-bounds-v9",
+  "created_date": "2026-09-01",
+  "claim_scope": "v9 re-pin (C9a'''): the transfer transition's deep entry rebuild; no bound changes. Earlier: v8 (Opus P29 NEW-25, the P1): S29 changed the Python/Rust bound-parity test without a successor packet, so this lineage pinned the parent bytes and the repository hygiene gate was red at P29 while the packet replay stayed green; this packet pins the repaired bytes. NEW-23: the recursive-scan pin now asserts on the file list the scan consumed (rust_files), so reverting rglob to glob fails the test instead of a layout property that holds either way. The transfer transition re-validates its inputs at entry (NEW-24), which does not change any bound. Earlier: v7 (Opus P26 NEW-17): the total-parity docstring says what the scan does (every .rs under src/ recursively) instead of the wording that hid the P25 survivor; bytes-only doc move. Earlier: v6 (Opus P25 NEW-13): the crate-wide parity scan recurses (rglob), so a bound declared in a crate subdirectory can no longer escape the total mapping; the packet's outside-canonical mutation row has no surviving member. Earlier: v5 (PR #532 incorporation + Opus P24): the transition row-ceiling boundary is TOTALISED: both transitions return the closed POST_STATE_RESOURCE_BOUND_EXCEEDED reject before oversized post-state construction (the PR's four Python boundary cases plus a compiled Rust replay supersede the two raise-pinning tests, which are deleted and their killer rows re-pointed); bound parity becomes CRATE-WIDE (every pub const MAX_ across src/*.rs, 37 bounds, 13 new twins) and both parity tests reject duplicate declarations so a comment-masked value drift cannot last-win (Opus P24 NEW-12). Earlier: v4 (C8''''''', Opus P23 NEW-11): the parity regex requires pub/const as separate tokens with any whitespace and admits any type spelling (primitive, CamelCase alias, path-qualified), so mutation row 6's stated class has no surviving member (the reviewer's five survivors plus the alias and path forms are all captured and fail the key-set equality). Earlier: v3 (C8'''''', Opus P22 repairs): the total-parity regex drops its integer-type alternation and tolerates any spacing, so TOTAL is true as written (NEW-7, the surviving u32/i64/spacing mutants are killed); the transfer boundary match pins the exact ceiling message, not a prefix shared with the ordering reject (NEW-9); the managed-lifecycle ceiling claim is bound by its own authorised-issue boundary test (NEW-10). Earlier: v2 (C8''''', Opus P21 NEW-4/NEW-6): parity over canonical.rs becomes TOTAL: one test enumerates every pub const MAX_ bound (usize/u64/u128, expression-valued included) and requires each to resolve through a single Python mapping with an equal value, failing on any unlisted name; the shared non-total row-ceiling boundary of transition_asset_transfer_v1 is pinned by a construction boundary test at exactly the balance ceiling, and both transition modules document the ceiling as an ABI decode bound (typed-reject totalisation deferred to lane work). The two transition modules join the pinned surface. Earlier: Research-only evidence that GlobalSettlementABI V1 Python effect plans and Python and Rust global states enforce matched finite collection ceilings before item traversal. Exact-limit inputs proceed to semantic validation, maximum-plus-one inputs reject at the bound, and below-limit canonical bytes and roots are unchanged.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSV1-RESOURCE-BOUNDS-BEFORE-TRAVERSAL",
+    "GSV1-PYTHON-RUST-RESOURCE-LIMIT-PARITY",
+    "GSV1-OVERSIZED-STATE-REJECTS-BEFORE-DOWNSTREAM-HASHING"
+  ],
+  "failure_modes": [
+    "a Python effect-plan collection allocates or traverses an unbounded number of hostile items",
+    "a Python or Rust global-state table reaches row validation without a finite V1 ceiling",
+    "Python and Rust enforce different V1 collection ceilings",
+    "a maximum-valid collection is rejected by an off-by-one bound",
+    "a maximum-plus-one collection reaches item behavior, hashing, or receipt verification before rejection"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/canonical.rs",
+      "sha256": "6cce2178582ae4f38ff95fade6f544ae54b0d7568b7599dfa6214a56515cd46a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/state.rs",
+      "sha256": "44f6874589e72c7fefdcac8b6c220fb311c6dc0f1e53bb3b962e32a6d593b98c"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "bb35d3c5e6c7ffa309dabd2847414c5a9cda9ffcc819cb19b74ff78ae8e4ce2e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_state_resource_bounds.rs",
+      "sha256": "e716b98a9944321c4f448e06d790d4a18f80fb0e34bec268c58d497e59ca1bf5"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/effect_plan_resource_bounds.rs",
+      "sha256": "83f046da97b9542d0af4ffab13144f25074a000accbabc259706077f04e8c6d7"
+    },
+    {
+      "path": "src/core/asset_transfer_module_v1.py",
+      "sha256": "754d75a37ad70868bf20263fc189fc9e4f5a77cb864d8a1c7973afc253c938d7"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_module_v1.py",
+      "sha256": "3a279bf3c5fa97d942c79f9c25025c0a24cbe7f24cfb91df5de43da38e831e36"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_abi_v1_resource_bounds.py",
+      "sha256": "16fbd5b07bbd0ac5512bf651ae7135e183b40366fcc31a467c9411fcd4d084ad",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_effect_plan_bounds_accept_limit_and_reject_next_before_traversal",
+        "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_global_state_bounds_accept_limit_and_reject_next_before_traversal",
+        "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_python_and_rust_v1_collection_limits_are_frozen_and_equal",
+        "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_every_canonical_rust_bound_has_a_python_twin"
+      ]
+    },
+    {
+      "path": "tests/core/test_economic_initial_state_atom_coverage_v1.py",
+      "sha256": "2e3f60513e64ac3bea79d8bf8040b19dc7c1ea28f417cdea94b19131d026811c",
+      "node_ids": [
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_given_all_explicit_value_rows_when_derived_then_each_is_classified_once",
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_atom_row_and_manifest_roots_match_rust_golden_vectors",
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_given_incomplete_or_stale_manifest_when_validated_then_rejects",
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_given_duplicate_or_reordered_rows_when_constructed_then_rejects",
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_given_state_amount_mutation_when_old_manifest_is_replayed_then_rejects",
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_migration_manifest_accepts_only_target_present_classifications",
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_manifest_row_bound_and_exact_integer_index_bva",
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_explicit_state_row_count_accepts_release_boundary_neighbors",
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_oversize_state_rejects_before_copy_validation_or_row_hashing",
+        "tests/core/test_economic_initial_state_atom_coverage_v1.py::test_public_checker_revalidates_hostile_frozen_row_mutation"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "641c8c6771507b4a763417bd8c3fac5fa9a3df6eb66ed21ea67a085c5a403fb2",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_profile_rejects_route_command_absent_from_selected_lane_release",
+        "tests/core/test_global_settlement_abi_v1.py::test_occurrence_identity_binds_exact_command_body_hash",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_unpaired_command_body_hashes_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_closed_lane_registry_and_global_state_require_every_lane",
+        "tests/core/test_global_settlement_abi_v1.py::test_release_ids_bind_content_while_semver_remains_descriptive",
+        "tests/core/test_global_settlement_abi_v1.py::test_coordinator_release_ids_bind_profile_selected_images",
+        "tests/core/test_global_settlement_abi_v1.py::test_route_release_ids_bind_composer_image_and_source_manifests",
+        "tests/core/test_global_settlement_abi_v1.py::test_route_receipt_candidate_rejects_subclassed_envelope_before_verification",
+        "tests/core/test_global_settlement_abi_v1.py::test_lane_receipt_candidate_rejects_subclassed_envelope_before_verification",
+        "tests/core/test_global_settlement_abi_v1.py::test_lane_verifier_owns_all_bindings_across_receipt_callback",
+        "tests/core/test_global_settlement_abi_v1.py::test_route_verifier_rechecks_post_construction_type_substitution",
+        "tests/core/test_global_settlement_abi_v1.py::test_route_verifier_owns_all_bindings_across_receipt_callback",
+        "tests/core/test_global_settlement_abi_v1.py::test_governed_route_rejects_unknown_disabled_and_caller_selected_routes",
+        "tests/core/test_global_settlement_abi_v1.py::test_active_profile_requires_release_backing_or_proved_no_writer",
+        "tests/core/test_global_settlement_abi_v1.py::test_effect_plan_enforces_conservation_fee_projection_and_external_only_outbox",
+        "tests/core/test_global_settlement_abi_v1.py::test_rejected_transition_is_exact_noop_with_empty_effects",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_global_effect_plan_unrelated_to_verified_route_effects",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_route_effect_plan_with_wrong_committed_root",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_state_refinement_kills_replay_and_balance_mutants_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_foreign_checker_witness_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_hostile_refinement_subclass_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_state_projection_rejects_hostile_witness_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_state_disclosures_apply_count_and_intermediate_mutation_bva",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_refinement_rejects_transient_hidden_balance_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_refinement_rejects_transient_hidden_height_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_applies_count_bva",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_disconnected_histories",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_duplicate_and_overflowed_totals",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_outbox_and_terminal_scope_expansion",
+        "tests/core/test_global_settlement_abi_v1.py::test_command_aggregation_journal_uses_canonical_fanout_bva",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_shape_rejects_zero_65_and_route_width_9",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_v1_quarantines_single_object_consumption_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_witness_boundary_counts_are_admitted",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_two_route_state_evidence_has_stable_python_golden_roots",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_candidate_rejects_sixty_five_occurrences_at_typed_ingress",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_certificate_binds_exact_guest_route_assumption_roots",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_noncanonical_command_and_route_witness_order",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_certificate_rejects_skipped_predecessor_and_epoch_jump",
+        "tests/core/test_global_settlement_abi_v1.py::test_atomic_commit_is_idempotent_and_binding_rejects_are_noops",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_owns_certificate_and_effect_snapshots_across_callback",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_owns_profile_snapshot_across_callback",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_rebinds_refinement_against_post_return_certificate_mutation",
+        "tests/core/test_global_settlement_abi_v1.py::test_opaque_handle_blocks_route_disclosure_replacement_before_commit",
+        "tests/core/test_global_settlement_abi_v1.py::test_caller_selected_verifier_witness_cannot_reach_the_publisher",
+        "tests/core/test_global_settlement_abi_v1.py::test_release_selected_witness_is_bound_to_one_exact_publisher",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_owns_published_state_against_retained_body_alias",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_port_owns_initial_state_before_validation_returns",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_port_rejects_plain_or_mismatched_initial_state_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_initial_state_atom_coverage_rejects_omission_before_receipt_verification",
+        "tests/core/test_global_settlement_abi_v1.py::test_initial_state_atom_manifest_substitution_rejects_before_receipt_verification",
+        "tests/core/test_global_settlement_abi_v1.py::test_initial_state_certificate_coverage_root_mismatch_rejects_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_initial_state_callback_cannot_mutate_publisher_owned_state",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_port_constructor_rejects_migration_without_owned_source_head",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_activation_requires_exact_publisher_owned_source_head",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_activation_rechecks_head_and_profile_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_activation_rechecks_source_head_after_receipt_callback",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_activation_hides_partial_publisher_tuple_from_readers",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_initial_state_requires_adjacent_writer_epoch_and_height",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_rejects_target_only_replay_row_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_initial_state_rejects_predecessor_substitution_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_initial_state_rejects_each_outbox_mutation_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_initial_state_rejects_unbound_terminal_continuity_root_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_rejects_each_terminal_mutation_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_port_owns_and_revalidates_active_profile_graph",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_rejects_hostile_expected_root_subclasses_before_lock",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_rejects_chain_and_deployment_drift_before_commit",
+        "tests/core/test_global_settlement_abi_v1.py::test_committed_replay_requires_exact_context_and_binding_tuple",
+        "tests/core/test_global_settlement_abi_v1.py::test_concurrent_roots_have_one_atomic_winner_and_one_stale_noop"
+      ]
+    },
+    {
+      "path": "tests/core/test_transition_resource_bound_totality_v1.py",
+      "sha256": "bf583308b074b53903558cb78899913f22dea8433f500e4f1cacced6ebe41ce6",
+      "node_ids": [
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_asset_transfer_can_grow_to_exact_balance_row_ceiling",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_asset_transfer_growth_past_ceiling_is_closed_typed_noop",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_managed_asset_issue_can_grow_to_exact_balance_row_ceiling",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_managed_asset_issue_growth_past_ceiling_is_closed_typed_noop",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_reject_code_families_match_across_languages",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_balance_overflow_is_a_defensive_arm_behind_input_re_validation",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_re_validates_same_type_forged_pre_state",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_managed_issue_balance_overflow_is_a_defensive_guard_with_a_forgery_witness",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_refuses_state_subclasses",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_refuses_same_type_forged_nested_rows"
+      ]
+    },
+    {
+      "path": "tests/formal/test_o008_transition_resource_bound_rust_replay.py",
+      "sha256": "3090b49cb01a841ef2e01d1ebc6f7936c5027058cc1b76ae48d3fd7459660892",
+      "node_ids": [
+        "tests/formal/test_o008_transition_resource_bound_rust_replay.py::test_rust_transition_resource_bound_totality_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "boundary",
+    "negative_regression",
+    "mutation",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each boundary regression arranges an exact V1 collection at the ceiling or one item above it, invokes the owning constructor or Rust validator, and observes semantic validation at the ceiling or the exact fail-closed bound rejection above it."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "These are immutable construction and validation boundaries. Rejected oversized inputs construct no accepted state, effect plan, witness, receipt, or effect."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "effect_plan_collection_cardinality",
+      "points": [
+        "exact declared maximum proceeds to semantic item validation",
+        "maximum plus one rejects before item traversal"
+      ]
+    },
+    {
+      "name": "global_state_collection_cardinality",
+      "points": [
+        "exact declared maximum proceeds to semantic item validation",
+        "maximum plus one rejects before item traversal"
+      ]
+    },
+    {
+      "name": "cross_language_limit_parity",
+      "points": [
+        "Python constants equal the frozen V1 limits",
+        "Rust constants equal the same frozen V1 limits"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "change any strict greater-than collection guard to greater-than-or-equal",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_global_state_bounds_accept_limit_and_reject_next_before_traversal"
+    },
+    {
+      "description": "move a collection guard after item validation or key projection",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_effect_plan_bounds_accept_limit_and_reject_next_before_traversal"
+    },
+    {
+      "description": "change one Python or Rust V1 collection constant independently",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_python_and_rust_v1_collection_limits_are_frozen_and_equal"
+    },
+    {
+      "description": "let an oversized migration predecessor reach row hashing or receipt verification",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_migration_initial_state_rejects_predecessor_substitution_before_receipt"
+    },
+    {
+      "description": "add a Rust canonical bound with no Python twin (Opus P21 NEW-4)",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_every_canonical_rust_bound_has_a_python_twin"
+    },
+    {
+      "description": "let the transfer transition cross the balance ceiling silently (Opus P21 NEW-6)",
+      "killed_by": "tests/core/test_transition_resource_bound_totality_v1.py::test_asset_transfer_growth_past_ceiling_is_closed_typed_noop"
+    },
+    {
+      "description": "declare a canonical bound with a different integer type or spacing (Opus P22 NEW-7)",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_every_canonical_rust_bound_has_a_python_twin"
+    },
+    {
+      "description": "let the managed issue cross the balance ceiling silently (Opus P22 NEW-10)",
+      "killed_by": "tests/core/test_transition_resource_bound_totality_v1.py::test_managed_asset_issue_growth_past_ceiling_is_closed_typed_noop"
+    },
+    {
+      "description": "mask a shipped bound drift behind a trailing comment duplicate (Opus P24 NEW-12)",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_every_canonical_rust_bound_has_a_python_twin"
+    },
+    {
+      "description": "declare a pub MAX_ bound outside canonical.rs with no Python twin (crate-wide totality)",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_every_canonical_rust_bound_has_a_python_twin"
+    },
+    {
+      "description": "revert the Rust bound scan from rglob to glob (Opus P29 NEW-23)",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_resource_bounds.py::test_every_canonical_rust_bound_has_a_python_twin"
+    }
+  ],
+  "nonclaims": [
+    "This packet grants no production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "Rust serde deserialization can allocate vectors before semantic validation; a strict wire byte and preallocation boundary remains required.",
+    "The generic Python _Canonicalizable protocol, cycle and depth limits, canonical aggregate item limit, and canonical byte limit remain open.",
+    "The limits do not establish proof-cycle feasibility at every admitted maximum.",
+    "Passing these tests does not close O-008, any whole-value-movement gate, or the whole-program release gate."
+  ]
+}

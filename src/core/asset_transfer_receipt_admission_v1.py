@@ -39,13 +39,27 @@ check 0 instead). The succinct-receipt check itself is inherited from
 ``lane_module_receipt_verification_v1``; this module adds no cryptographic
 claim of its own.
 
+DECLARED RESIDUALS. In-process ``object.__new__`` construction bypasses every
+``__post_init__`` in Python; the check (0) rebuild refuses the values it can
+re-validate (hostile scalars, subclasses, inconsistent fields), but a forged
+witness whose planted scalars are well-formed and mutually consistent is
+indistinguishable from a minted one, exactly as for every token-gated witness
+on this path. The prior fragment is bound to the journal only through its
+``lane_state_root`` (``STALE_JOURNAL``); binding it to its own receipt is
+certificate-level chain continuity (C9b), not this admission. Reject-code
+divergence, decided: Python refuses malformed or forged inputs at check (0)
+by raising ``TypeError``/``ValueError`` at the type boundary, while the Rust
+producer returns ``ACCEPTED_INVALID`` as a value because its plain structs
+have no construction validation; the parity vectors cover well-formed inputs
+only, and the Rust admission twin (C9b) will document the same split.
+
 Research-only evidence. It grants no writer, verifier, release, or
 publication authority.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Final
 
@@ -55,16 +69,26 @@ from .asset_transfer_lane_module_v1 import (
 )
 from .global_accounting_allocation_certificate_v1 import (
     ClaimantEntitlementRowV1,
+    ControlledLocationRowV1,
     LaneAllocationFragmentV1,
+    LaneProducerKindV1,
+    PendingExternalObligationRowV1,
+    TerminalBindingRowV1,
+    UnencumberedReserveRowV1,
 )
 from .global_accounting_lane_producers_v1 import (
     ReceiptBackedProducerRejectedV1,
     produce_asset_transfer_fragment_v1,
 )
+from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
+    _snapshot_dataclass_tuple_v1,
+)
 from .global_settlement_types_v1 import LaneIdV1, LaneStateRootV1, _require_root
 from .lane_module_receipt_verification_v1 import (
     ReceiptKindV1,
     VerifiedLaneModuleTransitionV1,
+    require_verified_lane_module_transition_scalars_v1,
 )
 
 RECEIPT_ADMISSION_SCHEMA_V1: Final = "zenodex/asset-transfer-receipt-admission/v1"
@@ -130,6 +154,17 @@ class _VerifiedFragmentFieldsV1:
     receipt_digest: str
     expected_image_id: str
 
+    def __post_init__(self) -> None:
+        if type(self.fragment) is not LaneAllocationFragmentV1:
+            raise TypeError("verified fragment must be the exact typed value")
+        for name in ("module_journal_root", "receipt_root", "receipt_digest", "expected_image_id"):
+            if type(getattr(self, name)) is not str:
+                raise TypeError(f"verified fragment {name} must be exact text")
+        _require_root(self.module_journal_root, name="verified fragment module journal root")
+        _require_root(self.receipt_root, name="verified fragment receipt root")
+        if not self.receipt_digest or not self.expected_image_id:
+            raise TypeError("verified fragment receipt digest and image id must be non-empty")
+
 
 class VerifiedLaneAllocationFragmentV1:
     """Opaque receipt-admitted fragment, produced only by this verifier."""
@@ -167,6 +202,38 @@ class VerifiedLaneAllocationFragmentV1:
         return self._fields.expected_image_id
 
 
+def _rebuild_prior_fragment_v1(prior: LaneAllocationFragmentV1) -> LaneAllocationFragmentV1:
+    """Exact-typed rebuild of the caller's prior fragment (rows and scalars), re-running its invariants."""
+
+    if type(prior) is not LaneAllocationFragmentV1:
+        raise TypeError("prior fragment must be the exact typed value")
+    families = {
+        "controlled_locations": ControlledLocationRowV1,
+        "claimant_entitlements": ClaimantEntitlementRowV1,
+        "unencumbered_reserves": UnencumberedReserveRowV1,
+        "pending_external_obligations": PendingExternalObligationRowV1,
+        "terminal_bindings": TerminalBindingRowV1,
+    }
+    # Explicit scalar checks: the generic helper admits enums only on a fixed field-name set.
+    if type(prior.lane_id) is not LaneIdV1 or type(prior.producer_kind) is not LaneProducerKindV1:
+        raise TypeError("prior fragment lane id and producer kind must be exact closed members")
+    if type(prior.enabled) is not bool:
+        raise TypeError("prior fragment enabled flag must be an exact bool")
+    for name in ("module_release_id", "lane_state_root", "binding_root"):
+        value = getattr(prior, name)
+        if type(value) is not str:
+            raise TypeError(f"prior fragment {name} must be exact text")
+        _require_root(value, name=f"prior fragment {name}", allow_zero=True)
+    for name in families:
+        if type(getattr(prior, name)) is not tuple:
+            raise TypeError(f"prior fragment {name} must be an exact tuple")
+    rebuilt = {
+        name: _snapshot_dataclass_tuple_v1(getattr(prior, name), row_type, f"prior fragment {name}")
+        for name, row_type in families.items()
+    }
+    return replace(prior, **rebuilt)
+
+
 def verify_asset_transfer_fragment_receipt_v1(
     witness: VerifiedLaneModuleTransitionV1,
     accepted: AssetTransferLaneModuleAcceptedV1,
@@ -180,11 +247,16 @@ def verify_asset_transfer_fragment_receipt_v1(
 ):
     """Admit one fragment only through the receipt-verified module witness.
 
-    Check order: (0) ``accepted`` is rebuilt through the exact-typed snapshot
-    (every nested value the exact registered class, every scalar an exact
-    primitive, every construction invariant re-run on the rebuilt value), so
-    a subclass overriding a root-bearing property or a validation-bypassed
-    object is refused before any binding is read; (1) the witness carries a
+    Check order: (0) every caller-supplied value is rebuilt at the boundary:
+    the witness's exported scalars are validated (exact primitives, well-formed
+    roots, closed kind), the committed lane root and the prior fragment are
+    rebuilt through their constructors with exact rows and scalars, the
+    entitlement rows are rebuilt as exact rows, and ``accepted`` is rebuilt
+    through the exact-typed snapshot (every nested value the exact registered
+    class, every scalar an exact primitive, every construction invariant re-run
+    on the rebuilt value), so a subclass overriding a root-bearing property, a
+    validation-bypassed object, or a planted hostile scalar is refused before
+    any binding is read; (1) the witness carries a
     succinct receipt (defensive; the mint point enforces it); (2) the
     receipt-verified module journal root equals the rebuilt
     ``module_journal.journal_root`` -- the one equality that binds the
@@ -204,8 +276,15 @@ def verify_asset_transfer_fragment_receipt_v1(
 
     if type(witness) is not VerifiedLaneModuleTransitionV1:
         raise TypeError("fragment admission requires the module receipt witness")
+    require_verified_lane_module_transition_scalars_v1(witness)
     if type(lane_root) is not LaneStateRootV1:
         raise TypeError("fragment admission requires the exact LaneStateRootV1")
+    _require_exact_dataclass_scalars_v1(lane_root, name="committed lane root")
+    lane_root = replace(lane_root)
+    prior_fragment = _rebuild_prior_fragment_v1(prior_fragment)
+    claimant_entitlements = _snapshot_dataclass_tuple_v1(
+        claimant_entitlements, ClaimantEntitlementRowV1, "claimant entitlements"
+    )
     owned = _snapshot_asset_transfer_lane_module_accepted_v1(accepted)
     journal = owned.module_journal
     committed = lane_root.state_root

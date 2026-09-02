@@ -562,6 +562,11 @@ def _check_corpus_coverage(
         if code not in unreachable and code not in codes:
             _fail(f"reject code {code} is neither covered by a case nor declared unreachable")
     for pair in zip(REJECT_PRECEDENCE_V1[:-1], REJECT_PRECEDENCE_V1[1:], strict=True):
+        # A pair whose second code is declared unreachable over this bounded corpus has no
+        # constructible discriminator here; its runtime reachability is witnessed by the
+        # suite the unreachable_codes row names (Opus P30 NEW-5).
+        if pair[1] in unreachable:
+            continue
         if pair not in pairs:
             _fail(f"adjacent precedence pair {pair} has no witness case")
     roles = {case.fee_owner_role for case in cases if case.outcome == "accepted"}
