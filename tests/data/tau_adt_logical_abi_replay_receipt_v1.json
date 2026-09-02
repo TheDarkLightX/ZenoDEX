@@ -124,12 +124,13 @@
   "FEE_LIMIT_EXCEEDED",
   "INSUFFICIENT_BALANCE"
  ],
- "renderer_sha256": "851d2ce1da50b78ef4a2b820cd9de6d52c479dadf77e484e3b2eab89f5ce2a57",
+ "renderer_sha256": "94667636fc7624f9c50b6fbc9c1b8f1b16c400b8ca3ff13c3acbd569c766ac6a",
  "schema": "zenodex/tau-adt-abi-parity/v3",
  "selftest": {
   "broken_program": "FAIL_CLOSED(verdicts=[],errors=0,rc=0)",
   "contract_mutated_effects": "F",
   "contract_wrong_code": "F",
+  "unexpanded_definition": "FAIL_CLOSED(verdicts=[],errors=0,rc=0)",
   "weakened_chain_universal": "F",
   "wrong_expectation_universal": "F"
  },
@@ -138,7 +139,7 @@
  "tau_binary_sha256": "4be1965b15a4a6d074e8b4b93d7134e3edcd38ebce1109550d280e724ea6d6a7",
  "tau_commit": "1c1e58aea7ddec04e48ce11cb0e6ed0cbe2a0d43",
  "tau_version": "Tau Language Framework version 0.7.0-alpha (1c1e58ae)",
- "transcript_sha256": "cde873220eb96a54475dfb92d1d1c1cc8fe35b4d10c89f589d1973d43bef27c3",
+ "transcript_sha256": "1662d8cc64b03216652a138907c6a5e1cdb4f25be4eb58527e7a7b3a5632cd1b",
  "unreachable_codes": {
   "BALANCE_OVERFLOW": "the type enforces balances <= supply <= MAX_ATOMS_V1, so a transfer between well-formed balances cannot exceed the ceiling; only a forged state reaches it"
  },
@@ -156,8 +157,11 @@
     }
    },
    "python_code": "ACCEPT",
+   "python_effect_plan_root": "0x1467218584a3e35c756622518cebdf8f19a91a66bcda2b119127ae55379292e1",
    "python_effects_empty": false,
    "python_noop": false,
+   "python_post_state_root": "0xa7db0599b93cdfc58ad6b0f68c4742823a56fd1c7cbf31ca65b99e605585b61b",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "accept_plain"
   },
@@ -174,8 +178,11 @@
     }
    },
    "python_code": "ACCEPT",
+   "python_effect_plan_root": "0x6d635002140a32efdd0fa24a8f264819b12b85846e61cba9a8f675b9f21bed68",
    "python_effects_empty": false,
    "python_noop": false,
+   "python_post_state_root": "0x8e6d7249244e331401f2838ec4872a37aa2268f976a1836a77ebd5520c782cc9",
+   "python_pre_state_root": "0x77d982728447f1ff6cb4c7efc49f397d3b518c7e4e9546c00475f93f05e3761f",
    "tier": "recompute",
    "vector": "accept_balance_exact"
   },
@@ -192,8 +199,11 @@
     }
    },
    "python_code": "RELEASE_MISMATCH",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "reject_release_mismatch"
   },
@@ -210,8 +220,11 @@
     }
    },
    "python_code": "UNKNOWN_COMMAND",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "reject_unknown_command"
   },
@@ -228,8 +241,11 @@
     }
    },
    "python_code": "UNKNOWN_ASSET",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "reject_unknown_asset"
   },
@@ -246,8 +262,11 @@
     }
    },
    "python_code": "DISABLED_ASSET",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x53831507c2a9df92a20f196ff3559f5c761e19cc4c1a873193b461a2883676b8",
+   "python_pre_state_root": "0x53831507c2a9df92a20f196ff3559f5c761e19cc4c1a873193b461a2883676b8",
    "tier": "recompute",
    "vector": "reject_disabled_asset"
   },
@@ -264,8 +283,11 @@
     }
    },
    "python_code": "UNAUTHORIZED_SUBJECT",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "reject_unauthorized_subject"
   },
@@ -282,8 +304,11 @@
     }
    },
    "python_code": "SELF_TRANSFER",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "reject_self_transfer"
   },
@@ -300,8 +325,11 @@
     }
    },
    "python_code": "ZERO_AMOUNT",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "reject_zero_amount"
   },
@@ -318,8 +346,11 @@
     }
    },
    "python_code": "FEE_LIMIT_EXCEEDED",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0xdb5b931f661cc55d8f65753799f0d377bb1dbd842d1b944f2bd2e797ea181117",
+   "python_pre_state_root": "0xdb5b931f661cc55d8f65753799f0d377bb1dbd842d1b944f2bd2e797ea181117",
    "tier": "recompute",
    "vector": "reject_fee_limit"
   },
@@ -336,8 +367,11 @@
     }
    },
    "python_code": "INSUFFICIENT_BALANCE",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x27a820e29fd4a47fcfab4e3740ab7d6087f6d298078932c57ee6922130c54989",
+   "python_pre_state_root": "0x27a820e29fd4a47fcfab4e3740ab7d6087f6d298078932c57ee6922130c54989",
    "tier": "recompute",
    "vector": "reject_insufficient"
   },
@@ -354,8 +388,11 @@
     }
    },
    "python_code": "ACCEPT",
+   "python_effect_plan_root": "0x77665ff30773404b8fe5ab140a4a5817a8d91729c74f2eb4bcaf080fdabc889d",
    "python_effects_empty": false,
    "python_noop": false,
+   "python_post_state_root": "0xd09d1fa698beb6c4c1605d5f3dd24fcca0dfce2d823821e0adc784317b2c2fb5",
+   "python_pre_state_root": "0xe201f3b1f84cd5db8707117c05feff11e53f1c1a186e767d64cf4bb947e41dee",
    "tier": "recompute",
    "vector": "accept_fee_at_limit"
   },
@@ -372,8 +409,11 @@
     }
    },
    "python_code": "FEE_LIMIT_EXCEEDED",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x216453dda4c6bc2957de0dd94bf985dc2a7d4589f894fb7fa1fbb285bbca1db3",
+   "python_pre_state_root": "0x216453dda4c6bc2957de0dd94bf985dc2a7d4589f894fb7fa1fbb285bbca1db3",
    "tier": "recompute",
    "vector": "reject_fee_one_over"
   },
@@ -390,8 +430,11 @@
     }
    },
    "python_code": "ACCEPT",
+   "python_effect_plan_root": "0x6903a2e67723bc24639388da58912d639561447353f806b9f61920c9196791ac",
    "python_effects_empty": false,
    "python_noop": false,
+   "python_post_state_root": "0x5229ba8955848d72019fa90d162927a9e128972229485efdb0c8adb0910fb96d",
+   "python_pre_state_root": "0x392407c7b0250f59d8d8bd49bf982ae1fe19371b60c305fc1496adca0235b16c",
    "tier": "recompute",
    "vector": "accept_balance_exact_fee"
   },
@@ -408,8 +451,11 @@
     }
    },
    "python_code": "INSUFFICIENT_BALANCE",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0xe22c504f3eaaa34335adcc405cdb77d762348b0405dbc3526f69eb8aa44e2dc5",
+   "python_pre_state_root": "0xe22c504f3eaaa34335adcc405cdb77d762348b0405dbc3526f69eb8aa44e2dc5",
    "tier": "recompute",
    "vector": "reject_balance_one_short"
   },
@@ -426,8 +472,11 @@
     }
    },
    "python_code": "ACCEPT",
+   "python_effect_plan_root": "0x286c79d95dca77f2805d27c2794ed007e3abf9b8e6ff8fb5b7d97e2288bcbc7e",
    "python_effects_empty": false,
    "python_noop": false,
+   "python_post_state_root": "0x55a6f67b44da52c53cc207bf57ca708a0e08369845d3c509f7156ac377f5faf8",
+   "python_pre_state_root": "0x177c0da0251da9ebcdb0e9e03e13562e15a23920f26cdb4dfc0f9d7d28e2c4fb",
    "tier": "recompute",
    "vector": "accept_in_band_max_sum"
   },
@@ -444,8 +493,11 @@
     }
    },
    "python_code": "RELEASE_MISMATCH",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "prec_release_beats_command"
   },
@@ -462,8 +514,11 @@
     }
    },
    "python_code": "UNKNOWN_COMMAND",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "prec_command_beats_asset"
   },
@@ -480,8 +535,11 @@
     }
    },
    "python_code": "UNKNOWN_ASSET",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x53831507c2a9df92a20f196ff3559f5c761e19cc4c1a873193b461a2883676b8",
+   "python_pre_state_root": "0x53831507c2a9df92a20f196ff3559f5c761e19cc4c1a873193b461a2883676b8",
    "tier": "recompute",
    "vector": "prec_asset_beats_disabled"
   },
@@ -498,8 +556,11 @@
     }
    },
    "python_code": "DISABLED_ASSET",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x53831507c2a9df92a20f196ff3559f5c761e19cc4c1a873193b461a2883676b8",
+   "python_pre_state_root": "0x53831507c2a9df92a20f196ff3559f5c761e19cc4c1a873193b461a2883676b8",
    "tier": "recompute",
    "vector": "prec_disabled_beats_subject"
   },
@@ -516,8 +577,11 @@
     }
    },
    "python_code": "UNAUTHORIZED_SUBJECT",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "prec_subject_beats_self"
   },
@@ -534,8 +598,11 @@
     }
    },
    "python_code": "SELF_TRANSFER",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
+   "python_pre_state_root": "0x25d06694d49ed371c55172c340c45bb42a2069f3a560f5efde041aaaa4861dee",
    "tier": "recompute",
    "vector": "prec_self_beats_zero"
   },
@@ -552,8 +619,11 @@
     }
    },
    "python_code": "ZERO_AMOUNT",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0xdb5b931f661cc55d8f65753799f0d377bb1dbd842d1b944f2bd2e797ea181117",
+   "python_pre_state_root": "0xdb5b931f661cc55d8f65753799f0d377bb1dbd842d1b944f2bd2e797ea181117",
    "tier": "recompute",
    "vector": "prec_zero_beats_fee"
   },
@@ -570,8 +640,11 @@
     }
    },
    "python_code": "FEE_LIMIT_EXCEEDED",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x950bd528735af1ccd25bd78212f9fd0eaffef0a1a3acdc76b297f61fafff4ac5",
+   "python_pre_state_root": "0x950bd528735af1ccd25bd78212f9fd0eaffef0a1a3acdc76b297f61fafff4ac5",
    "tier": "recompute",
    "vector": "prec_fee_beats_insufficient"
   },
@@ -584,8 +657,11 @@
     }
    },
    "python_code": "EFFECT_DELTA_OVERFLOW",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0xa07067fc69ee52f4df97c56f6e2a6d659c0d1e5d8ea9a5dbd4948555000a8604",
+   "python_pre_state_root": "0xa07067fc69ee52f4df97c56f6e2a6d659c0d1e5d8ea9a5dbd4948555000a8604",
    "tier": "contract",
    "vector": "contract_effect_delta_overflow"
   },
@@ -598,10 +674,64 @@
     }
    },
    "python_code": "POST_STATE_RESOURCE_BOUND_EXCEEDED",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
    "python_effects_empty": true,
    "python_noop": true,
+   "python_post_state_root": "0x4e0314b242cbf243126f5dae4105872d4cc2425d362399803c446e9dba6ec742",
+   "python_pre_state_root": "0x4e0314b242cbf243126f5dae4105872d4cc2425d362399803c446e9dba6ec742",
    "tier": "contract",
    "vector": "contract_post_state_row_ceiling"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "contract": {
+     "sha256": "4df7e3d12f23a6b5b2079d31313f70f4f15b9b09005331ff7e515a008e74e710",
+     "verdict": "T"
+    }
+   },
+   "python_code": "FEE_LIMIT_EXCEEDED",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "python_post_state_root": "0xaca6c5f98bae607032f4f46d38b7d4d376801db2d41f9ba1e48b79c7abed4e67",
+   "python_pre_state_root": "0xaca6c5f98bae607032f4f46d38b7d4d376801db2d41f9ba1e48b79c7abed4e67",
+   "tier": "contract",
+   "vector": "prec_fee_limit_beats_delta_overflow"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "contract": {
+     "sha256": "57ba8687b48a83e4a57aeab54c72b965a32c451493696691446b5b4dac5c12e0",
+     "verdict": "T"
+    }
+   },
+   "python_code": "EFFECT_DELTA_OVERFLOW",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "python_post_state_root": "0xecb65cab2363bb27be6861d7ea19f903c2e54cdb1ad3a42aeef7f737eb1c5ed9",
+   "python_pre_state_root": "0xecb65cab2363bb27be6861d7ea19f903c2e54cdb1ad3a42aeef7f737eb1c5ed9",
+   "tier": "contract",
+   "vector": "prec_delta_overflow_beats_insufficient"
+  },
+  {
+   "parity": true,
+   "programs": {
+    "contract": {
+     "sha256": "c769ced650d17da52d5789e3002c5f71609134be03eb5e45d57372b5f2be8917",
+     "verdict": "T"
+    }
+   },
+   "python_code": "INSUFFICIENT_BALANCE",
+   "python_effect_plan_root": "0x92771a86dce5eab77c388dcd8b6576458b6201a84f93761dd9bfdfb7e64fdbb7",
+   "python_effects_empty": true,
+   "python_noop": true,
+   "python_post_state_root": "0x92996683b1917014be466b86e9a19f9cbf1636077b8517006d07e6ec6a3eb411",
+   "python_pre_state_root": "0x92996683b1917014be466b86e9a19f9cbf1636077b8517006d07e6ec6a3eb411",
+   "tier": "contract",
+   "vector": "prec_insufficient_beats_row_ceiling"
   }
  ],
  "width": 16

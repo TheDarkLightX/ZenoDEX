@@ -7,16 +7,25 @@ Two tests, both runnable without a Tau binary:
   declaration order, and the ``min()`` definition shape that replays (PR #534
   review F1).
 * ``test_tau_adt_logical_abi_replay_receipt_v1`` verifies the committed replay
-  receipt produced by ``experiments/tau_adt_abi/render_tau_adt_abi_v2.py``
-  against the exact pinned Tau binary: the receipt must be hash-bound to the
-  current spec, lock and renderer bytes, every vector-bound program must have
-  answered T, every falsification probe F (or FAIL_CLOSED), and the vectors
-  must cover every reject code that is reachable from a well-formed state.
+  receipt produced by ``experiments/tau_adt_abi/render_tau_adt_abi_v2.py``: the
+  receipt must be hash-bound to the current spec, journal spec, lock and
+  renderer bytes; its vector sequence, recorded Python outcomes (code, no-op,
+  effect emptiness, canonical pre/post/effect-plan roots) and program hashes
+  must equal a fresh offline recomputation through the real Python transition
+  (no Tau needed), so a transition change makes the receipt stale and red;
+  every vector-bound program must have answered T, every falsification probe
+  F (or FAIL_CLOSED), and the vectors must cover every reject code reachable
+  from a well-formed state. The binary sha256 and transcript sha256 are recorded
+  provenance for the live test; they are NOT verified offline (the lock commit
+  string is the offline binding to the Tau revision).
 
 * ``test_tau_adt_logical_abi_rust_leg_v1`` checks the committed Rust-leg
   output (the real Rust transition replayed on the identical vector set) agrees
-  vector-for-vector with the Python codes recorded in the receipt, which makes
-  the three-way statement Python == Rust == Tau direct on these vectors.
+  vector-for-vector with the Python codes AND the canonical pre-state,
+  post-state and effect-plan roots recorded in the receipt, which makes the
+  three-way statement Python == Rust == Tau direct on these vectors for the
+  observed surface (accept/reject, code, no-op, effect emptiness, and the
+  canonical roots on the Python/Rust legs).
 
 Live execution against the pinned binary is ``test_tau_adt_logical_abi_live_v1``
 (opt-in; it never counts as evidence by itself). Research-only; authority NONE.
@@ -46,7 +55,8 @@ RENDERER = ROOT / "experiments" / "tau_adt_abi" / "render_tau_adt_abi_v2.py"
 RECEIPT = ROOT / "tests" / "data" / "tau_adt_logical_abi_replay_receipt_v1.json"
 RUST_LEG = ROOT / "tests" / "data" / "tau_adt_logical_abi_rust_leg_v1.json"
 RECEIPT_SCHEMA = "zenodex/tau-adt-abi-parity/v3"
-RUST_LEG_SCHEMA = "zenodex/tau-adt-abi-rust-leg/v2"
+RUST_LEG_SCHEMA = "zenodex/tau-adt-abi-rust-leg/v3"
+RENDERER_DIR = ROOT / "experiments" / "tau_adt_abi"
 _COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 _SHA_RE = re.compile(r"[0-9a-f]{64}")
 
@@ -56,6 +66,7 @@ EXPECTED_SELFTEST = {
     "contract_wrong_code": "F",
     "contract_mutated_effects": "F",
 }
+EXPECTED_FAIL_CLOSED_PROBES = ("broken_program", "unexpanded_definition")
 EXPECTED_PROBES = {
     "false_whole_adt_statement": "F",
     "asset_always_theorem": "T",
@@ -152,7 +163,8 @@ def test_tau_adt_logical_abi_replay_receipt_v1() -> None:
 
     for name, verdict in EXPECTED_SELFTEST.items():
         assert receipt["selftest"][name] == verdict, (name, receipt["selftest"][name])
-    assert receipt["selftest"]["broken_program"].startswith("FAIL_CLOSED")
+    for name in EXPECTED_FAIL_CLOSED_PROBES:
+        assert receipt["selftest"][name].startswith("FAIL_CLOSED"), (name, receipt["selftest"][name])
 
     probes = receipt["capability_probes"]
     for name, verdict in EXPECTED_PROBES.items():
@@ -161,7 +173,34 @@ def test_tau_adt_logical_abi_replay_receipt_v1() -> None:
     assert all(entry["verdict"] == entry["expected"] for entry in probes.values())
 
     vectors = receipt["vectors"]
-    assert len(vectors) >= 26
+
+    # Offline recomputation (review P2-1): the receipt's vector sequence, its
+    # recorded Python outcomes and every program hash must equal what the
+    # renderer derives NOW from the spec bytes, the enum and the real Python
+    # transition. A transition change (a swapped guard, a re-routed fee) or a
+    # forged row is red here without any Tau binary.
+    if str(RENDERER_DIR) not in sys.path:
+        sys.path.insert(0, str(RENDERER_DIR))
+    import render_tau_adt_abi_v2 as renderer  # noqa: PLC0415
+
+    fresh_vectors = renderer.build_vectors()
+    assert [(row["vector"], row["tier"]) for row in vectors] == [(v.vector_id, v.tier) for v in fresh_vectors]
+    types = renderer.spec_types()
+    for row, v in zip(vectors, fresh_vectors, strict=True):
+        observed = renderer.python_outcome(v)
+        assert (observed.code or "ACCEPT") == row["python_code"], v.vector_id
+        assert observed.noop == row["python_noop"] and observed.effects_empty == row["python_effects_empty"], v.vector_id
+        assert observed.pre_state_root == row["python_pre_state_root"], v.vector_id
+        assert observed.post_state_root == row["python_post_state_root"], v.vector_id
+        assert observed.effect_plan_root == row["python_effect_plan_root"], v.vector_id
+        if v.tier == "recompute":
+            universal, nonvacuity = renderer.render_recompute(types, v, observed)
+            want = {"universal": renderer.sha256_text(universal), "nonvacuity": renderer.sha256_text(nonvacuity)}
+        else:
+            want = {"contract": renderer.sha256_text(renderer.render_contract(types, v, observed))}
+        assert {key: program["sha256"] for key, program in row["programs"].items()} == want, v.vector_id
+
+    assert len(vectors) == len(fresh_vectors) == 29
     seen: set[str] = set()
     for row in vectors:
         assert row["parity"] is True, row["vector"]
@@ -186,7 +225,15 @@ def test_tau_adt_logical_abi_rust_leg_v1() -> None:
     leg = json.loads(RUST_LEG.read_text(encoding="utf-8"))
     assert leg["schema"] == RUST_LEG_SCHEMA
     assert leg["ok"] is True
-    python_rows = [(row["vector"], row["tier"], row["python_code"]) for row in receipt["vectors"]]
-    rust_rows = [(row["vector"], row["tier"], row["rust"]) for row in leg["vectors"]]
+    python_rows = [
+        (row["vector"], row["tier"], row["python_code"], row["python_pre_state_root"],
+         row["python_post_state_root"], row["python_effect_plan_root"])
+        for row in receipt["vectors"]
+    ]
+    rust_rows = [
+        (row["vector"], row["tier"], row["rust"], row["rust_pre_state_root"],
+         row["rust_post_state_root"], row["rust_effect_plan_root"])
+        for row in leg["vectors"]
+    ]
     assert rust_rows == python_rows
     assert all(row["parity"] is True and row["rust"] == row["expected"] for row in leg["vectors"])

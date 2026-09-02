@@ -102,6 +102,10 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 # --- one source of truth: the PR spec's declarations -----------------------
 
 def spec_lines() -> list[str]:
@@ -185,6 +189,9 @@ class Observed:
     code: str | None
     noop: bool
     effects_empty: bool
+    pre_state_root: str
+    post_state_root: str
+    effect_plan_root: str
 
 
 def python_outcome(v: VectorV2) -> Observed:
@@ -194,9 +201,11 @@ def python_outcome(v: VectorV2) -> Observed:
     result = transition_asset_transfer_v1(context, state, command)
     if type(result).__name__ == "AssetTransferAcceptedV1":
         return Observed(True, None, result.post_state.state_root == state.state_root,
-                        result.effects.is_empty)
+                        result.effects.is_empty, state.state_root, result.post_state.state_root,
+                        result.effects.effect_plan_root)
     return Observed(False, result.code.name, result.pre_state_root == result.post_state_root,
-                    result.effects.is_empty)
+                    result.effects.is_empty, result.pre_state_root, result.post_state_root,
+                    result.effects.effect_plan_root)
 
 
 def build_vectors() -> list[VectorV2]:
@@ -242,6 +251,16 @@ def build_vectors() -> list[VectorV2]:
         VectorV2("contract_post_state_row_ceiling", "contract", "POST_STATE_RESOURCE_BOUND_EXCEEDED",
                  ROOT, "sender", ASSET_TRANSFER_COMMAND_KIND_V1, "USD", "sender", "recv",
                  30, 2, ROOT, "USD", 2, True, 100, 0, 5, extra_rows=MAX_ASSET_BALANCE_ROWS_V1 - 2),
+        # seam discriminators: adjacent pairs where one side is out of the bounded domain
+        VectorV2("prec_fee_limit_beats_delta_overflow", "contract", "FEE_LIMIT_EXCEEDED",
+                 ROOT, "sender", ASSET_TRANSFER_COMMAND_KIND_V1, "USD", "sender", "recv",
+                 MAX_ATOMS_V1, 2, ROOT, "USD", 9, True, MAX_ATOMS_V1, 0, 0),
+        VectorV2("prec_delta_overflow_beats_insufficient", "contract", "EFFECT_DELTA_OVERFLOW",
+                 ROOT, "sender", ASSET_TRANSFER_COMMAND_KIND_V1, "USD", "sender", "recv",
+                 MAX_ATOMS_V1, 1, ROOT, "USD", 1, True, 100, 0, 0),
+        VectorV2("prec_insufficient_beats_row_ceiling", "contract", "INSUFFICIENT_BALANCE",
+                 ROOT, "sender", ASSET_TRANSFER_COMMAND_KIND_V1, "USD", "sender", "recv",
+                 30, 2, ROOT, "USD", 2, True, 10, 0, 5, extra_rows=MAX_ASSET_BALANCE_ROWS_V1 - 2),
     ]
     for v in vectors:
         if v.tier == "recompute":
@@ -354,11 +373,29 @@ def render_contract(types: dict[str, str], v: VectorV2, o: Observed, code_overri
 # --- Tau execution (F8: exact single verdict or FAIL_CLOSED) -----------------
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_TIMING = re.compile(r"(?m)^\w+: [\d.]+ ms$\n?")
+TAU_TIMEOUT_SECONDS = 180
 
 
 def run_tau(program: str) -> tuple[str, str]:
-    proc = subprocess.run([str(TAU_BIN)], input=program, capture_output=True, text=True, timeout=180)
-    clean = _ANSI.sub("", proc.stdout + proc.stderr)
+    """Decide one program; exact single verdict or FAIL_CLOSED.
+
+    Defence in depth, each layer independent: a non-zero exit fails closed; any
+    `(Error)` line fails closed (ANSI is stripped first); and exactly one
+    `%N: T|F` line is required. The last rule is the ONLY defence against an
+    unresolved or arity-mismatched definition, which the engine prints back as an
+    unexpanded application with no verdict and no error (recorded by the selftest
+    probe `unexpanded_definition`). A timeout is a typed FAIL_CLOSED, never an
+    exception. The default REPL front-end is used (the PR harness passed `-X`;
+    verdicts, error counts and exit codes were compared equal on both). The
+    returned transcript has the engine's wall-clock lines removed so its hash is
+    reproducible across runs."""
+    try:
+        proc = subprocess.run([str(TAU_BIN)], input=program, capture_output=True, text=True,
+                              timeout=TAU_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        return f"FAIL_CLOSED(timeout={TAU_TIMEOUT_SECONDS}s)", ""
+    clean = _TIMING.sub("", _ANSI.sub("", proc.stdout + proc.stderr))
     verdicts = re.findall(r"%\d+: (T|F)\b", clean)
     errors = len(re.findall(r"\(Error\)", clean))
     if errors or proc.returncode != 0 or len(verdicts) != 1:
@@ -449,7 +486,7 @@ def selftest(types: dict[str, str]) -> dict[str, str]:
     o = python_outcome(v)
     assert o.accepted
     probes: dict[str, str] = {}
-    wrong = Observed(False, "SELF_TRANSFER", True, True)
+    wrong = Observed(False, "SELF_TRANSFER", True, True, o.pre_state_root, o.pre_state_root, o.effect_plan_root)
     probes["wrong_expectation_universal"] = run_tau(render_recompute(types, v, wrong)[0])[0]
     good_u, _ = render_recompute(types, v, o)
     weakened = re.sub(r"all r:AssetTransferResultADT1 \( \(.*?\n\) ->",
@@ -459,13 +496,19 @@ def selftest(types: dict[str, str]) -> dict[str, str]:
     cv = next(x for x in build_vectors() if x.tier == "contract")
     co = python_outcome(cv)
     probes["contract_wrong_code"] = run_tau(render_contract(types, cv, co, code_override=CODE_TOKENS[co.code] + 1))[0]
-    probes["contract_mutated_effects"] = run_tau(render_contract(types, cv, Observed(False, co.code, co.noop, False)))[0]
+    mutated = Observed(False, co.code, co.noop, False, co.pre_state_root, co.post_state_root, co.effect_plan_root)
+    probes["contract_mutated_effects"] = run_tau(render_contract(types, cv, mutated))[0]
     probes["broken_program"] = run_tau("type Broken = {a: sbf. n nonsense(\nquit\n")[0]
+    good_c = render_contract(types, cv, co)
+    unexpanded = good_c.replace("&& asset_transfer_result_ok(r) &&", "&& asset_transfer_result_ok_undefined(r) &&")
+    assert unexpanded != good_c
+    probes["unexpanded_definition"] = run_tau(unexpanded)[0]
     expected = {"wrong_expectation_universal": "F", "weakened_chain_universal": "F",
                 "contract_wrong_code": "F", "contract_mutated_effects": "F"}
     for name, want in expected.items():
         assert probes[name] == want, (name, probes[name])
-    assert probes["broken_program"].startswith("FAIL_CLOSED"), probes["broken_program"]
+    for name in ("broken_program", "unexpanded_definition"):
+        assert probes[name].startswith("FAIL_CLOSED"), (name, probes[name])
     return probes
 
 
@@ -504,18 +547,20 @@ def main() -> int:
         ok = ok and agree
         rows.append({"vector": v.vector_id, "tier": v.tier, "python_code": o.code or "ACCEPT",
                      "python_noop": o.noop, "python_effects_empty": o.effects_empty,
+                     "python_pre_state_root": o.pre_state_root, "python_post_state_root": o.post_state_root,
+                     "python_effect_plan_root": o.effect_plan_root,
                      "programs": programs, "parity": agree})
         log(f"{v.vector_id}: python={o.code or 'ACCEPT'} " + " ".join(f"{k}={p['verdict']}" for k, p in programs.items()))
     lock = dict(line.split("=", 1) for line in LOCK_PATH.read_text().splitlines() if "=" in line)
     version = subprocess.run([str(TAU_BIN), "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
     report = {
         "ok": ok, "schema": "zenodex/tau-adt-abi-parity/v3", "width": WIDTH,
-        "tau_commit": lock.get("commit"), "tau_binary_sha256": hashlib.sha256(TAU_BIN.read_bytes()).hexdigest(),
+        "tau_commit": lock.get("commit"), "tau_binary_sha256": sha256_file(TAU_BIN),
         "tau_version": version,
-        "spec_path": str(SPEC_PATH.relative_to(REPO)), "spec_sha256": sha256_text(SPEC_PATH.read_text()),
-        "journal_spec_sha256": sha256_text(JOURNAL_SPEC_PATH.read_text()),
-        "lock_sha256": sha256_text(LOCK_PATH.read_text()),
-        "renderer_sha256": sha256_text(Path(__file__).read_text()),
+        "spec_path": str(SPEC_PATH.relative_to(REPO)), "spec_sha256": sha256_file(SPEC_PATH),
+        "journal_spec_sha256": sha256_file(JOURNAL_SPEC_PATH),
+        "lock_sha256": sha256_file(LOCK_PATH),
+        "renderer_sha256": sha256_file(Path(__file__)),
         "capability_probes": capability,
         "code_map": {k or "ACCEPT": val for k, val in CODE_TOKENS.items()},
         "recompute_codes": list(RECOMPUTE_CODES), "contract_codes": list(CONTRACT_CODES),
@@ -544,6 +589,8 @@ def emit_vectors() -> int:
             "state_release_tag": ROOT_TAG[v.state_release], "policy_asset": v.policy_asset, "fee": str(v.fee),
             "enabled": v.enabled, "s_bal": str(v.s_bal), "r_bal": str(v.r_bal), "t_bal": str(v.t_bal),
             "extra_rows": v.extra_rows, "expected": o.code or "ACCEPT",
+            "expected_pre_state_root": o.pre_state_root, "expected_post_state_root": o.post_state_root,
+            "expected_effect_plan_root": o.effect_plan_root,
         })
     print(json.dumps({"schema": "zenodex/tau-adt-abi-vectors/v2", "vectors": rows}, sort_keys=True))
     return 0

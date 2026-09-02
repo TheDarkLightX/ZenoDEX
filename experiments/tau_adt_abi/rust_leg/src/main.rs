@@ -1,6 +1,8 @@
-//! Rust leg of the Tau ADT ABI parity oracle (v2 vectors): replays the frozen
-//! vector set through the real Rust transition and reports per-vector
-//! agreement with the Python-oracle expectation. Research-only.
+//! Rust leg of the Tau ADT ABI parity oracle (v2 vectors, v3 output): replays
+//! the frozen vector set through the real Rust transition and reports
+//! per-vector agreement with the Python-oracle expectation on the observed
+//! surface: outcome code plus the canonical pre-state, post-state and
+//! effect-plan roots. Research-only.
 
 use std::io::Read;
 
@@ -31,6 +33,9 @@ struct VectorV2 {
     t_bal: String,
     extra_rows: u32,
     expected: String,
+    expected_pre_state_root: String,
+    expected_post_state_root: String,
+    expected_effect_plan_root: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -60,6 +65,12 @@ fn amount(owner: &str, asset: &str, atoms: u128) -> EconomicAmountV1 {
         custody_domain: ACCOUNT_CUSTODY_DOMAIN_V1.to_owned(),
         amount_atoms: atoms,
     }
+}
+
+struct Outcome {
+    code: String,
+    post_root: String,
+    effect_root: String,
 }
 
 fn main() {
@@ -119,28 +130,72 @@ fn main() {
             amount_atoms: atoms(&vector.amount),
             max_fee_atoms: atoms(&vector.max_fee),
         };
+        let pre_root = state
+            .state_root()
+            .expect("pre-state root")
+            .as_str()
+            .to_owned();
+        // Canonical roots make the accept path observable: a wrong post state or
+        // a wrong effect plan (e.g. the fee routed to the wrong owner) moves them.
         let outcome = match transition_asset_transfer_v1(&context, &state, &command) {
-            Ok(AssetTransferResultV1::Accepted(_)) => "ACCEPT".to_owned(),
+            Ok(AssetTransferResultV1::Accepted(accepted)) => Outcome {
+                code: "ACCEPT".to_owned(),
+                post_root: accepted
+                    .post_state
+                    .state_root()
+                    .expect("post-state root")
+                    .as_str()
+                    .to_owned(),
+                effect_root: accepted
+                    .effects
+                    .effect_plan_root()
+                    .expect("effect plan root")
+                    .as_str()
+                    .to_owned(),
+            },
             Ok(AssetTransferResultV1::Rejected(rejected)) => {
                 assert_eq!(rejected.pre_state_root, rejected.post_state_root);
                 assert!(rejected.effects.is_empty());
-                format!("{:?}", rejected.code)
+                Outcome {
+                    code: format!("{:?}", rejected.code),
+                    post_root: rejected.post_state_root.as_str().to_owned(),
+                    effect_root: rejected
+                        .effects
+                        .effect_plan_root()
+                        .expect("effect plan root")
+                        .as_str()
+                        .to_owned(),
+                }
             }
-            Err(error) => format!("ABI_ERROR({error:?})"),
+            Err(error) => Outcome {
+                code: format!("ABI_ERROR({error:?})"),
+                post_root: String::new(),
+                effect_root: String::new(),
+            },
         };
-        let agree = outcome == vector.expected;
+        let roots_agree = pre_root == vector.expected_pre_state_root
+            && outcome.post_root == vector.expected_post_state_root
+            && outcome.effect_root == vector.expected_effect_plan_root;
+        let agree = outcome.code == vector.expected && roots_agree;
         ok &= agree;
         rows.push(format!(
-            "{{\"vector\":\"{}\",\"tier\":\"{}\",\"rust\":\"{}\",\"expected\":\"{}\",\"parity\":{}}}",
-            vector.vector_id, vector.tier, outcome, vector.expected, agree
+            "{{\"vector\":\"{}\",\"tier\":\"{}\",\"rust\":\"{}\",\"expected\":\"{}\",\"rust_pre_state_root\":\"{}\",\"rust_post_state_root\":\"{}\",\"rust_effect_plan_root\":\"{}\",\"parity\":{}}}",
+            vector.vector_id,
+            vector.tier,
+            outcome.code,
+            vector.expected,
+            pre_root,
+            outcome.post_root,
+            outcome.effect_root,
+            agree
         ));
         eprintln!(
-            "{}: rust={} expected={}",
-            vector.vector_id, outcome, vector.expected
+            "{}: rust={} expected={} roots_agree={}",
+            vector.vector_id, outcome.code, vector.expected, roots_agree
         );
     }
     println!(
-        "{{\"ok\":{},\"schema\":\"zenodex/tau-adt-abi-rust-leg/v2\",\"vectors\":[{}]}}",
+        "{{\"ok\":{},\"schema\":\"zenodex/tau-adt-abi-rust-leg/v3\",\"vectors\":[{}]}}",
         ok,
         rows.join(",")
     );
