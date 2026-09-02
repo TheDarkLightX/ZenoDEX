@@ -15,6 +15,7 @@ from src.core.asset_lane_projection_v1 import (
 )
 from src.core.asset_transfer_lane_module_v1 import AssetTransferLaneModuleAcceptedV1
 from src.core.asset_transfer_receipt_admission_v1 import (
+    RECEIPT_WITNESS_REJECT_CODES_V1,
     ReceiptWitnessRejectCodeV1,
     ReceiptWitnessRejectedV1,
     VerifiedLaneAllocationFragmentV1,
@@ -442,3 +443,46 @@ def test_claimant_identity_is_not_bound_by_the_receipt_until_c9b() -> None:
         assert admitted.fragment.controlled_locations == (
             cert.ControlledLocationRowV1("USD", "custodian", "vault", 100),
         )
+
+
+def test_admitted_witness_exports_the_rebuilt_receipt_root() -> None:
+    """Design-review item 3 (Opus P28 F4): check (4) now defines the exported
+    receipt_root of the minted witness, an independent handle for certificate
+    consumption (C9b) instead of trusting the fragment's own binding_root."""
+
+    accepted, witness, lane_root, prior = _admission_fixture()
+    admitted = verify_asset_transfer_fragment_receipt_v1(witness, accepted, lane_root, prior, ())
+    assert isinstance(admitted, VerifiedLaneAllocationFragmentV1)
+    assert admitted.receipt_root == accepted.module_journal.receipt_root
+    assert admitted.receipt_root == admitted.fragment.binding_root
+
+
+def test_producer_assigns_binding_root_from_the_journal_receipt_root() -> None:
+    """Pins the fact check (4) relies on: the wave-B producer assigns
+    binding_root=journal.receipt_root (AST, not text), so the check can differ
+    only under producer drift."""
+
+    import ast
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parents[2] / "src/core/global_accounting_lane_producers_v1.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    producer = next(
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "produce_asset_transfer_fragment_v1"
+    )
+    assignments = [
+        ast.unparse(keyword.value)
+        for node in ast.walk(producer)
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "LaneAllocationFragmentV1"
+        for keyword in node.keywords
+        if keyword.arg == "binding_root"
+    ]
+    assert assignments == ["journal.receipt_root"]
+
+
+def test_witness_reject_family_tuple_matches_the_enum() -> None:
+    """Opus P28 F5: the cross-language family pin the Rust admission twin must
+    match when it lands with C9b."""
+
+    assert RECEIPT_WITNESS_REJECT_CODES_V1 == tuple(code.value for code in ReceiptWitnessRejectCodeV1)

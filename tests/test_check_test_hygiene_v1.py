@@ -439,3 +439,57 @@ def test_critical_quality_gate_validates_static_hygiene_contract() -> None:
 
     # Act / Assert
     assert '"$PY" tools/check_test_hygiene_v1.py' in gate
+
+
+def test_stale_lower_version_packet_cannot_shadow_a_newer_one(tmp_path: Path) -> None:
+    """Campaign finding at P31 (same class as Opus P29 NEW-25, one level deeper): the
+    gate ordered packet files lexicographically, so ``-v9`` outranked ``-v27`` and a
+    stale early packet whose pin still matched the changed path was selected, then
+    failed on its other stale pins. Packets must be ordered by lineage name and
+    numeric version, so the newest fully current packet wins."""
+
+    # Arrange: v9 still matches the changed source but pins a stale test; v10 is current.
+    repo, contract, evidence_dir = _fixture_repo(tmp_path)
+    stale = _packet(repo)
+    stale["evidence_id"] = "THV1-20260805-example-v9"
+    stale["test_pins"][0]["sha256"] = "0" * 64  # type: ignore[index]
+    _write_json(evidence_dir / "THV1-20260805-example-v9.json", stale)
+    current = _packet(repo)
+    current["evidence_id"] = "THV1-20260805-example-v10"
+    _write_json(evidence_dir / "THV1-20260805-example-v10.json", current)
+
+    # Act
+    report = check_repository(
+        repo_root=repo,
+        contract_path=contract,
+        evidence_dir=evidence_dir,
+        changed_paths=[ChangedPathV1(status="M", path="src/core/example.py")],
+    )
+
+    # Assert: the numeric-newest, fully current packet is selected.
+    assert report["ok"] is True
+    assert report["selected_evidence_ids"] == ["THV1-20260805-example-v10"]
+
+
+def test_lineage_key_matches_the_o008_checker_key() -> None:
+    """The repository gate and the O-008 packet checker must rank packets identically,
+    or the two selections diverge (they did before P32)."""
+
+    from tools import o008_formal_cycle_admission_v1 as o008
+    from tools.test_hygiene_evidence_v1 import hygiene_lineage_key_v1
+
+    evidence_dir = Path(__file__).resolve().parents[1] / "tests/evidence/test_hygiene"
+    names = sorted(path.name for path in evidence_dir.glob("*.json"))
+    assert len(names) > 100
+    synthetic = [
+        "THV1-20260805-example.json",
+        "THV1-20260805-example-v9.json",
+        "THV1-20260805-example-v10.json",
+        "THV1-20260805-example-v27.json",
+        "THV1-20260902-other-v1.json",
+    ]
+    for name in names + synthetic:
+        assert hygiene_lineage_key_v1(name) == o008.hygiene_lineage_key_v1(name), name
+    ranked = sorted(synthetic, key=hygiene_lineage_key_v1)
+    assert ranked.index("THV1-20260805-example-v27.json") > ranked.index("THV1-20260805-example-v9.json")
+    assert ranked.index("THV1-20260805-example-v9.json") > ranked.index("THV1-20260805-example.json")

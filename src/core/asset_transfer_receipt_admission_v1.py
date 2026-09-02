@@ -24,10 +24,16 @@ so the rows the producer reads are the rows whose roots the receipt proved.
 Snapshot refusals raise ``TypeError``/``ValueError`` like every type
 boundary on this path; every witness reject is a value.
 
-NONCLAIMS. ``claimant_entitlements`` remain caller-chosen: the producer
-covers them only per ``(asset, control_domain)`` total, so claimant identity
-and the split between claimants are not bound by the receipt until C9b binds
-them at certificate consumption. No Rust twin of this admission exists yet
+NONCLAIMS. ``claimant_entitlements`` are caller-chosen AT THIS LAYER: the
+wave-B producer's coverage fold is keyed on ``(asset, control_domain)`` only,
+so claimant identity and the split across claimants are not proved by the
+receipt here. They are bound at the certificate layer, whose entitlement
+check (``ENTITLEMENT_ROWS_DRIFT``) requires the derived allocation rows to
+equal the V1 ``liabilities`` partition of ``GlobalEconomicStateV1`` exactly;
+no acceptance path reaches that check while ASSET_TRANSFER stays at
+NO_PRODUCER, and whether that partition is itself authoritative for
+asset-transfer custody is an unresolved policy question (UP-xx), not a claim
+of this module. No Rust twin of this admission exists yet
 (an open gap for C9b; the Rust producer validates the accepted value at its
 check 0 instead). The succinct-receipt check itself is inherited from
 ``lane_module_receipt_verification_v1``; this module adds no cryptographic
@@ -64,6 +70,16 @@ from .lane_module_receipt_verification_v1 import (
 RECEIPT_ADMISSION_SCHEMA_V1: Final = "zenodex/asset-transfer-receipt-admission/v1"
 
 _VERIFIED_FRAGMENT_TOKEN: Final = object()
+
+# Cross-language family pin (Opus P28 F5): the Rust admission twin, when it lands
+# with C9b, must declare exactly this ordered family.
+RECEIPT_WITNESS_REJECT_CODES_V1: Final[tuple[str, ...]] = (
+    "WITNESS_KIND_DRIFT",
+    "WITNESS_JOURNAL_ROOT_DRIFT",
+    "WITNESS_STATEMENT_ROOT_DRIFT",
+    "WITNESS_OCCURRENCE_DRIFT",
+    "WITNESS_BINDING_ROOT_DRIFT",
+)
 
 
 class ReceiptWitnessRejectCodeV1(str, Enum):
@@ -102,7 +118,7 @@ class ReceiptWitnessRejectedV1:
             name="receipt witness committed lane root",
             allow_zero=True,
         )
-        if not isinstance(self.detail, str) or not self.detail or len(self.detail) > 200:
+        if type(self.detail) is not str or not self.detail or len(self.detail) > 200:
             raise ValueError("receipt witness detail must be a short non-empty string")
 
 
@@ -110,6 +126,7 @@ class ReceiptWitnessRejectedV1:
 class _VerifiedFragmentFieldsV1:
     fragment: LaneAllocationFragmentV1
     module_journal_root: str
+    receipt_root: str
     receipt_digest: str
     expected_image_id: str
 
@@ -135,6 +152,11 @@ class VerifiedLaneAllocationFragmentV1:
     @property
     def module_journal_root(self) -> str:
         return self._fields.module_journal_root
+
+    @property
+    def receipt_root(self) -> str:
+        """The rebuilt journal's receipt root, exported only after check (4) held."""
+        return self._fields.receipt_root
 
     @property
     def receipt_digest(self) -> str:
@@ -172,8 +194,10 @@ def verify_asset_transfer_fragment_receipt_v1(
     re-runs with its full check family on the rebuilt value, and (4) the
     produced ``binding_root`` must equal the rebuilt journal's receipt root
     (defensive producer-drift protection: the producer assigns that very
-    root, so only a drifted producer can differ; the witness carries no
-    receipt root, so this binds nothing to the witness). Every witness reject
+    root, so only a drifted producer can differ; the module witness carries
+    no receipt root, so this binds nothing to it -- instead it defines the
+    ``receipt_root`` the minted fragment witness exports as an independent
+    handle for certificate consumption). Every witness reject
     is a value and no input is mutated; the type-boundary refusals of (0)
     raise, as every type boundary on this path does.
     """
@@ -230,6 +254,7 @@ def verify_asset_transfer_fragment_receipt_v1(
         _VerifiedFragmentFieldsV1(
             fragment=produced,
             module_journal_root=witness.module_journal_root,
+            receipt_root=journal.receipt_root,
             receipt_digest=witness.receipt_digest,
             expected_image_id=witness.expected_image_id,
         ),
@@ -238,6 +263,7 @@ def verify_asset_transfer_fragment_receipt_v1(
 
 __all__ = [
     "RECEIPT_ADMISSION_SCHEMA_V1",
+    "RECEIPT_WITNESS_REJECT_CODES_V1",
     "ReceiptWitnessRejectCodeV1",
     "ReceiptWitnessRejectedV1",
     "VerifiedLaneAllocationFragmentV1",

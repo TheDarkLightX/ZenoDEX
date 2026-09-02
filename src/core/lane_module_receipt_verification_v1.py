@@ -92,7 +92,7 @@ class LaneModuleReceiptEnvelopeV1:
     receipt_bytes: bytes
 
     def __post_init__(self) -> None:
-        if not isinstance(self.receipt_kind, ReceiptKindV1):
+        if type(self.receipt_kind) is not ReceiptKindV1:
             raise TypeError("lane module receipt kind is not closed")
         if type(self.receipt_bytes) is not bytes:
             raise TypeError("lane module receipt bytes must be exact bytes")

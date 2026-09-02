@@ -247,13 +247,15 @@ class AssetTransferRejectedV1:
     effects: GlobalEconomicEffectPlanV1
 
     def __post_init__(self) -> None:
-        if not isinstance(self.code, AssetTransferRejectCodeV1):
+        if type(self.code) is not AssetTransferRejectCodeV1:
             raise TypeError("asset transfer reject code is not closed")
         _require_root(self.pre_state_root, name="asset transfer rejected pre-state")
         _require_root(self.post_state_root, name="asset transfer rejected post-state")
         if self.pre_state_root != self.post_state_root:
             raise ValueError("asset transfer rejection changed the state root")
-        if not isinstance(self.effects, GlobalEconomicEffectPlanV1) or not self.effects.is_empty:
+        if type(self.effects) is not GlobalEconomicEffectPlanV1:
+            raise TypeError("asset transfer rejected effects must be the exact typed value")
+        if not self.effects.is_empty:
             raise ValueError("asset transfer rejection carried effects")
 
 

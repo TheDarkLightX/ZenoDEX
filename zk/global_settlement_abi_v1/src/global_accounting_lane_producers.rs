@@ -224,12 +224,15 @@ fn reject_receipt_backed(
 /// fail construction in Python and `ACCEPTED_INVALID` here. The controlled-side
 /// fold overflow is unreachable for well-formed accepted inputs (supply
 /// conservation bounds custody totals); the reachable reject path is the
-/// caller-provided entitlement rows. NONCLAIM: this producer trusts its caller for
-/// `accepted` and covers claimant entitlements only per (asset, control_domain)
-/// total; the Python admission (`asset_transfer_receipt_admission_v1`, C9a) takes
-/// the module witness and re-runs the producer on an exact-typed snapshot, and has
-/// no Rust twin yet; the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER
-/// until C9b. Research-only; authority NONE.
+/// caller-provided entitlement rows. NONCLAIM (scoped): this producer trusts its
+/// caller for `accepted` and its coverage fold is keyed on (asset, control_domain)
+/// only, so claimant identity and the split across claimants are caller-chosen at
+/// this layer; they are bound at the certificate layer by ENTITLEMENT_ROWS_DRIFT
+/// (derived rows must equal the V1 liabilities partition exactly), which no
+/// acceptance path reaches while ASSET_TRANSFER stays at NO_PRODUCER. The Python
+/// admission (`asset_transfer_receipt_admission_v1`, C9a) takes the module witness
+/// and re-runs the producer on an exact-typed snapshot; it has no Rust twin yet
+/// (lands with C9b). Research-only; authority NONE.
 pub fn produce_asset_transfer_fragment_v1(
     accepted: &crate::asset_transfer_lane_module::AssetTransferLaneModuleAcceptedV1,
     lane_root: &LaneStateRootV1,

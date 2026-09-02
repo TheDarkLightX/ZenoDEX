@@ -372,12 +372,17 @@ class AssetLaneCompositionAcceptedV1:
     lane_journal: LaneCompositionJournalV1
 
     def __post_init__(self) -> None:
-        if not isinstance(self.post_state, AssetLaneStateProjectionV1):
-            raise TypeError("asset lane accepted post-state is invalid")
-        if not isinstance(self.effects, GlobalEconomicEffectPlanV1) or self.effects.is_empty:
+        # Exact types (Opus P28 F1 audit, third site): the root comparisons below read
+        # state_root / effect_plan_root / post_lane_root through properties a subclass
+        # could override.
+        if type(self.post_state) is not AssetLaneStateProjectionV1:
+            raise TypeError("asset lane accepted post-state must be the exact typed value")
+        if type(self.effects) is not GlobalEconomicEffectPlanV1:
+            raise TypeError("asset lane accepted effects must be the exact typed value")
+        if self.effects.is_empty:
             raise ValueError("asset lane acceptance requires effects")
-        if not isinstance(self.lane_journal, LaneCompositionJournalV1):
-            raise TypeError("asset lane accepted journal is invalid")
+        if type(self.lane_journal) is not LaneCompositionJournalV1:
+            raise TypeError("asset lane accepted journal must be the exact typed value")
         if self.lane_journal.post_lane_root != self.post_state.state_root:
             raise ValueError("asset lane accepted post-state root mismatch")
         if self.lane_journal.effect_plan_root != self.effects.effect_plan_root:
@@ -392,13 +397,15 @@ class AssetLaneCompositionRejectedV1:
     effects: GlobalEconomicEffectPlanV1
 
     def __post_init__(self) -> None:
-        if not isinstance(self.code, AssetLaneCoordinatorRejectCodeV1):
+        if type(self.code) is not AssetLaneCoordinatorRejectCodeV1:
             raise TypeError("asset lane reject code is not closed")
         _require_root(self.pre_lane_root, name="asset lane rejected pre-root")
         _require_root(self.post_lane_root, name="asset lane rejected post-root")
         if self.pre_lane_root != self.post_lane_root:
             raise ValueError("asset lane rejection changed state")
-        if not isinstance(self.effects, GlobalEconomicEffectPlanV1) or not self.effects.is_empty:
+        if type(self.effects) is not GlobalEconomicEffectPlanV1:
+            raise TypeError("asset lane rejected effects must be the exact typed value")
+        if not self.effects.is_empty:
             raise ValueError("asset lane rejection carried effects")
 
 

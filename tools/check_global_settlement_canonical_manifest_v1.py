@@ -38,7 +38,7 @@ EXPECTED_CALL_COUNTS_V1: Final[dict[str, int]] = {
 }
 EXPECTED_CALL_FILE_COUNT_V1: Final = 93
 EXPECTED_SOURCE_CLOSURE_SHA256_V1: Final = (
-    "22d1cfdc402b7b0cdd7b47bc3d9ccbc1fddc72ec1f4241a4f3457f6970d501f7"
+    "3a8f76f01454f51cd65fc7b54e9be7ce6ae14dd70f63128d44ddbb50f84d16de"
 )
 
 

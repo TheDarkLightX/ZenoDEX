@@ -487,6 +487,17 @@ CERTIFICATE_IMPLEMENTATION_STATUS_V1: Final = "IMPLEMENTED_REGISTERED_EMPTY_ONLY
 
 NONCLAIMS_V1: Final[tuple[str, ...]] = (
     "The completed formal cycle does not complete O-008.",
+    "Receipt admission for the ASSET_TRANSFER fragment (C9a) proves the custody rows the"
+    " producer folds, not claimant identity: the wave-B coverage fold is keyed on"
+    " (asset, control_domain), claimant entitlements are caller-chosen at that layer, and"
+    " they are bound only at the certificate layer by ENTITLEMENT_ROWS_DRIFT against the V1"
+    " liabilities partition, which no acceptance path reaches while ASSET_TRANSFER stays at"
+    " NO_PRODUCER; whether that partition is authoritative for asset-transfer custody is an"
+    " unresolved policy question.",
+    "Exact-type gating is audited and mechanically pinned only on the receipt-admission"
+    " path; the epoch-certificate verification inputs in global_economic_proof_v1 still"
+    " use isinstance and are a named open gap (O-008 EXACT-TYPE-AUDIT-EPOCH-PATH) for a"
+    " separate candidate.",
     "The GlobalAccountingAllocationCertificateV1 checker has no registered receipt-backed lane"
     " producer (an implemented, unregistered wave-B producer exists on no acceptance path) and is"
     " not mounted; the only certificate it accepts today is the registered-empty certificate"
@@ -3197,9 +3208,11 @@ def _select_hygiene_packets(snapshot: SubjectSnapshotV1) -> list[dict[str, objec
     Packets are ordered by lineage version (the trailing ``-vN`` compared numerically, so
     ``v10`` outranks ``v9``), newest first: stale packets are skipped, a path with no matching
     packet is drift, and a selected packet that pins the O-008 packet itself is circular. The
-    repository hygiene gate iterates lexicographically and also skips stale packets, so for
-    every changed path both select the same packet; for an unchanged path any matching
-    packet carries the same pin.
+    repository hygiene gate orders packets by the same lineage key
+    (tools.test_hygiene_evidence_v1.hygiene_lineage_key_v1, pinned equal to this one by a
+    parity test) and additionally requires every pin of the packet it selects to be current;
+    before that alignment it iterated lexicographically, so a stale ``v9`` outranked ``v27``
+    for any path whose bytes it still matched and the two gates disagreed.
     """
 
     ordered = sorted(snapshot.hygiene_packets.values(), key=lambda blob: hygiene_lineage_key_v1(blob.path), reverse=True)

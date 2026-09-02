@@ -27,6 +27,23 @@ from tools.test_hygiene_model_v1 import (
 
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _EVIDENCE_ID_RE = re.compile(r"THV1-[0-9]{8}-[a-z0-9][a-z0-9-]*")
+_HYGIENE_LINEAGE_RE = re.compile(r"^(.*?)(?:-v([0-9]+))?(\.json)?$")
+
+
+def hygiene_lineage_key_v1(name: str) -> tuple[str, int, str]:
+    """Order key for packets: lineage name, then the trailing ``-vN`` compared numerically, then the name.
+
+    The gate selects the newest packet whose pin matches a changed path. Lexicographic file order
+    ranks ``-v9`` above ``-v27``, so a stale early packet shadowed every later one for any path
+    whose bytes it still matched (campaign finding at P31); this key is the same one
+    ``tools/o008_formal_cycle_admission_v1.hygiene_lineage_key_v1`` uses, pinned equal by test.
+    """
+
+    match = _HYGIENE_LINEAGE_RE.fullmatch(name)
+    if match is None:
+        return (name, -1, name)
+    version = -1 if match.group(2) is None else int(match.group(2))
+    return (match.group(1), version, name)
 _PACKET_FIELDS = frozenset(
     {
         "schema",
@@ -277,9 +294,11 @@ def load_packets(evidence_dir: Path, contract: ContractV1) -> tuple[PacketV1, ..
     require(
         evidence_dir.is_dir(), f"evidence path is not a directory: {evidence_dir}"
     )
-    packets = tuple(
-        load_packet(path, contract) for path in sorted(evidence_dir.glob("*.json"))
+    ordered = sorted(
+        evidence_dir.glob("*.json"),
+        key=lambda path: hygiene_lineage_key_v1(path.name),
     )
+    packets = tuple(load_packet(path, contract) for path in ordered)
     ids = [packet.evidence_id for packet in packets]
     require(len(ids) == len(set(ids)), "duplicate evidence ids")
     return packets

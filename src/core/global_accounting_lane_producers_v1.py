@@ -160,7 +160,7 @@ class ReceiptBackedProducerRejectedV1:
         if type(self.lane_id) is not LaneIdV1:
             raise TypeError("receipt-backed producer lane id is not closed")
         _require_root(self.committed_lane_root, name="receipt-backed producer committed lane root", allow_zero=True)
-        if not isinstance(self.detail, str) or not self.detail or len(self.detail) > 200:
+        if type(self.detail) is not str or not self.detail or len(self.detail) > 200:
             raise ValueError("receipt-backed producer detail must be a short non-empty string")
 
     @property
@@ -223,13 +223,16 @@ def produce_asset_transfer_fragment_v1(
     projection (owner -> controlling principal, custody_domain -> control domain);
     the asset-transfer module emits no reserves, external obligations, or terminal
     obligations, so those row families are empty. ``binding_root`` is the journal's
-    receipt root. NONCLAIM: this producer trusts its caller for ``accepted`` and
-    covers claimant entitlements only per (asset, control_domain) total; receipt
-    admission (``asset_transfer_receipt_admission_v1``, C9a) takes the module
-    witness minted by ``lane_module_receipt_verification_v1`` and re-runs this
-    producer on the exact-typed snapshot of ``accepted``, and the certificate
-    registry keeps ASSET_TRANSFER at NO_PRODUCER until C9b, so acceptance never
-    precedes admission.
+    receipt root. NONCLAIM (scoped): this producer trusts its caller for
+    ``accepted`` and its coverage fold is keyed on (asset, control_domain) only,
+    so claimant identity and the split across claimants are caller-chosen at
+    THIS layer and not proved by the receipt; they are bound at the certificate
+    layer by ENTITLEMENT_ROWS_DRIFT (derived rows must equal the V1 liabilities
+    partition of GlobalEconomicStateV1 exactly), a check no acceptance path
+    reaches while ASSET_TRANSFER stays at NO_PRODUCER. Receipt admission
+    (``asset_transfer_receipt_admission_v1``, C9a) takes the module witness
+    minted by ``lane_module_receipt_verification_v1`` and re-runs this producer
+    on the exact-typed snapshot of ``accepted``; the registry flip is C9b.
     Research-only evidence; authority NONE.
     """
 
@@ -239,7 +242,7 @@ def produce_asset_transfer_fragment_v1(
         raise TypeError("receipt-backed producer input must be the exact LaneStateRootV1")
     if type(prior_fragment) is not LaneAllocationFragmentV1:
         raise TypeError("receipt-backed producer prior fragment must be the exact LaneAllocationFragmentV1")
-    if not isinstance(claimant_entitlements, tuple) or any(
+    if type(claimant_entitlements) is not tuple or any(
         type(row) is not ClaimantEntitlementRowV1 for row in claimant_entitlements
     ):
         raise TypeError("receipt-backed producer entitlements must be exact ClaimantEntitlementRowV1 rows")

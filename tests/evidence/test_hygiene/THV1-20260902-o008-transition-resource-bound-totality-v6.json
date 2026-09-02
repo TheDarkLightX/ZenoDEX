@@ -1,0 +1,145 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260902-o008-transition-resource-bound-totality-v6",
+  "created_date": "2026-09-02",
+  "claim_scope": "v6 re-pin (C9a''): the rejected-value gates in asset_transfer_types_v1 are exact; totality sources otherwise unchanged. Earlier: v5 (Opus P29 NEW-24): transition_asset_transfer_v1 re-validates context, pre-state, and command at entry through the dataclass constructors, mirroring the managed sibling, so a same-type forged pre-state (object.__new__) carrying a custody-domain row or non-canonical rows is refused instead of being relabelled or canonicalised; the transfer BALANCE_OVERFLOW arm therefore sits behind the re-validation like the managed arm (forged states raise) and keeps a direct-call witness on the balance fold so deleting the arm still fails a test. Earlier: v4 (Opus P26 repairs): the enum-variant scanner fails on any line it cannot parse and pins the member counts (12 and 15), so a CamelCase, tuple, or comma-less variant cannot vanish from the family comparison (NEW-16); BALANCE_OVERFLOW carries honest witnesses (NEW-18): the transfer arm is defensive checked arithmetic reachable only by forging a state whose balances exceed its supply past __post_init__, and the managed arm sits behind two layers (in-domain SUPPLY_OVERFLOW fires first; forged states are refused by the transition's snapshot re-validation), both pinned by tests that state exactly that. Cross-language reject PRECEDENCE remains unpinned (deferred, named honestly). Earlier: v3 (Opus P25 repairs): the Rust totality test file is rustfmt-clean (NEW-14, six cosmetic hunks), and the two extended reject enums carry a cross-language family-drift pin parsed from the Rust declarations, member for member and in order (NEW-15). Earlier: Research-only successor evidence for Opus P21 NEW-6. Asset-transfer and managed-asset lifecycle transitions totalise post-state balance-row growth past MAX_ASSET_BALANCE_ROWS_V1 into the closed reject code POST_STATE_RESOURCE_BOUND_EXCEEDED before post-state construction, in both Python and Rust. Exact MAX-1 to MAX growth remains accepted; MAX to attempted MAX+1 is a typed no-op rejection with unchanged state root and empty effects. The Python boundary nodes are executed directly and a pinned Python replay node executes the locked Rust transition_resource_bound_totality test target with warnings denied. This packet does not re-freeze or promote the O-008 formal-cycle packet and grants no authority.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "O008-TRANSITION-RESULT-TOTAL-AT-POST-STATE-RESOURCE-BOUND",
+    "O008-RESOURCE-BOUND-REJECT-IS-EXACT-NOOP",
+    "O008-PYTHON-RUST-RESOURCE-REJECT-CODE-PARITY",
+    "O008-RUST-RESOURCE-BOUND-TARGET-REPLAY"
+  ],
+  "failure_modes": [
+    "a valid pre-state at the balance-row ceiling escapes the transition result algebra through a Python exception",
+    "a valid pre-state at the balance-row ceiling escapes the transition result algebra through a Rust ABI error",
+    "an exact MAX-1 to MAX post-state growth is rejected by an off-by-one check",
+    "a MAX to attempted MAX+1 transition mutates state or carries effects on rejection",
+    "Python and Rust expose different closed reject semantics for the same post-state row exhaustion",
+    "the Rust repair is source-pinned but does not compile or its dedicated boundary target fails"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/asset_transfer_module_v1.py",
+      "sha256": "a888c4305ced488d9f737b070989fda1faac7ff897255003e6b095b0cdec4749"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "5757c8b692820613e1eac30b7103e857a73b42efebbdda62d0a4469511f41277"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_module_v1.py",
+      "sha256": "3a279bf3c5fa97d942c79f9c25025c0a24cbe7f24cfb91df5de43da38e831e36"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_types_v1.py",
+      "sha256": "f85ffc59628b673258ad6d72a9b6f8151f9def09e9e508aa2ec060251d75f315"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer.rs",
+      "sha256": "78d28167d5360c22b3749812bdab224fe1a2b7888899db363b5dbc5d981dbcb0"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_types.rs",
+      "sha256": "e51fb0f7933adc6a7434d5f323bef10491486e1a4f6cd4086973d8685cb57132"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle.rs",
+      "sha256": "53c35feac69a74beb3a4e1bd3f4a72e4c547c6e6d811af02b19f9814c42202cb"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_types.rs",
+      "sha256": "8ff6bbadf01851fd7c5ccd228e11fb8e9aff8e7d578bd6803e1d0504a4f836d2"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/transition_resource_bound_totality.rs",
+      "sha256": "1d891a6ca80a5a1d90007673595d6ce5ae6bf6439388a77c9f63c774107aaeab"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_transition_resource_bound_totality_v1.py",
+      "sha256": "81058067ef8079b9b5bd52b8f6ea2a4279ddbb2f67952566905250466f171a89",
+      "node_ids": [
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_asset_transfer_can_grow_to_exact_balance_row_ceiling",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_asset_transfer_growth_past_ceiling_is_closed_typed_noop",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_managed_asset_issue_can_grow_to_exact_balance_row_ceiling",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_managed_asset_issue_growth_past_ceiling_is_closed_typed_noop",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_reject_code_families_match_across_languages",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_balance_overflow_is_a_defensive_arm_behind_input_re_validation",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_re_validates_same_type_forged_pre_state",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_managed_issue_balance_overflow_is_a_defensive_guard_with_a_forgery_witness",
+        "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_refuses_state_subclasses"
+      ]
+    },
+    {
+      "path": "tests/formal/test_o008_transition_resource_bound_rust_replay.py",
+      "sha256": "3090b49cb01a841ef2e01d1ebc6f7936c5027058cc1b76ae48d3fd7459660892",
+      "node_ids": [
+        "tests/formal/test_o008_transition_resource_bound_rust_replay.py::test_rust_transition_resource_bound_totality_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The Python cases arrange valid pre-states at MAX-1 or MAX balance rows, act through the public transition, and assert either an accepted MAX-row post-state or the exact closed no-op resource rejection; the Rust replay independently executes the equivalent compiled target."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The MAX to attempted MAX+1 cases assert the closed resource reject code, unchanged pre/post state root, and an empty effect plan in both language test targets."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "asset_transfer_post_state_balance_rows",
+      "points": [
+        "MAX-1 rows plus one new recipient accepts at exactly MAX rows",
+        "MAX rows plus one new recipient rejects before post-state construction"
+      ]
+    },
+    {
+      "name": "managed_asset_issue_post_state_balance_rows",
+      "points": [
+        "MAX-1 rows plus one newly issued owner accepts at exactly MAX rows",
+        "MAX rows plus one newly issued owner rejects before post-state construction"
+      ]
+    },
+    {
+      "name": "rust_replay",
+      "points": [
+        "locked Rust target compiles with warnings denied",
+        "all four Rust totality boundary cases pass"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "grow or reorder either transition reject enum in one language only (Opus P25 NEW-15)",
+      "killed_by": "tests/core/test_transition_resource_bound_totality_v1.py::test_reject_code_families_match_across_languages"
+    },
+    {
+      "description": "hide a Rust enum variant from the family scanner via CamelCase, tuple form, or a missing comma (Opus P26 NEW-16)",
+      "killed_by": "tests/core/test_transition_resource_bound_totality_v1.py::test_reject_code_families_match_across_languages"
+    },
+    {
+      "description": "delete the transfer BALANCE_OVERFLOW arm of the balance fold (direct-call witness; Opus P26 NEW-18, P29 NEW-24)",
+      "killed_by": "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_balance_overflow_is_a_defensive_arm_behind_input_re_validation"
+    },
+    {
+      "description": "drop the entry re-validation so a same-type forged pre-state with a custody-domain or unordered row is accepted (Opus P29 NEW-24)",
+      "killed_by": "tests/core/test_transition_resource_bound_totality_v1.py::test_transfer_re_validates_same_type_forged_pre_state"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not grant production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "This packet does not make the pre-existing P22 formal-cycle packet current after these source-byte changes.",
+    "This packet does not establish whole-program transition totality outside the two repaired transition families.",
+    "This packet does not close O-008 or any of the twelve whole-value-movement gates."
+  ]
+}

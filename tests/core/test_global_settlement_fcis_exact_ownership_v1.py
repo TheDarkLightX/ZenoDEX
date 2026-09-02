@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from src.core.asset_lane_projection_v1 import (
+    AssetLaneCompositionAcceptedV1,
+    AssetLaneStateProjectionV1,
+    project_asset_transfer_state_v1,
+)
 from src.core.global_economic_refinement_snapshot_v1 import (
     _snapshot_effect_plan_v1,
     _snapshot_state_v1,
@@ -24,7 +31,14 @@ from src.core.global_settlement_types_v1 import (
     _require_token,
     canonical_global_bytes_v1,
 )
-from tests.core.test_global_settlement_abi_v1 import _profile, _root, _state
+from tests.core.test_global_settlement_abi_v1 import (
+    _epoch_asset_module_state,
+    _profile,
+    _root,
+    _state,
+)
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class _BehaviorBearingString(str):
@@ -326,3 +340,107 @@ def test_closed_factories_reject_subclass_dispatch() -> None:
             terminal_registry_root=profile.terminal_registry_root,
             status=profile.status,
         )
+
+
+# --- C9a'' (Opus P28 F1 audit, mechanical pin) -------------------------------------------------
+
+_ADMISSION_PATH_MODULES = (
+    "src/core/asset_transfer_receipt_admission_v1.py",
+    "src/core/global_accounting_lane_producers_v1.py",
+    "src/core/asset_transfer_lane_module_v1.py",
+    "src/core/asset_lane_projection_v1.py",
+    "src/core/asset_transfer_types_v1.py",
+    "src/core/lane_module_receipt_verification_v1.py",
+    "src/core/lane_module_release_route_binding_v1.py",
+)
+
+# Every surviving isinstance on the receipt-admission path, keyed by
+# (module, enclosing definition, second-argument source), with its licence.
+# Input gates use `type(x) is not T`; isinstance survives only as result
+# discrimination on a closed *RejectedV1 return value (never negated, never a
+# gate on a caller-supplied value).
+_ADMISSION_PATH_ISINSTANCE_INVENTORY = {
+    ("src/core/asset_transfer_lane_module_v1.py", "_transition_owned_asset_transfer_lane_module_v1", "AssetTransferRejectedV1"):
+        "result discrimination on the inner transition's closed RejectedV1 return",
+    ("src/core/asset_transfer_receipt_admission_v1.py", "verify_asset_transfer_fragment_receipt_v1", "ReceiptBackedProducerRejectedV1"):
+        "result discrimination on the producer's closed RejectedV1 return",
+}
+
+
+def _isinstance_sites(path: Path) -> list[tuple[str, str, str, bool]]:
+    import ast
+
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    sites: list[tuple[str, str, str, bool]] = []
+
+    def visit(node: ast.AST, scope: str, negated_parent: bool) -> None:
+        for child in ast.iter_child_nodes(node):
+            child_scope = scope
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                child_scope = child.name if not scope else f"{scope}.{child.name}"
+            negated = isinstance(child, ast.UnaryOp) and isinstance(child.op, ast.Not)
+            if isinstance(child, ast.Call) and getattr(child.func, "id", None) == "isinstance":
+                sites.append((str(path.relative_to(_REPO_ROOT)), child_scope, ast.unparse(child.args[1]), negated_parent))
+            visit(child, child_scope, negated)
+
+    visit(tree, "", False)
+    return sites
+
+
+def test_admission_path_isinstance_inventory_is_pinned() -> None:
+    """Opus P28 F1 audit: an ordinary subclass admitted by isinstance reported a
+    genuine root over foreign rows. Rule, pinned mechanically: on the seven
+    modules of the receipt-admission path, isinstance may survive only as
+    result discrimination on a closed *RejectedV1 return, never as an input
+    gate (input gates are exact: type(x) is not T). Adding any isinstance to the
+    path fails here until the inventory is amended with a licence."""
+
+    observed: dict[tuple[str, str, str], bool] = {}
+    for module in _ADMISSION_PATH_MODULES:
+        for path_text, scope, arg, negated in _isinstance_sites(_REPO_ROOT / module):
+            key = (path_text, scope.split(".")[-1], arg)
+            assert key not in observed, key
+            observed[key] = negated
+    assert set(observed) == set(_ADMISSION_PATH_ISINSTANCE_INVENTORY), (
+        sorted(set(observed) ^ set(_ADMISSION_PATH_ISINSTANCE_INVENTORY))
+    )
+    for (module, scope, arg), negated in observed.items():
+        assert arg.endswith("RejectedV1"), (module, scope, arg)
+        assert not negated, (module, scope, arg)
+        assert scope != "__post_init__", (module, scope, arg)
+
+
+class _SpoofedProjection(AssetLaneStateProjectionV1):
+    @property
+    def state_root(self) -> str:  # type: ignore[override]
+        return "0x" + "ab" * 32
+
+
+def test_asset_lane_composition_accepted_rejects_root_bearing_subclasses() -> None:
+    """The third F1 site: AssetLaneCompositionAcceptedV1 compares
+    lane_journal.post_lane_root to post_state.state_root, an overridable
+    property; a projection subclass reporting a chosen root is refused at the
+    exact-type gate before that comparison runs."""
+
+    profile, _ = _profile()
+    state = _state(profile, height=1)
+    genuine = project_asset_transfer_state_v1(
+        _epoch_asset_module_state(profile),
+        asset_policy_registry_root=_root(7),
+        fee_policy_registry_root=_root(8),
+    )
+    spoofed = _SpoofedProjection(
+        genuine.asset_policy_registry_root,
+        genuine.fee_policy_registry_root,
+        genuine.balances,
+        genuine.custody,
+        genuine.supplies,
+    )
+    assert spoofed.state_root != genuine.state_root
+    with pytest.raises(TypeError, match="exact typed value"):
+        AssetLaneCompositionAcceptedV1(
+            post_state=spoofed,
+            effects=_BehaviorBearingEffectPlan((), (), (), (), (), ()),
+            lane_journal=object(),  # type: ignore[arg-type]
+        )
+    del state
