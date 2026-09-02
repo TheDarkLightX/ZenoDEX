@@ -157,3 +157,33 @@ marker — because it is free and correct (the matcher is narrower than the erro
 vocabulary, §4), not because a live hole was demonstrated — and audit the
 Python-driven tau tests likewise; PopperPad: F4 dead end, F5/F6/F7 knowledge entries. Requalifying
 `external/tau-lang` is a separate decision (reopens O-003A/O-002/O-003B).
+
+## 8. Upstream addendum (2026-09-02, verified at d80aa50c)
+
+Ten upstream commits landed after this study's pin (0ac2756f), verified against a
+rebuilt binary at d80aa50c:
+
+- **Whole-ADT definition arguments** (demo_4.4, 1a01ef71): a tuple-typed argument
+  flattens at parse time, so a definition takes a whole record exactly when it
+  declares one parameter per flattened member. Verified: `norm(u,v):sbf := u | v`
+  then `ex p:Point (norm(p) = 0)` decides T. This improves admission-plane
+  ergonomics (typed record predicates without hand-plumbed members); the
+  performance walls of section 5 are untouched.
+- **Language-level fail-open CLOSED for type mismatches** (787abef6): a definition
+  call whose argument types can never match its parameters now errors loudly
+  ("disagrees with the argument types of its definition ... can never match")
+  instead of being silently ignored. Verified live. This closes a hazard one
+  layer below F8 that this study did not name: a policy predicate silently
+  no-opping on a type mismatch.
+- **Arity mismatches still neither vanish nor error**: a 2-parameter definition
+  applied to two whole Points flattens to a 4-argument application that persists
+  unexpanded in the output (verified: `ex b4,b3,b2,b1 twop(b4,b3,b2,b1)`). No
+  verdict is fabricated, but no error is raised either — the F8 fail-closed
+  harness discipline (match verdicts exactly, treat unexpanded applications as
+  failure) remains mandatory for admission-plane contracts.
+- Crash/hang classes fixed upstream: typed head on a formula-bodied definition
+  (was crash, e3d2fcc8), recurrence cases with mismatched argument types (was
+  hang, f3704eef); REPL session type definitions now visible to later commands
+  (e04744a0).
+
+The section 6 partition recommendation is unchanged.
