@@ -12,6 +12,8 @@ JOURNAL_SPEC = ROOT / "src" / "tau_specs" / "recommended" / "lane_transition_jou
 TAU_DIR_REL = "external/tau-lang-adt-logical-abi-v1"
 TAU_DIR = ROOT / TAU_DIR_REL
 TAU_BIN = TAU_DIR / "build-Release" / "tau"
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+_VERDICT_RE = re.compile(r"%\d+:\s*(T|F)\b")
 
 
 def _read_lock() -> dict[str, str]:
@@ -56,6 +58,11 @@ def _ensure_pinned_tau() -> tuple[Path, str]:
     if TAU_BIN.is_file() and _git_head(TAU_DIR) == commit:
         return TAU_BIN, commit
 
+    # Do not capture this long-running build. The repository hygiene gate runs
+    # pytest with capture enabled, and a completely silent nested build can be
+    # terminated by the hosted runner before pytest has a chance to report.
+    # The caller disables pytest capture around this function so upstream clone,
+    # configure, and compile progress remains visible in the Actions log.
     proc = subprocess.run(
         [
             "bash",
@@ -68,12 +75,11 @@ def _ensure_pinned_tau() -> tuple[Path, str]:
             "build-Release",
         ],
         cwd=ROOT,
-        capture_output=True,
         text=True,
         timeout=1200,
     )
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert TAU_BIN.is_file(), proc.stdout + proc.stderr
+    assert proc.returncode == 0, "pinned Tau build failed; see streamed build output above"
+    assert TAU_BIN.is_file(), "pinned Tau build produced no executable"
     assert _git_head(TAU_DIR) == commit
     return TAU_BIN, commit
 
@@ -110,7 +116,8 @@ def _always_query(path: Path) -> str:
     return "valid " + line[len("always ") : -1]
 
 
-def _run_truth_query(tau_bin: Path, spec: Path, query: str) -> str:
+def _run_query(tau_bin: Path, spec: Path, query: str, *, expected: str) -> str:
+    assert expected in {"T", "F"}
     script = "\n".join(
         [
             "set charvar off",
@@ -129,10 +136,18 @@ def _run_truth_query(tau_bin: Path, spec: Path, query: str) -> str:
         timeout=120,
     )
     transcript = proc.stdout + proc.stderr
+    clean_stdout = _ANSI_RE.sub("", proc.stdout)
+    verdicts = _VERDICT_RE.findall(clean_stdout)
     assert proc.returncode == 0, transcript
     assert "(Error)" not in transcript, transcript
-    assert re.search(r":\s*T(?:\s|$)", proc.stdout), transcript
+    assert verdicts == [expected], (
+        f"expected exactly one Tau verdict {expected}, got {verdicts!r}\n{transcript}"
+    )
     return transcript
+
+
+def _run_truth_query(tau_bin: Path, spec: Path, query: str) -> str:
+    return _run_query(tau_bin, spec, query, expected="T")
 
 
 def test_tau_adt_logical_abi_source_contract() -> None:
@@ -157,9 +172,28 @@ def test_tau_adt_logical_abi_source_contract() -> None:
     assert "table" not in executable_journal
 
 
-def test_tau_adt_logical_abi_pinned_replay() -> None:
-    tau_bin, commit = _ensure_pinned_tau()
+def test_tau_adt_logical_abi_pinned_replay(capsys) -> None:
+    # Keep the long source-resolved Tau build visible in CI rather than hiding
+    # it behind pytest's fd capture.
+    with capsys.disabled():
+        print(
+            "tau-adt-logical-abi-v1: building exact IDNI/tau-lang pin 3c24bad9...",
+            flush=True,
+        )
+        tau_bin, commit = _ensure_pinned_tau()
+        print(f"tau-adt-logical-abi-v1: pinned Tau ready at {commit}", flush=True)
+
     assert commit == "3c24bad9ee4c00c5d677fa465797189671823c01"
+
+    # Harness falsification: a deliberately over-strong ADT statement must
+    # return F. Requiring an exact single verdict prevents an unexpanded
+    # predicate or earlier REPL output from masquerading as success.
+    _run_query(
+        tau_bin,
+        ASSET_SPEC,
+        "valid all r:AssetTransferResultADT1 (asset_transfer_result_ok(r) -> (r.accepted = 1:sbf))",
+        expected="F",
+    )
 
     # First replay each file's full declared invariant. These are deliberately
     # closed formulas so Tau must decide them as valid, not merely parse them.
