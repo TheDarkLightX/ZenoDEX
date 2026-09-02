@@ -146,6 +146,7 @@ inductive RejectCode where
   | effectDeltaOverflow
   | insufficientBalance
   | balanceOverflow
+  | postStateResourceBoundExceeded
   deriving DecidableEq, Repr
 
 /-- The stable wire string for each code, matching the Python enum values. -/
@@ -161,6 +162,7 @@ def RejectCode.code : RejectCode → String
   | .effectDeltaOverflow => "EFFECT_DELTA_OVERFLOW"
   | .insufficientBalance => "INSUFFICIENT_BALANCE"
   | .balanceOverflow => "BALANCE_OVERFLOW"
+  | .postStateResourceBoundExceeded => "POST_STATE_RESOURCE_BOUND_EXCEEDED"
 
 /-- Position in the precedence order. -/
 def RejectCode.rank : RejectCode → Nat
@@ -175,29 +177,32 @@ def RejectCode.rank : RejectCode → Nat
   | .effectDeltaOverflow => 8
   | .insufficientBalance => 9
   | .balanceOverflow => 10
+  | .postStateResourceBoundExceeded => 11
 
 /-- The precedence order. The transition walks this list and returns the
 first code whose guard fails. -/
 def allRejectCodes : List RejectCode :=
   [ .releaseMismatch, .unknownCommand, .unknownAsset, .disabledAsset,
     .unauthorizedSubject, .selfTransfer, .zeroAmount, .feeLimitExceeded,
-    .effectDeltaOverflow, .insufficientBalance, .balanceOverflow ]
+    .effectDeltaOverflow, .insufficientBalance, .balanceOverflow,
+    .postStateResourceBoundExceeded ]
 
 /-- Boolean duplicate check, kept self-contained. -/
 def hasDuplicateCode : List RejectCode → Bool
   | [] => false
   | c :: rest => rest.contains c || hasDuplicateCode rest
 
-theorem allRejectCodes_length : allRejectCodes.length = 11 := rfl
+theorem allRejectCodes_length : allRejectCodes.length = 12 := rfl
 
 theorem allRejectCodes_codes :
     allRejectCodes.map RejectCode.code =
       [ "RELEASE_MISMATCH", "UNKNOWN_COMMAND", "UNKNOWN_ASSET", "DISABLED_ASSET",
         "UNAUTHORIZED_SUBJECT", "SELF_TRANSFER", "ZERO_AMOUNT", "FEE_LIMIT_EXCEEDED",
-        "EFFECT_DELTA_OVERFLOW", "INSUFFICIENT_BALANCE", "BALANCE_OVERFLOW" ] := rfl
+        "EFFECT_DELTA_OVERFLOW", "INSUFFICIENT_BALANCE", "BALANCE_OVERFLOW",
+        "POST_STATE_RESOURCE_BOUND_EXCEEDED" ] := rfl
 
 theorem allRejectCodes_ranks :
-    allRejectCodes.map RejectCode.rank = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] := rfl
+    allRejectCodes.map RejectCode.rank = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] := rfl
 
 theorem allRejectCodes_complete (c : RejectCode) : c ∈ allRejectCodes := by
   cases c <;> decide
@@ -329,6 +334,10 @@ def guardPasses (ctx : Context) (pre : TransferState) (cmd : Command) : RejectCo
   | .effectDeltaOverflow => widthAdmitted pre cmd
   | .insufficientBalance => ¬ roleUnderflow pre cmd
   | .balanceOverflow => ¬ roleOverflow pre cmd
+  -- Row finiteness is not modeled (see Scope), so the post-state row-ceiling
+  -- reject cannot fire in this abstraction: its guard always passes. Runtime
+  -- reachability of the code is pinned by the transition totality suite.
+  | .postStateResourceBoundExceeded => True
 
 instance guardPassesDecidable (ctx : Context) (pre : TransferState) (cmd : Command) :
     DecidablePred (guardPasses ctx pre cmd)
@@ -344,6 +353,7 @@ instance guardPassesDecidable (ctx : Context) (pre : TransferState) (cmd : Comma
   | .effectDeltaOverflow => inferInstanceAs (Decidable (widthAdmitted pre cmd))
   | .insufficientBalance => inferInstanceAs (Decidable (¬ roleUnderflow pre cmd))
   | .balanceOverflow => inferInstanceAs (Decidable (¬ roleOverflow pre cmd))
+  | .postStateResourceBoundExceeded => inferInstanceAs (Decidable True)
 
 /-! ## 7. Decision and transition -/
 

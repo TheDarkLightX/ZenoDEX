@@ -117,6 +117,13 @@ HYGIENE_SCHEMA_V1: Final = "zenodex/test-hygiene-evidence/v1"
 BLUEPRINT_PATH_V1: Final = "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md"
 PRIOR_ESSO_GATE_PATH_V1: Final = "tests/formal/test_esso_global_settlement_core_v1.py"
 
+TRANSFER_REFINEMENT_LEAN_PATH_V1: Final = "lean-mathlib/Proofs/AssetTransferRefinementV1.lean"
+TRANSFER_REFINEMENT_CHALLENGE_PATH_V1: Final = "lean-mathlib/Proofs/AssetTransferRefinementV1Challenge.lean"
+TRANSFER_REFINEMENT_TOOL_PATH_V1: Final = "tools/check_asset_transfer_refinement_v1.py"
+TRANSFER_REFINEMENT_CORPUS_PATH_V1: Final = "tests/data/asset_transfer_refinement_v1.json"
+TRANSFER_REFINEMENT_GATE_PATH_V1: Final = "tests/formal/test_lean_asset_transfer_refinement_v1.py"
+TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1: Final = 40
+
 SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (PYTHON_REFINEMENT_PATH_V1, "python_visible_necessary_checks"),
     (RUST_REFINEMENT_PATH_V1, "rust_visible_necessary_checks"),
@@ -160,6 +167,11 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (GATE_TESTS_PATH_V1, "admission_gate_tests"),
     (BLUEPRINT_PATH_V1, "corrected_prior_formal_blueprint"),
     (PRIOR_ESSO_GATE_PATH_V1, "prior_model_semantic_restage_gate"),
+    (TRANSFER_REFINEMENT_LEAN_PATH_V1, "transfer_refinement_bounded_lean_model"),
+    (TRANSFER_REFINEMENT_CHALLENGE_PATH_V1, "transfer_refinement_lean_challenge"),
+    (TRANSFER_REFINEMENT_TOOL_PATH_V1, "transfer_refinement_corpus_oracle"),
+    (TRANSFER_REFINEMENT_CORPUS_PATH_V1, "transfer_refinement_bounded_corpus"),
+    (TRANSFER_REFINEMENT_GATE_PATH_V1, "transfer_refinement_replay_gate"),
 )
 SOURCE_PIN_PATHS_V1: Final[tuple[str, ...]] = tuple(path for path, _ in SOURCE_PIN_ROLES_V1)
 EXECUTING_TOOL_PATHS_V1: Final[tuple[str, ...]] = (
@@ -208,6 +220,11 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     GATE_TESTS_PATH_V1,
     LEAN_GATE_PATH_V1,
     ESSO_GATE_PATH_V1,
+    TRANSFER_REFINEMENT_LEAN_PATH_V1,
+    TRANSFER_REFINEMENT_CHALLENGE_PATH_V1,
+    TRANSFER_REFINEMENT_TOOL_PATH_V1,
+    TRANSFER_REFINEMENT_CORPUS_PATH_V1,
+    TRANSFER_REFINEMENT_GATE_PATH_V1,
 )
 
 PACKET_KEYS_V3: Final[frozenset[str]] = frozenset(
@@ -1386,6 +1403,14 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         ".",
         ("PYTHONPATH", "ZENO_ESSO_PYTHON"),
         f"exit 0; {PRIOR_ESSO_GATE_EXPECTED_PASSED_V1} passed",
+        1800,
+    ),
+    ReplayCommandV1(
+        "transfer_refinement_gate",
+        (PYTHON_TOKEN_V1, "-m", "pytest", "-q", "-p", "no:cacheprovider", TRANSFER_REFINEMENT_GATE_PATH_V1),
+        ".",
+        (),
+        f"exit 0; {TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1} passed",
         1800,
     ),
     ReplayCommandV1(
@@ -3228,6 +3253,7 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
     },
     "esso_certificate_gate": {"passed": CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1},
     "prior_restage_gate": {"passed": PRIOR_ESSO_GATE_EXPECTED_PASSED_V1},
+    "transfer_refinement_gate": {"passed": TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1},
     "python_version": {"python_version": "semver"},
     "python_projection_gate": {"passed": PYTHON_GATE_EXPECTED_PASSED_V1},
     "rust_projection_gate": {"passed": RUST_GATE_EXPECTED_PASSED_V1},
@@ -3969,6 +3995,8 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_pytest(obs, CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "prior_restage_gate":
         return _grade_pytest(obs, PRIOR_ESSO_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "transfer_refinement_gate":
+        return _grade_pytest(obs, TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "python_version":
         return _grade_python_version(obs)
     if obs.command_id == "python_projection_gate":

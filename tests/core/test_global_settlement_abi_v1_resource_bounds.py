@@ -225,6 +225,10 @@ def test_every_canonical_rust_bound_has_a_python_twin() -> None:
         re.S,
     )
     rust_bounds = {name: evaluate(expression) for name, expression in rust_matches}
+    # Opus P27 NEW-20: pin that the scan is genuinely recursive - the crate has
+    # .rs files below src/ top level, and reverting rglob to glob must fail here
+    # even while the bound sets coincide.
+    assert len(list(crate_src.rglob("*.rs"))) > len(list(crate_src.glob("*.rs")))
     # Opus P24 NEW-12: duplicate names (comment-masking) must fail, not last-win.
     assert len(rust_matches) == len(rust_bounds)
     import importlib

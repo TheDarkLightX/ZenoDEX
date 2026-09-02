@@ -337,3 +337,41 @@ def test_managed_issue_balance_overflow_is_a_defensive_guard_with_a_forgery_witn
     with pytest.raises(ValueError, match="balances exceed supply"):
         transition_managed_asset_lifecycle_v1(context, forged, command)
     assert ManagedAssetLifecycleRejectCodeV1.BALANCE_OVERFLOW.value == "BALANCE_OVERFLOW"
+
+
+def test_transfer_refuses_state_subclasses() -> None:
+    """Opus P27 NEW-21: a subclass that skips __post_init__ and overrides
+    state_root is refused by the exact-type gate (the managed sibling already
+    refused it; the transfer arm now matches)."""
+
+    from src.core.asset_transfer_module_v1 import transition_asset_transfer_v1
+    from src.core.asset_transfer_types_v1 import (
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        AssetTransferCommandV1,
+        AssetTransferContextV1,
+        AssetTransferPolicyV1,
+        AssetTransferStateV1,
+    )
+    from src.core.global_settlement_types_v1 import AssetSupplyV1, EconomicAmountV1
+
+    class ForgedState(AssetTransferStateV1):
+        def __post_init__(self) -> None:  # skip validation entirely
+            pass
+
+        @property
+        def state_root(self) -> str:  # type: ignore[override]
+            return "0x" + "66" * 32
+
+    root = "0x" + "11" * 32
+    forged = ForgedState(
+        module_release_id=root,
+        policies=(AssetTransferPolicyV1("USD", "treasury", 0, True),),
+        balances=(EconomicAmountV1("sender", "USD", "accounts", 100),),
+        supplies=(AssetSupplyV1("USD", 100),),
+    )
+    context = AssetTransferContextV1("zenodex", root, root, 1, root, root, "sender", root)
+    command = AssetTransferCommandV1(
+        ASSET_TRANSFER_COMMAND_KIND_V1, "USD", "sender", "recv", 10, 0
+    )
+    with pytest.raises(TypeError, match="exact typed value"):
+        transition_asset_transfer_v1(context, forged, command)

@@ -210,11 +210,18 @@ theorem vectorLabels_eq :
         "EFFECT_DELTA_OVERFLOW", "ACCEPTED", "ACCEPTED", "EFFECT_DELTA_OVERFLOW" ] := by
   decide
 
-/-- Every rejection code is produced by some vector. -/
-theorem report_vectors_cover_every_code : ∀ c : RejectCode, c.code ∈ vectorLabels := by
-  intro c
+/-- Every rejection code the bounded model can emit is produced by some vector.
+`postStateResourceBoundExceeded` is excluded by scope: the model carries no row
+structure, its guard always passes, and `rejectCode` can never return it (see
+the V1 file's guard note); runtime reachability is pinned by the transition
+totality suite. -/
+theorem report_vectors_cover_every_code :
+    ∀ c : RejectCode, c ≠ .postStateResourceBoundExceeded → c.code ∈ vectorLabels := by
+  intro c hc
   rw [vectorLabels_eq]
-  cases c <;> decide
+  cases c <;> first
+    | exact absurd rfl hc
+    | decide
 
 /-- On every vector the Python loop and the order-independent rule agree,
 including the vectors outside the bridge lemma's premises. -/

@@ -1129,6 +1129,7 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "esso_certificate_verify_multi": json.dumps(certificate_verify).encode(),
         "esso_certificate_gate": f"{core.CERTIFICATE_ESSO_GATE_EXPECTED_PASSED_V1} passed in 40.00s\n".encode(),
         "prior_restage_gate": f"{core.PRIOR_ESSO_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
+        "transfer_refinement_gate": f"{core.TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
         "python_version": b"3.12.3\n",
         "python_projection_gate": f"{core.PYTHON_GATE_EXPECTED_PASSED_V1} passed in 0.30s\n".encode(),
         "rust_projection_gate": _cargo_summary(core.RUST_GATE_EXPECTED_PASSED_V1),

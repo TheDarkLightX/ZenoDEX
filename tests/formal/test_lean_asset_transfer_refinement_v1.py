@@ -506,9 +506,12 @@ def test_lean_guard_order_matches_python_enum_and_transition_source() -> None:
 
     # Assert: same closed set, same order, and the Python chain is a prefix.
     assert lean_order == enum_order
-    assert len(lean_order) == 11
+    assert len(lean_order) == 12
     assert python_policy_order == enum_order[:8]
-    assert enum_order[8:] == ["EFFECT_DELTA_OVERFLOW", "INSUFFICIENT_BALANCE", "BALANCE_OVERFLOW"]
+    assert enum_order[8:] == [
+        "EFFECT_DELTA_OVERFLOW", "INSUFFICIENT_BALANCE", "BALANCE_OVERFLOW",
+        "POST_STATE_RESOURCE_BOUND_EXCEEDED",
+    ]
 
 
 def test_runtime_sources_still_match_final_aggregation_and_precedence() -> None:
@@ -579,7 +582,7 @@ def _fee_rows(report: dict[str, list[list[str]]], name: str) -> set[tuple[str, i
 def test_report_reject_code_rows_match_python_enum(report) -> None:
     rows = report["CODE"]
     assert [r[0] for r in rows] == [code.value for code in AssetTransferRejectCodeV1]
-    assert len(rows) == 11
+    assert len(rows) == 12
 
 
 def test_report_width_row_matches_python_constants(report) -> None:
@@ -592,7 +595,11 @@ def test_report_covers_exactly_the_vector_table(report) -> None:
     assert {r[0] for r in report["VECTOR"]} == set(VECTORS)
     assert set(EXPECTED_VERDICTS) == set(VECTORS)
     verdicts = {r[1] for r in report["VECTOR"]}
-    assert verdicts == {"ACCEPTED", *(code.value for code in AssetTransferRejectCodeV1)}
+    # POST_STATE_RESOURCE_BOUND_EXCEEDED is model-unreachable by scope (no row
+    # structure in the bounded model); its runtime reachability is pinned by the
+    # transition totality suite, and the corpus records it in unreachable_codes.
+    model_unreachable = {"POST_STATE_RESOURCE_BOUND_EXCEEDED"}
+    assert verdicts == {"ACCEPTED", *(code.value for code in AssetTransferRejectCodeV1)} - model_unreachable
 
 
 @pytest.mark.parametrize("name", [n for n in VECTORS if n != OUTSIDE_PYTHON_INVARIANT])

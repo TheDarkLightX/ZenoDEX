@@ -294,12 +294,15 @@ def transition_asset_transfer_v1(
     ``POST_STATE_RESOURCE_BOUND_EXCEEDED`` before post-state construction.
     """
 
-    if not isinstance(context, AssetTransferContextV1):
-        raise TypeError("asset transfer context must be typed")
-    if not isinstance(pre_state, AssetTransferStateV1):
-        raise TypeError("asset transfer pre-state must be typed")
-    if not isinstance(command, AssetTransferCommandV1):
-        raise TypeError("asset transfer command must be typed")
+    # Opus P27 NEW-21: exact-type checks, mirroring the managed sibling. A
+    # subclass can skip __post_init__ and override derived roots; isinstance
+    # admits it, `type(...) is` refuses it.
+    if type(context) is not AssetTransferContextV1:
+        raise TypeError("asset transfer context must be the exact typed value")
+    if type(pre_state) is not AssetTransferStateV1:
+        raise TypeError("asset transfer pre-state must be the exact typed value")
+    if type(command) is not AssetTransferCommandV1:
+        raise TypeError("asset transfer command must be the exact typed value")
     prepared = _prepare_transfer(context, pre_state, command)
     if isinstance(prepared, AssetTransferRejectCodeV1):
         return _reject(prepared, pre_state)
