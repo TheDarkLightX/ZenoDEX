@@ -435,3 +435,25 @@ On whether the three carried residuals should block — **two no, one I would ra
 Across four rounds every finding was either fixed with a minimal, correctly-scoped, individually-tested guard, or answered by **downgrading the claim** — the inductive count went 12 → 11 → 10, always downward, always because evidence was re-examined. Both P1s, all four round-2 residuals, and all three round-3 A-blockers are closed and verified against my own harnesses rather than against restated tests. The receipts have reproduced byte-identically in all four rounds. The manifest now states its own partial certifications in its own data.
 
 What remains is honest and documented: a forgery floor that only re-running ESSO can lower, ten untested pre-existing guards that all work, joint-weakening visible in review, and the CI enrollment above. None of it undermines a claim the artifact makes.
+
+---
+
+# Addendum 4 — closure confirmation at `d176335c1` (2026-09-02)
+
+Single-pass confirmation of the post-review hardening at `d176335c14d79747b42bfb2da69e28c1436df330`. **The A stands, and the branch head is stronger than the graded hash.**
+
+**Enrollment is the pattern I pointed at.** `run_release_gate.sh` (which runs under `set -euo pipefail`, so any failure aborts the gate) now carries a `== release: disaster-axis status manifest ==` stanza running the checker with `--root` plus its pytest file — the same two-line shape as the neighbouring `check_*` gates. That closes the finding that nothing in CI ran this checker.
+
+**The replay test is what I meant, and it fails closed.** It re-runs `ESSO verify-multi --solvers z3,cvc5` for all 10 inductive models with `check=True`, and requires the fresh `ir_hash`, `verdict`, `solvers_agreed`, and query-set to match the committed receipt. I exercised it three ways rather than reading it:
+
+- **Without `external/ESSO`** (absent in a clean worktree, since `external/` is git-ignored): **FAILS** at the assert — it does not skip. That is the right call; note the operational consequence that the release gate now hard-requires ESSO to be provisioned wherever it runs.
+- **With `external/ESSO` present**: **27/27 pass in 21.8s**, the replay portion matching the ~10s I measured.
+- **With a one-constant model edit** (`MAX_CANONICAL` 30 → 31): **FAILS in 4.5s.** The gate has teeth.
+
+That last result is the important one. Because the fresh `ir_hash` is derived from the model bytes, this gate closes the two residuals I had accepted as inherent: **T2** (joint model+receipt weakening with resynced shas) and **T1'** (a gutted model plus a fully consistent forged receipt) both now produce a divergent fresh `ir_hash` — or an ESSO failure under `check=True` — and fail the gate. It also settles the ir_hash-to-model-bytes question that the internal-consistency pin could not. I had estimated this single addition would close all three; it does.
+
+**The other two items land as described.** The module docstring now names `check_manifest_total` as the entry point. The review receipt at `docs/research/reviews/ZENODEX_DISASTER_AXIS_MANIFEST_OPUS_REVIEW_6f5d92ad5d50.md` hashes to `df1e42d4b1ede6f3660fa9dce5706c1192bcfd13ce9f08ea7dfc2af7450909f2` — byte-identical to my four-round report at the graded commit.
+
+**Remaining, unchanged and non-blocking:** the ten pre-existing unpinned guard sites (all verified functioning by direct drive) and the model work itself — re-authoring the proof-gate and accounting models so their guards become load-bearing, which the two `caveat` fields now record in the manifest's own data.
+
+**Final: A at `6f5d92ad5`, and A at `d176335c1` with the strongest residuals closed.**
