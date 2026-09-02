@@ -15,6 +15,7 @@ receipt, a rejected receipt, or any binding mismatch fails closed.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import islice
 from typing import Mapping, Protocol
 
 from src.core.m6_authority_evidence_v1 import (
@@ -29,7 +30,6 @@ from src.core.m6_safe_mount_types_v1 import (
     WithdrawalAcknowledgmentV1,
     hash_v1,
 )
-from src.integration.tau_export_acceptance_retrieval import TauStateProofVerifierV0
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
 M6_AUTHORITY_REQUEST_SCHEMA_V1 = "zenodex/m6/authority-verification-request/v1"
@@ -50,11 +50,25 @@ class M6AuthorityProofRejectedV1(M6AuthorityVerificationError):
     """The external verifier rejected or failed to authenticate the evidence."""
 
 
+class M6AuthorityVerifierInternalFailureV1(M6AuthorityVerificationError):
+    """The verifier boundary failed before returning an authority decision."""
+
+
 class M6MigrationVerifierV1(Protocol):
     """Port for objective fallback/rejoin evidence verification."""
 
     def verify_m6_migration(self, request: Mapping[str, object]) -> Mapping[str, object]:
         """Return one exact M6 authority receipt or a rejection."""
+
+
+class M6TauStateProofVerifierV1(Protocol):
+    """Minimal structural port required by the M6 Tau authority adapter."""
+
+    def verify_tau_state_proof(
+        self,
+        request: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        """Return one exact M6-aware Tau authority receipt or a rejection."""
 
 
 def _require_root(value: object, *, name: str, allow_zero: bool = False) -> str:
@@ -68,20 +82,66 @@ def _require_root(value: object, *, name: str, allow_zero: bool = False) -> str:
     return canonical
 
 
+def _snapshot_receipt_mapping(
+    value: object,
+    *,
+    name: str,
+    max_items: int,
+) -> dict[str, object]:
+    """Own one stable observation of an untrusted verifier receipt.
+
+    Hostile ``__iter__``, ``keys``, ``__len__``, ``__getitem__``, or
+    cyclic references must not leak provider exceptions, context, or
+    secret text through the authority adapter boundary.
+    """
+
+    if not isinstance(value, Mapping):
+        raise M6AuthorityProofRejectedV1(f"{name} must be an object")
+    try:
+        keys = list(islice(iter(value), max_items + 1))
+    except Exception:
+        raise M6AuthorityProofRejectedV1(f"{name} could not be read") from None
+    if len(keys) > max_items:
+        raise M6AuthorityProofRejectedV1("M6 authority receipt binding mismatch")
+    if any(type(key) is not str for key in keys):
+        raise M6AuthorityProofRejectedV1(f"{name} could not be read")
+    try:
+        snapshot = {key: value[key] for key in keys}
+    except Exception:
+        raise M6AuthorityProofRejectedV1(f"{name} could not be read") from None
+    if len(snapshot) != len(keys):
+        raise M6AuthorityProofRejectedV1(f"{name} could not be read")
+    return snapshot
+
+
 def _require_receipt(
     receipt: object,
     *,
     expected: Mapping[str, object],
 ) -> str:
-    if not isinstance(receipt, Mapping):
-        raise M6AuthorityProofRejectedV1("M6 authority verifier returned a non-object receipt")
-    actual = dict(receipt)
+    actual = _snapshot_receipt_mapping(
+        receipt,
+        name="M6 authority verifier receipt",
+        max_items=len(expected) + 1,
+    )
     expected_body = dict(expected)
     expected_hash = hash_v1(M6_AUTHORITY_RECEIPT_HASH_DOMAIN_V1, expected_body)
+    bound = {**expected_body, "receipt_hash": expected_hash}
+    if any(type(key) is not str for key in actual):
+        raise M6AuthorityProofRejectedV1("M6 authority receipt binding mismatch")
     if actual.get("ok") is not True:
         raise M6AuthorityProofRejectedV1("M6 authority verifier rejected the evidence")
-    if actual != {**expected_body, "receipt_hash": expected_hash}:
+    if len(actual) != len(bound) or set(actual) != set(bound):
         raise M6AuthorityProofRejectedV1("M6 authority receipt binding mismatch")
+    for key, expected_value in bound.items():
+        # The receipt ABI is deliberately primitive-only. Exact built-in types
+        # prevent verifier-controlled subclasses or objects from supplying
+        # hostile equality methods at this authority boundary.
+        if type(expected_value) not in {str, int, bool}:  # pragma: no cover - internal contract
+            raise RuntimeError("M6 authority receipt expectation is not primitive")
+        actual_value = actual[key]
+        if type(actual_value) is not type(expected_value) or actual_value != expected_value:
+            raise M6AuthorityProofRejectedV1("M6 authority receipt binding mismatch")
     return expected_hash
 
 
@@ -237,7 +297,7 @@ class M6AuthorityVerifierAdapterV1:
     verifier receipts intentionally fail this contract.
     """
 
-    tau_state_proof_verifier: TauStateProofVerifierV0 | None = None
+    tau_state_proof_verifier: M6TauStateProofVerifierV1 | None = None
     migration_verifier: M6MigrationVerifierV1 | None = None
 
     def _verify_tau_receipt(
@@ -254,21 +314,29 @@ class M6AuthorityVerifierAdapterV1:
             )
         request = _tau_state_proof_request(authority_request, state_hash=state_hash)
         receipt: object = None
-        verifier_error: str | None = None
-        verifier_unavailable = False
+        verifier_failure: str | None = None
         try:
             receipt = verifier.verify_tau_state_proof(request)
         except M6AuthorityVerifierUnavailableV1:
-            verifier_error = "M6 Tau authority verifier is unavailable"
-            verifier_unavailable = True
-        except M6AuthorityVerificationError:
-            verifier_error = "M6 Tau authority verifier rejected the request"
+            verifier_failure = "unavailable"
+        except M6AuthorityVerifierInternalFailureV1:
+            verifier_failure = "internal"
+        except M6AuthorityProofRejectedV1:
+            verifier_failure = "rejected"
         except Exception:
-            verifier_error = "M6 Tau authority verifier failed"
-        if verifier_unavailable:
-            raise M6AuthorityVerifierUnavailableV1(verifier_error)
-        if verifier_error is not None:
-            raise M6AuthorityProofRejectedV1(verifier_error)
+            verifier_failure = "internal"
+        if verifier_failure == "unavailable":
+            raise M6AuthorityVerifierUnavailableV1(
+                "M6 Tau authority verifier is unavailable"
+            )
+        if verifier_failure == "internal":
+            raise M6AuthorityVerifierInternalFailureV1(
+                "M6 Tau authority verifier failed internally"
+            )
+        if verifier_failure == "rejected":
+            raise M6AuthorityProofRejectedV1(
+                "M6 Tau authority verifier rejected the request"
+            )
         receipt_hash = _require_receipt(receipt, expected=expected_receipt)
         try:
             kind = GlobalCommandKindV1(str(expected_receipt["kind"]))
@@ -423,21 +491,29 @@ class M6AuthorityVerifierAdapterV1:
         request["expected_source_authority_epoch"] = expected_source_authority_epoch
         request["expected_compatible_profile_root"] = profile_root
         receipt: object = None
-        verifier_error: str | None = None
-        verifier_unavailable = False
+        verifier_failure: str | None = None
         try:
             receipt = verifier.verify_m6_migration(request)
         except M6AuthorityVerifierUnavailableV1:
-            verifier_error = "M6 migration authority verifier is unavailable"
-            verifier_unavailable = True
-        except M6AuthorityVerificationError:
-            verifier_error = "M6 migration authority verifier rejected the request"
+            verifier_failure = "unavailable"
+        except M6AuthorityVerifierInternalFailureV1:
+            verifier_failure = "internal"
+        except M6AuthorityProofRejectedV1:
+            verifier_failure = "rejected"
         except Exception:
-            verifier_error = "M6 migration authority verifier failed"
-        if verifier_unavailable:
-            raise M6AuthorityVerifierUnavailableV1(verifier_error)
-        if verifier_error is not None:
-            raise M6AuthorityProofRejectedV1(verifier_error)
+            verifier_failure = "internal"
+        if verifier_failure == "unavailable":
+            raise M6AuthorityVerifierUnavailableV1(
+                "M6 migration authority verifier is unavailable"
+            )
+        if verifier_failure == "internal":
+            raise M6AuthorityVerifierInternalFailureV1(
+                "M6 migration authority verifier failed internally"
+            )
+        if verifier_failure == "rejected":
+            raise M6AuthorityProofRejectedV1(
+                "M6 migration authority verifier rejected the request"
+            )
         receipt_hash = _require_receipt(receipt, expected=expected)
         return _issue_m6_authority_verification_receipt_v1(
             kind=command_kind,
@@ -456,6 +532,7 @@ __all__ = [
     "M6AuthorityProofRejectedV1",
     "M6AuthorityVerificationError",
     "M6AuthorityVerifierAdapterV1",
+    "M6AuthorityVerifierInternalFailureV1",
     "M6AuthorityVerifierUnavailableV1",
     "M6MigrationVerifierV1",
 ]

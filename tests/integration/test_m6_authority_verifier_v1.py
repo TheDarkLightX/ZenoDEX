@@ -8,6 +8,7 @@ from typing import Mapping
 
 import pytest
 
+import src.integration.m6_authority_verifier_v1 as authority_verifier_module
 from src.core.m6_authority_evidence_v1 import (
     verify_migration_evidence_v1,
     verify_tau_escrow_deposit_evidence_v1,
@@ -30,6 +31,7 @@ from src.integration.m6_authority_verifier_v1 import (
     M6_AUTHORITY_REQUEST_SCHEMA_V1,
     M6AuthorityProofRejectedV1,
     M6AuthorityVerifierAdapterV1,
+    M6AuthorityVerifierInternalFailureV1,
     M6AuthorityVerifierUnavailableV1,
 )
 from src.integration.m6_external_proof_backend_v1 import (
@@ -692,7 +694,7 @@ def test_given_external_backend_rejecting_the_proof_when_called_then_it_fails_cl
     assert "external proof rejected" not in str(caught.value)
 
 
-def test_given_external_backend_exception_when_called_then_private_detail_is_not_disclosed() -> None:
+def test_given_external_backend_bug_when_called_then_internal_failure_is_not_proof_rejection() -> None:
     class RaisingExternalVerifier:
         def verify_with_output(
             self,
@@ -703,7 +705,7 @@ def test_given_external_backend_exception_when_called_then_private_detail_is_not
     backend = M6ProofVerifierBackendV1(proof_verifier=RaisingExternalVerifier())
     adapter = M6AuthorityVerifierAdapterV1(tau_state_proof_verifier=backend)
 
-    with pytest.raises(M6AuthorityProofRejectedV1) as caught:
+    with pytest.raises(M6AuthorityVerifierInternalFailureV1) as caught:
         adapter.verify_tau_escrow_deposit(
             _deposit(),
             expected_subject_root=_root(31),
@@ -711,8 +713,33 @@ def test_given_external_backend_exception_when_called_then_private_detail_is_not
             expected_command_hash=_root(33),
         )
 
-    assert str(caught.value) == "M6 Tau authority verifier rejected the request"
+    assert str(caught.value) == "M6 Tau authority verifier failed internally"
     assert "token" not in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+def test_given_external_backend_timeout_when_called_then_unavailable_is_retryable_class() -> None:
+    class TimedOutExternalVerifier:
+        def verify_with_output(
+            self,
+            _payload: object,
+        ) -> tuple[bool, str | None, Mapping[str, object] | None]:
+            raise TimeoutError("private verifier endpoint")
+
+    backend = M6ProofVerifierBackendV1(proof_verifier=TimedOutExternalVerifier())
+    adapter = M6AuthorityVerifierAdapterV1(tau_state_proof_verifier=backend)
+
+    with pytest.raises(M6AuthorityVerifierUnavailableV1) as caught:
+        adapter.verify_tau_escrow_deposit(
+            _deposit(),
+            expected_subject_root=_root(31),
+            expected_pre_state_root=_root(32),
+            expected_command_hash=_root(33),
+        )
+
+    assert str(caught.value) == "M6 Tau authority verifier is unavailable"
+    assert "endpoint" not in str(caught.value)
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
 
@@ -889,6 +916,407 @@ def test_given_valid_max_root_and_overflow_neighbor_when_backend_is_called_then_
         adapter.verify_tau_escrow_deposit(
             _deposit(),
             expected_subject_root="0x1" + "00" * 32,
+            expected_pre_state_root=_root(32),
+            expected_command_hash=_root(33),
+        )
+
+
+# ── Hostile receipt-mapping probes (Sol review Issue #4) ────────────────────
+
+
+class _HostileIterMapping(Mapping[str, object]):
+    """Mapping whose __iter__ raises with secret-bearing exception text."""
+
+    def __init__(self, values: Mapping[str, object]) -> None:
+        self._values = dict(values)
+
+    def __getitem__(self, key: str) -> object:
+        return self._values[key]
+
+    def __iter__(self) -> Iterator[str]:
+        raise RuntimeError("SENSITIVE_BACKEND_DETAIL_ITER")
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+
+class _HostileKeysMapping(Mapping[str, object]):
+    """Mapping whose keys() raises when observed."""
+
+    def __init__(self, values: Mapping[str, object]) -> None:
+        self._values = dict(values)
+
+    def __getitem__(self, key: str) -> object:
+        return self._values[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+    def keys(self) -> object:
+        raise RuntimeError("SENSITIVE_BACKEND_DETAIL_KEYS")
+
+
+class _HostileGetItemMapping(Mapping[str, object]):
+    """Mapping whose __getitem__ raises for one key."""
+
+    def __init__(self, values: Mapping[str, object], failing_key: str) -> None:
+        self._values = dict(values)
+        self._failing_key = failing_key
+
+    def __getitem__(self, key: str) -> object:
+        if key == self._failing_key:
+            raise RuntimeError("SENSITIVE_BACKEND_DETAIL_GETITEM")
+        return self._values[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+
+class _CyclicReceiptMapping(Mapping[str, object]):
+    """Mapping that contains a self-reference cycle."""
+
+    def __init__(self) -> None:
+        self._data: dict[str, object] = {"ok": True, "schema": "test"}
+        self._data["self"] = self
+
+    def __getitem__(self, key: str) -> object:
+        return self._data[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+
+class _HostileLenMapping(Mapping[str, object]):
+    """Mapping whose __len__ raises."""
+
+    def __init__(self, values: Mapping[str, object]) -> None:
+        self._values = dict(values)
+
+    def __getitem__(self, key: str) -> object:
+        return self._values[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        raise RuntimeError("SENSITIVE_BACKEND_DETAIL_LEN")
+
+
+def test_given_unbounded_receipt_mapping_when_snapshotted_then_observation_stops_at_upper_neighbor() -> None:
+    """BVA/RIPR: receipt ownership performs bounded untrusted iteration."""
+
+    observed = 0
+
+    class UnboundedReceiptMapping(Mapping[str, object]):
+        def __getitem__(self, key: str) -> object:
+            return key
+
+        def __iter__(self) -> Iterator[str]:
+            nonlocal observed
+            index = 0
+            while True:
+                observed += 1
+                yield f"field-{index}"
+                index += 1
+
+        def __len__(self) -> int:
+            return 1
+
+    with pytest.raises(M6AuthorityProofRejectedV1, match="binding mismatch"):
+        authority_verifier_module._snapshot_receipt_mapping(
+            UnboundedReceiptMapping(),
+            name="receipt",
+            max_items=3,
+        )
+
+    assert observed == 4
+
+
+class _AlwaysEqualReceiptValue:
+    """Attacker value that makes ordinary mapping equality accept a forgery."""
+
+    def __eq__(self, _other: object) -> bool:
+        return True
+
+
+class _ExplodingReceiptValue:
+    """Attacker value whose comparison tries to cross the verifier boundary."""
+
+    def __eq__(self, _other: object) -> bool:
+        raise RuntimeError("SENSITIVE_BACKEND_DETAIL_EQ")
+
+
+class _ExplodingReceiptKey:
+    """Attacker key colliding with ``ok`` must be rejected before lookup."""
+
+    def __init__(self, collision: str = "ok") -> None:
+        self._collision = collision
+
+    def __hash__(self) -> int:
+        return hash(self._collision)
+
+    def __eq__(self, _other: object) -> bool:
+        raise RuntimeError("SENSITIVE_BACKEND_DETAIL_KEY_EQ")
+
+
+@pytest.mark.parametrize("field", ["schema", "verifier_request_hash"])
+@pytest.mark.parametrize(
+    "hostile_value",
+    [_AlwaysEqualReceiptValue(), _ExplodingReceiptValue()],
+    ids=["always-equal", "exploding-equality"],
+)
+def test_given_hostile_external_envelope_value_when_checked_then_it_cannot_forge_binding(
+    field: str,
+    hostile_value: object,
+) -> None:
+    """External envelope bindings require exact built-in strings."""
+
+    def forge_envelope(envelope: Mapping[str, object]) -> Mapping[str, object]:
+        return {**envelope, field: hostile_value}
+
+    external = _ExternalProofVerifier(output_mutator=forge_envelope)
+    adapter = M6AuthorityVerifierAdapterV1(
+        tau_state_proof_verifier=M6ProofVerifierBackendV1(proof_verifier=external)
+    )
+
+    with pytest.raises(M6AuthorityProofRejectedV1) as exc_info:
+        adapter.verify_tau_escrow_deposit(
+            _deposit(),
+            expected_subject_root=_root(31),
+            expected_pre_state_root=_root(32),
+            expected_command_hash=_root(33),
+        )
+
+    assert "SENSITIVE" not in str(exc_info.value)
+
+
+def test_given_hostile_external_envelope_key_when_checked_then_no_lookup_hook_runs() -> None:
+    """Closed string field names are established before request-hash lookup."""
+
+    def forge_key(envelope: Mapping[str, object]) -> Mapping[object, object]:
+        return {
+            (
+                _ExplodingReceiptKey("verifier_request_hash")
+                if key == "verifier_request_hash"
+                else key
+            ): value
+            for key, value in envelope.items()
+        }
+
+    external = _ExternalProofVerifier(output_mutator=forge_key)
+    adapter = M6AuthorityVerifierAdapterV1(
+        tau_state_proof_verifier=M6ProofVerifierBackendV1(proof_verifier=external)
+    )
+
+    with pytest.raises(M6AuthorityProofRejectedV1) as exc_info:
+        adapter.verify_tau_escrow_deposit(
+            _deposit(),
+            expected_subject_root=_root(31),
+            expected_pre_state_root=_root(32),
+            expected_command_hash=_root(33),
+        )
+
+    assert "SENSITIVE" not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "hostile_label,hostile_mapping,expected_error",
+    [
+        ("hostile-iter", lambda: _HostileIterMapping({"ok": True}), M6AuthorityVerifierInternalFailureV1),
+        ("hostile-keys", lambda: _HostileKeysMapping({"ok": True}), M6AuthorityVerifierInternalFailureV1),
+        ("hostile-getitem", lambda: _HostileGetItemMapping({"ok": True}, "ok"), M6AuthorityVerifierInternalFailureV1),
+        ("hostile-len", lambda: _HostileLenMapping({"ok": True}), M6AuthorityProofRejectedV1),
+        ("cyclic", lambda: _CyclicReceiptMapping(), M6AuthorityProofRejectedV1),
+    ],
+)
+def test_given_hostile_receipt_mapping_when_observed_then_typed_rejection_without_secret_leakage(
+    hostile_label: str,
+    hostile_mapping: object,
+    expected_error: type,
+) -> None:
+    """RIPR: Reach receipt conversion with every hostile dunder; Infect with
+    secret-bearing exceptions; Propagate through Tau and migration adapter
+    methods; Reveal only a stable typed rejection with no cause, context, or
+    provider text.
+
+    Hostile ``__iter__``, ``keys``, ``__len__``, and ``__getitem__`` are
+    caught at the backend boundary by the existing ``dict()`` call in
+    ``_M6AwareTauVerifier.verify_tau_state_proof`` and converted to
+    ``M6AuthorityVerifierInternalFailureV1``.  The cyclic mapping reaches
+    ``_require_receipt`` where ``_snapshot_receipt_mapping`` owns a stable
+    observation and the binding-mismatch check rejects the extra field.
+    """
+
+    hostile = hostile_mapping() if callable(hostile_mapping) else hostile_mapping
+    backend = _M6AwareTauVerifier()
+    adapter = M6AuthorityVerifierAdapterV1(tau_state_proof_verifier=backend)
+
+    def hostile_receipt(_request: object) -> Mapping[str, object]:
+        assert isinstance(hostile, Mapping)
+        return hostile
+
+    backend.receipt_mutator = hostile_receipt  # type: ignore[assignment]
+
+    with pytest.raises(expected_error) as exc_info:
+        adapter.verify_tau_escrow_deposit(
+            _deposit(),
+            expected_subject_root=_root(31),
+            expected_pre_state_root=_root(32),
+            expected_command_hash=_root(33),
+        )
+
+    message = str(exc_info.value)
+    assert "SENSITIVE" not in message
+
+
+def test_given_hostile_migration_receipt_when_observed_then_typed_rejection_without_secret_leakage() -> None:
+    """The migration adapter path is independently protected."""
+
+    hostile = _HostileIterMapping({"ok": True, "schema": M6_AUTHORITY_RECEIPT_SCHEMA_V1})
+    migration_backend = _M6AwareMigrationVerifier()
+    adapter = M6AuthorityVerifierAdapterV1(migration_verifier=migration_backend)
+
+    # Override the backend to return the hostile mapping.
+    original_verify = migration_backend.verify_m6_migration
+
+    def hostile_verify(request: Mapping[str, object]) -> Mapping[str, object]:
+        original_verify(request)  # consume request normally
+        return hostile
+
+    migration_backend.verify_m6_migration = hostile_verify  # type: ignore[method-assign]
+
+    proof = MigrationAuthorityProofV1(
+        kind=MigrationEvidenceKindV1.FALLBACK_LIVENESS,
+        checkpoint_root=_root(42),
+        compatible_profile_root=_root(0),
+        condition_root=_root(43),
+        source_authority_epoch=2,
+    )
+
+    with pytest.raises(M6AuthorityProofRejectedV1) as exc_info:
+        adapter.verify_migration(
+            proof,
+            expected_kind=MigrationEvidenceKindV1.FALLBACK_LIVENESS,
+            expected_subject_root=_root(31),
+            expected_pre_state_root=_root(32),
+            expected_source_authority_epoch=2,
+            expected_compatible_profile_root=_root(0),
+            expected_command_hash=_root(33),
+        )
+
+    message = str(exc_info.value)
+    assert "SENSITIVE" not in message
+
+
+def test_given_non_mapping_receipt_when_observed_then_typed_rejection() -> None:
+    """BVA: non-mapping receipt is caught at the backend boundary and converted
+    to a stable typed internal-failure rejection."""
+
+    backend = _M6AwareTauVerifier()
+    adapter = M6AuthorityVerifierAdapterV1(tau_state_proof_verifier=backend)
+
+    def non_mapping_receipt(_request: object) -> object:
+        return ["not", "a", "mapping"]
+
+    backend.receipt_mutator = non_mapping_receipt  # type: ignore[assignment]
+
+    with pytest.raises(M6AuthorityVerifierInternalFailureV1):
+        adapter.verify_tau_escrow_deposit(
+            _deposit(),
+            expected_subject_root=_root(31),
+            expected_pre_state_root=_root(32),
+            expected_command_hash=_root(33),
+        )
+
+
+@pytest.mark.parametrize(
+    "hostile_value",
+    [_AlwaysEqualReceiptValue(), _ExplodingReceiptValue()],
+    ids=["always-equal", "exploding-equality"],
+)
+def test_given_hostile_receipt_values_when_compared_then_no_authority_is_issued(
+    hostile_value: object,
+) -> None:
+    """RIPR: exact keys with hostile values must not exploit Python equality."""
+
+    backend = _M6AwareTauVerifier()
+    adapter = M6AuthorityVerifierAdapterV1(tau_state_proof_verifier=backend)
+
+    def forge_values(receipt: Mapping[str, object]) -> Mapping[str, object]:
+        return {
+            key: (True if key == "ok" else hostile_value)
+            for key in receipt
+        }
+
+    backend.receipt_mutator = forge_values
+
+    with pytest.raises(M6AuthorityProofRejectedV1) as exc_info:
+        adapter.verify_tau_escrow_deposit(
+            _deposit(),
+            expected_subject_root=_root(31),
+            expected_pre_state_root=_root(32),
+            expected_command_hash=_root(33),
+        )
+
+    assert "SENSITIVE" not in str(exc_info.value)
+
+
+def test_given_hostile_receipt_key_when_validated_then_no_lookup_hook_runs() -> None:
+    """Field-name validation precedes any receipt lookup or equality hook."""
+
+    backend = _M6AwareTauVerifier()
+    adapter = M6AuthorityVerifierAdapterV1(tau_state_proof_verifier=backend)
+
+    def forge_key(receipt: Mapping[str, object]) -> Mapping[object, object]:
+        return {
+            (_ExplodingReceiptKey() if key == "ok" else key): value
+            for key, value in receipt.items()
+        }
+
+    backend.receipt_mutator = forge_key
+
+    with pytest.raises(M6AuthorityProofRejectedV1) as exc_info:
+        adapter.verify_tau_escrow_deposit(
+            _deposit(),
+            expected_subject_root=_root(31),
+            expected_pre_state_root=_root(32),
+            expected_command_hash=_root(33),
+        )
+
+    assert "SENSITIVE" not in str(exc_info.value)
+
+
+def test_given_empty_or_extra_field_receipt_when_verified_then_rejected() -> None:
+    """BVA: empty and extra-field receipts are rejected with a typed error."""
+
+    backend = _M6AwareTauVerifier()
+    adapter = M6AuthorityVerifierAdapterV1(tau_state_proof_verifier=backend)
+
+    # Empty receipt: ok is missing, so rejected-the-evidence.
+    backend.receipt_mutator = lambda r: {}
+    with pytest.raises(M6AuthorityProofRejectedV1, match="rejected the evidence"):
+        adapter.verify_tau_escrow_deposit(
+            _deposit(),
+            expected_subject_root=_root(31),
+            expected_pre_state_root=_root(32),
+            expected_command_hash=_root(33),
+        )
+
+    # Extra-field receipt: binding mismatch.
+    backend.receipt_mutator = lambda r: {**dict(r), "secret_field": "leaked"}
+    with pytest.raises(M6AuthorityProofRejectedV1, match="binding mismatch"):
+        adapter.verify_tau_escrow_deposit(
+            _deposit(),
+            expected_subject_root=_root(31),
             expected_pre_state_root=_root(32),
             expected_command_hash=_root(33),
         )

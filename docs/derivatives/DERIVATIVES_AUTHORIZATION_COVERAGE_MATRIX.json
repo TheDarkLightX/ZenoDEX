@@ -1,0 +1,379 @@
+{
+  "schema": "zenodex/derivatives_authorization_coverage_matrix/v1",
+  "date": "2026-05-19",
+  "scope": "derivatives_authorization_complete_settlement",
+  "summary": {
+    "overall_grade": "B+",
+    "spot_ahead_of_derivatives": true,
+    "primary_gap": "authorization_complete_settlement",
+    "production_release_decision": "bounded authorization requirements are closed; keep live-value release gated on oracle governance, operator rollout, value-at-risk controls, and incident response",
+    "policy": "settlement authorization requires derived values, authorized references, state-root binding, and replayable receipts"
+  },
+  "areas": [
+    {
+      "area_id": "perps_clearinghouse",
+      "label": "Perps core / clearinghouse perps",
+      "current_grade": "A-",
+      "status": "bounded_production_integration_evidence_present",
+      "authorization_complete": true,
+      "production_ready": false,
+      "bounded_authorization_evidence": true,
+      "claim_refs": [
+        "py:perp_engine:settle_epoch_order_independent",
+        "py:perp_engine:settle_epoch_fee_pool_accumulates_across_accounts",
+        "py:perp_engine:breaker_reduce_only_and_clear",
+        "py:perp_engine:advance_requires_prior_settlement",
+        "py:perp_engine_ch2p:net_zero_and_pair_liquidation",
+        "py:perp_engine_ch3p:transfer_and_conservation",
+        "smt:perp_epoch_isolated_v2:inductive_z3_cvc5",
+        "smt:perp_epoch_clearinghouse_2p_v0_1:inductive_z3_cvc5",
+        "smt:perp_epoch_clearinghouse_3p_transfer_v0_1:inductive_cvc5",
+        "smt:perp_game_theory_v2:inductive_z3_cvc5",
+        "shell:zeno_oracle:runtime_shell_oracle_bound_perps_settlement_v1",
+        "py:perps:production_integration_evidence_gate_v1"
+      ],
+      "disputed_claim_refs": [],
+      "requirements": [
+        {
+          "requirement_id": "deterministic_epoch_settlement",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:perp_engine:settle_epoch_order_independent"
+          ],
+          "open_gap": null
+        },
+        {
+          "requirement_id": "clearinghouse_conservation",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:perp_engine_ch2p:net_zero_and_pair_liquidation",
+            "py:perp_engine_ch3p:transfer_and_conservation",
+            "smt:perp_epoch_clearinghouse_2p_v0_1:inductive_z3_cvc5",
+            "smt:perp_epoch_clearinghouse_3p_transfer_v0_1:inductive_cvc5"
+          ],
+          "open_gap": null
+        },
+        {
+          "requirement_id": "oracle_bound_runtime_shell",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "shell:zeno_oracle:runtime_shell_oracle_bound_perps_settlement_v1"
+          ],
+          "coverage_limit": "local kernel and shell assurance only; live oracle truth and production governance remain outside the claim",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "production_integration_hardening",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:perps:production_integration_evidence_gate_v1"
+          ],
+          "coverage_limit": "bounded perps evidence runner covers tests, ESSO kernels, assurance gates, Tau ingress, market version/prefix, and Lean proofs; live oracle truth, governance, value-at-risk controls, and incident response remain release gates",
+          "open_gap": null
+        }
+      ],
+      "promotion_boundary": "bounded production-candidate perps evidence; live-value release still needs oracle governance, operator rollout, value-at-risk controls, and incident response"
+    },
+    {
+      "area_id": "funding_rate_market",
+      "label": "Funding-rate derivatives",
+      "current_grade": "A-/B+",
+      "status": "bounded_authorization_complete_helper_lane_present",
+      "authorization_complete": true,
+      "production_ready": false,
+      "bounded_authorization_evidence": true,
+      "claim_refs": [
+        "smt:funding_rate_market_v1:inductive_z3_cvc5",
+        "smt:funding_rate_settlement_witness_v1_1:inductive_z3_cvc5",
+        "py:funding_rate_market_v1_1:parity_with_generated_ref",
+        "py:funding_rate_market:settlement_witness_helper_rejects_forgery_v1",
+        "py:funding_rate_market:authorized_settlement_helper_v1",
+        "py:funding_rate_market:production_step_requires_authorized_settlement_v1"
+      ],
+      "disputed_claim_refs": [
+        "smt:funding_rate_market_v1:inductive_z3_cvc5"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "phase_state_transitions",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "smt:funding_rate_market_v1:inductive_z3_cvc5"
+          ],
+          "coverage_limit": "inductive phase and state shell only; settlement values remain disputed for authorization semantics",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "settlement_witness_arithmetic",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "smt:funding_rate_settlement_witness_v1_1:inductive_z3_cvc5"
+          ],
+          "open_gap": null
+        },
+        {
+          "requirement_id": "settlement_witness_runtime_helper",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:funding_rate_market:settlement_witness_helper_rejects_forgery_v1"
+          ],
+          "coverage_limit": "strict helper verifies derived v1.1 witness values before calling the legacy parity-preserving step path",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "mandatory_witness_runtime_path",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:funding_rate_market:production_step_requires_authorized_settlement_v1"
+          ],
+          "coverage_limit": "production_step rejects settlement without oracle and witness receipts; legacy step remains available for generated-reference parity tests",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "mark_index_oracle_authorization",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:funding_rate_market:authorized_settlement_helper_v1"
+          ],
+          "coverage_limit": "production-facing helper binds mark/index to an oracle receipt; legacy parity step remains available for reference testing",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "payouts_derived_not_supplied",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:funding_rate_market:settlement_witness_helper_rejects_forgery_v1",
+            "py:funding_rate_market:authorized_settlement_helper_v1"
+          ],
+          "coverage_limit": "strict helper recomputes realized rate, protocol fee, and payouts before settlement",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "forged_realized_rate_payout_negative_tests",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:funding_rate_market:settlement_witness_helper_rejects_forgery_v1",
+            "py:funding_rate_market:authorized_settlement_helper_v1"
+          ],
+          "open_gap": null
+        }
+      ],
+      "promotion_boundary": "remain research or testnet until the disputed claim is narrowed or replaced by an authorization-complete lane"
+    },
+    {
+      "area_id": "il_futures",
+      "label": "IL futures",
+      "current_grade": "B+",
+      "status": "bounded_authorization_complete_receipt_lane_present",
+      "authorization_complete": true,
+      "production_ready": false,
+      "bounded_authorization_evidence": true,
+      "claim_refs": [
+        "smt:il_futures_market_v1:inductive_z3_cvc5",
+        "py:il_futures:reserve_reference_receipt_helpers_v1",
+        "py:il_futures:settlement_authority_receipt_v1"
+      ],
+      "disputed_claim_refs": [],
+      "requirements": [
+        {
+          "requirement_id": "state_machine_inductiveness",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "smt:il_futures_market_v1:inductive_z3_cvc5"
+          ],
+          "open_gap": null
+        },
+        {
+          "requirement_id": "snapshot_reserve_state_root_binding",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:il_futures:reserve_reference_receipt_helpers_v1"
+          ],
+          "coverage_limit": "local helper requires a bounded snapshot reserve receipt with state-root hash; live pool root source remains an integration assumption",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "current_reserve_state_root_binding",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:il_futures:reserve_reference_receipt_helpers_v1"
+          ],
+          "coverage_limit": "local helper requires a bounded current-reserve receipt with state-root hash; live pool root source remains an integration assumption",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "production_twap_reference_authorization",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:il_futures:reserve_reference_receipt_helpers_v1"
+          ],
+          "coverage_limit": "local helper requires an epoch-bound reference receipt; oracle governance and reference economics remain outside this claim",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "balance_transfer_settlement_receipts",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:il_futures:settlement_authority_receipt_v1"
+          ],
+          "coverage_limit": "strict helper emits and verifies a derivative settlement receipt with balance_transfer_root; external ledger replay of that root remains an integration assumption",
+          "open_gap": null
+        }
+      ],
+      "promotion_boundary": "promising derivative lane; needs pool-root, reference, and receipt binding before live-value use"
+    },
+    {
+      "area_id": "curve_selection",
+      "label": "Curve-selection market",
+      "current_grade": "B/B+",
+      "status": "bounded_event_replay_authorization_lane_present",
+      "authorization_complete": true,
+      "production_ready": false,
+      "bounded_authorization_evidence": true,
+      "claim_refs": [
+        "smt:curve_selection_market_v1:inductive_z3_cvc5",
+        "py:curve_selection:revenue_delta_receipt_helper_rejects_forgery_v1",
+        "py:curve_selection:fee_accumulator_and_winner_receipts_v1",
+        "py:curve_selection:pool_event_replay_receipts_v1"
+      ],
+      "disputed_claim_refs": [
+        "smt:curve_selection_market_v1:inductive_z3_cvc5"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "state_machine_inductiveness",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "smt:curve_selection_market_v1:inductive_z3_cvc5"
+          ],
+          "coverage_limit": "inductive kernel only; settlement revenue provenance remains disputed",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "revenue_delta_receipt_helper",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:curve_selection:revenue_delta_receipt_helper_rejects_forgery_v1"
+          ],
+          "coverage_limit": "local pre/post revenue counter receipt helper; pool-event replay receipt helper provides the bounded event-derived lane",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "revenue_provenance",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:curve_selection:pool_event_replay_receipts_v1"
+          ],
+          "coverage_limit": "bounded helper derives per-curve revenue from ordered, hash-bound pool revenue events; live pool-event emission and anti-wash-trading policy remain production integration assumptions",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "fee_accumulator_pool_receipts",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:curve_selection:fee_accumulator_and_winner_receipts_v1"
+          ],
+          "coverage_limit": "local helper requires one bounded fee-accumulator receipt per curve; pool-event replay helper covers ordered event-derived revenue for bounded tests",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "winner_derived_from_verified_revenue",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:curve_selection:fee_accumulator_and_winner_receipts_v1"
+          ],
+          "coverage_limit": "winner receipt is recomputed from current revenue counters and stake state before settlement",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "forged_revenue_winner_negative_tests",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:curve_selection:revenue_delta_receipt_helper_rejects_forgery_v1",
+            "py:curve_selection:fee_accumulator_and_winner_receipts_v1",
+            "py:curve_selection:pool_event_replay_receipts_v1"
+          ],
+          "open_gap": null
+        }
+      ],
+      "promotion_boundary": "bounded authorization-complete testnet lane; live production still needs pool-event emitter integration, wash-trade economics, and governance runbooks"
+    },
+    {
+      "area_id": "general_cfmo_fire",
+      "label": "General CFMO / FIRE derivatives",
+      "current_grade": "B+",
+      "status": "bounded_fire_library_and_receipt_lane_present",
+      "authorization_complete": true,
+      "production_ready": false,
+      "bounded_authorization_evidence": true,
+      "claim_refs": [
+        "py:zenocover:lp_loss_cover_fire_bundle_v1",
+        "py:zenocover:reserve_solvency_manifest_v0",
+        "py:derivative_settlement_receipts:authority_envelope_v1",
+        "py:fire:stdlib_object_library_and_settlement_packets_v1",
+        "py:fire:release_assurance_gate_v1"
+      ],
+      "disputed_claim_refs": [],
+      "source_docs": [
+        "docs/derivatives/CERTIFIED_FINANCIAL_MATH_OBJECTS.md"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "example_fire_bundle_replay",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:zenocover:lp_loss_cover_fire_bundle_v1"
+          ],
+          "coverage_limit": "one local replayed ZenoCover object; broader checked-in FIRE stdlib coverage is tracked separately",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "settlement_receipt_envelope",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:derivative_settlement_receipts:authority_envelope_v1"
+          ],
+          "coverage_limit": "generic derivative receipt envelope plus FIRE-specific FIREVReceiptOK release gate; Python verifier remains in the TCB",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "production_object_library",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:fire:stdlib_object_library_and_settlement_packets_v1"
+          ],
+          "coverage_limit": "checked-in stdlib has eight pinned object/interface entries and focused package/settlement tests; arbitrary future FIRE objects need separate admission",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "oracle_reference_policy_catalog",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:fire:stdlib_object_library_and_settlement_packets_v1",
+            "py:fire:release_assurance_gate_v1"
+          ],
+          "coverage_limit": "current object manifests and FIRE release gate bind witness/import policies; oracle truth and live source governance remain outside the claim",
+          "open_gap": null
+        },
+        {
+          "requirement_id": "settlement_authority_receipts",
+          "covered_required": true,
+          "evidence_claim_refs": [
+            "py:fire:stdlib_object_library_and_settlement_packets_v1",
+            "py:fire:release_assurance_gate_v1"
+          ],
+          "coverage_limit": "FIREVReceiptOK binds object, instance, certificate, witness, and delta hashes; live market rollout and verifier proof discharge remain separate",
+          "open_gap": null
+        }
+      ],
+      "promotion_boundary": "bounded FIRE stdlib and receipt lane; live production still needs verifier hardening, oracle/source governance, and object-by-object rollout"
+    }
+  ],
+  "global_next_steps": [
+    "connect perps, IL, and curve receipts to live pool-event and balance-transfer replay",
+    "write production oracle governance, value-at-risk, and incident-response runbooks",
+    "connect curve revenue event roots to the live pool-event emitter and anti-wash-trading policy",
+    "connect derivative settlement receipts to live ledger balance-transfer replay",
+    "upgrade claims only after the replay command, negative tests, and claims registry entry exist"
+  ]
+}

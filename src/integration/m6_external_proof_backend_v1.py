@@ -24,6 +24,7 @@ from .m6_authority_verifier_v1 import (
     M6_AUTHORITY_REQUEST_SCHEMA_V1,
     TAU_STATE_PROOF_REQUEST_SCHEMA_V0,
     M6AuthorityProofRejectedV1,
+    M6AuthorityVerifierInternalFailureV1,
     M6AuthorityVerifierUnavailableV1,
     _require_root,
 )
@@ -334,15 +335,23 @@ def _external_output_or_reject(
     request_hash: str,
 ) -> dict[str, object]:
     envelope = _snapshot_mapping(output, name="M6 external verifier output")
+    if any(type(key) is not str for key in envelope):
+        _reject("M6 external verifier output has an unexpected field set")
     if "verifier_request_hash" not in envelope:
         _reject("M6 external verifier request hash is missing")
     if set(envelope) != frozenset({"schema", "ok", "verifier_request_hash", "receipt"}):
         _reject("M6 external verifier output has an unexpected field set")
-    if envelope["schema"] != M6_EXTERNAL_VERIFIER_OUTPUT_SCHEMA_V1:
+    if (
+        type(envelope["schema"]) is not str
+        or envelope["schema"] != M6_EXTERNAL_VERIFIER_OUTPUT_SCHEMA_V1
+    ):
         _reject("M6 external verifier output schema mismatch")
     if envelope["ok"] is not True:
         _reject("M6 external verifier output is not accepted")
-    if envelope["verifier_request_hash"] != request_hash:
+    if (
+        type(envelope["verifier_request_hash"]) is not str
+        or envelope["verifier_request_hash"] != request_hash
+    ):
         _reject("M6 external verifier request hash mismatch")
     return _snapshot_mapping(
         envelope["receipt"],
@@ -381,14 +390,20 @@ class M6ProofVerifierBackendV1:
         }
         ok: object = False
         output: object = None
-        provider_failed = False
+        provider_failure: str | None = None
         try:
             ok, _error, output = verifier.verify_with_output(payload)
+        except (TimeoutError, ConnectionError, OSError):
+            provider_failure = "unavailable"
         except Exception:
-            provider_failed = True
-        if provider_failed:
-            raise M6AuthorityProofRejectedV1(
-                "M6 external proof verifier failed"
+            provider_failure = "internal"
+        if provider_failure == "unavailable":
+            raise M6AuthorityVerifierUnavailableV1(
+                "M6 external proof verifier is unavailable"
+            )
+        if provider_failure == "internal":
+            raise M6AuthorityVerifierInternalFailureV1(
+                "M6 external proof verifier failed internally"
             )
         if ok is not True:
             raise M6AuthorityProofRejectedV1(

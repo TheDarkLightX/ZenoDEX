@@ -1,0 +1,291 @@
+# [FORGE] DEX Settlement Recovery — inductive disaster-unreachability model v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "disaster_dex_settlement_recovery_v1"
+  created_by: "esso-disaster-inductive"
+  description: >
+    Encodes the DEX settlement RECOVERY-proof boundary as an inductive
+    safety problem: recovering/recomputing a settlement after an abort/crash
+    must (a) neither create nor destroy value vs the pre-abort state
+    (conservation, ker Delta) and (b) never double-apply a settlement that is
+    already (partially) committed (monotone replay protection).
+  tags: ["dex", "settlement", "recovery", "conservation", "replay", "safety"]
+  notes: |
+    REAL AUTHORITY ABSTRACTED
+    -------------------------
+    * Conservation half mirrors src/core/settlement.py: a Settlement applies a
+      vector of signed deltas (BalanceDelta/ReserveDelta/LPDelta, each
+      net_delta = delta_add - delta_sub). The conservation homomorphism
+      Delta : Settlement ->+ Z (lean-mathlib/Proofs/SettlementAlgebra.lean)
+      sends a settlement to its net scalar flow; a *balanced* settlement is
+      one in ker(Delta), i.e. sum of signed net flows == 0. Apply must keep
+      the global token total constant (no value created/destroyed). Here the
+      held-by-protocol "vault" plus the two account legs plus the fee leg make
+      up that total; settlement just moves value between them.
+    * Replay half mirrors src/state/nonces.py
+      (validate_and_apply_intent_nonce_batch): an applied settlement advances a
+      strictly-increasing, contiguous sequence {last+1,...}. A committed
+      settlement cannot be replayed because its sequence slot is consumed.
+      We model this as a single monotone counter `applied_seq` gated against
+      `expected_seq`: recovery may only fire when applied_seq == expected_seq,
+      and it advances BOTH by exactly +1, so the same settlement (same seq)
+      can never be applied twice.
+
+    LIFECYCLE (matches the abort/recover proof unit)
+    ------------------------------------------------
+      running --begin_settle--> staged (records a balanced staged settlement
+                                          amt/fee, NOTHING committed yet)
+      staged  --abort_settle--> aborted (crash/abort: staged settlement
+                                          recorded but NOT applied;
+                                          balances unchanged; seq unchanged)
+      aborted --recover_settle-> recovered (recompute & commit EXACTLY the
+                                          staged settlement once; advance seq)
+
+    DISASTER (must be UNREACHABLE; the negation of the invariants)
+    -------------------------------------------------------------
+      D1 (value leak): after recovery, vault+acct_a+acct_b+fee_acct != total0
+          => value created or destroyed by the recovered settlement (Delta!=0).
+      D2 (double-apply / replay): applied_seq > expected_seq, i.e. a settlement
+          was applied more than once for a given expected slot.
+
+    MODEL <-> CODE GAP
+    ------------------
+      * Bounded ints (<= 60) stand in for u64 token amounts; the real path is
+        unbounded with explicit overflow guards. The model proves the
+        accounting identity, not overflow safety (covered elsewhere).
+      * One sender / one settlement-in-flight; the real NonceTable is
+        per-sender and the real settlement carries a *vector* of deltas. The
+        homomorphism Delta is additive, so the single-leg conservation here is
+        the kernel generator; the multi-leg case composes by map_add
+        (SettlementAlgebra.balanced_comp_balanced).
+      * Ceiling fee rounding from the real swap is omitted; here `fee` is a
+        free param routed to a fee leg that is part of `total`, so conservation
+        holds for any fee split (the fee never leaves the conserved system).
+      * "recompute after crash" is modelled as committing the *recorded* staged
+        amounts; we do NOT re-derive amount_out from pool reserves (that AMM
+        arithmetic is proven in dex_global_conservation_v1). Recovery here is
+        about apply-once + conservation, not requoting.
+
+observables:
+  state_vars: ["vault", "acct_a", "acct_b", "fee_acct", "applied_seq", "expected_seq", "phase"]
+  effects: []
+
+types: []
+
+state_vars:
+  - id: "vault"
+    role: "data"
+    type: { kind: "int", min: 0, max: 60 }
+  - id: "acct_a"
+    role: "data"
+    type: { kind: "int", min: 0, max: 60 }
+  - id: "acct_b"
+    role: "data"
+    type: { kind: "int", min: 0, max: 60 }
+  - id: "fee_acct"
+    role: "data"
+    type: { kind: "int", min: 0, max: 60 }
+  # Recorded-but-not-yet-committed settlement (the "in flight" deltas at crash).
+  - id: "staged_amt"
+    role: "data"
+    type: { kind: "int", min: 0, max: 30 }
+  - id: "staged_fee"
+    role: "data"
+    type: { kind: "int", min: 0, max: 30 }
+  # Monotone replay-protection counters (mirror NonceTable last_used vs next).
+  - id: "applied_seq"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "expected_seq"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  # phase lifecycle, integer-encoded (proven SMT-friendly pattern, cf.
+  # perp_epoch_isolated_v3 epoch_phase): running=0, staged=1, aborted=2,
+  # recovered=3.
+  - id: "phase"
+    role: "control"
+    type: { kind: "int", min: 0, max: 3 }
+
+init:
+  # Pre-abort conserved state: total0 = 20 + 10 + 10 + 0 = 40.
+  - var: "vault"
+    expr: { const: 20 }
+  - var: "acct_a"
+    expr: { const: 10 }
+  - var: "acct_b"
+    expr: { const: 10 }
+  - var: "fee_acct"
+    expr: { const: 0 }
+  - var: "staged_amt"
+    expr: { const: 0 }
+  - var: "staged_fee"
+    expr: { const: 0 }
+  - var: "applied_seq"
+    expr: { const: 0 }
+  - var: "expected_seq"
+    expr: { const: 0 }
+  - var: "phase"
+    expr: { const: 0 }
+
+invariants:
+  # --------------------------------------------------------------------------
+  # D1: Conservation (ker Delta). Total tokens held by the system are constant
+  # at total0 = 40 in EVERY reachable state. This is the inductive form of
+  # "the recovered settlement creates/destroys no value". It is NOT a tautology:
+  # the recover_settle action genuinely MOVES value between vault/acct_a/
+  # acct_b/fee_acct; the invariant pins the moved quantities to sum back to 40.
+  # Its negation (sum != 40) is exactly disaster D1 (value leak on recovery).
+  # --------------------------------------------------------------------------
+  - id: "inv_conservation_ker_delta"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - op: "+"
+              args:
+                - { var: "vault" }
+                - { var: "acct_a" }
+            - op: "+"
+              args:
+                - { var: "acct_b" }
+                - { var: "fee_acct" }
+        - { const: 40 }
+
+  # --------------------------------------------------------------------------
+  # D2: No double-apply / replay. The applied sequence may never run ahead of
+  # the expected sequence. recover_settle is the only writer of applied_seq and
+  # it is guarded by applied_seq == expected_seq, advancing BOTH by +1, so the
+  # same settlement slot can never be committed twice. Negation
+  # (applied_seq > expected_seq) is exactly disaster D2 (replay/double-apply).
+  # --------------------------------------------------------------------------
+  - id: "inv_no_double_apply"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - { var: "applied_seq" }
+        - { var: "expected_seq" }
+
+  # --------------------------------------------------------------------------
+  # Sequence coupling: applied_seq lags expected_seq by at most one open slot.
+  # This is the inductive companion that makes inv_no_double_apply provable AND
+  # rules out "expected raced ahead leaving a committed-but-uncounted apply".
+  # In running/staged/aborted the slot is open (applied == expected); once
+  # recovered, both advanced together (still applied == expected).
+  # --------------------------------------------------------------------------
+  - id: "inv_seq_coupled"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "applied_seq" }
+        - { var: "expected_seq" }
+
+  # --------------------------------------------------------------------------
+  # Staged settlement is balanced-by-construction precondition: the staged
+  # amount routed out of the vault equals (amt->acct_b) + (fee->fee_acct).
+  # Mirrors ker(Delta): the recorded in-flight settlement nets to zero. This is
+  # the inductive fact that lets recover_settle preserve conservation. Holds
+  # trivially when nothing is staged (0 == 0 + 0).
+  # --------------------------------------------------------------------------
+  - id: "inv_staged_balanced"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - { var: "staged_amt" }
+        - { var: "staged_fee" }
+
+actions:
+  # begin_settle: select an in-flight settlement and stage its (balanced)
+  # deltas without committing. amt leaves vault conceptually only at commit;
+  # here we just RECORD amt (split into the acct_b leg and fee leg) and require
+  # the vault can cover it. Nothing in the conserved totals moves yet.
+  - id: "begin_settle"
+    params:
+      - id: "amt"
+        type: { kind: "int", min: 1, max: 20 }
+      - id: "fee"
+        type: { kind: "int", min: 0, max: 10 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 0 }] }
+        # vault must be able to fund the staged settlement at commit time.
+        - { op: ">=", args: [{ var: "vault" }, { param: "amt" }] }
+        # fee is a sub-split of amt (fee leg + counterparty leg == amt).
+        - { op: ">=", args: [{ param: "amt" }, { param: "fee" }] }
+    updates:
+      - var: "staged_amt"
+        expr: { param: "amt" }
+      - var: "staged_fee"
+        expr: { param: "fee" }
+      - var: "phase"
+        expr: { const: 1 }
+
+  # abort_settle: model the crash/abort AFTER staging but BEFORE commit. By the
+  # recovery-proof contract, no balances and no sequence counters move. The
+  # staged settlement survives so recovery can recompute and apply it once.
+  - id: "abort_settle"
+    params: []
+    guard:
+      op: "="
+      args:
+        - { var: "phase" }
+        - { const: 1 }
+    updates:
+      - var: "phase"
+        expr: { const: 2 }
+
+  # recover_settle: the proof unit under test. Recompute & COMMIT exactly the
+  # staged settlement, once. ATOMIC update of all conserved legs + monotone
+  # sequence advance. Conservation: vault -= amt; acct_b += (amt - fee);
+  # fee_acct += fee. Sum delta = -amt + (amt - fee) + fee = 0 (ker Delta).
+  # Replay protection: guard applied_seq == expected_seq; both += 1.
+  - id: "recover_settle"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 2 }] }
+        # Replay gate: only fire on the open, expected sequence slot.
+        - { op: "=", args: [{ var: "applied_seq" }, { var: "expected_seq" }] }
+        # Sequence-counter headroom: there must be room to advance the monotone
+        # replay counters. Hitting the counter ceiling is a SEPARATE overflow
+        # concern (the real path uses u64 with explicit overflow guards); this
+        # recovery proof unit assumes the counter has not saturated. Without
+        # this conjunct the k=1 inductive frame could pick the ceiling state and
+        # report a spurious out-of-domain "advance" (a model artifact, not a
+        # real settlement disaster).
+        - { op: "<", args: [{ var: "expected_seq" }, { const: 8 }] }
+        # Funds still present to honour the recomputed settlement.
+        - { op: ">=", args: [{ var: "vault" }, { var: "staged_amt" }] }
+        - { op: ">=", args: [{ var: "staged_amt" }, { var: "staged_fee" }] }
+    updates:
+      # vault pays out the full staged amount.
+      - var: "vault"
+        expr: { op: "-", args: [{ var: "vault" }, { var: "staged_amt" }] }
+      # counterparty account receives amount net of fee.
+      - var: "acct_b"
+        expr:
+          op: "+"
+          args:
+            - { var: "acct_b" }
+            - { op: "-", args: [{ var: "staged_amt" }, { var: "staged_fee" }] }
+      # protocol fee leg receives the fee (stays inside the conserved system).
+      - var: "fee_acct"
+        expr: { op: "+", args: [{ var: "fee_acct" }, { var: "staged_fee" }] }
+      # consume the staged settlement (cannot be re-staged/re-applied).
+      - var: "staged_amt"
+        expr: { const: 0 }
+      - var: "staged_fee"
+        expr: { const: 0 }
+      # monotone replay-protection advance: both counters move together by +1.
+      - var: "applied_seq"
+        expr: { op: "+", args: [{ var: "applied_seq" }, { const: 1 }] }
+      - var: "expected_seq"
+        expr: { op: "+", args: [{ var: "expected_seq" }, { const: 1 }] }
+      - var: "phase"
+        expr: { const: 3 }

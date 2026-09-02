@@ -5,11 +5,15 @@ Fail-closed validator for docs/claims_registry.yaml.
 This is intentionally lightweight and CI-friendly:
 - checks schema/version + required fields
 - checks uniqueness of claim ids
+- checks the status field against the closed vocabulary
 - checks referenced files exist
+- checks every evidence theorem is declared in a referenced .lean file whose
+  namespace matches the theorem's qualified prefix
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +21,7 @@ from typing import Any, Iterable
 
 import yaml
 
+ALLOWED_CLAIM_STATUSES = frozenset({"supported", "proved", "disputed"})
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = REPO_ROOT / "docs" / "claims_registry.yaml"
@@ -72,7 +77,11 @@ def _iter_cmds(evidence: dict[str, Any]) -> Iterable[str]:
 
 def validate_registry(path: Path) -> None:
     raw = path.read_text(encoding="utf-8")
-    root = _require_mapping(yaml.safe_load(raw), name="registry")
+    validate_registry_root(yaml.safe_load(raw))
+
+
+def validate_registry_root(loaded: Any) -> None:
+    root = _require_mapping(loaded, name="registry")
 
     schema = _require_str(root.get("schema"), name="registry.schema")
     if schema != "zenodex/claims-registry/v1":
@@ -89,7 +98,12 @@ def validate_registry(path: Path) -> None:
             raise CheckError(f"duplicate claim id: {cid}")
         seen_ids.add(cid)
 
-        _require_str(claim.get("status"), name=f"claims[{idx}].status")
+        status = _require_str(claim.get("status"), name=f"claims[{idx}].status")
+        if status not in ALLOWED_CLAIM_STATUSES:
+            raise CheckError(
+                f"claims[{idx}].status {status!r} is outside the closed vocabulary "
+                f"{sorted(ALLOWED_CLAIM_STATUSES)}"
+            )
         _require_str(claim.get("layer"), name=f"claims[{idx}].layer")
         _require_str(claim.get("statement"), name=f"claims[{idx}].statement")
 
@@ -108,6 +122,41 @@ def validate_registry(path: Path) -> None:
                 raise CheckError(f"claims[{idx}].evidence.files contains path outside repo: {f}")
             if not p.exists():
                 raise CheckError(f"claims[{idx}].evidence.files missing: {f}")
+
+        # Every named theorem must be declared in a referenced .lean file whose
+        # namespace matches the theorem's qualified prefix (fail-closed).
+        theorems = _require_optional_str_list(evidence.get("theorems"), name=f"claims[{idx}].evidence.theorems")
+        if theorems:
+            lean_texts = [
+                (f, (REPO_ROOT / f).read_text(encoding="utf-8"))
+                for f in files
+                if f.endswith(".lean") and (REPO_ROOT / f).exists()
+            ]
+            if not lean_texts:
+                raise CheckError(f"claims[{idx}] names theorems but references no .lean file")
+            for qualified in theorems:
+                prefix, _, bare = qualified.rpartition(".")
+                declared = re.compile(rf"^\s*(?:theorem|lemma)\s+{re.escape(bare)}\b", re.M)
+                needed = [part for part in prefix.split(".") if part]
+                bound = False
+                for _f, text in lean_texts:
+                    if not declared.search(text):
+                        continue
+                    # Namespace lines may be nested (one component per line) or
+                    # dotted; require every prefix component to appear in the
+                    # file's namespace chain (order is not re-derived here).
+                    components: set[str] = set()
+                    for line in re.findall(r"^namespace ([\w.]+)", text, re.M):
+                        components.update(line.split("."))
+                    if any(part not in components for part in needed):
+                        continue
+                    bound = True
+                    break
+                if not bound:
+                    raise CheckError(
+                        f"claims[{idx}].evidence.theorems entry {qualified!r} is not declared "
+                        "in any referenced .lean file with a matching namespace"
+                    )
 
 
 def main(argv: list[str] | None = None) -> int:

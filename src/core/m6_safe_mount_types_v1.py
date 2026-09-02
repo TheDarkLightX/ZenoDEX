@@ -2343,6 +2343,7 @@ class M6ApplicationStateV1:
                 first = grouped_rows[0]
                 if any(
                     row.bond_asset != first.bond_asset
+                    or row.commit_height != first.commit_height
                     or row.reveal_deadline_height != first.reveal_deadline_height
                     or row.settle_deadline_height != first.settle_deadline_height
                     for row in grouped_rows

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from collections.abc import Iterator
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping, cast
@@ -42,6 +44,8 @@ from src.integration.m6_migration_authority_v1 import (
     M6_MIGRATION_WRITER_MEMBERSHIP_PROOF_MAX_DEPTH_V1,
     M6_MIGRATION_WRITER_MEMBERSHIP_PROOF_MAX_ITEMS_V1,
     M6MigrationAuthorityProofRejectedV1,
+    M6MigrationAuthorityVerifierInternalFailureV1,
+    M6MigrationAuthorityVerifierUnavailableV1,
     M6MigrationAuthorityVerifierV1,
     M6MigrationWriterMembershipProofV1,
     M6MigrationWriterMembershipVerifierV1,
@@ -59,10 +63,34 @@ from src.state.canonical import canonical_hex_fixed_allow_0x
 
 _M6_TEST_PRIVATE_KEY = "0x" + "11" * 32
 _M6_TEST_PRIVATE_KEY_2 = "0x" + "22" * 32
+_M6_ATTACKER_PRIVATE_KEY = "0x" + "33" * 32
 
 
 def _root(number: int) -> str:
     return canonical_hex_fixed_allow_0x(f"0x{number:064x}", nbytes=32, name="test root")
+
+
+def _migration_receipt_body(request: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "schema": request["receipt_schema"],
+        "ok": True,
+        "plan_root": request["plan_root"],
+        "step_root": request["step_root"],
+        "source_subject_root": request["source_subject_root"],
+        "target_subject_root": request["target_subject_root"],
+        "source_state_root": request["source_state_root"],
+        "target_state_root": request["target_state_root"],
+        "source_writer_epoch": request["source_writer_epoch"],
+        "target_writer_epoch": request["target_writer_epoch"],
+        "allowed_writer_set_root": request["allowed_writer_set_root"],
+        "authority_registry_root": request["authority_registry_root"],
+        "rollback_state_root": request["rollback_state_root"],
+        "evidence_root": request["evidence_root"],
+        "kind": request["kind"],
+        "branch_root": request["branch_root"],
+        "pre_state_root": request["pre_state_root"],
+        "pre_phase": request["pre_phase"],
+    }
 
 
 @dataclass
@@ -70,26 +98,7 @@ class _StructuralMigrationBackend:
     registry: Mapping[str, object] | None = None
 
     def verify_m6_migration_step(self, request: Mapping[str, object]) -> Mapping[str, object]:
-        body = {
-            "schema": request["receipt_schema"],
-            "ok": True,
-            "plan_root": request["plan_root"],
-            "step_root": request["step_root"],
-            "source_subject_root": request["source_subject_root"],
-            "target_subject_root": request["target_subject_root"],
-            "source_state_root": request["source_state_root"],
-            "target_state_root": request["target_state_root"],
-            "source_writer_epoch": request["source_writer_epoch"],
-            "target_writer_epoch": request["target_writer_epoch"],
-            "allowed_writer_set_root": request["allowed_writer_set_root"],
-            "authority_registry_root": request["authority_registry_root"],
-            "rollback_state_root": request["rollback_state_root"],
-            "evidence_root": request["evidence_root"],
-            "kind": request["kind"],
-            "branch_root": request["branch_root"],
-            "pre_state_root": request["pre_state_root"],
-            "pre_phase": request["pre_phase"],
-        }
+        body = _migration_receipt_body(request)
         registry = self.registry or _m6_test_registry()
         payload_hash = migration_authority_payload_hash_v1(body)
         envelope = build_bls_signed_artifact_envelope_v0(
@@ -328,6 +337,97 @@ def _m6_two_signer_registry() -> dict[str, object]:
             },
         ],
     )
+
+
+def _m6_attacker_registry() -> dict[str, object]:
+    return build_signer_registry_v0(
+        registry_id="m6-migration-attacker-registry",
+        payload_kind=M6_MIGRATION_AUTHORITY_PAYLOAD_KIND_V1,
+        threshold=1,
+        signers=[
+            {
+                "signer_id": "attacker-validator-0",
+                "key_id": "attacker-key-0",
+                "public_key": bls_public_key_hex_from_private_key_v0(
+                    _M6_ATTACKER_PRIVATE_KEY
+                ),
+                "weight": 1,
+                "status": "active",
+            }
+        ],
+    )
+
+
+@dataclass
+class _ObserverDependentSignerRegistry(Mapping[str, object]):
+    """Expose valid honest validation views and attacker quorum-use views."""
+
+    honest: dict[str, object]
+    attacker: dict[str, object]
+
+    def _view(self) -> dict[str, object]:
+        frame = inspect.currentframe()
+        try:
+            frame = None if frame is None else frame.f_back
+            while frame is not None:
+                function_name = frame.f_code.co_name
+                if function_name == "validate_signer_registry_v0":
+                    return self.honest
+                if function_name == "verify_signature_quorum_v0":
+                    return {
+                        **self.attacker,
+                        "registry_hash": self.honest["registry_hash"],
+                    }
+                frame = frame.f_back
+            return self.honest
+        finally:
+            del frame
+
+    def __getitem__(self, key: str) -> object:
+        return self._view()[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._view())
+
+    def __len__(self) -> int:
+        return len(self._view())
+
+
+@dataclass
+class _AttackerSignedMigrationBackend:
+    registry: Mapping[str, object]
+
+    def verify_m6_migration_step(
+        self,
+        request: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        body = _migration_receipt_body(request)
+        payload_hash = migration_authority_payload_hash_v1(body)
+        envelope = build_bls_signed_artifact_envelope_v0(
+            payload_kind=M6_MIGRATION_AUTHORITY_PAYLOAD_KIND_V1,
+            payload_hash=payload_hash,
+            signer_id="attacker-validator-0",
+            key_id="attacker-key-0",
+            private_key_hex=_M6_ATTACKER_PRIVATE_KEY,
+        )
+        authority_proof = {
+            "schema": M6_MIGRATION_AUTHORITY_PROOF_SCHEMA_V1,
+            "payload_kind": M6_MIGRATION_AUTHORITY_PAYLOAD_KIND_V1,
+            "payload_hash": payload_hash,
+            "registry_hash": self.registry["registry_hash"],
+            "envelopes": [envelope],
+            "quorum_report": verify_signature_quorum_v0(
+                registry=self.registry,
+                payload_kind=M6_MIGRATION_AUTHORITY_PAYLOAD_KIND_V1,
+                payload_hash=payload_hash,
+                envelopes=[envelope],
+            ),
+        }
+        receipt_body = {**body, "authority_proof": authority_proof}
+        return {
+            **receipt_body,
+            "receipt_hash": hash_v1("m6-migration-authority-receipt-v1", receipt_body),
+        }
 
 
 @dataclass
@@ -937,6 +1037,43 @@ def test_given_noncanonical_quorum_envelope_order_when_authenticated_then_verifi
         )
 
 
+def test_given_stateful_signer_registry_when_attacker_view_changes_then_authority_rejects(
+) -> None:
+    """One caller-owned Mapping cannot supply validation and use-time identities."""
+
+    # Arrange: the mapping presents the plan's honest registry to each registry
+    # validator and an attacker key to quorum use. The receipt is signed only
+    # by that attacker key while retaining the honest plan registry root.
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+    changing_registry = _ObserverDependentSignerRegistry(
+        honest=_m6_test_registry(),
+        attacker=_m6_attacker_registry(),
+    )
+    verifier = M6MigrationAuthorityVerifierV1(
+        _AttackerSignedMigrationBackend(changing_registry),
+        signer_registry=changing_registry,
+    )
+    verifier.validate_plan_binding(plan)
+
+    # Act / Assert: construction-time ownership must make every later read use
+    # the same honest snapshot, so the foreign signature cannot mint evidence.
+    with pytest.raises(
+        M6MigrationAuthorityProofRejectedV1,
+        match="signature quorum rejected",
+    ) as caught:
+        verifier.verify_step_with_receipt(
+            plan,
+            _step(plan, M6MigrationStepKindV1.SHADOW_REPLAY, 11),
+            state.branch_root,
+            pre_state_root=state.state_root,
+            pre_phase=state.phase,
+        )
+    assert str(caught.value) == "migration authority signature quorum rejected"
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
 def test_given_migration_backend_exception_when_verifying_then_private_detail_is_not_disclosed(
 ) -> None:
     class RaisingMigrationBackend:
@@ -953,7 +1090,7 @@ def test_given_migration_backend_exception_when_verifying_then_private_detail_is
         signer_registry=_m6_test_registry(),
     )
 
-    with pytest.raises(M6MigrationAuthorityProofRejectedV1) as caught:
+    with pytest.raises(M6MigrationAuthorityVerifierInternalFailureV1) as caught:
         verifier.verify_step_with_receipt(
             plan,
             _step(plan, M6MigrationStepKindV1.SHADOW_REPLAY, 11),
@@ -962,7 +1099,7 @@ def test_given_migration_backend_exception_when_verifying_then_private_detail_is
             pre_phase=state.phase,
         )
 
-    assert str(caught.value) == "migration authority backend failed"
+    assert str(caught.value) == "migration authority backend failed internally"
     assert "token" not in str(caught.value)
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
@@ -997,6 +1134,36 @@ def test_given_typed_migration_backend_error_when_verifying_then_private_detail_
 
     assert str(caught.value) == "migration authority backend rejected the request"
     assert "credential" not in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+def test_given_migration_backend_timeout_when_verifying_then_unavailable_is_distinct() -> None:
+    class TimedOutMigrationBackend:
+        def verify_m6_migration_step(
+            self,
+            _request: Mapping[str, object],
+        ) -> Mapping[str, object]:
+            raise TimeoutError("private migration endpoint")
+
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+    verifier = M6MigrationAuthorityVerifierV1(
+        TimedOutMigrationBackend(),
+        signer_registry=_m6_test_registry(),
+    )
+
+    with pytest.raises(M6MigrationAuthorityVerifierUnavailableV1) as caught:
+        verifier.verify_step_with_receipt(
+            plan,
+            _step(plan, M6MigrationStepKindV1.SHADOW_REPLAY, 11),
+            state.branch_root,
+            pre_state_root=state.state_root,
+            pre_phase=state.phase,
+        )
+
+    assert str(caught.value) == "migration authority backend is unavailable"
+    assert "endpoint" not in str(caught.value)
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
 
@@ -1817,6 +1984,99 @@ def test_given_membership_proof_when_caller_mutates_input_then_owned_snapshot_is
     assert proof.to_mapping() == {"path": {"leaf": "member"}}
 
 
+@pytest.mark.parametrize("failure_type", (RuntimeError, TypeError, ValueError))
+def test_given_membership_mapping_hook_raises_when_authorized_then_stable_reject_hides_detail(
+    failure_type: type[Exception],
+) -> None:
+    """Caller-controlled mapping hooks cannot escape the typed admission boundary."""
+
+    class HostileMembershipMapping(MappingABC[str, object]):
+        def __getitem__(self, _key: str) -> object:
+            raise failure_type("private membership-provider token")
+
+        def __iter__(self) -> Iterator[str]:
+            return iter(("member",))
+
+        def __len__(self) -> int:
+            return 1
+
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+
+    denied = authorize_m6_migration_writer_v1(
+        state,
+        writer_subject_root=plan.source_subject_root,
+        writer_epoch=plan.source_writer_epoch,
+        allowed_writer_set_root=plan.allowed_writer_set_root,
+        membership_verifier=_writer_membership_verifier(),
+        membership_proof=HostileMembershipMapping(),
+    )
+
+    assert denied.status is M6MigrationWriterAdmissionStatusV1.REJECTED
+    assert denied.reason == "migration writer membership proof could not be observed"
+    assert "private" not in denied.reason
+    assert state == M6MigrationStateV1.initial(plan)
+
+
+def test_given_unbounded_membership_mapping_when_snapshotted_then_observation_stops_at_upper_neighbor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BVA/RIPR: an untrusted items iterator cannot outrun the item bound."""
+
+    observed = 0
+    monkeypatch.setattr(
+        "src.integration.m6_migration_authority_v1.M6_MIGRATION_WRITER_MEMBERSHIP_PROOF_MAX_ITEMS_V1",
+        3,
+    )
+
+    class UnboundedItemsMapping(MappingABC[str, object]):
+        def __getitem__(self, key: str) -> object:
+            return int(key.removeprefix("key-"))
+
+        def __iter__(self) -> Iterator[str]:
+            nonlocal observed
+            index = 0
+            while True:
+                observed += 1
+                yield f"key-{index}"
+                index += 1
+
+        def __len__(self) -> int:
+            return 1
+
+        def items(self) -> Iterator[tuple[str, object]]:
+            raise AssertionError("custom items hook must not own bounded observation")
+
+    with pytest.raises(ValueError, match="item limit"):
+        M6MigrationWriterMembershipProofV1.from_mapping(UnboundedItemsMapping())
+
+    assert observed == 4
+
+
+def test_given_membership_proof_subclass_when_authorized_then_one_exact_owned_snapshot_is_used() -> None:
+    """An attacker-controlled subtype cannot override proof root or payload."""
+
+    hooks: list[str] = []
+
+    class HostileMembershipProof(M6MigrationWriterMembershipProofV1):
+        @property
+        def proof_root(self) -> str:
+            hooks.append("proof_root")
+            return _root(9_901)
+
+        def to_mapping(self) -> dict[str, object]:
+            hooks.append("to_mapping")
+            return {"forged": True}
+
+    base = M6MigrationWriterMembershipProofV1.from_mapping({"member": True})
+    hostile = HostileMembershipProof(base.canonical_json)
+
+    with pytest.raises(TypeError, match="exact owned membership proof"):
+        M6MigrationWriterMembershipProofV1.from_value(hostile)
+
+    assert hooks == []
+
+
 def test_given_cyclic_membership_proof_when_snapshot_is_created_then_it_is_rejected() -> None:
     cyclic_proof: dict[str, object] = {}
     cyclic_proof["self"] = cyclic_proof
@@ -1963,7 +2223,7 @@ def test_given_membership_backend_exception_when_verifying_then_private_detail_i
         signer_registry=_m6_test_registry(),
     )
 
-    with pytest.raises(M6MigrationAuthorityProofRejectedV1) as caught:
+    with pytest.raises(M6MigrationAuthorityVerifierInternalFailureV1) as caught:
         verifier.verify_writer_membership(
             state,
             writer_subject_root=plan.source_subject_root,
@@ -1971,7 +2231,7 @@ def test_given_membership_backend_exception_when_verifying_then_private_detail_i
             membership_proof={"member": True},
         )
 
-    assert str(caught.value) == "migration writer membership backend failed"
+    assert str(caught.value) == "migration writer membership backend failed internally"
     assert "credential" not in str(caught.value)
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None

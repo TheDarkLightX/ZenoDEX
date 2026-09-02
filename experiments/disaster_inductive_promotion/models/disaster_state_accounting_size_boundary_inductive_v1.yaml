@@ -1,0 +1,333 @@
+# Disaster axis: state_accounting_size_boundary
+# ---------------------------------------------------------------------------
+# DISASTER (must be UNREACHABLE in all reachable states):
+#   Individually-valid accounting updates (balance accrual + fee accrual, each
+#   within its own int range) compose so that EITHER
+#     (a) the conserved total exceeds its representable width  -> value silently
+#         created/destroyed at the size boundary (wrap/truncate), OR
+#     (b) the serialized canonical state root exceeds MAX_CANONICAL -> oversized
+#         / noncanonical persistent root, OR
+#     (c) the recorded serialized size drifts BELOW the true decimal-digit width
+#         of the conserved total -> the size check is bypassable (the root is
+#         "small enough" while the value it commits is actually larger).
+#
+# This abstracts the spot-DEX state-root commit path (src/state/state_root.py,
+# STATE_ROOT_VERSION=5, disaster class D-CANON-002) together with the canonical
+# size bound src/state/canonical.py::bounded_json_utf8_size(value, max_bytes).
+#
+# The real serializer computes, for an integer n, its decimal width
+#     digits(n) = floor(bit_length(n) * 30103/100000) + 1          (canonical.py)
+# and rejects when the accumulated size > max_bytes. The conserved accounting
+# law it commits is (state_root v5, D-CANON-002):
+#     sum_balances + fee_accumulator == total_supply
+# because v5 added the FEE section so the dust carry is bound by the root.
+#
+# We model a fee-bearing settlement accrual (apply_ops moving value into a
+# balance entry while advancing the dust/fee accumulator) and require, BEFORE
+# apply, both the overflow guard (var + accrual <= MAX, textbook k-inducible,
+# mirrors fee_overflow_safety_v1.tau) AND the canonical-size guard
+# (ser_size + width_delta <= MAX_CANONICAL).
+#
+# DERIVATION (why the invariant is not assumed):
+#   - inv_conservation is moved by the updates: sum_balances += net_amt and
+#     fee_accumulator += fee, while total_supply += (net_amt + fee). It holds
+#     iff the arithmetic genuinely balances; a wrong update breaks it.
+#   - inv_size_tracks_value is the load-bearing, NON-vacuous conjunct: ser_size
+#     is forced (by the guard's width_delta accounting) to stay >= the decimal
+#     digit-width of total_supply. This is what ties the canonical-size bound to
+#     real accounting magnitude, so size cannot be trivially bounded while value
+#     grows. width(total_supply) is modeled by explicit decade thresholds, the
+#     same decimal-digit count the serializer computes.
+#   - inv_canonical_size and inv_no_overflow are then the disaster negations:
+#     they hold because the guard refuses any accrual that would breach either
+#     bound, and inv_size_tracks_value guarantees the size bound is meaningful.
+#
+# MODEL<->CODE GAP:
+#   Abstracts: src/state/state_root.py compute_state_root (v5 FEE section +
+#   balances section) and src/state/canonical.py bounded_json_utf8_size /
+#   canonical_json_bytes; the runtime's per-op fee accrual in apply_ops.
+#   Omits: the actual sha256 hashing, multi-entry map serialization (we track a
+#   single aggregate sum_balances + its serialized width rather than per-(pubkey,
+#   asset) entries), UTF-8 string/key overhead (we model only the numeric value
+#   width, which is the part that grows with accounting magnitude), and the
+#   bit-length->digit conversion is replaced by exact decade thresholds over a
+#   bounded value range. LP duration-risk metadata and nonces are out of scope.
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "disaster_state_accounting_size_boundary_inductive_v1"
+  created_by: "esso-modeling-engineer"
+  tags: ["dex", "conservation", "canonical-size", "state-root", "D-CANON-002", "safety"]
+  notes: |
+    Encodes the state_accounting_size_boundary disaster as an unreachable safety
+    invariant: a conserved total + its serialized canonical width can never
+    breach the representable / canonical-size frontier, and the recorded
+    serialized size can never drift below the true decimal width of the value.
+
+observables:
+  state_vars: ["sum_balances", "fee_accumulator", "total_supply", "ser_size"]
+  effects: ["accrue"]
+
+types: []
+
+# Range design (bounded model):
+#   value range [0, 999]  -> decimal width in {1,2,3} via decade thresholds
+#   MAX_TOTAL  = 999      (representable conserved total ceiling)
+#   MAX_CANONICAL = 30    (canonical serialized-size ceiling for this aggregate)
+# These small bounds keep the inductive SMT check tractable while preserving the
+# real structure (width grows with value; sum of widths bounded by MAX_CANONICAL).
+state_vars:
+  - id: "sum_balances"
+    role: "data"
+    type: { kind: "int", min: 0, max: 999 }
+  - id: "fee_accumulator"
+    role: "data"
+    type: { kind: "int", min: 0, max: 999 }
+  - id: "total_supply"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1998 }
+  - id: "ser_size"
+    role: "data"
+    type: { kind: "int", min: 0, max: 64 }
+
+init:
+  - var: "sum_balances"
+    expr: { const: 0 }
+  - var: "fee_accumulator"
+    expr: { const: 0 }
+  - var: "total_supply"
+    expr: { const: 0 }
+  # Initial serialized width of two zero values: "0" + "0" = width 1 + 1 = 2.
+  - var: "ser_size"
+    expr: { const: 2 }
+
+invariants:
+  # (1) Conservation (D-CANON-002): the fee accumulator is bound by the root, so
+  #     sum_balances + fee_accumulator must equal total_supply at every state.
+  #     Negation = value silently created or destroyed.
+  - id: "inv_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - { var: "sum_balances" }
+            - { var: "fee_accumulator" }
+        - { var: "total_supply" }
+
+  # (2) No-overflow / representable total: the conserved total never exceeds the
+  #     representable width ceiling MAX_TOTAL (=999 for sum_balances component).
+  #     This is the int-width side of the size boundary. Negation = total wraps /
+  #     truncates past the representable bound.
+  - id: "inv_no_overflow_sum"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "sum_balances" }, { const: 999 }] }
+
+  - id: "inv_no_overflow_fee"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "fee_accumulator" }, { const: 999 }] }
+
+  # (3) Canonical-size bound: the serialized state root width never exceeds
+  #     MAX_CANONICAL (=30). Negation = oversized / noncanonical persistent root.
+  - id: "inv_canonical_size"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "ser_size" }, { const: 30 }] }
+
+  # (4) Size-tracks-value (NON-VACUITY anchor): the recorded serialized size must
+  #     be at least the true decimal digit-width of sum_balances PLUS the width of
+  #     fee_accumulator. This ties ser_size to real accounting magnitude so the
+  #     canonical-size bound cannot be satisfied while the committed value grows
+  #     unbounded. width(v) is the decimal digit count the serializer computes:
+  #       v in [0,9]    -> 1
+  #       v in [10,99]  -> 2
+  #       v in [100,999]-> 3
+  #     Negation = serialized size drifted below true value width (bypassable
+  #     size check -> a larger value committed under a "small enough" root).
+  - id: "inv_size_tracks_value"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - { var: "ser_size" }
+        - op: "+"
+          args:
+            # width(sum_balances)
+            - op: "ite"
+              cond: { op: "<", args: [{ var: "sum_balances" }, { const: 10 }] }
+              then: { const: 1 }
+              else:
+                op: "ite"
+                cond: { op: "<", args: [{ var: "sum_balances" }, { const: 100 }] }
+                then: { const: 2 }
+                else: { const: 3 }
+            # width(fee_accumulator)
+            - op: "ite"
+              cond: { op: "<", args: [{ var: "fee_accumulator" }, { const: 10 }] }
+              then: { const: 1 }
+              else:
+                op: "ite"
+                cond: { op: "<", args: [{ var: "fee_accumulator" }, { const: 100 }] }
+                then: { const: 2 }
+                else: { const: 3 }
+
+actions:
+  # Fee-bearing settlement accrual: move `net_amt` into the aggregate balance and
+  # `fee` into the dust/fee accumulator (apply_ops semantics). The guard performs
+  # the overflow-guard-before-apply (var + accrual <= MAX) AND the canonical-size
+  # guard (post-accrual serialized width <= MAX_CANONICAL), so the disaster states
+  # are refused at the boundary rather than entered.
+  - id: "accrue"
+    params:
+      - id: "net_amt"
+        type: { kind: "int", min: 0, max: 999 }
+      - id: "fee"
+        type: { kind: "int", min: 0, max: 999 }
+    guard:
+      op: "and"
+      args:
+        # At least one of the accruals is positive, so the action genuinely fires
+        # and moves value (NON-VACUITY: guard is satisfiable, e.g. net_amt=5,fee=1).
+        - op: ">"
+          args:
+            - op: "+"
+              args:
+                - { param: "net_amt" }
+                - { param: "fee" }
+            - { const: 0 }
+        # Overflow guard BEFORE apply: balance accrual stays representable.
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "sum_balances" }
+                - { param: "net_amt" }
+            - { const: 999 }
+        # Overflow guard BEFORE apply: fee accrual stays representable.
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "fee_accumulator" }
+                - { param: "fee" }
+            - { const: 999 }
+        # Canonical-size guard BEFORE apply: the POST-accrual serialized width
+        # (width of new sum_balances + width of new fee_accumulator) must stay
+        # within MAX_CANONICAL. width() uses the same decade thresholds as
+        # inv_size_tracks_value, evaluated on the post-accrual values.
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                # width(sum_balances + net_amt)
+                - op: "ite"
+                  cond:
+                    op: "<"
+                    args:
+                      - op: "+"
+                        args: [{ var: "sum_balances" }, { param: "net_amt" }]
+                      - { const: 10 }
+                  then: { const: 1 }
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "<"
+                      args:
+                        - op: "+"
+                          args: [{ var: "sum_balances" }, { param: "net_amt" }]
+                        - { const: 100 }
+                    then: { const: 2 }
+                    else: { const: 3 }
+                # width(fee_accumulator + fee)
+                - op: "ite"
+                  cond:
+                    op: "<"
+                    args:
+                      - op: "+"
+                        args: [{ var: "fee_accumulator" }, { param: "fee" }]
+                      - { const: 10 }
+                  then: { const: 1 }
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "<"
+                      args:
+                        - op: "+"
+                          args: [{ var: "fee_accumulator" }, { param: "fee" }]
+                        - { const: 100 }
+                    then: { const: 2 }
+                    else: { const: 3 }
+            - { const: 30 }
+    updates:
+      - var: "sum_balances"
+        expr:
+          op: "+"
+          args:
+            - { var: "sum_balances" }
+            - { param: "net_amt" }
+      - var: "fee_accumulator"
+        expr:
+          op: "+"
+          args:
+            - { var: "fee_accumulator" }
+            - { param: "fee" }
+      # total_supply moves by the full accrual (net_amt + fee): conservation is
+      # genuinely MAINTAINED by the arithmetic, not assumed.
+      - var: "total_supply"
+        expr:
+          op: "+"
+          args:
+            - { var: "total_supply" }
+            - op: "+"
+              args:
+                - { param: "net_amt" }
+                - { param: "fee" }
+      # ser_size is recomputed to the EXACT serialized width of the post-accrual
+      # values (the serializer recomputes the root from scratch). This is set to
+      # width(new sum_balances) + width(new fee_accumulator), keeping
+      # inv_size_tracks_value tight (equality) and inv_canonical_size inductive.
+      - var: "ser_size"
+        expr:
+          op: "+"
+          args:
+            - op: "ite"
+              cond:
+                op: "<"
+                args:
+                  - op: "+"
+                    args: [{ var: "sum_balances" }, { param: "net_amt" }]
+                  - { const: 10 }
+              then: { const: 1 }
+              else:
+                op: "ite"
+                cond:
+                  op: "<"
+                  args:
+                    - op: "+"
+                      args: [{ var: "sum_balances" }, { param: "net_amt" }]
+                    - { const: 100 }
+                then: { const: 2 }
+                else: { const: 3 }
+            - op: "ite"
+              cond:
+                op: "<"
+                args:
+                  - op: "+"
+                    args: [{ var: "fee_accumulator" }, { param: "fee" }]
+                  - { const: 10 }
+              then: { const: 1 }
+              else:
+                op: "ite"
+                cond:
+                  op: "<"
+                  args:
+                    - op: "+"
+                      args: [{ var: "fee_accumulator" }, { param: "fee" }]
+                    - { const: 100 }
+                then: { const: 2 }
+                else: { const: 3 }
+    effects:
+      accrue:
+        op: "+"
+        args:
+          - { var: "sum_balances" }
+          - { var: "fee_accumulator" }

@@ -1,0 +1,626 @@
+# [FORGE] Disaster axis #57: zusd_native_accounting_gate_boundary (inductive promotion)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "disaster_zusd_native_accounting_gate_boundary_inductive_v1"
+  created_by: "zenodex-disaster-inductive"
+  tags: ["zusd", "conservation", "solvency", "composition", "safety", "disaster"]
+  notes: |
+    DISASTER AXIS #57 — zUSD native mint/repay/liquidation/oracle-commit gates
+    that agree LOCALLY but compose into stale or double-counted collateral/debt
+    accounting (debt/collateral root not recomputable from current state).
+
+    DISASTER (must be UNREACHABLE in all reachable states):
+      (A) After ANY sequence of native zUSD gates, the global debt ledger
+          diverges from conservation: debt minted without a matching mint-credit,
+          or burned/absorbed without a matching circulation drop, i.e. the
+          composed Δ_zusd no longer equals the sum of per-action deltas
+          (the "double-counted / not-recomputable accounting root" disaster).
+      (B) A vault is left MARKED SOLVENT while its TCR is below the liquidation
+          floor at the committed oracle price (the "stale-oracle-commit
+          insolvency" disaster — a gate updated the price/debt but left the
+          recorded solvency verdict stale).
+
+    APPROACH — invariant (A) CONSERVATION (Δ_zusd homomorphism, composed):
+      `total_zusd_debt` = OUTSTANDING vault debt (the only borrowing vault here).
+      `sp_debt_e8` is a SEPARATE bucket: the stability pool's already-circulating
+      zUSD available to absorb (minted in some earlier epoch and deposited), NOT
+      outstanding debt. Conflating the two double-counts; keeping them separate is
+      the whole point of the axis ("double-counted collateral/debt accounting").
+      We carry an independently-accumulated DEBT ledger (mint_credit_e8,
+      burn_credit_e8) updated ATOMICALLY with outstanding vault debt in EVERY gate
+      that moves debt:
+        - mint    : vault_debt += (principal+fee); mint_credit += (principal+fee)
+        - repay   : vault_debt -= amt;             burn_credit += amt
+        - liquid  : vault_debt -= ldebt;           burn_credit += ldebt
+                    (the SP burns ldebt of its held zUSD to cancel vault debt 1:1;
+                     sp_debt -= ldebt is the SP supply bucket, NOT the debt root)
+        - sp_seed : sp_debt   += amt               (supply bucket only; no new debt)
+        - oracle  : price only (no debt movement)
+      Invariant inv_debt_conservation_root:
+          vault_debt  ==  mint_credit - burn_credit
+      LHS is outstanding debt; RHS is the recomputable accounting root. Every
+      debt-moving update moves BOTH sides by the same amount, so the equality is
+      NOT a tautology: if any gate touched one side without the other (mint
+      without credit, burn without circulation drop, or — the bug an earlier draft
+      of THIS model hit — counting the SP absorb against debt twice), the equality
+      breaks and verify-multi surfaces it. Single-step Δ_zusd is a Lean theorem;
+      this is the COMPOSED multi-gate promotion.
+
+    APPROACH — invariant (B) NO STALE-SOLVENT FLAG (the consensus-critical fact):
+      The protocol records a solvency verdict `vault_marked_solvent` (1/0). Every
+      gate that can change collateral, debt, or the committed price MUST refresh
+      this flag by RECOMPUTING solvency at the CURRENT committed price. The
+      invariant inv_no_stale_solvent_flag:
+          vault_marked_solvent == 1  ->  vault_coll*price*10000 >= vault_debt*mcr*1e8
+      Its negation is EXACTLY disaster (B): flag says solvent, recompute says
+      under-MCR. This is DERIVED, not assumed: the flag is set by each gate from
+      the live arithmetic. The dangerous composition is an oracle commit that
+      lowers the committed price (a falling/stale oracle) while leaving the flag
+      stale — here the commit gate REFRESHES the flag to the freshly-recomputed
+      verdict at the new committed price, so the invariant is preserved. If that
+      refresh were dropped (the bug), the disaster becomes reachable. A vault may
+      legitimately be UNDER-MCR (flag=0) — that is the state liquidation handles —
+      so this invariant is non-vacuous AND leaves the liquidation gate live.
+
+    NON-VACUITY:
+      - Conservation: mint/sp_seed/repay/liquidation each genuinely move both the
+        live debt and the ledger; concrete sat witnesses fire each gate.
+      - Solvency flag: mint sets flag=1 (post solvent); an oracle commit to a lower
+        price can set flag=0 (vault now under-MCR); liquidation fires precisely on
+        flag=0 / under-MCR and restores+re-flags. So flag genuinely takes both
+        values and every gate's guard is satisfiable from an invariant-respecting
+        state. The earlier (rejected) "vault always solvent" formulation made
+        liquidation DEAD CODE (vacuous) — this flag formulation fixes that.
+
+    MODEL <-> CODE GAP (honest):
+      Abstracts the real Python authority path in src/core/zusd/* (native
+      mint/repay/liquidation/oracle-commit gates) + Rust shadow, mirrored by ESSO
+      micro-kernels zusd_mint_borrow_fee_v1, zusd_repay_single_vault_v1,
+      zusd_liquidation_sp_absorb_v1, zusd_oracle_commit_apply_v1.
+      OMITS / over-approximates:
+        - The full borrow-fee SCHEDULE (base-rate decay+bump+floor/max ceil-div):
+          modeled as a bounded non-negative parameter `fee_e8`. SOUND for the
+          conservation property (ledger tracks principal+fee for ANY schedule
+          output); the schedule's own correctness lives in zusd_mint_borrow_fee_v1
+          + the single-step Δ_zusd Lean theorem.
+        - Multi-vault target SELECTION (one tracked vault + SP buckets).
+        - Liquidator-compensation / collateral-seizure exact arithmetic (collateral
+          conservation tracked via inv_sp_coll_cap; debt root is the headline).
+        - Protocol revenue / staking routing.
+        - oracle_seen/auth/nonce identity (folded into commit control flags).
+      FAITHFULLY models: the cross-gate *value movement* of debt and the
+      composition of the four gates' guards + the recorded-solvency-verdict
+      refresh, which is exactly where the "compose into stale or double-counted
+      accounting" disaster lives.
+
+observables:
+  state_vars:
+    [
+      "vault_debt_e8",
+      "vault_coll_e8",
+      "sp_debt_e8",
+      "sp_coll_e8",
+      "mint_credit_e8",
+      "burn_credit_e8",
+      "committed_price_e8",
+      "price_pending_e8",
+      "mcr_bps",
+      "max_sp_coll_e8",
+      "vault_marked_solvent",
+      "oracle_seen",
+      "auth_ok",
+    ]
+  effects:
+    [
+      "ledger_root_e8",
+      "live_debt_e8",
+    ]
+
+types: []
+
+state_vars:
+  # ---- live debt distribution ----
+  - id: "vault_debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "sp_debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  # ---- collateral buckets ----
+  - id: "vault_coll_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "sp_coll_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "max_sp_coll_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  # ---- independently-accumulated mint/burn ledger (the recomputable root) ----
+  # Monotone accumulators; each minting/burning gate is guarded fail-closed so an
+  # update never overflows the declared range (a real system halts at the ceiling).
+  - id: "mint_credit_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4000000 }
+  - id: "burn_credit_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4000000 }
+  # ---- oracle / risk params ----
+  - id: "committed_price_e8"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000 }
+  - id: "price_pending_e8"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000 }
+  - id: "mcr_bps"
+    role: "data"
+    type: { kind: "int", min: 1, max: 20000 }
+  # ---- recorded solvency verdict (the protocol's "marked solvent" flag) ----
+  - id: "vault_marked_solvent"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  # ---- oracle commit acceptance control flags ----
+  - id: "oracle_seen"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "auth_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  # Empty, conserved, trivially-solvent start. flag=1 because 0 >= 0 holds.
+  - var: "vault_debt_e8"
+    expr: { const: 0 }
+  - var: "sp_debt_e8"
+    expr: { const: 0 }
+  - var: "vault_coll_e8"
+    expr: { const: 0 }
+  - var: "sp_coll_e8"
+    expr: { const: 0 }
+  - var: "max_sp_coll_e8"
+    expr: { const: 1000000000000 }
+  - var: "mint_credit_e8"
+    expr: { const: 0 }
+  - var: "burn_credit_e8"
+    expr: { const: 0 }
+  - var: "committed_price_e8"
+    expr: { const: 100000 }
+  - var: "price_pending_e8"
+    expr: { const: 100000 }
+  - var: "mcr_bps"
+    expr: { const: 11000 }
+  - var: "vault_marked_solvent"
+    expr: { const: 1 }
+  - var: "oracle_seen"
+    expr: { const: 0 }
+  - var: "auth_ok"
+    expr: { const: 0 }
+
+invariants:
+  # (A) CONSERVATION / recomputable debt root (composed Δ_zusd homomorphism):
+  #     live debt distribution == independently-accumulated mint-minus-burn ledger.
+  #     Negation = mint-from-nothing OR burn/absorb-without-circulation-drop
+  #     (the stale / double-counted accounting disaster). DERIVED: every action
+  #     moves both sides by the same amount atomically.
+  - id: "inv_debt_conservation_root"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "vault_debt_e8" }
+        - op: "-"
+          args: [{ var: "mint_credit_e8" }, { var: "burn_credit_e8" }]
+
+  # (B) NO STALE-SOLVENT FLAG: if the protocol records the vault as solvent, the
+  #     vault really IS >= MCR at the CURRENT committed price.
+  #       marked_solvent==1 -> coll*price*10000 >= debt*mcr*1e8
+  #     Negation = a vault marked solvent below the liquidation floor (the
+  #     stale-oracle-commit insolvency disaster). DERIVED: every collateral/debt/
+  #     price gate refreshes the flag from the live arithmetic. Encoded as
+  #     (marked==0) OR (solvent), i.e. a guarded implication.
+  - id: "inv_no_stale_solvent_flag"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "vault_marked_solvent" }, { const: 0 }] }
+        - op: ">="
+          args:
+            - op: "*"
+              args:
+                - { var: "vault_coll_e8" }
+                - op: "*"
+                  args: [{ var: "committed_price_e8" }, { const: 10000 }]
+            - op: "*"
+              args:
+                - { var: "vault_debt_e8" }
+                - op: "*"
+                  args: [{ var: "mcr_bps" }, { const: 100000000 }]
+
+  # (C) No negative ledger credits; mint never trails burn (live debt >= 0).
+  - id: "inv_ledger_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "mint_credit_e8" }, { var: "burn_credit_e8" }] }
+        - { op: ">=", args: [{ var: "burn_credit_e8" }, { const: 0 }] }
+
+  # (D) SP collateral never exceeds its cap (absorbed-collateral bound).
+  - id: "inv_sp_coll_cap"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "sp_coll_e8" }, { var: "max_sp_coll_e8" }]
+
+actions:
+  # ===========================================================================
+  # GATE 1: mint (borrow). Caller posts coll_add then borrows principal+fee.
+  #         vault_debt += principal+fee; mint_credit += same.
+  #         Guard: post-mint vault solvent at committed price (mirrors mcr_post_ok).
+  #         Refreshes the flag to 1 (post-mint solvency is guaranteed by the guard).
+  # ===========================================================================
+  - id: "apply_mint_borrow"
+    params:
+      - id: "principal_e8"
+        type: { kind: "int", min: 1, max: 100000 }
+      - id: "fee_e8"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "coll_add_e8"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        # global debt cap (bounded model headroom)
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "vault_debt_e8" }
+                - op: "+"
+                  args: [{ param: "principal_e8" }, { param: "fee_e8" }]
+            - { const: 1000000 }
+        # fail-closed ledger-ceiling guard: mint_credit update stays in range
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "mint_credit_e8" }
+                - op: "+"
+                  args: [{ param: "principal_e8" }, { param: "fee_e8" }]
+            - { const: 4000000 }
+        # collateral stays bounded after the coll add
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "vault_coll_e8" }, { param: "coll_add_e8" }]
+            - { const: 1000000000000 }
+        # POST-MINT SOLVENCY at committed price (derived guard, mirrors mcr_post_ok):
+        #   (coll+coll_add)*price*10000 >= (debt+principal+fee)*mcr*1e8
+        - op: ">="
+          args:
+            - op: "*"
+              args:
+                - op: "+"
+                  args: [{ var: "vault_coll_e8" }, { param: "coll_add_e8" }]
+                - op: "*"
+                  args: [{ var: "committed_price_e8" }, { const: 10000 }]
+            - op: "*"
+              args:
+                - op: "+"
+                  args:
+                    - { var: "vault_debt_e8" }
+                    - op: "+"
+                      args: [{ param: "principal_e8" }, { param: "fee_e8" }]
+                - op: "*"
+                  args: [{ var: "mcr_bps" }, { const: 100000000 }]
+    updates:
+      - var: "vault_coll_e8"
+        expr:
+          op: "+"
+          args: [{ var: "vault_coll_e8" }, { param: "coll_add_e8" }]
+      - var: "vault_debt_e8"
+        expr:
+          op: "+"
+          args:
+            - { var: "vault_debt_e8" }
+            - op: "+"
+              args: [{ param: "principal_e8" }, { param: "fee_e8" }]
+      - var: "mint_credit_e8"
+        expr:
+          op: "+"
+          args:
+            - { var: "mint_credit_e8" }
+            - op: "+"
+              args: [{ param: "principal_e8" }, { param: "fee_e8" }]
+      # refresh recorded verdict: post-mint state is solvent by the guard
+      - var: "vault_marked_solvent"
+        expr: { const: 1 }
+    effects:
+      ledger_root_e8:
+        op: "-"
+        args: [{ var: "mint_credit_e8" }, { var: "burn_credit_e8" }]
+      live_debt_e8:
+        op: "+"
+        args: [{ var: "vault_debt_e8" }, { var: "sp_debt_e8" }]
+
+  # ===========================================================================
+  # GATE 2: repay. vault_debt -= amt; burn_credit += amt.
+  #         Guard: amt <= vault_debt (no negative debt, no double-burn).
+  #         Repay only lowers the solvency RHS -> recompute keeps/raises solvency;
+  #         refresh the flag from the post-repay arithmetic.
+  # ===========================================================================
+  - id: "apply_repay"
+    params:
+      - id: "amount_e8"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args: [{ param: "amount_e8" }, { var: "vault_debt_e8" }]
+        # fail-closed ledger-ceiling guard: burn_credit update stays in range
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "burn_credit_e8" }, { param: "amount_e8" }]
+            - { const: 4000000 }
+    updates:
+      - var: "vault_debt_e8"
+        expr:
+          op: "-"
+          args: [{ var: "vault_debt_e8" }, { param: "amount_e8" }]
+      - var: "burn_credit_e8"
+        expr:
+          op: "+"
+          args: [{ var: "burn_credit_e8" }, { param: "amount_e8" }]
+      # refresh recorded verdict at committed price for the post-repay debt:
+      #   marked=1 iff coll*price*10000 >= (debt-amt)*mcr*1e8
+      - var: "vault_marked_solvent"
+        expr:
+          op: "ite"
+          cond:
+            op: ">="
+            args:
+              - op: "*"
+                args:
+                  - { var: "vault_coll_e8" }
+                  - op: "*"
+                    args: [{ var: "committed_price_e8" }, { const: 10000 }]
+              - op: "*"
+                args:
+                  - op: "-"
+                    args: [{ var: "vault_debt_e8" }, { param: "amount_e8" }]
+                  - op: "*"
+                    args: [{ var: "mcr_bps" }, { const: 100000000 }]
+          then: { const: 1 }
+          else: { const: 0 }
+    effects:
+      ledger_root_e8:
+        op: "-"
+        args: [{ var: "mint_credit_e8" }, { var: "burn_credit_e8" }]
+      live_debt_e8:
+        op: "+"
+        args: [{ var: "vault_debt_e8" }, { var: "sp_debt_e8" }]
+
+  # ===========================================================================
+  # GATE 0 (helper): seed the stability pool's absorbable balance. Models prior
+  #         SP-provider deposits of already-circulating zUSD (minted in an earlier
+  #         epoch). This is the SP SUPPLY bucket, NOT outstanding vault debt, so it
+  #         does NOT touch the debt ledger (mint_credit/burn_credit) and does not
+  #         touch the vault flag. The debt-conservation root is unaffected.
+  # ===========================================================================
+  - id: "apply_sp_seed"
+    params:
+      - id: "sp_amt_e8"
+        type: { kind: "int", min: 1, max: 100000 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "sp_debt_e8" }, { param: "sp_amt_e8" }]
+        - { const: 1000000 }
+    updates:
+      - var: "sp_debt_e8"
+        expr:
+          op: "+"
+          args: [{ var: "sp_debt_e8" }, { param: "sp_amt_e8" }]
+    effects:
+      ledger_root_e8:
+        op: "-"
+        args: [{ var: "mint_credit_e8" }, { var: "burn_credit_e8" }]
+      live_debt_e8:
+        op: "+"
+        args: [{ var: "vault_debt_e8" }, { var: "sp_debt_e8" }]
+
+  # ===========================================================================
+  # GATE 3: liquidation (SP absorb). Fires only when the recorded verdict is
+  #         insolvent (flag==0) AND the vault is genuinely UNDER MCR at committed
+  #         price. vault_debt -= ldebt; sp_debt -= ldebt; burn_credit += ldebt
+  #         (circulation drops by ldebt as the SP absorbs it); sp_coll += lcoll;
+  #         vault_coll -= lcoll. Guard: ldebt <= min(vault_debt, sp_debt); residual
+  #         vault either fully cleared (debt'=0, coll'=0) OR restored to >= MCR.
+  #         Refresh the flag from the post-liquidation arithmetic.
+  # ===========================================================================
+  - id: "apply_liquidation_sp_absorb"
+    params:
+      - id: "ldebt_e8"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "lcoll_e8"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "vault_debt_e8" }, { const: 0 }] }
+        # recorded verdict already insolvent (the flag liquidation acts on)
+        - { op: "=", args: [{ var: "vault_marked_solvent" }, { const: 0 }] }
+        # fail-closed ledger-ceiling guard: burn_credit update stays in range
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "burn_credit_e8" }, { param: "ldebt_e8" }]
+            - { const: 4000000 }
+        # UNDER MCR at committed price (the liquidation trigger):
+        - op: "<"
+          args:
+            - op: "*"
+              args:
+                - { var: "vault_coll_e8" }
+                - op: "*"
+                  args: [{ var: "committed_price_e8" }, { const: 10000 }]
+            - op: "*"
+              args:
+                - { var: "vault_debt_e8" }
+                - op: "*"
+                  args: [{ var: "mcr_bps" }, { const: 100000000 }]
+        - { op: "<=", args: [{ param: "ldebt_e8" }, { var: "vault_debt_e8" }] }
+        - { op: "<=", args: [{ param: "ldebt_e8" }, { var: "sp_debt_e8" }] }
+        - { op: "<=", args: [{ param: "lcoll_e8" }, { var: "vault_coll_e8" }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "sp_coll_e8" }, { param: "lcoll_e8" }]
+            - { var: "max_sp_coll_e8" }
+        # Residual-vault outcome: fully cleared OR restored to >= MCR.
+        - op: "ite"
+          cond: { op: "=", args: [{ param: "ldebt_e8" }, { var: "vault_debt_e8" }] }
+          then: { op: "=", args: [{ param: "lcoll_e8" }, { var: "vault_coll_e8" }] }
+          else:
+            op: ">="
+            args:
+              - op: "*"
+                args:
+                  - op: "-"
+                    args: [{ var: "vault_coll_e8" }, { param: "lcoll_e8" }]
+                  - op: "*"
+                    args: [{ var: "committed_price_e8" }, { const: 10000 }]
+              - op: "*"
+                args:
+                  - op: "-"
+                    args: [{ var: "vault_debt_e8" }, { param: "ldebt_e8" }]
+                  - op: "*"
+                    args: [{ var: "mcr_bps" }, { const: 100000000 }]
+    updates:
+      - var: "vault_debt_e8"
+        expr:
+          op: "-"
+          args: [{ var: "vault_debt_e8" }, { param: "ldebt_e8" }]
+      - var: "sp_debt_e8"
+        expr:
+          op: "-"
+          args: [{ var: "sp_debt_e8" }, { param: "ldebt_e8" }]
+      - var: "burn_credit_e8"
+        expr:
+          op: "+"
+          args: [{ var: "burn_credit_e8" }, { param: "ldebt_e8" }]
+      - var: "vault_coll_e8"
+        expr:
+          op: "-"
+          args: [{ var: "vault_coll_e8" }, { param: "lcoll_e8" }]
+      - var: "sp_coll_e8"
+        expr:
+          op: "+"
+          args: [{ var: "sp_coll_e8" }, { param: "lcoll_e8" }]
+      # refresh recorded verdict on the residual vault at committed price
+      - var: "vault_marked_solvent"
+        expr:
+          op: "ite"
+          cond:
+            op: ">="
+            args:
+              - op: "*"
+                args:
+                  - op: "-"
+                    args: [{ var: "vault_coll_e8" }, { param: "lcoll_e8" }]
+                  - op: "*"
+                    args: [{ var: "committed_price_e8" }, { const: 10000 }]
+              - op: "*"
+                args:
+                  - op: "-"
+                    args: [{ var: "vault_debt_e8" }, { param: "ldebt_e8" }]
+                  - op: "*"
+                    args: [{ var: "mcr_bps" }, { const: 100000000 }]
+          then: { const: 1 }
+          else: { const: 0 }
+    effects:
+      ledger_root_e8:
+        op: "-"
+        args: [{ var: "mint_credit_e8" }, { var: "burn_credit_e8" }]
+      live_debt_e8:
+        op: "+"
+        args: [{ var: "vault_debt_e8" }, { var: "sp_debt_e8" }]
+
+  # ===========================================================================
+  # GATE 4: oracle commit. committed_price_e8 := price_pending_e8. No debt
+  #         movement (conservation trivially preserved). CONSENSUS-CRITICAL: the
+  #         commit MUST refresh the recorded solvency verdict at the NEW committed
+  #         price. A falling/stale price may turn the vault insolvent -> flag set
+  #         to 0 (eligible for liquidation), never left stale at 1. Dropping this
+  #         refresh is precisely the bug that makes disaster (B) reachable.
+  #         Pending price may rise or fall freely (no MCR gate here): the flag
+  #         refresh, not a commit veto, is what keeps the invariant.
+  # ===========================================================================
+  - id: "apply_oracle_commit"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "auth_ok" }, { const: 1 }] }
+    updates:
+      - var: "committed_price_e8"
+        expr: { var: "price_pending_e8" }
+      # refresh recorded verdict at the NEW committed price (= price_pending)
+      - var: "vault_marked_solvent"
+        expr:
+          op: "ite"
+          cond:
+            op: ">="
+            args:
+              - op: "*"
+                args:
+                  - { var: "vault_coll_e8" }
+                  - op: "*"
+                    args: [{ var: "price_pending_e8" }, { const: 10000 }]
+              - op: "*"
+                args:
+                  - { var: "vault_debt_e8" }
+                  - op: "*"
+                    args: [{ var: "mcr_bps" }, { const: 100000000 }]
+          then: { const: 1 }
+          else: { const: 0 }
+    effects:
+      ledger_root_e8:
+        op: "-"
+        args: [{ var: "mint_credit_e8" }, { var: "burn_credit_e8" }]
+      live_debt_e8:
+        op: "+"
+        args: [{ var: "vault_debt_e8" }, { var: "sp_debt_e8" }]
+
+  # ===========================================================================
+  # ENV: oracle report (propose pending price + control flags). No debt/coll/
+  #      ledger/flag movement.
+  # ===========================================================================
+  - id: "apply_oracle_report"
+    params:
+      - id: "new_pending_e8"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "seen_flag"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "auth_flag"
+        type: { kind: "int", min: 0, max: 1 }
+    guard: { op: ">", args: [{ param: "new_pending_e8" }, { const: 0 }] }
+    updates:
+      - var: "price_pending_e8"
+        expr: { param: "new_pending_e8" }
+      - var: "oracle_seen"
+        expr: { param: "seen_flag" }
+      - var: "auth_ok"
+        expr: { param: "auth_flag" }
+    effects:
+      ledger_root_e8:
+        op: "-"
+        args: [{ var: "mint_credit_e8" }, { var: "burn_credit_e8" }]
+      live_debt_e8:
+        op: "+"
+        args: [{ var: "vault_debt_e8" }, { var: "sp_debt_e8" }]

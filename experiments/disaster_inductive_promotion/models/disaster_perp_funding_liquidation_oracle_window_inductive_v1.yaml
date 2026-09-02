@@ -1,0 +1,564 @@
+# [FORGE] Disaster: perp_funding_liquidation_oracle_window (inductive promotion v1)
+#
+# AXIS: perp_funding_liquidation_oracle_window
+# -------------------------------------------------------------------------
+# Disaster (must be UNREACHABLE in all reachable states):
+#   (D1) Oracle-window DISAGREEMENT: two perp reducers (funding_apply,
+#        liquidation_eligibility, settlement_gate) disagree on whether the
+#        SAME oracle snapshot is fresh — one sees oracle_last_update at
+#        now-stale-1 as "fresh" while another treats it as stale. This
+#        admits funding/liquidation outside its intended freshness window.
+#   (D2) PHANTOM liquidation: a liquidation is recorded (liquidated_this_step)
+#        while margin >= maintenance (collateral >= maint_req) — destroying a
+#        solvent position.
+#   (D3) FUNDING outside window: collateral was reduced by a funding charge
+#        whose freshness gate would be REJECTED by the canonical window
+#        predicate (funding ran on a stale snapshot).
+#   (D4) Conservation break: collateral removed by funding is not reflected
+#        in funding_paid_cumulative (value destroyed / created in funding).
+#
+# PROMOTION over perp_epoch_isolated_v3:
+#   v3 has THREE independent freshness checks (settle_epoch guard,
+#   apply_funding guard, withdraw/set_position guards) each spelled out
+#   separately with the SAME literal arithmetic. Nothing in v3 PROVES the
+#   three checks compute the same window — a future refactor could silently
+#   drift one threshold and v3's invariants would still pass (they never
+#   compare the reducers' freshness verdicts). This v4-style model adds a
+#   CANONICAL window predicate `canon_fresh := (now - oracle_last_update <=
+#   max_stale) AND oracle_seen` and SHADOW LEDGER flags that each reducer
+#   STAMPS at fire time:
+#     - funding_window_verdict   (apply_funding stamps it)
+#     - liq_window_verdict        (settle/liquidate stamps it)
+#   The load-bearing safety invariant proves these verdicts can never
+#   disagree with `canon_fresh` once stamped, AND any stamped action was
+#   only allowed to fire when canon_fresh held. That makes D1/D3 the
+#   negation of a proven invariant: the window is UNIFIED across reducers.
+#
+# Model<->code gap (HONEST):
+#   - Abstracts: src/core/perps.py freshness predicate
+#       `now_epoch - oracle_last_update_epoch <= max_oracle_staleness_epochs`
+#     (repeated in apply_funding / settle_epoch / withdraw / set_position
+#      guards in perp_epoch_isolated_v3.yaml) and the maintenance-margin
+#     liquidation test `collateral < |pos|*price/1e8 * eff_maint / 10000`.
+#   - Mirrors PerpFundingRateSafety.lean's funding-charge sign/conservation
+#     intent (collateral delta == funding_paid_cumulative delta, magnitude
+#     bounded by |pos|*P*cap/10000) — here at the ledger level (D4).
+#   - OMITS: the long/short symmetric-funding rounding gap (Lean's ℤ {0,-1}
+#     gap), the clamp/breaker oracle-move bound, insurance socialization,
+#     multi-account budget balance, and the e8 fixed-point magnitudes. The
+#     freshness/liquidation/conservation LOGIC is modeled faithfully; the
+#     fixed-point magnitudes are abstracted to a bounded integer funding
+#     charge so the staleness counter + threshold + phase gate dominate
+#     (exactly the inductive shape v3 proves, now with a UNIFIED window).
+#   - The "two reducers" are modeled as two ledger verdicts stamped by two
+#     distinct actions reading the SAME (now, oracle_last_update, max_stale);
+#     real code has three call sites, but they are pairwise-comparable, so
+#     proving the funding<->liquidation pair unified is the representative
+#     obligation (the third site uses the identical predicate by the same
+#     argument).
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "disaster_perp_funding_liquidation_oracle_window_inductive_v1"
+  created_by: "zenodex-forge"
+  description: >
+    Unifies oracle freshness window across funding_apply / liquidation_eligibility /
+    settlement so no two perp reducers disagree on the validity window. Encodes
+    oracle-window disagreement, phantom liquidation, out-of-window funding, and
+    funding conservation as unreachable disaster states (their negations are the
+    proven safety invariants).
+  tags: ["dex", "perp", "oracle", "funding", "liquidation", "freshness", "safety", "disaster"]
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "epoch_phase",
+      "oracle_seen",
+      "oracle_last_update_epoch",
+      "max_stale",
+      "index_price_e8",
+      "position_base",
+      "abs_pos",
+      "collateral_quote",
+      "maintenance_margin_bps",
+      "funding_cap_bps",
+      "funding_paid_cumulative",
+      "funding_window_stamped",
+      "funding_window_verdict",
+      "liq_window_stamped",
+      "liq_window_verdict",
+      "last_funding_charge",
+      "liquidated_this_step",
+    ]
+  effects: ["event", "canon_fresh", "maint_req_quote", "margin_ok"]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "AdvanceEpoch",
+          "OracleUpdate",
+          "OpenPosition",
+          "ApplyFunding",
+          "Liquidate",
+        ]
+  - id: "t_phase"
+    type:
+      kind: "enum"
+      symbols: ["Open", "PricePublished", "Settled"]
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # 0=Open, 1=PricePublished, 2=Settled
+  - id: "epoch_phase"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+
+  - id: "oracle_seen"
+    role: "data"
+    type: { kind: "bool" }
+
+  - id: "oracle_last_update_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # Canonical freshness threshold — SINGLE source of truth, shared by all reducers.
+  - id: "max_stale"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1000000 }
+
+  - id: "index_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # Signed position.
+  - id: "position_base"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 1000000 }
+
+  # |position_base| maintained as a derived state var (kept in sync atomically).
+  - id: "abs_pos"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "collateral_quote"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+  - id: "maintenance_margin_bps"
+    role: "control"
+    type: { kind: "int", min: 1, max: 10000 }
+
+  - id: "funding_cap_bps"
+    role: "control"
+    type: { kind: "int", min: 1, max: 10000 }
+
+  # Cumulative collateral removed by funding (conservation ledger).
+  - id: "funding_paid_cumulative"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+  # --- Oracle-window shadow ledger (the promotion) ---
+  # funding_apply stamps its freshness verdict here when it fires.
+  - id: "funding_window_stamped"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "funding_window_verdict"
+    role: "data"
+    type: { kind: "bool" }
+
+  # liquidation/settlement stamps its freshness verdict here when it fires.
+  - id: "liq_window_stamped"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "liq_window_verdict"
+    role: "data"
+    type: { kind: "bool" }
+
+  # Last funding charge applied to collateral (>=0 magnitude removed).
+  - id: "last_funding_charge"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+  - id: "liquidated_this_step"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - { var: "now_epoch", expr: { const: 0 } }
+  - { var: "epoch_phase", expr: { const: 0 } }
+  - { var: "oracle_seen", expr: { bool: false } }
+  - { var: "oracle_last_update_epoch", expr: { const: 0 } }
+  - { var: "max_stale", expr: { const: 3 } }
+  - { var: "index_price_e8", expr: { const: 0 } }
+  - { var: "position_base", expr: { const: 0 } }
+  - { var: "abs_pos", expr: { const: 0 } }
+  - { var: "collateral_quote", expr: { const: 0 } }
+  - { var: "maintenance_margin_bps", expr: { const: 500 } }
+  - { var: "funding_cap_bps", expr: { const: 100 } }
+  - { var: "funding_paid_cumulative", expr: { const: 0 } }
+  - { var: "funding_window_stamped", expr: { bool: false } }
+  - { var: "funding_window_verdict", expr: { bool: false } }
+  - { var: "liq_window_stamped", expr: { bool: false } }
+  - { var: "liq_window_verdict", expr: { bool: false } }
+  - { var: "last_funding_charge", expr: { const: 0 } }
+  - { var: "liquidated_this_step", expr: { bool: false } }
+
+invariants:
+  # ===========================================================================
+  # canon_fresh := oracle_seen AND (now_epoch - oracle_last_update_epoch <= max_stale)
+  # is the SINGLE canonical window predicate. We never store it; we recompute
+  # it from primitives in each invariant so the proof is over the actual
+  # transition arithmetic (no stored shortcut to assume).
+  # ===========================================================================
+
+  # --- structural: phase and abs_pos sanity (inductive support) ---
+  - id: "inv_phase_valid"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "epoch_phase" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "epoch_phase" }, { const: 2 }] }
+
+  - id: "inv_oracle_not_from_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+
+  # abs_pos is the true magnitude of position_base (kept atomically in sync).
+  - id: "inv_abs_pos_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "abs_pos" }
+        - op: "ite"
+          cond: { op: ">=", args: [{ var: "position_base" }, { const: 0 }] }
+          then: { var: "position_base" }
+          else: { op: "-", args: [{ const: 0 }, { var: "position_base" }] }
+
+  # oracle_seen=false implies pristine oracle (zeroed) — supports freshness derivation.
+  - id: "inv_oracle_seen_zeroed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "not", args: [{ var: "oracle_seen" }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "oracle_last_update_epoch" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "index_price_e8" }, { const: 0 }] }
+
+  # ===========================================================================
+  # D1 / D3 — UNIFIED ORACLE WINDOW (the promotion).
+  # Disaster negated: a reducer stamped a freshness verdict that DISAGREES with
+  # the canonical window, i.e. ran funding/liquidation outside the valid window.
+  # ===========================================================================
+
+  # INV-WINDOW-FUNDING: if funding stamped a verdict, that verdict equals
+  # canon_fresh AND was TRUE (funding only fires inside the window).
+  # Negation = D3 (funding ran on a snapshot the canonical predicate rejects).
+  - id: "inv_funding_window_unified"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "funding_window_stamped" }
+        - op: "and"
+          args:
+            # verdict matches the canonical predicate exactly
+            - op: "="
+              args:
+                - { var: "funding_window_verdict" }
+                - &canon_fresh
+                  op: "and"
+                  args:
+                    - { var: "oracle_seen" }
+                    - op: "<="
+                      args:
+                        - op: "-"
+                          args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+                        - { var: "max_stale" }
+            # and the verdict was TRUE (fired inside window)
+            - { var: "funding_window_verdict" }
+
+  # INV-WINDOW-LIQ: same for the liquidation/settlement reducer.
+  - id: "inv_liq_window_unified"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "liq_window_stamped" }
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "liq_window_verdict" }, *canon_fresh]
+            - { var: "liq_window_verdict" }
+
+  # INV-WINDOW-AGREE: the two reducers can NEVER disagree about the window
+  # whenever BOTH have stamped within the current oracle snapshot. This is the
+  # direct negation of D1 (oracle-window disagreement between reducers).
+  # Derived: both verdicts equal canon_fresh (from the two invariants above),
+  # so they equal each other — but we assert it explicitly so the disaster
+  # state "funding sees fresh, liquidation sees stale" is provably unreachable.
+  - id: "inv_no_window_disagreement"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "and"
+          args: [{ var: "funding_window_stamped" }, { var: "liq_window_stamped" }]
+        - op: "="
+          args: [{ var: "funding_window_verdict" }, { var: "liq_window_verdict" }]
+
+  # ===========================================================================
+  # D2 — PHANTOM LIQUIDATION.
+  # Disaster negated: a liquidation was recorded while the position was solvent
+  # (collateral >= maintenance requirement). The maintenance requirement is
+  # derived from the SAME arithmetic the liquidate action uses:
+  #   maint_req = abs_pos * index_price / 1e8 ... but to keep magnitudes bounded
+  # in the abstract model we use maint_req = abs_pos * maintenance_margin_bps / 10000
+  # (price folded into a unit notional; the structural property — liquidation
+  # only when collateral < maint_req — is what we prove).
+  # Negation = D2: liquidated_this_step AND collateral >= maint_req.
+  # ===========================================================================
+  - id: "inv_liquidation_only_when_insolvent"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "liquidated_this_step" }
+        - op: "<"
+          args:
+            - { var: "collateral_quote" }
+            - &maint_req
+              op: "div"
+              args:
+                - op: "*"
+                  args: [{ var: "abs_pos" }, { var: "maintenance_margin_bps" }]
+                - { const: 10000 }
+
+  # ===========================================================================
+  # D4 — FUNDING CONSERVATION.
+  # Disaster negated: the cumulative funding ledger does not equal the total
+  # collateral removed by funding. We track that funding_paid_cumulative is the
+  # running sum of last_funding_charge contributions, and that each charge was
+  # bounded by abs_pos*funding_cap/10000 (mirrors PerpFundingRateSafety bound).
+  # Here conservation is encoded as: the cumulative ledger is always at least
+  # the most recent charge, and the most recent charge never exceeds the cap
+  # bound — i.e. no funding charge can mint/destroy beyond the bounded magnitude.
+  # ===========================================================================
+  - id: "inv_funding_charge_bounded"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - { var: "last_funding_charge" }
+        - &funding_cap_bound
+          op: "div"
+          args:
+            - op: "*"
+              args: [{ var: "abs_pos" }, { var: "funding_cap_bps" }]
+            - { const: 10000 }
+
+  # funding_paid_cumulative >= last_funding_charge (ledger accumulates charges;
+  # never less than the latest one). Negation: ledger lost a charge (destruction).
+  - id: "inv_funding_ledger_accumulates"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "funding_paid_cumulative" }, { var: "last_funding_charge" }]
+
+actions:
+  # ---- ACTION: advance_epoch ----
+  # Transitions to Open and CLEARS the per-snapshot freshness stamps (new window).
+  - id: "advance_epoch"
+    params:
+      - { id: "delta", type: { kind: "int", min: 1, max: 100 } }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "now_epoch" }, { param: "delta" }]
+        - { const: 1000000 }
+    updates:
+      - var: "now_epoch"
+        expr: { op: "+", args: [{ var: "now_epoch" }, { param: "delta" }] }
+      - { var: "epoch_phase", expr: { const: 0 } }
+      # new epoch => new oracle window => reset reducer stamps
+      - { var: "funding_window_stamped", expr: { bool: false } }
+      - { var: "funding_window_verdict", expr: { bool: false } }
+      - { var: "liq_window_stamped", expr: { bool: false } }
+      - { var: "liq_window_verdict", expr: { bool: false } }
+      - { var: "liquidated_this_step", expr: { bool: false } }
+    effects:
+      event: { enum: "AdvanceEpoch" }
+      canon_fresh: *canon_fresh
+      maint_req_quote: *maint_req
+      margin_ok: { op: ">=", args: [{ var: "collateral_quote" }, *maint_req] }
+
+  # ---- ACTION: oracle_update ----
+  # Records a fresh oracle snapshot at the CURRENT epoch; resets stamps because a
+  # new snapshot defines a new window. Sets PricePublished phase.
+  - id: "oracle_update"
+    params:
+      - { id: "price_e8", type: { kind: "int", min: 1, max: 1000000 } }
+    guard:
+      op: "<="
+      args: [{ var: "epoch_phase" }, { const: 1 }]
+    updates:
+      - { var: "oracle_seen", expr: { bool: true } }
+      - { var: "oracle_last_update_epoch", expr: { var: "now_epoch" } }
+      - { var: "index_price_e8", expr: { param: "price_e8" } }
+      - { var: "epoch_phase", expr: { const: 1 } }
+      # new snapshot => fresh window => clear stale stamps
+      - { var: "funding_window_stamped", expr: { bool: false } }
+      - { var: "funding_window_verdict", expr: { bool: false } }
+      - { var: "liq_window_stamped", expr: { bool: false } }
+      - { var: "liq_window_verdict", expr: { bool: false } }
+      - { var: "liquidated_this_step", expr: { bool: false } }
+    effects:
+      event: { enum: "OracleUpdate" }
+      canon_fresh: *canon_fresh
+      maint_req_quote: *maint_req
+      margin_ok: { op: ">=", args: [{ var: "collateral_quote" }, *maint_req] }
+
+  # ---- ACTION: open_position ----
+  # Opens a position with collateral meeting maintenance (>= maint_req), and a
+  # fresh oracle. Keeps abs_pos in sync atomically.
+  - id: "open_position"
+    params:
+      - { id: "new_pos", type: { kind: "int", min: -1000000, max: 1000000 } }
+      - { id: "deposit", type: { kind: "int", min: 0, max: 1000000000000 } }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "epoch_phase" }, { const: 0 }] }
+        # require fresh oracle to open (canonical window)
+        - *canon_fresh
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "collateral_quote" }, { param: "deposit" }]
+            - { const: 1000000000000 }
+        # resulting collateral must meet maintenance at the new |pos|
+        - op: ">="
+          args:
+            - op: "+"
+              args: [{ var: "collateral_quote" }, { param: "deposit" }]
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "ite"
+                      cond: { op: ">=", args: [{ param: "new_pos" }, { const: 0 }] }
+                      then: { param: "new_pos" }
+                      else: { op: "-", args: [{ const: 0 }, { param: "new_pos" }] }
+                    - { var: "maintenance_margin_bps" }
+                - { const: 10000 }
+    updates:
+      - { var: "position_base", expr: { param: "new_pos" } }
+      - var: "abs_pos"
+        expr:
+          op: "ite"
+          cond: { op: ">=", args: [{ param: "new_pos" }, { const: 0 }] }
+          then: { param: "new_pos" }
+          else: { op: "-", args: [{ const: 0 }, { param: "new_pos" }] }
+      - var: "collateral_quote"
+        expr: { op: "+", args: [{ var: "collateral_quote" }, { param: "deposit" }] }
+      # A freshly opened position has no funding charge yet; the prior position's
+      # last charge does not bound this position's cap. Reset to keep
+      # inv_funding_charge_bounded honest w.r.t. the CURRENT |pos|.
+      - { var: "last_funding_charge", expr: { const: 0 } }
+      - { var: "liquidated_this_step", expr: { bool: false } }
+    effects:
+      event: { enum: "OpenPosition" }
+      canon_fresh: *canon_fresh
+      maint_req_quote: *maint_req
+      margin_ok: { op: ">=", args: [{ var: "collateral_quote" }, *maint_req] }
+
+  # ---- ACTION: apply_funding ----
+  # FUNDING REDUCER. Fires ONLY inside the canonical window, charges a bounded
+  # amount (<= abs_pos*cap/10000) to collateral, stamps its freshness verdict
+  # (== canon_fresh, which is TRUE because the guard required it), and ACCUMULATES
+  # the charge into the conservation ledger.
+  - id: "apply_funding"
+    params:
+      - { id: "charge", type: { kind: "int", min: 0, max: 1000000000000 } }
+    guard:
+      op: "and"
+      args:
+        # phase: Open or PricePublished (matches v3 apply_funding gate)
+        - { op: "<=", args: [{ var: "epoch_phase" }, { const: 1 }] }
+        # CANONICAL freshness window — the SAME predicate liquidation uses
+        - *canon_fresh
+        # position must be open
+        - { op: "not", args: [{ op: "=", args: [{ var: "position_base" }, { const: 0 }] }] }
+        # charge bounded by funding cap (mirrors PerpFundingRateSafety bound)
+        - op: "<="
+          args: [{ param: "charge" }, *funding_cap_bound]
+        # collateral after charge stays non-negative
+        - { op: ">=", args: [{ var: "collateral_quote" }, { param: "charge" }] }
+        # ledger overflow guard
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "funding_paid_cumulative" }, { param: "charge" }]
+            - { const: 1000000000000 }
+    updates:
+      - var: "collateral_quote"
+        expr: { op: "-", args: [{ var: "collateral_quote" }, { param: "charge" }] }
+      - { var: "last_funding_charge", expr: { param: "charge" } }
+      - var: "funding_paid_cumulative"
+        expr: { op: "+", args: [{ var: "funding_paid_cumulative" }, { param: "charge" }] }
+      # STAMP the funding reducer's freshness verdict from the canonical predicate.
+      - { var: "funding_window_stamped", expr: { bool: true } }
+      - { var: "funding_window_verdict", expr: *canon_fresh }
+      - { var: "liquidated_this_step", expr: { bool: false } }
+    effects:
+      event: { enum: "ApplyFunding" }
+      canon_fresh: *canon_fresh
+      maint_req_quote: *maint_req
+      margin_ok: { op: ">=", args: [{ var: "collateral_quote" }, *maint_req] }
+
+  # ---- ACTION: liquidate ----
+  # LIQUIDATION/SETTLEMENT REDUCER. Fires ONLY inside the canonical window AND
+  # ONLY when the position is genuinely insolvent (collateral < maint_req).
+  # Stamps its freshness verdict (== canon_fresh) and records the liquidation.
+  - id: "liquidate"
+    guard:
+      op: "and"
+      args:
+        # position must be open
+        - { op: "not", args: [{ op: "=", args: [{ var: "position_base" }, { const: 0 }] }] }
+        # CANONICAL freshness window — identical predicate to apply_funding
+        - *canon_fresh
+        # INSOLVENCY: only liquidate when collateral strictly below maintenance.
+        # This is the load-bearing guard that makes D2 (phantom liquidation)
+        # unreachable: liquidation cannot fire on a solvent position.
+        - op: "<"
+          args: [{ var: "collateral_quote" }, *maint_req]
+    updates:
+      # STAMP the liquidation reducer's freshness verdict from the canonical predicate.
+      - { var: "liq_window_stamped", expr: { bool: true } }
+      - { var: "liq_window_verdict", expr: *canon_fresh }
+      - { var: "liquidated_this_step", expr: { bool: true } }
+      # NOTE: the position is NOT closed in the same transition. The post-state
+      # must still witness insolvency (collateral < maint_req) so that
+      # inv_liquidation_only_when_insolvent is an honest post-state invariant.
+      # If we zeroed abs_pos here, maint_req would become 0 and the invariant
+      # would degenerate (collateral < 0, impossible) — masking the property.
+      # Position closure is modeled as the next-epoch advance resetting the flag.
+    effects:
+      event: { enum: "Liquidate" }
+      canon_fresh: *canon_fresh
+      maint_req_quote: *maint_req
+      margin_ok: { op: ">=", args: [{ var: "collateral_quote" }, *maint_req] }

@@ -30,10 +30,12 @@ from .m6_safe_mount_types_v1 import (
     AuthenticatedExecutionContextV1,
     BusinessRejectReasonV1,
     BusinessStatusV1,
+    CommandArgumentV1,
     EconomicAtomKindV1,
     EconomicAtomV1,
     EscrowAtomV1,
     FinalityModeV1,
+    FreshnessBoundsV1,
     GlobalCommandKindV1,
     GlobalCommandV1,
     HistoryAtomV1,
@@ -45,6 +47,7 @@ from .m6_safe_mount_types_v1 import (
     MigrationPhaseV1,
     MigrationStateV1,
     NonceAtomV1,
+    OracleContextV1,
     OutboxAtomV1,
     PrivateSwapParticipantStateV1,
     PrivateSwapPhaseV1,
@@ -59,6 +62,7 @@ from .m6_safe_mount_types_v1 import (
     ValueDeltaClassV1,
     ValueDeltaEntryV1,
     WithdrawalAcknowledgmentV1,
+    _M6ExecutionContextWitness,
     append_root_v1,
     hash_v1,
 )
@@ -361,15 +365,55 @@ def _require_transition_types(
     context: object,
     command: object,
 ) -> AdmissionRejectReasonV1 | None:
-    if not isinstance(subject, M6PromotionSubjectV1):
+    if type(subject) is not M6PromotionSubjectV1:
         raise TypeError("subject must be M6PromotionSubjectV1")
-    if not isinstance(state, M6ApplicationStateV1):
+    if type(state) is not M6ApplicationStateV1:
         raise TypeError("state must be M6ApplicationStateV1")
-    if not isinstance(context, AuthenticatedExecutionContextV1):
+    if type(context) is not AuthenticatedExecutionContextV1:
         return AdmissionRejectReasonV1.UNAUTHENTICATED_CONTEXT
-    if not isinstance(command, GlobalCommandV1):
+    if not _authenticated_context_is_current_v1(context):
+        return AdmissionRejectReasonV1.UNAUTHENTICATED_CONTEXT
+    if type(command) is not GlobalCommandV1:
+        return AdmissionRejectReasonV1.MALFORMED_COMMAND
+    if type(command.payload) is not tuple or any(
+        type(argument) is not CommandArgumentV1
+        or type(argument.key) is not str
+        or type(argument.value) not in (str, int)
+        for argument in command.payload
+    ):
         return AdmissionRejectReasonV1.MALFORMED_COMMAND
     return None
+
+
+def _authenticated_context_is_current_v1(
+    context: AuthenticatedExecutionContextV1,
+) -> bool:
+    """Recheck exact nested types and the witness against the current body."""
+
+    if type(context.oracle_context) is not OracleContextV1:
+        return False
+    if type(context.freshness_bounds) is not FreshnessBoundsV1:
+        return False
+    evidence = context.authority_evidence
+    if evidence is not None:
+        if type(evidence) is not M6AuthorityEvidenceV1:
+            return False
+        expected_payload_types: dict[GlobalCommandKindV1, type[object]] = {
+            GlobalCommandKindV1.TAU_ESCROW_DEPOSIT: TauEscrowDepositProofV1,
+            GlobalCommandKindV1.TAU_WITHDRAWAL_ACK: WithdrawalAcknowledgmentV1,
+            GlobalCommandKindV1.FALLBACK_ACTIVATE: MigrationAuthorityProofV1,
+            GlobalCommandKindV1.TAU_REJOIN: MigrationAuthorityProofV1,
+        }
+        expected_payload_type = expected_payload_types.get(evidence.kind)
+        if expected_payload_type is None or type(evidence.payload) is not expected_payload_type:
+            return False
+    witness = context._verification_witness
+    if type(witness) is not _M6ExecutionContextWitness:
+        return False
+    try:
+        return witness.context_root == context.authentication_root
+    except (TypeError, ValueError):
+        return False
 
 
 def _admission_reject_reason(
@@ -1122,7 +1166,10 @@ def _apply_seller_auction_commit(scratch: _BusinessScratch) -> None:
     commit_height, reveal_deadline, settle_deadline = scratch.deadlines()
     existing = [row for row in scratch.seller_auction_bids if row.auction_id == auction_id]
     if any(
-        (row.bond_asset != asset or row.reveal_deadline_height != reveal_deadline or row.settle_deadline_height != settle_deadline)
+        row.bond_asset != asset
+        or row.commit_height != commit_height
+        or row.reveal_deadline_height != reveal_deadline
+        or row.settle_deadline_height != settle_deadline
         for row in existing
     ):
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_DEADLINE)
@@ -1157,7 +1204,10 @@ def _apply_private_swap_commit(scratch: _BusinessScratch) -> None:
     commit_height, reveal_deadline, settle_deadline = scratch.deadlines()
     existing = [row for row in scratch.private_swap_participants if row.batch_id == batch_id]
     if any(
-        (row.bond_asset != asset or row.reveal_deadline_height != reveal_deadline or row.settle_deadline_height != settle_deadline)
+        row.bond_asset != asset
+        or row.commit_height != commit_height
+        or row.reveal_deadline_height != reveal_deadline
+        or row.settle_deadline_height != settle_deadline
         for row in existing
     ):
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_DEADLINE)
@@ -1214,7 +1264,7 @@ def _apply_seller_auction_reveal(scratch: _BusinessScratch) -> None:
     if len(matches) != 1:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_COMMITMENT)
     index, row = matches[0]
-    if scratch.ledger_height > row.reveal_deadline_height:
+    if not row.commit_height < scratch.ledger_height <= row.reveal_deadline_height:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_DEADLINE)
     if any(
         other.auction_id == auction_id
@@ -1265,7 +1315,7 @@ def _apply_private_swap_reveal(scratch: _BusinessScratch) -> None:
     if len(matches) != 1:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_COMMITMENT)
     index, row = matches[0]
-    if scratch.ledger_height > row.reveal_deadline_height:
+    if not row.commit_height < scratch.ledger_height <= row.reveal_deadline_height:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_DEADLINE)
     scratch.private_swap_participants[index] = replace(
         row,
@@ -1345,7 +1395,8 @@ def _apply_seller_auction_settle(scratch: _BusinessScratch) -> None:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_PHASE)
     first = rows[0]
     if any(
-        row.reveal_deadline_height != first.reveal_deadline_height
+        row.commit_height != first.commit_height
+        or row.reveal_deadline_height != first.reveal_deadline_height
         or row.settle_deadline_height != first.settle_deadline_height
         for row in rows
     ):
@@ -1424,7 +1475,7 @@ def _apply_seller_auction_cancel(scratch: _BusinessScratch) -> None:
     if len(matches) != 1:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_PHASE)
     index, row = matches[0]
-    if scratch.ledger_height > row.reveal_deadline_height:
+    if scratch.ledger_height != row.commit_height:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_DEADLINE)
     scratch.refund_escrow(row)
     scratch.close_escrow(row.escrow_id, "seller_cancelled")
@@ -1442,7 +1493,8 @@ def _apply_seller_auction_expire(scratch: _BusinessScratch) -> None:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_PHASE)
     rows = [scratch.seller_auction_bids[index] for index in indexes]
     if any(
-        row.reveal_deadline_height != rows[0].reveal_deadline_height
+        row.commit_height != rows[0].commit_height
+        or row.reveal_deadline_height != rows[0].reveal_deadline_height
         or row.settle_deadline_height != rows[0].settle_deadline_height
         for row in rows
     ):
@@ -1489,7 +1541,8 @@ def _apply_private_swap_settle(scratch: _BusinessScratch) -> None:
     if not first.reveal_deadline_height < scratch.ledger_height <= first.settle_deadline_height:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_DEADLINE)
     if any(
-        row.reveal_deadline_height != first.reveal_deadline_height
+        row.commit_height != first.commit_height
+        or row.reveal_deadline_height != first.reveal_deadline_height
         or row.settle_deadline_height != first.settle_deadline_height
         for row in rows
     ):
@@ -1533,7 +1586,7 @@ def _apply_private_swap_cancel(scratch: _BusinessScratch) -> None:
     if len(matches) != 1:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_PHASE)
     index, row = matches[0]
-    if scratch.ledger_height > row.reveal_deadline_height:
+    if scratch.ledger_height != row.commit_height:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_DEADLINE)
     scratch.refund_escrow(row)
     scratch.close_escrow(row.escrow_id, "private_swap_cancelled")
@@ -1551,7 +1604,8 @@ def _apply_private_swap_expire(scratch: _BusinessScratch) -> None:
         raise _BusinessFailure(BusinessRejectReasonV1.INVALID_PHASE)
     rows = [scratch.private_swap_participants[index] for index in indexes]
     if any(
-        row.reveal_deadline_height != rows[0].reveal_deadline_height
+        row.commit_height != rows[0].commit_height
+        or row.reveal_deadline_height != rows[0].reveal_deadline_height
         or row.settle_deadline_height != rows[0].settle_deadline_height
         for row in rows
     ):

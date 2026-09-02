@@ -1,0 +1,360 @@
+# [FORGE] Disaster axis: settlement_proof_recompute_gate (inductive promotion)
+#
+# Disaster (must be UNREACHABLE): a settlement is APPLIED (state mutated, value
+# moved) while ANY of the following holds:
+#   (a) recompute_done == false                      (proof never recomputed)
+#   (b) recomputed_witness_root != claimed_witness_root  (stale/divergent proof)
+#   (c) validator_strength < required_strength        (weak proof accepted where strong required)
+#
+# This abstracts the dex_engine.py settlement authority path:
+#   src/integration/dex_engine.py
+#     - pre_state_commitment = compute_support_state_root_for_batch(...) / compute_state_root(...)   [RECOMPUTE]
+#     - batch_commitment = sha256_hex(domain_sep("dex_batch") + canonical_json(batch_payload))       [RECOMPUTE]
+#     - _verify_proof_if_present(): proof.pre_state_commitment == pre_state_commitment AND
+#                                   proof.batch_commitment == batch_commitment                       [ROOT-MATCH]
+#     - validate_operations(... settlement_validation = strong_replay / strong_proof_carrying ...)   [STRENGTH FLOOR]
+#         (_MODE_STRONG_REPLAY / _MODE_STRONG_PROOF_CARRYING in
+#          src/core/settlement_strong_validator.py replay-verify the batch; the
+#          legacy net-delta validator in batch_clearing.validate_settlement is the WEAK downgrade)
+#     - apply_settlement_pure(...)  is reached ONLY after ok==True and proof verified (proof_preverified)  [APPLY LAST]
+#
+# Conservation tie-in (mirrors SettlementAlgebra Delta : Settlement ->+ Z, kernel = balanced):
+#   the applied settlement moves `amount` from acct_user, credits acct_pool with
+#   (amount - fee), and credits fee_acct with fee. The total is invariant (Delta == 0),
+#   so the recomputed root (a function of the live accounts, like compute_state_root)
+#   is well-defined and the mismatch case is genuine value-on-stale-proof, not a tautology.
+#
+# DERIVED, NOT ASSUMED: recomputed_witness_root is recomputed FROM the current
+# account state at recompute time (acct_user + acct_pool + fee_acct), exactly as
+# compute_state_root is a pure function of balances/pools/fee_accumulator. The
+# apply action's guard forces recompute_done AND root-match AND strength-floor,
+# and the apply updates atomically move value AND set applied=applied AND
+# refresh the root from the NEW state, so the safety invariant holds inductively
+# only because the guard arithmetic genuinely enforces the gate ordering.
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "disaster_settlement_proof_recompute_gate_inductive_v1"
+  created_by: "zenodex-disaster-inductive"
+  description: "Recompute-match + strength-floor before-apply ordering for settlement proof gate; disaster = value moved on stale/weak/divergent proof."
+  tags: ["dex", "settlement", "proof-gate", "recompute", "conservation", "safety"]
+  notes: |
+    Abstracts src/integration/dex_engine.py settlement proof path and
+    src/core/settlement_strong_validator.py strong replay.
+    OMITS: real sha256 collision resistance (root is a sum-surrogate, not a
+    cryptographic hash); the subprocess verifier wall-clock/timeout machinery in
+    proof_verifier.py (modeled as the boolean proof_ok witness folded into
+    recompute_done + root equality); multi-intent batching (single settlement
+    step); and the exact canonical-JSON batch encoding. It captures the
+    load-bearing CONTROL invariant: apply implies recomputed-and-matched-and-strong.
+
+observables:
+  state_vars:
+    - "acct_user"
+    - "acct_pool"
+    - "fee_acct"
+    - "total"
+    - "claimed_root"
+    - "recomputed_root"
+    - "validator_strength"
+    - "required_strength"
+    - "recompute_done"
+    - "applied"
+  effects:
+    - "event"
+    - "did_apply"
+    - "gate_ok"
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["NoOp", "EvRecomputed", "EvApplied", "EvRejected"]
+  - id: "t_applied"
+    type:
+      kind: "enum"
+      symbols: ["NotApplied", "Applied"]
+
+state_vars:
+  # --- value-movement accounts (conservation tie-in; Delta == 0) ---
+  - id: "acct_user"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "acct_pool"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "fee_acct"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "total"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000 }
+
+  # --- proof-gate control state ---
+  # claimed_root: the witness root carried by the (untrusted) proof packet.
+  - id: "claimed_root"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000 }
+  # recomputed_root: the host's locally recomputed witness root. DERIVED from the
+  # live accounts at recompute time (a pure function of state, like compute_state_root).
+  - id: "recomputed_root"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000 }
+  # validator strength: weak=0 (legacy net-delta), strong=1 (strong_replay).
+  - id: "validator_strength"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "required_strength"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "recompute_done"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "applied"
+    role: "control"
+    type: { ref: "t_applied" }
+
+init:
+  - var: "acct_user"
+    expr: { const: 1000 }
+  - var: "acct_pool"
+    expr: { const: 0 }
+  - var: "fee_acct"
+    expr: { const: 0 }
+  - var: "total"
+    expr: { const: 1000 }
+  - var: "claimed_root"
+    expr: { const: 0 }
+  - var: "recomputed_root"
+    expr: { const: 0 }
+  - var: "validator_strength"
+    expr: { const: 0 }
+  - var: "required_strength"
+    expr: { const: 1 }   # production requires STRONG validation
+  - var: "recompute_done"
+    expr: { bool: false }
+  - var: "applied"
+    expr: { enum: "NotApplied" }
+
+invariants:
+  # ---- CONSERVATION (Delta == 0): no value created or destroyed at any step. ----
+  # The negation is value creation/destruction. This is genuinely moved by the
+  # apply action (acct_user -= amount; acct_pool += amount - fee; fee_acct += fee).
+  - id: "inv_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - op: "+"
+              args: [{ var: "acct_user" }, { var: "acct_pool" }]
+            - { var: "fee_acct" }
+        - { var: "total" }
+
+  # ---- THE DISASTER INVARIANT (recompute-match + strength-floor BEFORE apply) ----
+  # applied == Applied  =>  recompute_done AND recomputed_root == claimed_root
+  #                         AND validator_strength >= required_strength.
+  # Negation = a settlement was applied (value moved) on a stale (recompute_done false),
+  # divergent (root mismatch), or weak (strength < required) proof. That is exactly the
+  # "proof-verifier wrapper accepts stale or weak settlement proof" disaster.
+  - id: "inv_apply_implies_recompute_match_and_strong"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "applied" }, { enum: "Applied" }]
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "recompute_done" }, { bool: true }] }
+            - { op: "=", args: [{ var: "recomputed_root" }, { var: "claimed_root" }] }
+            - { op: ">=", args: [{ var: "validator_strength" }, { var: "required_strength" }] }
+
+  # ---- ROOT FRESHNESS: once applied, the recomputed root must equal the post-state
+  # root (the live account sum). This forbids a STALE recompute (computed before the
+  # value moved) from being treated as matching. Derived from the apply arithmetic:
+  # apply atomically refreshes recomputed_root from the NEW accounts, so a stale root
+  # that happened to equal claimed_root cannot survive the post-state check. The
+  # negation is "applied but the matched root describes a different (pre-mutation)
+  # state" -- a settlement applied on a stale witness root.
+  - id: "inv_applied_root_is_poststate"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "applied" }, { enum: "Applied" }]
+        - op: "="
+          args:
+            - { var: "recomputed_root" }
+            - op: "+"
+              args:
+                - op: "+"
+                  args: [{ var: "acct_user" }, { var: "acct_pool" }]
+                - { var: "fee_acct" }
+
+actions:
+  # ----------------------------------------------------------------------------
+  # RECOMPUTE: host recomputes the witness root from the CURRENT live state and
+  # selects the validator strength actually run. Mirrors compute_state_root +
+  # batch_commitment + validate_operations(settlement_validation=...). No value
+  # moves here (recompute is read-only over balances). Sets recompute_done.
+  # The claimed_root carried by the proof packet is an adversary-chosen param.
+  # ----------------------------------------------------------------------------
+  - id: "recompute_proof"
+    params:
+      - id: "claimed_root_in"
+        type: { kind: "int", min: 0, max: 3000000 }
+      - id: "strength_in"
+        type: { kind: "int", min: 0, max: 1 }
+    guard:
+      op: "="
+      args: [{ var: "applied" }, { enum: "NotApplied" }]
+    updates:
+      # recomputed_root := pure function of the current accounts (the live state root).
+      - var: "recomputed_root"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args: [{ var: "acct_user" }, { var: "acct_pool" }]
+            - { var: "fee_acct" }
+      - var: "claimed_root"
+        expr: { param: "claimed_root_in" }
+      - var: "validator_strength"
+        expr: { param: "strength_in" }
+      - var: "recompute_done"
+        expr: { bool: true }
+    effects:
+      event: { enum: "EvRecomputed" }
+      did_apply: { bool: false }
+      gate_ok: { bool: false }
+
+  # ----------------------------------------------------------------------------
+  # APPLY SETTLEMENT: moves value (acct_user -> acct_pool minus fee -> fee_acct),
+  # mirroring apply_settlement_pure. GUARDED by the full gate so it can ONLY fire
+  # after a successful recompute-match + strength floor. After moving value it
+  # atomically refreshes recomputed_root from the NEW accounts (the post-state
+  # root) so inv_applied_root_is_poststate holds. The conservation identity is
+  # preserved because total is unchanged: -amount +(amount-fee) +fee = 0.
+  # ----------------------------------------------------------------------------
+  - id: "apply_settlement"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000 }
+      - id: "fee"
+        type: { kind: "int", min: 0, max: 1000 }
+    guard:
+      op: "and"
+      args:
+        # not already applied (single settlement step)
+        - op: "="
+          args: [{ var: "applied" }, { enum: "NotApplied" }]
+        # GATE: recompute done AND root matches AND strength floor met
+        - { op: "=", args: [{ var: "recompute_done" }, { bool: true }] }
+        - { op: "=", args: [{ var: "recomputed_root" }, { var: "claimed_root" }] }
+        - { op: ">=", args: [{ var: "validator_strength" }, { var: "required_strength" }] }
+        # well-formed settlement: fee <= amount and user can cover amount
+        - { op: "<=", args: [{ param: "fee" }, { param: "amount" }] }
+        - { op: "<=", args: [{ param: "amount" }, { var: "acct_user" }] }
+        # recipient-balance overflow guards (mirror bounded-balance checks in the
+        # strong validator / apply_settlement_pure: credits must fit the account).
+        # Without these the post-state accounts could exceed their declared bound,
+        # which is itself a real disaster (a balance that wraps/saturates).
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "acct_pool" }
+                - op: "-"
+                  args: [{ param: "amount" }, { param: "fee" }]
+            - { const: 1000000 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "fee_acct" }, { param: "fee" }]
+            - { const: 1000000 }
+    updates:
+      - var: "acct_user"
+        expr:
+          op: "-"
+          args: [{ var: "acct_user" }, { param: "amount" }]
+      - var: "acct_pool"
+        expr:
+          op: "+"
+          args:
+            - { var: "acct_pool" }
+            - op: "-"
+              args: [{ param: "amount" }, { param: "fee" }]
+      - var: "fee_acct"
+        expr:
+          op: "+"
+          args: [{ var: "fee_acct" }, { param: "fee" }]
+      # refresh recomputed_root from the NEW (post-mutation) accounts.
+      # acct_user-amount + acct_pool+(amount-fee) + fee_acct+fee == old sum, so this
+      # equals the live post-state account sum.
+      - var: "recomputed_root"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "-"
+                  args: [{ var: "acct_user" }, { param: "amount" }]
+                - op: "+"
+                  args:
+                    - { var: "acct_pool" }
+                    - op: "-"
+                      args: [{ param: "amount" }, { param: "fee" }]
+            - op: "+"
+              args: [{ var: "fee_acct" }, { param: "fee" }]
+      # keep claimed_root pinned to the new recomputed root so the matched-root
+      # invariant continues to describe the post-state (the proof commits to the
+      # state it produced).
+      - var: "claimed_root"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "-"
+                  args: [{ var: "acct_user" }, { param: "amount" }]
+                - op: "+"
+                  args:
+                    - { var: "acct_pool" }
+                    - op: "-"
+                      args: [{ param: "amount" }, { param: "fee" }]
+            - op: "+"
+              args: [{ var: "fee_acct" }, { param: "fee" }]
+      - var: "applied"
+        expr: { enum: "Applied" }
+    effects:
+      event: { enum: "EvApplied" }
+      did_apply: { bool: true }
+      gate_ok: { bool: true }
+
+  # ----------------------------------------------------------------------------
+  # REJECT: gate failed (no recompute, root mismatch, or weak validator). State
+  # is NOT mutated (fail-closed). This action exists to prove the disaster path is
+  # expressible-but-blocked: a packet whose claimed_root != recomputed_root, or
+  # whose strength < required, is rejected WITHOUT applying. No value moves.
+  # ----------------------------------------------------------------------------
+  - id: "reject_settlement"
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "applied" }, { enum: "NotApplied" }]
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "recompute_done" }, { bool: false }] }
+            - op: "not"
+              args:
+                - { op: "=", args: [{ var: "recomputed_root" }, { var: "claimed_root" }] }
+            - { op: "<", args: [{ var: "validator_strength" }, { var: "required_strength" }] }
+    updates: []
+    effects:
+      event: { enum: "EvRejected" }
+      did_apply: { bool: false }
+      gate_ok: { bool: false }

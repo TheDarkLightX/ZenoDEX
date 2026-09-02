@@ -820,9 +820,6 @@ claims:
         - ZenoLedgerZkTeeProofComposition.accepted_zk_program_verifier_distinct
         - ZenoLedgerZkTeeProofComposition.accepted_metadata_unique_under_digest_injective
         - ZenoLedgerZkTeeProofComposition.apply_chunks_perm_invariant
-        - ZenoLedgerZkTeeProofComposition.applyWrite_commutes_of_distinct
-        - ZenoLedgerZkTeeProofComposition.applyWrites_perm_invariant_of_pairwise_distinct
-        - ZenoLedgerZkTeeProofComposition.applyWrite_commutes_of_same_key_same_value
 
   - id: py:zeno_ledger:risc0_proof_metadata_adapter_v0
     status: supported

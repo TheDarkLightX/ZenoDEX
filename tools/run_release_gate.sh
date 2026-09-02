@@ -79,6 +79,10 @@ echo "== release: ZenoLedger proof coverage matrix =="
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_proof_coverage_matrix.py"
 "$PY" -m pytest -q "$ROOT_DIR/tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py"
 
+echo "== release: disaster-axis status manifest =="
+"$PY" "$ROOT_DIR/tools/check_disaster_axis_status_manifest.py" --root "$ROOT_DIR"
+"$PY" -m pytest -q "$ROOT_DIR/tests/tools/test_check_disaster_axis_status_manifest.py"
+
 echo "== release: ZenoDEX host-independent coverage =="
 "$PY" "$ROOT_DIR/tools/check_zenodex_host_independent_coverage.py"
 "$PY" "$ROOT_DIR/tools/measure_zenodex_zk_transition_coverage.py"
