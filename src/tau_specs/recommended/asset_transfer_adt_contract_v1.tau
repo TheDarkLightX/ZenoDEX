@@ -1,0 +1,44 @@
+# ZenoDEX Asset Transfer ADT Logical ABI V1
+#
+# Research-only bounded Tau model for the structured logical surface of
+# src/core/asset_transfer_types_v1.py. This file deliberately does NOT model
+# production u128 amounts, cryptographic hashes, canonical encodings, table
+# state, signatures, or settlement authority. bv[8]/bv[16] identifiers and
+# roots below are abstract tags used only to exercise the current Tau ADT
+# semantics on a finite domain.
+#
+# Frozen flattened member order is part of this logical ABI:
+#   AssetTransferCommandADT1 =
+#     (command_kind, asset, sender, recipient, amount_atoms, max_fee_atoms)
+#   AssetTransferContextADT1 =
+#     (chain_id, deployment_root, profile_root, writer_epoch,
+#      module_release_id, command_occurrence_id, subject_id, grant_root)
+#   AssetTransferResultADT1 =
+#     (accepted, rejected, reject_code, pre_state_root, post_state_root,
+#      effects_empty)
+#
+# Reject-code abstraction for this bounded model:
+#   0  = NONE / accepted
+#   1..12 = the closed AssetTransferRejectCodeV1 declaration order
+#   12 = POST_STATE_RESOURCE_BOUND_EXCEEDED
+# This numeric encoding is a Tau research ABI only; it is not a production
+# canonical serialization of the Python/Rust enum.
+#
+# The whole-ADT calls below rely on Tau's parse-time tuple flattening. A call
+# such as asset_transfer_result_ok(r) is therefore intentionally defined with
+# one parameter per flattened Result member.
+
+set charvar off
+
+type AssetTransferCommandADT1 = {command_kind: bv[4], asset: bv[8], sender: bv[8], recipient: bv[8], amount_atoms: bv[16], max_fee_atoms: bv[16]}.
+type AssetTransferContextADT1 = {chain_id: bv[8], deployment_root: bv[16], profile_root: bv[16], writer_epoch: bv[16], module_release_id: bv[16], command_occurrence_id: bv[16], subject_id: bv[8], grant_root: bv[16]}.
+type AssetTransferResultADT1 = {accepted: sbf, rejected: sbf, reject_code: bv[8], pre_state_root: bv[16], post_state_root: bv[16], effects_empty: sbf}.
+type AssetTransferEnvelopeADT1 = {context: AssetTransferContextADT1, command: AssetTransferCommandADT1, result: AssetTransferResultADT1, state_module_release: bv[16], required_fee_atoms: bv[16]}.
+
+bounded_fee(required, cap):bv[16] := min(required, cap).
+fee_within_cap(required, cap) := (bounded_fee(required:bv[16], cap:bv[16]) = required).
+asset_transfer_command_shape_ok(kind, asset, sender, recipient, amount, max_fee) := ((kind:bv[4] = {1}:bv[4]) && (asset:bv[8] != {0}:bv[8]) && (sender:bv[8] != {0}:bv[8]) && (recipient:bv[8] != {0}:bv[8]) && (sender != recipient) && (amount:bv[16] != {0}:bv[16]) && (max_fee:bv[16] = max_fee)).
+asset_transfer_context_binding_ok(chain, deployment, profile, epoch, module_release, occurrence, subject, grant, state_release, sender) := ((chain:bv[8] != {0}:bv[8]) && (deployment:bv[16] != {0}:bv[16]) && (profile:bv[16] != {0}:bv[16]) && (epoch:bv[16] = epoch) && (module_release:bv[16] = state_release:bv[16]) && (occurrence:bv[16] != {0}:bv[16]) && (subject:bv[8] = sender:bv[8]) && (grant:bv[16] != {0}:bv[16])).
+asset_transfer_result_ok(accepted, rejected, code, pre_root, post_root, effects_empty) := (((accepted:sbf = 1:sbf) && (rejected:sbf = 0:sbf) && (code:bv[8] = {0}:bv[8]) && (pre_root:bv[16] = pre_root) && (post_root:bv[16] = post_root) && (effects_empty:sbf = 0:sbf)) || ((accepted:sbf = 0:sbf) && (rejected:sbf = 1:sbf) && (code:bv[8] > {0}:bv[8]) && (code <= {12}:bv[8]) && (pre_root:bv[16] = post_root:bv[16]) && (effects_empty:sbf = 1:sbf))).
+
+always ((all r:AssetTransferResultADT1 (asset_transfer_result_ok(r) -> (((r.rejected = 1:sbf) -> ((r.pre_state_root = r.post_state_root) && (r.effects_empty = 1:sbf) && (r.reject_code != {0}:bv[8]))) && ((r.accepted = 1:sbf) -> ((r.reject_code = {0}:bv[8]) && (r.effects_empty = 0:sbf)))))) && (all r:AssetTransferResultADT1 ((asset_transfer_result_ok(r) && (r.reject_code = {12}:bv[8])) -> ((r.accepted = 0:sbf) && (r.rejected = 1:sbf) && (r.pre_state_root = r.post_state_root) && (r.effects_empty = 1:sbf)))) && (all required:bv[16] all cap:bv[16] (fee_within_cap(required, cap) <-> (required <= cap))) && (all e:AssetTransferEnvelopeADT1 ((asset_transfer_command_shape_ok(e.command) && asset_transfer_context_binding_ok(e.context, e.state_module_release, e.command.sender) && fee_within_cap(e.required_fee_atoms, e.command.max_fee_atoms) && asset_transfer_result_ok(e.result)) -> ((e.command.sender != e.command.recipient) && (e.command.amount_atoms != {0}:bv[16]) && (e.context.module_release_id = e.state_module_release) && (e.context.subject_id = e.command.sender) && ((e.result.rejected = 1:sbf) -> ((e.result.pre_state_root = e.result.post_state_root) && (e.result.effects_empty = 1:sbf))))))).
