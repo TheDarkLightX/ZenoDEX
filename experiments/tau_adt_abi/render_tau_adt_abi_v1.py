@@ -110,8 +110,30 @@ def build_vectors() -> list[VectorV1]:
         VectorV1("reject_fee_limit", "recompute", (100, 10, 5, 9, True), 30, 2, "recv", "FEE_LIMIT_EXCEEDED"),
         VectorV1("reject_insufficient", "recompute", (10, 10, 5, 2, True), 30, 2, "recv", "INSUFFICIENT_BALANCE"),
         VectorV1("reject_disabled", "recompute", (100, 10, 5, 2, False), 30, 2, "recv", "DISABLED_ASSET"),
+        # Boundary vectors: each sits exactly at a guard edge.
+        VectorV1("accept_fee_at_limit", "recompute", (100, 10, 5, 7, True), 30, 7, "recv", None),
+        VectorV1("reject_fee_one_over", "recompute", (100, 10, 5, 8, True), 30, 7, "recv", "FEE_LIMIT_EXCEEDED"),
+        VectorV1("accept_balance_exact", "recompute", (37, 0, 5, 7, True), 30, 7, "recv", None),
+        VectorV1("reject_balance_one_short", "recompute", (36, 0, 5, 7, True), 30, 7, "recv", "INSUFFICIENT_BALANCE"),
+        # Precedence discriminators: two guards both want to fire; the code pins the order.
+        VectorV1("prec_disabled_beats_self", "recompute", (100, 10, 5, 2, False), 30, 2, "sender", None),
+        VectorV1("prec_self_beats_zero", "recompute", (100, 10, 5, 2, True), 0, 2, "sender", None),
+        VectorV1("prec_zero_beats_fee", "recompute", (100, 10, 5, 9, True), 0, 2, "recv", None),
+        VectorV1("prec_fee_beats_insufficient", "recompute", (1, 10, 5, 9, True), 30, 2, "recv", None),
     ]
-    return vectors
+    # Precedence vectors take their expected code from the Python oracle itself
+    # (expected_code None above means "ask the oracle"), so a precedence drift
+    # between implementations surfaces as a Tau parity F, not a fixture edit.
+    resolved = []
+    for vector in vectors:
+        if vector.vector_id.startswith("prec_"):
+            _accepted, oracle_code, _n, _e = python_outcome(vector)
+            assert oracle_code is not None, vector.vector_id
+            resolved.append(VectorV1(vector.vector_id, vector.tier, vector.state,
+                                     vector.amount, vector.max_fee, vector.recipient, oracle_code))
+        else:
+            resolved.append(vector)
+    return resolved
 
 
 def python_outcome(vector: VectorV1) -> tuple[bool, str | None, bool, bool]:

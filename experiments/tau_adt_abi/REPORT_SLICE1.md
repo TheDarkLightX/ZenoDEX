@@ -42,4 +42,15 @@ dictionary frozen per vector set. Identities and roots stay host-side tokens.
   adjacent precedence pair are queued.
 - Single machine, single binary (upstream 3c24bad9), alpha toolchain.
 
+## Slice 2 addendum (same day)
+
+15/15 parity after adding four guard-edge boundary vectors (fee at limit /
+one over; balance exact / one short) and four precedence discriminators where
+two guards both want to fire (disabled+self, self+zero, zero+fee,
+fee+insufficient). The discriminators take their expected code from the
+Python oracle at build time, so a precedence drift between implementations
+surfaces as a Tau parity F rather than a fixture edit. The hand-mirroring
+limit from slice 1 is now bounded: every adjacent pair in the mirrored
+precedence chain has a distinguishing vector.
+
 Research-only; no authority of any kind is granted or implied.
