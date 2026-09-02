@@ -66,6 +66,8 @@ jobs:
           TAU=/tmp/tau-lang/build-Release/tau
           TAU_BA_COMPONENT_FACTORING=1 timeout 120s "$TAU" -q -X < /tmp/tau-lang-demos/adt_tables_basic.tau | tee experiments/tau_adt_tables/results/upstream/basic.out
           TAU_BA_COMPONENT_FACTORING=1 timeout 120s "$TAU" -q -X < /tmp/tau-lang-demos/adt_tables_advanced.tau | tee experiments/tau_adt_tables/results/upstream/advanced.out
+          ! grep -Fq '(Error)' experiments/tau_adt_tables/results/upstream/basic.out
+          ! grep -Fq '(Error)' experiments/tau_adt_tables/results/upstream/advanced.out
 
       - name: Run ZenoDEX contracts
         env:
