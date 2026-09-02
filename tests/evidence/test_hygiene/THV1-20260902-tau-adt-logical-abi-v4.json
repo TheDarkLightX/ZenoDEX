@@ -1,0 +1,125 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260902-tau-adt-logical-abi-v4",
+  "created_date": "2026-09-02",
+  "claim_scope": "Research-only bounded replay evidence for the first ZenoDEX Tau ADT logical ABI against the current IDNI/tau-lang main pin. The asset-transfer module uses current Tau ADTs, whole/sub-tuple definition arguments, mixed sbf/bitvector members and min() to encode command/context/result structural rails including the exact no-op rejection contract and the NEW-6 post-state resource-bound rejection abstraction. The lane-journal module uses nested ADTs, whole/sub-tuple arguments, recurrence relations and min() to encode structural journal bindings and a saturating replay cursor. The source lock is authoritative for the exact 40-hex Tau revision, the replay builds only the Tau target with TAU_BUILD_JOBS=1 to avoid the observed hosted-runner cvc5 OOM, every query requires exactly one final Tau T/F verdict, and a deliberately over-strong whole-ADT statement must return F before positive evidence is accepted.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TAU-ADT-ASSET-TRANSFER-REJECT-IS-NOOP",
+    "TAU-ADT-ASSET-TRANSFER-RESOURCE-BOUND-CLOSED",
+    "TAU-ADT-WHOLE-VALUE-FLATTENING-ARITY",
+    "TAU-ADT-LANE-JOURNAL-STRUCTURAL-BINDING",
+    "TAU-ADT-SATURATING-REPLAY-CURSOR-NO-WRAP",
+    "TAU-ADT-EXACT-UPSTREAM-SOURCE-LOCK",
+    "TAU-ADT-EXACT-SINGLE-VERDICT-FAIL-CLOSED",
+    "TAU-ADT-MEMORY-BOUNDED-SOURCE-BUILD"
+  ],
+  "failure_modes": [
+    "a rejected asset-transfer result changes the abstract state root or carries effects",
+    "POST_STATE_RESOURCE_BOUND_EXCEEDED is not represented as a closed typed no-op rejection",
+    "a whole or nested ADT call silently fails to match its flattened predicate arity",
+    "a lane journal accepts zero abstract effect-plan or receipt roots despite the Python contract",
+    "the replay cursor wraps from the maximum bv[16] value to zero",
+    "the evidence is replayed against a mutable source name instead of the exact locked Tau revision",
+    "an earlier T in REPL output hides a final F or an unexpanded application",
+    "auto-parallel compilation exhausts hosted-runner memory before a Tau semantic verdict is produced",
+    "Tau Tables are claimed or used before first-class Tables support is available"
+  ],
+  "source_pins": [
+    {
+      "path": "config/tau_lang_adt_research.lock",
+      "sha256": "55e44d31eff9bddb5b046b33527eda7cb0e6d7cf661c5c2229ee1b4dce6b098f"
+    },
+    {
+      "path": "src/tau_specs/recommended/asset_transfer_adt_contract_v1.tau",
+      "sha256": "b88077953eebb392f158b4da2c1ddbf7a8960751dc33035922bf6bc5a93d7ad6"
+    },
+    {
+      "path": "src/tau_specs/recommended/lane_transition_journal_adt_contract_v1.tau",
+      "sha256": "82f47fdd414e1b4c9a16f6f92e85f6ba6858cc1bacf0f0589fa80e299ca8556d"
+    },
+    {
+      "path": "tools/build_tau_adt_research_pin_v1.sh",
+      "sha256": "aa115ca2c35a311a0660bd1c65307942adcb09aa8a731d18cb803631bde69796"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/tau/test_tau_adt_logical_abi_v1.py",
+      "sha256": "f457682f5d245a776f269c76833ffb788f4ef1afee2492bc213053bb42642bc3",
+      "node_ids": [
+        "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_source_contract",
+        "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_pinned_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The pinned replay arranges closed quantified ADT domains and explicit boundary values, resolves the exact Tau revision from a source-pinned lock, acts through Tau's own valid/unsat decision commands, and requires exactly one T/F verdict matching the expected result. A deliberately over-strong ADT statement must return F before any positive replay is accepted."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The asset-transfer ADT contract and replay explicitly require every rejected result, including abstract reject code 12 for POST_STATE_RESOURCE_BOUND_EXCEEDED, to preserve the pre/post state-root tag and assert effects_empty = 1."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "asset_transfer_result_algebra",
+      "points": [
+        "accepted uses reject_code 0 and effects_empty 0",
+        "rejected uses closed codes 1..12, preserves the state-root tag and has effects_empty 1"
+      ]
+    },
+    {
+      "name": "fee_cap_min_equivalence",
+      "points": [
+        "required_fee <= cap makes min(required_fee, cap) equal required_fee",
+        "required_fee > cap makes the equality false"
+      ]
+    },
+    {
+      "name": "replay_cursor_saturation",
+      "points": [
+        "non-max bv[16] values advance by exactly one",
+        "the all-ones maximum remains fixed and never wraps"
+      ]
+    },
+    {
+      "name": "adt_flattening",
+      "points": [
+        "whole command/result/journal values match one parameter per flattened member",
+        "nested context/header/binding sub-tuples flatten correctly when followed by scalar arguments"
+      ]
+    },
+    {
+      "name": "harness_verdict",
+      "points": [
+        "a deliberately false whole-ADT implication produces exactly one F verdict",
+        "every admitted positive or negative replay query produces exactly one expected T verdict"
+      ]
+    },
+    {
+      "name": "source_build_parallelism",
+      "points": [
+        "auto-parallel cvc5 compilation was observed to OOM before semantic replay",
+        "the admitted helper forces TAU_BUILD_JOBS=1 and builds only the Tau executable target"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "This evidence grants no production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "bv[8]/bv[16] roots, identifiers and amounts are bounded abstract tags; this is not a 128-bit or 256-bit production arithmetic model.",
+    "This evidence does not validate hashing, signatures, canonical serialization, receipt proofs, table storage, table roots, or Tau Net consensus integration.",
+    "This evidence does not claim first-class Tau Tables support; no executable Table construct appears in the two Tau specifications.",
+    "This evidence does not close O-008 or any whole-value-movement gate and does not make the pre-existing P22 formal-cycle packet current.",
+    "The numeric reject-code mapping is a research Tau ABI convention and is not claimed to be the production canonical Python/Rust enum encoding.",
+    "A successful single-job source build is evidence of replayability for this pinned research harness, not a Tau production build-performance claim."
+  ]
+}
