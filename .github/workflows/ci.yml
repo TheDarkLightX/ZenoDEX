@@ -34,6 +34,13 @@ jobs:
         run: |
           git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
 
+      - name: Diagnostic Tau ADT SHA256
+        if: github.event_name == 'pull_request'
+        run: |
+          sha256sum \
+            config/tau_lang_adt_research.lock \
+            tests/tau/test_tau_adt_logical_abi_v1.py
+
       - name: Enforce diff-aware test hygiene evidence
         if: github.event_name == 'pull_request'
         run: python tools/run_test_hygiene_gate_v1.py --base-ref "origin/${{ github.base_ref }}"
