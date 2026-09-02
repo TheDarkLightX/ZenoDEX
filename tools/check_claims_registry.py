@@ -21,7 +21,6 @@ from typing import Any, Iterable
 
 import yaml
 
-
 ALLOWED_CLAIM_STATUSES = frozenset({"supported", "proved", "disputed"})
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -140,7 +139,7 @@ def validate_registry_root(loaded: Any) -> None:
                 declared = re.compile(rf"^\s*(?:theorem|lemma)\s+{re.escape(bare)}\b", re.M)
                 needed = [part for part in prefix.split(".") if part]
                 bound = False
-                for f, text in lean_texts:
+                for _f, text in lean_texts:
                     if not declared.search(text):
                         continue
                     # Namespace lines may be nested (one component per line) or
