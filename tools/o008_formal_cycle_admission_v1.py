@@ -272,7 +272,7 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     "the smallest wire-compatible sidecar contract and its missing producer/proof obligations"
     " are specified under the control-domain vocabulary",
     "the GlobalAccountingAllocationCertificateV1 checker is implemented in Python and Rust with a"
-    " producer registry exhaustive over the twelve lanes and no receipt-backed producer, and both"
+    " producer registry exhaustive over the twelve lanes and no registered receipt-backed producer, and both"
     f" replay one rendered golden vector of {CERTIFICATE_FIXTURE_VECTORS_V1} state/certificate pairs"
     " with closed reject codes; only the registered-empty certificate over an all-lanes-disabled"
     " state is accepted",

@@ -185,3 +185,96 @@ def test_python_and_rust_v1_collection_limits_are_frozen_and_equal() -> None:
         )
     }
     assert {name: rust_limits[name] for name in expected} == expected
+
+
+def test_every_canonical_rust_bound_has_a_python_twin() -> None:
+    """Opus P21 NEW-4: total parity over canonical.rs, not a hand-maintained list.
+
+    Every `pub const MAX_...` in canonical.rs must resolve through this single
+    mapping with an equal value; a newly added Rust bound with no Python twin
+    fails the key-set equality below instead of silently matching no regex."""
+
+    from src.core import global_settlement_types_v1 as types
+    from src.core.lane_module_receipt_verification_v1 import (
+        MAX_LANE_MODULE_RECEIPT_BYTES_V1,
+    )
+
+    rust_source = (
+        Path(__file__).resolve().parents[2] / "zk/global_settlement_abi_v1/src/canonical.rs"
+    ).read_text(encoding="utf-8")
+
+    def evaluate(expression: str) -> int:
+        expression = expression.strip()
+        if expression == "u128::MAX":
+            return (1 << 128) - 1
+        if "<<" in expression:
+            left, right = expression.split("<<")
+            return int(left.strip().replace("_", "")) << int(right.strip().replace("_", ""))
+        if "*" in expression:
+            product = 1
+            for factor in expression.split("*"):
+                product *= int(factor.strip().replace("_", ""))
+            return product
+        return int(expression.replace("_", ""))
+
+    rust_bounds = {
+        name: evaluate(expression)
+        for name, expression in re.findall(
+            r"pub const (MAX_[A-Z0-9_]+): (?:usize|u64|u128) = ([^;]+);",
+            rust_source,
+        )
+    }
+    python_twins = {
+        name: getattr(types, name)
+        for name in rust_bounds
+        if hasattr(types, name)
+    }
+    python_twins["MAX_LANE_MODULE_RECEIPT_BYTES_V1"] = MAX_LANE_MODULE_RECEIPT_BYTES_V1
+    assert set(python_twins) == set(rust_bounds), (
+        sorted(set(rust_bounds) - set(python_twins)),
+        sorted(set(python_twins) - set(rust_bounds)),
+    )
+    assert python_twins == rust_bounds
+    assert len(rust_bounds) >= 24
+
+
+def test_transfer_growing_past_the_balance_ceiling_raises_at_construction() -> None:
+    """Opus P21 NEW-6: the shared non-total boundary is pinned, not hidden.
+
+    A fully validated pre-state at exactly the balance-row ceiling drives the
+    transition into ValueError from the post-state constructor (an ABI decode
+    bound, not a typed reject); Rust returns Err(InvalidBounds) for the same
+    input. Both transition docstrings state this."""
+
+    from src.core.asset_transfer_module_v1 import transition_asset_transfer_v1
+    from src.core.asset_transfer_types_v1 import (
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        AssetTransferCommandV1,
+        AssetTransferContextV1,
+        AssetTransferPolicyV1,
+        AssetTransferStateV1,
+    )
+    from src.core.global_settlement_types_v1 import (
+        MAX_ASSET_BALANCE_ROWS_V1,
+        AssetSupplyV1,
+        EconomicAmountV1,
+    )
+
+    root = "0x" + "11" * 32
+    count = MAX_ASSET_BALANCE_ROWS_V1
+    rows = tuple(
+        EconomicAmountV1(f"acct-{index:06d}", "USD", "accounts", 10)
+        for index in range(count)
+    )
+    pre_state = AssetTransferStateV1(
+        module_release_id=root,
+        policies=(AssetTransferPolicyV1("USD", "acct-000000", 0, True),),
+        balances=rows,
+        supplies=(AssetSupplyV1("USD", 10 * count),),
+    )
+    context = AssetTransferContextV1("zenodex", root, root, 1, root, root, "acct-000001", root)
+    command = AssetTransferCommandV1(
+        ASSET_TRANSFER_COMMAND_KIND_V1, "USD", "acct-000001", "brand-new-owner", 1, 0
+    )
+    with pytest.raises(ValueError, match="asset transfer balances"):
+        transition_asset_transfer_v1(context, pre_state, command)

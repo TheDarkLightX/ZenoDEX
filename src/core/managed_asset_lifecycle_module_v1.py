@@ -399,7 +399,14 @@ def transition_managed_asset_lifecycle_v1(
     pre_state: ManagedAssetLifecycleStateV1,
     command: ManagedAssetLifecycleCommandV1,
 ) -> ManagedAssetLifecycleResultV1:
-    """Apply one profile-bound generic issue or self-burn transition."""
+    """Apply one profile-bound generic issue or self-burn transition.
+
+    The shared row ceilings (MAX_ASSET_*_ROWS_V1) are ABI decode bounds enforced
+    at state construction, not transition rejects: a command that would grow the
+    post-state past a ceiling raises ValueError from the post-state constructor
+    in Python and returns Err(InvalidBounds) in Rust (Opus P21 NEW-6). Totalising
+    this boundary into a typed reject code is deferred to lane work.
+    """
 
     context = _snapshot_context(context)
     pre_state = _snapshot_state(pre_state)

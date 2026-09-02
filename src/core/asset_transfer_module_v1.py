@@ -283,7 +283,16 @@ def transition_asset_transfer_v1(
     pre_state: AssetTransferStateV1,
     command: AssetTransferCommandV1,
 ) -> AssetTransferResultV1:
-    """Apply one transfer with fixed rejection precedence and no hidden inputs."""
+    """Apply one transfer with fixed rejection precedence and no hidden inputs.
+
+    The shared row ceilings (MAX_ASSET_*_ROWS_V1) are ABI decode bounds enforced
+    at state construction, not transition rejects: a transfer that would grow the
+    post-state past a ceiling raises ValueError from the post-state constructor
+    in Python and returns Err(InvalidBounds) from accepted.validate() in Rust
+    (Opus P21 NEW-6; the boundary is pinned by
+    test_transfer_growing_past_the_balance_ceiling_raises_at_construction).
+    Totalising this boundary into a typed reject code is deferred to lane work.
+    """
 
     if not isinstance(context, AssetTransferContextV1):
         raise TypeError("asset transfer context must be typed")

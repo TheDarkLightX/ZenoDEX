@@ -1,0 +1,167 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260901-global-settlement-formal-core-semantic-restage-v5",
+  "created_date": "2026-09-01",
+  "claim_scope": "v5 re-pin (C8'''''): the three shared row-bound constants move into the canonical mirror block in Rust declaration order with the block's literal convention and join __all__ (Opus P21 NEW-5); byte moves only, no value, function, inequality, message, or precedence changed. Earlier: v4 re-pin (C8''''): global_settlement_types_v1 gains the shared Rust canonical row-bound constants (MAX_ASSET_POLICY_ROWS_V1 256, MAX_ASSET_BALANCE_ROWS_V1 4096, MAX_ASSET_CUSTODY_ROWS_V1 4096) consumed by the sibling state families; additive Final constants only, no modeled function, inequality, message, or precedence changed; the blueprint pin row and the gate's enforced pin move with the bytes. Earlier: Append-only re-pin after candidate C2-prime gave the Rust ClaimantBackingViewV1 a checked constructor (private fields, sorted-unique token-shaped keys) without changing any inequality, message, or precedence. Earlier: after candidate C2 replaced the inline claimant-backing guard with the typed ClaimantBackingViewV1 and closed reject codes (same two necessary inequalities, same precedence, bound by tests/data/global_claimant_backing_guard_v1_golden.json); Append-only re-pin after candidate C2 replaced the inline claimant-backing guard with the typed ClaimantBackingViewV1 and closed reject codes (same two necessary inequalities, same precedence, bound by tests/data/global_claimant_backing_guard_v1_golden.json); Research-only semantic restage of FORMAL-MODEL-001 against the current source-bound GlobalSettlementABI V1 bytes. It preserves the bounded ESSO claim and fee-residue mapping, corrects the former false mapping from the model obligation bucket to terminal metadata, and records later canonical-admission and necessary claimant-backing source drift without promoting runtime refinement.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "FORMAL-MODEL-001-SOURCE-PIN-RESTAGE",
+    "FORMAL-MODEL-001-TERMINAL-METADATA-NOT-OWNED",
+    "GSV1-FEE-RESIDUE-EXACT-NAMED-RESERVE",
+    "GSV1-FEE-RESIDUE-PYTHON-RUST-PARITY"
+  ],
+  "failure_modes": [
+    "terminal-obligation metadata is counted as an owned accounting atom even though runtime conservation excludes it",
+    "the bounded formal blueprint silently remains pinned to superseded V1 source bytes",
+    "later canonical-admission or claimant-backing changes are misrepresented as proved by the older bounded model",
+    "the source-bound fee-residue mapping drifts between Python and Rust",
+    "a passing bounded ESSO model is promoted to runtime, verifier, settlement, or production authority"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
+      "sha256": "cd6af8a63286af0daa9a4b6358eb5fc94f1976f6532478e57c1906fe6a9e452f"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "8d37ed72fcf15cf7849179d4ff358f4fbbdc33905348f7ab790b2fe090e8044d"
+    },
+    {
+      "path": "src/core/zdex_fee_allocation_types_v1.py",
+      "sha256": "b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df"
+    },
+    {
+      "path": "src/core/zdex_fee_allocation_v1.py",
+      "sha256": "8f976781349e31ae9fd3c48b8534ae4fbfe74e8ce33e6b62c6a627c8109bad84"
+    },
+    {
+      "path": "tests/fixtures/global_economic_state_fee_residue_v1.json",
+      "sha256": "e9eb0eb3221c19855317c779cd73d536917aeff25e9f2d22bb462d7c91ec3aed"
+    },
+    {
+      "path": "tests/global_economic_state_refinement_cases_v1.py",
+      "sha256": "104a601d9a9d54e0cededa1c0efcabc7c77021d1cfe45cae3cd0e79fb34846dd"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/effects.rs",
+      "sha256": "0e691ba4be7be58ded9a87ba28f1cd747b67bf5cdfd4c39bbe232480fe20b7f6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
+      "sha256": "e91f27cd2f38db434b1d8c77ef72a34508ec4ab744dff3843261fe263139316f"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_fee_allocation.rs",
+      "sha256": "2dc440b8a1711f75c5950e5e8c51fb9b709f709d16bf68e52aea15f3b6f0e78b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_fee_allocation_types.rs",
+      "sha256": "609fc31d4a987e5f86d1aff953f797f656e82dc9df090a3380763941b1b58b1e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_economic_state_effect_refinement.rs",
+      "sha256": "fb35a1edc49e4207c4eb951375aee02812df734ca9698066a56e22a5502e813e"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_economic_state_effect_refinement_v1.py",
+      "sha256": "5d95a24fa62b202bbfc7bced3e3df2b57a0f237fa698bfcb2dad11f8393c1156",
+      "node_ids": [
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_matches_cross_language_golden_root",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_accepts_fee_residue_in_exact_named_reserve",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_matches_shared_fee_residue_golden_vector",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_aliases",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_same_plan_carry_and_spend_but_accepts_later_spend",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_claimant_relation_accepts_exact_u128_backing_boundary",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_claimant_relation_rejects_liability_aggregate_overflow",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_accepts_fee_residue_at_signed_effect_maximum",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_above_signed_effect_maximum",
+        "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_signed_delta_bva_and_owned_total_overflow"
+      ]
+    },
+    {
+      "path": "tests/formal/test_esso_global_settlement_core_v1.py",
+      "sha256": "d19c9f58a3781bafc9134a23de87edd8b8eaddc1c2d90df168dd1eef62360215",
+      "node_ids": [
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_blueprint_pins_base_commit_and_semantic_source_hashes",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_blueprint_does_not_count_terminal_metadata_as_owned_atoms",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_blueprint_records_the_durable_status_and_no_authority",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_gap_07_closed_model_residue_matches_named_runtime_reserve"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "differential",
+    "formal",
+    "replay",
+    "boundary"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The semantic regression reads the exact blueprint, observes the corrected obligation mapping, and rejects the former terminal-metadata mapping; the retained runtime regressions construct exact fee-residue states and compare Python/Rust outcomes."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "This restage changes evidence and explanatory source binding only. Runtime rejection behavior remains covered by the separately pinned refinement tests."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "model_runtime_mapping",
+      "points": [
+        "owned accounting-location atom maps only to a state-bearing table",
+        "terminal metadata is explicitly excluded from owned atoms",
+        "unmapped obligation bucket remains an open refinement gap"
+      ]
+    },
+    {
+      "name": "claim_promotion",
+      "points": [
+        "bounded ESSO model claim retained",
+        "source pins refreshed",
+        "runtime refinement and authority remain unproved"
+      ]
+    },
+    {
+      "name": "claimant_backing_totals",
+      "points": [
+        "custody equal to entitlements at exactly u128 max accepts",
+        "entitlement rows summing past u128 max reject with the closed overflow code",
+        "fee residue at the signed effect maximum accepts and one atom above rejects",
+        "signed delta boundary values and owned-total overflow reject without mutation"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "restore the false mapping from obligation_X to terminal_obligations amounts",
+      "killed_by": "tests/formal/test_esso_global_settlement_core_v1.py::test_blueprint_does_not_count_terminal_metadata_as_owned_atoms"
+    },
+    {
+      "description": "restore a superseded V1 source hash in the formal blueprint",
+      "killed_by": "tests/formal/test_esso_global_settlement_core_v1.py::test_blueprint_pins_base_commit_and_semantic_source_hashes"
+    },
+    {
+      "description": "change the exact fee-residue identity or amount mapping",
+      "killed_by": "tests/core/test_global_economic_state_effect_refinement_v1.py::test_refinement_rejects_fee_residue_aliases"
+    }
+  ],
+  "nonclaims": [
+    "This packet establishes no production, settlement, release, migration, proof-receipt, or value-moving authority.",
+    "The bounded ESSO model does not refine the later canonical-admission or necessary claimant-backing checks merely because their source hashes are pinned.",
+    "The corrected mapping does not select residue ownership, allocation percentages, spending authority, destination policy, or terminal disposition.",
+    "A carry and reserve spend in the same aggregated plan remains outside the representable gross-flow profile.",
+    "Python/Rust parity remains limited to the source-pinned focused vectors and tests.",
+    "The obligation_X bucket has no exact runtime source mapping; current V1 terminal rows omit liability domain and source principal.",
+    "Passing this restage does not close O-008 or guarantee all ZenoDEX value movement.",
+    "The re-pin records no new formal result; the ESSO and Lean surfaces are unchanged and the restage gate is replayed on the re-pinned sources."
+  ]
+}

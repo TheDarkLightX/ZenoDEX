@@ -29,6 +29,9 @@ MAX_ROUTE_MODULES_V1: Final = 8
 MAX_EPOCH_COMMANDS_V1: Final = 64
 MAX_EPOCH_LEAF_OCCURRENCES_V1: Final = 64
 MAX_POLICY_BINDINGS_V1: Final = 256
+MAX_ASSET_POLICY_ROWS_V1: Final = 256
+MAX_ASSET_BALANCE_ROWS_V1: Final = 4_096
+MAX_ASSET_CUSTODY_ROWS_V1: Final = 4_096
 MAX_EFFECT_PLAN_ROWS_V1: Final = 4_096
 MAX_EFFECT_PLAN_ASSET_CONSERVATION_ROWS_V1: Final = 256
 MAX_EFFECT_PLAN_FEE_CONSERVATION_ROWS_V1: Final = 256
@@ -1351,15 +1354,6 @@ class OutboxStateV1:
         }
 
 
-MAX_ASSET_POLICY_ROWS_V1: Final = 256
-"""Mirrors the Rust canonical bound of the same name (Opus P20 NEW-2)."""
-
-MAX_ASSET_BALANCE_ROWS_V1: Final = 4096
-"""Mirrors the Rust canonical bound of the same name (Opus P20 NEW-2)."""
-
-MAX_ASSET_CUSTODY_ROWS_V1: Final = 4096
-"""Mirrors the Rust canonical bound of the same name (Opus P20 NEW-2)."""
-
 
 def _require_ordered_objects(
     values: object,
@@ -1929,6 +1923,9 @@ __all__ = [
     "MAX_EPOCH_COMMANDS_V1",
     "MAX_EPOCH_LEAF_OCCURRENCES_V1",
     "MAX_POLICY_BINDINGS_V1",
+    "MAX_ASSET_POLICY_ROWS_V1",
+    "MAX_ASSET_BALANCE_ROWS_V1",
+    "MAX_ASSET_CUSTODY_ROWS_V1",
     "MAX_EFFECT_PLAN_ROWS_V1",
     "MAX_EFFECT_PLAN_ASSET_CONSERVATION_ROWS_V1",
     "MAX_EFFECT_PLAN_FEE_CONSERVATION_ROWS_V1",
