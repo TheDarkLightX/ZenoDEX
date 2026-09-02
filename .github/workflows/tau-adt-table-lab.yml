@@ -1,0 +1,62 @@
+name: tau-adt-table-lab
+
+on:
+  push:
+    branches: ["lab/tau-adt-tables-20260901"]
+  pull_request:
+    paths:
+      - "experiments/tau_adt_tables/**"
+      - ".github/workflows/tau-adt-table-lab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tau-lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build libboost-all-dev python3
+
+      - name: Build pinned Tau
+        run: |
+          git clone --recurse-submodules https://github.com/IDNI/tau-lang.git /tmp/tau-lang
+          cd /tmp/tau-lang
+          git checkout 0ac2756fdff71338668bdeccd17b2a53e7be5198
+          git submodule update --init --recursive
+          ./dev release -DTAU_DONT_USE_FTXUI=ON
+          /tmp/tau-lang/build-Release/tau -v | tee "$GITHUB_WORKSPACE/experiments/tau_adt_tables/tau-version.txt"
+
+      - name: Run upstream ADT table baselines
+        run: |
+          git clone https://github.com/taumorrow/tau-lang-demos.git /tmp/tau-lang-demos
+          mkdir -p experiments/tau_adt_tables/results/upstream
+          TAU=/tmp/tau-lang/build-Release/tau
+          TAU_BA_COMPONENT_FACTORING=1 timeout 120s "$TAU" -q -X < /tmp/tau-lang-demos/adt_tables_basic.tau | tee experiments/tau_adt_tables/results/upstream/basic.out
+          TAU_BA_COMPONENT_FACTORING=1 timeout 120s "$TAU" -q -X < /tmp/tau-lang-demos/adt_tables_advanced.tau | tee experiments/tau_adt_tables/results/upstream/advanced.out
+
+      - name: Run ZenoDEX contracts
+        env:
+          TAU_BIN: /tmp/tau-lang/build-Release/tau
+        run: python3 experiments/tau_adt_tables/scripts/run_contracts.py
+
+      - name: Benchmark relation-table lookup scaling
+        if: always()
+        env:
+          TAU_BIN: /tmp/tau-lang/build-Release/tau
+        run: python3 experiments/tau_adt_tables/scripts/bench_relation_tables.py
+
+      - name: Upload receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tau-adt-table-lab-receipts
+          path: |
+            experiments/tau_adt_tables/results/
+            experiments/tau_adt_tables/tau-version.txt

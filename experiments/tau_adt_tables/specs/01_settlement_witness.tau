@@ -1,0 +1,15 @@
+# ZenoDEX typed touched-state settlement witness
+# EXPECTED-RESULTS: T T T F T
+set charvar off
+set maxsplits 1
+# A valid three-row transfer witness exists.
+type Balance = {owner: bv[8], asset: bv[8], amount: bv[64]}. type State = {a: Balance, b: Balance, c: Balance}. n ex pre:State ex post:State (pre.a.owner = {1}:bv[8] && pre.b.owner = {2}:bv[8] && pre.c.owner = {3}:bv[8] && pre.a.asset = {7}:bv[8] && pre.b.asset = {7}:bv[8] && pre.c.asset = {7}:bv[8] && pre.a.amount = {100}:bv[64] && pre.b.amount = {40}:bv[64] && pre.c.amount = {999}:bv[64] && post.a.owner = pre.a.owner && post.b.owner = pre.b.owner && post.a.asset = pre.a.asset && post.b.asset = pre.b.asset && post.a.amount = {70}:bv[64] && post.b.amount = {70}:bv[64] && post.c = pre.c)
+# Whole-row equality carries an untouched row exactly.
+type Balance = {owner: bv[8], asset: bv[8], amount: bv[64]}. type State = {a: Balance, b: Balance, c: Balance}. n all pre:State all post:State ((post.c = pre.c) -> (post.c.owner = pre.c.owner && post.c.asset = pre.c.asset && post.c.amount = pre.c.amount))
+# NEGATIVE CONTROL: without a frame condition, an unrelated balance may change.
+type Balance = {owner: bv[8], asset: bv[8], amount: bv[64]}. type State = {a: Balance, b: Balance, c: Balance}. n ex pre:State ex post:State (pre.a.amount = {100}:bv[64] && pre.b.amount = {40}:bv[64] && post.a.amount = {70}:bv[64] && post.b.amount = {70}:bv[64] && post.c.amount != pre.c.amount)
+# With the frame condition, that same unrelated mutation is impossible.
+type Balance = {owner: bv[8], asset: bv[8], amount: bv[64]}. type State = {a: Balance, b: Balance, c: Balance}. n ex pre:State ex post:State (pre.a.amount = {100}:bv[64] && pre.b.amount = {40}:bv[64] && post.a.amount = {70}:bv[64] && post.b.amount = {70}:bv[64] && post.c = pre.c && post.c.amount != pre.c.amount)
+# Widen before conservation arithmetic: 100+40 = 70+70 in bv[128].
+n ((bv[128]) {100}:bv[64] + (bv[128]) {40}:bv[64]) = ((bv[128]) {70}:bv[64] + (bv[128]) {70}:bv[64])
+quit
