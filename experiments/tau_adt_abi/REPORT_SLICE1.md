@@ -67,5 +67,7 @@ effects_empty are taken from the REAL rejected value (`pre_state_root == post_st
 are recomputed in Tau over bv[4] identity tokens and an sbf member rather than folded to Python literals.
 Result at upstream 3c24bad9: 15/15 vectors T on both programs; selftest v2 ok.
 
-Grammar fact (verified): quantified ADT variables whose members are accessed must be single letters
-(`s.bal` parses; `st.bal`, `sx.bal`, `state.bal` fail with `Syntax Error: Unexpected '='`).
+Grammar fact (verified, corrected): with Tau's default `charvar on`, identifiers are single characters,
+so `st.bal` / `state.bal` fail to parse (`Syntax Error: Unexpected '='`) while `s.bal` works; after
+`set charvar off` (which PR #534's specs emit) multi-letter names parse. The single-letter rename in this
+slice was a workaround for the default mode, not a parser requirement.
