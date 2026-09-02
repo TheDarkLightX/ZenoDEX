@@ -4,15 +4,14 @@ use zenodex_global_settlement_abi_v1::{
     AssetTransferRejectCodeV1, AssetTransferResultV1, AssetTransferStateV1, EconomicAmountV1,
     ManagedAssetClassV1, ManagedAssetLifecycleCommandV1, ManagedAssetLifecycleContextV1,
     ManagedAssetLifecyclePolicyV1, ManagedAssetLifecycleRejectCodeV1,
-    ManagedAssetLifecycleResultV1, ManagedAssetLifecycleStateV1, RootV1,
-    ACCOUNT_CUSTODY_DOMAIN_V1, ASSET_TRANSFER_COMMAND_KIND_V1, ASSET_TRANSFER_MODULE_SCHEMA_V1,
+    ManagedAssetLifecycleResultV1, ManagedAssetLifecycleStateV1, RootV1, ACCOUNT_CUSTODY_DOMAIN_V1,
+    ASSET_TRANSFER_COMMAND_KIND_V1, ASSET_TRANSFER_MODULE_SCHEMA_V1,
     MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1,
     MAX_ASSET_BALANCE_ROWS_V1,
 };
 
 fn root(value: u64) -> RootV1 {
-    RootV1::parse(format!("0x{value:064x}"), "test root", false)
-        .expect("test root must parse")
+    RootV1::parse(format!("0x{value:064x}"), "test root", false).expect("test root must parse")
 }
 
 fn transfer_state(row_count: usize) -> AssetTransferStateV1 {
@@ -121,7 +120,10 @@ fn asset_transfer_can_grow_to_exact_balance_row_ceiling() {
     let AssetTransferResultV1::Accepted(accepted) = result else {
         panic!("growth to the exact ceiling must accept");
     };
-    assert_eq!(accepted.post_state.balances.len(), MAX_ASSET_BALANCE_ROWS_V1);
+    assert_eq!(
+        accepted.post_state.balances.len(),
+        MAX_ASSET_BALANCE_ROWS_V1
+    );
 }
 
 #[test]
@@ -145,28 +147,25 @@ fn asset_transfer_growth_past_ceiling_is_closed_typed_noop() {
 #[test]
 fn managed_asset_issue_can_grow_to_exact_balance_row_ceiling() {
     let pre_state = managed_state(MAX_ASSET_BALANCE_ROWS_V1 - 1);
-    let result = transition_managed_asset_lifecycle_v1(
-        &managed_context(),
-        &pre_state,
-        &managed_issue(),
-    )
-    .expect("typed transition must evaluate");
+    let result =
+        transition_managed_asset_lifecycle_v1(&managed_context(), &pre_state, &managed_issue())
+            .expect("typed transition must evaluate");
     let ManagedAssetLifecycleResultV1::Accepted(accepted) = result else {
         panic!("growth to the exact ceiling must accept");
     };
-    assert_eq!(accepted.post_state.balances.len(), MAX_ASSET_BALANCE_ROWS_V1);
+    assert_eq!(
+        accepted.post_state.balances.len(),
+        MAX_ASSET_BALANCE_ROWS_V1
+    );
 }
 
 #[test]
 fn managed_asset_issue_growth_past_ceiling_is_closed_typed_noop() {
     let pre_state = managed_state(MAX_ASSET_BALANCE_ROWS_V1);
     let pre_root = pre_state.state_root().expect("valid pre-state must hash");
-    let result = transition_managed_asset_lifecycle_v1(
-        &managed_context(),
-        &pre_state,
-        &managed_issue(),
-    )
-    .expect("resource exhaustion must remain a typed transition result");
+    let result =
+        transition_managed_asset_lifecycle_v1(&managed_context(), &pre_state, &managed_issue())
+            .expect("resource exhaustion must remain a typed transition result");
     let ManagedAssetLifecycleResultV1::Rejected(rejected) = result else {
         panic!("growth past the ceiling must reject");
     };

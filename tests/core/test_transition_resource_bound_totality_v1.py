@@ -162,3 +162,33 @@ def test_managed_asset_issue_growth_past_ceiling_is_closed_typed_noop() -> None:
     assert result.pre_state_root == pre_state.state_root
     assert result.post_state_root == pre_state.state_root
     assert result.effects.is_empty
+
+
+def test_reject_code_families_match_across_languages() -> None:
+    """Opus P25 NEW-15: the two extended reject enums carry a family-drift pin.
+
+    The Rust enum declarations are parsed and compared, member for member and in
+    order, against the Python enums (the same discipline as the producer-family
+    pin), so growing or reordering either family alone fails a gated test."""
+
+    import re
+    from pathlib import Path
+
+    from src.core.asset_transfer_types_v1 import AssetTransferRejectCodeV1
+    from src.core.managed_asset_lifecycle_types_v1 import ManagedAssetLifecycleRejectCodeV1
+
+    root = Path(__file__).resolve().parents[2]
+
+    def rust_variants(rust_path: str, enum_name: str) -> list[str]:
+        source = (root / rust_path).read_text(encoding="utf-8")
+        block = source.split(f"pub enum {enum_name} {{", 1)[1].split("}", 1)[0]
+        return re.findall(r"^\s*([A-Z][A-Z0-9_]*),", block, re.M)
+
+    for python_enum, rust_path, enum_name in (
+        (AssetTransferRejectCodeV1, "zk/global_settlement_abi_v1/src/asset_transfer_types.rs", "AssetTransferRejectCodeV1"),
+        (ManagedAssetLifecycleRejectCodeV1, "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_types.rs", "ManagedAssetLifecycleRejectCodeV1"),
+    ):
+        python_members = [member.name for member in python_enum]
+        assert python_members == rust_variants(rust_path, enum_name), enum_name
+        assert all(member.value == member.name for member in python_enum), enum_name
+    assert "POST_STATE_RESOURCE_BOUND_EXCEEDED" in {m.name for m in AssetTransferRejectCodeV1}

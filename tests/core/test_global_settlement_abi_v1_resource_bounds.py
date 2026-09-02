@@ -201,7 +201,7 @@ def test_every_canonical_rust_bound_has_a_python_twin() -> None:
 
     crate_src = Path(__file__).resolve().parents[2] / "zk/global_settlement_abi_v1/src"
     rust_source = "\n".join(
-        rust_file.read_text(encoding="utf-8") for rust_file in sorted(crate_src.glob("*.rs"))
+        rust_file.read_text(encoding="utf-8") for rust_file in sorted(crate_src.rglob("*.rs"))
     )
 
     def evaluate(expression: str) -> int:
