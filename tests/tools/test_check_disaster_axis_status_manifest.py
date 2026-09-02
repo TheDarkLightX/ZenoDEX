@@ -414,3 +414,35 @@ def test_hostile_manifest_shapes_reject_instead_of_crashing(workspace: Path) -> 
         report = check_manifest_total(workspace, target)
         assert report["ok"] is False
         assert report["errors"]
+
+
+def test_inductive_receipts_replay_fresh_under_both_solvers() -> None:
+    """Opus final round: fresh verify-multi must reproduce every committed receipt.
+
+    Re-runs ESSO verify-multi (z3+cvc5) for every inductive_esso model and
+    requires the fresh ir_hash, verdict, solver agreement, and query set to
+    match the committed receipt. Requires external/ESSO (the repo's standard
+    dependency location); its absence FAILS this gate rather than skipping."""
+
+    import json as jsonlib
+    import os
+    import subprocess
+
+    esso = ROOT / "external/ESSO"
+    assert esso.is_dir(), "external/ESSO is required for the inductive replay gate"
+    manifest = jsonlib.loads(MANIFEST.read_text())
+    rows = [row for row in manifest["rows"] if row["status"] == "inductive_esso"]
+    assert len(rows) == 10
+    env = dict(os.environ, PYTHONPATH=str(esso), ZENO_ESSO_PYTHON="/usr/bin/python3")
+    for row in rows:
+        committed = jsonlib.loads((ROOT / row["receipt_path"]).read_text())
+        fresh_raw = subprocess.run(
+            ["/usr/bin/python3", "-m", "ESSO", "verify-multi", row["model_path"], "--solvers", "z3,cvc5"],
+            cwd=ROOT, env=env, capture_output=True, text=True, timeout=300, check=True,
+        ).stdout
+        fresh = jsonlib.loads(fresh_raw)
+        assert fresh["ok"] is True, row["axis_id"]
+        assert fresh["model"]["ir_hash"] == committed["model"]["ir_hash"], row["axis_id"]
+        assert fresh["report"]["verdict"] == "VERIFIED", row["axis_id"]
+        assert fresh["report"]["solvers_agreed"] is True, row["axis_id"]
+        assert set(fresh["queries"]) == set(committed["queries"]), row["axis_id"]

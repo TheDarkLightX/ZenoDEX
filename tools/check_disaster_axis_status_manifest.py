@@ -5,6 +5,9 @@ Rejects when: any live axis lacks a manifest row or any row names a dead axis;
 an axis definition drifted from its pinned sha; a status is outside the closed
 vocabulary; an ``inductive_esso`` row's model or receipt is missing, drifted, or
 its receipt does not record a two-solver VERIFIED agreement. Research-only.
+
+``check_manifest_total`` is the entry point: it turns any unexpected shape or
+internal error into a fail-closed verdict instead of a traceback.
 """
 
 from __future__ import annotations
