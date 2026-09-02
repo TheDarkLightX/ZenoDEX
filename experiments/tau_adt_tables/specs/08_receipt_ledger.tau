@@ -3,6 +3,6 @@
 set charvar off
 set maxsplits 1
 type Input = {row: tau, probe: tau}. type Output = {table: tau, selected: tau}. i:Input := in console. o:Output := out console. run (o[0].table = 0) && (o[0].selected = 0) && (o[t].table = o[t-1].table | i[t].row) && (o[t].selected = i[t].probe & o[t-1].table)
-{ row: "rid[t]:bv[8] = {1}:bv[8] && pool[t]:bv[8] = {7}:bv[8].", probe: "x9[t]=0 && x9[t]=1." }
-{ row: "rid[t]:bv[8] = {2}:bv[8] && pool[t]:bv[8] = {7}:bv[8].", probe: "rid[t]:bv[8] = {1}:bv[8]." }
-{ row: "x9[t]=0 && x9[t]=1.", probe: "rid[t]:bv[8] = {3}:bv[8]." }
+{ row: "orid[t]:bv[8] = {1}:bv[8] && opool[t]:bv[8] = {7}:bv[8].", probe: "o9[t]=0 && o9[t]=1." }
+{ row: "orid[t]:bv[8] = {2}:bv[8] && opool[t]:bv[8] = {7}:bv[8].", probe: "orid[t]:bv[8] = {1}:bv[8]." }
+{ row: "o9[t]=0 && o9[t]=1.", probe: "orid[t]:bv[8] = {3}:bv[8]." }
