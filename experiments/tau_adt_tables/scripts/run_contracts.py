@@ -33,10 +33,12 @@ for path in sorted(spec_dir.glob("*.tau")):
     clean = ansi.sub("", output)
     (results_dir / f"{path.stem}.out").write_text(clean)
     actual = answer_re.findall(clean)
-    ok = rc == 0 and (expected is None or actual == expected)
+    repl_error = "(Error)" in clean or "TIMEOUT" in clean
+    ok = rc == 0 and not repl_error and (expected is None or actual == expected)
     summary.append({"spec": path.name, "expected": expected, "actual": actual,
-                    "returncode": rc, "seconds": elapsed, "ok": ok})
-    print(f"{path.name}: rc={rc} time={elapsed:.3f}s expected={expected} actual={actual} ok={ok}")
+                    "returncode": rc, "seconds": elapsed,
+                    "repl_error": repl_error, "ok": ok})
+    print(f"{path.name}: rc={rc} time={elapsed:.3f}s expected={expected} actual={actual} repl_error={repl_error} ok={ok}")
     if not ok:
         print(clean[-5000:])
 
