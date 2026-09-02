@@ -46,7 +46,7 @@ def test_committed_manifest_is_accepted() -> None:
     report = check_manifest(ROOT, MANIFEST)
     assert report["ok"] is True, report["errors"][:4]
     assert report["axis_count"] == 125
-    assert report["status_counts"] == {"bounded_replay": 114, "inductive_esso": 11}
+    assert report["status_counts"] == {"bounded_replay": 115, "inductive_esso": 10}
 
 
 def test_dropping_a_row_names_the_unmapped_axis(workspace: Path) -> None:
@@ -207,7 +207,8 @@ def test_single_solver_receipt_is_rejected(workspace: Path) -> None:
     _store(workspace, manifest)
     report = _check(workspace)
     assert report["ok"] is False
-    assert any("not exactly z3+cvc5" in e or "lacks an unsat cvc5 result" in e for e in report["errors"])
+    assert any("not exactly z3+cvc5" in e for e in report["errors"])
+    assert any("lacks an unsat cvc5 result" in e for e in report["errors"])
 
 
 def test_downgraded_zusd_row_is_bounded_replay_with_the_review_note() -> None:
@@ -217,5 +218,157 @@ def test_downgraded_zusd_row_is_bounded_replay_with_the_review_note() -> None:
 
     manifest = jsonlib.loads(MANIFEST.read_text())
     row = next(r for r in manifest["rows"] if r["axis_id"] == "zusd_oracle_recovery_split_brain")
+    assert row["status"] == "bounded_replay"
+    assert "downgraded from inductive_esso" in row["evidence_note"]
+
+
+def _rebind_receipt(workspace: Path, row: dict, mutate) -> None:
+    import hashlib
+    import json as jsonlib
+
+    target = workspace / row["receipt_path"]
+    receipt = jsonlib.loads(target.read_text())
+    mutate(receipt)
+    rendered = jsonlib.dumps(receipt)
+    target.write_text(rendered)
+    row["receipt_sha256"] = hashlib.sha256(rendered.encode()).hexdigest()
+
+
+def test_receipt_model_id_drift_is_rejected(workspace: Path) -> None:
+    """G3 pinned individually (Opus round 2)."""
+
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    _rebind_receipt(workspace, row, lambda r: r["report"].__setitem__("model_id", "another_model"))
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("model_id does not match" in e for e in report["errors"])
+
+
+def test_dropping_cvc5_from_one_query_is_rejected(workspace: Path) -> None:
+    """G6 pinned individually (Opus round 2): solver list intact, evidence gutted."""
+
+    def mutate(receipt: dict) -> None:
+        query = next(iter(receipt["queries"].values()))
+        query.pop("cvc5")
+
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    _rebind_receipt(workspace, row, mutate)
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("lacks an unsat cvc5 result" in e for e in report["errors"])
+
+
+def test_query_count_drift_is_rejected(workspace: Path) -> None:
+    """G7 pinned individually (Opus round 2)."""
+
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    _rebind_receipt(workspace, row, lambda r: r["report"].__setitem__("passed_queries", 99))
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("query counts disagree" in e for e in report["errors"])
+
+
+def test_stripped_query_set_is_rejected(workspace: Path) -> None:
+    """Opus round 2 R3: dropping a query with counts adjusted must fail."""
+
+    def mutate(receipt: dict) -> None:
+        name = sorted(receipt["queries"])[0]
+        receipt["queries"].pop(name)
+        receipt["report"]["passed_queries"] = len(receipt["queries"])
+        receipt["report"]["total_queries"] = len(receipt["queries"])
+
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    _rebind_receipt(workspace, row, mutate)
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("does not match the model's declared checks" in e for e in report["errors"])
+
+
+def test_invented_query_name_is_rejected(workspace: Path) -> None:
+    """Opus round 2 R4: a query the model never declared must fail."""
+
+    def mutate(receipt: dict) -> None:
+        name = sorted(receipt["queries"])[0]
+        receipt["queries"]["totally_made_up"] = receipt["queries"].pop(name)
+        receipt["report"]["passed_queries"] = len(receipt["queries"])
+        receipt["report"]["total_queries"] = len(receipt["queries"])
+
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    _rebind_receipt(workspace, row, mutate)
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("does not match the model's declared checks" in e for e in report["errors"])
+
+
+def test_gutted_model_content_is_rejected(workspace: Path) -> None:
+    """Opus round 2 R1: replacing the model bytes with garbage (sha resynced) must fail."""
+
+    import hashlib
+
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    garbage = "this is not an ESSO model at all\n"
+    (workspace / row["model_path"]).write_text(garbage)
+    row["model_sha256"] = hashlib.sha256(garbage.encode()).hexdigest()
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("does not parse as an ESSO model" in e for e in report["errors"])
+
+
+def test_string_model_field_in_receipt_is_an_error_not_a_crash(workspace: Path) -> None:
+    """Opus round 2 R6: a malformed receipt shape must reject, never raise."""
+
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    _rebind_receipt(workspace, row, lambda r: r.__setitem__("model", "not-a-mapping"))
+    _store(workspace, manifest)
+    report = _check(workspace)
+    assert report["ok"] is False
+    assert any("certifies a different model path" in e for e in report["errors"])
+
+
+def test_builder_check_mode_catches_a_demoted_certificate(workspace: Path) -> None:
+    """Opus round 2 R5: the registry is two-way once build --check is exercised."""
+
+    import json as jsonlib
+
+    from tools.build_disaster_axis_status_manifest import build_manifest
+
+    rebuilt = build_manifest(workspace)
+    committed = jsonlib.loads((workspace / "tools/disaster_axis_status_manifest.json").read_text())
+    assert rebuilt == committed
+    manifest = _load(workspace)
+    row = _first_inductive(manifest)
+    row_id = row["axis_id"]
+    demoted = {
+        "axis_id": row_id,
+        "axis_definition_sha256": row["axis_definition_sha256"],
+        "status": "bounded_replay",
+        "evidence_note": "silently demoted",
+    }
+    manifest["rows"] = [demoted if r["axis_id"] == row_id else r for r in manifest["rows"]]
+    _store(workspace, manifest)
+    stored = jsonlib.loads((workspace / "tools/disaster_axis_status_manifest.json").read_text())
+    assert build_manifest(workspace) != stored
+
+
+def test_dex_settlement_recovery_row_is_downgraded_with_the_review_note() -> None:
+    """Opus round 2: the model with no proof/claimability state must not claim inductive."""
+
+    import json as jsonlib
+
+    manifest = jsonlib.loads(MANIFEST.read_text())
+    row = next(r for r in manifest["rows"] if r["axis_id"] == "dex_settlement_recovery_proof_unit_boundary")
     assert row["status"] == "bounded_replay"
     assert "downgraded from inductive_esso" in row["evidence_note"]

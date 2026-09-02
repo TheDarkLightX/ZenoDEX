@@ -33,7 +33,6 @@ INDUCTIVE_MODEL_BY_AXIS = {
     "batch_refinement_mci_parity_boundary": "disaster_batch_refinement_mci_parity_boundary_inductive_v1",
     "batch_settler_greedy_adapter_boundary": "disaster_batch_settler_greedy_adapter_boundary_inductive_v1",
     "dex_engine_sequence_anomaly_surface": "disaster_dex_engine_sequence_anomaly_surface_inductive_v1",
-    "dex_settlement_recovery_proof_unit_boundary": "disaster_dex_settlement_recovery_v1",
     "perp_funding_liquidation_oracle_window": "disaster_perp_funding_liquidation_oracle_window_inductive_v1",
     "quote_receipt_gate_decomposition_consistency": "disaster_quote_receipt_gate_decomposition_consistency_inductive_v1",
     "reciprocal_netting_pair_forgery": "disaster_reciprocal_netting_pair_forgery_inductive_v1",
@@ -70,6 +69,14 @@ def build_manifest(root: Path) -> dict:
             row["model_sha256"] = _sha256(model)
             row["receipt_path"] = f"{RECEIPT_DIR}/{model_name}.verify_multi.json"
             row["receipt_sha256"] = _sha256(receipt)
+        elif axis_id == "dex_settlement_recovery_proof_unit_boundary":
+            row["status"] = "bounded_replay"
+            row["evidence_note"] = (
+                "downgraded from inductive_esso by independent review 2026-09-02: the authored "
+                "model carries no proof, claimability, or manager-root state, covering about one "
+                "of the axis's three mutation families; bounded 240s replay lane only until the "
+                "model is re-authored"
+            )
         elif axis_id == "zusd_oracle_recovery_split_brain":
             row["status"] = "bounded_replay"
             row["evidence_note"] = (

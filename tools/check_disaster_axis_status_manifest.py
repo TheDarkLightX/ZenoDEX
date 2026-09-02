@@ -15,6 +15,8 @@ import json
 import sys
 from pathlib import Path
 
+import yaml
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -27,6 +29,32 @@ from tools.stateful_scenario_bridge import DISASTER_SEARCH_EXPANSION_AXES  # noq
 
 CLOSED_STATUSES = ("inductive_esso", "lean", "tau", "bounded_replay", "open", "out_of_scope")
 PROOF_STATUSES = ("inductive_esso", "lean", "tau")
+
+
+def expected_queries_for_model(model_path: Path) -> set[str]:
+    """Derive the verify-multi query set the model itself demands.
+
+    Declared ``checks`` win; otherwise the inductive family is
+    ``init_implies_inv`` plus ``inductive_<action>`` per action (Opus review
+    R1-R4: binding the receipt's query set to the model CONTENT, not its name).
+    """
+
+    document = yaml.safe_load(model_path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        raise ValueError("model is not a mapping")
+    declared = document.get("checks")
+    if isinstance(declared, list) and declared:
+        names = {str(item.get("id") if isinstance(item, dict) else item) for item in declared}
+    else:
+        actions = document.get("actions")
+        if not isinstance(actions, list) or not actions:
+            raise ValueError("model declares no actions")
+        names = {"init_implies_inv"}
+        for action in actions:
+            if not isinstance(action, dict) or not isinstance(action.get("id"), str):
+                raise ValueError("model action is not a mapping with an id")
+            names.add(f"inductive_{action['id']}")
+    return names
 
 
 def check_manifest(root: Path, manifest_path: Path) -> dict:
@@ -94,7 +122,8 @@ def check_manifest(root: Path, manifest_path: Path) -> dict:
                     if report.get("failed_queries") != 0 or report.get("inconclusive_queries") != 0:
                         errors.append(f"{axis_id}: receipt has failed or inconclusive queries")
                     # Opus review P1-1: the receipt must certify THIS row's model.
-                    if receipt.get("model", {}).get("path") != row.get("model_path"):
+                    receipt_model = receipt.get("model")
+                    if not isinstance(receipt_model, dict) or receipt_model.get("path") != row.get("model_path"):
                         errors.append(f"{axis_id}: receipt certifies a different model path")
                     model_name = str(row.get("model_path", "")).rsplit("/", 1)[-1].removesuffix(".yaml")
                     if report.get("model_id") != model_name:
@@ -117,6 +146,21 @@ def check_manifest(root: Path, manifest_path: Path) -> dict:
                                     errors.append(f"{axis_id}: query {query_name} lacks an unsat {solver} result")
                         if report.get("passed_queries") != len(queries) or report.get("total_queries") != len(queries):
                             errors.append(f"{axis_id}: receipt query counts disagree with its query set")
+                        # Opus review R1-R4: the query set must be the one the model
+                        # CONTENT demands, so a swapped or gutted model (or a stripped
+                        # or invented query list) fails even with shas resynced.
+                        model_rel = row.get("model_path")
+                        if isinstance(model_rel, str) and (root / model_rel).is_file():
+                            try:
+                                expected_queries = expected_queries_for_model(root / model_rel)
+                            except (ValueError, yaml.YAMLError) as error:
+                                errors.append(f"{axis_id}: model does not parse as an ESSO model: {error}")
+                            else:
+                                if set(queries) != expected_queries:
+                                    errors.append(
+                                        f"{axis_id}: receipt query set does not match the model's "
+                                        f"declared checks"
+                                    )
     proof_rows = [row for row in rows if row.get("status") in PROOF_STATUSES]
     for kind in ("model_path", "receipt_path"):
         values = [row.get(kind) for row in proof_rows if row.get(kind)]

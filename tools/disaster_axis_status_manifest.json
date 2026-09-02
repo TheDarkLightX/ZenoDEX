@@ -640,11 +640,8 @@
     {
       "axis_id": "dex_settlement_recovery_proof_unit_boundary",
       "axis_definition_sha256": "e63f95233c2629f18036671d56a16551a74a822e64f444c1312efd0e43466d92",
-      "status": "inductive_esso",
-      "model_path": "experiments/disaster_inductive_promotion/models/disaster_dex_settlement_recovery_v1.yaml",
-      "model_sha256": "24038a8c23b6d5d43765bf951073e6766e1580febd99572d20e6ba0f463c1b7d",
-      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_dex_settlement_recovery_v1.verify_multi.json",
-      "receipt_sha256": "1094dc74f7b80b709923eeef318adada93a51db5370d12aa60d25d88fe6ef8e2"
+      "status": "bounded_replay",
+      "evidence_note": "downgraded from inductive_esso by independent review 2026-09-02: the authored model carries no proof, claimability, or manager-root state, covering about one of the axis's three mutation families; bounded 240s replay lane only until the model is re-authored"
     },
     {
       "axis_id": "acceptance_tcb_minimized_witness_boundary",
