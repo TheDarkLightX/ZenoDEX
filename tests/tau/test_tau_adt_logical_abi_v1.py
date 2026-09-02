@@ -58,25 +58,21 @@ def _ensure_pinned_tau() -> tuple[Path, str]:
     if TAU_BIN.is_file() and _git_head(TAU_DIR) == commit:
         return TAU_BIN, commit
 
-    # Do not capture this long-running build. The repository hygiene gate runs
-    # pytest with capture enabled, and a completely silent nested build can be
-    # terminated by the hosted runner before pytest has a chance to report.
-    # The caller disables pytest capture around this function so upstream clone,
-    # configure, and compile progress remains visible in the Actions log.
+    # The dedicated helper resolves the exact source but forces both Tau and
+    # the pinned cvc5 dependency to one build job. Hosted runners expose many
+    # logical CPUs relative to memory; the auto-parallel dependency build was
+    # observed to OOM-kill multiple cc1plus workers before Tau could run.
     proc = subprocess.run(
         [
             "bash",
-            "tools/update_tau_lang.sh",
-            "--ref",
+            "tools/build_tau_adt_research_pin_v1.sh",
             commit,
-            "--tau-dir",
             TAU_DIR_REL,
-            "--build-dir",
             "build-Release",
         ],
         cwd=ROOT,
         text=True,
-        timeout=1200,
+        timeout=2400,
     )
     assert proc.returncode == 0, "pinned Tau build failed; see streamed build output above"
     assert TAU_BIN.is_file(), "pinned Tau build produced no executable"
