@@ -191,7 +191,8 @@ def test_python_and_rust_v1_collection_limits_are_frozen_and_equal() -> None:
 def test_every_canonical_rust_bound_has_a_python_twin() -> None:
     """Opus P21 NEW-4: total parity over the whole crate, not a hand-maintained list.
 
-    Every `pub const MAX_...` declaration in the crate's src/*.rs, whatever its type
+    Every `pub const MAX_...` declaration in every .rs file under the crate's
+    src/ tree (recursive), whatever its type
     spelling (primitive, CamelCase alias, or path-qualified) or spacing, must
     resolve through this single
     mapping with an equal value; a newly added Rust bound with no Python twin

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.asset_transfer_module_v1 import transition_asset_transfer_v1
 from src.core.asset_transfer_types_v1 import (
     ASSET_TRANSFER_COMMAND_KIND_V1,
@@ -182,13 +184,156 @@ def test_reject_code_families_match_across_languages() -> None:
     def rust_variants(rust_path: str, enum_name: str) -> list[str]:
         source = (root / rust_path).read_text(encoding="utf-8")
         block = source.split(f"pub enum {enum_name} {{", 1)[1].split("}", 1)[0]
-        return re.findall(r"^\s*([A-Z][A-Z0-9_]*),", block, re.M)
+        variants: list[str] = []
+        for line in block.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            # Opus P26 NEW-16: every non-blank line must BE a plain variant; a
+            # line the scanner cannot parse (CamelCase, tuple variant, missing
+            # trailing comma, attribute) fails the pin instead of vanishing.
+            match = re.fullmatch(r"([A-Z][A-Z0-9_]*),", stripped)
+            assert match, f"{enum_name}: unparsed enum line {stripped!r}"
+            variants.append(match.group(1))
+        return variants
 
-    for python_enum, rust_path, enum_name in (
-        (AssetTransferRejectCodeV1, "zk/global_settlement_abi_v1/src/asset_transfer_types.rs", "AssetTransferRejectCodeV1"),
-        (ManagedAssetLifecycleRejectCodeV1, "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_types.rs", "ManagedAssetLifecycleRejectCodeV1"),
+    for python_enum, rust_path, enum_name, expected_count in (
+        (AssetTransferRejectCodeV1, "zk/global_settlement_abi_v1/src/asset_transfer_types.rs", "AssetTransferRejectCodeV1", 12),
+        (ManagedAssetLifecycleRejectCodeV1, "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_types.rs", "ManagedAssetLifecycleRejectCodeV1", 15),
     ):
         python_members = [member.name for member in python_enum]
         assert python_members == rust_variants(rust_path, enum_name), enum_name
+        assert len(python_members) == expected_count, enum_name
         assert all(member.value == member.name for member in python_enum), enum_name
     assert "POST_STATE_RESOURCE_BOUND_EXCEEDED" in {m.name for m in AssetTransferRejectCodeV1}
+
+
+def _forged_state(state_type, template, **overrides):
+    forged = object.__new__(state_type)
+    for field in state_type.__dataclass_fields__:
+        object.__setattr__(forged, field, overrides.get(field, getattr(template, field)))
+    return forged
+
+
+def test_transfer_balance_overflow_is_a_defensive_guard_with_a_forgery_witness() -> None:
+    """Opus P26 NEW-18: BALANCE_OVERFLOW gains an asserting test (transfer side).
+
+    The guard is defensive checked arithmetic: AssetTransferStateV1 enforces
+    balances <= supply <= MAX_ATOMS_V1 at construction, so no domain-valid
+    pre-state can drive a recipient balance past the ceiling. Forging a state
+    whose balances exceed its supply via object.__new__ (bypassing
+    __post_init__) reaches the arm, which returns the closed typed reject
+    instead of wrapping or raising."""
+
+    from src.core.asset_transfer_module_v1 import transition_asset_transfer_v1
+    from src.core.asset_transfer_types_v1 import (
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        AssetTransferCommandV1,
+        AssetTransferContextV1,
+        AssetTransferPolicyV1,
+        AssetTransferRejectCodeV1,
+        AssetTransferStateV1,
+    )
+    from src.core.global_settlement_types_v1 import (
+        MAX_ATOMS_V1,
+        AssetSupplyV1,
+        EconomicAmountV1,
+    )
+
+    root = "0x" + "11" * 32
+    template = AssetTransferStateV1(
+        module_release_id=root,
+        policies=(AssetTransferPolicyV1("USD", "sender", 0, True),),
+        balances=(
+            EconomicAmountV1("rich", "USD", "accounts", 90),
+            EconomicAmountV1("sender", "USD", "accounts", 10),
+        ),
+        supplies=(AssetSupplyV1("USD", 100),),
+    )
+    forged = _forged_state(
+        AssetTransferStateV1,
+        template,
+        balances=(
+            EconomicAmountV1("rich", "USD", "accounts", MAX_ATOMS_V1 - 5),
+            EconomicAmountV1("sender", "USD", "accounts", 10),
+        ),
+    )
+    context = AssetTransferContextV1("zenodex", root, root, 1, root, root, "sender", root)
+    command = AssetTransferCommandV1(
+        ASSET_TRANSFER_COMMAND_KIND_V1, "USD", "sender", "rich", 10, 0
+    )
+    result = transition_asset_transfer_v1(context, forged, command)
+    assert type(result).__name__ == "AssetTransferRejectedV1"
+    assert result.code is AssetTransferRejectCodeV1.BALANCE_OVERFLOW
+
+
+def test_managed_issue_balance_overflow_is_a_defensive_guard_with_a_forgery_witness() -> None:
+    """Opus P26 NEW-18: BALANCE_OVERFLOW gains an asserting test (managed side).
+
+    The managed arm sits behind TWO layers: in-domain, an issue moves supply
+    no later than any balance, so SUPPLY_OVERFLOW always fires first
+    (verified: supply at the ceiling yields SUPPLY_OVERFLOW); and a state
+    forged past __post_init__ is refused by the transition's own snapshot
+    re-validation before any fold runs (verified here). The arm is
+    checked-arithmetic totality, unreachable through every path we could
+    construct."""
+
+    from src.core.global_settlement_types_v1 import (
+        MAX_ATOMS_V1,
+        AssetSupplyV1,
+        EconomicAmountV1,
+    )
+    from src.core.managed_asset_lifecycle_module_v1 import (
+        transition_managed_asset_lifecycle_v1,
+    )
+    from src.core.managed_asset_lifecycle_types_v1 import (
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+        ManagedAssetClassV1,
+        ManagedAssetLifecycleCommandV1,
+        ManagedAssetLifecycleContextV1,
+        ManagedAssetLifecyclePolicyV1,
+        ManagedAssetLifecycleRejectCodeV1,
+        ManagedAssetLifecycleStateV1,
+    )
+
+    def root(value: int) -> str:
+        return "0x" + f"{value:02x}" * 32
+
+    policy = ManagedAssetLifecyclePolicyV1(
+        asset="USD",
+        asset_class=ManagedAssetClassV1.REGISTERED_ORDINARY_TOKEN,
+        issue_authority_subject="issuer",
+        issue_policy_root=root(5),
+        burn_policy_root=root(6),
+        enabled=True,
+    )
+    template = ManagedAssetLifecycleStateV1(
+        module_release_id=root(3),
+        policies=(policy,),
+        balances=(EconomicAmountV1("rich", "USD", "accounts", 5),),
+        supplies=(AssetSupplyV1("USD", 5),),
+    )
+    forged = _forged_state(
+        ManagedAssetLifecycleStateV1,
+        template,
+        balances=(EconomicAmountV1("rich", "USD", "accounts", MAX_ATOMS_V1),),
+    )
+    context = ManagedAssetLifecycleContextV1(
+        chain_id="zenodex",
+        deployment_root=root(1),
+        profile_root=root(2),
+        writer_epoch=7,
+        module_release_id=root(3),
+        command_occurrence_id=root(4),
+        subject_id="issuer",
+        grant_root=root(5),
+    )
+    command = ManagedAssetLifecycleCommandV1(
+        command_kind=MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+        asset="USD",
+        account_owner="rich",
+        amount_atoms=1,
+    )
+    with pytest.raises(ValueError, match="balances exceed supply"):
+        transition_managed_asset_lifecycle_v1(context, forged, command)
+    assert ManagedAssetLifecycleRejectCodeV1.BALANCE_OVERFLOW.value == "BALANCE_OVERFLOW"
