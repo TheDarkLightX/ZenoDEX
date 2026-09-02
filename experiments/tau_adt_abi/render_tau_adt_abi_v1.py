@@ -19,6 +19,7 @@ Research-only. Logs to stderr; one JSON report on stdout.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -142,16 +143,10 @@ def python_outcome(vector: VectorV1) -> tuple[bool, str | None, bool, bool]:
     if name == "AssetTransferAcceptedV1":
         return True, None, False, False
     code = result.code.name
-    # Reject-is-noop: the rejected value carries the unchanged post state and
-    # an empty effect plan (the NEW-6 contract); derive both from the value.
-    post = getattr(result, "post_state", None)
-    noop = post is None or post == _state(*vector.state)
-    effects = getattr(result, "effects", None)
-    effects_empty = effects is None or all(
-        not getattr(effects, field)
-        for field in ("asset_conservation", "fee_conservation", "lane_writes",
-                      "occurrence_consumptions", "external_outbox_enqueue")
-    )
+    # Reject-is-noop from the value's REAL fields (the type itself enforces
+    # pre_state_root == post_state_root in __post_init__).
+    noop = result.pre_state_root == result.post_state_root
+    effects_empty = result.effects.is_empty
     return False, code, noop, effects_empty
 
 
@@ -159,30 +154,75 @@ def bv(value: int, width: int = WIDTH) -> str:
     return f"{{{value}}}:bv[{width}]"
 
 
-def render_recompute(vector: VectorV1, expected_accept: bool, expected_code: int) -> str:
-    s_bal, r_bal, t_bal, fee_flat, enabled = vector.state
-    # transition_ok recomputed in Tau over the ADT literals: guards mirror the
-    # Python precedence for the covered classes; every Result member explicitly
-    # constrained (rule 2: no implicit partial outputs).
-    return f"""type Cmd = {{amount: bv[{WIDTH}], max_fee: bv[{WIDTH}]}}.
-type St = {{s_bal: bv[{WIDTH}], r_bal: bv[{WIDTH}], t_bal: bv[{WIDTH}], fee: bv[{WIDTH}], enabled: sbf, self_t: sbf}}.
-type Res = {{acc: sbf, code: bv[4], noop: sbf, eff_empty: sbf}}.
-n ex r:Res (
-  (r.acc = {1 if expected_accept else 0} && r.code = {{{expected_code}}}:bv[4]
-   && r.noop = {0 if expected_accept else 1} && r.eff_empty = {0 if expected_accept else 1})
-  && (
-    ( {1 if enabled else 0} = 0 && r.acc = 0 && r.code = {{{CODE_TOKENS['DISABLED_ASSET']}}}:bv[4] ) ||
-    ( {1 if enabled else 0} = 1 && {1 if vector.recipient == 'sender' else 0} = 1 && r.acc = 0 && r.code = {{{CODE_TOKENS['SELF_TRANSFER']}}}:bv[4] ) ||
-    ( {1 if enabled else 0} = 1 && {1 if vector.recipient == 'sender' else 0} = 0 && {bv(vector.amount)} = {bv(0)} && r.acc = 0 && r.code = {{{CODE_TOKENS['ZERO_AMOUNT']}}}:bv[4] ) ||
-    ( {1 if enabled else 0} = 1 && {1 if vector.recipient == 'sender' else 0} = 0 && {bv(vector.amount)} != {bv(0)} && {bv(fee_flat)} > {bv(vector.max_fee)} && r.acc = 0 && r.code = {{{CODE_TOKENS['FEE_LIMIT_EXCEEDED']}}}:bv[4] ) ||
-    ( {1 if enabled else 0} = 1 && {1 if vector.recipient == 'sender' else 0} = 0 && {bv(vector.amount)} != {bv(0)} && {bv(fee_flat)} <= {bv(vector.max_fee)} && {bv(s_bal)} < {bv(vector.amount)} + {bv(fee_flat)} && r.acc = 0 && r.code = {{{CODE_TOKENS['INSUFFICIENT_BALANCE']}}}:bv[4] ) ||
-    ( {1 if enabled else 0} = 1 && {1 if vector.recipient == 'sender' else 0} = 0 && {bv(vector.amount)} != {bv(0)} && {bv(fee_flat)} <= {bv(vector.max_fee)} && {bv(s_bal)} >= {bv(vector.amount)} + {bv(fee_flat)} && r.acc = 1 && r.code = {{0}}:bv[4] )
-  )
-  && (r.acc = 0 -> (r.noop = 1 && r.eff_empty = 1))
-  && (r.acc = 1 -> (r.noop = 0 && r.eff_empty = 0))
-)
-quit
-"""
+def tok(value: int) -> str:
+    return f"{{{value}}}:bv[4]"
+
+
+# Identity tokens (frozen vector-local dictionary): sender=1, recv=2, treasury=3.
+IDENTITY_TOKENS = {"sender": 1, "recv": 2, "treasury": 3}
+
+
+def _chain() -> str:
+    """The Tau guard chain over ADT MEMBER references (s.*, c.*, r.*).
+
+    The chain references members bound below, so `enabled` and the
+    sender/recipient identity comparison are genuinely recomputed in Tau
+    (identity via bv[4] tokens), not folded to Python-side literals."""
+
+    return """(
+    ( s.enabled = 0 && r.acc = 0 && r.code = {5}:bv[4] && r.noop = 1 && r.eff_empty = 1 ) ||
+    ( s.enabled = 1 && c.snd = c.rcv && r.acc = 0 && r.code = {1}:bv[4] && r.noop = 1 && r.eff_empty = 1 ) ||
+    ( s.enabled = 1 && c.snd != c.rcv && c.amount = {0}:bv[W] && r.acc = 0 && r.code = {2}:bv[4] && r.noop = 1 && r.eff_empty = 1 ) ||
+    ( s.enabled = 1 && c.snd != c.rcv && c.amount != {0}:bv[W] && s.fee > c.max_fee && r.acc = 0 && r.code = {3}:bv[4] && r.noop = 1 && r.eff_empty = 1 ) ||
+    ( s.enabled = 1 && c.snd != c.rcv && c.amount != {0}:bv[W] && s.fee <= c.max_fee && s.s_bal < c.amount + s.fee && r.acc = 0 && r.code = {4}:bv[4] && r.noop = 1 && r.eff_empty = 1 ) ||
+    ( s.enabled = 1 && c.snd != c.rcv && c.amount != {0}:bv[W] && s.fee <= c.max_fee && s.s_bal >= c.amount + s.fee && r.acc = 1 && r.code = {0}:bv[4] && r.noop = 0 && r.eff_empty = 0 )
+  )""".replace("bv[W]", f"bv[{WIDTH}]")
+
+
+def _bindings(vector: VectorV1) -> str:
+    """Member pins for the existentially bound st/c (unique by construction)."""
+
+    s_bal, _r_bal, _t_bal, fee_flat, enabled = vector.state
+    return (
+        f"s.s_bal = {bv(s_bal)} && s.fee = {bv(fee_flat)}"
+        f" && s.enabled = {1 if enabled else 0}"
+        f" && c.amount = {bv(vector.amount)} && c.max_fee = {bv(vector.max_fee)}"
+        f" && c.snd = {tok(IDENTITY_TOKENS['sender'])} && c.rcv = {tok(IDENTITY_TOKENS[vector.recipient])}"
+    )
+
+
+def _types() -> str:
+    return (
+        f"type Cmd = {{amount: bv[{WIDTH}], max_fee: bv[{WIDTH}], snd: bv[4], rcv: bv[4]}}.\n"
+        f"type St = {{s_bal: bv[{WIDTH}], fee: bv[{WIDTH}], enabled: sbf}}.\n"
+        "type Res = {acc: sbf, code: bv[4], noop: sbf, eff_empty: sbf}.\n"
+    )
+
+
+def render_programs(vector: VectorV1, accepted: bool, code_token: int,
+                    noop: bool, effects_empty: bool) -> tuple[str, str]:
+    """Two programs per vector (Opus review P1-1/P1-2 repairs).
+
+    UNIVERSAL: every result the guard chain admits must equal the Python
+    oracle's, all four members, with noop/effects taken from the REAL observed
+    values. NONVACUITY: the chain admits at least one result, so the universal
+    cannot pass vacuously."""
+
+    expected = (
+        f"(r.acc = {1 if accepted else 0} && r.code = {tok(code_token)}"
+        f" && r.noop = {1 if noop else 0} && r.eff_empty = {1 if effects_empty else 0})"
+    )
+    chain = _chain()
+    bindings = _bindings(vector)
+    universal = (
+        f"{_types()}n ex s:St ex c:Cmd ( {bindings}"
+        f" && all r:Res ( {chain} -> {expected} ) )\nquit\n"
+    )
+    nonvacuity = (
+        f"{_types()}n ex s:St ex c:Cmd ( {bindings}"
+        f" && ex r:Res ( {chain} ) )\nquit\n"
+    )
+    return universal, nonvacuity
 
 
 def run_tau(program: str) -> str:
@@ -199,19 +239,25 @@ def run_tau(program: str) -> str:
 
 
 def selftest() -> int:
-    """Falsification probes: the harness must be able to say F and FAIL_CLOSED."""
+    """Falsification probes, including the review's over-permissiveness class."""
 
     vector = build_vectors()[0]  # accept_plain
-    accepted, code, _noop, _eff = python_outcome(vector)
+    accepted, code, noop, eff = python_outcome(vector)
     assert accepted and code is None
-    # Probe 1: render the WRONG expectation (a reject) for an accepting vector -> F.
-    wrong = render_recompute(vector, False, CODE_TOKENS["SELF_TRANSFER"])
-    verdict = run_tau(wrong)
-    assert verdict == "F", f"wrong-expectation probe returned {verdict!r}"
-    # Probe 2: a syntactically broken program must FAIL_CLOSED, never T/F.
+    # Probe 1: wrong expectation must fail the universal.
+    universal, _ = render_programs(vector, False, CODE_TOKENS["SELF_TRANSFER"], True, True)
+    assert run_tau(universal) == "F", "wrong-expectation probe passed"
+    # Probe 2 (Opus P1-1): weakening the guard chain to admit everything must
+    # fail the universal implication (over-permissiveness is now visible).
+    good_u, _ = render_programs(vector, accepted, CODE_TOKENS[code], noop, eff)
+    weakened = re.sub(r"all r:Res \( \(.*?\n  \)", "all r:Res ( ( {1}:bv[4] = {1}:bv[4] )",
+                      good_u, flags=re.S)
+    assert weakened != good_u, "weakening substitution missed"
+    assert run_tau(weakened) == "F", "weakened-chain probe passed"
+    # Probe 3: a syntactically broken program must FAIL_CLOSED.
     verdict = run_tau("type Broken = {a: sbf. n nonsense(\nquit\n")
     assert verdict.startswith("FAIL_CLOSED"), verdict
-    print(json.dumps({"ok": True, "schema": "zenodex/tau-adt-abi-selftest/v1"}))
+    print(json.dumps({"ok": True, "schema": "zenodex/tau-adt-abi-selftest/v2"}))
     return 0
 
 
@@ -222,16 +268,18 @@ def main() -> int:
         accepted, code, noop, effects_empty = python_outcome(vector)
         assert (code is None) == accepted
         assert code == vector.expected_code, (vector.vector_id, code)
-        if not accepted:
-            assert noop and effects_empty, (vector.vector_id, "python noop contract")
-        program = render_recompute(vector, accepted, CODE_TOKENS[code])
-        verdict = run_tau(program)
-        agree = verdict == "T"
+        universal, nonvacuity = render_programs(
+            vector, accepted, CODE_TOKENS[code], noop, effects_empty
+        )
+        verdict_u = run_tau(universal)
+        verdict_n = run_tau(nonvacuity)
+        agree = verdict_u == "T" and verdict_n == "T"
         ok = ok and agree
         rows.append({"vector": vector.vector_id, "python_code": code or "ACCEPT",
-                     "tau_verdict": verdict, "parity": agree})
-        print(f"{vector.vector_id}: python={code or 'ACCEPT'} tau={verdict}", file=sys.stderr)
-    print(json.dumps({"ok": ok, "schema": "zenodex/tau-adt-abi-parity/v1",
+                     "tau_universal": verdict_u, "tau_nonvacuity": verdict_n, "parity": agree})
+        print(f"{vector.vector_id}: python={code or 'ACCEPT'} all={verdict_u} ex={verdict_n}",
+              file=sys.stderr)
+    print(json.dumps({"ok": ok, "schema": "zenodex/tau-adt-abi-parity/v2",
                       "width": WIDTH, "vectors": rows}))
     return 0 if ok else 1
 

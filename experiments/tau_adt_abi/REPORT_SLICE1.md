@@ -55,3 +55,17 @@ limit from slice 1 is now bounded: every adjacent pair in the mirrored
 precedence chain has a distinguishing vector.
 
 Research-only; no authority of any kind is granted or implied.
+
+## Slice 4 addendum (2026-09-02, review repairs P1-1 / P1-2)
+
+The per-vector program is now UNIVERSAL: `ex s:St ex c:Cmd ( bindings && all r:Res ( chain(s,c,r) -> expected(r) ) )`
+plus a separate NON-VACUITY program `ex r:Res ( chain )`. The earlier existential form conjoined the expected
+result with the chain, so a chain weakened to admit every result could still answer T (P1-1); the universal
+form answers F for that weakening (selftest probe 2) and F for a wrong expectation (probe 1). noop and
+effects_empty are taken from the REAL rejected value (`pre_state_root == post_state_root`,
+`effects.is_empty`), not re-derived host-side (P1-2). Identity comparison (sender/recipient) and `enabled`
+are recomputed in Tau over bv[4] identity tokens and an sbf member rather than folded to Python literals.
+Result at upstream 3c24bad9: 15/15 vectors T on both programs; selftest v2 ok.
+
+Grammar fact (verified): quantified ADT variables whose members are accessed must be single letters
+(`s.bal` parses; `st.bal`, `sx.bal`, `state.bal` fail with `Syntax Error: Unexpected '='`).
