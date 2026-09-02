@@ -63,6 +63,10 @@
     {
       "path": "tests/data/tau_adt_logical_abi_rust_leg_v1.json",
       "sha256": "29c16b8084810ec27581d9c2235631cc616d4cf74347b8db05941d3e6126444b"
+    },
+    {
+      "path": "tests/tau/test_tau_adt_logical_abi_live_v1.py",
+      "sha256": "c12df1c23dbdbee72e1c00a52d751a81a0e2535bc62bd123a9046ea8441fa5da"
     }
   ],
   "removed_paths": [],
