@@ -14,6 +14,7 @@ TAU_DIR = ROOT / TAU_DIR_REL
 TAU_BIN = TAU_DIR / "build-Release" / "tau"
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _VERDICT_RE = re.compile(r"%\d+:\s*(T|F)\b")
+_COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 
 
 def _read_lock() -> dict[str, str]:
@@ -46,15 +47,27 @@ def _git_head(path: Path) -> str | None:
 
 def _ensure_pinned_tau() -> tuple[Path, str]:
     lock = _read_lock()
-    assert lock == {
-        "schema": "zenodex.tau_lang_adt_research_lock.v1",
-        "repo": "https://github.com/IDNI/tau-lang.git",
-        "commit": "3c24bad9ee4c00c5d677fa465797189671823c01",
-        "profile": "research",
-        "purpose": "ZenoDEX ADT logical ABI V1 replay; ADTs/functions/recurrences/whole-value arguments/min-max",
-        "nonclaim": "This pin does not imply Tau Tables availability or production Tau Net compatibility.",
+    assert set(lock) == {
+        "schema",
+        "repo",
+        "commit",
+        "profile",
+        "purpose",
+        "nonclaim",
     }
+    assert lock["schema"] == "zenodex.tau_lang_adt_research_lock.v1"
+    assert lock["repo"] == "https://github.com/IDNI/tau-lang.git"
+    assert lock["profile"] == "research"
+    assert lock["purpose"] == (
+        "ZenoDEX ADT logical ABI V1 replay; "
+        "ADTs/functions/recurrences/whole-value arguments/min-max"
+    )
+    assert lock["nonclaim"] == (
+        "This pin does not imply Tau Tables availability or "
+        "production Tau Net compatibility."
+    )
     commit = lock["commit"]
+    assert _COMMIT_RE.fullmatch(commit), f"invalid exact Tau commit pin: {commit!r}"
     if TAU_BIN.is_file() and _git_head(TAU_DIR) == commit:
         return TAU_BIN, commit
 
@@ -171,15 +184,16 @@ def test_tau_adt_logical_abi_source_contract() -> None:
 def test_tau_adt_logical_abi_pinned_replay(capsys) -> None:
     # Keep the long source-resolved Tau build visible in CI rather than hiding
     # it behind pytest's fd capture.
+    requested_commit = _read_lock()["commit"]
     with capsys.disabled():
         print(
-            "tau-adt-logical-abi-v1: building exact IDNI/tau-lang pin 3c24bad9...",
+            f"tau-adt-logical-abi-v1: building exact IDNI/tau-lang pin {requested_commit}",
             flush=True,
         )
         tau_bin, commit = _ensure_pinned_tau()
         print(f"tau-adt-logical-abi-v1: pinned Tau ready at {commit}", flush=True)
 
-    assert commit == "3c24bad9ee4c00c5d677fa465797189671823c01"
+    assert commit == requested_commit
 
     # Harness falsification: a deliberately over-strong ADT statement must
     # return F. Requiring an exact single verdict prevents an unexpanded
