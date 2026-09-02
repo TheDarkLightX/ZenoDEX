@@ -8,6 +8,8 @@ from typing import Final
 
 from .global_economic_proof_v1 import LaneModuleTransitionJournalV1
 from .global_settlement_types_v1 import (
+    MAX_ASSET_BALANCE_ROWS_V1,
+    MAX_ASSET_POLICY_ROWS_V1,
     AssetSupplyV1,
     EconomicAmountV1,
     GlobalEconomicEffectPlanV1,
@@ -77,18 +79,21 @@ class AssetTransferStateV1:
             name="asset transfer policies",
             expected_type=AssetTransferPolicyV1,
             key="asset",
+            maximum=MAX_ASSET_POLICY_ROWS_V1,
         )
         _require_ordered_objects(
             self.balances,
             name="asset transfer balances",
             expected_type=EconomicAmountV1,
             key="key",
+            maximum=MAX_ASSET_BALANCE_ROWS_V1,
         )
         _require_ordered_objects(
             self.supplies,
             name="asset transfer supplies",
             expected_type=AssetSupplyV1,
             key="asset",
+            maximum=MAX_ASSET_POLICY_ROWS_V1,
         )
         policy_assets = tuple(policy.asset for policy in self.policies)
         if tuple(supply.asset for supply in self.supplies) != policy_assets:

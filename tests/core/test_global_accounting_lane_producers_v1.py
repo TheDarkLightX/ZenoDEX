@@ -464,6 +464,17 @@ def test_rust_twin_reject_code_families_match_the_pinned_tuples() -> None:
     assert match, "rust MAX_FRAGMENT_ROWS_V1"
     assert cert.MAX_FRAGMENT_ROWS_V1 == int(match.group(1).replace("_", ""))
 
+    # Opus P20 NEW-2: the shared Python bounds equal the Rust canonical bounds by name.
+    from src.core import global_settlement_types_v1 as types
+
+    assert types.MAX_ASSET_POLICY_ROWS_V1 == rust_usize("MAX_ASSET_POLICY_ROWS_V1")
+    assert types.MAX_ASSET_BALANCE_ROWS_V1 == rust_usize("MAX_ASSET_BALANCE_ROWS_V1")
+    assert types.MAX_ASSET_CUSTODY_ROWS_V1 == rust_usize("MAX_ASSET_CUSTODY_ROWS_V1")
+
+    # Opus P20 NEW-3: FRAGMENT_INVALID's defensiveness rests on this inequality; pin it
+    # instead of leaving a numeric coincidence between two files per language.
+    assert proj.MAX_ASSET_LANE_CUSTODY_ROWS_V1 <= cert.MAX_FRAGMENT_ROWS_V1
+
 
 def test_projection_row_ceilings_reject_oversized_construction() -> None:
     """Opus P19 N2: Python now bounds projection rows where Rust does (check 0 parity).
@@ -493,14 +504,16 @@ def test_projection_row_ceilings_reject_oversized_construction() -> None:
         )
 
 
-def test_fragment_invalid_is_reachable_only_through_construction_forgery() -> None:
-    """Opus P19 N5: the defensive FRAGMENT_INVALID arm has a reachability witness.
+def test_fragment_invalid_defensive_arm_has_a_forgery_witness() -> None:
+    """Opus P19 N5 / P20 NEW-3: the defensive FRAGMENT_INVALID arm has one witness.
 
-    Through validated constructions the projection ceilings (N2) and the canonical
-    gates make the arm unreachable in both languages; forging a duplicate custody
-    key via object.__new__ (bypassing every __post_init__) drives the fragment
-    constructor into a ValueError, which the producer converts to the closed
-    FRAGMENT_INVALID reject instead of leaking an exception."""
+    This test witnesses ONE path into the arm: forging a duplicate custody key via
+    object.__new__ (bypassing every __post_init__) drives the fragment constructor
+    into a ValueError, which the producer converts to the closed FRAGMENT_INVALID
+    reject instead of leaking an exception. The arm's unreachability through
+    validated constructions is not a structural theorem; it rests on the pinned
+    inequality MAX_ASSET_LANE_CUSTODY_ROWS_V1 <= MAX_FRAGMENT_ROWS_V1 asserted in
+    test_rust_twin_reject_code_families_match_the_pinned_tuples."""
 
     accepted, lane_root, prior, _entitlements = _wave_b_setup()
     real_projection = accepted.private_port.post_state
@@ -529,3 +542,46 @@ def test_fragment_invalid_is_reachable_only_through_construction_forgery() -> No
     assert isinstance(reject, producers.ReceiptBackedProducerRejectedV1)
     assert reject.code is producers.ReceiptBackedProducerRejectCodeV1.FRAGMENT_INVALID
     assert reject.detail == "fragment validation"
+
+
+def test_module_state_row_ceilings_reject_oversized_construction() -> None:
+    """Opus P20 NEW-2: the sibling state families carry the shared Rust bounds."""
+
+    from src.core.asset_transfer_types_v1 import AssetTransferPolicyV1, AssetTransferStateV1
+    from src.core.global_settlement_types_v1 import (
+        MAX_ASSET_BALANCE_ROWS_V1,
+        MAX_ASSET_POLICY_ROWS_V1,
+        AssetSupplyV1,
+        EconomicAmountV1,
+    )
+    from src.core.managed_asset_lifecycle_types_v1 import ManagedAssetLifecycleStateV1
+
+    oversized_balances = tuple(
+        EconomicAmountV1(f"acct-{index:06d}", "USD", "accounts", 1)
+        for index in range(MAX_ASSET_BALANCE_ROWS_V1 + 1)
+    )
+    with pytest.raises(ValueError, match="asset transfer balances"):
+        AssetTransferStateV1(
+            module_release_id="0x" + "11" * 32,
+            policies=(AssetTransferPolicyV1("USD", "fees", 0, True),),
+            balances=oversized_balances,
+            supplies=(AssetSupplyV1("USD", len(oversized_balances)),),
+        )
+    oversized_policies = tuple(
+        AssetTransferPolicyV1(f"T{index:04d}", "fees", 0, True)
+        for index in range(MAX_ASSET_POLICY_ROWS_V1 + 1)
+    )
+    with pytest.raises(ValueError, match="asset transfer policies"):
+        AssetTransferStateV1(
+            module_release_id="0x" + "11" * 32,
+            policies=oversized_policies,
+            balances=(),
+            supplies=tuple(AssetSupplyV1(p.asset, 0) for p in oversized_policies),
+        )
+    with pytest.raises(ValueError, match="managed asset lifecycle balances"):
+        ManagedAssetLifecycleStateV1(
+            module_release_id="0x" + "22" * 32,
+            policies=(),
+            balances=oversized_balances,
+            supplies=(),
+        )

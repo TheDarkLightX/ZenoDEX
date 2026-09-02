@@ -17,6 +17,9 @@ from .global_economic_refinement_snapshot_v1 import (
     _snapshot_dataclass_tuple_v1,
 )
 from .global_settlement_types_v1 import (
+    MAX_ASSET_BALANCE_ROWS_V1,
+    MAX_ASSET_CUSTODY_ROWS_V1,
+    MAX_ASSET_POLICY_ROWS_V1,
     AssetSupplyV1,
     EconomicAmountV1,
     GlobalEconomicEffectPlanV1,
@@ -28,14 +31,14 @@ from .global_settlement_types_v1 import (
 )
 from .managed_asset_lifecycle_types_v1 import ManagedAssetLifecycleStateV1
 
-MAX_ASSET_LANE_BALANCE_ROWS_V1: Final = 4096
-"""Mirrors the Rust projection bound MAX_ASSET_BALANCE_ROWS_V1 (Opus P19 N2)."""
+MAX_ASSET_LANE_BALANCE_ROWS_V1: Final = MAX_ASSET_BALANCE_ROWS_V1
+"""The shared balance-row bound (Rust MAX_ASSET_BALANCE_ROWS_V1; Opus P19 N2, P20 NEW-2)."""
 
-MAX_ASSET_LANE_CUSTODY_ROWS_V1: Final = 4096
-"""Mirrors the Rust projection bound MAX_ASSET_CUSTODY_ROWS_V1 (Opus P19 N2)."""
+MAX_ASSET_LANE_CUSTODY_ROWS_V1: Final = MAX_ASSET_CUSTODY_ROWS_V1
+"""The shared custody-row bound (Rust MAX_ASSET_CUSTODY_ROWS_V1; Opus P19 N2, P20 NEW-2)."""
 
-MAX_ASSET_LANE_SUPPLY_ROWS_V1: Final = 256
-"""Mirrors the Rust projection bound MAX_ASSET_POLICY_ROWS_V1 (Opus P19 N2)."""
+MAX_ASSET_LANE_SUPPLY_ROWS_V1: Final = MAX_ASSET_POLICY_ROWS_V1
+"""The shared policy/supply-row bound (Rust MAX_ASSET_POLICY_ROWS_V1; Opus P19 N2, P20 NEW-2)."""
 
 ASSET_LANE_STATE_PROJECTION_SCHEMA_V1: Final = (
     "zenodex/asset-lane-state-projection/v1"

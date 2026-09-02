@@ -86,7 +86,8 @@ class LaneProducerKindV1(str, Enum):
 
 
 # Exhaustive over LaneIdV1: the producer kind the registry supports today and the
-# obligation that blocks a receipt-backed producer. No lane is receipt-backed yet.
+# obligation that blocks a receipt-backed producer. No lane is registered
+# receipt-backed yet (the implemented wave-B producer is on no acceptance path).
 # The unique empty typed lane state each registered-empty lane must be committed at: a
 # registered-empty fragment is exact-empty because the lane's own state is the empty state,
 # and the certificate binds the committed lane root to that state's root (C5, wave A).

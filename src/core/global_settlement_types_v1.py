@@ -1351,6 +1351,16 @@ class OutboxStateV1:
         }
 
 
+MAX_ASSET_POLICY_ROWS_V1: Final = 256
+"""Mirrors the Rust canonical bound of the same name (Opus P20 NEW-2)."""
+
+MAX_ASSET_BALANCE_ROWS_V1: Final = 4096
+"""Mirrors the Rust canonical bound of the same name (Opus P20 NEW-2)."""
+
+MAX_ASSET_CUSTODY_ROWS_V1: Final = 4096
+"""Mirrors the Rust canonical bound of the same name (Opus P20 NEW-2)."""
+
+
 def _require_ordered_objects(
     values: object,
     *,

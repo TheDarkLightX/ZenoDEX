@@ -24,6 +24,7 @@ from .global_economic_refinement_snapshot_v1 import (
     _snapshot_effect_plan_v1,
 )
 from .global_settlement_types_v1 import (
+    MAX_ASSET_CUSTODY_ROWS_V1,
     ZERO_ROOT_V1,
     AssetSupplyV1,
     EconomicAmountV1,
@@ -80,6 +81,7 @@ class ManagedAssetLifecycleLaneModuleInputV1:
             name="managed asset lane module custody",
             expected_type=EconomicAmountV1,
             key="key",
+            maximum=MAX_ASSET_CUSTODY_ROWS_V1,
         )
         project_managed_asset_lifecycle_state_v1(
             self.pre_state,

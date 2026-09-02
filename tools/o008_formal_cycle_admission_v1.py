@@ -467,8 +467,9 @@ CERTIFICATE_IMPLEMENTATION_STATUS_V1: Final = "IMPLEMENTED_REGISTERED_EMPTY_ONLY
 
 NONCLAIMS_V1: Final[tuple[str, ...]] = (
     "The completed formal cycle does not complete O-008.",
-    "The GlobalAccountingAllocationCertificateV1 checker has no receipt-backed lane producer and"
-    " is not mounted; the only certificate it accepts today is the registered-empty certificate"
+    "The GlobalAccountingAllocationCertificateV1 checker has no registered receipt-backed lane"
+    " producer (an implemented, unregistered wave-B producer exists on no acceptance path) and is"
+    " not mounted; the only certificate it accepts today is the registered-empty certificate"
     " over a state with every lane disabled, so no exact all-twelve-lane reconciliation exists.",
     "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher"
     " execution.",
@@ -1035,7 +1036,7 @@ RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
 CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 37
-PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 29
+PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 30
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
 PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 7
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
