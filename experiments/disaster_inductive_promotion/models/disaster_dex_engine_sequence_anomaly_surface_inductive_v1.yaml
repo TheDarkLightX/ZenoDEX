@@ -1,0 +1,506 @@
+# [DISASTER-INDUCTIVE] dex_engine_sequence_anomaly_surface
+#
+# AXIS: dex_engine_sequence_anomaly_surface (consensus_critical, priority 9)
+#
+# Disaster (must be UNREACHABLE in all reachable states):
+#   A DEX-engine action sequence reaches an *accepted* state in which a
+#   lifecycle / side-effect ordering invariant is violated -- e.g.
+#     (a) a settlement consumes a STALE quote-receipt (issued for a prior epoch),
+#     (b) a witness/quote-receipt nonce is REUSED across steps (replay),
+#     (c) a phase-gated op (publish / settle / advance / deposit) fires in the
+#         WRONG phase.
+#   The syntax is locally accepted by helper paths but the interleaved
+#   side-effect order corrupts state.
+#
+# WHAT REAL AUTHORITY THIS ABSTRACTS:
+#   - src/integration/dex_engine.py : the DEX-engine sequence dispatcher, which
+#     (1) phase-gates lifecycle ops (the perp_engine.py Open/PricePublished/
+#         Settled lifecycle, MEMORY.md "Epoch Lifecycle"), and
+#     (2) binds a swap to a quote receipt via verify_route_quote_receipt(...,
+#         expected_quote_epoch=now_epoch)  [src/core/quote_receipts.py], which
+#         REJECTS any receipt whose quote_epoch != current epoch (the
+#         quote_epoch_ok gate, evaluate_route_quote_receipt_precheck_gate).
+#   - src/state/nonces.py + intent_nonce_sequence_gate.py : per-sender nonces are
+#     strictly increasing and contiguous from `last`; after acceptance
+#     `last := last + count`. A replayed witness with nonce <= last is REJECTED
+#     (contiguous_from_last / strict_increasing gates). This is the monotone
+#     anti-replay counter.
+#
+# MODEL <-> CODE GAP (honest):
+#   - This is a SINGLE-SEQUENCE, SINGLE-MARKET abstraction. It models the
+#     phase machine + ONE monotone receipt-nonce counter + a one-epoch quote
+#     freshness binding, mirroring the *guards* the Python engine enforces.
+#   - It OMITS: pool-state-fingerprint binding, hop-replay arithmetic, BLS
+#     witness verification, multi-sender nonce tables (only the per-sender
+#     monotone invariant is modeled), and the actual swap math (cpmm). Those
+#     are covered by other kernels / Lean proofs. Here we prove the *ordering*
+#     surface: that no accepted state records a side-effect produced out of
+#     phase or via a stale/replayed receipt.
+#   - Quote freshness is modeled as a one-epoch window (quote_epoch == now_epoch),
+#     matching verify_route_quote_receipt's expected_quote_epoch binding. The
+#     real code allows quote-epoch-less receipts (legacy); this model treats the
+#     hardened path where the epoch binding is required.
+#
+# DERIVATION (why the invariant is NOT a tautology):
+#   The safety invariant is a CONSERVATION-STYLE identity over the side-effect
+#   counters that the transition arithmetic genuinely moves:
+#       consumed_receipt_nonce == quote_seq_base + settle_count
+#   settle_count is incremented by exactly +1 on each settle_epoch, and
+#   consumed_receipt_nonce is advanced to the freshly-issued receipt nonce
+#   (quote_seq_base + settle_count + 1 - 1 ... see below). The negation of this
+#   identity is EXACTLY the disaster: a settlement that recorded a side-effect
+#   (settle_count went up) WITHOUT advancing the consumed nonce by the right
+#   amount == replay / stale-receipt reuse. We never assume the conclusion: the
+#   identity is reconstructed from the additive updates, like the gold-standard
+#   conservation template.
+#
+#   The anti-replay monotonicity (consumed_receipt_nonce strictly increases on
+#   every settle, and settle only consumes a nonce > last consumed) is derived
+#   from the settle guard + update, not assumed: the guard requires the issued
+#   receipt nonce to be exactly the next free nonce, and the update commits it.
+#
+#   The phase machine (0->1->2->0, no skips) is enforced by per-action guards;
+#   inv_phase_valid + the consumed/settle identity together make every
+#   out-of-phase or stale-receipt settlement unreachable.
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "disaster_dex_engine_sequence_anomaly_surface_inductive_v1"
+  created_by: "esso-disaster-inductive"
+  description: >
+    Generalizes the perp_epoch_isolated_v3 phase-gate (z3+cvc5-proven) to the
+    full DEX-engine lifecycle sequence surface, adding a monotone quote-receipt
+    nonce anti-replay counter and a one-epoch quote-freshness binding. The
+    safety invariant, if proven, makes UNREACHABLE every accepted state in which
+    a settlement consumes a stale quote-receipt, reuses a witness nonce, or a
+    phase-gated op fires out of phase.
+  tags: ["dex", "dex-engine", "sequence", "lifecycle", "anti-replay", "phase-gate", "safety", "consensus-critical"]
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "phase",
+      "quote_seq_base",
+      "issued_receipt_nonce",
+      "issued_receipt_epoch",
+      "issued_receipt_live",
+      "consumed_receipt_nonce",
+      "settle_count",
+      "advance_count",
+      "publish_count",
+    ]
+  effects: ["event", "next_free_nonce", "quote_fresh"]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "EpochAdvanced",
+          "QuoteReceiptIssued",
+          "ClearingPricePublished",
+          "EpochSettled",
+        ]
+
+state_vars:
+  # Wall-clock epoch counter (monotone non-decreasing).
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # Lifecycle phase. 0=Open, 1=PricePublished, 2=Settled.
+  # Mirrors perp_engine.py epoch_phase. Graph: Open->PricePublished->Settled->Open.
+  - id: "phase"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+
+  # Anti-replay base: the nonce floor at the START of the run. The contiguity
+  # identity is expressed relative to this base so it is non-trivial even though
+  # init = 0. (Mirrors NonceTable per-sender `last` baseline.)
+  - id: "quote_seq_base"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # The live quote-receipt currently issued (not yet consumed). Its nonce and the
+  # epoch it was issued for. `issued_receipt_live` = there is an unconsumed receipt.
+  - id: "issued_receipt_nonce"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2000000 }
+
+  - id: "issued_receipt_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "issued_receipt_live"
+    role: "data"
+    type: { kind: "bool" }
+
+  # The nonce of the last quote-receipt actually CONSUMED by a settlement.
+  # Monotone strictly increasing across settlements (anti-replay).
+  - id: "consumed_receipt_nonce"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2000000 }
+
+  # Side-effect counters. settle_count is the load-bearing one: each successful
+  # settle_epoch increments it by exactly 1.
+  - id: "settle_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "advance_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "publish_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+init:
+  - { var: "now_epoch", expr: { const: 0 } }
+  - { var: "phase", expr: { const: 0 } } # Open
+  - { var: "quote_seq_base", expr: { const: 0 } }
+  - { var: "issued_receipt_nonce", expr: { const: 0 } }
+  - { var: "issued_receipt_epoch", expr: { const: 0 } }
+  - { var: "issued_receipt_live", expr: { bool: false } }
+  - { var: "consumed_receipt_nonce", expr: { const: 0 } }
+  - { var: "settle_count", expr: { const: 0 } }
+  - { var: "advance_count", expr: { const: 0 } }
+  - { var: "publish_count", expr: { const: 0 } }
+
+invariants:
+  # INV-1 (phase validity): phase is always within the legal lifecycle range.
+  #   Negation = phase machine reached an undefined state == grammar accepted a
+  #   sequence outside the lifecycle.
+  - id: "inv_phase_valid"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "phase" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "phase" }, { const: 2 }] }
+
+  # INV-2 (anti-replay conservation): the last consumed receipt nonce equals the
+  #   base plus the number of settlements. DERIVED: each settle consumes exactly
+  #   one fresh nonce (= consumed_receipt_nonce += 1) AND increments settle_count.
+  #   Negation = a settlement recorded a side-effect WITHOUT advancing the
+  #   consumed nonce by 1 == stale-receipt reuse / replay / double-consume.
+  - id: "inv_replay_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "consumed_receipt_nonce" }
+        - op: "+"
+          args: [{ var: "quote_seq_base" }, { var: "settle_count" }]
+
+  # INV-3 (monotone anti-replay floor): a live unconsumed receipt always carries a
+  #   nonce strictly greater than anything already consumed. DERIVED from the
+  #   issue guard. Negation = a receipt with a stale/replayed nonce is live and
+  #   could be consumed by settle.
+  - id: "inv_live_receipt_future_nonce"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "issued_receipt_live" }
+        - op: ">"
+          args: [{ var: "issued_receipt_nonce" }, { var: "consumed_receipt_nonce" }]
+
+  # INV-4 (no future quotes): a live receipt is never issued for a future epoch.
+  #   Negation = a quote-receipt time-traveled (issued for an epoch not yet
+  #   reached) -> settle could consume a quote that is "stale by construction".
+  - id: "inv_receipt_not_from_future"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "issued_receipt_live" }
+        - op: "<="
+          args: [{ var: "issued_receipt_epoch" }, { var: "now_epoch" }]
+
+  # INV-5 (PricePublished implies a live, current-epoch receipt exists): once the
+  #   clearing price is published, the bound quote-receipt is live AND issued for
+  #   the current epoch. This is the load-bearing freshness link: settle (which
+  #   only fires in phase 1) therefore can ONLY consume a current-epoch receipt.
+  #   Negation = system is in PricePublished phase yet the receipt it will settle
+  #   against is stale (wrong epoch) or absent == stale-quote settlement surface.
+  - id: "inv_published_implies_fresh_live_receipt"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 1 }] }
+        - op: "and"
+          args:
+            - { var: "issued_receipt_live" }
+            - { op: "=", args: [{ var: "issued_receipt_epoch" }, { var: "now_epoch" }] }
+
+  # INV-6 (consumed nonce never exceeds issued ceiling): consumed nonce cannot run
+  #   ahead of the highest nonce ever issued (base + publishes). Bounds the
+  #   counter so the conservation identity is meaningful (no phantom consumption).
+  - id: "inv_consumed_bounded_by_issued"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - { var: "consumed_receipt_nonce" }
+        - op: "+"
+          args: [{ var: "quote_seq_base" }, { var: "publish_count" }]
+
+  # INV-7 (settle count tracks publishes that were consumed): every settlement was
+  #   preceded by a publish, so settle_count <= publish_count. Negation = a
+  #   settlement fired with no published clearing price == settle out of phase /
+  #   side-effect order inversion.
+  - id: "inv_settle_le_publish"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "settle_count" }, { var: "publish_count" }]
+
+  # INV-8 (live receipt nonce pins to the issued ceiling): when a receipt is live,
+  #   its nonce is EXACTLY base + publish_count (the slot claimed at issue time)
+  #   AND there is exactly one outstanding issued-but-unsettled slot
+  #   (publish_count == settle_count + 1). This is the load-bearing inductive
+  #   conjunct: it forbids the (unreachable but non-inductive) pre-state where a
+  #   live nonce floats ahead of the publish counter. DERIVED from issue_quote
+  #   (sets nonce = base + publish_count, bumps publish_count) and settle/advance
+  #   (clear live). Negation = the live witness's nonce is desynced from the
+  #   issued sequence == the exact "stale-witness reuse / drift" the bridge flags.
+  - id: "inv_live_receipt_pins_ceiling"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "issued_receipt_live" }
+        - op: "and"
+          args:
+            - op: "="
+              args:
+                - { var: "issued_receipt_nonce" }
+                - op: "+"
+                  args: [{ var: "quote_seq_base" }, { var: "publish_count" }]
+            - op: "="
+              args:
+                - { var: "publish_count" }
+                - op: "+"
+                  args: [{ var: "settle_count" }, { const: 1 }]
+
+  # INV-9 (no dangling issued slot when no live receipt): when there is NO live
+  #   receipt, publish_count == settle_count (every issued slot was consumed by a
+  #   settlement). This pairs with INV-8 so consumed_receipt_nonce == base +
+  #   settle_count is preserved across the issue/consume cycle. Negation = an
+  #   issued nonce slot was burned without a matching settlement == a publish/
+  #   issue side-effect with no corresponding consume (order anomaly).
+  - id: "inv_no_dangling_issued_slot"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "not", args: [{ var: "issued_receipt_live" }] }
+        - op: "="
+          args: [{ var: "publish_count" }, { var: "settle_count" }]
+
+  # INV-10 (PricePublished phase pins the lifecycle): phase==1 implies a live
+  #   receipt exists. Combined with INV-5 (current epoch) and INV-8 (nonce pinned)
+  #   this makes settle (phase-1-only) provably consume only a fresh, in-sequence
+  #   receipt. Negation = the engine is in PricePublished phase with no live quote
+  #   == a published price with nothing fresh to settle against (stale-settle door).
+  - id: "inv_published_phase_has_live_receipt"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 1 }] }
+        - { var: "issued_receipt_live" }
+
+  # INV-11 (Settled phase pins the lifecycle): phase==2 implies the receipt was
+  #   ALREADY consumed (not live) AND every issued slot is consumed
+  #   (publish_count == settle_count). This is the inductive fact that closes the
+  #   advance_epoch step: advancing from Settled cannot leave a dangling live
+  #   witness. Negation = the engine reached Settled while a quote-receipt is
+  #   still live / unconsumed == a settlement side-effect recorded out of order
+  #   with the witness lifecycle (the core sequence anomaly).
+  - id: "inv_settled_phase_consumed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 2 }] }
+        - op: "and"
+          args:
+            - { op: "not", args: [{ var: "issued_receipt_live" }] }
+            - op: "="
+              args: [{ var: "publish_count" }, { var: "settle_count" }]
+
+actions:
+  # ---- ACTION: advance_epoch ----
+  # Lifecycle: phase MUST be Settled (2) to advance; transitions phase -> Open (0)
+  # and bumps now_epoch. Mirrors perp_engine advance_epoch guard (post-settle).
+  # Any unconsumed live receipt is dropped (a new epoch invalidates old quotes):
+  # this is what makes a carried-over receipt "stale by construction" impossible.
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 1000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 2 }] } # only from Settled
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "now_epoch" }, { param: "delta" }]
+            - { const: 1000000 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "advance_count" }, { const: 1 }]
+            - { const: 1000000 }
+    updates:
+      - var: "now_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "now_epoch" }, { param: "delta" }]
+      - var: "phase"
+        expr: { const: 0 } # Open
+      # New epoch invalidates any carried-over quote receipt (drop stale quote).
+      - var: "issued_receipt_live"
+        expr: { bool: false }
+      - var: "advance_count"
+        expr:
+          op: "+"
+          args: [{ var: "advance_count" }, { const: 1 }]
+    effects:
+      event: { enum: "EpochAdvanced" }
+      next_free_nonce: &eff_next_free
+        op: "+"
+        args:
+          - { op: "+", args: [{ var: "quote_seq_base" }, { var: "publish_count" }] }
+          - { const: 1 }
+      quote_fresh: &eff_quote_fresh
+        op: "and"
+        args:
+          - { var: "issued_receipt_live" }
+          - { op: "=", args: [{ var: "issued_receipt_epoch" }, { var: "now_epoch" }] }
+
+  # ---- ACTION: issue_quote_receipt ----
+  # Issues the fresh quote-receipt for the CURRENT epoch, with the next free
+  # monotone nonce (= base + publish_count + 1). Allowed only in Open phase
+  # (a quote is taken before the price is published & settled). The nonce is
+  # forced to the next free slot -> strict monotonicity by construction, exactly
+  # mirroring intent_nonce_sequence_gate's contiguous_from_last rule.
+  # NOTE: publish_count is the issued-receipt counter here (one quote per cycle);
+  # incrementing it here keeps the issued-nonce ceiling honest.
+  - id: "issue_quote_receipt"
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 0 }] } # Open only
+        - { op: "not", args: [{ var: "issued_receipt_live" }] } # one live quote at a time
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "publish_count" }, { const: 1 }]
+            - { const: 1000000 }
+    updates:
+      # nonce := base + publish_count + 1  (next free slot, strictly > consumed
+      # because consumed <= base + publish_count by INV-6).
+      - var: "issued_receipt_nonce"
+        expr:
+          op: "+"
+          args:
+            - { op: "+", args: [{ var: "quote_seq_base" }, { var: "publish_count" }] }
+            - { const: 1 }
+      - var: "issued_receipt_epoch"
+        expr: { var: "now_epoch" }
+      - var: "issued_receipt_live"
+        expr: { bool: true }
+      # advance the issued ceiling (a new nonce slot is now used).
+      - var: "publish_count"
+        expr:
+          op: "+"
+          args: [{ var: "publish_count" }, { const: 1 }]
+    effects:
+      event: { enum: "QuoteReceiptIssued" }
+      next_free_nonce: *eff_next_free
+      quote_fresh: *eff_quote_fresh
+
+  # ---- ACTION: publish_clearing_price ----
+  # Lifecycle: phase Open -> PricePublished. REQUIRES a live, current-epoch quote
+  # receipt (the price publication is bound to that fresh quote). This is the
+  # gate that establishes INV-5: you cannot publish against a stale or absent
+  # quote. Mirrors dex_engine binding the swap to verify_route_quote_receipt
+  # with expected_quote_epoch == now_epoch.
+  - id: "publish_clearing_price"
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 0 }] } # Open only
+        - { var: "issued_receipt_live" } # a quote must exist
+        # freshness: the live quote was issued for THIS epoch (anti-stale).
+        - { op: "=", args: [{ var: "issued_receipt_epoch" }, { var: "now_epoch" }] }
+        # monotone anti-replay: the quote nonce strictly exceeds last consumed.
+        - op: ">"
+          args: [{ var: "issued_receipt_nonce" }, { var: "consumed_receipt_nonce" }]
+    updates:
+      - var: "phase"
+        expr: { const: 1 } # PricePublished
+    effects:
+      event: { enum: "ClearingPricePublished" }
+      next_free_nonce: *eff_next_free
+      quote_fresh: *eff_quote_fresh
+
+  # ---- ACTION: settle_epoch ----
+  # Lifecycle: phase PricePublished -> Settled. CONSUMES the live quote-receipt:
+  #   - guard enforces freshness (issued_receipt_epoch == now_epoch),
+  #   - guard enforces anti-replay (issued_receipt_nonce > consumed_receipt_nonce),
+  #   - guard enforces the receipt nonce is EXACTLY the next free slot
+  #     (base + settle_count + 1) -> ties the consume to the conservation identity.
+  # Updates: consumed_receipt_nonce := issued nonce; settle_count += 1; receipt is
+  # consumed (no longer live). This is the load-bearing transition: it MOVES the
+  # value (the nonce) so the INV-2 conservation identity is reconstructed, not
+  # assumed.
+  - id: "settle_epoch"
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 1 }] } # PricePublished only
+        - { var: "issued_receipt_live" }
+        # freshness (anti-stale): receipt issued for current epoch.
+        - { op: "=", args: [{ var: "issued_receipt_epoch" }, { var: "now_epoch" }] }
+        # anti-replay (monotone): consume only a nonce strictly above last consumed.
+        - op: ">"
+          args: [{ var: "issued_receipt_nonce" }, { var: "consumed_receipt_nonce" }]
+        # contiguity: the consumed nonce must be the next slot after the running
+        # settle count -> this is the arithmetic that makes INV-2 derivable.
+        - op: "="
+          args:
+            - { var: "issued_receipt_nonce" }
+            - op: "+"
+              args:
+                - { op: "+", args: [{ var: "quote_seq_base" }, { var: "settle_count" }] }
+                - { const: 1 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "settle_count" }, { const: 1 }]
+            - { const: 1000000 }
+    updates:
+      - var: "phase"
+        expr: { const: 2 } # Settled
+      # commit the consumed nonce (monotone advance by exactly the issued slot).
+      - var: "consumed_receipt_nonce"
+        expr: { var: "issued_receipt_nonce" }
+      - var: "settle_count"
+        expr:
+          op: "+"
+          args: [{ var: "settle_count" }, { const: 1 }]
+      # receipt is consumed: no longer live (prevents double-consume / replay).
+      - var: "issued_receipt_live"
+        expr: { bool: false }
+    effects:
+      event: { enum: "EpochSettled" }
+      next_free_nonce: *eff_next_free
+      quote_fresh: *eff_quote_fresh

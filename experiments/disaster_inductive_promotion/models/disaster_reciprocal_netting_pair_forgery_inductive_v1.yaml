@@ -1,0 +1,501 @@
+# [FORGE] Disaster: reciprocal_netting_pair_forgery (inductive, z3+cvc5)
+#
+# AXIS
+# ----
+# A settlement that is merely conservation-balanced (signed net flow Delta == 0)
+# is accepted as a reciprocal coincidence-of-wants (COW) net, even though no exact
+# paired counterparty exists. Arbitrary direct netting masquerades as admissible COW
+# netting and value is transferred outside any matched COW pair.
+#
+# DISASTER STATE (must be UNREACHABLE)
+# ------------------------------------
+#   accepted_forged == 1
+# i.e. a fill set is ACCEPTED as reciprocal-netted (`accepted == 1`) while at least
+# one leg has NO exact reciprocal counterparty (`pairing_ok == 0`), even though
+# conservation `delta_zero == 1` holds. This is the forged-pair admit.
+#
+# WHY THE INVARIANT IS DERIVED (not a tautology)
+# ----------------------------------------------
+# `pairing_ok` and `delta_zero` are NOT free booleans: they are computed in ONE atomic
+# `propose_legs` update directly from the leg arithmetic (token_in/token_out mirror,
+# amount_in/amount_out mirror, sender/recipient mirror, and the signed per-token net
+# flow of the four legs). `accepted_forged` is then computed as `accepted AND NOT
+# pairing_ok`. The headline invariant `accepted_forged == 0` therefore holds ONLY
+# because the strong admit guard requires `pairing_ok` to be derivable-true from the
+# mirror arithmetic; its negation is the literal disaster (value moved outside a
+# matched COW pair). The conservation half (delta_zero <-> signed net == 0) is the
+# Lean homomorphism Delta : Settlement ->+ Z (SettlementNetting.lean); this model binds
+# the *pairing* predicate to conservation in one machine, which Lean does not do.
+#
+# NON-VACUITY
+# -----------
+# - The admit guard is SATISFIABLE: the init leg set (two perfectly-mirrored COW pairs,
+#   leg1<->leg2 and leg3<->leg4) satisfies delta_zero AND pairing_ok, so admit_strong
+#   fires (witnessed by `inv_strong_admit_reachable` being expressible / `seen_admit`).
+# - The disaster is EXPRESSIBLE: `propose_legs` can set a Delta==0 leg set that is NOT
+#   a perfect involution (e.g. leg2 is not the mirror of leg1) -> delta_zero==1 but
+#   pairing_ok==0. The observable `weak_would_admit` (= delta_zero, the Tau Delta-only
+#   gate `settlement_conservation_netting_gate_v1.tau`) is 1 on such forged sets,
+#   demonstrating the gap the strong guard closes. Only `admit_strong` (which also
+#   requires pairing_ok) writes `accepted`, so the disaster never becomes reachable.
+# - The invariant is not trivially true: drop `pairing_ok` from the admit_strong guard
+#   and the model produces a counterexample (forged accept) -- see notes.
+#
+# MODEL <-> CODE GAP
+# ------------------
+# Abstracts `_validate_cow_pair_index` in
+#   src/core/settlement_strong_validator.py (lines 76-151)
+# which, for each COW_NETTED fill i, requires EXACTLY ONE other fill j with
+#   j.pool_id==i.pool_id, j.asset_in==i.asset_out, j.asset_out==i.asset_in,
+#   j.amount_in_filled==i.amount_out_filled, j.amount_out_filled==i.amount_in_filled,
+# and a SYMMETRIC (involutive/injective) pairing pair_for[pair_for[i]]==i.
+# This model fixes a bounded universe (4 legs, 2 tokens {0,1}, 4 accounts {0..3},
+# small bounded amounts) and encodes the involution as the conjunction of the two
+# fixed mirror pairs (leg1<->leg2, leg3<->leg4) -- the only way 4 legs can be a perfect
+# injective matching up to leg-symmetry. OMITS: single pool_id (assumed equal),
+# fee_paid==0 / amount_in_filled==declared-amount_in checks, action/kind type checks,
+# slippage (amount_out>=min_out), and the >4-leg / >2-token combinatorics. It models
+# the load-bearing mirror+injectivity+conservation core, not the full untrusted-input
+# sanitisation surface.
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "disaster_reciprocal_netting_pair_forgery_inductive_v1"
+  created_by: "zenodex-forge"
+  tags: ["dex", "settlement", "cow", "netting", "conservation", "safety", "disaster"]
+  notes: |
+    Encodes reciprocal_netting_pair_forgery as an unreachable safety invariant.
+    See header. Cross-checked against SettlementNetting.lean (conservation half)
+    and _validate_cow_pair_index (pairing half).
+
+observables:
+  state_vars:
+    ["phase", "accepted", "pairing_ok", "delta_zero", "accepted_forged",
+     "weak_would_admit", "seen_admit",
+     "t1_in", "t1_out", "a1_in", "a1_out", "s1", "r1",
+     "t2_in", "t2_out", "a2_in", "a2_out", "s2", "r2",
+     "t3_in", "t3_out", "a3_in", "a3_out", "s3", "r3",
+     "t4_in", "t4_out", "a4_in", "a4_out", "s4", "r4"]
+  effects: []
+
+types: []
+
+state_vars:
+  # ----- control / decision flags -----
+  # phase: integer-encoded control state (idle=0, proposed=1, admitted=2).
+  - { id: "phase",            role: "control", type: { kind: "int", min: 0, max: 2 } }
+  - { id: "accepted",         role: "data",    type: { kind: "int", min: 0, max: 1 } }
+  - { id: "pairing_ok",       role: "data",    type: { kind: "int", min: 0, max: 1 } }
+  - { id: "delta_zero",       role: "data",    type: { kind: "int", min: 0, max: 1 } }
+  - { id: "accepted_forged",  role: "data",    type: { kind: "int", min: 0, max: 1 } }
+  - { id: "weak_would_admit", role: "data",    type: { kind: "int", min: 0, max: 1 } }
+  - { id: "seen_admit",       role: "data",    type: { kind: "int", min: 0, max: 1 } }
+  # ----- leg 1 -----
+  - { id: "t1_in",  role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "t1_out", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "a1_in",  role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "a1_out", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "s1",     role: "data", type: { kind: "int", min: 0, max: 3 } }
+  - { id: "r1",     role: "data", type: { kind: "int", min: 0, max: 3 } }
+  # ----- leg 2 -----
+  - { id: "t2_in",  role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "t2_out", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "a2_in",  role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "a2_out", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "s2",     role: "data", type: { kind: "int", min: 0, max: 3 } }
+  - { id: "r2",     role: "data", type: { kind: "int", min: 0, max: 3 } }
+  # ----- leg 3 -----
+  - { id: "t3_in",  role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "t3_out", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "a3_in",  role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "a3_out", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "s3",     role: "data", type: { kind: "int", min: 0, max: 3 } }
+  - { id: "r3",     role: "data", type: { kind: "int", min: 0, max: 3 } }
+  # ----- leg 4 -----
+  - { id: "t4_in",  role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "t4_out", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "a4_in",  role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "a4_out", role: "data", type: { kind: "int", min: 0, max: 8 } }
+  - { id: "s4",     role: "data", type: { kind: "int", min: 0, max: 3 } }
+  - { id: "r4",     role: "data", type: { kind: "int", min: 0, max: 3 } }
+
+init:
+  - { var: "phase",            expr: { const: 0 } }
+  - { var: "accepted",         expr: { const: 0 } }
+  - { var: "pairing_ok",       expr: { const: 0 } }
+  - { var: "delta_zero",       expr: { const: 0 } }
+  - { var: "accepted_forged",  expr: { const: 0 } }
+  - { var: "weak_would_admit", expr: { const: 0 } }
+  - { var: "seen_admit",       expr: { const: 0 } }
+  # Init: two perfectly mirrored COW pairs (witness that the strong guard is satisfiable).
+  # Pair A: leg1 sends token0->token1 (5 in / 3 out) from acct0 to acct1;
+  #         leg2 is its exact mirror token1->token0 (3 in / 5 out) from acct1 to acct0.
+  - { var: "t1_in",  expr: { const: 0 } }
+  - { var: "t1_out", expr: { const: 1 } }
+  - { var: "a1_in",  expr: { const: 5 } }
+  - { var: "a1_out", expr: { const: 3 } }
+  - { var: "s1",     expr: { const: 0 } }
+  - { var: "r1",     expr: { const: 1 } }
+  - { var: "t2_in",  expr: { const: 1 } }
+  - { var: "t2_out", expr: { const: 0 } }
+  - { var: "a2_in",  expr: { const: 3 } }
+  - { var: "a2_out", expr: { const: 5 } }
+  - { var: "s2",     expr: { const: 1 } }
+  - { var: "r2",     expr: { const: 0 } }
+  # Pair B: leg3 token0->token1 (4 in / 2 out) acct2->acct3; leg4 its exact mirror.
+  - { var: "t3_in",  expr: { const: 0 } }
+  - { var: "t3_out", expr: { const: 1 } }
+  - { var: "a3_in",  expr: { const: 4 } }
+  - { var: "a3_out", expr: { const: 2 } }
+  - { var: "s3",     expr: { const: 2 } }
+  - { var: "r3",     expr: { const: 3 } }
+  - { var: "t4_in",  expr: { const: 1 } }
+  - { var: "t4_out", expr: { const: 0 } }
+  - { var: "a4_in",  expr: { const: 2 } }
+  - { var: "a4_out", expr: { const: 4 } }
+  - { var: "s4",     expr: { const: 3 } }
+  - { var: "r4",     expr: { const: 2 } }
+
+invariants:
+  # ===================== HEADLINE DISASTER INVARIANT =====================
+  # accepted_forged == 0  <=>  no settlement is ever ACCEPTED as reciprocal-netted
+  # while a leg has no exact reciprocal counterparty. Negation = the disaster.
+  - id: "inv_no_forged_pair_accept"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "accepted_forged" }, { const: 0 }] }
+
+  # ===================== DERIVED-LINK INVARIANTS (inductive support) =====================
+  # accepted_forged is, by construction, accepted AND (NOT pairing_ok).
+  # This ties the disaster flag to the genuine pairing arithmetic so the headline
+  # invariant cannot be proven vacuously by a free variable.
+  - id: "inv_forged_is_accept_without_pairing"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "accepted_forged" }
+        - op: "ite"
+          cond:
+            op: "and"
+            args:
+              - { op: "=", args: [{ var: "accepted" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "pairing_ok" }, { const: 0 }] }
+          then: { const: 1 }
+          else: { const: 0 }
+
+  # An accept can only exist once we have left idle (i.e. legs were proposed and the
+  # strong guard fired). accepted == 1  =>  pairing_ok == 1  AND  delta_zero == 1.
+  # This is the inductive heart: the strong admit guard forces both conjuncts.
+  - id: "inv_accept_implies_paired_and_balanced"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "accepted" }, { const: 1 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "pairing_ok" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "delta_zero" }, { const: 1 }] }
+
+  # weak_would_admit (the Delta-only Tau gate) equals delta_zero exactly: it documents
+  # that conservation alone would admit, and is independent of pairing_ok. Keeping it
+  # as a tracked invariant makes the gap explicit (and non-vacuous).
+  - id: "inv_weak_gate_is_conservation_only"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "weak_would_admit" }, { var: "delta_zero" }] }
+
+  # Bounds / well-formedness of the decision flags.
+  - id: "inv_flags_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "accepted" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "accepted" }, { const: 1 }] }
+        - { op: ">=", args: [{ var: "pairing_ok" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "pairing_ok" }, { const: 1 }] }
+        - { op: ">=", args: [{ var: "delta_zero" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "delta_zero" }, { const: 1 }] }
+        - { op: ">=", args: [{ var: "accepted_forged" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "accepted_forged" }, { const: 1 }] }
+
+actions:
+  # ---------------------------------------------------------------------------
+  # propose_legs: an untrusted proposer supplies a 4-leg fill set. The action
+  # writes the legs and ATOMICALLY recomputes the derived predicates from the
+  # leg arithmetic:
+  #   - delta_zero: signed per-token net flow of all 4 legs is zero for BOTH tokens.
+  #       For token 0, a leg with t_in==0 contributes +a_in (token0 leaves the user
+  #       into the net), a leg with t_out==0 contributes -a_out. Sum over 4 legs == 0.
+  #       Symmetric definition for token 1.
+  #   - pairing_ok: legs form a perfect injective involution = (leg1 mirrors leg2)
+  #       AND (leg3 mirrors leg4), where i mirrors j iff
+  #       t_in_i==t_out_j AND t_out_i==t_in_j AND a_in_i==a_out_j AND a_out_i==a_in_j
+  #       AND s_i==r_j AND r_i==s_j   (token/amount/sender-recipient mirror equality).
+  #   - weak_would_admit := delta_zero (the Delta-only Tau gate).
+  # No `accepted` is written here: proposing never accepts.
+  # ---------------------------------------------------------------------------
+  - id: "propose_legs"
+    params:
+      - { id: "p_t1in",  type: { kind: "int", min: 0, max: 1 } }
+      - { id: "p_t1out", type: { kind: "int", min: 0, max: 1 } }
+      - { id: "p_a1in",  type: { kind: "int", min: 0, max: 8 } }
+      - { id: "p_a1out", type: { kind: "int", min: 0, max: 8 } }
+      - { id: "p_s1",    type: { kind: "int", min: 0, max: 3 } }
+      - { id: "p_r1",    type: { kind: "int", min: 0, max: 3 } }
+      - { id: "p_t2in",  type: { kind: "int", min: 0, max: 1 } }
+      - { id: "p_t2out", type: { kind: "int", min: 0, max: 1 } }
+      - { id: "p_a2in",  type: { kind: "int", min: 0, max: 8 } }
+      - { id: "p_a2out", type: { kind: "int", min: 0, max: 8 } }
+      - { id: "p_s2",    type: { kind: "int", min: 0, max: 3 } }
+      - { id: "p_r2",    type: { kind: "int", min: 0, max: 3 } }
+      - { id: "p_t3in",  type: { kind: "int", min: 0, max: 1 } }
+      - { id: "p_t3out", type: { kind: "int", min: 0, max: 1 } }
+      - { id: "p_a3in",  type: { kind: "int", min: 0, max: 8 } }
+      - { id: "p_a3out", type: { kind: "int", min: 0, max: 8 } }
+      - { id: "p_s3",    type: { kind: "int", min: 0, max: 3 } }
+      - { id: "p_r3",    type: { kind: "int", min: 0, max: 3 } }
+      - { id: "p_t4in",  type: { kind: "int", min: 0, max: 1 } }
+      - { id: "p_t4out", type: { kind: "int", min: 0, max: 1 } }
+      - { id: "p_a4in",  type: { kind: "int", min: 0, max: 8 } }
+      - { id: "p_a4out", type: { kind: "int", min: 0, max: 8 } }
+      - { id: "p_s4",    type: { kind: "int", min: 0, max: 3 } }
+      - { id: "p_r4",    type: { kind: "int", min: 0, max: 3 } }
+    guard:
+      # Proposing is allowed from idle (fresh batch) or after a prior admit/proposal
+      # (re-propose a new batch). It is NOT gated on conservation or pairing: the
+      # proposer is untrusted and may submit a FORGED Delta==0 set. This keeps the
+      # disaster state expressible.
+      op: "!="
+      args: [{ var: "phase" }, { const: 2 }]
+    updates:
+      # ---- write the 4 legs from the untrusted params ----
+      - { var: "t1_in",  expr: { param: "p_t1in" } }
+      - { var: "t1_out", expr: { param: "p_t1out" } }
+      - { var: "a1_in",  expr: { param: "p_a1in" } }
+      - { var: "a1_out", expr: { param: "p_a1out" } }
+      - { var: "s1",     expr: { param: "p_s1" } }
+      - { var: "r1",     expr: { param: "p_r1" } }
+      - { var: "t2_in",  expr: { param: "p_t2in" } }
+      - { var: "t2_out", expr: { param: "p_t2out" } }
+      - { var: "a2_in",  expr: { param: "p_a2in" } }
+      - { var: "a2_out", expr: { param: "p_a2out" } }
+      - { var: "s2",     expr: { param: "p_s2" } }
+      - { var: "r2",     expr: { param: "p_r2" } }
+      - { var: "t3_in",  expr: { param: "p_t3in" } }
+      - { var: "t3_out", expr: { param: "p_t3out" } }
+      - { var: "a3_in",  expr: { param: "p_a3in" } }
+      - { var: "a3_out", expr: { param: "p_a3out" } }
+      - { var: "s3",     expr: { param: "p_s3" } }
+      - { var: "r3",     expr: { param: "p_r3" } }
+      - { var: "t4_in",  expr: { param: "p_t4in" } }
+      - { var: "t4_out", expr: { param: "p_t4out" } }
+      - { var: "a4_in",  expr: { param: "p_a4in" } }
+      - { var: "a4_out", expr: { param: "p_a4out" } }
+      - { var: "s4",     expr: { param: "p_s4" } }
+      - { var: "r4",     expr: { param: "p_r4" } }
+      # ---- recompute delta_zero from the SIGNED per-token net flow ----
+      # token0 net = sum over legs of (a_in if t_in==0) - (a_out if t_out==0)
+      # token1 net = sum over legs of (a_in if t_in==1) - (a_out if t_out==1)
+      # delta_zero := (token0_net == 0) AND (token1_net == 0)
+      - var: "delta_zero"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              # token0 net == 0
+              - op: "="
+                args:
+                  - op: "-"
+                    args:
+                      # +a_in for legs with p_t*in == 0
+                      - op: "+"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t1in" }, { const: 0 }] }, then: { param: "p_a1in" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t2in" }, { const: 0 }] }, then: { param: "p_a2in" }, else: { const: 0 } }
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t3in" }, { const: 0 }] }, then: { param: "p_a3in" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t4in" }, { const: 0 }] }, then: { param: "p_a4in" }, else: { const: 0 } }
+                      # -a_out for legs with p_t*out == 0
+                      - op: "+"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t1out" }, { const: 0 }] }, then: { param: "p_a1out" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t2out" }, { const: 0 }] }, then: { param: "p_a2out" }, else: { const: 0 } }
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t3out" }, { const: 0 }] }, then: { param: "p_a3out" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t4out" }, { const: 0 }] }, then: { param: "p_a4out" }, else: { const: 0 } }
+                  - { const: 0 }
+              # token1 net == 0
+              - op: "="
+                args:
+                  - op: "-"
+                    args:
+                      - op: "+"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t1in" }, { const: 1 }] }, then: { param: "p_a1in" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t2in" }, { const: 1 }] }, then: { param: "p_a2in" }, else: { const: 0 } }
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t3in" }, { const: 1 }] }, then: { param: "p_a3in" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t4in" }, { const: 1 }] }, then: { param: "p_a4in" }, else: { const: 0 } }
+                      - op: "+"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t1out" }, { const: 1 }] }, then: { param: "p_a1out" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t2out" }, { const: 1 }] }, then: { param: "p_a2out" }, else: { const: 0 } }
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t3out" }, { const: 1 }] }, then: { param: "p_a3out" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t4out" }, { const: 1 }] }, then: { param: "p_a4out" }, else: { const: 0 } }
+                  - { const: 0 }
+          then: { const: 1 }
+          else: { const: 0 }
+      # ---- weak Delta-only Tau gate := delta_zero (same arithmetic) ----
+      - var: "weak_would_admit"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "="
+                args:
+                  - op: "-"
+                    args:
+                      - op: "+"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t1in" }, { const: 0 }] }, then: { param: "p_a1in" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t2in" }, { const: 0 }] }, then: { param: "p_a2in" }, else: { const: 0 } }
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t3in" }, { const: 0 }] }, then: { param: "p_a3in" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t4in" }, { const: 0 }] }, then: { param: "p_a4in" }, else: { const: 0 } }
+                      - op: "+"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t1out" }, { const: 0 }] }, then: { param: "p_a1out" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t2out" }, { const: 0 }] }, then: { param: "p_a2out" }, else: { const: 0 } }
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t3out" }, { const: 0 }] }, then: { param: "p_a3out" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t4out" }, { const: 0 }] }, then: { param: "p_a4out" }, else: { const: 0 } }
+                  - { const: 0 }
+              - op: "="
+                args:
+                  - op: "-"
+                    args:
+                      - op: "+"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t1in" }, { const: 1 }] }, then: { param: "p_a1in" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t2in" }, { const: 1 }] }, then: { param: "p_a2in" }, else: { const: 0 } }
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t3in" }, { const: 1 }] }, then: { param: "p_a3in" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t4in" }, { const: 1 }] }, then: { param: "p_a4in" }, else: { const: 0 } }
+                      - op: "+"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t1out" }, { const: 1 }] }, then: { param: "p_a1out" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t2out" }, { const: 1 }] }, then: { param: "p_a2out" }, else: { const: 0 } }
+                          - op: "+"
+                            args:
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t3out" }, { const: 1 }] }, then: { param: "p_a3out" }, else: { const: 0 } }
+                              - { op: "ite", cond: { op: "=", args: [{ param: "p_t4out" }, { const: 1 }] }, then: { param: "p_a4out" }, else: { const: 0 } }
+                  - { const: 0 }
+          then: { const: 1 }
+          else: { const: 0 }
+      # ---- recompute pairing_ok: perfect injective involution (leg1<->leg2 AND leg3<->leg4) ----
+      - var: "pairing_ok"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              # leg1 mirrors leg2
+              - op: "and"
+                args:
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "p_t1in" },  { param: "p_t2out" }] }
+                      - { op: "=", args: [{ param: "p_t1out" }, { param: "p_t2in" }] }
+                  - op: "and"
+                    args:
+                      - op: "and"
+                        args:
+                          - { op: "=", args: [{ param: "p_a1in" },  { param: "p_a2out" }] }
+                          - { op: "=", args: [{ param: "p_a1out" }, { param: "p_a2in" }] }
+                      - op: "and"
+                        args:
+                          - { op: "=", args: [{ param: "p_s1" }, { param: "p_r2" }] }
+                          - { op: "=", args: [{ param: "p_r1" }, { param: "p_s2" }] }
+              # leg3 mirrors leg4
+              - op: "and"
+                args:
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "p_t3in" },  { param: "p_t4out" }] }
+                      - { op: "=", args: [{ param: "p_t3out" }, { param: "p_t4in" }] }
+                  - op: "and"
+                    args:
+                      - op: "and"
+                        args:
+                          - { op: "=", args: [{ param: "p_a3in" },  { param: "p_a4out" }] }
+                          - { op: "=", args: [{ param: "p_a3out" }, { param: "p_a4in" }] }
+                      - op: "and"
+                        args:
+                          - { op: "=", args: [{ param: "p_s3" }, { param: "p_r4" }] }
+                          - { op: "=", args: [{ param: "p_r3" }, { param: "p_s4" }] }
+          then: { const: 1 }
+          else: { const: 0 }
+      # proposing never accepts
+      - { var: "accepted",        expr: { const: 0 } }
+      - { var: "accepted_forged", expr: { const: 0 } }
+      - { var: "phase",           expr: { const: 1 } }
+      # seen_admit unchanged
+      - { var: "seen_admit", expr: { var: "seen_admit" } }
+
+  # ---------------------------------------------------------------------------
+  # admit_strong: the STRENGTHENED COW gate. Fires only when BOTH
+  #   delta_zero == 1 (conservation, Lean homomorphism) AND
+  #   pairing_ok == 1 (exact reciprocal injective matching).
+  # Sets accepted := 1. accepted_forged is recomputed atomically as
+  #   accepted AND NOT pairing_ok = 1 AND NOT 1 = 0.
+  # ---------------------------------------------------------------------------
+  - id: "admit_strong"
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "delta_zero" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "pairing_ok" }, { const: 1 }] }
+    updates:
+      - { var: "accepted",  expr: { const: 1 } }
+      - { var: "seen_admit", expr: { const: 1 } }
+      # accepted_forged := (accepted==1) AND (pairing_ok==0); after this update
+      # accepted is 1 and pairing_ok is 1, so this is 0 -- DERIVED, not assumed.
+      - var: "accepted_forged"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - { op: "=", args: [{ const: 1 }, { const: 1 }] }
+              - { op: "=", args: [{ var: "pairing_ok" }, { const: 0 }] }
+          then: { const: 1 }
+          else: { const: 0 }
+      - { var: "phase", expr: { const: 2 } }

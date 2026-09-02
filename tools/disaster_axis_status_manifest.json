@@ -1,0 +1,805 @@
+{
+  "schema": "zenodex/disaster-axis-status-manifest/v1",
+  "status_vocabulary": [
+    "inductive_esso",
+    "lean",
+    "tau",
+    "bounded_replay",
+    "open",
+    "out_of_scope"
+  ],
+  "axis_count": 125,
+  "rows": [
+    {
+      "axis_id": "epoch_split_brain",
+      "axis_definition_sha256": "112ef4727c75371ba5585ae02c7d99edeed51991f6ad0573a1e85a2c40d1eb56",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "identity_registry_drift",
+      "axis_definition_sha256": "fe19caebfc9305c3105f63cee9237f871ed99b98eff15f4f2bc5e8c174d27440",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "canonicalization_equivocation",
+      "axis_definition_sha256": "1bcd4450b67c0996a0abddfa2459b86b04e5afd26e3abc703cfb91da96b696b2",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "serialization_width_aliasing",
+      "axis_definition_sha256": "8c7ed9f7a95ac0de1b2bcc3386a9e34b60c528c73bf3cd4ca7e470f6670260a1",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "resource_budget_abort",
+      "axis_definition_sha256": "de79c939896ec7bdd4bf693dc048da41dfe6a5c6017b69832fc6b900c2c37a8b",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "repair_after_tamper",
+      "axis_definition_sha256": "8b6a2bde6bd7b1f79db23fe068f15fae093255d5ae60803a2e2989e7e969da97",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "external_state_drift",
+      "axis_definition_sha256": "d83f732fd27f88fff0e33125ae63b6fd7ccbc3a2ec0c035d77c9c4e3d9c7ef27",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "atomicity_partial_side_effect",
+      "axis_definition_sha256": "f01a5fe48737fde797eb6fdf8a76606321be9e603c63a580ff9b458b7acfd0ce",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "restart_replay_persistence",
+      "axis_definition_sha256": "c627f13547cedfb0c239d4932d3b723a80ae33b64c72d2ffb1b456a2e90a2352",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "dependency_outage_fail_closed",
+      "axis_definition_sha256": "d4eb10465f0e4e96dc14cdd2c1e85836d98f69d76fffd3e7236f129c1560a4c8",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "numeric_boundary_coupling",
+      "axis_definition_sha256": "207f0b48f5b7abed4b630e4550496408ab1182b864a31ededf08c1ca2a2fa1a0",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "advisory_cache_receipt_coherence",
+      "axis_definition_sha256": "a4a25e2333872e6a542a1b10d3050d55507d0d222367ecbff22fbb0479e602a9",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "market_namespace_version_isolation",
+      "axis_definition_sha256": "6a03b4f69a65404b39b7e669a6d777209bf88acfd7781a70637653419262256a",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "reciprocal_netting_pair_forgery",
+      "axis_definition_sha256": "efa245db6665cac6faaff187a9755eeee7aa5163aefa54359e4d59d8f5c035c3",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_reciprocal_netting_pair_forgery_inductive_v1.yaml",
+      "model_sha256": "570e59169acf26de63cdea31dffaa6cd71de47e3b2b73d61beeb24fdaf2d1e53",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_reciprocal_netting_pair_forgery_inductive_v1.verify_multi.json",
+      "receipt_sha256": "e2b642e09207191e0dae1291797edf0defe309eb07d4d62adc4703a247cb6f58"
+    },
+    {
+      "axis_id": "bounded_advisory_search_envelope",
+      "axis_definition_sha256": "6986567262d99ea958a3bbbdf64727e84eec57e1f01f3fa3228f80937f490da0",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_out_candidate_domain_explosion",
+      "axis_definition_sha256": "0f7e879b8815f221d12232c35e7649ffb035927fb3773f910cae2e513dfd9ff1",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tau_gate_policy_aliasing",
+      "axis_definition_sha256": "24870f561b841d43abde59013c3a29dcfde80b4842658b5ed78977da30f4508d",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "zusd_oracle_recovery_split_brain",
+      "axis_definition_sha256": "69df7734076e1e08a32a6c5f006d7824c39c2b780aa8629ff6dd466c7e9a57a9",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_zusd_oracle_recovery_split_brain_inductive_v1.yaml",
+      "model_sha256": "f4b4d404524b7f73fc63acab369c200657499119a092a174ce7daf6d50661a7e",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_zusd_oracle_recovery_split_brain_inductive_v1.verify_multi.json",
+      "receipt_sha256": "dfec3c769ea06e3a3a72f3e0e74da7d813f0f276f88e19a77b97f953c535065c"
+    },
+    {
+      "axis_id": "confidential_receipt_attestation_drift",
+      "axis_definition_sha256": "780ebb15849857c0d7c4092ba3b6daee86fa8da0badfec704f18c701596cd1f7",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "strategy_session_capability_replay",
+      "axis_definition_sha256": "fb7970c6850c11e4a33610dd1c24d9f1301828a5fed6225b6f5b5b2961f774c2",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "fire_registry_proof_tree_supply_chain",
+      "axis_definition_sha256": "1d50014bbb0f231fc198154ee0136671cdf84b18cb58c2e74a946689120bf5ad",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "batch_clearing_fragmentation_ordering",
+      "axis_definition_sha256": "daeeb8260bac266f6356e854ee29bc84b2ab9d35eaead663fe8e59414d1077be",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "intent_auth_shape_replay",
+      "axis_definition_sha256": "38eff07295246c034707203ce4910655584088a8b38f7be02c3def8ff356a92d",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "perp_funding_liquidation_oracle_window",
+      "axis_definition_sha256": "c72140757b7b8602a39cfef49d95febcd2d45edbee58d3b14a5478664e47c788",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_perp_funding_liquidation_oracle_window_inductive_v1.yaml",
+      "model_sha256": "2282e3f605e5f29f2376a3a7e79114b45a8b36cb0be902f5e4a916126658225d",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_perp_funding_liquidation_oracle_window_inductive_v1.verify_multi.json",
+      "receipt_sha256": "9cc086a573cff48aa37dbd62a6146ddb5d6cdca9450437eb30dda7e72f9fb2b6"
+    },
+    {
+      "axis_id": "proof_mining_packet_envelope_replay",
+      "axis_definition_sha256": "64f10b53b47f21ad8a537df6825d31c59e8d0f8577419a441de556e014f8d1c2",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "sealed_bid_reveal_commitment_binding",
+      "axis_definition_sha256": "4cb831af2474281ce9b6f789bb5f31457f20796569a07a8c77b98e32880ec9fd",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "curve_registry_dispatch_aliasing",
+      "axis_definition_sha256": "18ee88a39e8ebe8e7e12a7ebc704c2d8e2d167343002d6de29f63fdda42710fa",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "vault_reward_carry_spendability",
+      "axis_definition_sha256": "1ef03319688acceaaebe1ae6059cc22df3c8ca35fb9bbc07e4c5eb20b0777411",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_vault_reward_carry_spendability_inductive_v1.yaml",
+      "model_sha256": "2874a35214809848ffe0b1a88e5da1b2c10c6d363d235d872ad25bda720833b8",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_vault_reward_carry_spendability_inductive_v1.verify_multi.json",
+      "receipt_sha256": "88adac33f6faf256ac627744869222a5a743e45b4c132d0a0d606a105dd0fdc2"
+    },
+    {
+      "axis_id": "tau_net_client_transport_boundary",
+      "axis_definition_sha256": "8045ce2ed92bc00e74f533b2f8bf2bc055599f2accd8c73d111ab152ceea1097",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tau_operator_policy_supply_chain",
+      "axis_definition_sha256": "3c658eb8bab3cd4be5bfd7fab0fad6738a8909ae56214795b6a6c66433bf32d9",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "settlement_proof_recompute_gate",
+      "axis_definition_sha256": "140c641fdbcc8442830bbc1a140862d295bedaa2e3f5218a10575a3028817eaf",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_settlement_proof_recompute_gate_inductive_v1.yaml",
+      "model_sha256": "603d6078a86b7ac69406aa21c8d8c4b8db18c0eedddc486a794350480f4e3ca7",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_settlement_proof_recompute_gate_inductive_v1.verify_multi.json",
+      "receipt_sha256": "6dd99abea3362ca02a0547f778740299e1e25cae89801ce9b5a4533eaaaba026"
+    },
+    {
+      "axis_id": "operations_parser_canonical_envelope",
+      "axis_definition_sha256": "e16941b627e98f3f57c00f0c78ba7d1063f6330787e762e7d8512cfe1d7c6eb8",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "resource_load_shedding_chaos_boundary",
+      "axis_definition_sha256": "bd985418e863873e32f7bd28a5445999b583e91446298928a3c04ce0a6708a84",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "cantor_region_partition_invariance",
+      "axis_definition_sha256": "19083767731dd51742a11d396aff33c70e48928de347fa347ab5cf104c8ca44f",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "autotrader_policy_artifact_replay",
+      "axis_definition_sha256": "778a2929f4740534cab0cb953db2aa225c8a8ff17187d75bcb5e691bce3cca58",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "state_accounting_size_boundary",
+      "axis_definition_sha256": "399702d1a3e61daeabb0b6d24fe23c6e61e532aeaddeeed981fec81d6b0eb3dc",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_state_accounting_size_boundary_inductive_v1.yaml",
+      "model_sha256": "860c4d2646ae99f44f1790c2ce2b7442fc6e6f2fb58677558f5ae16da6e49945",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_state_accounting_size_boundary_inductive_v1.verify_multi.json",
+      "receipt_sha256": "36219f47871aa9f68f7a20e184f7dfd75123b33d6f9fef5c18895e8056593807"
+    },
+    {
+      "axis_id": "zusd_api_token_policy_surface",
+      "axis_definition_sha256": "1badf015044f89c22d93ae499a98d26d9bca11992ae4e6b3b5e4858f85efe751",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "dex_engine_sequence_anomaly_surface",
+      "axis_definition_sha256": "08fbd00d0a299c8a9949a2efa37baf8b2c2ac7b4f44ea403be0bc2601d0e8a7d",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_dex_engine_sequence_anomaly_surface_inductive_v1.yaml",
+      "model_sha256": "72f7332958d2f3497c83050590bae8af6103120d1a09aef5682313e54e02f5ef",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_dex_engine_sequence_anomaly_surface_inductive_v1.verify_multi.json",
+      "receipt_sha256": "f310d75dd9e50f8a947cf6775ff3a97ab0287f32faa9ae2d741979dfb96e0c63"
+    },
+    {
+      "axis_id": "quote_receipt_gate_decomposition_consistency",
+      "axis_definition_sha256": "f37da35172a5ae8e4d1a0d3dd6828f6197a485040f84e6d6473a613c9841ba02",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_quote_receipt_gate_decomposition_consistency_inductive_v1.yaml",
+      "model_sha256": "c77d536ea50ddfb302745e17485aaf86b9c3151f94fd42084b4802efc37f5c8e",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_quote_receipt_gate_decomposition_consistency_inductive_v1.verify_multi.json",
+      "receipt_sha256": "b0700c0d61f123c8db7402443f209fb668e2220cdbac5cdaf6c3bfb380eb3a30"
+    },
+    {
+      "axis_id": "settlement_witness_lifecycle_value_drift",
+      "axis_definition_sha256": "81720999a9603b41809aea41f04a321045e9fc1545d1ef74ac22a403ef2c95e7",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "dex_core_ref_parity_drift",
+      "axis_definition_sha256": "f8ea91b41b8f3312f290160d1612035cd6f9d7d586658396874ee858b44c88b0",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "confidential_request_admission_gate_decomposition",
+      "axis_definition_sha256": "8c02c91d66c2cab522135a66df6e56782639206da2f48299ba628cf540ca1669",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "boundary_concolic_wrapper_consistency",
+      "axis_definition_sha256": "2822ed4f6cb031adacfbeec42ee192e6f21b1b660291e120f63b6724a69acc15",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "runtime_shell_adapter_consistency",
+      "axis_definition_sha256": "4683f494b817fdac620749bf8738339f66bee3e30f69f875f5e6f186343d08d8",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "perp_submission_surface_gate_composition",
+      "axis_definition_sha256": "9980508a63f104481eb3355b3b7aeaaa3fd6d9575faa93fb802ca7081887c28b",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "perp_v2_ref_oracle_parity_boundary",
+      "axis_definition_sha256": "5866e941d2ef61b628bce96c7fbca36c0884cd9251c72be8450e41f74db222da",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_out_prefilter_winner_repair_boundary",
+      "axis_definition_sha256": "d7ad3612d438a024595cbfd5a9f5b86763572d88f58ecb9deb500ebc550bb160",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "batch_refinement_mci_parity_boundary",
+      "axis_definition_sha256": "62273dace21ba227f2b6324414edd0641a10563bc19a46892d605e8e8e2d1b8e",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_batch_refinement_mci_parity_boundary_inductive_v1.yaml",
+      "model_sha256": "ab1d9c838d98fefdd43e8668ee26e6bdeeb9d7043597f27ec4ef09a9c9c5e891",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_batch_refinement_mci_parity_boundary_inductive_v1.verify_multi.json",
+      "receipt_sha256": "9d869271f005d75ac97af2a50d999c32129fa9e471544151ac3b583710810ec8"
+    },
+    {
+      "axis_id": "agent_policy_signing_artifact_boundary",
+      "axis_definition_sha256": "c2d6b694b56920ad5aab1b30beb71f9f065768fb908c015cb90edaffb6fb4dae",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tau_runner_api_lifecycle_fail_closed",
+      "axis_definition_sha256": "7aedbb7452614e83c69f4ed1e02c8ce1f0eba798a990fc3c0a45f47a8e17a2a6",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "fire_runtime_receipt_replay_boundary",
+      "axis_definition_sha256": "24aa688c63ca2860e2fb8557b1bff63d4d98acf05ede8ba1add4c82e4cd67221",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_in_route_certificate_guarded_key_boundary",
+      "axis_definition_sha256": "abc86ccae1d2eae1e94fcd432d3ca8cd36f98cf1b2c51b3b409dc8dedd47b93c",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "quote_receipt_transport_intent_boundary",
+      "axis_definition_sha256": "799a53841e4f18f361a8954ab8fa8c14ce2bdd2faaf5520a397f6705b4832363",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "oracle_funding_clock_commitment_boundary",
+      "axis_definition_sha256": "a759f4b1d111439be7c5c199b830b80b84ef9fd6eadb5d92803ca59bac21ca81",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "intent_normal_form_nonce_gate_boundary",
+      "axis_definition_sha256": "d58e01b3ab9f0b7097c0baf3828c75c1edfcc76a48b227da0842cb76de43decc",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "zenograph_krr_policy_state_boundary",
+      "axis_definition_sha256": "f5a5eb3f8a183c0f6974c43ce6ac3f52bb902e72188dcf6d8bc8e1fde4c1a293",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "zusd_native_accounting_gate_boundary",
+      "axis_definition_sha256": "198ee42efdc6a941f65fa0bae7c6edf6c583b04a19852068030e898171c3fa77",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_zusd_native_accounting_gate_boundary_inductive_v1.yaml",
+      "model_sha256": "dcbf987efca008ab59624c0f65eb645ee1ed308f9b20f372cbefef57e2aa9e08",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_zusd_native_accounting_gate_boundary_inductive_v1.verify_multi.json",
+      "receipt_sha256": "5173baa90761f22d1c8c28d9890ce4808dd5db6f11d58c818c04e509fa219f8a"
+    },
+    {
+      "axis_id": "proof_mining_manager_slot_control_boundary",
+      "axis_definition_sha256": "5664ca170af9eedfa32e09a82cd63578a8d797142311b800a08015ef659f2715",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "strategy_native_policy_guard_surface",
+      "axis_definition_sha256": "1eac3082fd2e7b27e91767a4966e72061aba05a82f1c28acdb43f1efc5de7104",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "autotrader_policy_toolchain_state_boundary",
+      "axis_definition_sha256": "da3214f4200324d1ab8a6b38d68f7ef28c7e8b33575b5b91c25b27ec8489682c",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "confidential_core_verifier_binding_boundary",
+      "axis_definition_sha256": "0c524957ce293f70fa2c3eebcfb2aeee7939fd6779a2f66bb3d8b60fa240e991",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "cantor_shapeforge_morphism_bridge_boundary",
+      "axis_definition_sha256": "b22e5d57a2cd26cd9fec36830554abb4856a30ccb8c3582b3feb2c3c8d9b0d69",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "fire_cli_supply_chain_receipt_boundary",
+      "axis_definition_sha256": "6e058b9ccab8b80c1b746a5e1e450fd57e8b7f292041d5e7a47314a44e42aca5",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "settlement_formal_packet_contract_boundary",
+      "axis_definition_sha256": "0947f02c7940563e95d16a057fb8258a435ccb3f80873babf45886bb51542d88",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_out_formal_packet_contract_boundary",
+      "axis_definition_sha256": "8d86a7bd828f2ae92827da4e1f8d32d9751a774043ac551bc2087904f82b82e8",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "strategy_residual_guard_binding_boundary",
+      "axis_definition_sha256": "ee167af422b308720e36c7c7b8c5188b5f85d9f8a31fc2fbf43e5abc6e3c2be7",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "perp_core_legacy_ref_hazard_boundary",
+      "axis_definition_sha256": "ce5ead1e8c176252b73f616e0ceda516de2d7968e62a9d26042b108436366251",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "perp_engine_integration_oracle_bootstrap_boundary",
+      "axis_definition_sha256": "7ad3e681909d029398bfa9b7d1dd1f69eeffda57c2764a4c840f3d110909ee4a",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tau_witness_autotrader_binding_surface",
+      "axis_definition_sha256": "7a116a77ec0233d87dd168fef69761b82eb4dd96ee2ad3c886708a1e2a37d61f",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "fire_registry_deployment_sync_boundary",
+      "axis_definition_sha256": "a44e5eefbfc12d75a74016649ee70c86014c053251a3d12c8d317661b77aab50",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tla_queue_lifecycle_model_boundary",
+      "axis_definition_sha256": "f3fa2c6c1ca421da9735b4f8426b97b7ede6d5b1d071281bc7d2ed9a2fc26b8f",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_out_shadow_runtime_prefilter_boundary",
+      "axis_definition_sha256": "5794574a8abeed2964ba98fdfefb43289bdfda469bce2a438ac3319d7ce8d52e",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tau_runner_subprocess_transport_boundary",
+      "axis_definition_sha256": "956d5fd9677afafa8af3675c451e53fc6b6e52a5cc49321b2574868f8eb5bbee",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "settlement_apply_witness_native_boundary",
+      "axis_definition_sha256": "5bb2ca2cf64f114c2614081cf3fe66eff7a56e761fd21a3b8c69e8509161d655",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tau_operator_policy_receipt_symbolic_boundary",
+      "axis_definition_sha256": "072d21ece5da2b1961b9fae9c69277deac6a70d3448e9f85d82d0b3f53ddc218",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "settlement_price_provenance_semantic_boundary",
+      "axis_definition_sha256": "a7c328631b5c336da6a4c47be9b4b92f8348c58f468f9381ed87b61d0cafd95f",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "fire_kernel_release_verifier_boundary",
+      "axis_definition_sha256": "8f093b272e0b936d8b55d839680c0b2583984247dcb21d329b359403c21cde87",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "quote_receipt_native_adapter_parity_boundary",
+      "axis_definition_sha256": "b5e1aa38575c57f1ecba1c5ffa33db9c67783c447bfcd5ced04ab6d17781db4c",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "perp_native_adapter_oracle_bva_boundary",
+      "axis_definition_sha256": "87b0ea232bb3f36bd8d88b6e092058b73ed2e3de8887826e31ee1e8131da0642",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "intent_nonce_confidential_state_native_boundary",
+      "axis_definition_sha256": "db9e1e1c761f7c9bae4583a920491c1e6d8dd26b5ffd5f3fe05995231c6a4341",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tla_perp_settlement_queue_model_boundary",
+      "axis_definition_sha256": "d4fb01f6c84a1600625d24b4098ddffb9e1c55098c90877848f4d2fed345c727",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_in_lean_rank_projection_boundary",
+      "axis_definition_sha256": "08ced12f5589fcfe279175f332ca7c0fd348d6d7b350ea63eaf7330a3f699c03",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_out_lean_certificate_boundary",
+      "axis_definition_sha256": "cfb90ee6ea0220044d20bd0a92e9384d26ffe2e22dda96b9e433c99247b7b1fd",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "settlement_lean_price_oracle_boundary",
+      "axis_definition_sha256": "a17e92e83fef21c3913027a0235eb358782408328cdffd3a453e4e723567ce08",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "ltl_oracle_recovery_schedule_boundary",
+      "axis_definition_sha256": "26365948304f568d79a6e4024beba67fd074a9f563702b5381547922f0898779",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_out_lean_concrete_recursion_boundary",
+      "axis_definition_sha256": "5d20338f301045a6b2295a039a03b15f110d90a5f599b29246f3cfff125d5452",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_out_lean_ordered_presentation_boundary",
+      "axis_definition_sha256": "e1b07256d50e5abcc6e819f6c189dd77a7bd6821b71a75d3f55aff1ca24de8b3",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_out_lean_repaired_key_cover_boundary",
+      "axis_definition_sha256": "9493390f9534653b3e2e0032186d100ec919b9979749787de661debd76a81fdd",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "permissionless_proof_mining_tooling_boundary",
+      "axis_definition_sha256": "e67efbcfe13ee314adb0c92b5f2d803874de622ec99a2d544372e3a13ed252a0",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "claims_falsifier_inventory_boundary",
+      "axis_definition_sha256": "b68d8e9af071fbb6f881cb2f91c540649b2d9f062aa7222032b8d81974947275",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tau_semantic_proof_gate_split_boundary",
+      "axis_definition_sha256": "9de02d54c85257529543d6b6339d5a1e195f162cdc98a070d639056ccac2717e",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tau_autotrader_spec_guard_boundary",
+      "axis_definition_sha256": "9b51f539baeabe4f51c8c60da1726a89eb971ebc86335393e34ac1bd6339a303",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "fire_formal_runtime_note_boundary",
+      "axis_definition_sha256": "c75480571e3aeca254d4d699fabaacdc6b1cd2ccda63108ff5a018a6589a57f9",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "numeric_kernel_ml_history_boundary",
+      "axis_definition_sha256": "4adbd48afb8952398b0a5d72169d7014bb874b82b178cffaa0d5bfed94ab651f",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "proof_mining_native_permissionless_boundary",
+      "axis_definition_sha256": "5b47367e713d28d18e4415841fa22116fea0f6561dc76d3d000abafbd8ba97e7",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "exact_out_lean_stream_support_boundary",
+      "axis_definition_sha256": "605642ac5d7b02a4fd6adf18696202ff9ce546156ac87f881b5a63e85f819cb6",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "cross_module_tool_checker_boundary",
+      "axis_definition_sha256": "1f757ff595186e1294e77728c4ee55e461d355c64e9c67af0bb4dade2c6041ba",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "stateful_report_bridge_ranking_boundary",
+      "axis_definition_sha256": "f879ab416b5572e1b56c66ba970f77a4de2709b1b9a56b93e684444fb08fdf26",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tau_operator_library_artifact_boundary",
+      "axis_definition_sha256": "2497c7f334d183d8910aa594d155fc3963e1fc4100df996a4df37c26d2aac289",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tau_exact_out_resource_spec_boundary",
+      "axis_definition_sha256": "2d173c1ee5c46aedcaa403b021782b519ddb8db0e6d5f53707f74a175b218a81",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "dex_settlement_recovery_proof_unit_boundary",
+      "axis_definition_sha256": "e63f95233c2629f18036671d56a16551a74a822e64f444c1312efd0e43466d92",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_dex_settlement_recovery_v1.yaml",
+      "model_sha256": "24038a8c23b6d5d43765bf951073e6766e1580febd99572d20e6ba0f463c1b7d",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_dex_settlement_recovery_v1.verify_multi.json",
+      "receipt_sha256": "1094dc74f7b80b709923eeef318adada93a51db5370d12aa60d25d88fe6ef8e2"
+    },
+    {
+      "axis_id": "acceptance_tcb_minimized_witness_boundary",
+      "axis_definition_sha256": "9d3251a2fc167cb42620e50eb57d825b44e74ad62ddc08dfbcf1a28a18d0eadc",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "rc1_release_readiness_artifact_boundary",
+      "axis_definition_sha256": "a549dbee9823f182560c02316b56ceab2e4f5c6ef258ac705f5e2f794646954e",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "advisory_swap_sandwich_preflight_boundary",
+      "axis_definition_sha256": "60ac9e85dbde3c8c31d96a132a1f39e1ed7fb16ed358324d9c732febf80b2272",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "functional_core_split_parity_branch_boundary",
+      "axis_definition_sha256": "5625db5c9c75a96ea6c975fd53c4b297570328bfec1359f300dd411720e96f9f",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "fire_cal_package_claim_boundary",
+      "axis_definition_sha256": "f227e7dead188f78fceac6921e0c5cefc57e5a1fd74d336d4ef0323e9b76af38",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tokenomics_wash_budget_boundary",
+      "axis_definition_sha256": "42bc331a926fa08d6f4669b25dcd781e642d68568e150b3995fd6c7586de8b7e",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "decision_tau_witness_runner_boundary",
+      "axis_definition_sha256": "5f6bc0e3ba2af0eeb80f8e05c7b59f0d874531acda6c8f097021eda59e7e3702",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "optimizer_liveness_prompt_boundary",
+      "axis_definition_sha256": "b9b76550f02a69affe3158ab237ae4732b9c307b41681a348e22f4ff730f4d60",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "chaos_regret_campaign_boundary",
+      "axis_definition_sha256": "d4b33a513c90e707ed0763266f9f39672d3cffdc03d627296712ae00f06d71ca",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "autotrader_krr_import_supply_chain_boundary",
+      "axis_definition_sha256": "ee67930d58c7976b3cf60fa3203e03bc4ac803075f88ad4cb643328003f950a1",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "amm_curve_il_parity_boundary",
+      "axis_definition_sha256": "0ab00da379a565e0c9778c5472499e1ff54fd1de7806a00cfc03963a79cd5f8a",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "lean_amm_canonical_math_boundary",
+      "axis_definition_sha256": "700685dfaa8e58ca8933757ddb51c66a35fd3c9024fb7765c78c7bcfeba24814",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "lean_repair_economics_boundary",
+      "axis_definition_sha256": "e323b0107a9fdcf8ce123ee6dd0c6c88ff7ab60e3e830d60a0e4e87e732e45d7",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "lean_autotrader_solver_policy_boundary",
+      "axis_definition_sha256": "b9833633fa16fb15ccfe4b5003bcaa4b5725532ad9f029872d618f7ff701c039",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "krr_region_ba_reasoner_boundary",
+      "axis_definition_sha256": "1293453cd282073e8fc341d24f2fa611808ef72d5057c77ac7fe698253659ec3",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "tool_guard_lint_symbolic_boundary",
+      "axis_definition_sha256": "6518988677815f14ba0bc112b1fe21441bc20f8fdb3dff26b447a53f11c18364",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "zusd_support_native_selector_boundary",
+      "axis_definition_sha256": "13c044381732e70e0d0ebbdfd4e6bc3dc9b896cf63b1080578d27c7fc54ce050",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "lean_cross_surface_composition_boundary",
+      "axis_definition_sha256": "09061d8955ebedd5f8a8edbc148cdff5897ad4a1c51b52ba5fdc56c76c8d690d",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "operator_environment_tooling_boundary",
+      "axis_definition_sha256": "0bc930935ae8c56ae79c9475eb8347bed93946b63dda1a1dfdd535c4bbd9b808",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "stateful_bounty_catalog_feedback_boundary",
+      "axis_definition_sha256": "c82ccc6b951eafc2c107c241d7d138d8c5667b3c842071e93b35815fbd62d447",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "batch_settler_greedy_adapter_boundary",
+      "axis_definition_sha256": "67833814f0cf4c17496a34d04606587e56610edf07dcc5c5910e3416dbfcc1ec",
+      "status": "inductive_esso",
+      "model_path": "experiments/disaster_inductive_promotion/models/disaster_batch_settler_greedy_adapter_boundary_inductive_v1.yaml",
+      "model_sha256": "d3fb3ccea48ee85cc8901d4669f24d257ef9efcb79104402315733fdd984da90",
+      "receipt_path": "experiments/disaster_inductive_promotion/receipts/disaster_batch_settler_greedy_adapter_boundary_inductive_v1.verify_multi.json",
+      "receipt_sha256": "a66c97ec18bbedb5d4201e0d218917aaf268d8ae20be492314cb0ff5974ab4a5"
+    },
+    {
+      "axis_id": "exact_out_adaptive_region_boundary",
+      "axis_definition_sha256": "3377afd3cff69133d397f1dfe9c0f24f899f3c2ec37258a7e0c782f03eced4b4",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "shapeforge_release_ratchet_artifact_boundary",
+      "axis_definition_sha256": "f586961771644e260735633a38047dac79b31a769a83aea09344ba34a384b80d",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    },
+    {
+      "axis_id": "zenograph_autotrader_ranking_artifact_boundary",
+      "axis_definition_sha256": "10d25666e244e3da9c9e080433d10194221d3288668bcb68980e76b875a4d9dc",
+      "status": "bounded_replay",
+      "evidence_note": "bounded 240s replay lane (docs/DISASTER_STATE_COVERAGE.md); receipt is a local git-ignored artifact and is not CI-enforced"
+    }
+  ],
+  "nonclaims": [
+    "A bounded_replay row is bounded evidence only: it certifies the axis's commands replayed green under a 240-second budget on one machine, not unreachability in general.",
+    "An inductive_esso row certifies the bounded model's invariants are inductive under z3 and cvc5 agreement; it does not refine the running implementation.",
+    "No production, release, settlement, verifier, migration, publication, or value-moving authority is granted."
+  ]
+}

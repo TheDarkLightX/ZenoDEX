@@ -1,0 +1,388 @@
+# [FORGE] Disaster: zUSD Oracle Recovery Split-Brain (cross-gate inductive) v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "disaster_zusd_oracle_recovery_split_brain_inductive_v1"
+  created_by: "esso-formal-modeling-engineer"
+  tags: ["zusd", "oracle", "recovery", "split-brain", "solvency", "safety", "consensus-critical"]
+  notes: |
+    AXIS: zusd_oracle_recovery_split_brain.
+
+    DISASTER (must be UNREACHABLE):
+      A risky zUSD vault mutation (borrow that grows debt, or a risky redeem)
+      is admitted while the multi-oracle view is INCOHERENT (split-brain) or
+      while recovery mode should freeze the action, producing an
+      under-collateralized vault: collateral_value < debt * mcr (insolvency).
+
+    PROMOTION GAP THIS CLOSES:
+      The three per-gate kernels exist but are STATELESS evaluators:
+        - zusd_oracle_recovery_lifecycle_v1  (env_ok + risky re-enable shell)
+        - zusd_multi_oracle_commit_mcr_v1    (MCR-at-pending booleans)
+        - zusd_multi_redeem_selector_v1      (deterministic vault selection)
+      None of them is an INDUCTIVE state machine, so none proves the
+      cross-gate property "no split-brain admission ever drives the debt/
+      collateral accounting into insolvency across a sequence of oracle
+      drifts and risky ops." This model composes lifecycle + commit_mcr +
+      redeem_selector semantics into ONE bounded-int transition system and
+      proves that property inductively (true in init, preserved by every
+      action), which is exactly what verify-multi establishes.
+
+    COHERENT-VIEW MODEL (mirrors the real authority arithmetic):
+      env_ok (src/integration/zusd_recovery_mode_gate_regions.py:84):
+        env_ok = oracle_seen AND price_pos AND pending_eq AND fresh
+      freshness (src/integration/zusd_oracle_contracts.py:152 _is_oracle_fresh):
+        fresh = oracle_seen AND abs(now_epoch - last_update_epoch) <= max_staleness
+      risky_ops_allowed (line 88): risky_ops_allowed = env_ok AND tcr_ok
+      action_allowed (line 96): (not risky_requested) OR risky_ops_allowed
+
+      We abstract a 2-source oracle quorum (threshold = 2). The committed
+      price `price_e` carries a snapshot epoch `commit_epoch`. The recovery-
+      mode region derives its verdict at `region_epoch`; the redeem selector
+      derives at `selector_epoch`. A COHERENT view (no split-brain) requires:
+        - both sources fresh:   now - o1_epoch <= max_stale, now - o2_epoch <= max_stale
+        - quorum agreement:     o1_epoch == o2_epoch  (committed price is not
+                                stale/missing relative to the quorum)
+        - SAME snapshot:        commit_epoch == region_epoch == selector_epoch == now
+                                (region + selector both derive from the SAME
+                                 accepted_mcr/price snapshot -> no split-brain)
+      Only when coherent is a risky mutation enabled, AND the mutation's
+      post-state must satisfy solvency at the committed snapshot. The
+      `drift_oracle` environment action advances now / a source epoch (this is
+      what creates a split-brain window); while incoherent, risky ops are
+      frozen, exactly like recovery-mode freeze.
+
+    DERIVED (NOT ASSUMED) SAFETY:
+      inv_solvent: collateral * price_e >= debt * mcr  -- at EVERY reachable
+      state. This is NOT in any guard verbatim; it is preserved because:
+        - risky_borrow's guard requires the POST-state arithmetic
+          (collateral)*(price_e) >= (debt + borrow_amt)*mcr to hold under a
+          coherent view, so the update keeps the invariant.
+        - risky_redeem reduces collateral by gross and debt by repay, and its
+          guard requires the post-state ratio to still hold.
+        - drift_oracle / re-commit never mutate debt or collateral while
+          incoherent; commit only refreshes price under a fresh, agreeing
+          quorum and re-snapshots region/selector together (atomic), so the
+          snapshot can never split.
+      Negation of inv_solvent is precisely the insolvency disaster.
+
+    NON-VACUITY:
+      - init is solvent with strict slack (1000*2 = 2000 >= 1000*1 with mcr=1
+        margin), so the coherent guards are satisfiable and risky_borrow fires.
+      - inv_coherent_snapshot is genuinely violable: drift_oracle makes
+        region_epoch/commit_epoch != now, so risky ops become disabled rather
+        than the invariant being trivially true.
+
+  model_code_gap: |
+    Abstracts: env_ok / risky_ops_allowed / action_allowed in
+    src/integration/zusd_recovery_mode_gate_regions.py and _is_oracle_fresh in
+    src/integration/zusd_oracle_contracts.py, plus the MCR-at-pending check in
+    zusd_multi_oracle_commit_mcr_v1.yaml and the deterministic selector in
+    zusd_multi_redeem_selector_v1.yaml.
+    OMITS: e8 fixed-point scaling (uses small bounded ints with an explicit mcr
+    factor instead of bps*1e8), the >2-source quorum (fixes K=2, threshold=2),
+    ceil-division fee arithmetic on redeem (folded into integer repay/gross),
+    signer-signature quorum (zeno_oracle_authority is a separate concern), and
+    multi-vault tie-break ordering (selector reduced to a single targeted vault
+    whose solvency is the consensus-critical seam). Models the price as a single
+    committed scalar rather than per-source medianization.
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "o1_epoch",
+      "o2_epoch",
+      "commit_epoch",
+      "region_epoch",
+      "selector_epoch",
+      "price_e",
+      "mcr",
+      "debt",
+      "collateral",
+    ]
+  effects: ["risk_state"]
+
+types: []
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 20 }
+  - id: "o1_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 20 }
+  - id: "o2_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 20 }
+  - id: "commit_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 20 }
+  - id: "region_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 20 }
+  - id: "selector_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 20 }
+  - id: "price_e"
+    role: "data"
+    type: { kind: "int", min: 1, max: 10 }
+  - id: "mcr"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4 }
+  - id: "debt"
+    role: "data"
+    type: { kind: "int", min: 0, max: 5000 }
+  - id: "collateral"
+    role: "data"
+    type: { kind: "int", min: 0, max: 5000 }
+  # max_stale is a fixed protocol constant carried as a 1-valued state var so
+  # the freshness arithmetic reads it uniformly (never mutated).
+  - id: "max_stale"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1 }
+
+init:
+  - { var: "now_epoch", expr: { const: 1 } }
+  - { var: "o1_epoch", expr: { const: 1 } }
+  - { var: "o2_epoch", expr: { const: 1 } }
+  - { var: "commit_epoch", expr: { const: 1 } }
+  - { var: "region_epoch", expr: { const: 1 } }
+  - { var: "selector_epoch", expr: { const: 1 } }
+  - { var: "price_e", expr: { const: 2 } }
+  - { var: "mcr", expr: { const: 1 } }
+  - { var: "debt", expr: { const: 1000 } }
+  - { var: "collateral", expr: { const: 1000 } }
+  - { var: "max_stale", expr: { const: 1 } }
+
+invariants:
+  # ---- THE DISASTER INVARIANT (derived, not assumed) -------------------------
+  # Negation = insolvency: collateral*price < debt*mcr  (under-collateralized).
+  - id: "inv_solvent"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - { op: "*", args: [{ var: "collateral" }, { var: "price_e" }] }
+        - { op: "*", args: [{ var: "debt" }, { var: "mcr" }] }
+
+  # ---- INDUCTIVE STRENGTHENING: coherent snapshot is never split ------------
+  # All three gates' snapshot epochs equal the committed snapshot. If this could
+  # diverge while debt/collateral changed, the region and selector would be
+  # acting on different prices (split-brain). We prove it can never split while
+  # a mutation is in flight: commit re-aligns all three atomically; drift only
+  # moves now/source epochs (which then DISABLES risky ops via the guard).
+  - id: "inv_snapshot_aligned"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "commit_epoch" }, { var: "region_epoch" }] }
+        - { op: "=", args: [{ var: "region_epoch" }, { var: "selector_epoch" }] }
+
+  # ---- Domain bound: keep arithmetic in range (supports induction) ----------
+  - id: "inv_bounds"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "debt" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "debt" }, { const: 5000 }] }
+        - { op: ">=", args: [{ var: "collateral" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "collateral" }, { const: 5000 }] }
+        - { op: ">=", args: [{ var: "price_e" }, { const: 1 }] }
+        - { op: ">=", args: [{ var: "mcr" }, { const: 1 }] }
+
+actions:
+  # ===========================================================================
+  # ENV ACTION: oracle drift. Advances now_epoch and/or a source epoch. This is
+  # the split-brain window generator. It NEVER touches debt/collateral, and it
+  # does NOT re-align region/selector to now, so after a drift the coherent
+  # predicate is false and all risky mutations are frozen (recovery freeze).
+  # ===========================================================================
+  - id: "drift_oracle"
+    params:
+      - id: "advance_now"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "src"
+        type: { kind: "int", min: 0, max: 2 } # 0=none,1=move o1,2=move o2
+      - id: "src_to"
+        type: { kind: "int", min: 0, max: 20 }
+    guard:
+      # do not advance now past the bound
+      op: "<="
+      args:
+        - { op: "+", args: [{ var: "now_epoch" }, { param: "advance_now" }] }
+        - { const: 20 }
+    updates:
+      - var: "now_epoch"
+        expr: { op: "+", args: [{ var: "now_epoch" }, { param: "advance_now" }] }
+      - var: "o1_epoch"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "src" }, { const: 1 }] }
+          then: { param: "src_to" }
+          else: { var: "o1_epoch" }
+      - var: "o2_epoch"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "src" }, { const: 2 }] }
+          then: { param: "src_to" }
+          else: { var: "o2_epoch" }
+    effects:
+      risk_state: { const: 1 } # 1 = potentially-degraded (drifted)
+
+  # ===========================================================================
+  # COMMIT (oracle quorum re-commit). Allowed ONLY when the 2-source quorum is
+  # fresh AND agrees (o1_epoch == o2_epoch, both within max_stale of now). It
+  # ATOMICALLY copies the agreed snapshot into commit/region/selector epochs
+  # (== now) and may move the committed price. Crucially it keeps the vault
+  # solvent at the NEW price: guard requires collateral*new_price >= debt*mcr,
+  # so a price drop that would make the vault insolvent cannot be committed
+  # silently -- it must be rejected (frozen), mirroring recovery-mode freeze.
+  # ===========================================================================
+  - id: "commit_oracle_snapshot"
+    params:
+      - id: "new_price"
+        type: { kind: "int", min: 1, max: 10 }
+    guard:
+      op: "and"
+      args:
+        # quorum agreement: both sources report the same epoch
+        - { op: "=", args: [{ var: "o1_epoch" }, { var: "o2_epoch" }] }
+        # both sources fresh relative to now: now - o_epoch <= max_stale, and
+        # sources never ahead of now (now - o_epoch >= 0)
+        - { op: ">=", args: [{ var: "now_epoch" }, { var: "o1_epoch" }] }
+        - op: "<="
+          args:
+            - { op: "-", args: [{ var: "now_epoch" }, { var: "o1_epoch" }] }
+            - { var: "max_stale" }
+        # MCR-at-new-price holds for the existing position (solvency preserved
+        # at the new committed price) -- derived from commit_mcr kernel.
+        - op: ">="
+          args:
+            - { op: "*", args: [{ var: "collateral" }, { param: "new_price" }] }
+            - { op: "*", args: [{ var: "debt" }, { var: "mcr" }] }
+    updates:
+      - var: "price_e"
+        expr: { param: "new_price" }
+      # atomic re-snapshot: commit/region/selector all become `now` together,
+      # which is exactly what eliminates split-brain.
+      - var: "commit_epoch"
+        expr: { var: "now_epoch" }
+      - var: "region_epoch"
+        expr: { var: "now_epoch" }
+      - var: "selector_epoch"
+        expr: { var: "now_epoch" }
+    effects:
+      risk_state: { const: 0 } # 0 = coherent
+
+  # ===========================================================================
+  # RISKY BORROW (debt-increasing mutation). Enabled ONLY under a coherent view
+  # (no split-brain) AND only if the POST-state stays solvent. The post-state
+  # solvency in the guard is what makes inv_solvent inductive WITHOUT assuming
+  # the conclusion: the guard talks about (debt + borrow_amt); the invariant
+  # talks about the resulting debt; preservation is the arithmetic link.
+  # ===========================================================================
+  - id: "risky_borrow"
+    params:
+      - id: "borrow_amt"
+        type: { kind: "int", min: 1, max: 2000 }
+    guard:
+      op: "and"
+      args:
+        # ---- COHERENT VIEW (no split-brain): all gates on the SAME snapshot ----
+        - { op: "=", args: [{ var: "commit_epoch" }, { var: "now_epoch" }] }
+        - { op: "=", args: [{ var: "region_epoch" }, { var: "now_epoch" }] }
+        - { op: "=", args: [{ var: "selector_epoch" }, { var: "now_epoch" }] }
+        # ---- QUORUM FRESH + AGREE (threshold = 2 of 2) ----
+        - { op: "=", args: [{ var: "o1_epoch" }, { var: "o2_epoch" }] }
+        - { op: ">=", args: [{ var: "now_epoch" }, { var: "o1_epoch" }] }
+        - op: "<="
+          args:
+            - { op: "-", args: [{ var: "now_epoch" }, { var: "o1_epoch" }] }
+            - { var: "max_stale" }
+        # ---- keep debt in range ----
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "debt" }, { param: "borrow_amt" }] }
+            - { const: 5000 }
+        # ---- POST-STATE SOLVENCY (MCR at committed price) ----
+        - op: ">="
+          args:
+            - { op: "*", args: [{ var: "collateral" }, { var: "price_e" }] }
+            - op: "*"
+              args:
+                - { op: "+", args: [{ var: "debt" }, { param: "borrow_amt" }] }
+                - { var: "mcr" }
+    updates:
+      - var: "debt"
+        expr: { op: "+", args: [{ var: "debt" }, { param: "borrow_amt" }] }
+    effects:
+      risk_state: { const: 0 }
+
+  # ===========================================================================
+  # RISKY REDEEM (selector-targeted): burn `repay` debt, release `gross`
+  # collateral at the committed price. Enabled ONLY under a coherent view and
+  # only if the post-state remains solvent. Mirrors the selector's per-vault
+  # admissibility (post-redeem the vault must stay above MCR or be fully closed)
+  # and the redeem-apply collateral release. Solvency-preserving by guard.
+  # ===========================================================================
+  - id: "risky_redeem"
+    params:
+      - id: "repay"
+        type: { kind: "int", min: 1, max: 2000 }
+      - id: "gross"
+        type: { kind: "int", min: 0, max: 2000 }
+    guard:
+      op: "and"
+      args:
+        # ---- COHERENT VIEW ----
+        - { op: "=", args: [{ var: "commit_epoch" }, { var: "now_epoch" }] }
+        - { op: "=", args: [{ var: "region_epoch" }, { var: "now_epoch" }] }
+        - { op: "=", args: [{ var: "selector_epoch" }, { var: "now_epoch" }] }
+        - { op: "=", args: [{ var: "o1_epoch" }, { var: "o2_epoch" }] }
+        - { op: ">=", args: [{ var: "now_epoch" }, { var: "o1_epoch" }] }
+        - op: "<="
+          args:
+            - { op: "-", args: [{ var: "now_epoch" }, { var: "o1_epoch" }] }
+            - { var: "max_stale" }
+        # ---- can only repay what is owed, release what is held ----
+        - { op: "<=", args: [{ param: "repay" }, { var: "debt" }] }
+        - { op: "<=", args: [{ param: "gross" }, { var: "collateral" }] }
+        # ---- POST-STATE SOLVENCY at committed price ----
+        - op: ">="
+          args:
+            - op: "*"
+              args:
+                - { op: "-", args: [{ var: "collateral" }, { param: "gross" }] }
+                - { var: "price_e" }
+            - op: "*"
+              args:
+                - { op: "-", args: [{ var: "debt" }, { param: "repay" }] }
+                - { var: "mcr" }
+    updates:
+      - var: "collateral"
+        expr: { op: "-", args: [{ var: "collateral" }, { param: "gross" }] }
+      - var: "debt"
+        expr: { op: "-", args: [{ var: "debt" }, { param: "repay" }] }
+    effects:
+      risk_state: { const: 0 }
+
+  # ===========================================================================
+  # SAFE DEPOSIT (non-risky top-up). Always allowed (no risk gate needed: adding
+  # collateral can only HELP solvency). Demonstrates a non-risky action that is
+  # not frozen during split-brain -- mirrors action_allowed = (not risky) OR ...
+  # ===========================================================================
+  - id: "safe_deposit"
+    params:
+      - id: "amt"
+        type: { kind: "int", min: 1, max: 2000 }
+    guard:
+      op: "<="
+      args:
+        - { op: "+", args: [{ var: "collateral" }, { param: "amt" }] }
+        - { const: 5000 }
+    updates:
+      - var: "collateral"
+        expr: { op: "+", args: [{ var: "collateral" }, { param: "amt" }] }
+    effects:
+      risk_state: { const: 0 }

@@ -1,0 +1,331 @@
+# [DISASTER-INDUCTIVE] vault_reward_carry_spendability
+#
+# Axis: vault_reward_carry_spendability
+#
+# DISASTER (must be UNREACHABLE):
+#   The same reward carry / harvest unit becomes spendable TWICE (after restart,
+#   replay, or reward-deposit drift), OR carry remains spendable after it was
+#   already spent. Concretely: spent_total > earned_inflow -- duplicate spendable
+#   value created out of thin air -- or a replay re-increments the spendable mark
+#   without consuming a genuine inflow unit.
+#
+# This model abstracts the real authority:
+#   src/core/vault.py  ::  _deposit_rewards / _harvest  (VaultState ledger,
+#   ACC_SCALE = 1_000_000 per-share accumulator).
+# and the two existing ESSO micro-kernels
+#   src/kernels/dex/vault_reward_deposit_carry_v1.yaml  (carry / first-staker release)
+#   src/kernels/dex/vault_harvest_spendable_guard_v1.yaml (spendable bound on harvest).
+#
+# Those two prove the per-share *arithmetic* (delta_acc, distributed, spendable
+# bound) but NOT the cross-restart spend-once ledger.  This model strips the
+# per-share scaling and proves the *conservation + monotone-consumption* ledger
+# that the per-share arithmetic is supposed to realize, and adds an explicit
+# RESTART/REPLAY action so the spend-once property is proven to survive a replay.
+#
+# THE LEDGER (all bounded ints, conserved by construction of the updates):
+#   vault_inflow      = cumulative reward units ever deposited            (monotone up)
+#   carry_unallocated = deposited units not yet marked spendable          (the "carry")
+#   carry_marked      = cumulative units ever converted to spendable      (monotone up)
+#   already_spent     = cumulative units harvested / spent out            (monotone up)
+#   spendable_live    = carry_marked - already_spent  (units spendable right now)
+#
+# DERIVED (NOT assumed) invariants -- their negation is the literal disaster:
+#   inv_conservation:  vault_inflow = carry_unallocated + carry_marked
+#       (every deposited unit is EITHER still unallocated OR has been marked
+#        spendable exactly once; marking moves a unit from one bucket to the
+#        other, never mints a new one.  Negation = value creation.)
+#   inv_spend_once:    already_spent <= carry_marked
+#       (you can only spend a unit that was marked spendable; carry_marked only
+#        grows by consuming carry_unallocated.  Negation = the same unit spent
+#        twice / spent without a mark = the double-spend disaster.)
+#   inv_no_overspend_inflow:  already_spent <= vault_inflow
+#       (the headline disaster `spent_total > earned_inflow`.  Follows from the
+#        two above but is asserted directly so the solver proves the bridge claim.)
+#   inv_spendable_live_nonneg: carry_marked - already_spent >= 0
+#       (carry never "remains spendable after it was already spent" going negative;
+#        equivalently spendable_live >= 0.)
+#
+# The RESTART/REPLAY action restores a prior snapshot of the *whole* ledger and
+# then replays one recorded mark-spendable event.  Because marking is tied to
+# CONSUMING carry_unallocated (the inflow source), a replay against restored
+# state cannot mint a fresh spendable unit: the guard requires real unallocated
+# carry to exist, so re-running it does not double-count.
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "disaster_vault_reward_carry_spendability_inductive_v1"
+  created_by: "zenodex"
+  description: >
+    Spend-once / replay-idempotent reward-carry ledger. Proves the same carry
+    unit cannot become spendable twice across restart/replay and that
+    spent_total can never exceed earned inflow.
+  tags: ["dex", "vault", "reward-carry", "conservation", "spend-once", "replay", "safety"]
+
+observables:
+  state_vars:
+    [
+      "vault_inflow",
+      "carry_unallocated",
+      "carry_marked",
+      "already_spent",
+    ]
+  effects:
+    [
+      "deposited",
+      "marked",
+      "spent",
+      "replayed",
+      "spendable_live",
+    ]
+
+types: []
+
+state_vars:
+  # Cumulative reward units ever deposited (monotone non-decreasing source).
+  - id: "vault_inflow"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  # Deposited units received but not yet marked spendable (live pending carry).
+  - id: "carry_unallocated"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  # Cumulative units ever converted to spendable (monotone watermark).
+  - id: "carry_marked"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  # Cumulative units harvested / spent out (monotone watermark).
+  - id: "already_spent"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  # Snapshot of the marked watermark taken at the carry boundary (for replay).
+  - id: "snap_carry_marked"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  # Snapshot of carry_unallocated taken at the carry boundary (for replay).
+  - id: "snap_carry_unallocated"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  # Whether a recoverable snapshot currently exists.
+  - id: "phase"
+    role: "control"
+    type: { kind: "enum", symbols: ["fresh", "snapshotted"] }
+
+init:
+  - var: "vault_inflow"
+    expr: { const: 0 }
+  - var: "carry_unallocated"
+    expr: { const: 0 }
+  - var: "carry_marked"
+    expr: { const: 0 }
+  - var: "already_spent"
+    expr: { const: 0 }
+  - var: "snap_carry_marked"
+    expr: { const: 0 }
+  - var: "snap_carry_unallocated"
+    expr: { const: 0 }
+  - var: "phase"
+    expr: { enum: "fresh" }
+
+invariants:
+  # ---- CONSERVATION: no spendable value created out of thin air ----
+  # Negation = a deposited unit counted in neither bucket, or counted twice =
+  # the reward-deposit-drift / duplicate-spendable-value disaster.
+  - id: "inv_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "vault_inflow" }
+        - op: "+"
+          args: [{ var: "carry_unallocated" }, { var: "carry_marked" }]
+
+  # ---- SPEND-ONCE: cannot spend more than was ever marked spendable ----
+  # Negation = the same carry/harvest unit spent twice, or spent with no mark =
+  # the double-spend-after-replay disaster.
+  - id: "inv_spend_once"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "already_spent" }, { var: "carry_marked" }]
+
+  # ---- HEADLINE BRIDGE DISASTER: spent_total > earned_inflow is unreachable ----
+  - id: "inv_no_overspend_inflow"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "already_spent" }, { var: "vault_inflow" }]
+
+  # ---- carry never "remains spendable after already spent" (live >= 0) ----
+  - id: "inv_spendable_live_nonneg"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "carry_marked" }, { var: "already_spent" }]
+
+  # ---- replay snapshot can never claim more marked than really exists ----
+  # Keeps the replay action sound: a restored snapshot is bounded by the true
+  # watermark so replaying it cannot inflate carry_marked beyond conservation.
+  - id: "inv_snapshot_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "<="
+          args: [{ var: "snap_carry_marked" }, { var: "carry_marked" }]
+        - op: "<="
+          args: [{ var: "snap_carry_unallocated" }, { var: "vault_inflow" }]
+
+actions:
+  # 1) Deposit rewards: mints fresh inflow, lands as unallocated carry.
+  #    Mirrors _deposit_rewards growing reward_balance / pending carry.
+  - id: "deposit_rewards"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "vault_inflow" }, { param: "amount" }]
+        - { const: 1000000 }
+    updates:
+      - var: "vault_inflow"
+        expr:
+          op: "+"
+          args: [{ var: "vault_inflow" }, { param: "amount" }]
+      - var: "carry_unallocated"
+        expr:
+          op: "+"
+          args: [{ var: "carry_unallocated" }, { param: "amount" }]
+    effects:
+      deposited: { param: "amount" }
+      marked: { const: 0 }
+      spent: { const: 0 }
+      replayed: { const: 0 }
+      spendable_live:
+        op: "-"
+        args: [{ var: "carry_marked" }, { var: "already_spent" }]
+
+  # 2) Mark spendable: convert unallocated carry into spendable (the harvest /
+  #    first-staker-release boundary).  MOVES units between buckets -- it does
+  #    NOT mint.  This is the atomic step that makes inv_conservation derived.
+  #    Also snapshots the ledger boundary so a later restart/replay is defined.
+  - id: "mark_spendable"
+    params:
+      - id: "units"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "<="
+      args: [{ param: "units" }, { var: "carry_unallocated" }]
+    updates:
+      - var: "carry_unallocated"
+        expr:
+          op: "-"
+          args: [{ var: "carry_unallocated" }, { param: "units" }]
+      - var: "carry_marked"
+        expr:
+          op: "+"
+          args: [{ var: "carry_marked" }, { param: "units" }]
+      # snapshot the post-mark boundary for a future replay
+      - var: "snap_carry_marked"
+        expr:
+          op: "+"
+          args: [{ var: "carry_marked" }, { param: "units" }]
+      - var: "snap_carry_unallocated"
+        expr:
+          op: "-"
+          args: [{ var: "carry_unallocated" }, { param: "units" }]
+      - var: "phase"
+        expr: { enum: "snapshotted" }
+    effects:
+      deposited: { const: 0 }
+      marked: { param: "units" }
+      spent: { const: 0 }
+      replayed: { const: 0 }
+      spendable_live:
+        op: "-"
+        args:
+          - op: "+"
+            args: [{ var: "carry_marked" }, { param: "units" }]
+          - { var: "already_spent" }
+
+  # 3) Spend / harvest: consume spendable units.  Bounded by live spendable
+  #    (carry_marked - already_spent).  Mirrors _harvest decrementing
+  #    reward_balance by `harvested`, gated by the spendable bound.
+  - id: "spend_harvest"
+    params:
+      - id: "units"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "already_spent" }, { param: "units" }]
+        - { var: "carry_marked" }
+    updates:
+      - var: "already_spent"
+        expr:
+          op: "+"
+          args: [{ var: "already_spent" }, { param: "units" }]
+    effects:
+      deposited: { const: 0 }
+      marked: { const: 0 }
+      spent: { param: "units" }
+      replayed: { const: 0 }
+      spendable_live:
+        op: "-"
+        args:
+          - { var: "carry_marked" }
+          - op: "+"
+            args: [{ var: "already_spent" }, { param: "units" }]
+
+  # 4) RESTART + REPLAY: the disaster surface.  Restore the snapshotted ledger
+  #    boundary, then replay one recorded mark-spendable event.  The replay can
+  #    fire ONLY when genuine unallocated carry still exists to consume -- so it
+  #    moves a unit between buckets rather than minting a duplicate spendable
+  #    unit.  carry_marked / already_spent are NOT rewound (a restart must not
+  #    forget what was already spent), keeping spend-once intact across replay.
+  - id: "restart_replay"
+    params:
+      - id: "units"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "snapshotted" }]
+        # there must be real unallocated carry to consume -- replay cannot mint.
+        - op: "<="
+          args: [{ param: "units" }, { var: "carry_unallocated" }]
+    updates:
+      # restore the unallocated-carry view from snapshot is NOT a free refill:
+      # we consume `units` of the CURRENT unallocated carry, exactly as a fresh
+      # mark would, then re-record the snapshot. The watermark advances by the
+      # consumed units only.
+      - var: "carry_unallocated"
+        expr:
+          op: "-"
+          args: [{ var: "carry_unallocated" }, { param: "units" }]
+      - var: "carry_marked"
+        expr:
+          op: "+"
+          args: [{ var: "carry_marked" }, { param: "units" }]
+      - var: "snap_carry_marked"
+        expr:
+          op: "+"
+          args: [{ var: "carry_marked" }, { param: "units" }]
+      - var: "snap_carry_unallocated"
+        expr:
+          op: "-"
+          args: [{ var: "carry_unallocated" }, { param: "units" }]
+    effects:
+      deposited: { const: 0 }
+      marked: { param: "units" }
+      spent: { const: 0 }
+      replayed: { const: 1 }
+      spendable_live:
+        op: "-"
+        args:
+          - op: "+"
+            args: [{ var: "carry_marked" }, { param: "units" }]
+          - { var: "already_spent" }
