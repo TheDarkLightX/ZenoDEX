@@ -1,0 +1,58 @@
+# ZenoDEX Proof-Carrying Constitutional Mutation Contract V1
+#
+# Research-only experiment: mutation is a temporal replacement candidate plus
+# an explicit predecessor relation. The fail-closed ratchet is:
+#   violation[t] = proposal[t] & law[t-1]'
+#   law[t]       = law[t-1] & proposal[t]
+# If proposal entails the predecessor, the ratchet adopts it exactly. If a
+# proposal weakens/removes old obligations, those obligations survive.
+#
+# EXPECTED-RESULTS: T F T F T F T T F T
+
+set charvar off
+set maxsplits 1
+
+# Rule-order rewrite is semantically identical.
+n ({ (gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf) && (gm_proof[t]:sbf=1:sbf -> gm_audit[t]:sbf=1:sbf) } = { (gm_proof[t]:sbf=1:sbf -> gm_audit[t]:sbf=1:sbf) && (gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf) })
+
+# Atomless control from the beyond-SQL tutorial: the usual Boolean rewrite
+# A -> B == (B || !A) is NOT this expression, because A=0 is not complement A.
+n ({ gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf } = { gm_proof[t]:sbf=1:sbf || gm_settle[t]:sbf=0:sbf })
+
+# Strengthening entails its predecessor: weakening residue is zero.
+n (({ (gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf) && (gm_settle[t]:sbf=1:sbf -> gm_witness[t]:sbf=1:sbf) } & { gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf }') = 0)
+
+# Reverse entailment fails.
+n (({ gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf } & { (gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf) && (gm_settle[t]:sbf=1:sbf -> gm_witness[t]:sbf=1:sbf) }') = 0)
+
+# Meet-ratchet adopts the safe strengthening exactly.
+n (({ gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf } & { (gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf) && (gm_settle[t]:sbf=1:sbf -> gm_witness[t]:sbf=1:sbf) }) = { (gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf) && (gm_settle[t]:sbf=1:sbf -> gm_witness[t]:sbf=1:sbf) })
+
+# Unconstrained law 1 is a weakening candidate relative to the old law.
+n ((1 & { gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf }') = 0)
+
+# The ratchet converts that deletion attempt into an exact no-op.
+n (({ gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf } & 1) = { gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf })
+
+# Core invariants survive every future extension x:tau.
+n all x:tau ((({ gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf } & x) & { gm_settle[t]:sbf=1:sbf && gm_proof[t]:sbf=0:sbf }) = 0)
+
+# With no core law, that guarantee is not universal.
+n all x:tau (((1 & x) & { gm_settle[t]:sbf=1:sbf && gm_proof[t]:sbf=0:sbf }) = 0)
+
+# The strengthened witness requirement also survives every future extension.
+n all x:tau ((({ (gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf) && (gm_settle[t]:sbf=1:sbf -> gm_witness[t]:sbf=1:sbf) } & x) & { gm_settle[t]:sbf=1:sbf && gm_witness[t]:sbf=0:sbf }) = 0)
+
+type GovernedMutationInputADT1 = {proposal: tau}.
+type GovernedMutationOutputADT1 = {predecessor: tau, proposal: tau, violation: tau, law: tau}.
+gmi:GovernedMutationInputADT1 := in console.
+gmo:GovernedMutationOutputADT1 := out console.
+
+# Time is the mutation axis. Every new law is paired with the predecessor and
+# the part of the proposal that would escape the predecessor.
+run (gmo[0].predecessor = 0) && (gmo[0].proposal = 0) && (gmo[0].violation = 0) && (gmo[0].law = { gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf }) && (gmo[t].predecessor = gmo[t-1].law) && (gmo[t].proposal = gmi[t].proposal) && (gmo[t].violation = gmi[t].proposal & gmo[t-1].law') && (gmo[t].law = gmo[t-1].law & gmi[t].proposal)
+
+# Equivalent -> strengthening -> weakening attempt.
+{ proposal: "gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf." }
+{ proposal: "(gm_settle[t]:sbf=1:sbf -> gm_proof[t]:sbf=1:sbf) && (gm_settle[t]:sbf=1:sbf -> gm_witness[t]:sbf=1:sbf)." }
+{ proposal: "1." }

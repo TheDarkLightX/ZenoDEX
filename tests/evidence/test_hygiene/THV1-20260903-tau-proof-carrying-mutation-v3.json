@@ -1,0 +1,134 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-tau-proof-carrying-mutation-v3",
+  "created_date": "2026-09-03",
+  "claim_scope": "Research-only executable Tau evidence for proof-carrying mutation with explicit predecessor-relative constitutional receipts. Covers monotone ratchets, four-way amendment relation classification, invariant-kernel mutable policy, order-sensitive restrict/extend updates, and a temporal receipt carrying predecessor, proposal, both directional residues, kernel-violation residue, and exact adopted/rejected effective law.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TAU-MUTATION-PREDECESSOR-OBSERVABLE",
+    "TAU-MUTATION-DIRECTIONAL-RESIDUES",
+    "TAU-MUTATION-AMENDMENT-FOUR-WAY-CLASSIFIER",
+    "TAU-MUTATION-INVARIANT-KERNEL-PRESERVATION",
+    "TAU-MUTATION-EXPLICIT-APPROVAL-EXACT-ADOPTION",
+    "TAU-MUTATION-UNSAFE-REPLACEMENT-REJECT-NOOP",
+    "TAU-MUTATION-RESTRICT-EXTEND-ORDER-SENSITIVE"
+  ],
+  "failure_modes": [
+    "mixed amendments are collapsed into a one-bit weakening/strengthening label",
+    "a global meet ratchet silently synthesizes a third law while being reported as exact proposal adoption",
+    "an approved proposal escapes the protected invariant kernel",
+    "a rejected unsafe proposal changes the effective predecessor law",
+    "directional semantic residues are omitted from the transition receipt",
+    "restrict-then-extend ordering is treated as universally commutative",
+    "replay runs against a mutable Tau source instead of the exact research lock"
+  ],
+  "source_pins": [
+    {
+      "path": "config/tau_lang_adt_research.lock",
+      "sha256": "55e44d31eff9bddb5b046b33527eda7cb0e6d7cf661c5c2229ee1b4dce6b098f"
+    },
+    {
+      "path": "src/tau_specs/recommended/proof_carrying_constitutional_mutation_v1.tau",
+      "sha256": "6c439a6751abb23b6e4154a31d1e41b06ba5d440948e5a9a115831dce8181e16"
+    },
+    {
+      "path": "src/tau_specs/recommended/mutation_coordination_classifier_v1.tau",
+      "sha256": "369e9d69f0cdfc56f94db89d4cd7059274aadeff4ce1147538c105306fd85585"
+    },
+    {
+      "path": "src/tau_specs/recommended/amendment_relation_classifier_v1.tau",
+      "sha256": "691b82144e8e0cb88b021f453e85124febab4ed159a1b0d0e355f916897eb99a"
+    },
+    {
+      "path": "src/tau_specs/recommended/invariant_kernel_mutable_policy_v1.tau",
+      "sha256": "607ec72e2e38e42682a3e741fafbf92f81e920a2c2a9d8d4de28f68b79f1f643"
+    },
+    {
+      "path": "src/tau_specs/recommended/constitutional_transition_receipt_v1.tau",
+      "sha256": "9bdf9f7737d4f35f61401d85a5fb899a2e470da78e900061f52ceaba80c30a57"
+    },
+    {
+      "path": "tools/build_tau_adt_research_pin_v1.sh",
+      "sha256": "a3b995600bca52e34c9e5e76bb1aaaa13c8ef5aa929fcabbd19f692666188d7b"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/tau/test_tau_proof_carrying_mutation_v1.py",
+      "sha256": "c27b157ae1f11bae998f03313bc6df7fb5d9919c545800923b83a2d2e861d56e",
+      "node_ids": [
+        "tests/tau/test_tau_proof_carrying_mutation_v1.py::test_tau_proof_carrying_mutation_source_contract",
+        "tests/tau/test_tau_proof_carrying_mutation_v1.py::test_tau_proof_carrying_mutation_pinned_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The replay arranges equivalent, strengthening, weakening, mixed, hostile, approved and rejected mutations; acts through exact-source Tau theorem queries and temporal ADT streams; and asserts frozen theorem verdicts plus terminal receipt states."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The receipt trace explicitly routes an unsafe proposal with approved=0, selecting predecessor rather than proposal, while still exposing proposal and kernel-violation residue in the receipt."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "amendment_relation",
+      "points": [
+        "equivalent",
+        "strict strengthening",
+        "strict weakening",
+        "mixed/incomparable"
+      ]
+    },
+    {
+      "name": "transition_decision",
+      "points": [
+        "approved kernel-preserving mixed proposal adopts exact proposal",
+        "unsafe rejected proposal preserves predecessor"
+      ]
+    },
+    {
+      "name": "receipt_observability",
+      "points": [
+        "predecessor",
+        "proposal",
+        "escape D+",
+        "removed D-",
+        "kernel violation",
+        "effective law"
+      ]
+    },
+    {
+      "name": "ordering",
+      "points": [
+        "join/join commutative",
+        "restrict/extend has witness of noncommutativity",
+        "revoke/grant order changes final state"
+      ]
+    },
+    {
+      "name": "protected_kernel",
+      "points": [
+        "operational policy can weaken",
+        "proof kernel remains mandatory under arbitrary future policy"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Research-only logical evidence; no production, settlement, governance-execution, release, migration, verifier, or value-moving authority.",
+    "The approved gate is an abstract Tau value constrained to 0/1; this experiment does not define who may authorize an amendment or how authorization is cryptographically authenticated.",
+    "The protected kernel is assumed to have a separate higher-order amendment mechanism; constitutional bootstrapping and kernel replacement are not solved here.",
+    "Directional residues classify semantic relation but are not canonical cryptographic commitments until separately encoded and root-bound.",
+    "The coordination theorem identifies semantic order sensitivity but does not implement consensus ordering, locking, sequencing, or a scheduler.",
+    "The examples do not establish production signatures, hashes, canonical serialization, persistence, or Tau Net consensus behavior.",
+    "This evidence does not close O-008 or refresh any pre-existing formal-cycle packet."
+  ]
+}

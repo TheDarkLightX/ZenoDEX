@@ -1,0 +1,62 @@
+# ZenoDEX Invariant-Kernel Mutable Policy V1
+#
+# Research-only experiment: avoid an ever-tightening constitution by splitting
+# state into a protected kernel K and a replaceable operational policy G.
+#
+#   kernel[t]    = kernel[t-1]
+#   policy[t]    = proposal[t]
+#   effective[t] = kernel[t] & policy[t]
+#
+# G may genuinely weaken relative to its predecessor. K remains mandatory in
+# every effective law. This is proof-carrying mutation without forcing every
+# policy change to be monotone.
+#
+# EXPECTED-RESULTS: T T T T F T T T F T
+
+set charvar off
+set maxsplits 1
+
+# Protected kernel K: settlement requires proof.
+# Old effective policy also requires a witness.
+# Replacing policy with 1 intentionally removes the witness obligation.
+n (({ (ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf) && (ik_settle[t]:sbf=1:sbf -> ik_witness[t]:sbf=1:sbf) } & { ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf }') = 0)
+n (({ ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf } & { (ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf) && (ik_settle[t]:sbf=1:sbf -> ik_witness[t]:sbf=1:sbf) }') != 0)
+
+# The weaker replacement is adopted exactly at the EFFECTIVE level because
+# 1 contributes no extra operational restriction: K & 1 = K.
+n (({ ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf } & 1) = { ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf })
+
+# Kernel guarantees survive every future policy x:tau.
+n all x:tau ((({ ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf } & x) & { ik_settle[t]:sbf=1:sbf && ik_proof[t]:sbf=0:sbf }) = 0)
+
+# No kernel means the guarantee fails.
+n all x:tau (((1 & x) & { ik_settle[t]:sbf=1:sbf && ik_proof[t]:sbf=0:sbf }) = 0)
+
+# A hostile proposal that directly demands forbidden settlement is annihilated
+# by the kernel rather than becoming effective law.
+n (({ ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf } & { ik_settle[t]:sbf=1:sbf && ik_proof[t]:sbf=0:sbf }) = 0)
+
+# Operational policy can still strengthen freely.
+n (({ ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf } & { ik_settle[t]:sbf=1:sbf -> ik_witness[t]:sbf=1:sbf }) = { (ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf) && (ik_settle[t]:sbf=1:sbf -> ik_witness[t]:sbf=1:sbf) })
+
+# Reordering kernel and policy meet cannot change the effective law.
+n all k:tau all g:tau ((k & g) = (g & k))
+
+# But replacing policy with a weaker one can change the effective law; that is
+# intentional observed mutation, not an invariant violation.
+n ({ (ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf) && (ik_settle[t]:sbf=1:sbf -> ik_witness[t]:sbf=1:sbf) } = { ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf })
+
+# The kernel itself is not silently replaced by policy=1.
+n (({ ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf } & 1) != 1)
+
+type KernelPolicyInputADT1 = {proposal: tau}.
+type KernelPolicyOutputADT1 = {predecessor: tau, kernel: tau, policy: tau, effective: tau}.
+iki:KernelPolicyInputADT1 := in console.
+iko:KernelPolicyOutputADT1 := out console.
+
+run (iko[0].predecessor = 0) && (iko[0].kernel = { ik_settle[t]:sbf=1:sbf -> ik_proof[t]:sbf=1:sbf }) && (iko[0].policy = { ik_settle[t]:sbf=1:sbf -> ik_witness[t]:sbf=1:sbf }) && (iko[0].effective = iko[0].kernel & iko[0].policy) && (iko[t].predecessor = iko[t-1].effective) && (iko[t].kernel = iko[t-1].kernel) && (iko[t].policy = iki[t].proposal) && (iko[t].effective = iko[t].kernel & iko[t].policy)
+
+# Intentional weakening, hostile proposal, strengthening again.
+{ proposal: "1." }
+{ proposal: "ik_settle[t]:sbf=1:sbf && ik_proof[t]:sbf=0:sbf." }
+{ proposal: "ik_settle[t]:sbf=1:sbf -> ik_witness[t]:sbf=1:sbf." }

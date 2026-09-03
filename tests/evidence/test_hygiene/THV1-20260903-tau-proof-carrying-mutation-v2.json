@@ -1,0 +1,135 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-tau-proof-carrying-mutation-v2",
+  "created_date": "2026-09-03",
+  "claim_scope": "Research-only executable Tau evidence for observed/proof-carrying mutation, expanded to classify predecessor-relative amendments as equivalent, strict strengthening, strict weakening, or mixed/incomparable via two directional lattice residues, and to test an invariant-kernel architecture in which operational policy may be replaced or weakened while every effective law remains constrained by a protected kernel. The packet also retains the constitutional meet-ratchet and restrict-then-extend coordination experiments.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TAU-MUTATION-PREDECESSOR-OBSERVABLE",
+    "TAU-MUTATION-WEAKENING-RESIDUE",
+    "TAU-MUTATION-NONWEAKENING-RATCHET",
+    "TAU-MUTATION-AMENDMENT-FOUR-WAY-CLASSIFIER",
+    "TAU-MUTATION-MIXED-INCOMPARABILITY",
+    "TAU-MUTATION-INVARIANT-KERNEL-PRESERVATION",
+    "TAU-MUTATION-INTENTIONAL-POLICY-WEAKENING",
+    "TAU-MUTATION-FUTURE-EXTENSION-SAFETY",
+    "TAU-MUTATION-APPEND-COMMUTES",
+    "TAU-MUTATION-RESTRICT-EXTEND-ORDER-SENSITIVE",
+    "TAU-MUTATION-REVOKE-GRANT-COORDINATION"
+  ],
+  "failure_modes": [
+    "directional residues cannot distinguish strict strengthening from strict weakening",
+    "a mixed amendment that removes one obligation and adds another is misclassified as monotone",
+    "conservative meet synthesis is mistaken for adoption of an incomparable proposal",
+    "operational weakening necessarily weakens the protected invariant kernel",
+    "a hostile operational policy can make forbidden settlement effective despite the kernel",
+    "a future policy extension can admit settle=1 with proof=0 under the protected kernel",
+    "the implementation assumes restrict/delete and extend operations commute",
+    "revoke-then-grant and grant-then-revoke are treated as equivalent",
+    "the replay runs against a mutable Tau source rather than the exact lock"
+  ],
+  "source_pins": [
+    {
+      "path": "config/tau_lang_adt_research.lock",
+      "sha256": "55e44d31eff9bddb5b046b33527eda7cb0e6d7cf661c5c2229ee1b4dce6b098f"
+    },
+    {
+      "path": "src/tau_specs/recommended/proof_carrying_constitutional_mutation_v1.tau",
+      "sha256": "6c439a6751abb23b6e4154a31d1e41b06ba5d440948e5a9a115831dce8181e16"
+    },
+    {
+      "path": "src/tau_specs/recommended/mutation_coordination_classifier_v1.tau",
+      "sha256": "369e9d69f0cdfc56f94db89d4cd7059274aadeff4ce1147538c105306fd85585"
+    },
+    {
+      "path": "src/tau_specs/recommended/amendment_relation_classifier_v1.tau",
+      "sha256": "691b82144e8e0cb88b021f453e85124febab4ed159a1b0d0e355f916897eb99a"
+    },
+    {
+      "path": "src/tau_specs/recommended/invariant_kernel_mutable_policy_v1.tau",
+      "sha256": "607ec72e2e38e42682a3e741fafbf92f81e920a2c2a9d8d4de28f68b79f1f643"
+    },
+    {
+      "path": "tools/build_tau_adt_research_pin_v1.sh",
+      "sha256": "a3b995600bca52e34c9e5e76bb1aaaa13c8ef5aa929fcabbd19f692666188d7b"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/tau/test_tau_proof_carrying_mutation_v1.py",
+      "sha256": "f8daf349c7975139eb6c7a1a509922813d1b7b6c4caad1721b304fb838d52c3a",
+      "node_ids": [
+        "tests/tau/test_tau_proof_carrying_mutation_v1.py::test_tau_proof_carrying_mutation_source_contract",
+        "tests/tau/test_tau_proof_carrying_mutation_v1.py::test_tau_proof_carrying_mutation_pinned_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The replay arranges equivalent, strengthening, weakening and mixed policy relations; protected-kernel weakening and hostile-policy controls; and concrete revoke/grant orderings. It acts through Tau theorem queries and temporal ADT streams on the exact locked source and asserts frozen T/F sequences plus terminal stream states."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The monotone constitutional ratchet keeps the predecessor under proposal=1, while the invariant-kernel experiment separately demonstrates that replaceable policy can weaken without removing the protected kernel. Identity restriction and empty extension remain explicit no-op boundaries."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "amendment_relation",
+      "points": [
+        "equivalent: both directional differences zero/equality",
+        "strict strengthening: proposal escape zero, predecessor removed residue nonzero",
+        "strict weakening: proposal escape nonzero, predecessor removed residue zero",
+        "mixed/incomparable: both directional residues nonzero"
+      ]
+    },
+    {
+      "name": "protected_kernel",
+      "points": [
+        "operational witness requirement may be removed",
+        "proof requirement remains in effective law",
+        "hostile proof-missing proposal meets kernel to zero",
+        "all future x:tau policies preserve kernel exclusion"
+      ]
+    },
+    {
+      "name": "mutation_ordering",
+      "points": [
+        "join/join commutes universally",
+        "restrict/extend has existential noncommutativity witness",
+        "revoke-then-grant differs from grant-then-revoke"
+      ]
+    },
+    {
+      "name": "conservative_synthesis",
+      "points": [
+        "meet of incomparable old/new keeps both obligations",
+        "mixed proposal is not equal to synthesized meet"
+      ]
+    },
+    {
+      "name": "replay_source",
+      "points": [
+        "exact 40-hex Tau source lock",
+        "memory-bounded cvc5/Boost/Tau build rail",
+        "exact expected theorem verdict sequence"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "This is research-only logical evidence and grants no production, settlement, governance-execution, release, migration, verifier, or value-moving authority.",
+    "The four-way classifier is semantic lattice classification, not an amendment authorization policy.",
+    "The invariant-kernel model assumes the kernel itself is protected by a separate constitutional mechanism; it does not solve kernel amendment or constitutional bootstrapping.",
+    "Meeting a hostile proposal with the kernel to zero demonstrates incompatibility, not a complete user-facing rejection/result protocol.",
+    "The coordination classifier proves order sensitivity but does not implement consensus ordering, locking, sequencing, or a distributed scheduler.",
+    "The examples use abstract Tau facts/fixed-width ids rather than production signatures, hashes, canonical serialization, storage, or Tau Net consensus semantics.",
+    "This evidence does not close O-008 or refresh any pre-existing formal-cycle packet."
+  ]
+}

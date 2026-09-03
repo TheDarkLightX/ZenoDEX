@@ -1,0 +1,46 @@
+# ZenoDEX Mutation Coordination Classifier V1
+#
+# Research-only experiment for delete-flavoured change. Pure join updates
+# commute. Restrict-then-extend does not commute in general; a concrete
+# revoke/grant pair shows why ordering is a protocol obligation on that class.
+#
+# EXPECTED-RESULTS: T T F T F T T T
+
+set charvar off
+set maxsplits 1
+
+# Append-only updates commute universally.
+n all tb:tau all a:tau all b:tau (((tb | a) | b) = ((tb | b) | a))
+
+# Restrict-then-extend is noncommutative for some values.
+n ex tb:tau ex a:tau ex b:tau (((tb & a) | b) != ((tb & b) | a))
+
+# Concrete state initially contains principals 1 and 2.
+# revoke(2)->grant(2) differs from grant(2)->revoke(2).
+n ((((({ mc_id[t]:bv[8]={ #x01 }:bv[8] } | { mc_id[t]:bv[8]={ #x02 }:bv[8] }) & { mc_id[t]:bv[8]={ #x02 }:bv[8] }') | { mc_id[t]:bv[8]={ #x02 }:bv[8] })) = ((({ mc_id[t]:bv[8]={ #x01 }:bv[8] } | { mc_id[t]:bv[8]={ #x02 }:bv[8] }) | { mc_id[t]:bv[8]={ #x02 }:bv[8] }) & { mc_id[t]:bv[8]={ #x02 }:bv[8] }'))
+
+# Revoke then grant leaves principal 2 present.
+n (({ mc_id[t]:bv[8]={ #x02 }:bv[8] } & ((({ mc_id[t]:bv[8]={ #x01 }:bv[8] } | { mc_id[t]:bv[8]={ #x02 }:bv[8] }) & { mc_id[t]:bv[8]={ #x02 }:bv[8] }') | { mc_id[t]:bv[8]={ #x02 }:bv[8] })) != 0)
+
+# Grant then revoke leaves principal 2 absent.
+n (({ mc_id[t]:bv[8]={ #x02 }:bv[8] } & ((({ mc_id[t]:bv[8]={ #x01 }:bv[8] } | { mc_id[t]:bv[8]={ #x02 }:bv[8] }) | { mc_id[t]:bv[8]={ #x02 }:bv[8] }) & { mc_id[t]:bv[8]={ #x02 }:bv[8] }')) != 0)
+
+# Principal 1 survives revoke then grant.
+n (({ mc_id[t]:bv[8]={ #x01 }:bv[8] } & ((({ mc_id[t]:bv[8]={ #x01 }:bv[8] } | { mc_id[t]:bv[8]={ #x02 }:bv[8] }) & { mc_id[t]:bv[8]={ #x02 }:bv[8] }') | { mc_id[t]:bv[8]={ #x02 }:bv[8] })) != 0)
+
+# Identity restriction and empty extension are exact no-ops.
+n all tb:tau ((tb & 1) = tb)
+n all tb:tau ((tb | 0) = tb)
+
+type MutationCoordinationInputADT1 = {keep: tau, add: tau}.
+type MutationCoordinationOutputADT1 = {state: tau}.
+mci:MutationCoordinationInputADT1 := in console.
+mco:MutationCoordinationOutputADT1 := out console.
+
+# Generic observed destructive update:
+#   state[t] = (state[t-1] & keep[t]) | add[t]
+run (mco[0].state = ({ mc_id[t]:bv[8]={ #x01 }:bv[8] } | { mc_id[t]:bv[8]={ #x02 }:bv[8] })) && (mco[t].state = (mco[t-1].state & mci[t].keep) | mci[t].add)
+
+# Revoke principal 2, then grant it back.
+{ keep: "(mc_id[t]:bv[8]={ #x02 }:bv[8])'.", add: "0." }
+{ keep: "1.", add: "mc_id[t]:bv[8]={ #x02 }:bv[8]." }

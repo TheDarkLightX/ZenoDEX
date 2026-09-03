@@ -1,0 +1,50 @@
+# ZenoDEX Amendment Relation Classifier V1
+#
+# Research-only experiment: compare a candidate law P to predecessor C using
+# two directional residues:
+#   escape(P,C) = P & C'   -- behaviors proposal admits outside predecessor
+#   removed(P,C)= C & P'   -- predecessor behaviors proposal removes
+#
+# Classification:
+#   equivalent:    P = C
+#   strengthening: escape = 0, removed != 0
+#   weakening:     escape != 0, removed = 0
+#   mixed:         escape != 0, removed != 0
+#
+# EXPECTED-RESULTS: T T F T F T T T T T F T
+
+set charvar off
+set maxsplits 1
+
+# Old law C: settlement requires a proof.
+# Equivalent reordering/control.
+n ({ ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf } = { ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf })
+
+# Strict strengthening P_s = old AND settlement requires witness.
+n (({ (ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf) && (ar_settle[t]:sbf=1:sbf -> ar_witness[t]:sbf=1:sbf) } & { ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf }') = 0)
+n (({ ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf } & { (ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf) && (ar_settle[t]:sbf=1:sbf -> ar_witness[t]:sbf=1:sbf) }') = 0)
+
+# Strict weakening P_w = unconstrained law 1.
+n ((1 & { ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf }') != 0)
+n (({ ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf } & 1') != 0)
+
+# Mixed/incomparable P_m: remove proof requirement but add witness requirement.
+# It admits some states old forbids...
+n (({ ar_settle[t]:sbf=1:sbf -> ar_witness[t]:sbf=1:sbf } & { ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf }') != 0)
+# ...and removes some states old allowed.
+n (({ ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf } & { ar_settle[t]:sbf=1:sbf -> ar_witness[t]:sbf=1:sbf }') != 0)
+
+# Concrete witnesses for both directions of incomparability.
+n ex s:sbf ex p:sbf ex w:sbf (s=1:sbf && p=0:sbf && w=1:sbf && ({ ar_settle[t]:sbf=s -> ar_witness[t]:sbf=w } & { ar_settle[t]:sbf=s -> ar_proof[t]:sbf=p }') != 0)
+n ex s:sbf ex p:sbf ex w:sbf (s=1:sbf && p=1:sbf && w=0:sbf && ({ ar_settle[t]:sbf=s -> ar_proof[t]:sbf=p } & { ar_settle[t]:sbf=s -> ar_witness[t]:sbf=w }') != 0)
+
+# Meet of incomparable old/new is a conservative synthesis: it keeps BOTH
+# obligations rather than pretending the candidate was accepted unchanged.
+n (({ ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf } & { ar_settle[t]:sbf=1:sbf -> ar_witness[t]:sbf=1:sbf }) = { (ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf) && (ar_settle[t]:sbf=1:sbf -> ar_witness[t]:sbf=1:sbf) })
+
+# Mixed candidate is not equal to that conservative synthesis.
+n ({ ar_settle[t]:sbf=1:sbf -> ar_witness[t]:sbf=1:sbf } = { (ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf) && (ar_settle[t]:sbf=1:sbf -> ar_witness[t]:sbf=1:sbf) })
+
+# The synthesized law still excludes missing-proof settlement universally.
+n all x:tau ((({ (ar_settle[t]:sbf=1:sbf -> ar_proof[t]:sbf=1:sbf) && (ar_settle[t]:sbf=1:sbf -> ar_witness[t]:sbf=1:sbf) } & x) & { ar_settle[t]:sbf=1:sbf && ar_proof[t]:sbf=0:sbf }) = 0)
+quit
