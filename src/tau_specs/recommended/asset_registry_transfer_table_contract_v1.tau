@@ -1,0 +1,72 @@
+# ZenoDEX Asset Registry / Transfer Ledger Table Contract V1
+#
+# Research-only bounded Tau table model derived from the current ADT table
+# tutorials verified on Tau 0.7.0-alpha build 1c1e58ae.
+#
+# Tau table model used here:
+#   - a row is a fact (a tau specification value);
+#   - a table is the join (|) of row facts;
+#   - SELECT / foreign-key lookup is meet (&);
+#   - append is monotone join;
+#   - the temporal gate checks the PREVIOUS registry, so a row inserted in the
+#     current step cannot vouch for a transfer in that same step.
+#
+# This is a logical table ABI, not a production storage engine. Asset ids,
+# transaction ids, identities and amounts are bounded abstract tags.
+#
+# EXPECTED-RESULTS: T T T F T T T T T T
+
+set charvar off
+set maxsplits 1
+
+type AssetTableInputADT1 = {asset_row: tau, transfer_row: tau, asset_probe: tau}.
+type AssetTableOutputADT1 = {assets: tau, transfers: tau, fk: tau}.
+
+# Append-only tables are monotone in the Boolean-algebra order.
+n all tb:tau all row:tau (((tb | row) & tb') = 0)
+
+# Independent inserts commute.
+n all tb:tau all a:tau all b:tau (((tb | a) | b) = ((tb | b) | a))
+
+# Registry lookup succeeds for an existing asset.
+n (({ asset_id[t]:bv[8] = { #x01 }:bv[8] }) & ({ asset_id[t]:bv[8] = { #x01 }:bv[8] } | { asset_id[t]:bv[8] = { #x02 }:bv[8] })) != 0
+
+# Negative control: an absent asset has no overlap with the registry.
+n (({ asset_id[t]:bv[8] = { #x07 }:bv[8] }) & ({ asset_id[t]:bv[8] = { #x01 }:bv[8] } | { asset_id[t]:bv[8] = { #x02 }:bv[8] })) != 0
+
+# A transfer row that entails an existing asset key survives the FK meet.
+n (({ tx_id[t]:bv[8] = { #x10 }:bv[8] && asset_id[t]:bv[8] = { #x01 }:bv[8] && sender_id[t]:bv[8] = { #x02 }:bv[8] && recipient_id[t]:bv[8] = { #x03 }:bv[8] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16] } & { asset_id[t]:bv[8] = { #x01 }:bv[8] }) = { tx_id[t]:bv[8] = { #x10 }:bv[8] && asset_id[t]:bv[8] = { #x01 }:bv[8] && sender_id[t]:bv[8] = { #x02 }:bv[8] && recipient_id[t]:bv[8] = { #x03 }:bv[8] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16] })
+
+# An unregistered asset annihilates the transfer contribution.
+n (({ tx_id[t]:bv[8] = { #x11 }:bv[8] && asset_id[t]:bv[8] = { #x07 }:bv[8] && sender_id[t]:bv[8] = { #x02 }:bv[8] && recipient_id[t]:bv[8] = { #x03 }:bv[8] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16] } & ({ asset_id[t]:bv[8] = { #x01 }:bv[8] } | { asset_id[t]:bv[8] = { #x02 }:bv[8] })) = 0)
+
+# Reject-as-noop at the table level: appending an annihilated contribution
+# changes nothing.
+n all tb:tau all tr:tau ((tb | (tr & 0)) = tb)
+
+# Set semantics make exact duplicate row append idempotent.
+n all tb:tau all row:tau (((tb | row) | row) = (tb | row))
+
+# Strict prior-state discipline: with an empty previous registry, a same-step
+# registration cannot self-authorize the transfer.
+n (({ tx_id[t]:bv[8] = { #x12 }:bv[8] && asset_id[t]:bv[8] = { #x07 }:bv[8] } & ({ asset_id[t]:bv[8] = { #x07 }:bv[8] } & 0)) = 0)
+
+# Once asset 7 exists in the previous registry, the same key meet admits it.
+n (({ tx_id[t]:bv[8] = { #x12 }:bv[8] && asset_id[t]:bv[8] = { #x07 }:bv[8] } & { asset_id[t]:bv[8] = { #x07 }:bv[8] }) = { tx_id[t]:bv[8] = { #x12 }:bv[8] && asset_id[t]:bv[8] = { #x07 }:bv[8] })
+
+# Temporal table:
+#   assets[t]    = assets[t-1] | asset_row[t]
+#   fk[t]        = asset_probe[t] & assets[t-1]
+#   transfers[t] = transfers[t-1] | (transfer_row[t] & fk[t])
+#
+# The transfer ledger therefore grows only by contributions whose asset key
+# existed one step earlier. Invalid contributions reduce to 0 and append as
+# an exact no-op.
+iat:AssetTableInputADT1 := in console.
+oat:AssetTableOutputADT1 := out console.
+run (oat[0].assets = 0) && (oat[0].transfers = 0) && (oat[0].fk = 0) && (oat[t].assets = oat[t-1].assets | iat[t].asset_row) && (oat[t].fk = iat[t].asset_probe & oat[t-1].assets) && (oat[t].transfers = oat[t-1].transfers | (iat[t].transfer_row & oat[t].fk))
+{ asset_row: "asset_id[t]:bv[8] = { #x01 }:bv[8].", transfer_row: "tx_id[t]:bv[8] = { #x10 }:bv[8] && asset_id[t]:bv[8] = { #x01 }:bv[8] && sender_id[t]:bv[8] = { #x02 }:bv[8] && recipient_id[t]:bv[8] = { #x03 }:bv[8] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16].", asset_probe: "asset_id[t]:bv[8] = { #x01 }:bv[8]." }
+{ asset_row: "o9[t]=0 && o9[t]=1.", transfer_row: "tx_id[t]:bv[8] = { #x10 }:bv[8] && asset_id[t]:bv[8] = { #x01 }:bv[8] && sender_id[t]:bv[8] = { #x02 }:bv[8] && recipient_id[t]:bv[8] = { #x03 }:bv[8] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16].", asset_probe: "asset_id[t]:bv[8] = { #x01 }:bv[8]." }
+{ asset_row: "o9[t]=0 && o9[t]=1.", transfer_row: "tx_id[t]:bv[8] = { #x11 }:bv[8] && asset_id[t]:bv[8] = { #x07 }:bv[8] && sender_id[t]:bv[8] = { #x02 }:bv[8] && recipient_id[t]:bv[8] = { #x03 }:bv[8] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16].", asset_probe: "asset_id[t]:bv[8] = { #x07 }:bv[8]." }
+{ asset_row: "asset_id[t]:bv[8] = { #x07 }:bv[8].", transfer_row: "tx_id[t]:bv[8] = { #x12 }:bv[8] && asset_id[t]:bv[8] = { #x07 }:bv[8] && sender_id[t]:bv[8] = { #x02 }:bv[8] && recipient_id[t]:bv[8] = { #x03 }:bv[8] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16].", asset_probe: "asset_id[t]:bv[8] = { #x07 }:bv[8]." }
+{ asset_row: "o9[t]=0 && o9[t]=1.", transfer_row: "tx_id[t]:bv[8] = { #x12 }:bv[8] && asset_id[t]:bv[8] = { #x07 }:bv[8] && sender_id[t]:bv[8] = { #x02 }:bv[8] && recipient_id[t]:bv[8] = { #x03 }:bv[8] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16].", asset_probe: "asset_id[t]:bv[8] = { #x07 }:bv[8]." }

@@ -1,0 +1,108 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-tau-table-asset-registry-transfer-v5",
+  "created_date": "2026-09-03",
+  "claim_scope": "Research-only bounded replay evidence for ZenoDEX tau-value table semantics on the exact locked IDNI/tau-lang revision. Rows are tau fact values, tables are joins of rows, SELECT/foreign-key lookup is meet, append-only growth is join, and a temporal asset-registry gate admits a transfer contribution only when its asset key exists in the previous registry state. An absent key annihilates the contribution to 0, making ledger append an exact no-op. This packet supersedes the earlier v4 nonclaim that table semantics were not exercised; it does not claim a separate SQL-style Table type or keyword.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TAU-TABLE-ASSET-REGISTRY-FK-GATE",
+    "TAU-TABLE-INVALID-TRANSFER-APPEND-NOOP",
+    "TAU-TABLE-APPEND-MONOTONE",
+    "TAU-TABLE-INSERT-COMMUTATIVE",
+    "TAU-TABLE-EXACT-DUPLICATE-IDEMPOTENT",
+    "TAU-TABLE-PRIOR-STATE-NO-SELF-VOUCH",
+    "TAU-TABLE-EXACT-UPSTREAM-SOURCE-LOCK"
+  ],
+  "failure_modes": [
+    "an absent asset key still contributes a transfer row to the ledger",
+    "an annihilated transfer contribution changes the prior transfer table",
+    "append-only join removes rows already represented by the prior table",
+    "independent row inserts produce order-dependent table values",
+    "an exact duplicate row changes the table value",
+    "a same-step asset registration is allowed to vouch for its own transfer despite the previous-state gate",
+    "the table replay runs against a mutable Tau branch name instead of the exact locked source revision",
+    "the bounded table model is overstated as production storage, authorization, replay protection, or settlement authority"
+  ],
+  "source_pins": [
+    {
+      "path": "config/tau_lang_adt_research.lock",
+      "sha256": "55e44d31eff9bddb5b046b33527eda7cb0e6d7cf661c5c2229ee1b4dce6b098f"
+    },
+    {
+      "path": "src/tau_specs/recommended/asset_registry_transfer_table_contract_v1.tau",
+      "sha256": "9f1c34d882fc35bca18efaa6781dca9abca25f8c7919e26ed8fb829f15dfcd98"
+    },
+    {
+      "path": "tools/build_tau_adt_research_pin_v1.sh",
+      "sha256": "aa115ca2c35a311a0660bd1c65307942adcb09aa8a731d18cb803631bde69796"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/tau/test_tau_asset_registry_transfer_table_v1.py",
+      "sha256": "921310d1e94d82d5e57666c6ca6708ba681115f96e6ad859f1f79d29d2b3c0ab",
+      "node_ids": [
+        "tests/tau/test_tau_asset_registry_transfer_table_v1.py::test_tau_asset_registry_transfer_table_source_contract",
+        "tests/tau/test_tau_asset_registry_transfer_table_v1.py::test_tau_asset_registry_transfer_table_pinned_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The replay arranges fixed existing/missing asset keys, exact duplicate rows and same-step/prior-step boundary cases, acts through Tau's own theorem queries plus the temporal run, and asserts the complete expected T/F sequence and execution of the structured table stream on the exact locked source."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The table contract proves that an invalid transfer contribution annihilated to 0 leaves the transfer table unchanged under join, directly mirroring ZenoDEX reject-as-noop discipline at the bounded logical-table layer."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "asset_registry_membership",
+      "points": [
+        "asset id 1 overlaps a registry containing ids 1 and 2",
+        "asset id 7 has no overlap with that registry"
+      ]
+    },
+    {
+      "name": "foreign_key_transfer_gate",
+      "points": [
+        "a transfer whose asset id exists in the registry survives the meet unchanged",
+        "a transfer whose asset id is absent is annihilated to 0"
+      ]
+    },
+    {
+      "name": "temporal_activation",
+      "points": [
+        "a newly inserted asset cannot self-authorize a transfer in the same step because the gate reads assets[t-1]",
+        "the same asset key can authorize a later-step transfer once it exists in the previous registry"
+      ]
+    },
+    {
+      "name": "table_growth_algebra",
+      "points": [
+        "append by join is monotone",
+        "independent inserts commute",
+        "exact duplicate row append is idempotent",
+        "appending an invalid zero contribution is an exact no-op"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "This evidence grants no production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "The table is a tau-value logical row set, not a claim about a SQL engine, physical storage layout, indexing, query planning, dynamic COUNT, or unbounded row iteration.",
+    "Asset ids, transaction ids, identities and amounts are bounded abstract tags; no production u128/u256 arithmetic is modeled.",
+    "The asset-registry gate proves only key existence in the bounded logical table; it does not prove asset enabled status, authorization, sender balance, fee validity, signatures, canonical encoding, hashing, proof verification, or policy membership.",
+    "Exact duplicate row idempotence is not a proof of transaction-id uniqueness: a row reusing the same tx_id with different other members requires a separate replay/nonce index contract.",
+    "The temporal contract intentionally imposes prior-state activation: an asset inserted at step t cannot authorize a transfer until a later step.",
+    "This evidence does not close O-008 or any whole-value-movement gate and does not make the pre-existing P22 formal-cycle packet current.",
+    "The third-party tutorial motivated the table model, but the admitted claim depends only on the ZenoDEX spec replayed against the exact locked Tau source."
+  ]
+}

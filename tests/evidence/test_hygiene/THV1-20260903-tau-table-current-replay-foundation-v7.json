@@ -1,0 +1,115 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-tau-table-current-replay-foundation-v7",
+  "created_date": "2026-09-03",
+  "claim_scope": "Successor research-only evidence binding the current Tau tau-value table contracts to the exact locked IDNI/tau-lang source and the corrected memory-bounded dependency build. The build rail explicitly bootstraps Tau's pinned cvc5 and Boost/log dependencies with one job before compiling the Tau executable. The two table contracts exercise prior-state asset foreign-key gating and command-occurrence replay suppression by join/meet/complement algebra. This packet supersedes earlier helper-byte pins in the Tau ADT/table evidence chain; it grants no authority.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TAU-CURRENT-SOURCE-EXACT-LOCK",
+    "TAU-PINNED-CVC5-BOOST-MEMORY-BOUNDED-BUILD",
+    "TAU-TABLE-ASSET-REGISTRY-FK-GATE",
+    "TAU-TABLE-INVALID-TRANSFER-APPEND-NOOP",
+    "TAU-TABLE-PRIOR-STATE-NO-SELF-VOUCH",
+    "TAU-TABLE-OCCURRENCE-FRESHNESS-DIFFERENCE",
+    "TAU-TABLE-CHANGED-PAYLOAD-REPLAY-ANNIHILATES",
+    "TAU-TABLE-REPLAY-REJECT-NOOP"
+  ],
+  "failure_modes": [
+    "the exact Tau source lock is bypassed by a mutable branch checkout",
+    "the hosted replay build OOMs by auto-parallelizing Tau's heavy pinned dependencies",
+    "Tau configuration fails because its pinned Boost/log dependency was never bootstrapped",
+    "an absent asset key still contributes a transfer row",
+    "a same-step asset registration self-authorizes a transfer despite the prior-state gate",
+    "a reused occurrence id survives freshness difference",
+    "a reused occurrence id with changed payload mutates the command table",
+    "a rejected table contribution changes prior state",
+    "the bounded logical-table evidence is overstated as production storage or settlement authority"
+  ],
+  "source_pins": [
+    {
+      "path": "config/tau_lang_adt_research.lock",
+      "sha256": "55e44d31eff9bddb5b046b33527eda7cb0e6d7cf661c5c2229ee1b4dce6b098f"
+    },
+    {
+      "path": "tools/build_tau_adt_research_pin_v1.sh",
+      "sha256": "a3b995600bca52e34c9e5e76bb1aaaa13c8ef5aa929fcabbd19f692666188d7b"
+    },
+    {
+      "path": "src/tau_specs/recommended/asset_registry_transfer_table_contract_v1.tau",
+      "sha256": "9f1c34d882fc35bca18efaa6781dca9abca25f8c7919e26ed8fb829f15dfcd98"
+    },
+    {
+      "path": "src/tau_specs/recommended/command_occurrence_replay_table_contract_v1.tau",
+      "sha256": "60c4f5de54ccb20dd3cd336bc87627538a3ee271b520be103681bb0d9afe6a2d"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/tau/test_tau_asset_registry_transfer_table_v1.py",
+      "sha256": "921310d1e94d82d5e57666c6ca6708ba681115f96e6ad859f1f79d29d2b3c0ab",
+      "node_ids": [
+        "tests/tau/test_tau_asset_registry_transfer_table_v1.py::test_tau_asset_registry_transfer_table_source_contract",
+        "tests/tau/test_tau_asset_registry_transfer_table_v1.py::test_tau_asset_registry_transfer_table_pinned_replay"
+      ]
+    },
+    {
+      "path": "tests/tau/test_tau_command_occurrence_replay_table_v1.py",
+      "sha256": "b85541ba27e5df83a6cc80c2ccf5bfdeb714deaf6e64ed4cd6cb1f0ed8cdefc4",
+      "node_ids": [
+        "tests/tau/test_tau_command_occurrence_replay_table_v1.py::test_tau_command_occurrence_replay_table_source_contract",
+        "tests/tau/test_tau_command_occurrence_replay_table_v1.py::test_tau_command_occurrence_replay_table_pinned_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The evidence arranges existing/missing asset membership and fresh/reused occurrence keys including changed-payload replay, acts through full Tau theorem/temporal files on the exact source lock, and asserts frozen verdict sequences plus terminal structured states. The build itself is fail-closed on exact source, pinned dependencies, executable existence, and source HEAD equality."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Both contracts deliberately reduce invalid contributions to lattice zero. Join with zero preserves the prior logical table, matching ZenoDEX's exact reject-as-noop discipline at this bounded layer."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "asset_membership_and_activation",
+      "points": [
+        "registered key survives lookup",
+        "missing key annihilates transfer contribution",
+        "same-step registration cannot self-vouch",
+        "later-step transfer can use an already-present key"
+      ]
+    },
+    {
+      "name": "occurrence_freshness",
+      "points": [
+        "unseen occurrence survives lattice difference",
+        "seen occurrence reduces to zero",
+        "seen occurrence with changed payload still reduces command contribution to zero"
+      ]
+    },
+    {
+      "name": "build_resource_boundary",
+      "points": [
+        "cvc5 is built with one job",
+        "Boost/log is explicitly bootstrapped with one job before Tau configure",
+        "Tau target is compiled with one job"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "This evidence grants no production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "These are bounded tau-value logical row sets, not proofs of SQL semantics, physical persistence, indexing, crash consistency, concurrency control, or distributed storage durability.",
+    "The asset gate proves bounded key existence only; it does not prove enabled status, policy membership, authorization, balance sufficiency, fees, signatures, encoding, hashing, or proof verification.",
+    "The replay gate assumes the occurrence probe is canonically bound to the occurrence id inside the command row; production canonical encoding/hash binding remains separate.",
+    "The exact Tau source build is reproducibility evidence, not Tau Net consensus or deployment attestation.",
+    "This evidence does not close O-008, does not close any whole-value-movement gate, and does not make the pre-existing P22 formal-cycle packet current."
+  ]
+}

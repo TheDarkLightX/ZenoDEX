@@ -1,0 +1,31 @@
+# ZenoDEX Lane Transition Journal ADT Logical ABI V1
+#
+# Research-only bounded Tau model for the structural surface of
+# LaneModuleTransitionJournalV1. Roots and identifiers are abstract bv tags;
+# this spec does not hash, verify receipts, validate canonical bytes, prove
+# effect semantics, grant verifier authority, or model Tau Tables.
+#
+# The nested ADT groups the Python journal's thirteen fields into a header and
+# binding sub-tuple. Tau flattens this back to the declaration-order field list
+# at parse time; that flattened order is frozen as part of this logical ABI.
+#
+# replay_cursor is a bounded research cursor, not writer_epoch semantics. It
+# uses current Tau min() to implement a saturating +1 recurrence:
+#   next(x) = x + min(1, ~x)
+# so the all-ones bv[16] value never wraps to zero.
+
+set charvar off
+
+type LaneJournalHeaderADT1 = {chain_id: bv[8], deployment_root: bv[16], profile_root: bv[16], writer_epoch: bv[16], lane_id: bv[8], module_release_id: bv[16]}.
+type LaneJournalBindingADT1 = {command_occurrence_id: bv[16], pre_lane_root: bv[16], post_lane_root: bv[16], effect_plan_root: bv[16], private_port_root: bv[16], receipt_root: bv[16], terminal_obligations_root: bv[16]}.
+type LaneModuleTransitionJournalADT1 = {header: LaneJournalHeaderADT1, binding: LaneJournalBindingADT1}.
+type LaneJournalEdgeADT1 = {previous: LaneModuleTransitionJournalADT1, next: LaneModuleTransitionJournalADT1}.
+
+journal_header_ok(chain, deployment, profile, epoch, lane, release) := ((chain:bv[8] != {0}:bv[8]) && (deployment:bv[16] != {0}:bv[16]) && (profile:bv[16] != {0}:bv[16]) && (epoch:bv[16] = epoch) && (lane:bv[8] != {0}:bv[8]) && (release:bv[16] != {0}:bv[16])).
+journal_binding_ok(occurrence, pre_root, post_root, effect_root, private_root, receipt_root, terminal_root) := ((occurrence:bv[16] != {0}:bv[16]) && (pre_root:bv[16] = pre_root) && (post_root:bv[16] = post_root) && (effect_root:bv[16] != {0}:bv[16]) && (private_root:bv[16] = private_root) && (receipt_root:bv[16] != {0}:bv[16]) && (terminal_root:bv[16] = terminal_root)).
+lane_module_journal_ok(chain, deployment, profile, epoch, lane, release, occurrence, pre_root, post_root, effect_root, private_root, receipt_root, terminal_root) := (journal_header_ok(chain:bv[8], deployment:bv[16], profile:bv[16], epoch:bv[16], lane:bv[8], release:bv[16]) && journal_binding_ok(occurrence:bv[16], pre_root:bv[16], post_root:bv[16], effect_root:bv[16], private_root:bv[16], receipt_root:bv[16], terminal_root:bv[16])).
+same_journal_header(chain_a, deployment_a, profile_a, epoch_a, lane_a, release_a, chain_b, deployment_b, profile_b, epoch_b, lane_b, release_b) := ((chain_a:bv[8] = chain_b:bv[8]) && (deployment_a:bv[16] = deployment_b:bv[16]) && (profile_a:bv[16] = profile_b:bv[16]) && (epoch_a:bv[16] = epoch_b:bv[16]) && (lane_a:bv[8] = lane_b:bv[8]) && (release_a:bv[16] = release_b:bv[16])).
+replay_cursor[0](x):bv[16] := x.
+replay_cursor[n](x):bv[16] := replay_cursor[n-1](x) + min({1}:bv[16], replay_cursor[n-1](x)').
+
+always ((all j:LaneModuleTransitionJournalADT1 (lane_module_journal_ok(j) -> (journal_header_ok(j.header) && journal_binding_ok(j.binding)))) && (all edge:LaneJournalEdgeADT1 ((lane_module_journal_ok(edge.previous) && lane_module_journal_ok(edge.next) && same_journal_header(edge.previous.header, edge.next.header) && (edge.previous.binding.command_occurrence_id != edge.next.binding.command_occurrence_id) && (edge.previous.binding.post_lane_root = edge.next.binding.pre_lane_root)) -> ((edge.next.binding.pre_lane_root = edge.previous.binding.post_lane_root) && (edge.previous.header.writer_epoch = edge.next.header.writer_epoch) && (edge.previous.header.module_release_id = edge.next.header.module_release_id)))) && (all x:bv[16] (replay_cursor[1](x) >= x)) && (replay_cursor[1](1:bv[16]) = 1:bv[16]) && (all x:bv[16] ((x != 1:bv[16]) -> (replay_cursor[1](x) = x + {1}:bv[16])))).
