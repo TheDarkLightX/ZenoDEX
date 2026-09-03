@@ -12,6 +12,7 @@ MUTATION_SPEC = RECOMMENDED / "proof_carrying_constitutional_mutation_v1.tau"
 COORDINATION_SPEC = RECOMMENDED / "mutation_coordination_classifier_v1.tau"
 RELATION_SPEC = RECOMMENDED / "amendment_relation_classifier_v1.tau"
 KERNEL_SPEC = RECOMMENDED / "invariant_kernel_mutable_policy_v1.tau"
+RECEIPT_SPEC = RECOMMENDED / "constitutional_transition_receipt_v1.tau"
 TAU_DIR_REL = "external/tau-lang-adt-logical-abi-v1"
 TAU_DIR = ROOT / TAU_DIR_REL
 TAU_BIN = TAU_DIR / "build-Release" / "tau"
@@ -102,6 +103,7 @@ def test_tau_proof_carrying_mutation_source_contract() -> None:
     coordination = COORDINATION_SPEC.read_text(encoding="utf-8")
     relation = RELATION_SPEC.read_text(encoding="utf-8")
     kernel = KERNEL_SPEC.read_text(encoding="utf-8")
+    receipt = RECEIPT_SPEC.read_text(encoding="utf-8")
 
     assert "gmi[t].proposal & gmo[t-1].law'" in mutation
     assert "gmo[t-1].law & gmi[t].proposal" in mutation
@@ -126,6 +128,14 @@ def test_tau_proof_carrying_mutation_source_contract() -> None:
     assert "EXPECTED-RESULTS: T T T T F T T T F T" in kernel
     assert len(_expected_results(kernel)) == 10
 
+    assert "escape  = P & C'" in receipt
+    assert "removed = C & P'" in receipt
+    assert "kernel_violation = P & K'" in receipt
+    assert "cri[t].approved = 1 -> cro[t].kernel_violation = 0" in receipt
+    assert "cri[t].proposal & cri[t].approved" in receipt
+    assert "EXPECTED-RESULTS: T T T T F T T F T T T F" in receipt
+    assert len(_expected_results(receipt)) == 12
+
 
 def test_tau_proof_carrying_mutation_pinned_replay(capsys) -> None:
     with capsys.disabled():
@@ -138,3 +148,4 @@ def test_tau_proof_carrying_mutation_pinned_replay(capsys) -> None:
     _replay(tau_bin, COORDINATION_SPEC, "mco[2] :=")
     _replay(tau_bin, RELATION_SPEC)
     _replay(tau_bin, KERNEL_SPEC, "iko[3] :=")
+    _replay(tau_bin, RECEIPT_SPEC, "cro[2] :=")
