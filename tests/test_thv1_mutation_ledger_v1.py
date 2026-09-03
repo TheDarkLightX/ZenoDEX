@@ -190,6 +190,11 @@ def _rows(report: dict[str, object]) -> list[dict[str, Any]]:
     return cast(list[dict[str, Any]], report["rows"])
 
 
+# A green pytest control run prints a passed summary; the ledger requires one, so the stub
+# speaks the same shape (the cargo path has always had the equivalent guard).
+_CONTROL_STDOUT_V1 = "1 passed in 0.01s\n"
+
+
 def _stub_runner(
     *, control_exit: int, mutant_exit: int, stdout: str = ""
 ) -> tuple[ledger.RunnerV1, list[tuple[tuple[str, ...], Path]]]:
@@ -198,7 +203,10 @@ def _stub_runner(
     def runner(argv: Sequence[str], cwd: Path, env: Any, timeout: int) -> ledger.RunResultV1:
         calls.append((tuple(argv), Path(cwd)))
         in_control = "control" in Path(cwd).parts
-        return ledger.RunResultV1(control_exit if in_control else mutant_exit, stdout, "", 0.01)
+        if in_control:
+            text = stdout if "passed" in stdout else stdout + _CONTROL_STDOUT_V1
+            return ledger.RunResultV1(control_exit, text, "", 0.01)
+        return ledger.RunResultV1(mutant_exit, stdout, "", 0.01)
 
     return runner, calls
 
@@ -249,7 +257,12 @@ def test_pytest_verdicts_require_a_failing_test_run() -> None:
     assert ledger.mutant_verdict_v1(killer, run(2, "", "", 1.0)) == ledger.VERDICT_UNVIABLE
     assert ledger.mutant_verdict_v1(killer, run(4, "", "", 1.0)) == ledger.VERDICT_UNVIABLE
     assert ledger.mutant_verdict_v1(killer, run(-1, "", "", 1.0, timed_out=True)) == ledger.VERDICT_TIMEOUT
-    assert ledger.control_error_v1(killer, run(0, "", "", 1.0)) is None
+    # A pytest control must have run at least one test (Opus P38 P3), the guard the cargo
+    # path already had: a node id that selects nothing exits 0 and proves nothing.
+    assert ledger.control_error_v1(killer, run(0, "3 passed in 0.1s", "", 1.0)) is None
+    assert (
+        ledger.control_error_v1(killer, run(0, "", "", 1.0)) == "control run selected zero pytest tests"
+    )
     assert ledger.control_error_v1(killer, run(1, "", "", 1.0)) == "control run exited 1"
     assert ledger.control_error_v1(killer, run(-1, "", "", 1.0, timed_out=True)) == "control run timed out"
 
@@ -334,6 +347,7 @@ def test_ledger_kills_survives_and_leaves_the_worktree_alone(tmp_path: Path) -> 
     assert verdicts["an argument no test executes"] == {
         "description": "an argument no test executes",
         "killer": _POSITIVE_NODE,
+        "mutation": None,
         "mutant_sha256": None,
         "exit": None,
         "seconds": 0.0,
@@ -341,6 +355,16 @@ def test_ledger_kills_survives_and_leaves_the_worktree_alone(tmp_path: Path) -> 
     }
     expected_mutant = hashlib.sha256(_MOD_SOURCE.replace(_GUARD_NEEDLE, "", 1).encode()).hexdigest()
     assert verdicts["drop the negative guard"]["mutant_sha256"] == expected_mutant
+    # Opus P38 P2-6: the report must say which mutation ran, not only that the file changed,
+    # so a verdict can be tied to the row that claims it.
+    mutation = verdicts["drop the negative guard"]["mutation"]
+    assert mutation == {
+        "path": "pkg/mod.py",
+        "needle_sha256": hashlib.sha256(_GUARD_NEEDLE.encode()).hexdigest(),
+        "replacement_sha256": hashlib.sha256(b"").hexdigest(),
+        "needle_first_line": _GUARD_NEEDLE.splitlines()[0][:120],
+    }
+    assert mutation["needle_sha256"] != mutation["replacement_sha256"]
     assert (report["mechanical"], report["narrative"], report["killed"], report["survived"], report["errors"]) == (2, 1, 1, 1, 0)
     assert report["subject_commit"] == _git(repo, "rev-parse", "HEAD")
     assert ledger.ledger_exit_code_v1(report) == 1
@@ -591,9 +615,18 @@ def test_repository_evidence_loads_with_row_kinds() -> None:
     loaded = load_packets_with_mutations(DEFAULT_EVIDENCE_DIR, _REAL_CONTRACT)
     kinds = {row.kind for _, rows in loaded for row in rows}
     assert kinds <= set(MUTATION_ROW_KINDS)
+    # The loader's fence is one-directional: a packet dated on or after the cutover may not
+    # carry a string-only row, and a packet dated before it MAY. A pre-cutover lineage that
+    # declares a mechanical row is an improvement, not a violation, so the older half is not
+    # required to be uniformly legacy.
     for packet, rows in loaded:
-        if packet.evidence_id[5:13] < MECHANICAL_MUTATION_ROWS_FROM:
-            assert all(row.kind == "legacy" for row in rows), packet.evidence_id
-        else:
+        if packet.evidence_id[5:13] >= MECHANICAL_MUTATION_ROWS_FROM:
             assert all(row.kind != "legacy" for row in rows), packet.evidence_id
-    assert "mechanical" in kinds
+    older_mechanical = {
+        packet.evidence_id
+        for packet, rows in loaded
+        if packet.evidence_id[5:13] < MECHANICAL_MUTATION_ROWS_FROM
+        and any(row.kind == "mechanical" for row in rows)
+    }
+    assert older_mechanical, "a pre-cutover lineage should be able to declare a mechanical row"
+    assert "mechanical" in kinds and "legacy" in kinds

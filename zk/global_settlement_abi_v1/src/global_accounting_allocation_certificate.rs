@@ -1023,13 +1023,24 @@ fn check_reserve_rows(
 
 /// Collect every lane's pending external rows by effect id; a repeated id across lanes is a
 /// double-counted obligation and rejects (mirrors the terminal-binding duplicate guard).
+type PendingExternalRowsV1<'a> = BTreeMap<
+    &'a str,
+    (
+        &'a PendingExternalObligationRowV1,
+        &'a LaneAllocationFragmentV1,
+    ),
+>;
+
 fn pending_external_rows(
     fragments: &[LaneAllocationFragmentV1],
-) -> Result<BTreeMap<&str, &PendingExternalObligationRowV1>, Reject> {
-    let mut pending: BTreeMap<&str, &PendingExternalObligationRowV1> = BTreeMap::new();
+) -> Result<PendingExternalRowsV1<'_>, Reject> {
+    let mut pending: PendingExternalRowsV1<'_> = BTreeMap::new();
     for fragment in fragments {
         for row in &fragment.pending_external_obligations {
-            if pending.insert(row.effect_id.as_str(), row).is_some() {
+            if pending
+                .insert(row.effect_id.as_str(), (row, fragment))
+                .is_some()
+            {
                 return fail(
                     AllocationCertificateRejectCodeV1::ExternalObligationBindingDrift,
                     format!("duplicate {}", row.effect_id.as_str()),
@@ -1059,12 +1070,26 @@ fn check_external_obligations(
             "effect_id set",
         );
     }
-    for (effect_id, row) in &pending {
+    for (effect_id, (row, fragment)) in &pending {
         let entry = outbox[effect_id];
         if row.destination_id != entry.destination_id || row.commitment_root != entry.payload_hash {
             return fail(
                 AllocationCertificateRejectCodeV1::ExternalObligationBindingDrift,
                 (*effect_id).to_owned(),
+            );
+        }
+        // Opus P38 P1-1: source_principal is hashed into every derived root, so leaving it unread
+        // admitted two accepted certificates over one state. It binds to a controlled location of
+        // the same fragment, as a terminal row's controlling principal does.
+        let controlled = fragment.controlled_locations.iter().any(|location| {
+            location.asset == row.asset
+                && location.controlling_principal == row.source_principal
+                && location.control_domain == row.control_domain
+        });
+        if !controlled {
+            return fail(
+                AllocationCertificateRejectCodeV1::ExternalObligationBindingDrift,
+                format!("{effect_id} source binding"),
             );
         }
     }

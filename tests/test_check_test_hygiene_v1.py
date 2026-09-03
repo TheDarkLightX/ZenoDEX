@@ -549,6 +549,30 @@ def test_added_packet_legacy_rule_needs_both_dates_before_the_cutover(tmp_path: 
     changed, loaded = _case(f"THV1-{before}-authored-then-v1", dashed)
     _reject_added_legacy_packets(changed, loaded, evidence_prefix=prefix)
 
+    # A successor that merely re-pins its predecessor carries that predecessor's rows.
+    # Evidence packets are append-only, so requiring them to be re-cut mechanically would
+    # make an honest re-pin impossible; only a NEWLY declared string-only row is refused.
+    carried_id = f"THV1-{cutover}-carried-v2"
+    predecessor_id = f"THV1-{before}-carried-v1"
+    predecessor_path = tmp_path / f"{predecessor_id}.json"
+    predecessor_path.write_text(json.dumps({"evidence_id": predecessor_id, "created_date": dashed}), encoding="utf-8")
+    predecessor = object.__new__(PacketV1)
+    object.__setattr__(predecessor, "path", predecessor_path)
+    object.__setattr__(predecessor, "evidence_id", predecessor_id)
+    successor_changed, successor_loaded = _case(carried_id, dashed_cutover)
+    _reject_added_legacy_packets(
+        successor_changed,
+        ((predecessor, (legacy_row,)), *successor_loaded),
+        evidence_prefix=prefix,
+    )
+    fresh = MutationRowV1("a row this packet introduces", "tests/core/test_x.py::test_y")
+    with pytest.raises(TestHygieneError, match="declare mutant or narrative"):
+        _reject_added_legacy_packets(
+            successor_changed,
+            ((predecessor, (legacy_row,)), (successor_loaded[0][0], (legacy_row, fresh))),
+            evidence_prefix=prefix,
+        )
+
     for evidence_id, created in (
         (f"THV1-{before}-backdated-v1", dashed_cutover),
         (f"THV1-{cutover}-today-v1", dashed_cutover),

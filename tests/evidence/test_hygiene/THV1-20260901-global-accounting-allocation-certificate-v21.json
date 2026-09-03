@@ -1,0 +1,615 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260901-global-accounting-allocation-certificate-v21",
+  "created_date": "2026-09-03",
+  "claim_scope": "v20 re-pin (C9c-1): the certificate module is unchanged; it is now also pinned by the allocation-projection packet, whose derivation inverts these checks. Earlier: v20 re-pin (C9c-1): the certificate module is unchanged; it is now also pinned by the allocation-projection packet, whose derivation inverts these checks. Earlier: (Opus P36 B+ repairs, before the flip) F-1 the witness is a frozen SLOTS dataclass again (no __dict__ re-pointing); F-3 the docstring states which of the nine witness scalars the certificate binds and why, and the release id is shown to commit the guest image; F-4 REQUIRED and UNEXPECTED are two check-major passes in both languages; F-5 runtime and source order of the four witness codes are pinned; F-6 the binding-root exemption is a declared mutation; F-7 the Rust doc comment sits on its function. v19 (C9b-2b): LANE_ALLOCATION_PRODUCER_REGISTRY_V1 registers ASSET_TRANSFER as RECEIPT_BACKED in Python and Rust in the same commit, behind the witness-slot gate landed in v18: an enabled asset-transfer fragment is accepted only when the sealed receipt-admission witness fills its slot (a real minted witness accepts in-process and yields the witness's fragment root; the golden fixture renders RECEIPT_WITNESS_REQUIRED for the enabled lane without a witness); a certificate fragment differing from the admitted one is RECEIPT_WITNESS_FRAGMENT_DRIFT; a witness minted under another writer epoch for the same transition binds the same lane root but not the state's header and is RECEIPT_WITNESS_HEADER_DRIFT. The BLOCKED and producer-kind vectors migrate to SPOT_LIQUIDITY (the first lane without a producer); with every lane enabled the first unregistered lane is named. The other eleven lanes stay unregistered: the certificate reconciles at most the asset-transfer lane; authority NONE. Earlier: v18 (C9b-2a): check_global_accounting_allocation_certificate_v1 takes twelve witness slots in lane order (exact tuple, each None or the exact sealed witness; the slot shape is a type-boundary refusal) and adds four closed codes in one check-major pass family: RECEIPT_WITNESS_REQUIRED (enabled receipt-backed lane without its witness), RECEIPT_WITNESS_UNEXPECTED (a witness in a slot that cannot use one), RECEIPT_WITNESS_FRAGMENT_DRIFT, RECEIPT_WITNESS_HEADER_DRIFT; BINDING_ROOT_DRIFT applies to un-witnessed lanes only (a witnessed fragment equals the witness's fragment, whose binding root is the receipt root by the admission's check (4)). While no lane is registered receipt-backed only UNEXPECTED is reachable (a sealed witness cannot be carried by a JSON vector, so it is exercised by a pytest and a Rust route-binding test, not by the golden fixture); the registry flip lands behind this gate in a separate candidate. Rust twin: same slots as &[Option<&witness>] with a length error. Earlier: v17 re-pin (C9b-1): the certificate crate module's ClaimantEntitlementRowV1::validate is pub(crate) for the admission twin's boundary, lib.rs wires asset_transfer_receipt_admission, the Rust producer doc names its twin, and the admission suite gains the cross-language pin; certificate rules and registry unchanged (ASSET_TRANSFER stays at NO_PRODUCER in both languages). Earlier: Candidate C9a'''' (Opus P32 F-8): the producer nonclaims say no acceptance path carries this producer's rows into the certificate's entitlement check (the check itself runs for the registered-empty certificate). Earlier: Candidate C9a''': the lane wrapper's state snapshot delegates to the core deep rebuild; pins re-recorded. Earlier: Candidate C9a'': the composition accepted value, the rejected values, and the enum gates on the asset-lane path are exact-type gated; producer docstrings carry the scoped claimant nonclaim. Earlier: Candidate C9a' (Opus P28 F1): the asset-lane private port, its projections, the projection sources, and the accepted state, effects, and journal are exact-type gated at construction; isinstance admitted an ordinary subclass reporting a genuine root over foreign rows. Earlier: Candidate C8'''' (Opus P20 repairs): the sibling state families (asset-transfer, managed-asset lifecycle) carry the shared Rust canonical row bounds at construction, the custody-vs-fragment ceiling inequality is pinned, and the last two live receipt-backed clause instances are registry-scoped; the sibling family sources join the pinned surface. Earlier: Candidate C8''' (Opus P19 repairs): the ESSO model notes and gate phrases are registry-scoped (the last instance of the clause three reviews adjudicated), the Python projection mirrors the Rust row ceilings so the twins agree at check 0 for oversized accepted values, the Rust ALL array and the mirrored ceiling constants are mechanically pinned, and FRAGMENT_INVALID carries a forgery-path reachability witness. The asset-lane projection joins the pinned surface. Earlier: Candidate C8''' (Opus P19 repairs): the ESSO model notes and gate phrases are registry-scoped (the last instance of the clause three reviews adjudicated), the Python projection mirrors the Rust row ceilings so the twins agree at check 0 for oversized accepted values, the Rust ALL array and the mirrored ceiling constants are mechanically pinned, and FRAGMENT_INVALID carries a forgery-path reachability witness. The asset-lane projection joins the pinned surface. Earlier: Candidate C8'' (Opus P18 repairs): the wave-B asset-transfer producer checks the prior fragment's kind and enabled flag (stale-journal details name them), enforces MAX_FRAGMENT_ROWS_V1 on the entitlement rows and MAX_ASSET_TRANSFER_CUSTODY_ROWS_V1 on the module custody rows (the Python module gains the Rust mirror constant), closes the family at eleven codes with FRAGMENT_INVALID as a defensive terminal reject, re-sorts controlled rows under the shared fragment key (defensive: the module key equals the fragment key, pinned by an order-preservation test), and pins the Python and Rust code families against each other; the Rust twin's terminal-root reject is exercised by a rebound accepted value that revalidates before the producer call. The asset-transfer lane module sources join the pinned surface. Earlier: Candidate C5 (wave A): registered-empty fragment producers for EXTERNAL_CUSTODY and PROOF_REWARDS, pure functions of the committed lane root that certify the lane is disabled and committed at the root of its unique empty typed lane state (ExternalCustodyDisabledStateV1, ProofRewardsPolicyBlockedStateV1) in Python and Rust, with three closed reject codes; the certificate checker binds registered-empty lanes to those roots (REGISTERED_EMPTY_ROOT_DRIFT, 15 codes, 27 vectors). Candidate C4d (Opus P10 repairs): a pending external obligation repeated across lanes rejects (both implementations, Rust unit gate), the lane-binding checks are check-major so the declared precedence is the realised one (new vector), the dead AllocationClassV1 enum is removed from the module and the canonical manifest, and the fixture surface is total. Candidate C4c: the bounded ESSO model (two lanes, one domain, two claimants, eight atoms per cell) is an inductive two-solver contract for the certificate relation with eight invariants including the derived normative partition and same-domain backing, eight named mutants each attributed to one invariant, and a runtime link to the Python checker. Candidate C4b: the bounded Lean model (three lanes, two domains, two claimants over natural numbers) derives the normative partition, same-domain backing, open-terminal coverage, the exact current-profile custody special case, and the registered-empty-only consequence of having no receipt-backed producer, and refutes reserve masking, unassigned atoms, producer-less enabled lanes, and over-entitled terminal claims; bound by its own compile/axioms/pin gate and by the O-008 packet as a second Lean subject. Candidate C4a: GlobalAccountingAllocationCertificateV1, the state-keyed sidecar checker over the control-domain vocabulary (claimant entitlements, unencumbered reserves, pending external obligations, terminal bindings) with a producer registry exhaustive over the twelve lanes (EXTERNAL_CUSTODY registered-empty-disabled, PROOF_REWARDS registered-empty-blocked, ten NO_PRODUCER lanes blocked on their unresolved policies), fourteen closed reject codes in fixed check precedence, checked u128 folds, derived field-ownership/terminal-binding/allocation roots, and a Python/Rust twin replaying one rendered twenty-five-vector golden fixture (three accepts: registered-empty over empty state, acknowledged outbox, drained terminal; one reject per reachable code; root-pinning synthetic fragments). Research-only: no lane producer is registered receipt-backed and none is on an acceptance path (an implemented, unregistered wave-B asset-transfer producer exists), nothing is mounted, and the reject-is-no-op contract is asserted on state roots.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CERT-EXACT-TWELVE-LANE-ORDER",
+    "CERT-PRODUCER-REGISTRY-EXHAUSTIVE-NO-RECEIPT-BACKED",
+    "CERT-EVERY-CONTROLLED-ATOM-ASSIGNED-EXACTLY-ONCE",
+    "CERT-ENTITLEMENT-AND-RESERVE-ROWS-EQUAL-V1-PARTITIONS",
+    "CERT-TERMINAL-AND-EXTERNAL-BINDINGS-EXACT",
+    "CERT-CHECKED-U128-CANONICAL-ORDER",
+    "CERT-REJECT-IS-NO-OP",
+    "CERT-PYTHON-RUST-GOLDEN-PARITY",
+    "CERT-BOUNDED-LEAN-MODEL-DERIVES-NORMATIVE-PARTITION",
+    "CERT-BOUNDED-ESSO-MODEL-INDUCTIVE-TWO-SOLVER",
+    "CERT-REGISTERED-EMPTY-LANES-BOUND-TO-EMPTY-STATE-ROOTS"
+  ],
+  "failure_modes": [
+    "a certificate over an enabled lane without a receipt-backed producer is accepted",
+    "a controlled atom is counted twice or not at all across entitlements, reserves, and external obligations",
+    "a reserve row masks a missing claimant entitlement",
+    "a reject message or check order drifts between Python and Rust",
+    "a derived root is accepted without recomputation",
+    "an overflowed fold is accepted"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_accounting_allocation_certificate_v1.py",
+      "sha256": "e27b05cfb6c8749366f11f88856ff25602a0aec9237d64d66b40fc5a84dc6b88"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_accounting_allocation_certificate.rs",
+      "sha256": "e80681e21b7bf95afeb6844e1a872e49b53b53be3a116298fede2f7b3231a379"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "b76ca340fc1404e61e2c571597e13cfadf10199fbff1b83f8ad8daa9bdcf85cb"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_accounting_allocation_certificate_golden.rs",
+      "sha256": "a087dc11031298f859c1e06038420b84f702f4be0e5c545391f9430d476f517a"
+    },
+    {
+      "path": "tools/render_global_accounting_allocation_certificate_v1_golden.py",
+      "sha256": "5e053fa7204bc0c12d745bf18695c18797553aa6aa4fcb246a2a22cd0ee1ba98"
+    },
+    {
+      "path": "tests/data/global_accounting_allocation_certificate_v1_golden.json",
+      "sha256": "9af6991e6bfc5f5dd7bc1411829e027bcf069c20a4a51b1b9b24049fdf5bd588"
+    },
+    {
+      "path": "src/core/global_settlement_canonical_manifest_v1.py",
+      "sha256": "1e2d46bde9f9f222d58871f696bb125a73fc5972a85227d8ce4beb10f669e287"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalAccountingAllocationCertificateV1.lean",
+      "sha256": "6c7b6a7b8120d5da697ac9404f23ca0a14cbcda52a39df9e5e3775cb26e51db5"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "7ab56e31dfcd67cf2a214747e792fe27d3f047b247aa6c2396407a615a0a6c45"
+    },
+    {
+      "path": "src/kernels/dex/global_accounting_allocation_certificate_v1.yaml",
+      "sha256": "7afad7b256a19b1a162dd24dad5ca89f3ebe47c8c02f63bb60d1cfff7b709456"
+    },
+    {
+      "path": "src/core/global_accounting_lane_producers_v1.py",
+      "sha256": "437973db878e23ba2b37bdd7a6b761f539167a3468f9fbf4059d3cc9a25cf41e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_accounting_lane_producers.rs",
+      "sha256": "7254bc00bf6fe894581e26047486704a9c6385a9c0bb54092b171daa04a21c3c"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_accounting_lane_producers.rs",
+      "sha256": "eddd63dde0b472b0967a4a5570aaa69eee3c02f733e2046fd260c0b7440bcab5"
+    },
+    {
+      "path": "src/core/external_custody_disabled_lane_v1.py",
+      "sha256": "7e88e96262ccbc494a16536c4c1c6f50ac081cf646d85d2a7ab6ad0c9286c510"
+    },
+    {
+      "path": "src/core/proof_rewards_policy_blocked_lane_v1.py",
+      "sha256": "67e87330f8ad9464efc28053a677761dd64de9d85c99ee896707cbe98f38bdad"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_v1.py",
+      "sha256": "7c043b222d4e8aa3d54477ad7508ff65afd716f1b720f76f63995afc4daa7c1a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_lane_module.rs",
+      "sha256": "26ac83d8359690a352328893debbf7d64685bd3bb44982527afcfbc4e4ce57a9"
+    },
+    {
+      "path": "src/core/asset_lane_projection_v1.py",
+      "sha256": "5420112e2dd321ce7f74604e66c13933ca714fc93467150f5cb6358f403b6839"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "5757c8b692820613e1eac30b7103e857a73b42efebbdda62d0a4469511f41277"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_types_v1.py",
+      "sha256": "f85ffc59628b673258ad6d72a9b6f8151f9def09e9e508aa2ec060251d75f315"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_lane_module_v1.py",
+      "sha256": "312f6214901a46e912156c6b0f7c9f28008506f000abbae93aafb84b8587769c"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py",
+      "sha256": "1b1d43922b3345d731c98a6b71c00ebb7baa463991a2dec51e139b7768713570",
+      "node_ids": [
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_fixture_is_the_renderer_output",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_fixture_header_tables_are_shared",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_producer_registry_is_exhaustive_and_registers_only_asset_transfer_receipt_backed",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[accepts_acknowledged_outbox_without_external_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[accepts_drained_terminal_without_binding_row]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[accepts_registered_empty_certificate_over_empty_state]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[pins_roots_of_a_fully_classified_synthetic_fragment]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[pins_roots_of_u128_boundary_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_all_lanes_enabled_at_the_first_unregistered_lane]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_custody_without_controlled_locations]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_disabled_lane_with_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_disabled_lane_with_single_reserve_row]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_enabled_lane_without_receipt_backed_producer]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_enabled_receipt_backed_lane_without_witness]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_allocation_root]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_binding_root]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_field_ownership_root]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_terminal_binding_root]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_header_chain_context_drift]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_header_profile_root_drift]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_header_writer_epoch_drift]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_enabled_flag_forged]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_order_missing_lane]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_order_swap]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_state_root_forged]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_later_lane_root_drift_before_earlier_lane_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_liabilities_without_entitlement_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_open_terminal_without_binding_row]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_pending_outbox_without_external_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_producer_kind_drift]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_registered_empty_lane_with_foreign_root]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_reserves_without_reserve_rows]",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_reject_never_mutates_and_accept_needs_all_lanes_disabled",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_row_level_checks_are_exercised_on_synthetic_fragments",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_duplicate_effect_id_across_lanes_is_rejected",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_terminal_rows_are_bounded_in_aggregate_per_entitlement_cell",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_fold_overflow_details_match_the_shared_labels",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_witness_slots_refuse_a_witness_for_an_unregistered_lane_and_bad_shapes",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_enabled_asset_transfer_lane_is_accepted_only_through_its_witness",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_witnessed_fragment_must_equal_the_certificate_fragment",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_witness_minted_under_another_header_is_refused",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_witness_passes_fire_in_the_documented_order",
+        "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_a_witness_that_proved_custody_is_accepted_with_its_rows"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py",
+      "sha256": "f149f28b80ee6ed0e462a2b49e0a5f50a28f89b8e70655371d603884a27b823a",
+      "node_ids": [
+        "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py::test_exact_sources_are_pinned",
+        "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py::test_explicit_theorem_surface_is_compiler_checked",
+        "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py::test_repository_placeholder_scanner_accepts_the_proof",
+        "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py::test_theorem_surface_uses_only_standard_axioms",
+        "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py::test_model_predicates_name_the_checker_reject_codes",
+        "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py::test_claim_ceiling_excludes_runtime_and_authority_promotion"
+      ]
+    },
+    {
+      "path": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py",
+      "sha256": "217121db35bc3d922c05d54ccdc0e4f501e74602a3ba3069d832c2942d002c50",
+      "node_ids": [
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_model_source_scope_and_claim_ceiling_are_exact",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_observable_surface_covers_every_state_variable",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_ir_hash_binds_the_observable_surface",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_esso_two_solver_replay_is_exact_and_deterministic",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_each_invariant_is_inductive_on_its_own[inv_accept_requires_lane_binding]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_each_invariant_is_inductive_on_its_own[inv_lane_aggregate_equals_custody]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_each_invariant_is_inductive_on_its_own[inv_lane_partition_exact]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_each_invariant_is_inductive_on_its_own[inv_lane_rows_equal_tables]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_each_invariant_is_inductive_on_its_own[inv_normative_partition]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_each_invariant_is_inductive_on_its_own[inv_producer_gate]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_each_invariant_is_inductive_on_its_own[inv_same_domain_backed]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_each_invariant_is_inductive_on_its_own[inv_terminal_bound_by_entitlement]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[reserve_masks_entitlement]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[unassigned_atom]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[enable_without_receipt]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[terminal_over_entitlement]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[custody_double_count]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[disable_with_rows]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[external_table_not_summed]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[accept_without_lane_binding]",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_derived_invariants_carry_no_mutant",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_runtime_rejects_terminal_total_over_entitlement",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_runtime_rejects_reserve_masking_as_entitlement",
+        "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_runtime_rejects_enabled_lane_without_receipt_backed_producer"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_accounting_lane_producers_v1.py",
+      "sha256": "ce1bf434be00b534d36d6540915027bd6e5c447632e4a28eb0af05e45763d739",
+      "node_ids": [
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_registered_empty_roots_are_the_unique_empty_lane_states",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_producer_reproduces_the_accepted_fixture_fragment[PROOF_REWARDS]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_producer_reproduces_the_accepted_fixture_fragment[EXTERNAL_CUSTODY]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_producer_rejects_enabled_foreign_root_and_unregistered_lanes",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_checker_refuses_a_registered_empty_lane_at_a_foreign_root",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_accepts_and_binds_the_receipt_root",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[journal_lane_drift]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[lane_disabled]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[module_release_drift]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[journal_root_drift]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[stale_journal]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[stale_journal_prior_lane]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[stale_journal_prior_release]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[stale_journal_prior_kind]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[stale_journal_prior_disabled]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[entitlement_coverage_drift]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[entitlement_rows_unordered]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[entitlement_rows_duplicate]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[entitlement_rows_zero_amount]",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_entitlement_fold_overflow",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_reject_is_a_no_op_value",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_precedence_pairs_are_pinned",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_reject_family_is_closed_and_ordered",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_nonzero_terminal_root",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_entitlement_row_ceiling",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_preserves_the_shared_canonical_row_order",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_rust_twin_reject_code_families_match_the_pinned_tuples",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_projection_row_ceilings_reject_oversized_construction",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_fragment_invalid_defensive_arm_has_a_forgery_witness",
+        "tests/core/test_global_accounting_lane_producers_v1.py::test_module_state_row_ceilings_reject_oversized_construction"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_transfer_receipt_admission_v1.py",
+      "sha256": "023c581d3495bd46ae0be6a00a5b1689357a8752495cb18ec8d2bbac0a193564",
+      "node_ids": [
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_token_is_verifier_only",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_admission_requires_the_module_witness_type",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_receipt_admitted_fragment_carries_the_witness_binding",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_admitted_controlled_rows_are_the_receipt_proved_custody_rows",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_foreign_accepted_value_is_rejected_at_the_journal_root",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_private_port_with_a_spoofed_root_is_refused_at_construction",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_planted_subclass_port_is_refused_by_the_admission_snapshot",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_projection_is_refused_by_the_port_gate",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_journal_with_a_spoofed_journal_root_is_refused",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_validation_bypassed_accepted_is_refused_by_the_snapshot",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_defensive_witness_checks_have_forgery_witnesses[kind]",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_defensive_witness_checks_have_forgery_witnesses[statement_root]",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_defensive_witness_checks_have_forgery_witnesses[occurrence]",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_binding_root_drift_is_producer_drift_protection",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_producer_rejects_pass_through_unchanged[lane_disabled]",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_producer_rejects_pass_through_unchanged[module_release_drift]",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_producer_rejects_pass_through_unchanged[journal_root_drift]",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_is_closed_and_ordered",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_is_a_no_op_value",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_claimant_identity_is_not_bound_by_the_receipt_until_c9b",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_admitted_witness_exports_the_rebuilt_receipt_root",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_producer_assigns_binding_root_from_the_journal_receipt_root",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_tuple_matches_the_enum",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_and_check_order_match_the_rust_twin",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_forged_witness_with_hostile_scalars_is_refused",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_planted_entitlement_row_scalar_is_refused",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_lane_root_subclass_is_refused",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_forged_prior_fragment_is_rebuilt_before_the_producer",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_minted_witness_exports_the_rebuilt_journal_header",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_rust_witness_fields_are_private_in_both_witness_structs",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_minted_witness_has_no_dict_to_repoint",
+        "tests/core/test_asset_transfer_receipt_admission_v1.py::test_release_id_commits_the_guest_image_the_witness_was_verified_against"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "formal",
+    "replay",
+    "boundary",
+    "negative_regression",
+    "mutation",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each vector arranges one rendered state and one certificate, invokes the pure checker once, and asserts the exact outcome, detail, message, and derived roots; killers are named per vector with polarity."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every reject carries pre_state_root == post_state_root and the test asserts the state root is unchanged after a rejected check; the checker is a pure function over frozen inputs."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "reject_codes",
+      "points": [
+        "exact 16 closed codes in check precedence",
+        "two codes reachable only through a receipt-backed producer are exercised on synthetic fragments"
+      ]
+    },
+    {
+      "name": "lanes",
+      "points": [
+        "exact twelve ordered lanes",
+        "registry exhaustive over LaneIdV1",
+        "no RECEIPT_BACKED kind"
+      ]
+    },
+    {
+      "name": "amounts",
+      "points": [
+        "u128 maximum entitlement plus one overflows the fold",
+        "zero rows for every disabled lane"
+      ]
+    },
+    {
+      "name": "vectors",
+      "points": [
+        "exact 28 vectors",
+        "three accepts, all registered-empty over disabled lanes"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept a fragment bound to a foreign lane root (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_state_root_forged]"
+    },
+    {
+      "description": "accept a registered-empty lane at a foreign root (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_registered_empty_lane_with_foreign_root]"
+    },
+    {
+      "description": "accept an enabled lane without a receipt-backed producer (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_enabled_lane_without_receipt_backed_producer]"
+    },
+    {
+      "description": "accept fragments out of canonical lane order (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_lane_order_swap]"
+    },
+    {
+      "description": "accept the registered-empty certificate over a non-empty state (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_custody_without_controlled_locations]"
+    },
+    {
+      "description": "check the lane bindings lane-major instead of check-major (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_later_lane_root_drift_before_earlier_lane_rows]"
+    },
+    {
+      "description": "count ACKNOWLEDGED outbox rows as pending (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[accepts_acknowledged_outbox_without_external_rows]"
+    },
+    {
+      "description": "count DRAINED terminals as open (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[accepts_drained_terminal_without_binding_row]"
+    },
+    {
+      "description": "ignore OPEN terminal obligations (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_open_terminal_without_binding_row]"
+    },
+    {
+      "description": "ignore PENDING outbox rows (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_pending_outbox_without_external_rows]"
+    },
+    {
+      "description": "let a disabled lane carry rows (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_disabled_lane_with_rows]"
+    },
+    {
+      "description": "skip the custody aggregate equality (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_custody_without_controlled_locations]"
+    },
+    {
+      "description": "skip the header binding (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_header_writer_epoch_drift]"
+    },
+    {
+      "description": "skip the liabilities equality (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_liabilities_without_entitlement_rows]"
+    },
+    {
+      "description": "skip the reserve partition equality (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_reserves_without_reserve_rows]"
+    },
+    {
+      "description": "trust the fragment's binding root (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_binding_root]"
+    },
+    {
+      "description": "trust the fragment's producer kind instead of the registry (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_producer_kind_drift]"
+    },
+    {
+      "description": "trust the recorded allocation root (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_allocation_root]"
+    },
+    {
+      "description": "trust the recorded field-ownership root (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_field_ownership_root]"
+    },
+    {
+      "description": "trust the recorded terminal-binding root (declared killer)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_forged_terminal_binding_root]"
+    },
+    {
+      "description": "register a receipt-backed producer or drop a lane from the registry (since C9b-2b: exactly the asset-transfer lane is receipt-backed)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_producer_registry_is_exhaustive_and_registers_only_asset_transfer_receipt_backed"
+    },
+    {
+      "description": "drift a reject message or the check order between Python and Rust",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_fixture_header_tables_are_shared"
+    },
+    {
+      "description": "hand-edit the fixture instead of rendering it",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_fixture_is_the_renderer_output"
+    },
+    {
+      "description": "mutate state on a reject or accept a certificate over an enabled lane",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_reject_never_mutates_and_accept_needs_all_lanes_disabled"
+    },
+    {
+      "description": "mis-attribute a mutation killer or flip its polarity",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_mutation_killers_name_recorded_vectors_with_the_expected_polarity"
+    },
+    {
+      "description": "use unchecked u128 addition or accept an unassigned controlled atom",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_row_level_checks_are_exercised_on_synthetic_fragments"
+    },
+    {
+      "description": "accept a pending external obligation repeated across lanes (Opus P10 P2-A1)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_duplicate_effect_id_across_lanes_is_rejected"
+    },
+    {
+      "description": "check the lane bindings lane-major instead of check-major (Opus P10 P2-A2)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_later_lane_root_drift_before_earlier_lane_rows]"
+    },
+    {
+      "description": "weaken a theorem statement, a definition, or a proof of the bounded Lean model",
+      "killed_by": "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py::test_explicit_theorem_surface_is_compiler_checked"
+    },
+    {
+      "description": "prove a model theorem with sorry or a local axiom",
+      "killed_by": "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py::test_theorem_surface_uses_only_standard_axioms"
+    },
+    {
+      "description": "edit the checker, twin, or fixture without re-binding the model",
+      "killed_by": "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py::test_exact_sources_are_pinned"
+    },
+    {
+      "description": "drop a mirrored reject code from the model docstrings or the checker",
+      "killed_by": "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py::test_model_predicates_name_the_checker_reject_codes"
+    },
+    {
+      "description": "route an entitlement into the reserve while growing the liability table",
+      "killed_by": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[reserve_masks_entitlement]"
+    },
+    {
+      "description": "grow controlled atoms without classifying them",
+      "killed_by": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[unassigned_atom]"
+    },
+    {
+      "description": "enable a lane without a receipt-backed producer or disable one with rows",
+      "killed_by": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[enable_without_receipt]"
+    },
+    {
+      "description": "open a terminal claim above the same-lane entitlement",
+      "killed_by": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[terminal_over_entitlement]"
+    },
+    {
+      "description": "double-count custody or drop a table update",
+      "killed_by": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[custody_double_count]"
+    },
+    {
+      "description": "accept a transition without the lane binding premise",
+      "killed_by": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[accept_without_lane_binding]"
+    },
+    {
+      "description": "weaken an ESSO invariant so it is no longer inductive on its own",
+      "killed_by": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_each_invariant_is_inductive_on_its_own[inv_normative_partition]"
+    },
+    {
+      "description": "edit the ESSO model without re-recording its source hash, ir_hash, or fingerprint",
+      "killed_by": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_esso_two_solver_replay_is_exact_and_deterministic"
+    },
+    {
+      "description": "accept a registered-empty lane committed at a root other than its empty state root",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_vector_replays_outcome_and_derived_roots[rejects_registered_empty_lane_with_foreign_root]"
+    },
+    {
+      "description": "let a producer emit a fragment for an enabled, foreign-root, or unregistered lane",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_producer_rejects_enabled_foreign_root_and_unregistered_lanes"
+    },
+    {
+      "description": "let a producer emit a fragment that differs from the accepted certificate fragment",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_producer_reproduces_the_accepted_fixture_fragment[EXTERNAL_CUSTODY]"
+    },
+    {
+      "description": "change the empty lane state root the registered-empty lanes are bound to",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_registered_empty_roots_are_the_unique_empty_lane_states"
+    },
+    {
+      "description": "fold a fragment from a prior fragment of the wrong producer kind (Opus P18 P3-b)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[stale_journal_prior_kind]"
+    },
+    {
+      "description": "fold a fragment from a disabled prior fragment (Opus P18 P3-b)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_each_binding_drift[stale_journal_prior_disabled]"
+    },
+    {
+      "description": "exceed the entitlement row ceiling on the producer input (Opus P18 P2-D)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_rejects_entitlement_row_ceiling"
+    },
+    {
+      "description": "reorder the shared canonical rows between the module and the fragment",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_producer_preserves_the_shared_canonical_row_order"
+    },
+    {
+      "description": "drift the Rust reject-code family from the Python family (Opus P18 P3-f)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_rust_twin_reject_code_families_match_the_pinned_tuples"
+    },
+    {
+      "description": "drop FRAGMENT_INVALID or reorder the closed eleven-code family",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_receipt_backed_reject_family_is_closed_and_ordered"
+    },
+    {
+      "description": "reword the ESSO model claim boundary without moving its gate pins (Opus P19 N1)",
+      "killed_by": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py::test_model_source_scope_and_claim_ceiling_are_exact"
+    },
+    {
+      "description": "give the twins different reject codes for an oversized accepted value (Opus P19 N2)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_projection_row_ceilings_reject_oversized_construction"
+    },
+    {
+      "description": "drop a member from or reorder the Rust ALL array (Opus P19 N3)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_rust_twin_reject_code_families_match_the_pinned_tuples"
+    },
+    {
+      "description": "drift a mirrored ceiling constant between the languages (Opus P19 N4)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_rust_twin_reject_code_families_match_the_pinned_tuples"
+    },
+    {
+      "description": "make the defensive FRAGMENT_INVALID arm leak an exception under forgery (Opus P19 N5)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_fragment_invalid_defensive_arm_has_a_forgery_witness"
+    },
+    {
+      "description": "construct an oversized sibling-family state that Rust refuses (Opus P20 NEW-2)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_module_state_row_ceilings_reject_oversized_construction"
+    },
+    {
+      "description": "drift a shared row bound from the Rust canonical value (Opus P20 NEW-2)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_rust_twin_reject_code_families_match_the_pinned_tuples"
+    },
+    {
+      "description": "break the custody-vs-fragment ceiling inequality (Opus P20 NEW-3)",
+      "killed_by": "tests/core/test_global_accounting_lane_producers_v1.py::test_rust_twin_reject_code_families_match_the_pinned_tuples"
+    },
+    {
+      "description": "loosen a root-bearing nested-value gate on the accepted path back to isinstance (Opus P28 F1)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_private_port_with_a_spoofed_root_is_refused_at_construction"
+    },
+    {
+      "description": "accept a presented witness in a slot whose lane is not enabled and receipt-backed",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_witness_slots_refuse_a_witness_for_an_unregistered_lane_and_bad_shapes"
+    },
+    {
+      "description": "drop the slot-length or exact-witness-class gate, or admit a witness subclass",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_witness_slots_refuse_a_witness_for_an_unregistered_lane_and_bad_shapes"
+    },
+    {
+      "description": "register ASSET_TRANSFER receipt-backed but accept its enabled fragment without the sealed witness",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_enabled_asset_transfer_lane_is_accepted_only_through_its_witness"
+    },
+    {
+      "description": "skip the equality between the presented witness's fragment and the certificate fragment",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_witnessed_fragment_must_equal_the_certificate_fragment"
+    },
+    {
+      "description": "skip the witness header binding to the state (chain id, deployment root, profile root, writer epoch)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_witness_minted_under_another_header_is_refused"
+    },
+    {
+      "description": "leave the Rust registry at NO_PRODUCER while Python registers RECEIPT_BACKED (or vice versa)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_fixture_header_tables_are_shared"
+    },
+    {
+      "description": "drop the un-witnessed guard on the binding-root rule (a witnessed fragment then fails BINDING_ROOT_DRIFT; Opus P36 F-6)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_enabled_asset_transfer_lane_is_accepted_only_through_its_witness"
+    },
+    {
+      "description": "swap the fragment and header witness passes, or reorder the four witness codes in either language (Opus P36 F-5)",
+      "killed_by": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py::test_witness_passes_fire_in_the_documented_order"
+    },
+    {
+      "description": "drop slots from the sealed witness (a minted handle could be re-pointed through __dict__; Opus P36 F-1)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_minted_witness_has_no_dict_to_repoint"
+    },
+    {
+      "description": "change the guest image a release commits without changing its release id (Opus P36 F-3)",
+      "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_release_id_commits_the_guest_image_the_witness_was_verified_against"
+    }
+  ],
+  "nonclaims": [
+    "No lane producer is registered receipt-backed and none is on an acceptance path (an implemented, unregistered wave-B asset-transfer producer exists); the only accepted certificate is the registered-empty certificate over an all-lanes-disabled state, and the two registered-empty producers certify emptiness from the committed root alone (no lane state bytes are read).",
+    "The checker is not mounted in any verifier, commit port, or route; it grants evidence-only authority.",
+    "The Lean model is bounded and proves nothing about finite-width arithmetic, canonical bytes, roots, or the running implementation; the ESSO model is bounded and inductive only; neither proves finite-width arithmetic, canonical bytes, roots, or the running implementation.",
+    "No production, release, settlement, verifier, migration, publication, or value-moving authority is granted."
+  ]
+}

@@ -886,19 +886,34 @@ def _check_reserve_rows(certificate: GlobalAccountingAllocationCertificateV1, st
 
 
 def _check_external_obligations(certificate: GlobalAccountingAllocationCertificateV1, state: GlobalEconomicStateV1) -> None:
-    pending: dict[str, PendingExternalObligationRowV1] = {}
+    pending: dict[str, tuple[PendingExternalObligationRowV1, LaneAllocationFragmentV1]] = {}
     for fragment in certificate.ordered_lane_fragments:
         for row in fragment.pending_external_obligations:
             if row.effect_id in pending:
                 _fail(AllocationCertificateRejectCodeV1.EXTERNAL_OBLIGATION_BINDING_DRIFT, f"duplicate {row.effect_id}")
-            pending[row.effect_id] = row
+            pending[row.effect_id] = (row, fragment)
     outbox = {row.effect_id: row for row in state.outbox if row.status is OutboxStatusV1.PENDING}
     if set(pending) != set(outbox):
         _fail(AllocationCertificateRejectCodeV1.EXTERNAL_OBLIGATION_BINDING_DRIFT, "effect_id set")
-    for effect_id, row in pending.items():
+    for effect_id, (row, fragment) in pending.items():
         entry = outbox[effect_id]
         if row.destination_id != entry.destination_id or row.commitment_root != entry.payload_hash:
             _fail(AllocationCertificateRejectCodeV1.EXTERNAL_OBLIGATION_BINDING_DRIFT, effect_id)
+        # Opus P38 P1-1: source_principal is hashed into all three derived roots, so leaving it
+        # unread admitted two accepted certificates over one state with different allocation roots.
+        # It names the principal the atoms leave, so it binds to a controlled location of the same
+        # fragment, exactly as a terminal row's controlling principal does.
+        controlled = any(
+            location.asset == row.asset
+            and location.controlling_principal == row.source_principal
+            and location.control_domain == row.control_domain
+            for location in fragment.controlled_locations
+        )
+        if not controlled:
+            _fail(
+                AllocationCertificateRejectCodeV1.EXTERNAL_OBLIGATION_BINDING_DRIFT,
+                f"{effect_id} source binding",
+            )
 
 
 def _check_terminal_bindings(certificate: GlobalAccountingAllocationCertificateV1, state: GlobalEconomicStateV1) -> None:

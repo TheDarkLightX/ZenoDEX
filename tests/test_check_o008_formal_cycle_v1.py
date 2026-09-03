@@ -1060,6 +1060,25 @@ def test_executing_tool_drift_fails_closed(snapshot: core.SubjectSnapshotV1, pac
 # ---------------------------------------------------------------------------
 
 
+def _ledger_report(packet_id: str, expected_killed: int) -> bytes:
+    """A green mutation-ledger report: every mechanical row killed, none survived or errored."""
+
+    return json.dumps(
+        {
+            "schema": "zenodex/thv1-mutation-ledger/v1",
+            "packet": packet_id,
+            "subject_commit": "ab" * 20,
+            "rows": [],
+            "mechanical": expected_killed,
+            "narrative": 0,
+            "legacy": 0,
+            "killed": expected_killed,
+            "survived": 0,
+            "errors": 0,
+        }
+    ).encode()
+
+
 def _cargo_summary(passed: int) -> bytes:
     return (
         f"running {passed} tests\ntest result: ok. {passed} passed; 0 failed; 0 ignored; 0 measured;"
@@ -1149,6 +1168,10 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "rust_producer_gate": _cargo_summary(core.PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1),
         "rust_admission_gate": _cargo_summary(core.ADMISSION_RUST_GATE_EXPECTED_PASSED_V1),
         "python_allocation_projection_gate": f"{core.PROJECTION_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
+        **{
+            command_id: _ledger_report(packet_id, expected)
+            for command_id, packet_id, expected in core.LEDGER_GATED_PACKETS_V1
+        },
     }
     return {
         command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id in ("lean_axioms_probe", "lean_certificate_axioms_probe") else None)

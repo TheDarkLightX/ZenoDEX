@@ -49,6 +49,7 @@ from typing import Final
 
 from .global_accounting_allocation_certificate_v1 import (
     LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
+    MAX_ATOMS_U128_V1,
     ChainContextV1,
     ClaimantEntitlementRowV1,
     ControlledLocationRowV1,
@@ -75,7 +76,18 @@ ALLOCATION_PROJECTION_SCHEMA_V1: Final = "zenodex/global-accounting-allocation-p
 
 
 class AllocationProjectionRejectCodeV1(str, Enum):
-    """Closed projection rejects, in the order the projection checks them."""
+    """The closed projection reject family, in declaration order.
+
+    Declaration order is the family order the packet pins; it is NOT the order the
+    projection evaluates them (Opus P38 P3: ``PROJECTION_NO_LANE_FOR_ROWS`` is raised at
+    two sites, one of them after the residual codes). The evaluation order is documented
+    on ``project_allocation_certificate_v1``.
+
+    Two kinds of refusal share this family. UNDETERMINED means V1 state leaves more than
+    one certificate open, so deriving one would be a guess: ``..._AMBIGUOUS``.
+    UNRECONCILABLE means no certificate over this state can be accepted at all, so
+    deriving one would produce an object the checker must reject: the rest.
+    """
 
     PROJECTION_MULTIPLE_ENABLED_LANES = "PROJECTION_MULTIPLE_ENABLED_LANES"
     PROJECTION_BINDING_ROOT_UNEXPECTED = "PROJECTION_BINDING_ROOT_UNEXPECTED"
@@ -83,6 +95,10 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     PROJECTION_NO_LANE_FOR_ROWS = "PROJECTION_NO_LANE_FOR_ROWS"
     PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS = "PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS"
     PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS = "PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS"
+    PROJECTION_NEGATIVE_RESIDUAL = "PROJECTION_NEGATIVE_RESIDUAL"
+    PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT = "PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT"
+    PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT = "PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT"
+    PROJECTION_ROW_TOTAL_OVERFLOW = "PROJECTION_ROW_TOTAL_OVERFLOW"
 
 
 ALLOCATION_PROJECTION_REJECT_CODES_V1: Final[tuple[str, ...]] = tuple(
@@ -115,6 +131,12 @@ class _Reject(Exception):
 
 def _fail(code: AllocationProjectionRejectCodeV1, detail: str) -> None:
     raise _Reject(code, detail)
+
+
+def asset_domain(key: tuple[str, str]) -> str:
+    """``asset:control_domain`` for a reject detail."""
+
+    return ":".join(key)
 
 
 def _witnessed_lanes_v1(state: GlobalEconomicStateV1) -> tuple[LaneIdV1, ...]:
@@ -188,7 +210,13 @@ def _external_rows_v1(
     residual: dict[tuple[str, str], int] = {}
     for row in controlled:
         key = (row.asset, row.control_domain)
-        residual[key] = residual.get(key, 0) + row.amount_atoms
+        total = residual.get(key, 0) + row.amount_atoms
+        if total > MAX_ATOMS_U128_V1:
+            _fail(
+                AllocationProjectionRejectCodeV1.PROJECTION_ROW_TOTAL_OVERFLOW,
+                f"controlled totals for {asset_domain(key)}",
+            )
+        residual[key] = total
     for entitlement in entitlements:
         key = (entitlement.asset, entitlement.control_domain)
         residual[key] = residual.get(key, 0) - entitlement.amount_atoms
@@ -211,8 +239,8 @@ def _external_rows_v1(
     (asset, control_domain), amount = next(iter(open_cells.items()))
     if amount < 0:
         _fail(
-            AllocationProjectionRejectCodeV1.PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS,
-            f"negative residual for {asset}:{control_domain}",
+            AllocationProjectionRejectCodeV1.PROJECTION_NEGATIVE_RESIDUAL,
+            f"entitlements and reserves exceed custody for {asset}:{control_domain}",
         )
     principals = sorted(
         {row.controlling_principal for row in controlled if (row.asset, row.control_domain) == (asset, control_domain)}
@@ -269,6 +297,11 @@ def _terminal_rows_v1(
                 if entitlement.asset == terminal.asset and entitlement.claimant == terminal.claimant
             }
         )
+        if not domains:
+            _fail(
+                AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT,
+                f"{terminal.obligation_id}: no entitlement for {terminal.claimant}",
+            )
         if len(domains) != 1:
             _fail(
                 AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS,
@@ -299,6 +332,29 @@ def _terminal_rows_v1(
                 lane_state_root=lane_state_root,
             )
         )
+    # Opus P38 P2-1: the checker bounds the SUM of a fragment's terminal rows per
+    # (asset, claimant, control_domain) against the entitlement, so a state whose OPEN
+    # obligations over-claim reconciles to nothing and is refused here rather than
+    # derived into a certificate the checker must reject.
+    claimed: dict[tuple[str, str, str], int] = {}
+    for row in rows:
+        key = (row.asset, row.claimant, row.control_domain)
+        total = claimed.get(key, 0) + row.amount_atoms
+        if total > MAX_ATOMS_U128_V1:
+            _fail(
+                AllocationProjectionRejectCodeV1.PROJECTION_ROW_TOTAL_OVERFLOW,
+                f"terminal totals for {':'.join(key)}",
+            )
+        claimed[key] = total
+    entitled = {
+        (row.asset, row.claimant, row.control_domain): row.amount_atoms for row in entitlements
+    }
+    for key, total in sorted(claimed.items()):
+        if total > entitled.get(key, 0):
+            _fail(
+                AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
+                f"{':'.join(key)} claims {total} of {entitled.get(key, 0)}",
+            )
     return tuple(sorted(rows, key=lambda row: row.obligation_id))
 
 

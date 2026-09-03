@@ -108,7 +108,15 @@ REPORT_KEYS_V1 = (
     "survived",
     "errors",
 )
-ROW_KEYS_V1 = ("description", "killer", "mutant_sha256", "exit", "seconds", "verdict")
+ROW_KEYS_V1 = (
+    "description",
+    "killer",
+    "mutation",
+    "mutant_sha256",
+    "exit",
+    "seconds",
+    "verdict",
+)
 
 _CARGO_SUMMARY_RE = re.compile(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed;", re.M)
 _PYTEST_TESTS_FAILED_EXIT = 1
@@ -210,7 +218,25 @@ def control_error_v1(killer: KillerV1, result: RunResultV1) -> str | None:
             return "control run has no green cargo summary"
         if sum(passed for _, passed, _ in summaries) < 1:
             return "control run selected zero cargo tests"
+        return None
+    # Opus P38 P3: the pytest control needs the same "something actually ran" guard as the
+    # cargo path. A node id that selects nothing exits 0, and a killer that never ran cannot
+    # qualify a mutant.
+    if pytest_passed_v1(result.stdout) < 1:
+        return "control run selected zero pytest tests"
     return None
+
+
+def pytest_passed_v1(stdout: str | bytes) -> int:
+    """The passed count of a ``pytest -q`` summary line, or 0 when there is none."""
+
+    text = stdout.decode("utf-8", "replace") if isinstance(stdout, bytes) else stdout
+    total = 0
+    for line in text.splitlines():
+        match = re.search(r"\b(\d+) passed\b", line)
+        if match:
+            total = max(total, int(match.group(1)))
+    return total
 
 
 def mutant_verdict_v1(killer: KillerV1, result: RunResultV1) -> str:
@@ -234,11 +260,13 @@ class RowOutcomeV1:
     exit: int | None
     seconds: float
     verdict: str
+    mutation: dict[str, str] | None = None
 
     def to_json(self) -> dict[str, object]:
         return {
             "description": self.description,
             "killer": self.killer,
+            "mutation": self.mutation,
             "mutant_sha256": self.mutant_sha256,
             "exit": self.exit,
             "seconds": round(self.seconds, 3),
@@ -440,6 +468,16 @@ def _execute_mechanical_row(
         mutated_bytes = mutated.encode("utf-8")
         target.write_bytes(mutated_bytes)
         mutant_sha256 = hashlib.sha256(mutated_bytes).hexdigest()
+        # Opus P38 P2-6: the digest of the mutated FILE cannot tell a reader which mutation
+        # ran, so a row could read as KILLED while a different edit did the killing. Record
+        # the mutation itself: where it was applied, digests of the exact needle and
+        # replacement, and the needle's first line for a human to match against the row.
+        mutation = {
+            "path": mutant.path,
+            "needle_sha256": hashlib.sha256(mutant.needle.encode("utf-8")).hexdigest(),
+            "replacement_sha256": hashlib.sha256(mutant.replacement.encode("utf-8")).hexdigest(),
+            "needle_first_line": mutant.needle.splitlines()[0][:120] if mutant.needle else "",
+        }
         result = runner(_killer_argv(options.python, killer), _killer_cwd(row_dir, killer), env, options.timeout_seconds)
         verdict = mutant_verdict_v1(killer, result)
         log(f"row {index}: {verdict} exit={result.exit_code} seconds={result.seconds:.1f}")
@@ -447,7 +485,13 @@ def _execute_mechanical_row(
             log(f"row {index}: stdout tail: {result.stdout[-600:]!r}")
             log(f"row {index}: stderr tail: {result.stderr[-600:]!r}")
         return RowOutcomeV1(
-            row.description, row.killed_by, mutant_sha256, result.exit_code, result.seconds, verdict
+            row.description,
+            row.killed_by,
+            mutant_sha256,
+            result.exit_code,
+            result.seconds,
+            verdict,
+            mutation,
         )
     finally:
         if not options.keep:

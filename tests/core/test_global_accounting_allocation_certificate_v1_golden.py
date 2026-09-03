@@ -158,8 +158,15 @@ def test_duplicate_effect_id_across_lanes_is_rejected() -> None:
     state = renderer.build_state_v1(renderer._spec(outbox=[("0x" + "ab" * 32, "bridge-a", "0x" + "cd" * 32, "0x" + "ef" * 32, "PENDING")]))
     base = cert.build_registered_empty_certificate_v1(state)
     row = cert.PendingExternalObligationRowV1("0x" + "ab" * 32, "USD", 7, "bridge-a", "0x" + "cd" * 32, "spot-pool", "pool-a")
-    first = renderer._fragment_with_rows(base.ordered_lane_fragments[0], pending_external_obligations=(row,))
-    second = renderer._fragment_with_rows(base.ordered_lane_fragments[1], pending_external_obligations=(row,))
+    # The row's source principal binds to a controlled location of its own fragment
+    # (Opus P38 P1-1), so each carrying fragment states who the atoms leave.
+    backing = (cert.ControlledLocationRowV1("USD", "pool-a", "spot-pool", 7),)
+    first = renderer._fragment_with_rows(
+        base.ordered_lane_fragments[0], controlled_locations=backing, pending_external_obligations=(row,)
+    )
+    second = renderer._fragment_with_rows(
+        base.ordered_lane_fragments[1], controlled_locations=backing, pending_external_obligations=(row,)
+    )
     duplicated = renderer._certificate_with_fragments(base, (first, second, *base.ordered_lane_fragments[2:]))
     with pytest.raises(cert._Reject) as captured:
         cert._check_external_obligations(duplicated, state)
@@ -167,6 +174,14 @@ def test_duplicate_effect_id_across_lanes_is_rejected() -> None:
     assert captured.value.detail == "duplicate 0x" + "ab" * 32
     single = renderer._certificate_with_fragments(base, (first, *base.ordered_lane_fragments[1:]))
     cert._check_external_obligations(single, state)
+    unbacked = renderer._certificate_with_fragments(
+        base,
+        (renderer._fragment_with_rows(base.ordered_lane_fragments[0], pending_external_obligations=(row,)),
+         *base.ordered_lane_fragments[1:]),
+    )
+    with pytest.raises(cert._Reject) as unbound:
+        cert._check_external_obligations(unbacked, state)
+    assert unbound.value.detail.endswith("source binding")
 
 
 def _certificate_for(base: cert.GlobalAccountingAllocationCertificateV1, fragment: cert.LaneAllocationFragmentV1) -> cert.GlobalAccountingAllocationCertificateV1:
@@ -342,23 +357,47 @@ def test_witness_slots_refuse_a_witness_for_an_unregistered_lane_and_bad_shapes(
 # --- C9b-2b: ASSET_TRANSFER registered receipt-backed; the witnessed acceptance path -------------
 
 
-def _witnessed(authority_epoch: int | None = None):
+def _witnessed(authority_epoch: int | None = None, *, with_rows: bool = False):
     """A real admitted witness and a state/certificate pair built around it: the enabled
     ASSET_TRANSFER lane sits at the admitted post root under the witness's own header, the
     other eleven lanes are disabled and empty, and the certificate carries the witness's
-    fragment in the first slot."""
+    fragment in the first slot.
+
+    ``with_rows`` admits a witness whose receipt actually proved custody (Opus P38 P2-2:
+    the zero-row witness makes every row-level claim about a witness vacuous), and builds
+    the state's custody and liabilities tables to match the admitted fragment's rows.
+    """
 
     from src.core.asset_transfer_receipt_admission_v1 import (
         verify_asset_transfer_fragment_receipt_v1,
     )
+    from tests.core.test_asset_transfer_receipt_admission_v1 import CUSTODIAN_ROW
     from tests.core.test_asset_transfer_receipt_admission_v1 import _fixture as admission_fixture
 
-    accepted, module_witness, lane_root, prior = (
-        admission_fixture() if authority_epoch is None else admission_fixture(authority_epoch=authority_epoch)
+    custody = (CUSTODIAN_ROW,) if with_rows else ()
+    entitlements = (
+        (cert.ClaimantEntitlementRowV1("USD", "custodian", "vault", CUSTODIAN_ROW.amount_atoms),)
+        if with_rows
+        else ()
     )
-    witness = verify_asset_transfer_fragment_receipt_v1(module_witness, accepted, lane_root, prior, ())
+    if authority_epoch is None:
+        accepted, module_witness, lane_root, prior = admission_fixture(custody=custody)
+    else:
+        accepted, module_witness, lane_root, prior = admission_fixture(
+            custody=custody, authority_epoch=authority_epoch
+        )
+    witness = verify_asset_transfer_fragment_receipt_v1(
+        module_witness, accepted, lane_root, prior, entitlements
+    )
     assert isinstance(witness, cert.VerifiedLaneAllocationFragmentV1)
-    base = renderer.build_state_v1(renderer._spec(lanes_enabled=renderer.ONE_ENABLED))
+    tables: dict[str, object] = {}
+    if with_rows:
+        row = CUSTODIAN_ROW
+        tables = {
+            "custody": [(row.owner, row.asset, row.custody_domain, row.amount_atoms)],
+            "liabilities": [(row.owner, row.asset, row.custody_domain, row.amount_atoms)],
+        }
+    base = renderer.build_state_v1(renderer._spec(lanes_enabled=renderer.ONE_ENABLED, **tables))
     lane_roots = (lane_root, *base.lane_roots[1:])
     state = replace(
         base,
@@ -451,3 +490,24 @@ def test_witness_passes_fire_in_the_documented_order() -> None:
     camel = {"RECEIPT_WITNESS_REQUIRED": "ReceiptWitnessRequired", "RECEIPT_WITNESS_UNEXPECTED": "ReceiptWitnessUnexpected",
              "RECEIPT_WITNESS_FRAGMENT_DRIFT": "ReceiptWitnessFragmentDrift", "RECEIPT_WITNESS_HEADER_DRIFT": "ReceiptWitnessHeaderDrift"}
     assert tuple(re.findall(r"AllocationCertificateRejectCodeV1::(ReceiptWitness[A-Za-z]+)", rbody)) == tuple(camel[c] for c in order)
+
+
+def test_a_witness_that_proved_custody_is_accepted_with_its_rows() -> None:
+    """Opus P38 P2-2: the witnessed evidence was over a witness with no rows at all, which
+    makes every row-level claim about it vacuous. This witness's receipt proved one custody
+    row; the certificate carrying it reconciles against the state's own custody and
+    liabilities tables, and the checker accepts it in the witnessed slot."""
+
+    witness, state, certificate, slots = _witnessed(with_rows=True)
+    fragment = witness.fragment
+    assert not fragment.is_empty
+    assert fragment.controlled_locations == (
+        cert.ControlledLocationRowV1("USD", "custodian", "vault", 100),
+    )
+    assert fragment.claimant_entitlements == (
+        cert.ClaimantEntitlementRowV1("USD", "custodian", "vault", 100),
+    )
+    assert state.custody and state.liabilities
+    outcome = cert.check_global_accounting_allocation_certificate_v1(certificate, state, slots)
+    assert isinstance(outcome, cert.AllocationCertificateAcceptedV1), outcome
+    assert outcome.lane_fragment_roots[0] == fragment.fragment_root

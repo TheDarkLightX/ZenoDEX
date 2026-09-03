@@ -88,6 +88,14 @@ ADMISSION_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/lane_mod
 ADMISSION_RUST_WITNESS_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs"
 PROJECTION_PYTHON_PATH_V1: Final = "src/core/global_accounting_allocation_projection_v1.py"
 PROJECTION_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_allocation_projection_v1.py"
+# C9c-2: the mutation ledger executes the declared rows of the packets that carry mechanical
+# mutants. Before this gate the rows were executed only by hand, which is the same standing the
+# string-only rows had. The expected kill counts are pinned so a row cannot be quietly dropped.
+LEDGER_TOOL_PATH_V1: Final = "tools/thv1_mutation_ledger_v1.py"
+LEDGER_GATED_PACKETS_V1: Final[tuple[tuple[str, str, int], ...]] = (
+    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v2", 19),
+    ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v3", 19),
+)
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
 RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
@@ -189,6 +197,7 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (ADMISSION_RUST_WITNESS_PATH_V1, "admission_rust_witness_source"),
     (PROJECTION_PYTHON_PATH_V1, "allocation_projection"),
     (PROJECTION_PYTHON_TEST_PATH_V1, "allocation_projection_replay"),
+    (LEDGER_TOOL_PATH_V1, "thv1_mutation_ledger"),
 )
 SOURCE_PIN_PATHS_V1: Final[tuple[str, ...]] = tuple(path for path, _ in SOURCE_PIN_ROLES_V1)
 EXECUTING_TOOL_PATHS_V1: Final[tuple[str, ...]] = (
@@ -250,6 +259,7 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     ADMISSION_RUST_WITNESS_PATH_V1,
     PROJECTION_PYTHON_PATH_V1,
     PROJECTION_PYTHON_TEST_PATH_V1,
+    LEDGER_TOOL_PATH_V1,
 )
 
 PACKET_KEYS_V3: Final[frozenset[str]] = frozenset(
@@ -1111,7 +1121,7 @@ RUST_REFINEMENT_GATE_TARGET_V1: Final = "global_economic_state_effect_refinement
 RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
-CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 43
+CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 44
 PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 30
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
 PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 7
@@ -1121,7 +1131,7 @@ ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
 ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 # C9c-1: the certificate derived from the state, and the two shapes V1 state leaves undetermined.
-PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 40
+PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 50
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 4
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
@@ -1598,6 +1608,17 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         ("CARGO_TARGET_DIR", "CARGO_INCREMENTAL"),
         f"exit 0; {PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1} passed",
         1800,
+    ),
+    *(
+        ReplayCommandV1(
+            command_id,
+            (PYTHON_TOKEN_V1, LEDGER_TOOL_PATH_V1, "--packet", packet, "--rev", "HEAD", "--python", PYTHON_TOKEN_V1),
+            ".",
+            (),
+            f"exit 0; {expected_killed} killed, 0 survived, 0 errors",
+            2400,
+        )
+        for command_id, packet, expected_killed in LEDGER_GATED_PACKETS_V1
     ),
     ReplayCommandV1(
         "python_allocation_projection_gate",
@@ -3398,6 +3419,10 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
     "rust_producer_gate": {"passed": PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1},
     "rust_admission_gate": {"passed": ADMISSION_RUST_GATE_EXPECTED_PASSED_V1},
     "python_allocation_projection_gate": {"passed": PROJECTION_GATE_EXPECTED_PASSED_V1},
+    **{
+        command_id: {"killed": expected, "mechanical": expected, "survived": 0, "errors": 0}
+        for command_id, _packet, expected in LEDGER_GATED_PACKETS_V1
+    },
 }
 
 
@@ -4035,6 +4060,33 @@ def _grade_python_version(obs: ReplayObservationV1) -> dict[str, object]:
     return {"python_version": version}
 
 
+def _grade_ledger(obs: ReplayObservationV1, expected_killed: int) -> dict[str, object]:
+    """Every mechanical row of the packet killed, none survived, none errored."""
+
+    try:
+        report = json.loads(obs.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        _reject("REPLAY_LEDGER_REPORT_UNPARSEABLE", obs.command_id, "stdout is not one JSON object")
+    if not isinstance(report, dict):
+        _reject("REPLAY_LEDGER_REPORT_UNPARSEABLE", obs.command_id, "stdout is not one JSON object")
+    killed = report.get("killed")
+    survived = report.get("survived")
+    errors = report.get("errors")
+    mechanical = report.get("mechanical")
+    for name, value in (("killed", killed), ("survived", survived), ("errors", errors), ("mechanical", mechanical)):
+        if type(value) is not int:
+            _reject("REPLAY_LEDGER_REPORT_UNPARSEABLE", obs.command_id, f"{name} is not an integer")
+    if survived or errors:
+        _reject("REPLAY_LEDGER_ROW_NOT_KILLED", obs.command_id, f"survived {survived} errors {errors}")
+    if killed != expected_killed or mechanical != expected_killed:
+        _reject(
+            "REPLAY_LEDGER_KILLED_COUNT_DRIFT",
+            obs.command_id,
+            f"killed {killed} mechanical {mechanical} != {expected_killed}",
+        )
+    return {"killed": killed, "mechanical": mechanical, "survived": survived, "errors": errors}
+
+
 def _grade_pytest(obs: ReplayObservationV1, expected: int) -> dict[str, object]:
     passed = parse_pytest_summary_v1(obs.stdout)
     if passed is None:
@@ -4159,6 +4211,9 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_cargo(obs, ADMISSION_RUST_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "python_allocation_projection_gate":
         return _grade_pytest(obs, PROJECTION_GATE_EXPECTED_PASSED_V1)
+    for command_id, _packet, expected_killed in LEDGER_GATED_PACKETS_V1:
+        if obs.command_id == command_id:
+            return _grade_ledger(obs, expected_killed)
     if obs.command_id == "python_golden_gate":
         return _grade_pytest(obs, PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1)
     return _grade_esso(obs, esso)

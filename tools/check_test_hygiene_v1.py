@@ -28,6 +28,7 @@ from tools.test_hygiene_evidence_v1 import (
     MECHANICAL_MUTATION_ROWS_FROM,
     MUTATION_ROW_KINDS,
     MutationRowV1,
+    hygiene_dated_lineage_v1,
     load_packets_with_mutations,
     needle_occurrences_v1,
 )
@@ -205,6 +206,21 @@ def _created_date_v1(path: Path | None) -> str:
     return compact if len(compact) == 8 and compact.isdigit() else "99999999"
 
 
+def _carried_rows_v1(evidence_id: str, loaded: Sequence[PacketRowsV1]) -> frozenset[tuple[str, str]]:
+    """The (description, killer) pairs an earlier packet of the same lineage already declared."""
+
+    lineage, date, version = hygiene_dated_lineage_v1(evidence_id)
+    carried: set[tuple[str, str]] = set()
+    for packet, rows in loaded:
+        other_lineage, other_date, other_version = hygiene_dated_lineage_v1(packet.evidence_id)
+        if other_lineage != lineage:
+            continue
+        if (other_date, other_version) >= (date, version):
+            continue
+        carried.update((row.description, row.killed_by) for row in rows)
+    return frozenset(carried)
+
+
 def _reject_added_legacy_packets(
     changed_paths: Sequence[ChangedPathV1],
     loaded: Sequence[PacketRowsV1],
@@ -213,15 +229,22 @@ def _reject_added_legacy_packets(
 ) -> None:
     """A packet ADDED on or after the cutover may not carry string-only rows.
 
-    A packet is exempt only when BOTH its evidence-id date and its own ``created_date``
-    precede the cutover. Membership of the diff cannot be the key on its own: a diff
-    taken against an old base (the campaign base, say) reports every packet cut since
-    then as added, including ones authored before the cutover, whose append-only rows
-    may not be re-cut. Reading the packet's own ``created_date`` keeps the rule's teeth
-    against a back-dated evidence id. DECLARED RESIDUAL: a packet that back-dates BOTH
-    fields is exempt, because nothing in the evidence directory records when a packet
-    was authored; closing that needs the authoring commit's date, which this checker
-    does not read.
+    The rule applies to a row a packet DECLARES, not to one it carries forward. A packet
+    added on or after the cutover may not introduce a string-only row, but a successor
+    that merely re-pins its predecessor keeps that predecessor's rows: evidence packets
+    are append-only, so re-cutting history is not available, and requiring it would make
+    an honest re-pin impossible.
+
+    A packet is exempt entirely only when BOTH its evidence-id date and its own
+    ``created_date`` precede the cutover. Membership of the diff cannot be the key on its
+    own: a diff taken against an old base (the campaign base, say) reports every packet
+    cut since then as added, including ones authored before the cutover. Reading the
+    packet's own ``created_date`` keeps the rule's teeth against a back-dated evidence id.
+
+    DECLARED RESIDUALS: a packet that back-dates BOTH fields is exempt, because nothing in
+    the evidence directory records when a packet was authored; and a carried-forward row
+    is identified by its (description, killer) pair appearing in an earlier packet of the
+    same lineage, so a new row that copies an old row's text exactly is treated as carried.
     """
 
     rows_by_name = {packet.path.name: rows for packet, rows in loaded}
@@ -236,8 +259,12 @@ def _reject_added_legacy_packets(
         ) < MECHANICAL_MUTATION_ROWS_FROM:
             continue
         rows = rows_by_name.get(name, ())
+        carried = _carried_rows_v1(evidence_id, loaded)
+        introduced = [
+            row for row in rows if row.kind == "legacy" and (row.description, row.killed_by) not in carried
+        ]
         require(
-            all(row.kind != "legacy" for row in rows),
+            not introduced,
             f"added evidence packet {change.path} declares string-only mutation rows;"
             " declare mutant or narrative",
         )
