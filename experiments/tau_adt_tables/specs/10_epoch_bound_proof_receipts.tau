@@ -1,0 +1,53 @@
+# ZenoDEX / prior-epoch table integrity and proof-carrying receipts.
+# Research-only shadow contract. No settlement or value-moving authority.
+#
+# The critical rule is temporal: a receipt presented at step t is checked
+# against the candidate table from t-1. A row inserted in the same step cannot
+# vouch for itself. The selected candidate witness is then met with the receipt;
+# a dangling probe produces 0, so the append-only receipt table grows only by
+# nonzero proof receipts.
+# EXPECTED-RESULTS: T F T F T T T T
+set charvar off
+set maxsplits 1
+
+# If we (too weakly) check against the table AFTER today's insert, a brand-new
+# candidate can authorize itself.
+n ({ pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] } & (0 | { pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] && pcand[t]:bv[8]={13}:bv[8] && pscoreok[t]:bv[1]={1}:bv[1] })) != 0
+
+# Prior-epoch discipline refuses that same-step self-admission when yesterday
+# was empty.
+n ({ pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] } & 0) != 0
+
+# Once the candidate existed yesterday, the probe returns its witness.
+n ({ pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] } & { pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] && pcand[t]:bv[8]={13}:bv[8] && pscoreok[t]:bv[1]={1}:bv[1] }) != 0
+
+# A dangling price key has no witness in yesterday's candidate table.
+n ({ pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={7}:bv[8] && ppd[t]:bv[8]={1}:bv[8] } & { pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] && pcand[t]:bv[8]={13}:bv[8] && pscoreok[t]:bv[1]={1}:bv[1] }) != 0
+
+# Good receipt + selected candidate witness is a live proof receipt.
+n ({ prid[t]:bv[8]={2}:bv[8] && prset[t]:bv[8]={1}:bv[8] && prcand[t]:bv[8]={13}:bv[8] } & ({ pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] } & { pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] && pcand[t]:bv[8]={13}:bv[8] && pscoreok[t]:bv[1]={1}:bv[1] })) != 0
+
+# Bad receipt + dangling probe collapses to 0 and therefore appends nothing.
+n ({ prid[t]:bv[8]={3}:bv[8] && prset[t]:bv[8]={1}:bv[8] && prcand[t]:bv[8]={77}:bv[8] } & ({ pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={7}:bv[8] && ppd[t]:bv[8]={1}:bv[8] } & { pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] && pcand[t]:bv[8]={13}:bv[8] && pscoreok[t]:bv[1]={1}:bv[1] })) = 0
+
+# The proof receipt entails the candidate witness it carries.
+n (({ prid[t]:bv[8]={2}:bv[8] } & { pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] && pcand[t]:bv[8]={13}:bv[8] }) & { pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] && pcand[t]:bv[8]={13}:bv[8] }') = 0
+
+# Receipt-table replication is order independent while it remains append-only.
+n all a:tau all b:tau all receipts:tau (((receipts | a) | b) = ((receipts | b) | a))
+
+# Temporal executable: candidate_table grows by join. `check` selects from
+# YESTERDAY's candidate table. `proof_receipt = receipt & check` is therefore 0
+# for a dangling or same-step-only candidate; receipt_table grows only by the
+# proof-carrying nonzero value.
+type EpochInput = {candidate: tau, receipt: tau, probe: tau}. type EpochOutput = {candidate_table: tau, check: tau, proof_receipt: tau, receipt_table: tau}. ei:EpochInput := in console. eo:EpochOutput := out console. run (eo[0].candidate_table = 0) && (eo[0].check = 0) && (eo[0].proof_receipt = 0) && (eo[0].receipt_table = 0) && (eo[t].check = ei[t].probe & eo[t-1].candidate_table) && (eo[t].proof_receipt = ei[t].receipt & eo[t].check) && (eo[t].receipt_table = eo[t-1].receipt_table | eo[t].proof_receipt) && (eo[t].candidate_table = eo[t-1].candidate_table | ei[t].candidate)
+
+# Step 1: candidate 13 arrives, but its same-step receipt cannot self-authorize.
+{ candidate: "pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8] && pcand[t]:bv[8]={13}:bv[8] && pscoreok[t]:bv[1]={1}:bv[1].", receipt: "prid[t]:bv[8]={1}:bv[8] && prset[t]:bv[8]={1}:bv[8] && prcand[t]:bv[8]={13}:bv[8].", probe: "pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8]." }
+
+# Step 2: yesterday now contains candidate 13; its receipt becomes proof-carrying.
+{ candidate: "pempty[t]=0 && pempty[t]=1.", receipt: "prid[t]:bv[8]={2}:bv[8] && prset[t]:bv[8]={1}:bv[8] && prcand[t]:bv[8]={13}:bv[8].", probe: "pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={1}:bv[8] && ppd[t]:bv[8]={1}:bv[8]." }
+
+# Step 3: candidate 14 is appended, but a receipt for absent candidate/key 77
+# yields proof_receipt=0 and cannot enlarge the receipt table.
+{ candidate: "pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={2}:bv[8] && ppd[t]:bv[8]={1}:bv[8] && pcand[t]:bv[8]={14}:bv[8] && pscoreok[t]:bv[1]={1}:bv[1].", receipt: "prid[t]:bv[8]={3}:bv[8] && prset[t]:bv[8]={1}:bv[8] && prcand[t]:bv[8]={77}:bv[8].", probe: "pset[t]:bv[8]={1}:bv[8] && ppn[t]:bv[8]={7}:bv[8] && ppd[t]:bv[8]={1}:bv[8]." }
