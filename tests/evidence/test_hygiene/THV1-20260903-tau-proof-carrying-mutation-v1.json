@@ -1,0 +1,111 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-tau-proof-carrying-mutation-v1",
+  "created_date": "2026-09-03",
+  "claim_scope": "Research-only executable Tau evidence for observed/proof-carrying mutation. One contract models constitutional replacement candidates with an explicit predecessor, weakening residue proposal & predecessor', a fail-closed meet-ratchet that adopts equivalent/stronger proposals exactly and preserves predecessor obligations under weakening attempts, plus universal future-extension safety checks. A second contract proves append commutativity but exhibits restrict-then-extend noncommutativity and a concrete revoke/grant ordering dependency.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TAU-MUTATION-PREDECESSOR-OBSERVABLE",
+    "TAU-MUTATION-WEAKENING-RESIDUE",
+    "TAU-MUTATION-NONWEAKENING-RATCHET",
+    "TAU-MUTATION-FUTURE-EXTENSION-SAFETY",
+    "TAU-MUTATION-APPEND-COMMUTES",
+    "TAU-MUTATION-RESTRICT-EXTEND-ORDER-SENSITIVE",
+    "TAU-MUTATION-REVOKE-GRANT-COORDINATION"
+  ],
+  "failure_modes": [
+    "an equivalent or strengthening proposal is not adopted exactly by the meet-ratchet",
+    "a weakening proposal silently deletes predecessor obligations",
+    "the predecessor-to-proposal weakening residue is incorrectly zero for an unconstrained replacement",
+    "a future extension can admit settle=1 with a required proof or witness missing",
+    "the implementation assumes all table/state mutations commute",
+    "revoke-then-grant and grant-then-revoke are treated as the same final state",
+    "the replay runs against a mutable Tau source instead of the exact research lock"
+  ],
+  "source_pins": [
+    {
+      "path": "config/tau_lang_adt_research.lock",
+      "sha256": "55e44d31eff9bddb5b046b33527eda7cb0e6d7cf661c5c2229ee1b4dce6b098f"
+    },
+    {
+      "path": "src/tau_specs/recommended/proof_carrying_constitutional_mutation_v1.tau",
+      "sha256": "6c439a6751abb23b6e4154a31d1e41b06ba5d440948e5a9a115831dce8181e16"
+    },
+    {
+      "path": "src/tau_specs/recommended/mutation_coordination_classifier_v1.tau",
+      "sha256": "369e9d69f0cdfc56f94db89d4cd7059274aadeff4ce1147538c105306fd85585"
+    },
+    {
+      "path": "tools/build_tau_adt_research_pin_v1.sh",
+      "sha256": "a3b995600bca52e34c9e5e76bb1aaaa13c8ef5aa929fcabbd19f692666188d7b"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/tau/test_tau_proof_carrying_mutation_v1.py",
+      "sha256": "6d948b5c541fb0f0974b68b1d252f478cb9a4a172839b7d178cc9947c6ad5be2",
+      "node_ids": [
+        "tests/tau/test_tau_proof_carrying_mutation_v1.py::test_tau_proof_carrying_mutation_source_contract",
+        "tests/tau/test_tau_proof_carrying_mutation_v1.py::test_tau_proof_carrying_mutation_pinned_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The replay arranges equivalent, strengthening and weakening constitutional proposals plus concrete grant/revoke orderings; acts through Tau theorem queries and temporal ADT streams on the exact locked source; and asserts the full expected T/F sequence together with terminal stream states."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The meet-ratchet turns the maximally weak proposal 1 into law[t]=law[t-1], demonstrating a fail-closed deletion attempt that preserves the predecessor. Identity restriction and empty extension are also explicit no-op boundaries."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "replacement_relation",
+      "points": [
+        "equivalent rule ordering",
+        "strict strengthening",
+        "maximally weak/unconstrained replacement"
+      ]
+    },
+    {
+      "name": "future_extension",
+      "points": [
+        "proof core excludes missing proof for every x:tau",
+        "no-core control fails",
+        "strengthened core excludes missing witness for every x:tau"
+      ]
+    },
+    {
+      "name": "mutation_ordering",
+      "points": [
+        "join/join commutes universally",
+        "restrict/extend has an existential noncommutativity witness",
+        "concrete revoke-then-grant differs from grant-then-revoke"
+      ]
+    },
+    {
+      "name": "no_op_boundaries",
+      "points": [
+        "old & 1 = old",
+        "state & 1 = state",
+        "state | 0 = state"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "This is a research-only logical experiment and grants no production, settlement, governance-execution, release, migration, verifier, or value-moving authority.",
+    "The meet-ratchet intentionally only permits equivalent-or-stronger evolution; it is not a complete constitutional amendment mechanism for explicitly authorized weakening.",
+    "A nonzero weakening residue classifies an unsafe replacement relative to the predecessor but is not by itself a cryptographic or consensus authorization.",
+    "The coordination classifier proves semantic order sensitivity; it does not implement distributed locking, consensus ordering, or a production scheduler.",
+    "The bounded examples use abstract Tau facts and fixed-width ids rather than production account, signature, hashing, or storage semantics.",
+    "This evidence does not close O-008 or refresh any pre-existing formal-cycle packet."
+  ]
+}
