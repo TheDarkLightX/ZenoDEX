@@ -30,9 +30,9 @@ FIXTURE = ROOT / "tests" / "data" / "global_accounting_allocation_certificate_v1
 NAMESPACE = "Proofs.GlobalAccountingAllocationCertificateV1"
 PINNED_SOURCES = {
     PROOF: "6c7b6a7b8120d5da697ac9404f23ca0a14cbcda52a39df9e5e3775cb26e51db5",
-    PYTHON_CHECKER: "f74e5cfc4a8276585b9814fdffc389d733d301ae4416cd0c182e4f7f4eab2bf3",
-    RUST_TWIN: "4f95185a06d66208c341b097ff6047cb0b81b2652bfefc5b3888da6623e7a243",
-    FIXTURE: "6f9b993b1a3d06e4d4bfd86161b956a06d7ad8fc50e248e7fd7da57e68b108e3",
+    PYTHON_CHECKER: "2db66e20c53152d1732ec573e249a15f05a385d0ffb611692d7ed147a5d81ee4",
+    RUST_TWIN: "369949c098a118a12425fcd5ffbcf06e68e79da8fd7c613ca3fadf3b6584818d",
+    FIXTURE: "9af6991e6bfc5f5dd7bc1411829e027bcf069c20a4a51b1b9b24049fdf5bd588",
 }
 
 THEOREMS = (
@@ -163,7 +163,10 @@ def test_model_predicates_name_the_checker_reject_codes() -> None:
         assert code in fixture["reject_messages"], code
     for predicate in ("def ProducerGate", "def LanePartition", "def TerminalBound", "def RowsEqual", "def AggregateEqual", "def CertificateRelation"):
         assert predicate in lean, predicate
-    assert "RECEIPT_BACKED" not in {entry["producer_kind"] for entry in fixture["producer_registry"].values()}
+    # C9b-2b: exactly the asset-transfer lane is registered receipt-backed; the model's
+    # noReceiptBacked_* theorems keep their hypothesis form (they describe the other eleven lanes).
+    receipt_backed = {lane for lane, entry in fixture["producer_registry"].items() if entry["producer_kind"] == "RECEIPT_BACKED"}
+    assert receipt_backed == {"ASSET_TRANSFER"}
 
 
 def test_claim_ceiling_excludes_runtime_and_authority_promotion() -> None:

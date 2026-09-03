@@ -22,18 +22,19 @@ An enabled lane whose registered producer is receipt-backed must present its wit
 (``RECEIPT_WITNESS_REQUIRED``), every other lane must present none
 (``RECEIPT_WITNESS_UNEXPECTED``), and a presented witness must carry the certificate's
 own fragment (``RECEIPT_WITNESS_FRAGMENT_DRIFT``) and the state's header
-(``RECEIPT_WITNESS_HEADER_DRIFT``). While no lane is registered receipt-backed the gate
-can only refuse a presented witness; the registry flip (C9b-2b) makes the requirement
-live in both languages at once, behind this gate.
+(``RECEIPT_WITNESS_HEADER_DRIFT``). The ASSET_TRANSFER registration (C9b-2b) makes the
+requirement live in both languages at once, behind this gate.
 
-Current profile: no lane is REGISTERED with a receipt-backed fragment producer (an
-implemented, unregistered wave-B producer exists in the producers module; the registry below is
-exhaustive over ``LaneIdV1`` and names the blocking obligation), so an enabled lane
-fragment rejects with ``BLOCKED_LANE_PRODUCER_MISSING`` naming the lane; only the
-all-lanes-disabled certificate over an empty economic state can be accepted today. That
-is the honest content of this candidate: the contract and its checks are executable
-and pinned, the producers are not. Authority: NONE. The checker verifies no receipt
-and grants no publication, settlement, or value-moving authority.
+Current profile: exactly one lane, ASSET_TRANSFER, is registered with a receipt-backed
+fragment producer (the wave-B producer, admitted through the C9 receipt witness); its
+enabled fragment is accepted only when the matching sealed witness fills its slot
+(``RECEIPT_WITNESS_REQUIRED`` otherwise). Every other enabled lane fragment rejects with
+``BLOCKED_LANE_PRODUCER_MISSING`` naming the lane (the registry below is exhaustive over
+``LaneIdV1`` and names the blocking obligation), so the certificate reconciles at most the
+asset-transfer lane against the economic tables; the other eleven lanes must be disabled
+and empty. Authority: NONE. The checker verifies no receipt itself (the witness's receipt
+was verified at the admission) and grants no publication, settlement, or value-moving
+authority.
 """
 
 from __future__ import annotations
@@ -94,9 +95,10 @@ class LaneProducerKindV1(str, Enum):
     RECEIPT_BACKED = "RECEIPT_BACKED"
 
 
-# Exhaustive over LaneIdV1: the producer kind the registry supports today and the
-# obligation that blocks a receipt-backed producer. No lane is registered
-# receipt-backed yet (the implemented wave-B producer is on no acceptance path).
+# Exhaustive over LaneIdV1: the producer kind the registry supports today and, for a lane
+# without a receipt-backed producer, the obligation that blocks one. ASSET_TRANSFER is the
+# one receipt-backed registration (C9b-2b): its enabled fragment is accepted only when the
+# sealed receipt-admission witness fills its slot; every other lane still has no producer.
 # The unique empty typed lane state each registered-empty lane must be committed at: a
 # registered-empty fragment is exact-empty because the lane's own state is the empty state,
 # and the certificate binds the committed lane root to that state's root (C5, wave A).
@@ -105,7 +107,7 @@ REGISTERED_EMPTY_LANE_ROOTS_V1: Final[dict[LaneIdV1, str]] = {
     LaneIdV1.PROOF_REWARDS: ProofRewardsPolicyBlockedStateV1().state_root,
 }
 LANE_ALLOCATION_PRODUCER_REGISTRY_V1: Final[dict[LaneIdV1, tuple[LaneProducerKindV1, str]]] = {
-    LaneIdV1.ASSET_TRANSFER: (LaneProducerKindV1.NO_PRODUCER, "VM-04 wave B asset-transfer fragment producer"),
+    LaneIdV1.ASSET_TRANSFER: (LaneProducerKindV1.RECEIPT_BACKED, "C9 receipt admission: fragments enter only as the sealed witness; research-only, authority NONE"),
     LaneIdV1.SPOT_LIQUIDITY: (LaneProducerKindV1.NO_PRODUCER, "VM-04 wave C spot-liquidity producer; UP-01 UP-12 UP-14"),
     LaneIdV1.FARM_INCENTIVES: (LaneProducerKindV1.NO_PRODUCER, "VM-11 wave D no-writer proof; UP-03"),
     LaneIdV1.ZDEX_TOKENOMICS: (LaneProducerKindV1.NO_PRODUCER, "VM-04 wave C tokenomics producer; UP-01 UP-15"),
@@ -484,7 +486,7 @@ class _VerifiedFragmentFieldsV1:
         _require_nonnegative_int(self.writer_epoch, name="verified fragment writer epoch")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class VerifiedLaneAllocationFragmentV1:
     """Opaque receipt-admitted fragment, minted only by the receipt admission.
 
@@ -496,11 +498,26 @@ class VerifiedLaneAllocationFragmentV1:
     another deployment cannot vouch for an identical lane root elsewhere. The
     mint token is an ``InitVar``: it must be presented at construction and is
     never stored, so a held witness leaks nothing that mints another; the frozen
-    dataclass gives immutability without any dynamic attribute binding (the
-    packet's static-binding rule for this module). It is frozen without
-    ``slots``: CPython 3.12's frozen-slots ``__setattr__`` cannot refuse an
-    assignment to a property of the re-created class, and the ``__dict__`` this
-    leaves is already covered by the in-process forgery residual.
+    slots dataclass gives immutability without any dynamic attribute binding
+    (the packet's static-binding rule for this module) and without a
+    ``__dict__`` through which a minted handle could be re-pointed (Opus P36
+    F-1). On CPython 3.12 the frozen-slots ``__setattr__`` refuses a property
+    assignment with ``TypeError`` (its stale class cell) and a field assignment
+    with ``FrozenInstanceError``; ``object.__setattr__`` on a held handle stays
+    inside the declared in-process forgery residual.
+
+    Which of the nine exported scalars the certificate binds, and why the rest
+    need no binding here (Opus P36 F-3): ``fragment`` by equality with the
+    certificate fragment; ``receipt_root`` through that equality (the
+    admission's check (4) made it the fragment's binding root); ``chain_id``,
+    ``deployment_root``, ``profile_root``, ``writer_epoch`` by the header pass
+    against the state; ``expected_image_id`` through the fragment's
+    ``module_release_id``, which the state's lane root commits and which is a
+    content hash over the release body including ``guest_image_id`` (the mint
+    verified the receipt against exactly that release's image); the remaining
+    two, ``module_journal_root`` and ``receipt_digest``, bind the witness to its
+    own mint and name nothing the state commits, so the certificate reads them
+    for nothing.
     """
 
     _fields: _VerifiedFragmentFieldsV1
@@ -779,12 +796,14 @@ def _check_lane_bindings(
         if fragment.enabled and registered_kind is not LaneProducerKindV1.RECEIPT_BACKED:
             _fail(AllocationCertificateRejectCodeV1.BLOCKED_LANE_PRODUCER_MISSING, f"{fragment.lane_id.value}:{blocked_on}")
     slots = tuple(zip(certificate.ordered_lane_fragments, witnesses, strict=True))
+    # Check-major like every other code (Opus P36 F-4): REQUIRED over all lanes, then UNEXPECTED.
     for fragment, witness in slots:
         registered_kind, _ = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[fragment.lane_id]
-        witnessed = fragment.enabled and registered_kind is LaneProducerKindV1.RECEIPT_BACKED
-        if witnessed and witness is None:
+        if witness is None and fragment.enabled and registered_kind is LaneProducerKindV1.RECEIPT_BACKED:
             _fail(AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_REQUIRED, fragment.lane_id.value)
-        if not witnessed and witness is not None:
+    for fragment, witness in slots:
+        registered_kind, _ = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[fragment.lane_id]
+        if witness is not None and not (fragment.enabled and registered_kind is LaneProducerKindV1.RECEIPT_BACKED):
             _fail(AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_UNEXPECTED, fragment.lane_id.value)
     for fragment, witness in slots:
         if witness is not None and witness.fragment != fragment:

@@ -11,9 +11,9 @@
 //! Python cannot import in a cycle, while Rust seals per module and the certificate module
 //! imports this one). The witness carries the rebuilt journal's header for the certificate
 //! check's header binding (C9b-2a).
-//! The certificate registry still keeps ASSET_TRANSFER at NO_PRODUCER in both languages:
-//! nothing consumes this witness on an acceptance path until C9b-2 lands the registry flip
-//! behind a witness type gate.
+//! The certificate registry registers ASSET_TRANSFER receipt-backed in both languages
+//! (C9b-2b), behind the witness-slot gate: an enabled asset-transfer fragment is accepted
+//! only when this witness fills its slot.
 //!
 //! Check order, shared with the Python authority: (0) the boundary: `accepted` is validated
 //! (the Python twin re-runs every construction invariant on an exact-typed snapshot), the
@@ -110,7 +110,24 @@ pub enum AssetTransferFragmentAdmissionRejectedV1 {
 }
 
 /// Opaque receipt-admitted fragment, produced only by this verifier: the fields are private,
-/// so no other module (and no deserialiser) can construct one.
+/// so no other module (and no deserialiser) can construct one. An out-of-module struct
+/// literal does not compile:
+///
+/// ```compile_fail
+/// use zenodex_global_settlement_abi_v1::{RootV1, VerifiedLaneAllocationFragmentV1, LaneAllocationFragmentV1, LaneIdV1, LaneProducerKindV1};
+/// let root = RootV1::parse(format!("0x{:064x}", 1u64), "r", false).unwrap();
+/// let fragment = LaneAllocationFragmentV1 {
+///     lane_id: LaneIdV1::ASSET_TRANSFER, module_release_id: root.clone(), enabled: true,
+///     lane_state_root: root.clone(), producer_kind: LaneProducerKindV1::RECEIPT_BACKED,
+///     binding_root: root.clone(), controlled_locations: vec![], claimant_entitlements: vec![],
+///     unencumbered_reserves: vec![], pending_external_obligations: vec![], terminal_bindings: vec![],
+/// };
+/// let _forged = VerifiedLaneAllocationFragmentV1 {
+///     fragment, module_journal_root: root.clone(), receipt_root: root.clone(),
+///     receipt_digest: root.clone(), expected_image_id: root.clone(), chain_id: String::new(),
+///     deployment_root: root.clone(), profile_root: root, writer_epoch: 0,
+/// };
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedLaneAllocationFragmentV1 {
     fragment: LaneAllocationFragmentV1,

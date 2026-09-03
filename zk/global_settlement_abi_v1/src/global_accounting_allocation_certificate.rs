@@ -51,8 +51,8 @@ pub enum ReserveInterpretationV1 {
 pub const LANE_ALLOCATION_PRODUCER_REGISTRY_V1: [(LaneIdV1, LaneProducerKindV1, &str); 12] = [
     (
         LaneIdV1::ASSET_TRANSFER,
-        LaneProducerKindV1::NO_PRODUCER,
-        "VM-04 wave B asset-transfer fragment producer",
+        LaneProducerKindV1::RECEIPT_BACKED,
+        "C9 receipt admission: fragments enter only as the sealed witness; research-only, authority NONE",
     ),
     (
         LaneIdV1::SPOT_LIQUIDITY,
@@ -781,6 +781,7 @@ fn check_lane_bindings(
         .iter()
         .zip(witnesses.iter().copied())
         .collect();
+    // Check-major like every other code (Opus P36 F-4): REQUIRED over all lanes, then UNEXPECTED.
     for (fragment, witness) in &slots {
         let (registered_kind, _) = registry_entry_v1(fragment.lane_id);
         let witnessed = fragment.enabled && registered_kind == LaneProducerKindV1::RECEIPT_BACKED;
@@ -790,6 +791,10 @@ fn check_lane_bindings(
                 format!("{:?}", fragment.lane_id),
             );
         }
+    }
+    for (fragment, witness) in &slots {
+        let (registered_kind, _) = registry_entry_v1(fragment.lane_id);
+        let witnessed = fragment.enabled && registered_kind == LaneProducerKindV1::RECEIPT_BACKED;
         if !witnessed && witness.is_some() {
             return fail(
                 AllocationCertificateRejectCodeV1::ReceiptWitnessUnexpected,
@@ -1279,14 +1284,14 @@ fn check_derived_roots(
     Ok(())
 }
 
+/// Twelve empty witness slots in lane order: what every caller passes while no lane is witnessed.
+pub const EMPTY_LANE_WITNESS_SLOTS_V1: [Option<&VerifiedLaneAllocationFragmentV1>; 12] = [None; 12];
+
 /// Total function: accept with the derived roots, or reject with the first failing closed code.
 ///
 /// The certificate and state are validated first (`AbiErrorV1` on malformed input is
 /// a parse-level failure, not a certificate reject). A reject never mutates and
 /// carries the pre-state root twice.
-/// Twelve empty witness slots in lane order: what every caller passes while no lane is witnessed.
-pub const EMPTY_LANE_WITNESS_SLOTS_V1: [Option<&VerifiedLaneAllocationFragmentV1>; 12] = [None; 12];
-
 pub fn check_global_accounting_allocation_certificate_v1(
     certificate: &GlobalAccountingAllocationCertificateV1,
     state: &GlobalEconomicStateV1,

@@ -13,6 +13,7 @@ replays the same fixture. Authority: NONE.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -48,12 +49,12 @@ def test_fixture_header_tables_are_shared() -> None:
     assert fixture["check_order"] == list(cert.CHECK_ORDER_V1)
 
 
-def test_producer_registry_is_exhaustive_and_has_no_receipt_backed_lane() -> None:
+def test_producer_registry_is_exhaustive_and_registers_only_asset_transfer_receipt_backed() -> None:
     fixture = _fixture()
     assert list(fixture["producer_registry"]) == sorted(lane.value for lane in ALL_LANE_IDS_V1)
     assert set(cert.LANE_ALLOCATION_PRODUCER_REGISTRY_V1) == set(LaneIdV1)
     kinds = {lane: entry["producer_kind"] for lane, entry in fixture["producer_registry"].items()}
-    assert cert.LaneProducerKindV1.RECEIPT_BACKED.value not in kinds.values()
+    assert [lane for lane, kind in kinds.items() if kind == "RECEIPT_BACKED"] == ["ASSET_TRANSFER"]
     assert kinds["EXTERNAL_CUSTODY"] == "REGISTERED_EMPTY_DISABLED"
     assert kinds["PROOF_REWARDS"] == "REGISTERED_EMPTY_BLOCKED"
     for entry in fixture["producer_registry"].values():
@@ -117,10 +118,9 @@ def test_mutation_killers_name_recorded_vectors_with_the_expected_polarity() -> 
         # Reachable only through a receipt-backed producer, which the current profile lacks.
         cert.AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW.value,
         cert.AllocationCertificateRejectCodeV1.SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE.value,
-        # The witness gate needs a sealed witness no JSON vector can carry: UNEXPECTED is exercised
-        # by test_witness_slots_refuse_a_witness_for_an_unregistered_lane_and_bad_shapes; the other
-        # three become reachable only once a lane is registered receipt-backed (C9b-2b).
-        cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_REQUIRED.value,
+        # A JSON vector carries no sealed witness: REQUIRED is rendered (the enabled receipt-backed
+        # lane with an empty slot); UNEXPECTED, FRAGMENT_DRIFT, and HEADER_DRIFT are exercised
+        # in-process by the witnessed tests below with a real minted witness.
         cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_UNEXPECTED.value,
         cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_FRAGMENT_DRIFT.value,
         cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_HEADER_DRIFT.value,
@@ -287,10 +287,10 @@ def test_fold_overflow_details_match_the_shared_labels() -> None:
 
 
 def test_witness_slots_refuse_a_witness_for_an_unregistered_lane_and_bad_shapes() -> None:
-    """C9b-2a: with no lane registered receipt-backed the only live witness rule is
-    RECEIPT_WITNESS_UNEXPECTED (a presented witness in a slot that cannot use one, checked
-    before any row); the slot shape and the exact witness class are type-boundary refusals.
-    REQUIRED, FRAGMENT_DRIFT, and HEADER_DRIFT become reachable only with the registry flip."""
+    """C9b-2a: a presented witness in a slot whose lane cannot use one (here the disabled
+    ASSET_TRANSFER lane of the registered-empty certificate) is RECEIPT_WITNESS_UNEXPECTED,
+    checked before any row; the slot shape and the exact witness class are type-boundary
+    refusals."""
 
     from src.core.asset_transfer_receipt_admission_v1 import (
         verify_asset_transfer_fragment_receipt_v1,
@@ -337,3 +337,117 @@ def test_witness_slots_refuse_a_witness_for_an_unregistered_lane_and_bad_shapes(
     assert cert.CHECK_ORDER_V1.index("receipt_witness_slots_bind_fragment_and_header") == cert.CHECK_ORDER_V1.index(
         "enabled_lane_supported_receipt_backed_producer"
     ) + 1
+
+
+# --- C9b-2b: ASSET_TRANSFER registered receipt-backed; the witnessed acceptance path -------------
+
+
+def _witnessed(authority_epoch: int | None = None):
+    """A real admitted witness and a state/certificate pair built around it: the enabled
+    ASSET_TRANSFER lane sits at the admitted post root under the witness's own header, the
+    other eleven lanes are disabled and empty, and the certificate carries the witness's
+    fragment in the first slot."""
+
+    from src.core.asset_transfer_receipt_admission_v1 import (
+        verify_asset_transfer_fragment_receipt_v1,
+    )
+    from tests.core.test_asset_transfer_receipt_admission_v1 import _fixture as admission_fixture
+
+    accepted, module_witness, lane_root, prior = (
+        admission_fixture() if authority_epoch is None else admission_fixture(authority_epoch=authority_epoch)
+    )
+    witness = verify_asset_transfer_fragment_receipt_v1(module_witness, accepted, lane_root, prior, ())
+    assert isinstance(witness, cert.VerifiedLaneAllocationFragmentV1)
+    base = renderer.build_state_v1(renderer._spec(lanes_enabled=renderer.ONE_ENABLED))
+    lane_roots = (lane_root, *base.lane_roots[1:])
+    state = replace(
+        base,
+        chain_id=witness.chain_id,
+        deployment_root=witness.deployment_root,
+        profile_root=witness.profile_root,
+        writer_epoch=witness.writer_epoch,
+        lane_roots=lane_roots,
+    )
+    registered = cert.build_registered_empty_certificate_v1(state)
+    certificate = renderer._certificate_with_fragments(registered, (witness.fragment, *registered.ordered_lane_fragments[1:]))
+    slots = (witness, *cert.EMPTY_LANE_WITNESS_SLOTS_V1[1:])
+    return witness, state, certificate, slots
+
+
+def test_enabled_asset_transfer_lane_is_accepted_only_through_its_witness() -> None:
+    """C9b-2b: the registered receipt-backed lane accepts with its sealed witness in the slot and
+    rejects RECEIPT_WITNESS_REQUIRED without it; the accepted fragment root is the witness's."""
+
+    witness, state, certificate, slots = _witnessed()
+    outcome = cert.check_global_accounting_allocation_certificate_v1(certificate, state, slots)
+    assert isinstance(outcome, cert.AllocationCertificateAcceptedV1), outcome
+    assert outcome.lane_fragment_roots[0] == witness.fragment.fragment_root
+    required = cert.check_global_accounting_allocation_certificate_v1(certificate, state, cert.EMPTY_LANE_WITNESS_SLOTS_V1)
+    assert isinstance(required, cert.AllocationCertificateRejectedV1)
+    assert required.code is cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_REQUIRED
+    assert required.detail == "ASSET_TRANSFER"
+    assert required.pre_state_root == required.post_state_root == state.state_root
+
+
+def test_witnessed_fragment_must_equal_the_certificate_fragment() -> None:
+    """C9b-2b: a certificate fragment that differs from the admitted one (here claiming the
+    lane-root binding instead of the receipt root) rejects RECEIPT_WITNESS_FRAGMENT_DRIFT."""
+
+    witness, state, certificate, slots = _witnessed()
+    forged = replace(witness.fragment, binding_root=witness.fragment.lane_state_root)
+    drifted = renderer._certificate_with_fragments(certificate, (forged, *certificate.ordered_lane_fragments[1:]))
+    outcome = cert.check_global_accounting_allocation_certificate_v1(drifted, state, slots)
+    assert isinstance(outcome, cert.AllocationCertificateRejectedV1)
+    assert outcome.code is cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_FRAGMENT_DRIFT
+    assert outcome.detail == "ASSET_TRANSFER"
+
+
+def test_witness_minted_under_another_header_is_refused() -> None:
+    """C9b-2b: a witness minted under another writer epoch for the same module transition binds
+    the same lane root (the module state is epoch-free) but not this state's header, so it
+    rejects RECEIPT_WITNESS_HEADER_DRIFT even though its fragment is the certificate's."""
+
+    witness, state, _certificate, _slots = _witnessed()
+    foreign, _foreign_state, foreign_certificate, foreign_slots = _witnessed(authority_epoch=witness.writer_epoch + 1)
+    assert foreign.writer_epoch == witness.writer_epoch + 1
+    assert foreign.fragment.lane_state_root == witness.fragment.lane_state_root
+    lane_roots = (replace(state.lane_roots[0], module_release_id=foreign.fragment.module_release_id), *state.lane_roots[1:])
+    host = replace(state, lane_roots=lane_roots)
+    hosted = replace(
+        foreign_certificate,
+        global_state_root=host.state_root,
+        profile_root=host.profile_root,
+        writer_epoch=host.writer_epoch,
+        chain_context=cert.ChainContextV1(host.chain_id, host.deployment_root),
+    )
+    outcome = cert.check_global_accounting_allocation_certificate_v1(hosted, host, foreign_slots)
+    assert isinstance(outcome, cert.AllocationCertificateRejectedV1)
+    assert outcome.code is cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_HEADER_DRIFT
+    assert outcome.detail == "ASSET_TRANSFER"
+
+
+def test_witness_passes_fire_in_the_documented_order() -> None:
+    """Opus P36 F-5: FRAGMENT_DRIFT precedes HEADER_DRIFT at runtime (a foreign-epoch witness in a
+    certificate built for the base witness differs in both), and the four witness codes appear in the
+    documented order in both the Python and the Rust lane-binding pass."""
+
+    import re
+    from pathlib import Path
+
+    witness, state, certificate, _slots = _witnessed()
+    foreign, _fs, _fc, foreign_slots = _witnessed(authority_epoch=witness.writer_epoch + 1)
+    assert foreign.fragment != witness.fragment and foreign.writer_epoch != state.writer_epoch
+    outcome = cert.check_global_accounting_allocation_certificate_v1(certificate, state, foreign_slots)
+    assert isinstance(outcome, cert.AllocationCertificateRejectedV1)
+    assert outcome.code is cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_FRAGMENT_DRIFT
+
+    root = Path(__file__).resolve().parents[2]
+    order = ("RECEIPT_WITNESS_REQUIRED", "RECEIPT_WITNESS_UNEXPECTED", "RECEIPT_WITNESS_FRAGMENT_DRIFT", "RECEIPT_WITNESS_HEADER_DRIFT")
+    python = (root / "src/core/global_accounting_allocation_certificate_v1.py").read_text()
+    body = python.split("def _check_lane_bindings(", 1)[1].split("\ndef ", 1)[0]
+    assert tuple(re.findall(r"AllocationCertificateRejectCodeV1\.(RECEIPT_WITNESS_[A-Z_]+)", body)) == order
+    rust = (root / "zk/global_settlement_abi_v1/src/global_accounting_allocation_certificate.rs").read_text()
+    rbody = rust.split("fn check_lane_bindings(", 1)[1].split("\nfn ", 1)[0]
+    camel = {"RECEIPT_WITNESS_REQUIRED": "ReceiptWitnessRequired", "RECEIPT_WITNESS_UNEXPECTED": "ReceiptWitnessUnexpected",
+             "RECEIPT_WITNESS_FRAGMENT_DRIFT": "ReceiptWitnessFragmentDrift", "RECEIPT_WITNESS_HEADER_DRIFT": "ReceiptWitnessHeaderDrift"}
+    assert tuple(re.findall(r"AllocationCertificateRejectCodeV1::(ReceiptWitness[A-Za-z]+)", rbody)) == tuple(camel[c] for c in order)

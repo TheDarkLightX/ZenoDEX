@@ -649,7 +649,9 @@ def test_certificate_fixture_surface_rejects_non_empty_accepted_vectors(snapshot
         core.certificate_fixture_surface_v1(missing_code)
     assert codes.value.detail == "reject_messages"
     assert core.CERTIFICATE_CHECK_ORDER_V1[1:-1] == core.SIDECAR_CHECKS_V1
-    assert set(core.CERTIFICATE_PRODUCER_KINDS_V1) == set(core.EXPECTED_LANES_V1) and "RECEIPT_BACKED" not in core.CERTIFICATE_PRODUCER_KINDS_V1.values()
+    assert set(core.CERTIFICATE_PRODUCER_KINDS_V1) == set(core.EXPECTED_LANES_V1)
+    # C9b-2b: exactly the asset-transfer lane is registered receipt-backed
+    assert [lane for lane, kind in core.CERTIFICATE_PRODUCER_KINDS_V1.items() if kind == "RECEIPT_BACKED"] == ["ASSET_TRANSFER"]
     assert set(core.CERTIFICATE_REGISTERED_EMPTY_ROOTS_V1) == {lane for lane, kind in core.CERTIFICATE_PRODUCER_KINDS_V1.items() if kind.startswith("REGISTERED_EMPTY")}
     moved = copy.deepcopy(fixture)
     for fragment in moved["vectors"][accepted]["certificate"]["ordered_lane_fragments"]:
@@ -1398,7 +1400,7 @@ def test_closed_constants_are_internally_consistent() -> None:
     assert "COMPLETE" not in core.LANE_STATUS_VOCABULARY_V1
     assert len(core.SIDECAR_CHECKS_V1) == 11 and len(core.SIDECAR_FIELDS_V1) == 9
     # 13 since C9a'': the scoped claimant-entitlement nonclaim and the epoch-path exact-type audit gap.
-    assert len(core.NONCLAIMS_V1) == 13
+    assert len(core.NONCLAIMS_V1) == 14
     assert set(core.RUST_GATE_TESTS_V1) >= {"records_and_containers_reject_seeded_unknown_keys"}
     assert core.RUST_GATE_EXPECTED_PASSED_V1 == len(core.RUST_GATE_TESTS_V1)
     assert core.PYTHON_GATE_EXPECTED_PASSED_V1 >= len(core.PYTHON_GATE_TESTS_V1)

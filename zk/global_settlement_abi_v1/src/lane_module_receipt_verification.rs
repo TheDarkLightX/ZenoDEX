@@ -101,6 +101,24 @@ pub struct PerpsMarginLaneModuleReceiptCandidateV1<'a> {
     pub receipt: LaneModuleReceiptEnvelopeV1<'a>,
 }
 
+/// The module witness: mintable only by the verifiers in this module (private fields; no
+/// deserialiser). An out-of-module struct literal does not compile:
+///
+/// ```compile_fail
+/// use zenodex_global_settlement_abi_v1::{RootV1, VerifiedLaneModuleTransitionV1, ReceiptKindV1};
+/// let root = RootV1::parse(format!("0x{:064x}", 1u64), "r", false).unwrap();
+/// let _forged = VerifiedLaneModuleTransitionV1 {
+///     authenticated_command_binding_root: root.clone(),
+///     release_route_binding_root: root.clone(),
+///     expected_image_id: root.clone(),
+///     module_journal_root: root.clone(),
+///     module_journal_digest: root.clone(),
+///     statement_root: root.clone(),
+///     command_occurrence_id: root.clone(),
+///     receipt_digest: root,
+///     receipt_kind: ReceiptKindV1::SUCCINCT,
+/// };
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedLaneModuleTransitionV1 {
     authenticated_command_binding_root: RootV1,

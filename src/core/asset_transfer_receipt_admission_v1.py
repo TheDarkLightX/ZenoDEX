@@ -12,9 +12,9 @@ certificate module, its only consumer, so the two modules do not import
 each other; minted here through that module's private token) carrying the
 rebuilt journal's header (chain id, deployment root, profile root, writer
 epoch) for the certificate's header binding. The certificate check's
-witness slots consume it (C9b-2a), but the registry still keeps
-ASSET_TRANSFER at NO_PRODUCER, so no acceptance path can present it until
-the registry flip (C9b-2b) lands behind that gate.
+witness slots consume it (C9b-2a) and the registry registers ASSET_TRANSFER
+receipt-backed (C9b-2b), so an enabled ASSET_TRANSFER fragment is accepted
+only through this witness.
 
 Why the snapshot comes first (Opus P28 F1): the journal-root equality binds
 nested values only through the roots in the journal preimage, and a root is
@@ -33,10 +33,10 @@ wave-B producer's coverage fold is keyed on ``(asset, control_domain)`` only,
 so claimant identity and the split across claimants are not proved by the
 receipt here. They are bound at the certificate layer, whose entitlement
 check (``ENTITLEMENT_ROWS_DRIFT``) requires the derived allocation rows to
-equal the V1 ``liabilities`` partition of ``GlobalEconomicStateV1`` exactly;
-that check runs for the registered-empty certificate, but no acceptance
-path carries this producer's rows into it while ASSET_TRANSFER stays at
-NO_PRODUCER, and whether that partition is itself authoritative for
+equal the V1 ``liabilities`` partition of ``GlobalEconomicStateV1`` exactly; since
+C9b-2b this producer's rows enter that check through the witness slot, so
+the partition equality is what binds claimant identity, and whether that
+partition is itself authoritative for
 asset-transfer custody is an unresolved policy question (UP-xx), not a claim
 of this module. The Rust twin
 ``zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs``

@@ -137,6 +137,9 @@ def _spec(**fields: Any) -> dict[str, Any]:
 ALL_ENABLED: Final = [True] * 12
 ONE_ENABLED: Final = [False] * 12
 ONE_ENABLED[0] = True
+# The first lane without a receipt-backed producer (SPOT_LIQUIDITY): the BLOCKED exemplar since C9b-2b.
+SECOND_ENABLED: Final = [False] * 12
+SECOND_ENABLED[1] = True
 
 
 def _fragment_with_rows(fragment: cert.LaneAllocationFragmentV1, **rows: Any) -> cert.LaneAllocationFragmentV1:
@@ -181,13 +184,18 @@ VECTORS_V1: Final[dict[str, tuple[str, dict[str, Any], str]]] = {
         _spec(),
         "identity",
     ),
-    "rejects_enabled_lane_without_receipt_backed_producer": (
-        "an enabled lane rejects BLOCKED_LANE_PRODUCER_MISSING naming the lane and the blocking obligation",
+    "rejects_enabled_receipt_backed_lane_without_witness": (
+        "an enabled lane whose registered producer is receipt-backed rejects RECEIPT_WITNESS_REQUIRED when no sealed witness fills its slot (a JSON vector carries no witness, so this is the only witness code the fixture renders)",
         _spec(lanes_enabled=ONE_ENABLED),
         "identity",
     ),
-    "rejects_all_lanes_enabled_at_the_first_lane": (
-        "precedence: with every lane enabled the first lane in canonical order is named",
+    "rejects_enabled_lane_without_receipt_backed_producer": (
+        "an enabled lane without a receipt-backed producer rejects BLOCKED_LANE_PRODUCER_MISSING naming the lane and the blocking obligation",
+        _spec(lanes_enabled=SECOND_ENABLED),
+        "identity",
+    ),
+    "rejects_all_lanes_enabled_at_the_first_unregistered_lane": (
+        "precedence: with every lane enabled the first lane in canonical order without a receipt-backed producer is named; the receipt-backed first lane passes the producer gate and its missing witness would be reported only by the later witness pass",
         _spec(lanes_enabled=ALL_ENABLED),
         "identity",
     ),
@@ -198,7 +206,7 @@ VECTORS_V1: Final[dict[str, tuple[str, dict[str, Any], str]]] = {
     "rejects_lane_order_missing_lane": ("eleven fragments reject LANE_ORDER_DRIFT", _spec(), "drop_last_fragment"),
     "rejects_lane_state_root_forged": ("a fragment bound to another lane root rejects LANE_STATE_ROOT_DRIFT", _spec(), "forge_first_lane_root"),
     "rejects_lane_enabled_flag_forged": ("a fragment claiming a disabled lane is enabled rejects LANE_STATE_ROOT_DRIFT", _spec(), "forge_first_enabled_flag"),
-    "rejects_producer_kind_drift": ("a fragment claiming RECEIPT_BACKED rejects PRODUCER_KIND_DRIFT", _spec(), "claim_receipt_backed_first"),
+    "rejects_producer_kind_drift": ("a fragment claiming RECEIPT_BACKED for a lane registered without a producer rejects PRODUCER_KIND_DRIFT", _spec(), "claim_receipt_backed_second"),
     "rejects_disabled_lane_with_rows": ("a disabled lane fragment carrying rows rejects DISABLED_LANE_NOT_EMPTY", _spec(), "synthetic_rows_first"),
     "rejects_registered_empty_lane_with_foreign_root": ("a registered-empty lane committed at a root other than its empty state root rejects REGISTERED_EMPTY_ROOT_DRIFT", _spec(foreign_registered_empty_root=True), "identity"),
     "rejects_later_lane_root_drift_before_earlier_lane_rows": ("a forged root on the second lane outranks rows on the disabled first lane: LANE_STATE_ROOT_DRIFT precedes DISABLED_LANE_NOT_EMPTY (check-major)", _spec(), "synthetic_rows_first_then_forge_second_lane_root"),
@@ -243,9 +251,9 @@ def _mutate(
         )
     if name == "forge_first_enabled_flag":
         return _certificate_with_fragments(certificate, (replace(fragments[0], enabled=True), *fragments[1:]))
-    if name == "claim_receipt_backed_first":
+    if name == "claim_receipt_backed_second":
         return _certificate_with_fragments(
-            certificate, (replace(fragments[0], producer_kind=cert.LaneProducerKindV1.RECEIPT_BACKED), *fragments[1:])
+            certificate, (fragments[0], replace(fragments[1], producer_kind=cert.LaneProducerKindV1.RECEIPT_BACKED), *fragments[2:])
         )
     if name == "synthetic_rows_first":
         return _certificate_with_fragments(certificate, (_synthetic_rows(fragments[0]), *fragments[1:]))
@@ -290,6 +298,7 @@ def evaluate_v1(
 # mutation -> (vector, expected outcome code or ACCEPT); the render step checks each polarity.
 MUTATION_KILLERS_V1: Final[dict[str, tuple[str, str]]] = {
     "accept an enabled lane without a receipt-backed producer": ("rejects_enabled_lane_without_receipt_backed_producer", "BLOCKED_LANE_PRODUCER_MISSING"),
+    "accept an enabled receipt-backed lane without its sealed witness": ("rejects_enabled_receipt_backed_lane_without_witness", "RECEIPT_WITNESS_REQUIRED"),
     "skip the header binding": ("rejects_header_writer_epoch_drift", "HEADER_BINDING_DRIFT"),
     "accept fragments out of canonical lane order": ("rejects_lane_order_swap", "LANE_ORDER_DRIFT"),
     "accept a fragment bound to a foreign lane root": ("rejects_lane_state_root_forged", "LANE_STATE_ROOT_DRIFT"),

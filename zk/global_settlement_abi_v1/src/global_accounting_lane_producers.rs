@@ -8,8 +8,8 @@
 //! caller for `accepted`; the Python authority admits fragments one layer up in
 //! `asset_transfer_receipt_admission_v1` (C9a: module witness, exact-typed
 //! snapshot, producer re-run), which has no Rust twin yet (an open gap for C9b),
-//! and the certificate registry keeps ASSET_TRANSFER at NO_PRODUCER, so no
-//! acceptance path uses these fragments until C9b.
+//! and the certificate registry registers ASSET_TRANSFER receipt-backed (C9b-2b), so
+//! these fragments reach the certificate only as the sealed receipt-admission witness.
 //! Research-only; no writer, verifier, release, or publication authority.
 
 use serde::{Deserialize, Serialize};

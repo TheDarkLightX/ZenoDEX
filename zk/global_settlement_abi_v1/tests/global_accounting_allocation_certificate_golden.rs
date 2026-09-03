@@ -18,8 +18,8 @@ use zenodex_global_settlement_abi_v1::{
     derive_allocation_root_v1, derive_canonical_allocation_rows_v1, derive_field_ownership_root_v1,
     derive_terminal_binding_root_v1, hash_bytes_sha256_v1, AllocationCertificateOutcomeV1,
     AllocationCertificateRejectCodeV1, GlobalAccountingAllocationCertificateV1,
-    GlobalEconomicStateV1, LaneProducerKindV1, ALL_LANE_IDS_V1, EMPTY_LANE_WITNESS_SLOTS_V1,
-    LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
+    GlobalEconomicStateV1, LaneIdV1, LaneProducerKindV1, ALL_LANE_IDS_V1,
+    EMPTY_LANE_WITNESS_SLOTS_V1, LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
 };
 
 const FIXTURE_SCHEMA: &str = "zenodex/global-accounting-allocation-certificate-v1-golden/v2";
@@ -141,7 +141,11 @@ fn reject_message_table_check_order_and_registry_are_shared() {
         let entry = &fixture.producer_registry[&format!("{lane:?}")];
         assert_eq!(entry.producer_kind, format!("{kind:?}"));
         assert_eq!(entry.blocked_on, blocked_on);
-        assert_ne!(kind, LaneProducerKindV1::RECEIPT_BACKED);
+        // C9b-2b: exactly the asset-transfer lane is registered receipt-backed.
+        assert_eq!(
+            kind == LaneProducerKindV1::RECEIPT_BACKED,
+            lane == LaneIdV1::ASSET_TRANSFER
+        );
     }
 }
 
@@ -150,8 +154,8 @@ fn every_vector_replays_outcome_and_derived_roots() {
     let fixture = load_fixture();
     assert_eq!(
         fixture.vectors.len(),
-        28,
-        "fixture must carry the 28 named vectors"
+        29,
+        "fixture must carry the 29 named vectors"
     );
     for (name, vector) in &fixture.vectors {
         assert!(

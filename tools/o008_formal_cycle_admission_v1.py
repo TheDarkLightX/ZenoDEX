@@ -85,6 +85,7 @@ PRODUCERS_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_lane_p
 PRODUCERS_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/global_accounting_lane_producers.rs"
 ADMISSION_RUST_PATH_V1: Final = "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs"
 ADMISSION_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs"
+ADMISSION_RUST_WITNESS_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs"
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
 RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
@@ -183,6 +184,7 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (CANDIDATE_BATTERY_SCRIPT_PATH_V1, "candidate_battery_script"),
     (ADMISSION_RUST_PATH_V1, "admission_rust_twin"),
     (ADMISSION_RUST_TEST_PATH_V1, "admission_rust_replay"),
+    (ADMISSION_RUST_WITNESS_PATH_V1, "admission_rust_witness_source"),
 )
 SOURCE_PIN_PATHS_V1: Final[tuple[str, ...]] = tuple(path for path, _ in SOURCE_PIN_ROLES_V1)
 EXECUTING_TOOL_PATHS_V1: Final[tuple[str, ...]] = (
@@ -241,6 +243,7 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     CANDIDATE_BATTERY_SCRIPT_PATH_V1,
     ADMISSION_RUST_PATH_V1,
     ADMISSION_RUST_TEST_PATH_V1,
+    ADMISSION_RUST_WITNESS_PATH_V1,
 )
 
 PACKET_KEYS_V3: Final[frozenset[str]] = frozenset(
@@ -286,7 +289,7 @@ CLAIM_CEILING_V1: Final[dict[str, object]] = {
     **{field: "NONE" for field in AUTHORITY_FIELDS_V1},
 }
 
-CERTIFICATE_FIXTURE_VECTORS_V1: Final = 28
+CERTIFICATE_FIXTURE_VECTORS_V1: Final = 29
 
 COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     "Python and Rust reject V1-state-visible same-control-domain claimant underbacking",
@@ -305,15 +308,18 @@ COMPLETION_SCOPE_V1: Final[tuple[str, ...]] = (
     "the smallest wire-compatible sidecar contract and its missing producer/proof obligations"
     " are specified under the control-domain vocabulary",
     "the GlobalAccountingAllocationCertificateV1 checker is implemented in Python and Rust with a"
-    " producer registry exhaustive over the twelve lanes and no registered receipt-backed producer, and both"
+    " producer registry exhaustive over the twelve lanes and ASSET_TRANSFER registered receipt-backed behind"
+    " the witness-slot gate, and both"
     f" replay one rendered golden vector of {CERTIFICATE_FIXTURE_VECTORS_V1} state/certificate pairs"
-    " with closed reject codes; only the registered-empty certificate over an all-lanes-disabled"
-    " state is accepted",
+    " with closed reject codes; the fixture accepts only the registered-empty certificate over an"
+    " all-lanes-disabled state, and the witnessed asset-transfer acceptance is exercised in-process with"
+    " a real minted witness",
     "the first receipt-backed fragment producer (wave B, ASSET_TRANSFER) is implemented in Python and"
     " Rust as a pure fold of one accepted lane-module transition, binding the fragment to the journal"
     " receipt root with eleven closed reject codes; only the receipt root carries the custody rows and"
     " chain/epoch context, so fragment integrity rests on C9 receipt admission; the certificate"
-    " registry keeps ASSET_TRANSFER at NO_PRODUCER until then, so no acceptance path uses it, and the"
+    " registry registers ASSET_TRANSFER receipt-backed behind the witness-slot gate, so its fragments"
+    " enter the certificate only as the sealed witness, and the"
     " controlled-side fold ceiling is unreachable for well-formed inputs whose supply conservation"
     " bounds custody totals",
     "a bounded Lean model of the certificate relation derives the normative partition, same-domain"
@@ -488,7 +494,11 @@ CERTIFICATE_REJECT_CODES_V1: Final[tuple[str, ...]] = (
 )
 CERTIFICATE_REJECT_CODE_CLASS_V1: Final = "AllocationCertificateRejectCodeV1"
 CERTIFICATE_PRODUCER_KINDS_V1: Final[dict[str, str]] = {
-    lane: {"EXTERNAL_CUSTODY": "REGISTERED_EMPTY_DISABLED", "PROOF_REWARDS": "REGISTERED_EMPTY_BLOCKED"}.get(lane, "NO_PRODUCER")
+    lane: {
+        "ASSET_TRANSFER": "RECEIPT_BACKED",
+        "EXTERNAL_CUSTODY": "REGISTERED_EMPTY_DISABLED",
+        "PROOF_REWARDS": "REGISTERED_EMPTY_BLOCKED",
+    }.get(lane, "NO_PRODUCER")
     for lane in EXPECTED_LANES_V1
 }
 CERTIFICATE_FIXTURE_ACCEPTED_V1: Final = 3
@@ -509,19 +519,24 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " producer folds, not claimant identity: the wave-B coverage fold is keyed on"
     " (asset, control_domain), claimant entitlements are caller-chosen at that layer, and"
     " they are bound only at the certificate layer by ENTITLEMENT_ROWS_DRIFT against the V1"
-    " liabilities partition, into which no acceptance path carries this producer's rows while"
-    " ASSET_TRANSFER stays at NO_PRODUCER; whether that partition is authoritative for asset-transfer custody is an"
+    " liabilities partition, into which this producer's rows enter through the witness slot since"
+    " C9b-2b; whether that partition is authoritative for asset-transfer custody is an"
     " unresolved policy question.",
     "Exact-type gating is audited and mechanically pinned only on the receipt-admission"
     " path; the epoch-certificate verification inputs in global_economic_proof_v1 still"
     " use isinstance and are a named open gap (O-008 EXACT-TYPE-AUDIT-EPOCH-PATH) for a"
     " separate candidate.",
-    "The GlobalAccountingAllocationCertificateV1 checker has no registered receipt-backed lane"
-    " producer (an implemented, unregistered wave-B producer exists on no acceptance path) and is"
-    " not mounted; the only certificate it accepts today is the registered-empty certificate"
-    " over a state with every lane disabled, so no exact all-twelve-lane reconciliation exists.",
+    "The GlobalAccountingAllocationCertificateV1 checker registers exactly one receipt-backed lane"
+    " producer (ASSET_TRANSFER, admitted only as the sealed C9 witness) and is not mounted; the"
+    " other eleven lanes must be disabled and empty, so it reconciles at most the asset-transfer"
+    " lane and no exact all-twelve-lane reconciliation exists.",
     "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher"
     " execution.",
+    "The Rust receipt-admission twin mirrors the Python check order and reject family but not the"
+    " type boundary: Python raises at its snapshot on malformed, non-canonical, or zero-amount inputs,"
+    " the twin returns an AbiErrorV1 for malformed inputs and the producer's ENTITLEMENT_ROWS_NOT_CANONICAL"
+    " for the rest; only WITNESS_JOURNAL_ROOT_DRIFT is reachable through a minted Rust witness, and the"
+    " parity vectors cover well-formed inputs only.",
     "The Lean theorems do not establish cryptographic binding, finite-width runtime parity,"
     " settlement authority, or whole-program value safety.",
     "The ESSO fingerprint is a determinism witness only; the ESSO ir_hash is the model-binding"
@@ -1085,7 +1100,7 @@ RUST_REFINEMENT_GATE_TARGET_V1: Final = "global_economic_state_effect_refinement
 RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
-CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 38
+CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 43
 PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 30
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
 PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 7
@@ -3152,7 +3167,7 @@ def _project_certificate(snapshot: SubjectSnapshotV1) -> dict[str, object]:
         "check_order": list(order),
         "reject_codes": list(codes),
         "producer_registry": dict(CERTIFICATE_PRODUCER_KINDS_V1),
-        "receipt_backed_producers": 0,
+        "receipt_backed_producers": 1,
         "receipt_backed_producer_implementations": {
             "asset_transfer": {
                 "python": PRODUCERS_PYTHON_PATH_V1,
@@ -3698,7 +3713,7 @@ def check_sidecar_v1(packet: Mapping[str, Any]) -> None:
         "check_order": list(CERTIFICATE_CHECK_ORDER_V1),
         "reject_codes": list(CERTIFICATE_REJECT_CODES_V1),
         "producer_registry": dict(CERTIFICATE_PRODUCER_KINDS_V1),
-        "receipt_backed_producers": 0,
+        "receipt_backed_producers": 1,
         "receipt_backed_producer_implementations": {
             "asset_transfer": {
                 "python": PRODUCERS_PYTHON_PATH_V1,

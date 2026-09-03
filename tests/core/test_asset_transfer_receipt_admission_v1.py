@@ -175,7 +175,8 @@ def test_receipt_admitted_fragment_carries_the_witness_binding() -> None:
     assert admitted.module_journal_root == accepted.module_journal.journal_root
     assert admitted.expected_image_id == witness.expected_image_id
     assert admitted.receipt_digest == witness.receipt_digest
-    with pytest.raises(AttributeError, match="cannot assign|immutable"):
+    # CPython 3.12: the frozen-slots __setattr__ refuses a property assignment with TypeError (Opus P36 F-1)
+    with pytest.raises((AttributeError, TypeError), match="cannot assign|immutable|super\\(type, obj\\)"):
         admitted.fragment = None  # type: ignore[misc,assignment]
     with pytest.raises(AttributeError, match="cannot assign|immutable"):
         admitted._fields = None  # type: ignore[misc,assignment]
@@ -527,6 +528,22 @@ def test_witness_reject_family_and_check_order_match_the_rust_twin() -> None:
     pattern = r'"(' + "|".join(re.escape(detail) for detail in details) + r')"'
     assert tuple(re.findall(pattern, rust_body)) == details
     assert tuple(re.findall(pattern, python_body)) == details
+    # Opus P35 P2-1: each reject is pinned to the condition it reports, in both languages: the
+    # nearest preceding `if` must name the field that code is about, so swapping two conditions
+    # while leaving the labels in place fails here (the Python forgery tests also catch the Python
+    # half; no minted Rust witness can reach the swapped codes, so this pin is the Rust half's killer).
+    fields = {
+        "WITNESS_KIND_DRIFT": "receipt_kind",
+        "WITNESS_JOURNAL_ROOT_DRIFT": "module_journal_root",
+        "WITNESS_STATEMENT_ROOT_DRIFT": "statement_root",
+        "WITNESS_OCCURRENCE_DRIFT": "command_occurrence_id",
+        "WITNESS_BINDING_ROOT_DRIFT": "binding_root",
+    }
+    for body, spelling in ((rust_body, "ReceiptWitnessRejectCodeV1::"), (python_body, "ReceiptWitnessRejectCodeV1.")):
+        for code, field_name in fields.items():
+            at = body.index(spelling + code)
+            condition = body[: at].rsplit("if ", 1)[1]
+            assert field_name in condition, (spelling, code, condition[:120])
 
 
 # --- C9a''' (P30 verdict repairs) ------------------------------------------------------------------
@@ -630,3 +647,79 @@ def test_minted_witness_exports_the_rebuilt_journal_header() -> None:
     with pytest.raises(TypeError, match="verifier-constructed"):
         cert.VerifiedLaneAllocationFragmentV1(fields, object())
     assert not hasattr(verified, "token")
+
+
+def test_rust_witness_fields_are_private_in_both_witness_structs() -> None:
+    """Opus P35 P3-4: the sealing premise of the twin is that neither Rust witness can be built
+    outside its module. Both structs are pinned as sources; this locks the property itself: no
+    field of either struct is `pub` (a compile_fail doc-test in each module states the same)."""
+
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "zk/global_settlement_abi_v1/src"
+    for path, struct in (
+        ("lane_module_receipt_verification.rs", "VerifiedLaneModuleTransitionV1"),
+        ("asset_transfer_receipt_admission.rs", "VerifiedLaneAllocationFragmentV1"),
+    ):
+        source = (root / path).read_text()
+        body = source.split(f"pub struct {struct} {{", 1)[1].split("}", 1)[0]
+        field_lines = [line.strip() for line in body.splitlines() if line.strip() and not line.strip().startswith("//")]
+        assert field_lines, (path, struct)
+        assert all(re.match(r"^[a-z_]+: ", line) for line in field_lines), (path, struct, field_lines)
+        assert "pub " not in body and "pub(" not in body, (path, struct)
+        assert "#[derive(" in source.split(f"pub struct {struct} {{", 1)[0].rsplit("\n\n", 1)[-1]
+        assert "Deserialize" not in source.split(f"pub struct {struct} {{", 1)[0].rsplit("\n\n", 1)[-1], (path, struct)
+        assert "compile_fail" in source.split(f"pub struct {struct} {{", 1)[0].rsplit("\n\n", 1)[-1], (path, struct)
+
+
+def test_minted_witness_has_no_dict_to_repoint() -> None:
+    """Opus P36 F-1: a frozen dataclass without slots leaves a __dict__ through which a minted
+    handle can be re-pointed at forged fields while keeping its exact type. The witness is a
+    frozen SLOTS dataclass: no __dict__, field assignment refused, and a dict write impossible."""
+
+    accepted, witness, lane_root, prior = _admission_fixture()
+    verified = verify_asset_transfer_fragment_receipt_v1(witness, accepted, lane_root, prior, ())
+    assert isinstance(verified, VerifiedLaneAllocationFragmentV1)
+    assert not hasattr(verified, "__dict__")
+    with pytest.raises(AttributeError):
+        verified.__dict__["_fields"] = None  # type: ignore[attr-defined]
+    with pytest.raises(AttributeError, match="cannot assign"):
+        verified._fields = None  # type: ignore[misc]
+    assert "__slots__" in dir(VerifiedLaneAllocationFragmentV1) or hasattr(VerifiedLaneAllocationFragmentV1, "__slots__")
+
+
+def test_release_id_commits_the_guest_image_the_witness_was_verified_against() -> None:
+    """Opus P36 F-3: the certificate binds the witness's expected_image_id transitively: the fragment's
+    module_release_id (which the state's lane root commits) is a content hash over the release body
+    including guest_image_id, and the mint verified the receipt against exactly that release's image."""
+
+    from src.core.global_settlement_types_v1 import LaneModuleReleaseV1, hash_global_v1
+    from tests.core.test_global_settlement_abi_v1 import _profile
+
+    accepted, witness, lane_root, prior = _admission_fixture()
+    verified = verify_asset_transfer_fragment_receipt_v1(witness, accepted, lane_root, prior, ())
+    assert isinstance(verified, VerifiedLaneAllocationFragmentV1)
+    profile, _route = _profile()
+    release = profile.lane_registry.release_for(LaneIdV1.ASSET_TRANSFER)
+    assert verified.fragment.module_release_id == release.release_id == lane_root.module_release_id
+    assert verified.expected_image_id == release.guest_image_id
+    assert verified.profile_root == profile.profile_id
+    body = LaneModuleReleaseV1._content_body(
+        lane_id=release.lane_id,
+        state_schema_root=release.state_schema_root,
+        command_variants=release.command_variants,
+        terminal_command_variants=release.terminal_command_variants,
+        guest_image_id=release.guest_image_id,
+        specification_root=release.specification_root,
+        source_root=release.source_root,
+        toolchain_root=release.toolchain_root,
+        terminal_coverage_root=release.terminal_coverage_root,
+        migration_compatibility_root=release.migration_compatibility_root,
+        max_cycles=release.max_cycles,
+        max_journal_bytes=release.max_journal_bytes,
+    )
+    assert hash_global_v1("global-lane-module-release-content-v1", body) == release.release_id
+    other_image = dict(body, guest_image_id="0x" + "ab" * 32) if isinstance(body, dict) else None
+    assert other_image is not None, type(body)
+    assert hash_global_v1("global-lane-module-release-content-v1", other_image) != release.release_id
