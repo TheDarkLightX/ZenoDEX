@@ -1,0 +1,73 @@
+# ZenoDEX Constitutional Transition Receipt V1
+#
+# Research-only experiment: every mutation emits a predecessor-relative
+# semantic receipt instead of hiding an overwrite.
+#
+# For predecessor C, proposal P, protected kernel K:
+#   escape  = P & C'   -- behaviors proposal newly admits
+#   removed = C & P'   -- predecessor behaviors proposal removes
+#   kernel_violation = P & K'
+#
+# A proposal can be adopted EXACTLY (rather than synthesized as C & P) when
+# governance explicitly approves it and it preserves K. The directional
+# residues remain in the receipt, so weakening/mixed change is observed.
+#
+# EXPECTED-RESULTS: T T T T F T T F T T T F
+#
+set charvar off
+set maxsplits 1
+
+# K: settlement requires proof.
+# C: K plus settlement requires witness.
+# Pm: K plus settlement requires delay. It removes witness and adds delay:
+# an intentionally mixed/incomparable amendment that still preserves K.
+
+# Pm has behavior outside C: it weakens/removes the witness obligation.
+n (({ (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) } & { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) }') != 0)
+
+# C has behavior outside Pm: Pm adds a delay obligation.
+n (({ (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) } & { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) }') != 0)
+
+# Yet Pm preserves the protected proof kernel.
+n (({ (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) } & { cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf }') = 0)
+
+# Explicit approval can therefore adopt Pm exactly.
+n (({ cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf } & { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) }) = { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) })
+
+# Global meet-ratchet C & Pm does NOT equal the approved proposal: it silently
+# retains witness and adds delay, synthesizing a third law.
+n (({ (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) } & { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) }) = { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) })
+
+# The synthesized third law is exactly proof & witness & delay.
+n (({ (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) } & { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) }) = { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) })
+
+# A strict strengthening has zero escape relative to C.
+n (({ (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) } & { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) }') = 0)
+
+# But predecessor removed-residue is not zero under that strengthening.
+n (({ (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) } & { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) }') = 0)
+
+# A pure weakening to K preserves K...
+n (({ cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf } & { cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf }') = 0)
+# ...but has nonzero escape relative to C.
+n (({ cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf } & { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) }') != 0)
+
+# Kernel-preserving adopted law excludes proofless settlement under all future extensions.
+n all x:tau ((({ (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf) } & x) & { cr_settle[t]:sbf=1:sbf && cr_proof[t]:sbf=0:sbf }) = 0)
+
+# Unsafe proposal demanding proofless settlement violates K.
+n (({ cr_settle[t]:sbf=1:sbf && cr_proof[t]:sbf=0:sbf } & { cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf }') = 0)
+
+type ConstitutionalReceiptInputADT1 = {proposal: tau, approved: tau}.
+type ConstitutionalReceiptOutputADT1 = {predecessor: tau, proposal: tau, escape: tau, removed: tau, kernel_violation: tau, effective: tau}.
+cri:ConstitutionalReceiptInputADT1 := in console.
+cro:ConstitutionalReceiptOutputADT1 := out console.
+
+# approved is a tau gate expected to be exactly 0 or 1 in this experiment.
+# Any approved proposal must preserve the protected kernel.
+run (cro[0].predecessor = 0) && (cro[0].proposal = 0) && (cro[0].escape = 0) && (cro[0].removed = 0) && (cro[0].kernel_violation = 0) && (cro[0].effective = { (cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_witness[t]:sbf=1:sbf) }) && (cri[t].approved = 0 || cri[t].approved = 1) && (cro[t].predecessor = cro[t-1].effective) && (cro[t].proposal = cri[t].proposal) && (cro[t].escape = cri[t].proposal & cro[t-1].effective') && (cro[t].removed = cro[t-1].effective & cri[t].proposal') && (cro[t].kernel_violation = cri[t].proposal & { cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf }') && (cri[t].approved = 1 -> cro[t].kernel_violation = 0) && (cro[t].effective = (cri[t].proposal & cri[t].approved) | (cro[t-1].effective & cri[t].approved'))
+
+# Mixed but kernel-preserving amendment: explicitly approved, so Pm becomes exact law.
+{ proposal: "(cr_settle[t]:sbf=1:sbf -> cr_proof[t]:sbf=1:sbf) && (cr_settle[t]:sbf=1:sbf -> cr_delay[t]:sbf=1:sbf).", approved: "1." }
+# Unsafe replacement is observed but explicitly rejected: predecessor remains effective.
+{ proposal: "cr_settle[t]:sbf=1:sbf && cr_proof[t]:sbf=0:sbf.", approved: "0." }
