@@ -5959,3 +5959,262 @@ fn economic_epoch_wrong_kind_empty_receipt_and_verifier_rejection_create_no_witn
     );
     assert_eq!(verifier.calls.borrow().len(), 1);
 }
+
+// --- C9b-1: receipt admission of the minted module witness (twin of the Python C9a suite) ---
+
+fn receipt_admission_inputs(
+    fixture: &VerifiedAssetLaneFixture,
+) -> (
+    LaneStateRootV1,
+    LaneAllocationFragmentV1,
+    Vec<ClaimantEntitlementRowV1>,
+) {
+    let journal = &fixture.accepted.module_journal;
+    let lane_root = LaneStateRootV1 {
+        lane_id: LaneIdV1::ASSET_TRANSFER,
+        module_release_id: journal.module_release_id.clone(),
+        enabled: true,
+        state_root: journal.post_lane_root.clone(),
+    };
+    let prior = LaneAllocationFragmentV1 {
+        lane_id: LaneIdV1::ASSET_TRANSFER,
+        module_release_id: journal.module_release_id.clone(),
+        enabled: true,
+        lane_state_root: journal.pre_lane_root.clone(),
+        producer_kind: LaneProducerKindV1::RECEIPT_BACKED,
+        binding_root: journal.pre_lane_root.clone(),
+        controlled_locations: Vec::new(),
+        claimant_entitlements: Vec::new(),
+        unencumbered_reserves: Vec::new(),
+        pending_external_obligations: Vec::new(),
+        terminal_bindings: Vec::new(),
+    };
+    // One canonically ordered entitlement row per custody row covers the producer's
+    // (asset, control_domain) fold exactly.
+    let mut entitlements: Vec<ClaimantEntitlementRowV1> = fixture
+        .accepted
+        .private_port
+        .post_state
+        .custody
+        .iter()
+        .map(|row| ClaimantEntitlementRowV1 {
+            asset: row.asset.clone(),
+            claimant: row.owner.clone(),
+            control_domain: row.custody_domain.clone(),
+            amount_atoms: row.amount_atoms,
+        })
+        .collect();
+    entitlements.sort_by(|left, right| {
+        (&left.asset, &left.claimant, &left.control_domain).cmp(&(
+            &right.asset,
+            &right.claimant,
+            &right.control_domain,
+        ))
+    });
+    (lane_root, prior, entitlements)
+}
+
+#[test]
+fn receipt_admission_accepts_the_minted_witness_and_binds_the_receipt_root() {
+    let fixture = verified_asset_lane_fixture();
+    let (lane_root, prior, entitlements) = receipt_admission_inputs(&fixture);
+    let verified = verify_asset_transfer_fragment_receipt_v1(
+        &fixture.verified,
+        &fixture.accepted,
+        &lane_root,
+        &prior,
+        &entitlements,
+    )
+    .unwrap()
+    .unwrap();
+    let journal = &fixture.accepted.module_journal;
+    let produced =
+        produce_asset_transfer_fragment_v1(&fixture.accepted, &lane_root, &prior, &entitlements)
+            .unwrap();
+    assert_eq!(verified.fragment(), &produced);
+    assert_eq!(verified.fragment().binding_root, journal.receipt_root);
+    assert_eq!(verified.receipt_root(), &journal.receipt_root);
+    assert_eq!(
+        verified.module_journal_root(),
+        fixture.verified.module_journal_root()
+    );
+    assert_eq!(
+        verified.module_journal_root(),
+        &journal.journal_root().unwrap()
+    );
+    assert_eq!(verified.receipt_digest(), fixture.verified.receipt_digest());
+    assert_eq!(
+        verified.expected_image_id(),
+        fixture.verified.expected_image_id()
+    );
+    assert_eq!(
+        ReceiptWitnessRejectCodeV1::ALL
+            .iter()
+            .map(|code| code.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "WITNESS_KIND_DRIFT",
+            "WITNESS_JOURNAL_ROOT_DRIFT",
+            "WITNESS_STATEMENT_ROOT_DRIFT",
+            "WITNESS_OCCURRENCE_DRIFT",
+            "WITNESS_BINDING_ROOT_DRIFT",
+        ]
+    );
+}
+
+#[test]
+fn receipt_admission_rejects_a_witness_minted_for_another_occurrence() {
+    let fixture = verified_asset_lane_fixture();
+    let foreign = verified_asset_lane_fixture_at(3, 10, root(3));
+    assert_ne!(
+        foreign.verified.module_journal_root(),
+        fixture.verified.module_journal_root()
+    );
+    let (lane_root, prior, entitlements) = receipt_admission_inputs(&fixture);
+    let rejected = verify_asset_transfer_fragment_receipt_v1(
+        &foreign.verified,
+        &fixture.accepted,
+        &lane_root,
+        &prior,
+        &entitlements,
+    )
+    .unwrap()
+    .unwrap_err();
+    assert_eq!(
+        rejected,
+        AssetTransferFragmentAdmissionRejectedV1::Witness(ReceiptWitnessRejectedV1 {
+            code: ReceiptWitnessRejectCodeV1::WITNESS_JOURNAL_ROOT_DRIFT,
+            lane_id: LaneIdV1::ASSET_TRANSFER,
+            committed_lane_root: lane_root.state_root.clone(),
+            detail: "journal root".to_owned(),
+        })
+    );
+}
+
+#[test]
+fn receipt_admission_passes_producer_rejects_through_after_the_witness_binds() {
+    let fixture = verified_asset_lane_fixture();
+    let (lane_root, prior, entitlements) = receipt_admission_inputs(&fixture);
+    let (_, mut stale, _) = receipt_admission_inputs(&fixture);
+    stale.lane_state_root = root(99);
+    match verify_asset_transfer_fragment_receipt_v1(
+        &fixture.verified,
+        &fixture.accepted,
+        &lane_root,
+        &stale,
+        &entitlements,
+    )
+    .unwrap()
+    .unwrap_err()
+    {
+        AssetTransferFragmentAdmissionRejectedV1::Producer(rejected) => {
+            assert_eq!(
+                rejected.code,
+                ReceiptBackedProducerRejectCodeV1::STALE_JOURNAL
+            );
+            assert_eq!(rejected.detail, "pre root");
+        }
+        other => panic!("expected the producer's STALE_JOURNAL, got {other:?}"),
+    }
+    let (mut disabled, _, _) = receipt_admission_inputs(&fixture);
+    disabled.enabled = false;
+    match verify_asset_transfer_fragment_receipt_v1(
+        &fixture.verified,
+        &fixture.accepted,
+        &disabled,
+        &prior,
+        &entitlements,
+    )
+    .unwrap()
+    .unwrap_err()
+    {
+        AssetTransferFragmentAdmissionRejectedV1::Producer(rejected) => {
+            assert_eq!(
+                rejected.code,
+                ReceiptBackedProducerRejectCodeV1::LANE_DISABLED
+            );
+        }
+        other => panic!("expected the producer's LANE_DISABLED, got {other:?}"),
+    }
+    // Precedence: the witness binding is checked before the producer runs, so a foreign
+    // witness over the same disabled root reports the journal-root drift, not LANE_DISABLED.
+    let foreign = verified_asset_lane_fixture_at(3, 10, root(3));
+    match verify_asset_transfer_fragment_receipt_v1(
+        &foreign.verified,
+        &fixture.accepted,
+        &disabled,
+        &prior,
+        &entitlements,
+    )
+    .unwrap()
+    .unwrap_err()
+    {
+        AssetTransferFragmentAdmissionRejectedV1::Witness(rejected) => {
+            assert_eq!(
+                rejected.code,
+                ReceiptWitnessRejectCodeV1::WITNESS_JOURNAL_ROOT_DRIFT
+            );
+        }
+        other => panic!("expected WITNESS_JOURNAL_ROOT_DRIFT, got {other:?}"),
+    }
+}
+
+#[test]
+fn receipt_admission_refuses_malformed_inputs_at_the_boundary_as_errors() {
+    let fixture = verified_asset_lane_fixture();
+    let (lane_root, prior, entitlements) = receipt_admission_inputs(&fixture);
+    // An accepted value whose private port no longer matches its journal fails validation at
+    // the boundary (the Rust analogue of the Python snapshot raise), so the producer's
+    // ACCEPTED_INVALID never surfaces through the admission.
+    let AssetTransferLaneModuleResultV1::Accepted(mut forged) =
+        transition_asset_transfer_lane_module_v1(&fixture.input).unwrap()
+    else {
+        panic!("the fixture transfer must accept")
+    };
+    forged.private_port.module_release_id = root(5);
+    assert!(verify_asset_transfer_fragment_receipt_v1(
+        &fixture.verified,
+        &forged,
+        &lane_root,
+        &prior,
+        &entitlements,
+    )
+    .is_err());
+    // A hostile entitlement token is refused before any binding is read.
+    let hostile_rows = vec![ClaimantEntitlementRowV1 {
+        asset: String::new(),
+        claimant: "alice".to_owned(),
+        control_domain: "vault".to_owned(),
+        amount_atoms: 1,
+    }];
+    assert!(verify_asset_transfer_fragment_receipt_v1(
+        &fixture.verified,
+        &fixture.accepted,
+        &lane_root,
+        &prior,
+        &hostile_rows,
+    )
+    .is_err());
+    // A malformed committed root (reachable only through deserialisation: RootV1 is
+    // transparent for serde and validates nowhere else) is refused at the boundary.
+    let (mut malformed, _, _) = receipt_admission_inputs(&fixture);
+    malformed.state_root = serde_json::from_str::<RootV1>("\"0x12\"").unwrap();
+    assert!(verify_asset_transfer_fragment_receipt_v1(
+        &fixture.verified,
+        &fixture.accepted,
+        &malformed,
+        &prior,
+        &entitlements,
+    )
+    .is_err());
+    // The well-formed inputs still admit: the boundary refusals were the only difference.
+    assert!(verify_asset_transfer_fragment_receipt_v1(
+        &fixture.verified,
+        &fixture.accepted,
+        &lane_root,
+        &prior,
+        &entitlements,
+    )
+    .unwrap()
+    .is_ok());
+}

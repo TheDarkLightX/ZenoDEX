@@ -34,9 +34,13 @@ that check runs for the registered-empty certificate, but no acceptance
 path carries this producer's rows into it while ASSET_TRANSFER stays at
 NO_PRODUCER, and whether that partition is itself authoritative for
 asset-transfer custody is an unresolved policy question (UP-xx), not a claim
-of this module. No Rust twin of this admission exists yet
-(an open gap for C9b; the Rust producer validates the accepted value at its
-check 0 instead). The succinct-receipt check itself is inherited from
+of this module. The Rust twin
+``zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs``
+(C9b-1) declares the same ordered reject family, check order, and detail
+strings (pinned mechanically by the admission suite); it refuses malformed
+inputs at its boundary with an ``AbiErrorV1``, the Rust analogue of the raise
+here, so the producer's ``ACCEPTED_INVALID`` is unreachable through either
+admission. The succinct-receipt check itself is inherited from
 ``lane_module_receipt_verification_v1``; this module adds no cryptographic
 claim of its own.
 
@@ -52,7 +56,9 @@ divergence, decided: Python refuses malformed or forged inputs at check (0)
 by raising ``TypeError``/``ValueError`` at the type boundary, while the Rust
 producer returns ``ACCEPTED_INVALID`` as a value because its plain structs
 have no construction validation; the parity vectors cover well-formed inputs
-only, and the Rust admission twin (C9b) will document the same split.
+only, and the Rust admission twin documents the same split: it validates row
+tokens at its boundary and leaves entitlement ordering and zero amounts to the
+producer's ``ENTITLEMENT_ROWS_NOT_CANONICAL`` where the snapshot here raises.
 
 Research-only evidence. It grants no writer, verifier, release, or
 publication authority.
@@ -96,8 +102,9 @@ RECEIPT_ADMISSION_SCHEMA_V1: Final = "zenodex/asset-transfer-receipt-admission/v
 
 _VERIFIED_FRAGMENT_TOKEN: Final = object()
 
-# Cross-language family pin (Opus P28 F5): the Rust admission twin, when it lands
-# with C9b, must declare exactly this ordered family.
+# Cross-language family pin (Opus P28 F5): the Rust admission twin declares exactly
+# this ordered family; test_witness_reject_family_and_check_order_match_the_rust_twin
+# pins the variants, the ALL array, the wire strings, and the in-function order.
 RECEIPT_WITNESS_REJECT_CODES_V1: Final[tuple[str, ...]] = (
     "WITNESS_KIND_DRIFT",
     "WITNESS_JOURNAL_ROOT_DRIFT",

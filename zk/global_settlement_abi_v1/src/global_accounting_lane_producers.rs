@@ -232,8 +232,10 @@ fn reject_receipt_backed(
 /// acceptance path carries this producer's rows while ASSET_TRANSFER stays at
 /// NO_PRODUCER. The Python
 /// admission (`asset_transfer_receipt_admission_v1`, C9a) takes the module witness
-/// and re-runs the producer on an exact-typed snapshot; it has no Rust twin yet
-/// (lands with C9b). Research-only; authority NONE.
+/// and re-runs the producer on an exact-typed snapshot; its Rust twin is
+/// `asset_transfer_receipt_admission` (C9b-1), which validates every caller value at its
+/// boundary as an error, so `ACCEPTED_INVALID` is unreachable through either admission.
+/// Research-only; authority NONE.
 pub fn produce_asset_transfer_fragment_v1(
     accepted: &crate::asset_transfer_lane_module::AssetTransferLaneModuleAcceptedV1,
     lane_root: &LaneStateRootV1,

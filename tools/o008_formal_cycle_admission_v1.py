@@ -83,6 +83,8 @@ PRODUCERS_PYTHON_PATH_V1: Final = "src/core/global_accounting_lane_producers_v1.
 PRODUCERS_RUST_PATH_V1: Final = "zk/global_settlement_abi_v1/src/global_accounting_lane_producers.rs"
 PRODUCERS_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_lane_producers_v1.py"
 PRODUCERS_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/global_accounting_lane_producers.rs"
+ADMISSION_RUST_PATH_V1: Final = "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs"
+ADMISSION_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs"
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
 RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
@@ -179,6 +181,8 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (PARITY_GATE_PATH_V1, "python_rust_bound_parity_gate"),
     (CANDIDATE_CHAIN_SCRIPT_PATH_V1, "candidate_chain_script"),
     (CANDIDATE_BATTERY_SCRIPT_PATH_V1, "candidate_battery_script"),
+    (ADMISSION_RUST_PATH_V1, "admission_rust_twin"),
+    (ADMISSION_RUST_TEST_PATH_V1, "admission_rust_replay"),
 )
 SOURCE_PIN_PATHS_V1: Final[tuple[str, ...]] = tuple(path for path, _ in SOURCE_PIN_ROLES_V1)
 EXECUTING_TOOL_PATHS_V1: Final[tuple[str, ...]] = (
@@ -235,6 +239,8 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     PARITY_GATE_PATH_V1,
     CANDIDATE_CHAIN_SCRIPT_PATH_V1,
     CANDIDATE_BATTERY_SCRIPT_PATH_V1,
+    ADMISSION_RUST_PATH_V1,
+    ADMISSION_RUST_TEST_PATH_V1,
 )
 
 PACKET_KEYS_V3: Final[frozenset[str]] = frozenset(
@@ -1078,6 +1084,11 @@ CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 37
 PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 30
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
 PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 7
+# C9b-1: the Rust admission twin is exercised inside the route-binding suite (the only place a
+# module witness is minted in Rust); the gate filters that suite by the admission prefix.
+ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
+ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
+ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 4
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 4
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
@@ -1553,6 +1564,14 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         RUST_CRATE_DIR_V1,
         ("CARGO_TARGET_DIR", "CARGO_INCREMENTAL"),
         f"exit 0; {PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1} passed",
+        1800,
+    ),
+    ReplayCommandV1(
+        "rust_admission_gate",
+        ("cargo", "test", "--offline", "--locked", "--test", ADMISSION_RUST_GATE_TARGET_V1, ADMISSION_RUST_GATE_FILTER_V1),
+        RUST_CRATE_DIR_V1,
+        ("CARGO_TARGET_DIR", "CARGO_INCREMENTAL"),
+        f"exit 0; {ADMISSION_RUST_GATE_EXPECTED_PASSED_V1} passed",
         1800,
     ),
 )
@@ -2560,6 +2579,7 @@ RUST_CRATE_MODULES_V1: Final[tuple[str, ...]] = (
     "asset_transfer",
     "asset_transfer_lane_module",
     "asset_transfer_policy_registry",
+    "asset_transfer_receipt_admission",
     "asset_transfer_types",
     "bounded_vec",
     "canonical",
@@ -3335,6 +3355,7 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
     "rust_certificate_unit_gate": {"passed": CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1},
     "python_producer_gate": {"passed": PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1},
     "rust_producer_gate": {"passed": PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1},
+    "rust_admission_gate": {"passed": ADMISSION_RUST_GATE_EXPECTED_PASSED_V1},
 }
 
 
@@ -4092,6 +4113,8 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_pytest(obs, PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "rust_producer_gate":
         return _grade_cargo(obs, PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "rust_admission_gate":
+        return _grade_cargo(obs, ADMISSION_RUST_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "python_golden_gate":
         return _grade_pytest(obs, PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1)
     return _grade_esso(obs, esso)

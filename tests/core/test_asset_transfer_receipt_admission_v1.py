@@ -495,6 +495,38 @@ def test_witness_reject_family_tuple_matches_the_enum() -> None:
     assert RECEIPT_WITNESS_REJECT_CODES_V1 == tuple(code.value for code in ReceiptWitnessRejectCodeV1)
 
 
+def test_witness_reject_family_and_check_order_match_the_rust_twin() -> None:
+    """C9b-1: the Rust admission twin declares the same ordered family (variants, the ALL
+    array, and the wire strings), the same schema string, and the same in-function order of
+    codes and detail strings as this module, so a code or check reordered in one language
+    fails here."""
+
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    rust = (root / "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs").read_text()
+    python = (root / "src/core/asset_transfer_receipt_admission_v1.py").read_text()
+    family = RECEIPT_WITNESS_REJECT_CODES_V1
+
+    block = rust.split("pub enum ReceiptWitnessRejectCodeV1 {", 1)[1].split("}", 1)[0]
+    assert tuple(re.findall(r"^\s*([A-Z_]+),", block, re.M)) == family
+    all_block = rust.split("pub const ALL: [Self; 5] = [", 1)[1].split("];", 1)[0]
+    assert tuple(re.findall(r"Self::([A-Z_]+),", all_block)) == family
+    arms = dict(re.findall(r'Self::([A-Z_]+) => "([A-Z_]+)"', rust.split("pub const fn as_str", 1)[1]))
+    assert tuple(arms) == family and all(arms[name] == name for name in family)
+    assert f'"{admission.RECEIPT_ADMISSION_SCHEMA_V1}"' in rust
+
+    rust_body = rust.split("pub fn verify_asset_transfer_fragment_receipt_v1(", 1)[1]
+    python_body = python.split("def verify_asset_transfer_fragment_receipt_v1(", 1)[1]
+    assert tuple(re.findall(r"ReceiptWitnessRejectCodeV1::([A-Z_]+)", rust_body)) == family
+    assert tuple(re.findall(r"ReceiptWitnessRejectCodeV1\.([A-Z_]+)", python_body)) == family
+    details = ("witness kind", "journal root", "statement root", "command occurrence", "binding root")
+    pattern = r'"(' + "|".join(re.escape(detail) for detail in details) + r')"'
+    assert tuple(re.findall(pattern, rust_body)) == details
+    assert tuple(re.findall(pattern, python_body)) == details
+
+
 # --- C9a''' (P30 verdict repairs) ------------------------------------------------------------------
 
 class _PlantedInt(int):

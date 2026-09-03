@@ -340,7 +340,8 @@ impl ControlledLocationRowV1 {
 }
 
 impl ClaimantEntitlementRowV1 {
-    fn validate(&self) -> AbiResultV1<()> {
+    // pub(crate): the receipt admission validates caller rows at its boundary (C9b-1).
+    pub(crate) fn validate(&self) -> AbiResultV1<()> {
         validate_token_v1(&self.asset, "claimant entitlement asset")?;
         validate_token_v1(&self.claimant, "claimant entitlement claimant")?;
         validate_token_v1(&self.control_domain, "claimant entitlement control domain")
