@@ -18,7 +18,7 @@ use zenodex_global_settlement_abi_v1::{
     derive_allocation_root_v1, derive_canonical_allocation_rows_v1, derive_field_ownership_root_v1,
     derive_terminal_binding_root_v1, hash_bytes_sha256_v1, AllocationCertificateOutcomeV1,
     AllocationCertificateRejectCodeV1, GlobalAccountingAllocationCertificateV1,
-    GlobalEconomicStateV1, LaneProducerKindV1, ALL_LANE_IDS_V1,
+    GlobalEconomicStateV1, LaneProducerKindV1, ALL_LANE_IDS_V1, EMPTY_LANE_WITNESS_SLOTS_V1,
     LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
 };
 
@@ -117,7 +117,7 @@ fn reject_message_table_check_order_and_registry_are_shared() {
         .map(|code| (code.code().to_owned(), code.message().to_owned()))
         .collect();
     assert_eq!(fixture.reject_messages, expected);
-    assert_eq!(fixture.check_order.len(), 12);
+    assert_eq!(fixture.check_order.len(), 13);
     assert_eq!(
         fixture.fold_overflow_labels,
         [
@@ -216,8 +216,12 @@ fn every_vector_replays_outcome_and_derived_roots() {
             vector.derived.allocation_root,
             "{name}"
         );
-        let outcome = check_global_accounting_allocation_certificate_v1(&certificate, &state)
-            .unwrap_or_else(|error| panic!("{name}: checker must not fail to parse: {error}"));
+        let outcome = check_global_accounting_allocation_certificate_v1(
+            &certificate,
+            &state,
+            &EMPTY_LANE_WITNESS_SLOTS_V1,
+        )
+        .unwrap_or_else(|error| panic!("{name}: checker must not fail to parse: {error}"));
         match (vector.expected_outcome.status.as_str(), outcome) {
             ("ACCEPT", AllocationCertificateOutcomeV1::Accepted(accepted)) => {
                 let roots: Vec<String> = accepted

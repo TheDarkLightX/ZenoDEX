@@ -513,10 +513,10 @@ def test_runtime_rejects_enabled_lane_without_receipt_backed_producer() -> None:
     """The producer gate of the model is the running BLOCKED_LANE_PRODUCER_MISSING check."""
 
     state = renderer.build_state_v1(renderer._spec(lanes_enabled=renderer.ALL_ENABLED))
-    outcome = cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(state), state)
+    outcome = cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(state), state, cert.EMPTY_LANE_WITNESS_SLOTS_V1)
     assert isinstance(outcome, cert.AllocationCertificateRejectedV1)
     assert outcome.code is cert.AllocationCertificateRejectCodeV1.BLOCKED_LANE_PRODUCER_MISSING
     assert outcome.pre_state_root == outcome.post_state_root == state.state_root
     empty = renderer.build_state_v1(renderer._spec())
-    accepted = cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(empty), empty)
+    accepted = cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(empty), empty, cert.EMPTY_LANE_WITNESS_SLOTS_V1)
     assert isinstance(accepted, cert.AllocationCertificateAcceptedV1)

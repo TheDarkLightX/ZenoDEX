@@ -1,0 +1,159 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260902-global-settlement-v1-canonical-exact-admission-v6",
+  "created_date": "2026-09-02",
+  "claim_scope": "v6 re-pin (C9b-2a): the manifest checker's closure digest moves with the certificate module's witness gate; membership unchanged. Earlier: v5 re-pin (C9a''''): the manifest checker's closure digest moves with the admission-path wording edits; membership unchanged. Earlier: v4 re-pin (C9a'''): the manifest checker's closure digest moves with the admission-path source edits; membership unchanged. Earlier: v3 re-pin (C9a''): the manifest checker's closure digest moved twice after v2 was cut; this packet pins the current bytes so the repository gate selecting it for the count test finds every pin current (the P31 finding). Earlier: v2 re-pin (C9a'): the frozen admitted-type count is 104 serializers plus 35 enums, 139 exact loaded types, after the wave-B producer and certificate registrations; C8 S17 grew the manifest and left the count test red from 2026-09-01 until this candidate. Exact membership and the source-closure digest stay pinned by tools/check_global_settlement_canonical_manifest_v1.py. Earlier: Research-only evidence that the audited GlobalSettlementABI V1 Python canonical encoder admits a frozen source-bound set of 122 exact loaded types, invokes serializers only as exact class-owned unbound functions, rejects structural protocol and generic enum admission, and preserves representative canonical bytes and roots from exact base 2d1eca792d0aac17e43e195e5a6a2dff7231289e.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSV1-CANONICAL-EXACT-TYPE-ADMISSION",
+    "GSV1-CANONICAL-CLASS-OWNED-SERIALIZER-DISPATCH",
+    "GSV1-CANONICAL-SOURCE-CLOSURE",
+    "GSV1-CANONICAL-BASE-BYTE-PARITY"
+  ],
+  "failure_modes": [
+    "an arbitrary behavior-bearing object is admitted through a structural to_canonical protocol",
+    "an unregistered enum is admitted and its value hook is invoked",
+    "a subclass or forged fully-qualified name substitutes for an admitted exact type",
+    "a loaded module type binding is replaced while a stale class object remains accepted",
+    "instance, metaclass attribute, or metaclass hash behavior runs before unsupported input rejection",
+    "a valid audited canonical type is omitted from the frozen manifest",
+    "canonical helper callers or admitted type sources drift without a fresh audit",
+    "exact admission changes canonical bytes or roots for previously valid values"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/global_settlement_canonical_manifest_v1.py",
+      "sha256": "1e2d46bde9f9f222d58871f696bb125a73fc5972a85227d8ce4beb10f669e287"
+    },
+    {
+      "path": "tools/check_global_settlement_canonical_manifest_v1.py",
+      "sha256": "5f8756d4d9ca8c12f2ab4fcc8ec4ebab64f7da4355acbfccf996c00db94fd086"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_canonical_admission_v1.py",
+      "sha256": "fb0a65fe93d2fc19fa431c6ca6c53d11a4b50a010c4fb982b75488dce9f518a8",
+      "node_ids": [
+        "tests/core/test_global_settlement_canonical_admission_v1.py::test_canonical_admission_manifest_is_frozen_sorted_and_disjoint",
+        "tests/core/test_global_settlement_canonical_admission_v1.py::test_arbitrary_behavior_bearing_object_rejects_without_hook_execution",
+        "tests/core/test_global_settlement_canonical_admission_v1.py::test_registered_type_subclass_rejects_before_overridden_serializer",
+        "tests/core/test_global_settlement_canonical_admission_v1.py::test_forged_registered_fqn_rejects_before_serializer",
+        "tests/core/test_global_settlement_canonical_admission_v1.py::test_registered_module_binding_replacement_fails_closed",
+        "tests/core/test_global_settlement_canonical_admission_v1.py::test_generic_and_forged_string_enums_reject_without_value_hooks",
+        "tests/core/test_global_settlement_canonical_admission_v1.py::test_canonical_bytes_and_roots_match_exact_base_goldens",
+        "tests/core/test_global_settlement_canonical_admission_v1.py::test_effect_plan_owned_root_matches_exact_base_golden"
+      ]
+    },
+    {
+      "path": "tests/test_check_global_settlement_canonical_manifest_v1.py",
+      "sha256": "f9b20f7181b9601369479e1917a982b460c4563e37b5194bbaa49da539d1cd40",
+      "node_ids": [
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_repository_canonical_manifest_source_closure_passes",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_manifest_shape_rejects_missing_duplicate_and_unsorted_types",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_manifest_rejects_domain_import_or_executable_registration",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_instance_bound_serializer_dispatch",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_generic_enum_admission",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_weakened_loaded_type_identity",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_dynamic_import_and_registry_mutation",
+        "tests/test_check_global_settlement_canonical_manifest_v1.py::test_source_closure_digest_is_order_independent_and_content_sensitive"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "boundary",
+    "negative_regression",
+    "mutation",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each runtime regression constructs one precise admission adversary, invokes canonical_global_bytes_v1 once, and observes exact rejection plus a zero-call behavior recorder; checker tests make one source mutation and observe its named static rejection."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Rejected values produce no canonical bytes, roots, witnesses, state, or effects, and hook recorders prove the hostile serializer, enum value, instance attribute, metaclass attribute, and metaclass hash behaviors were not invoked."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "type_identity",
+      "points": [
+        "exact loaded registered type accepts",
+        "registered type subclass rejects",
+        "forged registered fully-qualified name rejects",
+        "stale type after module binding replacement rejects"
+      ]
+    },
+    {
+      "name": "serializer_authority",
+      "points": [
+        "exact class-owned synchronous function dispatches unbound",
+        "arbitrary instance to_canonical hook rejects without execution",
+        "generic enum value hook rejects without execution"
+      ]
+    },
+    {
+      "name": "source_coverage",
+      "points": [
+        "92 frozen serializer types and 30 frozen enum types",
+        "92 canonical helper caller files",
+        "93 defining and caller source files bound by digest",
+        "missing duplicate unsorted or drifted source rejects"
+      ]
+    },
+    {
+      "name": "compatibility",
+      "points": [
+        "exact-base enum canonical bytes and root",
+        "exact-base economic amount canonical bytes and root",
+        "exact-base empty effect-plan canonical bytes and owned root"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "restore instance-bound value.to_canonical dispatch",
+      "killed_by": "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_instance_bound_serializer_dispatch"
+    },
+    {
+      "description": "restore generic isinstance Enum admission",
+      "killed_by": "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_generic_enum_admission"
+    },
+    {
+      "description": "weaken exact loaded-module class identity to name presence",
+      "killed_by": "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_weakened_loaded_type_identity"
+    },
+    {
+      "description": "add a runtime import or mutable registration call",
+      "killed_by": "tests/test_check_global_settlement_canonical_manifest_v1.py::test_dispatcher_checker_rejects_dynamic_import_and_registry_mutation"
+    },
+    {
+      "description": "admit a forged registered fully-qualified type name",
+      "killed_by": "tests/core/test_global_settlement_canonical_admission_v1.py::test_forged_registered_fqn_rejects_before_serializer"
+    },
+    {
+      "description": "use hash membership on an untrusted candidate metaclass before rejection",
+      "killed_by": "tests/core/test_global_settlement_canonical_admission_v1.py::test_arbitrary_behavior_bearing_object_rejects_without_hook_execution"
+    },
+    {
+      "description": "change canonical bytes or roots for valid pre-patch values",
+      "killed_by": "tests/core/test_global_settlement_canonical_admission_v1.py::test_canonical_bytes_and_roots_match_exact_base_goldens"
+    }
+  ],
+  "nonclaims": [
+    "This packet grants no production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "The Python process, sys.modules table, loaded module namespaces, frozen manifest globals, and registered serializer source integrity remain trusted premises against arbitrary in-process code execution.",
+    "The source-closure checker detects drift from the audited subject; static source coverage is not a proof of semantic call-graph completeness.",
+    "Registered class-owned serializers remain behavior-bearing reviewed source after exact identity admission.",
+    "Generic canonical traversal cycle, recursion-depth, aggregate-item, and output-byte limits remain open.",
+    "The corrected 122-type manifest supersedes the incomplete 111-type static inventory; no caller-defined or runtime-registered typed value is admitted.",
+    "Passing these tests does not close O-008, prove all value movement safe, or close any whole-program release gate."
+  ]
+}

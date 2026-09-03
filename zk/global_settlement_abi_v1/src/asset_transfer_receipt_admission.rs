@@ -6,7 +6,11 @@
 //! `verify_asset_transfer_lane_module_receipt_v1` after a succinct-receipt check against the
 //! recomputed module journal under an ACTIVE_NEW release image), binds the caller's accepted
 //! value to the witness at the journal root, re-runs the wave-B fragment producer, and mints
-//! the sealed `VerifiedLaneAllocationFragmentV1` (private fields: constructible only here).
+//! the sealed `VerifiedLaneAllocationFragmentV1` (private fields: constructible only here;
+//! the Python twin defines the class in the certificate module, its only consumer, because
+//! Python cannot import in a cycle, while Rust seals per module and the certificate module
+//! imports this one). The witness carries the rebuilt journal's header for the certificate
+//! check's header binding (C9b-2a).
 //! The certificate registry still keeps ASSET_TRANSFER at NO_PRODUCER in both languages:
 //! nothing consumes this witness on an acceptance path until C9b-2 lands the registry flip
 //! behind a witness type gate.
@@ -114,6 +118,10 @@ pub struct VerifiedLaneAllocationFragmentV1 {
     receipt_root: RootV1,
     receipt_digest: RootV1,
     expected_image_id: RootV1,
+    chain_id: String,
+    deployment_root: RootV1,
+    profile_root: RootV1,
+    writer_epoch: u64,
 }
 
 impl VerifiedLaneAllocationFragmentV1 {
@@ -136,6 +144,23 @@ impl VerifiedLaneAllocationFragmentV1 {
 
     pub fn expected_image_id(&self) -> &RootV1 {
         &self.expected_image_id
+    }
+
+    /// The rebuilt journal's header, bound by the certificate check to the state it checks.
+    pub fn chain_id(&self) -> &str {
+        &self.chain_id
+    }
+
+    pub fn deployment_root(&self) -> &RootV1 {
+        &self.deployment_root
+    }
+
+    pub fn profile_root(&self) -> &RootV1 {
+        &self.profile_root
+    }
+
+    pub fn writer_epoch(&self) -> u64 {
+        self.writer_epoch
     }
 }
 
@@ -241,5 +266,9 @@ pub fn verify_asset_transfer_fragment_receipt_v1(
         receipt_root: journal.receipt_root.clone(),
         receipt_digest: witness.receipt_digest().clone(),
         expected_image_id: witness.expected_image_id().clone(),
+        chain_id: journal.chain_id.clone(),
+        deployment_root: journal.deployment_root.clone(),
+        profile_root: journal.profile_root.clone(),
+        writer_epoch: journal.writer_epoch,
     }))
 }

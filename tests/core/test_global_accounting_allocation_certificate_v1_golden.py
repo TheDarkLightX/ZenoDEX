@@ -76,7 +76,7 @@ def test_vector_replays_outcome_and_derived_roots(name: str) -> None:
     assert cert.derive_terminal_binding_root_v1(fragments) == vector["derived"]["terminal_binding_root"]
     rows = cert.derive_canonical_allocation_rows_v1(fragments)
     assert cert.derive_allocation_root_v1(fragments, rows) == vector["derived"]["allocation_root"]
-    outcome = cert.check_global_accounting_allocation_certificate_v1(certificate, state)
+    outcome = cert.check_global_accounting_allocation_certificate_v1(certificate, state, cert.EMPTY_LANE_WITNESS_SLOTS_V1)
     if vector["expected_outcome"]["status"] == "ACCEPT":
         assert isinstance(outcome, cert.AllocationCertificateAcceptedV1)
         assert list(outcome.lane_fragment_roots) == vector["expected_outcome"]["lane_fragment_roots"]
@@ -92,12 +92,12 @@ def test_vector_replays_outcome_and_derived_roots(name: str) -> None:
 def test_reject_never_mutates_and_accept_needs_all_lanes_disabled() -> None:
     state = renderer.build_state_v1(renderer._spec(lanes_enabled=renderer.ALL_ENABLED))
     before = state.state_root
-    outcome = cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(state), state)
+    outcome = cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(state), state, cert.EMPTY_LANE_WITNESS_SLOTS_V1)
     assert isinstance(outcome, cert.AllocationCertificateRejectedV1)
     assert outcome.code is cert.AllocationCertificateRejectCodeV1.BLOCKED_LANE_PRODUCER_MISSING
     assert state.state_root == before
     empty = renderer.build_state_v1(renderer._spec())
-    accepted = cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(empty), empty)
+    accepted = cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(empty), empty, cert.EMPTY_LANE_WITNESS_SLOTS_V1)
     assert isinstance(accepted, cert.AllocationCertificateAcceptedV1) and accepted.authority == "NONE"
 
 
@@ -117,6 +117,13 @@ def test_mutation_killers_name_recorded_vectors_with_the_expected_polarity() -> 
         # Reachable only through a receipt-backed producer, which the current profile lacks.
         cert.AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW.value,
         cert.AllocationCertificateRejectCodeV1.SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE.value,
+        # The witness gate needs a sealed witness no JSON vector can carry: UNEXPECTED is exercised
+        # by test_witness_slots_refuse_a_witness_for_an_unregistered_lane_and_bad_shapes; the other
+        # three become reachable only once a lane is registered receipt-backed (C9b-2b).
+        cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_REQUIRED.value,
+        cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_UNEXPECTED.value,
+        cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_FRAGMENT_DRIFT.value,
+        cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_HEADER_DRIFT.value,
     }
     assert seen == reachable
 
@@ -274,3 +281,59 @@ def test_fold_overflow_details_match_the_shared_labels() -> None:
         cert.AllocationCertificateRejectCodeV1.ALLOCATION_TOTAL_OVERFLOW,
         labels[4],
     )
+
+
+# --- C9b-2a: the witness slots gate, inert while no lane is registered receipt-backed --------------
+
+
+def test_witness_slots_refuse_a_witness_for_an_unregistered_lane_and_bad_shapes() -> None:
+    """C9b-2a: with no lane registered receipt-backed the only live witness rule is
+    RECEIPT_WITNESS_UNEXPECTED (a presented witness in a slot that cannot use one, checked
+    before any row); the slot shape and the exact witness class are type-boundary refusals.
+    REQUIRED, FRAGMENT_DRIFT, and HEADER_DRIFT become reachable only with the registry flip."""
+
+    from src.core.asset_transfer_receipt_admission_v1 import (
+        verify_asset_transfer_fragment_receipt_v1,
+    )
+    from tests.core.test_asset_transfer_receipt_admission_v1 import _admission_fixture
+
+    accepted, module_witness, lane_root, prior = _admission_fixture()
+    witness = verify_asset_transfer_fragment_receipt_v1(module_witness, accepted, lane_root, prior, ())
+    assert isinstance(witness, cert.VerifiedLaneAllocationFragmentV1)
+    empty = renderer.build_state_v1(renderer._spec())
+    certificate = cert.build_registered_empty_certificate_v1(empty)
+    index = ALL_LANE_IDS_V1.index(LaneIdV1.ASSET_TRANSFER)
+    slots = list(cert.EMPTY_LANE_WITNESS_SLOTS_V1)
+    slots[index] = witness
+    outcome = cert.check_global_accounting_allocation_certificate_v1(certificate, empty, tuple(slots))
+    assert isinstance(outcome, cert.AllocationCertificateRejectedV1)
+    assert outcome.code is cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_UNEXPECTED
+    assert outcome.detail == "ASSET_TRANSFER"
+    assert outcome.pre_state_root == outcome.post_state_root == empty.state_root
+    accepted_outcome = cert.check_global_accounting_allocation_certificate_v1(
+        certificate, empty, cert.EMPTY_LANE_WITNESS_SLOTS_V1
+    )
+    assert isinstance(accepted_outcome, cert.AllocationCertificateAcceptedV1)
+
+    class SpoofedWitness(cert.VerifiedLaneAllocationFragmentV1):
+        """A plain subclass carrying the genuine fields: the slot gate is exact, so it is refused."""
+
+    spoofed = object.__new__(SpoofedWitness)
+    object.__setattr__(spoofed, "_fields", witness._fields)
+    spoofed_slots = list(cert.EMPTY_LANE_WITNESS_SLOTS_V1)
+    spoofed_slots[index] = spoofed
+    bare_slots = list(cert.EMPTY_LANE_WITNESS_SLOTS_V1)
+    bare_slots[index] = witness.fragment
+    for shape in (
+        cert.EMPTY_LANE_WITNESS_SLOTS_V1[:11],
+        cert.EMPTY_LANE_WITNESS_SLOTS_V1 + (None,),
+        list(cert.EMPTY_LANE_WITNESS_SLOTS_V1),
+        tuple(bare_slots),
+        tuple(spoofed_slots),
+    ):
+        with pytest.raises(TypeError, match="witness slot"):
+            cert.check_global_accounting_allocation_certificate_v1(certificate, empty, shape)  # type: ignore[arg-type]
+    assert len(cert.EMPTY_LANE_WITNESS_SLOTS_V1) == len(ALL_LANE_IDS_V1) == 12
+    assert cert.CHECK_ORDER_V1.index("receipt_witness_slots_bind_fragment_and_header") == cert.CHECK_ORDER_V1.index(
+        "enabled_lane_supported_receipt_backed_producer"
+    ) + 1

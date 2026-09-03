@@ -175,8 +175,10 @@ def test_receipt_admitted_fragment_carries_the_witness_binding() -> None:
     assert admitted.module_journal_root == accepted.module_journal.journal_root
     assert admitted.expected_image_id == witness.expected_image_id
     assert admitted.receipt_digest == witness.receipt_digest
-    with pytest.raises(AttributeError, match="immutable"):
+    with pytest.raises(AttributeError, match="cannot assign|immutable"):
         admitted.fragment = None  # type: ignore[misc,assignment]
+    with pytest.raises(AttributeError, match="cannot assign|immutable"):
+        admitted._fields = None  # type: ignore[misc,assignment]
 
 
 def test_admitted_controlled_rows_are_the_receipt_proved_custody_rows() -> None:
@@ -599,3 +601,32 @@ def test_forged_prior_fragment_is_rebuilt_before_the_producer() -> None:
     reject = verify_asset_transfer_fragment_receipt_v1(witness, accepted, lane_root, lying, ())
     assert isinstance(reject, ReceiptBackedProducerRejectedV1)
     assert reject.code is ReceiptBackedProducerRejectCodeV1.STALE_JOURNAL
+
+
+# --- C9b-2a: the minted witness carries the rebuilt journal header ----------------------------------
+
+
+def test_minted_witness_exports_the_rebuilt_journal_header() -> None:
+    """C9b-2a: the certificate check binds a presented witness to the state header, so the
+    witness exports the rebuilt journal's chain id, deployment root, profile root, and
+    writer epoch verbatim; the fields record validates each scalar at construction."""
+
+    accepted, witness, lane_root, prior = _admission_fixture()
+    verified = verify_asset_transfer_fragment_receipt_v1(witness, accepted, lane_root, prior, ())
+    assert isinstance(verified, VerifiedLaneAllocationFragmentV1)
+    journal = accepted.module_journal
+    assert (verified.chain_id, verified.deployment_root, verified.profile_root, verified.writer_epoch) == (
+        journal.chain_id,
+        journal.deployment_root,
+        journal.profile_root,
+        journal.writer_epoch,
+    )
+    fields = verified._fields
+    for changes in ({"chain_id": ""}, {"deployment_root": "0x12"}, {"profile_root": None}, {"writer_epoch": -1}):
+        with pytest.raises((TypeError, ValueError)):
+            replace(fields, **changes)
+    with pytest.raises(TypeError, match="exact record"):
+        cert.VerifiedLaneAllocationFragmentV1(fields.fragment, cert._VERIFIED_FRAGMENT_TOKEN)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="verifier-constructed"):
+        cert.VerifiedLaneAllocationFragmentV1(fields, object())
+    assert not hasattr(verified, "token")

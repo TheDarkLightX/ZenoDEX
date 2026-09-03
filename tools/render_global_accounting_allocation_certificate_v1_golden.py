@@ -280,7 +280,8 @@ def _mutate(
 def evaluate_v1(
     certificate: cert.GlobalAccountingAllocationCertificateV1, state: GlobalEconomicStateV1
 ) -> dict[str, object]:
-    outcome = cert.check_global_accounting_allocation_certificate_v1(certificate, state)
+    # Every rendered vector is witness-less: the fixture carries no sealed witness (C9b-2a).
+    outcome = cert.check_global_accounting_allocation_certificate_v1(certificate, state, cert.EMPTY_LANE_WITNESS_SLOTS_V1)
     if isinstance(outcome, cert.AllocationCertificateAcceptedV1):
         return {"status": "ACCEPT", "lane_fragment_roots": list(outcome.lane_fragment_roots)}
     return {"status": "REJECT", "code": outcome.code.value, "detail": outcome.detail, "message": outcome.message}

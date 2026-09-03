@@ -1396,7 +1396,7 @@ def test_closed_constants_are_internally_consistent() -> None:
     assert tuple(lane for lane, _, _ in core.LANE_SOURCE_DATA_V1) == core.EXPECTED_LANES_V1
     assert all(status in core.LANE_STATUS_VOCABULARY_V1 for _, status, _ in core.LANE_SOURCE_DATA_V1)
     assert "COMPLETE" not in core.LANE_STATUS_VOCABULARY_V1
-    assert len(core.SIDECAR_CHECKS_V1) == 10 and len(core.SIDECAR_FIELDS_V1) == 9
+    assert len(core.SIDECAR_CHECKS_V1) == 11 and len(core.SIDECAR_FIELDS_V1) == 9
     # 13 since C9a'': the scoped claimant-entitlement nonclaim and the epoch-path exact-type audit gap.
     assert len(core.NONCLAIMS_V1) == 13
     assert set(core.RUST_GATE_TESTS_V1) >= {"records_and_containers_reject_seeded_unknown_keys"}

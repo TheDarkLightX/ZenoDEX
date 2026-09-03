@@ -7,10 +7,14 @@ check against the recomputed module journal under an ACTIVE_NEW release
 image), rebuilds the caller's accepted value through the exact-typed
 snapshot, binds the rebuilt value to the witness at the journal root,
 re-runs the wave-B fragment producer on the rebuilt value, and mints the
-opaque ``VerifiedLaneAllocationFragmentV1`` witness. The certificate
-registry still keeps ASSET_TRANSFER at NO_PRODUCER: nothing consumes this
-witness on an acceptance path until C9b lands the registry flip behind a
-type gate.
+opaque ``VerifiedLaneAllocationFragmentV1`` witness (defined in the
+certificate module, its only consumer, so the two modules do not import
+each other; minted here through that module's private token) carrying the
+rebuilt journal's header (chain id, deployment root, profile root, writer
+epoch) for the certificate's header binding. The certificate check's
+witness slots consume it (C9b-2a), but the registry still keeps
+ASSET_TRANSFER at NO_PRODUCER, so no acceptance path can present it until
+the registry flip (C9b-2b) lands behind that gate.
 
 Why the snapshot comes first (Opus P28 F1): the journal-root equality binds
 nested values only through the roots in the journal preimage, and a root is
@@ -75,6 +79,7 @@ from .asset_transfer_lane_module_v1 import (
     _snapshot_asset_transfer_lane_module_accepted_v1,
 )
 from .global_accounting_allocation_certificate_v1 import (
+    _VERIFIED_FRAGMENT_TOKEN,
     ClaimantEntitlementRowV1,
     ControlledLocationRowV1,
     LaneAllocationFragmentV1,
@@ -82,6 +87,8 @@ from .global_accounting_allocation_certificate_v1 import (
     PendingExternalObligationRowV1,
     TerminalBindingRowV1,
     UnencumberedReserveRowV1,
+    VerifiedLaneAllocationFragmentV1,
+    _VerifiedFragmentFieldsV1,
 )
 from .global_accounting_lane_producers_v1 import (
     ReceiptBackedProducerRejectedV1,
@@ -99,8 +106,6 @@ from .lane_module_receipt_verification_v1 import (
 )
 
 RECEIPT_ADMISSION_SCHEMA_V1: Final = "zenodex/asset-transfer-receipt-admission/v1"
-
-_VERIFIED_FRAGMENT_TOKEN: Final = object()
 
 # Cross-language family pin (Opus P28 F5): the Rust admission twin declares exactly
 # this ordered family; test_witness_reject_family_and_check_order_match_the_rust_twin
@@ -153,61 +158,6 @@ class ReceiptWitnessRejectedV1:
         if type(self.detail) is not str or not self.detail or len(self.detail) > 200:
             raise ValueError("receipt witness detail must be a short non-empty string")
 
-
-@dataclass(frozen=True, slots=True)
-class _VerifiedFragmentFieldsV1:
-    fragment: LaneAllocationFragmentV1
-    module_journal_root: str
-    receipt_root: str
-    receipt_digest: str
-    expected_image_id: str
-
-    def __post_init__(self) -> None:
-        if type(self.fragment) is not LaneAllocationFragmentV1:
-            raise TypeError("verified fragment must be the exact typed value")
-        for name in ("module_journal_root", "receipt_root", "receipt_digest", "expected_image_id"):
-            if type(getattr(self, name)) is not str:
-                raise TypeError(f"verified fragment {name} must be exact text")
-        _require_root(self.module_journal_root, name="verified fragment module journal root")
-        _require_root(self.receipt_root, name="verified fragment receipt root")
-        if not self.receipt_digest or not self.expected_image_id:
-            raise TypeError("verified fragment receipt digest and image id must be non-empty")
-
-
-class VerifiedLaneAllocationFragmentV1:
-    """Opaque receipt-admitted fragment, produced only by this verifier."""
-
-    _fields: _VerifiedFragmentFieldsV1
-    __slots__ = ("_fields",)
-
-    def __init__(self, token: object, fields: _VerifiedFragmentFieldsV1) -> None:
-        if token is not _VERIFIED_FRAGMENT_TOKEN:
-            raise TypeError("VerifiedLaneAllocationFragmentV1 is verifier-constructed")
-        object.__setattr__(self, "_fields", fields)
-
-    def __setattr__(self, name: str, value: object) -> None:
-        raise AttributeError("VerifiedLaneAllocationFragmentV1 is immutable")
-
-    @property
-    def fragment(self) -> LaneAllocationFragmentV1:
-        return self._fields.fragment
-
-    @property
-    def module_journal_root(self) -> str:
-        return self._fields.module_journal_root
-
-    @property
-    def receipt_root(self) -> str:
-        """The rebuilt journal's receipt root, exported only after check (4) held."""
-        return self._fields.receipt_root
-
-    @property
-    def receipt_digest(self) -> str:
-        return self._fields.receipt_digest
-
-    @property
-    def expected_image_id(self) -> str:
-        return self._fields.expected_image_id
 
 
 def _rebuild_prior_fragment_v1(prior: LaneAllocationFragmentV1) -> LaneAllocationFragmentV1:
@@ -337,14 +287,18 @@ def verify_asset_transfer_fragment_receipt_v1(
             "binding root",
         )
     return VerifiedLaneAllocationFragmentV1(
-        _VERIFIED_FRAGMENT_TOKEN,
         _VerifiedFragmentFieldsV1(
             fragment=produced,
             module_journal_root=witness.module_journal_root,
             receipt_root=journal.receipt_root,
             receipt_digest=witness.receipt_digest,
             expected_image_id=witness.expected_image_id,
+            chain_id=journal.chain_id,
+            deployment_root=journal.deployment_root,
+            profile_root=journal.profile_root,
+            writer_epoch=journal.writer_epoch,
         ),
+        _VERIFIED_FRAGMENT_TOKEN,
     )
 
 

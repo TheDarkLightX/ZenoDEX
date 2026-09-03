@@ -6218,3 +6218,66 @@ fn receipt_admission_refuses_malformed_inputs_at_the_boundary_as_errors() {
     .unwrap()
     .is_ok());
 }
+
+#[test]
+fn receipt_admission_witness_in_an_unregistered_slot_is_unexpected() {
+    // C9b-2a: the certificate check takes twelve witness slots; while no lane is registered
+    // receipt-backed, a presented witness is refused before any row (UNEXPECTED), the slot
+    // shape is a boundary error, and the minted witness carries the journal header.
+    let fixture = verified_asset_lane_fixture();
+    let (lane_root, prior, entitlements) = receipt_admission_inputs(&fixture);
+    let verified = verify_asset_transfer_fragment_receipt_v1(
+        &fixture.verified,
+        &fixture.accepted,
+        &lane_root,
+        &prior,
+        &entitlements,
+    )
+    .unwrap()
+    .unwrap();
+    let journal = &fixture.accepted.module_journal;
+    assert_eq!(verified.chain_id(), journal.chain_id);
+    assert_eq!(verified.deployment_root(), &journal.deployment_root);
+    assert_eq!(verified.profile_root(), &journal.profile_root);
+    assert_eq!(verified.writer_epoch(), journal.writer_epoch);
+    let golden: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/data/global_accounting_allocation_certificate_v1_golden.json"),
+        )
+        .expect("golden fixture"),
+    )
+    .expect("golden json");
+    let vector = &golden["vectors"]["accepts_registered_empty_certificate_over_empty_state"];
+    let state: GlobalEconomicStateV1 =
+        serde_json::from_value(vector["state"].clone()).expect("golden state");
+    let certificate: GlobalAccountingAllocationCertificateV1 =
+        serde_json::from_value(vector["certificate"].clone()).expect("golden certificate");
+    assert_eq!(ALL_LANE_IDS_V1[0], LaneIdV1::ASSET_TRANSFER);
+    let mut slots = EMPTY_LANE_WITNESS_SLOTS_V1;
+    slots[0] = Some(&verified);
+    match check_global_accounting_allocation_certificate_v1(&certificate, &state, &slots).unwrap() {
+        AllocationCertificateOutcomeV1::Rejected(rejected) => {
+            assert_eq!(
+                rejected.code,
+                AllocationCertificateRejectCodeV1::ReceiptWitnessUnexpected
+            );
+            assert_eq!(rejected.detail, "ASSET_TRANSFER");
+            assert_eq!(rejected.pre_state_root, rejected.post_state_root);
+        }
+        other => panic!("expected RECEIPT_WITNESS_UNEXPECTED, got {other:?}"),
+    }
+    assert!(matches!(
+        check_global_accounting_allocation_certificate_v1(
+            &certificate,
+            &state,
+            &EMPTY_LANE_WITNESS_SLOTS_V1
+        )
+        .unwrap(),
+        AllocationCertificateOutcomeV1::Accepted(_)
+    ));
+    assert!(
+        check_global_accounting_allocation_certificate_v1(&certificate, &state, &slots[..11])
+            .is_err()
+    );
+}

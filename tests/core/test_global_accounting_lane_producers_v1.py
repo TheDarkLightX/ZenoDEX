@@ -74,13 +74,13 @@ def test_checker_refuses_a_registered_empty_lane_at_a_foreign_root() -> None:
     vector = fixture["vectors"]["rejects_registered_empty_lane_with_foreign_root"]
     assert vector["expected_outcome"]["code"] == "REGISTERED_EMPTY_ROOT_DRIFT"
     state = renderer.build_state_v1(vector["spec"])
-    outcome = cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(state), state)
+    outcome = cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(state), state, cert.EMPTY_LANE_WITNESS_SLOTS_V1)
     assert isinstance(outcome, cert.AllocationCertificateRejectedV1)
     assert outcome.code is cert.AllocationCertificateRejectCodeV1.REGISTERED_EMPTY_ROOT_DRIFT
     assert outcome.detail == "PROOF_REWARDS"
     assert outcome.pre_state_root == outcome.post_state_root == state.state_root
     accepted = renderer.build_state_v1(renderer._spec())
-    assert isinstance(cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(accepted), accepted), cert.AllocationCertificateAcceptedV1)
+    assert isinstance(cert.check_global_accounting_allocation_certificate_v1(cert.build_registered_empty_certificate_v1(accepted), accepted, cert.EMPTY_LANE_WITNESS_SLOTS_V1), cert.AllocationCertificateAcceptedV1)
 
 
 # --- wave B: the receipt-backed ASSET_TRANSFER producer ---------------------

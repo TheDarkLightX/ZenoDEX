@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::asset_transfer_receipt_admission::VerifiedLaneAllocationFragmentV1;
 use crate::canonical::{hash_global_v1, validate_token_v1, AbiErrorV1, AbiResultV1, RootV1};
 use crate::release::{LaneIdV1, ALL_LANE_IDS_V1};
 use crate::state::{GlobalEconomicStateV1, OutboxStatusV1, TerminalObligationStatusV1};
@@ -127,6 +128,10 @@ pub enum AllocationCertificateRejectCodeV1 {
     LaneStateRootDrift,
     ProducerKindDrift,
     BlockedLaneProducerMissing,
+    ReceiptWitnessRequired,
+    ReceiptWitnessUnexpected,
+    ReceiptWitnessFragmentDrift,
+    ReceiptWitnessHeaderDrift,
     DisabledLaneNotEmpty,
     RegisteredEmptyRootDrift,
     BindingRootDrift,
@@ -141,12 +146,16 @@ pub enum AllocationCertificateRejectCodeV1 {
 }
 
 impl AllocationCertificateRejectCodeV1 {
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 20] = [
         Self::HeaderBindingDrift,
         Self::LaneOrderDrift,
         Self::LaneStateRootDrift,
         Self::ProducerKindDrift,
         Self::BlockedLaneProducerMissing,
+        Self::ReceiptWitnessRequired,
+        Self::ReceiptWitnessUnexpected,
+        Self::ReceiptWitnessFragmentDrift,
+        Self::ReceiptWitnessHeaderDrift,
         Self::DisabledLaneNotEmpty,
         Self::RegisteredEmptyRootDrift,
         Self::BindingRootDrift,
@@ -167,6 +176,10 @@ impl AllocationCertificateRejectCodeV1 {
             Self::LaneStateRootDrift => "LANE_STATE_ROOT_DRIFT",
             Self::ProducerKindDrift => "PRODUCER_KIND_DRIFT",
             Self::BlockedLaneProducerMissing => "BLOCKED_LANE_PRODUCER_MISSING",
+            Self::ReceiptWitnessRequired => "RECEIPT_WITNESS_REQUIRED",
+            Self::ReceiptWitnessUnexpected => "RECEIPT_WITNESS_UNEXPECTED",
+            Self::ReceiptWitnessFragmentDrift => "RECEIPT_WITNESS_FRAGMENT_DRIFT",
+            Self::ReceiptWitnessHeaderDrift => "RECEIPT_WITNESS_HEADER_DRIFT",
             Self::DisabledLaneNotEmpty => "DISABLED_LANE_NOT_EMPTY",
             Self::RegisteredEmptyRootDrift => "REGISTERED_EMPTY_ROOT_DRIFT",
             Self::BindingRootDrift => "BINDING_ROOT_DRIFT",
@@ -189,6 +202,18 @@ impl AllocationCertificateRejectCodeV1 {
             Self::LaneStateRootDrift => "allocation certificate lane fragment does not bind the committed lane state root",
             Self::ProducerKindDrift => "allocation certificate lane fragment producer kind differs from the registry",
             Self::BlockedLaneProducerMissing => "allocation certificate enabled lane has no receipt-backed fragment producer",
+            Self::ReceiptWitnessRequired => {
+                "allocation certificate enabled receipt-backed lane presents no receipt-admitted witness"
+            }
+            Self::ReceiptWitnessUnexpected => {
+                "allocation certificate lane presents a receipt-admitted witness it cannot use"
+            }
+            Self::ReceiptWitnessFragmentDrift => {
+                "allocation certificate lane fragment differs from its receipt-admitted witness"
+            }
+            Self::ReceiptWitnessHeaderDrift => {
+                "allocation certificate receipt-admitted witness was minted under another header"
+            }
             Self::DisabledLaneNotEmpty => "allocation certificate disabled lane fragment carries rows",
             Self::RegisteredEmptyRootDrift => {
                 "allocation certificate registered-empty lane is not bound to its empty lane state root"
@@ -711,6 +736,7 @@ fn check_lane_order(certificate: &GlobalAccountingAllocationCertificateV1) -> Re
 fn check_lane_bindings(
     certificate: &GlobalAccountingAllocationCertificateV1,
     state: &GlobalEconomicStateV1,
+    witnesses: &[Option<&VerifiedLaneAllocationFragmentV1>],
 ) -> Result<(), Reject> {
     // Check-major: every lane passes one binding check before any lane is tried against the next.
     let pairs: Vec<(&LaneAllocationFragmentV1, &crate::state::LaneStateRootV1)> = certificate
@@ -747,6 +773,54 @@ fn check_lane_bindings(
             );
         }
     }
+    let slots: Vec<(
+        &LaneAllocationFragmentV1,
+        Option<&VerifiedLaneAllocationFragmentV1>,
+    )> = certificate
+        .ordered_lane_fragments
+        .iter()
+        .zip(witnesses.iter().copied())
+        .collect();
+    for (fragment, witness) in &slots {
+        let (registered_kind, _) = registry_entry_v1(fragment.lane_id);
+        let witnessed = fragment.enabled && registered_kind == LaneProducerKindV1::RECEIPT_BACKED;
+        if witnessed && witness.is_none() {
+            return fail(
+                AllocationCertificateRejectCodeV1::ReceiptWitnessRequired,
+                format!("{:?}", fragment.lane_id),
+            );
+        }
+        if !witnessed && witness.is_some() {
+            return fail(
+                AllocationCertificateRejectCodeV1::ReceiptWitnessUnexpected,
+                format!("{:?}", fragment.lane_id),
+            );
+        }
+    }
+    for (fragment, witness) in &slots {
+        if let Some(witness) = witness {
+            if witness.fragment() != *fragment {
+                return fail(
+                    AllocationCertificateRejectCodeV1::ReceiptWitnessFragmentDrift,
+                    format!("{:?}", fragment.lane_id),
+                );
+            }
+        }
+    }
+    for (fragment, witness) in &slots {
+        if let Some(witness) = witness {
+            if witness.chain_id() != state.chain_id
+                || witness.deployment_root() != &state.deployment_root
+                || witness.profile_root() != &state.profile_root
+                || witness.writer_epoch() != state.writer_epoch
+            {
+                return fail(
+                    AllocationCertificateRejectCodeV1::ReceiptWitnessHeaderDrift,
+                    format!("{:?}", fragment.lane_id),
+                );
+            }
+        }
+    }
     for (fragment, _) in &pairs {
         if !fragment.enabled && !fragment.is_empty() {
             return fail(
@@ -771,11 +845,12 @@ fn check_lane_bindings(
             }
         }
     }
-    for (fragment, _) in &pairs {
-        // Opus P15 P2-1: with no receipt-backed producer registered, every producer path
-        // commits binding_root = lane_state_root; an unvalidated root-shaped field must not
-        // exist. C9's receipt admission replaces this rule for RECEIPT_BACKED lanes.
-        if fragment.binding_root != fragment.lane_state_root {
+    for (fragment, witness) in &slots {
+        // Opus P15 P2-1: an un-witnessed fragment commits binding_root = lane_state_root; an
+        // unvalidated root-shaped field must not exist. A witnessed fragment equals the
+        // witness's fragment (checked above), whose binding_root is the receipt root by the
+        // admission's check (4), so no separate witnessed branch exists: it could never fire.
+        if witness.is_none() && fragment.binding_root != fragment.lane_state_root {
             return fail(
                 AllocationCertificateRejectCodeV1::BindingRootDrift,
                 format!("{:?}", fragment.lane_id),
@@ -1209,16 +1284,27 @@ fn check_derived_roots(
 /// The certificate and state are validated first (`AbiErrorV1` on malformed input is
 /// a parse-level failure, not a certificate reject). A reject never mutates and
 /// carries the pre-state root twice.
+/// Twelve empty witness slots in lane order: what every caller passes while no lane is witnessed.
+pub const EMPTY_LANE_WITNESS_SLOTS_V1: [Option<&VerifiedLaneAllocationFragmentV1>; 12] = [None; 12];
+
 pub fn check_global_accounting_allocation_certificate_v1(
     certificate: &GlobalAccountingAllocationCertificateV1,
     state: &GlobalEconomicStateV1,
+    witnesses: &[Option<&VerifiedLaneAllocationFragmentV1>],
 ) -> AbiResultV1<AllocationCertificateOutcomeV1> {
     certificate.validate()?;
+    // The slot shape is a boundary error (the Python twin raises TypeError); the slot contents
+    // are the receipt-witness pass of the lane bindings.
+    if witnesses.len() != ALL_LANE_IDS_V1.len() {
+        return Err(AbiErrorV1::InvalidBounds(
+            "certificate witness slots must hold twelve entries in lane order",
+        ));
+    }
     let pre_state_root = state.state_root()?;
     let run = || -> Result<(), Reject> {
         check_header(certificate, state, &pre_state_root)?;
         check_lane_order(certificate)?;
-        check_lane_bindings(certificate, state)?;
+        check_lane_bindings(certificate, state, witnesses)?;
         check_exactly_once(certificate)?;
         check_entitlement_rows(certificate, state)?;
         check_reserve_rows(certificate, state)?;

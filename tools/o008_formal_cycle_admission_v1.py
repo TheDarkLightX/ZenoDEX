@@ -397,6 +397,7 @@ SIDECAR_FIELDS_V1: Final[tuple[str, ...]] = (
 SIDECAR_CHECKS_V1: Final[tuple[str, ...]] = (
     "exact_twelve_lane_order",
     "enabled_lane_supported_receipt_backed_producer",
+    "receipt_witness_slots_bind_fragment_and_header",
     "disabled_lane_registered_empty_state_root",
     "every_controlled_source_atom_assigned_exactly_once",
     "claimant_entitlement_rows_equal_v1_liabilities",
@@ -469,6 +470,10 @@ CERTIFICATE_REJECT_CODES_V1: Final[tuple[str, ...]] = (
     "LANE_STATE_ROOT_DRIFT",
     "PRODUCER_KIND_DRIFT",
     "BLOCKED_LANE_PRODUCER_MISSING",
+    "RECEIPT_WITNESS_REQUIRED",
+    "RECEIPT_WITNESS_UNEXPECTED",
+    "RECEIPT_WITNESS_FRAGMENT_DRIFT",
+    "RECEIPT_WITNESS_HEADER_DRIFT",
     "DISABLED_LANE_NOT_EMPTY",
     "REGISTERED_EMPTY_ROOT_DRIFT",
     "BINDING_ROOT_DRIFT",
@@ -1080,7 +1085,7 @@ RUST_REFINEMENT_GATE_TARGET_V1: Final = "global_economic_state_effect_refinement
 RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
 CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
-CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 37
+CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 38
 PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 30
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
 PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 7
@@ -1088,7 +1093,7 @@ PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 7
 # module witness is minted in Rust); the gate filters that suite by the admission prefix.
 ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
-ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 4
+ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 4
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35

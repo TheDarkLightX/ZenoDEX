@@ -13,9 +13,18 @@ using the control-domain vocabulary (``control_domain``, ``controlled_location``
 a sibling schema and never renames a V1 field.
 
 Functional core: ``check_global_accounting_allocation_certificate_v1(certificate,
-state)`` is a total function ``Accept | Reject(code)`` with a closed, ordered reject
-precedence. Rejects carry the unchanged pre-state root and no effects. Every fold uses
-checked u128 arithmetic; every table is canonically ordered and unique.
+state, witnesses)`` is a total function ``Accept | Reject(code)`` with a closed, ordered
+reject precedence. Rejects carry the unchanged pre-state root and no effects. Every fold
+uses checked u128 arithmetic; every table is canonically ordered and unique.
+``witnesses`` holds twelve slots in lane order (C9b-2a); a slot is ``None`` or the
+sealed ``VerifiedLaneAllocationFragmentV1`` the receipt admission minted for that lane.
+An enabled lane whose registered producer is receipt-backed must present its witness
+(``RECEIPT_WITNESS_REQUIRED``), every other lane must present none
+(``RECEIPT_WITNESS_UNEXPECTED``), and a presented witness must carry the certificate's
+own fragment (``RECEIPT_WITNESS_FRAGMENT_DRIFT``) and the state's header
+(``RECEIPT_WITNESS_HEADER_DRIFT``). While no lane is registered receipt-backed the gate
+can only refuse a presented witness; the registry flip (C9b-2b) makes the requirement
+live in both languages at once, behind this gate.
 
 Current profile: no lane is REGISTERED with a receipt-backed fragment producer (an
 implemented, unregistered wave-B producer exists in the producers module; the registry below is
@@ -30,7 +39,7 @@ and grants no publication, settlement, or value-moving authority.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Final, Protocol, TypeVar, cast
 
@@ -126,6 +135,10 @@ class AllocationCertificateRejectCodeV1(str, Enum):
     LANE_STATE_ROOT_DRIFT = "LANE_STATE_ROOT_DRIFT"
     PRODUCER_KIND_DRIFT = "PRODUCER_KIND_DRIFT"
     BLOCKED_LANE_PRODUCER_MISSING = "BLOCKED_LANE_PRODUCER_MISSING"
+    RECEIPT_WITNESS_REQUIRED = "RECEIPT_WITNESS_REQUIRED"
+    RECEIPT_WITNESS_UNEXPECTED = "RECEIPT_WITNESS_UNEXPECTED"
+    RECEIPT_WITNESS_FRAGMENT_DRIFT = "RECEIPT_WITNESS_FRAGMENT_DRIFT"
+    RECEIPT_WITNESS_HEADER_DRIFT = "RECEIPT_WITNESS_HEADER_DRIFT"
     DISABLED_LANE_NOT_EMPTY = "DISABLED_LANE_NOT_EMPTY"
     REGISTERED_EMPTY_ROOT_DRIFT = "REGISTERED_EMPTY_ROOT_DRIFT"
     BINDING_ROOT_DRIFT = "BINDING_ROOT_DRIFT"
@@ -145,6 +158,10 @@ ALLOCATION_CERTIFICATE_REJECT_MESSAGE_BY_CODE_V1: Final[dict[AllocationCertifica
     AllocationCertificateRejectCodeV1.LANE_STATE_ROOT_DRIFT: "allocation certificate lane fragment does not bind the committed lane state root",
     AllocationCertificateRejectCodeV1.PRODUCER_KIND_DRIFT: "allocation certificate lane fragment producer kind differs from the registry",
     AllocationCertificateRejectCodeV1.BLOCKED_LANE_PRODUCER_MISSING: "allocation certificate enabled lane has no receipt-backed fragment producer",
+    AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_REQUIRED: "allocation certificate enabled receipt-backed lane presents no receipt-admitted witness",
+    AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_UNEXPECTED: "allocation certificate lane presents a receipt-admitted witness it cannot use",
+    AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_FRAGMENT_DRIFT: "allocation certificate lane fragment differs from its receipt-admitted witness",
+    AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_HEADER_DRIFT: "allocation certificate receipt-admitted witness was minted under another header",
     AllocationCertificateRejectCodeV1.DISABLED_LANE_NOT_EMPTY: "allocation certificate disabled lane fragment carries rows",
     AllocationCertificateRejectCodeV1.REGISTERED_EMPTY_ROOT_DRIFT: "allocation certificate registered-empty lane is not bound to its empty lane state root",
     AllocationCertificateRejectCodeV1.BINDING_ROOT_DRIFT: "the fragment binding root does not equal its committed lane state root",
@@ -418,6 +435,125 @@ class LaneAllocationFragmentV1:
         }
 
 
+# ---------------------------------------------------------------------------
+# Receipt-admitted fragment witness (C9b-2a)
+# ---------------------------------------------------------------------------
+
+# The sealed witness lives here, in the consumer module, because the certificate check must
+# name the exact class for its slot gate while the receipt admission imports this module's
+# row and fragment types (a module-level import cycle otherwise). Only the admission mints it,
+# through the module-private token; the token is private by convention, like every
+# ``_snapshot_*`` helper on the path, and the in-process ``object.__new__`` forgery residual
+# the admission declares already covers a caller that imports it.
+_VERIFIED_FRAGMENT_TOKEN: Final = object()
+
+
+@dataclass(frozen=True, slots=True)
+class _VerifiedFragmentFieldsV1:
+    fragment: LaneAllocationFragmentV1
+    module_journal_root: str
+    receipt_root: str
+    receipt_digest: str
+    expected_image_id: str
+    chain_id: str
+    deployment_root: str
+    profile_root: str
+    writer_epoch: int
+
+    def __post_init__(self) -> None:
+        if type(self.fragment) is not LaneAllocationFragmentV1:
+            raise TypeError("verified fragment must be the exact typed value")
+        for name in (
+            "module_journal_root",
+            "receipt_root",
+            "receipt_digest",
+            "expected_image_id",
+            "chain_id",
+            "deployment_root",
+            "profile_root",
+        ):
+            if type(getattr(self, name)) is not str:
+                raise TypeError(f"verified fragment {name} must be exact text")
+        _require_root(self.module_journal_root, name="verified fragment module journal root")
+        _require_root(self.receipt_root, name="verified fragment receipt root")
+        if not self.receipt_digest or not self.expected_image_id:
+            raise TypeError("verified fragment receipt digest and image id must be non-empty")
+        _require_token(self.chain_id, name="verified fragment chain id")
+        _require_root(self.deployment_root, name="verified fragment deployment root")
+        _require_root(self.profile_root, name="verified fragment profile root")
+        _require_nonnegative_int(self.writer_epoch, name="verified fragment writer epoch")
+
+
+@dataclass(frozen=True)
+class VerifiedLaneAllocationFragmentV1:
+    """Opaque receipt-admitted fragment, minted only by the receipt admission.
+
+    It exports the admitted fragment and the scalars it was admitted under: the
+    receipt-verified module journal root, the journal's receipt root (exported only
+    after the admission's check (4) held), the receipt digest and expected image id,
+    and the journal header (chain id, deployment root, profile root, writer epoch)
+    the certificate check binds to the state it checks, so a witness minted under
+    another deployment cannot vouch for an identical lane root elsewhere. The
+    mint token is an ``InitVar``: it must be presented at construction and is
+    never stored, so a held witness leaks nothing that mints another; the frozen
+    dataclass gives immutability without any dynamic attribute binding (the
+    packet's static-binding rule for this module). It is frozen without
+    ``slots``: CPython 3.12's frozen-slots ``__setattr__`` cannot refuse an
+    assignment to a property of the re-created class, and the ``__dict__`` this
+    leaves is already covered by the in-process forgery residual.
+    """
+
+    _fields: _VerifiedFragmentFieldsV1
+    token: InitVar[object]
+
+    def __post_init__(self, token: object) -> None:
+        if token is not _VERIFIED_FRAGMENT_TOKEN:
+            raise TypeError("VerifiedLaneAllocationFragmentV1 is verifier-constructed")
+        if type(self._fields) is not _VerifiedFragmentFieldsV1:
+            raise TypeError("VerifiedLaneAllocationFragmentV1 fields must be the exact record")
+
+    @property
+    def fragment(self) -> LaneAllocationFragmentV1:
+        return self._fields.fragment
+
+    @property
+    def module_journal_root(self) -> str:
+        return self._fields.module_journal_root
+
+    @property
+    def receipt_root(self) -> str:
+        """The rebuilt journal's receipt root, exported only after check (4) held."""
+        return self._fields.receipt_root
+
+    @property
+    def receipt_digest(self) -> str:
+        return self._fields.receipt_digest
+
+    @property
+    def expected_image_id(self) -> str:
+        return self._fields.expected_image_id
+
+    @property
+    def chain_id(self) -> str:
+        return self._fields.chain_id
+
+    @property
+    def deployment_root(self) -> str:
+        return self._fields.deployment_root
+
+    @property
+    def profile_root(self) -> str:
+        return self._fields.profile_root
+
+    @property
+    def writer_epoch(self) -> int:
+        return self._fields.writer_epoch
+
+
+# Twelve empty slots in lane order: the value every caller passes while no lane is witnessed.
+EMPTY_LANE_WITNESS_SLOTS_V1: Final[tuple[None, ...]] = (None,) * len(ALL_LANE_IDS_V1)
+
+
 @dataclass(frozen=True, slots=True)
 class ChainContextV1:
     chain_id: str
@@ -619,7 +755,11 @@ def _check_lane_order(certificate: GlobalAccountingAllocationCertificateV1) -> N
         _fail(AllocationCertificateRejectCodeV1.LANE_ORDER_DRIFT, ",".join(lane.value for lane in lanes))
 
 
-def _check_lane_bindings(certificate: GlobalAccountingAllocationCertificateV1, state: GlobalEconomicStateV1) -> None:
+def _check_lane_bindings(
+    certificate: GlobalAccountingAllocationCertificateV1,
+    state: GlobalEconomicStateV1,
+    witnesses: tuple[VerifiedLaneAllocationFragmentV1 | None, ...],
+) -> None:
     """Check-major: every lane passes one binding check before any lane is tried against the next."""
 
     pairs = tuple(zip(certificate.ordered_lane_fragments, state.lane_roots, strict=True))
@@ -638,6 +778,25 @@ def _check_lane_bindings(certificate: GlobalAccountingAllocationCertificateV1, s
         registered_kind, blocked_on = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[fragment.lane_id]
         if fragment.enabled and registered_kind is not LaneProducerKindV1.RECEIPT_BACKED:
             _fail(AllocationCertificateRejectCodeV1.BLOCKED_LANE_PRODUCER_MISSING, f"{fragment.lane_id.value}:{blocked_on}")
+    slots = tuple(zip(certificate.ordered_lane_fragments, witnesses, strict=True))
+    for fragment, witness in slots:
+        registered_kind, _ = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[fragment.lane_id]
+        witnessed = fragment.enabled and registered_kind is LaneProducerKindV1.RECEIPT_BACKED
+        if witnessed and witness is None:
+            _fail(AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_REQUIRED, fragment.lane_id.value)
+        if not witnessed and witness is not None:
+            _fail(AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_UNEXPECTED, fragment.lane_id.value)
+    for fragment, witness in slots:
+        if witness is not None and witness.fragment != fragment:
+            _fail(AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_FRAGMENT_DRIFT, fragment.lane_id.value)
+    for fragment, witness in slots:
+        if witness is not None and (
+            witness.chain_id,
+            witness.deployment_root,
+            witness.profile_root,
+            witness.writer_epoch,
+        ) != (state.chain_id, state.deployment_root, state.profile_root, state.writer_epoch):
+            _fail(AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_HEADER_DRIFT, fragment.lane_id.value)
     for fragment, _ in pairs:
         if not fragment.enabled and not fragment.is_empty:
             _fail(AllocationCertificateRejectCodeV1.DISABLED_LANE_NOT_EMPTY, fragment.lane_id.value)
@@ -645,11 +804,12 @@ def _check_lane_bindings(certificate: GlobalAccountingAllocationCertificateV1, s
         registered_root = REGISTERED_EMPTY_LANE_ROOTS_V1.get(fragment.lane_id)
         if registered_root is not None and fragment.lane_state_root != registered_root:
             _fail(AllocationCertificateRejectCodeV1.REGISTERED_EMPTY_ROOT_DRIFT, fragment.lane_id.value)
-    for fragment, _ in pairs:
-        # Opus P15 P2-1: with no receipt-backed producer registered, every producer path commits
-        # binding_root = lane_state_root; an unvalidated root-shaped field must not exist. C9's
-        # receipt admission replaces this rule for RECEIPT_BACKED lanes with the receipt root.
-        if fragment.binding_root != fragment.lane_state_root:
+    for fragment, witness in slots:
+        # Opus P15 P2-1: an un-witnessed fragment commits binding_root = lane_state_root; an
+        # unvalidated root-shaped field must not exist. A witnessed fragment equals the witness's
+        # fragment (checked above), whose binding_root is the receipt root by the admission's
+        # check (4), so no separate witnessed branch exists here: it could never fire.
+        if witness is None and fragment.binding_root != fragment.lane_state_root:
             _fail(AllocationCertificateRejectCodeV1.BINDING_ROOT_DRIFT, fragment.lane_id.value)
 
 
@@ -812,6 +972,7 @@ CHECK_ORDER_V1: Final[tuple[str, ...]] = (
     "header_binding",
     "exact_twelve_lane_order",
     "enabled_lane_supported_receipt_backed_producer",
+    "receipt_witness_slots_bind_fragment_and_header",
     "disabled_lane_registered_empty_state_root",
     "every_controlled_source_atom_assigned_exactly_once",
     "claimant_entitlement_rows_equal_v1_liabilities",
@@ -825,9 +986,15 @@ CHECK_ORDER_V1: Final[tuple[str, ...]] = (
 
 
 def check_global_accounting_allocation_certificate_v1(
-    certificate: GlobalAccountingAllocationCertificateV1, state: GlobalEconomicStateV1
+    certificate: GlobalAccountingAllocationCertificateV1,
+    state: GlobalEconomicStateV1,
+    witnesses: tuple[VerifiedLaneAllocationFragmentV1 | None, ...],
 ) -> AllocationCertificateAcceptedV1 | AllocationCertificateRejectedV1:
     """Total function: accept with derived roots, or reject with the first failing closed code.
+
+    ``witnesses`` is the exact twelve-slot tuple in lane order; the slot shape and the exact
+    witness class are type-boundary refusals (``TypeError``), the slot contents are checked
+    by the receipt-witness pass of the lane bindings.
 
     Checked u128 arithmetic and canonical order are enforced by construction of every
     row and fold (``ALLOCATION_TOTAL_OVERFLOW`` fires inside the first fold that
@@ -839,11 +1006,16 @@ def check_global_accounting_allocation_certificate_v1(
         raise TypeError("certificate must be the exact typed value")
     if type(state) is not GlobalEconomicStateV1:
         raise TypeError("state must be the exact typed value")
+    if type(witnesses) is not tuple or len(witnesses) != len(ALL_LANE_IDS_V1):
+        raise TypeError("certificate witness slots must be an exact tuple of twelve entries in lane order")
+    for slot in witnesses:
+        if slot is not None and type(slot) is not VerifiedLaneAllocationFragmentV1:
+            raise TypeError("certificate witness slot must be None or the exact verifier-minted witness")
     pre_state_root = state.state_root
     try:
         _check_header(certificate, state)
         _check_lane_order(certificate)
-        _check_lane_bindings(certificate, state)
+        _check_lane_bindings(certificate, state, witnesses)
         _check_exactly_once(certificate)
         _check_entitlement_rows(certificate, state)
         _check_reserve_rows(certificate, state)
@@ -918,6 +1090,7 @@ __all__ = [
     "ChainContextV1",
     "ClaimantEntitlementRowV1",
     "ControlledLocationRowV1",
+    "EMPTY_LANE_WITNESS_SLOTS_V1",
     "FIELD_OWNERSHIP_ROOT_DOMAIN_V1",
     "GLOBAL_ACCOUNTING_ALLOCATION_CERTIFICATE_SCHEMA_V1",
     "GlobalAccountingAllocationCertificateV1",
@@ -932,6 +1105,7 @@ __all__ = [
     "TERMINAL_BINDING_ROOT_DOMAIN_V1",
     "TerminalBindingRowV1",
     "UnencumberedReserveRowV1",
+    "VerifiedLaneAllocationFragmentV1",
     "build_registered_empty_certificate_v1",
     "certificate_registry_view_v1",
     "check_global_accounting_allocation_certificate_v1",

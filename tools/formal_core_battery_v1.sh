@@ -7,6 +7,9 @@
 # campaign worktrees never compile against the shared mathlib oleans at once.
 #
 # usage: bash tools/formal_core_battery_v1.sh <output-log>   (stored non-executable: the packet pins sources as mode 100644)
+# exit:  0 only when every part is green (Opus P34 P2-3); the one deselected test,
+#        test_committed_packet_lifecycle_at_repository_head, is red on a dirty tree by construction
+#        (HEAD is not yet the packet commit) and is run by the chain script at P instead.
 # env:   FORMAL_CORE_PY (default: .venv/bin/python), FORMAL_CORE_ESSO_PYTHONPATH, FORMAL_CORE_ESSO_PYTHON,
 #        FORMAL_CORE_LEAN_LOCK (default: /tmp/zenodex-lean.lock)
 set -u
@@ -18,6 +21,7 @@ ESSO_PP="${FORMAL_CORE_ESSO_PYTHONPATH:-$ROOT/external/ESSO}"
 ESSO_PY="${FORMAL_CORE_ESSO_PYTHON:-/usr/bin/python3}"
 export PYTHONDONTWRITEBYTECODE=1 CARGO_INCREMENTAL=0
 OUT="$1"
+RED=0
 {
 echo "battery start $(date -u +%FT%TZ) head=$(git rev-parse --short HEAD)"
 flock -w 7200 "$LOCK" "$PY" -m pytest -q -p no:cacheprovider -rf \
@@ -40,14 +44,16 @@ flock -w 7200 "$LOCK" "$PY" -m pytest -q -p no:cacheprovider -rf \
   tests/test_check_o008_formal_cycle_v1.py \
   tests/test_check_test_hygiene_v1.py \
   tests/test_global_settlement_v1_rust_wire_bounds.py \
-  tests/test_o008_v1_projection_runtime_gate.py
-echo "python exit $?"
+  tests/test_o008_v1_projection_runtime_gate.py \
+  --deselect tests/test_check_o008_formal_cycle_v1.py::test_committed_packet_lifecycle_at_repository_head
+PY_EXIT=$?; echo "python exit $PY_EXIT"; [ "$PY_EXIT" = 0 ] || RED=1
 PYTHONPATH="$ESSO_PP" ZENO_ESSO_PYTHON="$ESSO_PY" "$PY" -m pytest -q -p no:cacheprovider -rf \
   tests/formal/test_esso_global_accounting_allocation_certificate_v1.py \
   tests/formal/test_esso_global_claimant_custody_certificate_v1.py \
   tests/formal/test_esso_global_settlement_core_v1.py
-echo "esso exit $?"
-flock -w 7200 "$LOCK" "$PY" -m pytest -q -p no:cacheprovider tests/formal/test_lean_global_claimant_custody_relation_v1.py; echo "lean1 exit $?"
-flock -w 7200 "$LOCK" "$PY" -m pytest -q -p no:cacheprovider tests/formal/test_lean_global_accounting_allocation_certificate_v1.py; echo "lean2 exit $?"
-echo "battery done $(date -u +%FT%TZ)"
+ESSO_EXIT=$?; echo "esso exit $ESSO_EXIT"; [ "$ESSO_EXIT" = 0 ] || RED=1
+flock -w 7200 "$LOCK" "$PY" -m pytest -q -p no:cacheprovider tests/formal/test_lean_global_claimant_custody_relation_v1.py; L1=$?; echo "lean1 exit $L1"; [ "$L1" = 0 ] || RED=1
+flock -w 7200 "$LOCK" "$PY" -m pytest -q -p no:cacheprovider tests/formal/test_lean_global_accounting_allocation_certificate_v1.py; L2=$?; echo "lean2 exit $L2"; [ "$L2" = 0 ] || RED=1
+echo "battery done $(date -u +%FT%TZ) red=$RED"
 } > "$OUT" 2>&1
+exit "$RED"
