@@ -1,0 +1,121 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-tau-beyond-sql-table-lab-workflow-v1",
+  "created_date": "2026-09-03",
+  "claim_scope": "The Tau ADT/table research workflow is exact-source-bound to the reviewed Tau and Taumorrow demo commits, replays the basic/advanced/beyond-SQL baselines, fails closed on upstream Tau diagnostics, uses bounded build parallelism/timeouts, runs the ZenoDEX table contracts, and retains replay receipts.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TAU-TABLE-LAB-EXACT-TAU-SOURCE",
+    "TAU-TABLE-LAB-EXACT-DEMO-SOURCE",
+    "TAU-TABLE-LAB-BEYOND-SQL-BASELINE",
+    "TAU-TABLE-LAB-UPSTREAM-DIAGNOSTIC-FAIL-CLOSED",
+    "TAU-TABLE-LAB-BOUNDED-BUILD",
+    "TAU-TABLE-LAB-REPLAY-RECEIPTS"
+  ],
+  "failure_modes": [
+    "workflow silently tracks mutable Tau main instead of an exact reviewed commit",
+    "workflow silently tracks mutable demo main instead of an exact reviewed commit",
+    "workflow omits the beyond-SQL table baseline while claiming current table semantics",
+    "workflow ignores Tau diagnostics from the beyond-SQL baseline",
+    "workflow increases Tau build parallelism beyond the bounded hosted-runner setting",
+    "workflow shrinks table-demo timeouts below the tested boundary and converts slow valid replays into false failures",
+    "workflow stops running the ZenoDEX table contract runner or stops retaining its receipts"
+  ],
+  "source_pins": [
+    {
+      "path": ".github/workflows/tau-adt-table-lab.yml",
+      "sha256": "e74356186dbfd754122ffcace6edf8e8c264b2dbaeb34ca8d8d5bfed36dc5816"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/tau/test_tau_adt_table_lab_workflow_v1.py",
+      "sha256": "3b5701731ef1e5b5bbc58a901796a31a3ab05311790762124b62bc615c80d135",
+      "node_ids": [
+        "tests/tau/test_tau_adt_table_lab_workflow_v1.py::test_tau_table_lab_workflow_is_exact_source_bound_and_fail_closed",
+        "tests/tau/test_tau_adt_table_lab_workflow_v1.py::test_tau_table_lab_workflow_contract_kills_unsafe_mutations",
+        "tests/tau/test_tau_adt_table_lab_workflow_v1.py::test_tau_table_lab_build_parallelism_boundary_rejects_outside_safe_range"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges the exact workflow text, applies one mutation or boundary change, then asserts the workflow contract either accepts the current configuration or rejects the unsafe variant."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "This packet governs CI assurance infrastructure rather than a state transition."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "tau_build_jobs",
+      "points": [
+        "zero_reject",
+        "one_accept",
+        "two_accept_current",
+        "three_reject",
+        "eight_mutation_reject"
+      ]
+    },
+    {
+      "name": "upstream_demo_timeout_seconds",
+      "points": [
+        "basic_60_to_120",
+        "advanced_60_to_120",
+        "beyond_sql_120_to_180",
+        "beyond_sql_30_reject"
+      ]
+    },
+    {
+      "name": "source_reference",
+      "points": [
+        "exact_40_hex_commit_accept",
+        "mutable_main_reject"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "replace the exact Tau commit with mutable main",
+      "killed_by": "tests/tau/test_tau_adt_table_lab_workflow_v1.py::test_tau_table_lab_workflow_contract_kills_unsafe_mutations"
+    },
+    {
+      "description": "remove the exact Tau HEAD equality assertion",
+      "killed_by": "tests/tau/test_tau_adt_table_lab_workflow_v1.py::test_tau_table_lab_workflow_contract_kills_unsafe_mutations"
+    },
+    {
+      "description": "replace the exact Taumorrow demo commit with mutable main",
+      "killed_by": "tests/tau/test_tau_adt_table_lab_workflow_v1.py::test_tau_table_lab_workflow_contract_kills_unsafe_mutations"
+    },
+    {
+      "description": "drop the beyond-SQL baseline by rebinding it to the advanced demo",
+      "killed_by": "tests/tau/test_tau_adt_table_lab_workflow_v1.py::test_tau_table_lab_workflow_contract_kills_unsafe_mutations"
+    },
+    {
+      "description": "ignore beyond-SQL Tau error diagnostics",
+      "killed_by": "tests/tau/test_tau_adt_table_lab_workflow_v1.py::test_tau_table_lab_workflow_contract_kills_unsafe_mutations"
+    },
+    {
+      "description": "raise Tau build parallelism from two jobs to eight",
+      "killed_by": "tests/tau/test_tau_adt_table_lab_workflow_v1.py::test_tau_table_lab_workflow_contract_kills_unsafe_mutations"
+    },
+    {
+      "description": "shrink the beyond-SQL replay timeout from 180 seconds to 30 seconds",
+      "killed_by": "tests/tau/test_tau_adt_table_lab_workflow_v1.py::test_tau_table_lab_workflow_contract_kills_unsafe_mutations"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not prove the ZenoDEX Tau table contracts semantically correct; the tau-adt-table-lab workflow must earn those verdicts separately.",
+    "This packet does not grant settlement, governance, verifier, migration, release, publication, or value-moving authority.",
+    "This packet does not establish Tau table scalability, mutable SQL semantics, production Tau Net compatibility, or host arithmetic/hash/signature correctness."
+  ]
+}
