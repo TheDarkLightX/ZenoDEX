@@ -25,6 +25,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.test_hygiene_evidence_v1 import (
+    MECHANICAL_MUTATION_ROWS_FROM,
     MUTATION_ROW_KINDS,
     MutationRowV1,
     load_packets_with_mutations,
@@ -185,19 +186,56 @@ def _count_mutation_rows(
     return counts
 
 
+def _created_date_v1(path: Path | None) -> str:
+    """The packet's own ``created_date`` as YYYYMMDD, or the far future when unreadable.
+
+    An unreadable or absent date is treated as post-cutover so the strict rule applies:
+    a packet that will not say when it was authored does not earn the legacy exemption.
+    """
+
+    if path is None or not path.is_file():
+        return "99999999"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8")).get("created_date")
+    except (OSError, ValueError):
+        return "99999999"
+    if type(value) is not str:
+        return "99999999"
+    compact = value.replace("-", "")
+    return compact if len(compact) == 8 and compact.isdigit() else "99999999"
+
+
 def _reject_added_legacy_packets(
     changed_paths: Sequence[ChangedPathV1],
     loaded: Sequence[PacketRowsV1],
     *,
     evidence_prefix: str,
 ) -> None:
-    """An ADDED packet may not carry string-only rows, whatever date its name claims."""
+    """A packet ADDED on or after the cutover may not carry string-only rows.
+
+    A packet is exempt only when BOTH its evidence-id date and its own ``created_date``
+    precede the cutover. Membership of the diff cannot be the key on its own: a diff
+    taken against an old base (the campaign base, say) reports every packet cut since
+    then as added, including ones authored before the cutover, whose append-only rows
+    may not be re-cut. Reading the packet's own ``created_date`` keeps the rule's teeth
+    against a back-dated evidence id. DECLARED RESIDUAL: a packet that back-dates BOTH
+    fields is exempt, because nothing in the evidence directory records when a packet
+    was authored; closing that needs the authoring commit's date, which this checker
+    does not read.
+    """
 
     rows_by_name = {packet.path.name: rows for packet, rows in loaded}
+    rows_by_name_path = {packet.path.name: packet.path for packet, _rows in loaded}
     for change in changed_paths:
         if change.status != "A" or not change.path.startswith(evidence_prefix):
             continue
-        rows = rows_by_name.get(Path(change.path).name, ())
+        name = Path(change.path).name
+        evidence_id = name[:-5] if name.endswith(".json") else name
+        if evidence_id[5:13] < MECHANICAL_MUTATION_ROWS_FROM and _created_date_v1(
+            rows_by_name_path.get(name)
+        ) < MECHANICAL_MUTATION_ROWS_FROM:
+            continue
+        rows = rows_by_name.get(name, ())
         require(
             all(row.kind != "legacy" for row in rows),
             f"added evidence packet {change.path} declares string-only mutation rows;"

@@ -1148,6 +1148,7 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         "python_producer_gate": f"{core.PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
         "rust_producer_gate": _cargo_summary(core.PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1),
         "rust_admission_gate": _cargo_summary(core.ADMISSION_RUST_GATE_EXPECTED_PASSED_V1),
+        "python_allocation_projection_gate": f"{core.PROJECTION_GATE_EXPECTED_PASSED_V1} passed in 1.00s\n".encode(),
     }
     return {
         command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id in ("lean_axioms_probe", "lean_certificate_axioms_probe") else None)
@@ -1337,6 +1338,7 @@ def test_python_version_parser_requires_one_semver_line(stdout: bytes, expected:
         pytest.param("python_producer_gate", lambda o: replace(o, stdout=b"4 passed in 1.0s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="python_producer_count"),
         pytest.param("rust_producer_gate", lambda o: replace(o, stdout=_cargo_summary(1)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_producer_count"),
         pytest.param("rust_admission_gate", lambda o: replace(o, stdout=_cargo_summary(1)), "REPLAY_PASSED_COUNT_DRIFT", id="rust_admission_count"),
+        pytest.param("python_allocation_projection_gate", lambda o: replace(o, stdout=b"4 passed in 1.0s\n"), "REPLAY_PASSED_COUNT_DRIFT", id="allocation_projection_count"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(f'"total_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"total_queries": 0').replace(f'"passed_queries": {len(core.ESSO_QUERIES_V1)}'.encode(), b'"passed_queries": 0')), "REPLAY_ESSO_QUERY_COUNT_DRIFT", id="esso_zero_queries"),
         pytest.param("esso_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_drain_claim"', b'"inductive_other_claim"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_query_set_drift"),
         pytest.param("esso_certificate_verify_multi", lambda o: replace(o, stdout=o.stdout.replace(b'"inductive_disable_lane"', b'"inductive_other_lane"')), "REPLAY_ESSO_QUERY_SET_DRIFT", id="esso_certificate_query_set_drift"),
@@ -1400,7 +1402,7 @@ def test_closed_constants_are_internally_consistent() -> None:
     assert "COMPLETE" not in core.LANE_STATUS_VOCABULARY_V1
     assert len(core.SIDECAR_CHECKS_V1) == 11 and len(core.SIDECAR_FIELDS_V1) == 9
     # 13 since C9a'': the scoped claimant-entitlement nonclaim and the epoch-path exact-type audit gap.
-    assert len(core.NONCLAIMS_V1) == 14
+    assert len(core.NONCLAIMS_V1) == 15
     assert set(core.RUST_GATE_TESTS_V1) >= {"records_and_containers_reject_seeded_unknown_keys"}
     assert core.RUST_GATE_EXPECTED_PASSED_V1 == len(core.RUST_GATE_TESTS_V1)
     assert core.PYTHON_GATE_EXPECTED_PASSED_V1 >= len(core.PYTHON_GATE_TESTS_V1)

@@ -37,12 +37,14 @@ flock -w 7200 "$LOCK" "$PY" -m pytest -q -p no:cacheprovider -rf \
   tests/core/test_transition_resource_bound_totality_v1.py \
   tests/core/test_asset_transfer_refinement_v1.py \
   tests/core/test_global_settlement_fcis_exact_ownership_v1.py \
+  tests/core/test_global_accounting_allocation_projection_v1.py \
   tests/formal/test_lean_asset_transfer_refinement_v1.py \
   tests/formal/test_o008_transition_resource_bound_rust_replay.py \
   tests/test_accounting_source_classification_contract_v1.py \
   tests/test_check_global_settlement_canonical_manifest_v1.py \
   tests/test_check_o008_formal_cycle_v1.py \
   tests/test_check_test_hygiene_v1.py \
+  tests/test_thv1_mutation_ledger_v1.py \
   tests/test_global_settlement_v1_rust_wire_bounds.py \
   tests/test_o008_v1_projection_runtime_gate.py \
   --deselect tests/test_check_o008_formal_cycle_v1.py::test_committed_packet_lifecycle_at_repository_head

@@ -515,3 +515,45 @@ def test_lineage_key_matches_the_o008_checker_key() -> None:
     ranked = sorted(synthetic, key=hygiene_lineage_key_v1)
     assert ranked.index("THV1-20260805-example-v27.json") > ranked.index("THV1-20260805-example-v9.json")
     assert ranked.index("THV1-20260805-example-v9.json") > ranked.index("THV1-20260805-example.json")
+
+
+def test_added_packet_legacy_rule_needs_both_dates_before_the_cutover(tmp_path: Path) -> None:
+    """A diff against an old base reports every packet cut since then as ADDED, including
+    ones authored before the mechanical cutover whose append-only rows may not be re-cut,
+    so membership of the diff cannot be the key. The exemption therefore needs BOTH the
+    evidence-id date and the packet's own created_date to precede the cutover, which keeps
+    the rule's teeth against a back-dated id."""
+
+    from tools.check_test_hygiene_v1 import _reject_added_legacy_packets
+    from tools.test_hygiene_evidence_v1 import MECHANICAL_MUTATION_ROWS_FROM, MutationRowV1
+    from tools.test_hygiene_model_v1 import ChangedPathV1, PacketV1, TestHygieneError
+
+    prefix = "tests/evidence/test_hygiene/"
+    legacy_row = MutationRowV1("a string-only row", "tests/core/test_x.py::test_y")
+    assert legacy_row.kind == "legacy"
+    before = str(int(MECHANICAL_MUTATION_ROWS_FROM) - 1)
+    dashed = f"{before[:4]}-{before[4:6]}-{before[6:]}"
+    cutover = MECHANICAL_MUTATION_ROWS_FROM
+    dashed_cutover = f"{cutover[:4]}-{cutover[4:6]}-{cutover[6:]}"
+
+    def _case(evidence_id: str, created_date: str):
+        path = tmp_path / f"{evidence_id}.json"
+        path.write_text(json.dumps({"evidence_id": evidence_id, "created_date": created_date}), encoding="utf-8")
+        packet = object.__new__(PacketV1)
+        object.__setattr__(packet, "path", path)
+        object.__setattr__(packet, "evidence_id", evidence_id)
+        loaded = ((packet, (legacy_row,)),)
+        changed = (ChangedPathV1("A", prefix + path.name),)
+        return changed, loaded
+
+    changed, loaded = _case(f"THV1-{before}-authored-then-v1", dashed)
+    _reject_added_legacy_packets(changed, loaded, evidence_prefix=prefix)
+
+    for evidence_id, created in (
+        (f"THV1-{before}-backdated-v1", dashed_cutover),
+        (f"THV1-{cutover}-today-v1", dashed_cutover),
+        (f"THV1-{before}-undated-v1", "not-a-date"),
+    ):
+        changed, loaded = _case(evidence_id, created)
+        with pytest.raises(TestHygieneError, match="declare mutant or narrative"):
+            _reject_added_legacy_packets(changed, loaded, evidence_prefix=prefix)

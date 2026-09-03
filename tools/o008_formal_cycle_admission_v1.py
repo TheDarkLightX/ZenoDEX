@@ -86,6 +86,8 @@ PRODUCERS_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/global_a
 ADMISSION_RUST_PATH_V1: Final = "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs"
 ADMISSION_RUST_TEST_PATH_V1: Final = "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs"
 ADMISSION_RUST_WITNESS_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs"
+PROJECTION_PYTHON_PATH_V1: Final = "src/core/global_accounting_allocation_projection_v1.py"
+PROJECTION_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_allocation_projection_v1.py"
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
 RUST_LIB_PATH_V1: Final = "zk/global_settlement_abi_v1/src/lib.rs"
@@ -185,6 +187,8 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (ADMISSION_RUST_PATH_V1, "admission_rust_twin"),
     (ADMISSION_RUST_TEST_PATH_V1, "admission_rust_replay"),
     (ADMISSION_RUST_WITNESS_PATH_V1, "admission_rust_witness_source"),
+    (PROJECTION_PYTHON_PATH_V1, "allocation_projection"),
+    (PROJECTION_PYTHON_TEST_PATH_V1, "allocation_projection_replay"),
 )
 SOURCE_PIN_PATHS_V1: Final[tuple[str, ...]] = tuple(path for path, _ in SOURCE_PIN_ROLES_V1)
 EXECUTING_TOOL_PATHS_V1: Final[tuple[str, ...]] = (
@@ -244,6 +248,8 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     ADMISSION_RUST_PATH_V1,
     ADMISSION_RUST_TEST_PATH_V1,
     ADMISSION_RUST_WITNESS_PATH_V1,
+    PROJECTION_PYTHON_PATH_V1,
+    PROJECTION_PYTHON_TEST_PATH_V1,
 )
 
 PACKET_KEYS_V3: Final[frozenset[str]] = frozenset(
@@ -530,6 +536,11 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " producer (ASSET_TRANSFER, admitted only as the sealed C9 witness) and is not mounted; the"
     " other eleven lanes must be disabled and empty, so it reconciles at most the asset-transfer"
     " lane and no exact all-twelve-lane reconciliation exists.",
+    "The allocation certificate is DERIVED from the verified state by the C9c-1 projection, which refuses"
+    " with a closed code wherever V1 state does not determine it (a domainless terminal with two entitlement"
+    " domains; two PENDING outbox entries over one residual cell); the sealed witness contributes its binding"
+    " root and its header, not its rows. The projection has no consumer: no publisher, verifier, or client"
+    " calls it, so it refuses nothing at runtime, and it verifies no receipt.",
     "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher"
     " execution.",
     "The Rust receipt-admission twin mirrors the Python check order and reject family but not the"
@@ -1109,6 +1120,8 @@ PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1: Final = 7
 ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
 ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
+# C9c-1: the certificate derived from the state, and the two shapes V1 state leaves undetermined.
+PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 40
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 4
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
@@ -1585,6 +1598,14 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
         ("CARGO_TARGET_DIR", "CARGO_INCREMENTAL"),
         f"exit 0; {PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1} passed",
         1800,
+    ),
+    ReplayCommandV1(
+        "python_allocation_projection_gate",
+        (PYTHON_TOKEN_V1, "-m", "pytest", "-q", "-p", "no:cacheprovider", PROJECTION_PYTHON_TEST_PATH_V1),
+        ".",
+        (),
+        f"exit 0; {PROJECTION_GATE_EXPECTED_PASSED_V1} passed",
+        600,
     ),
     ReplayCommandV1(
         "rust_admission_gate",
@@ -3376,6 +3397,7 @@ COMPARABLE_SCHEMA_V1: Final[dict[str, dict[str, object]]] = {
     "python_producer_gate": {"passed": PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1},
     "rust_producer_gate": {"passed": PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1},
     "rust_admission_gate": {"passed": ADMISSION_RUST_GATE_EXPECTED_PASSED_V1},
+    "python_allocation_projection_gate": {"passed": PROJECTION_GATE_EXPECTED_PASSED_V1},
 }
 
 
@@ -4135,6 +4157,8 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_cargo(obs, PRODUCERS_RUST_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "rust_admission_gate":
         return _grade_cargo(obs, ADMISSION_RUST_GATE_EXPECTED_PASSED_V1)
+    if obs.command_id == "python_allocation_projection_gate":
+        return _grade_pytest(obs, PROJECTION_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "python_golden_gate":
         return _grade_pytest(obs, PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1)
     return _grade_esso(obs, esso)

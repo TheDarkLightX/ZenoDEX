@@ -1,0 +1,403 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-thv1-mutation-ledger-v2",
+  "created_date": "2026-09-03",
+  "claim_scope": "v2 (integrator, C9c-1): the added-packet rule that refuses string-only rows now exempts a packet only when BOTH its evidence-id date and its own created_date precede the cutover. Membership of the diff cannot be the key on its own: a diff against the campaign base reports every packet cut since then as ADDED, including ones authored before the cutover whose append-only rows may not be re-cut, which made the deep hygiene gate unsatisfiable; reading created_date keeps the rule's teeth against a back-dated evidence id, and an unreadable or absent date is treated as post-cutover so a packet that will not say when it was authored does not earn the exemption. DECLARED RESIDUAL, in the function docstring: a packet that back-dates BOTH fields is exempt, because nothing in the evidence directory records when a packet was authored. Earlier: v1 (M1 / P3, item 01): tools/thv1_mutation_ledger_v1.py executes every mechanical mutation row of a test-hygiene packet in a fresh git-archive copy (pins checked against the copy, needle exactly once, killer green on an unmutated control copy and red on the mutated copy: pytest exit 1 or a cargo FAILED summary; a killer that still passes marks the row SURVIVED and the ledger exits 1; narrative rows are listed and never counted). tools/test_hygiene_evidence_v1.py closes the row schema to mechanical {description, killed_by, mutant: {path, needle, replacement}} with the path among the source pins and the killer a pinned pytest node or a pinned cargo test filter, or narrative {description, killed_by, narrative: true}; string-only rows survive only in packets dated before 20260903 as legacy replay records that no gate ever executed. tools/check_test_hygiene_v1.py counts rows by kind, verifies the needle count on every current pin, and refuses an added packet with legacy rows whatever its date. This packet's own rows are mechanical and executed by the ledger on itself. Research-only evidence; authority NONE; formal_core_complete stays false.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "THV1-DECLARED-KILLER-MUST-KILL",
+    "THV1-MUTANT-NEEDLE-EXACTLY-ONCE",
+    "THV1-ROW-SHAPE-IS-MECHANICAL-OR-NARRATIVE",
+    "THV1-LEDGER-NEVER-TOUCHES-THE-WORKTREE"
+  ],
+  "failure_modes": [
+    "a packet claims a killer that passes under its mutant",
+    "a mutant edits an ambiguous or absent site",
+    "a killer that fails for an unrelated reason is counted as a kill",
+    "a narrative or legacy row is counted as executed evidence",
+    "a new packet keeps declaring string-only rows"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/thv1_mutation_ledger_v1.py",
+      "sha256": "1e9e5fbe6c69dd5add530870585937aab7fe00217bfe2ef60f5140855d1140cc"
+    },
+    {
+      "path": "tools/test_hygiene_evidence_v1.py",
+      "sha256": "b63cc10996b30c5b711b45f83d9fe348da7f4b67354e5cbbf19452c5cb9825a1"
+    },
+    {
+      "path": "tools/check_test_hygiene_v1.py",
+      "sha256": "398157a05df20c451b92a8248a5b03636d4c1a1e731a0cab3a3a40eee3fcb065"
+    },
+    {
+      "path": "docs/testing/TEST_HYGIENE_CONTRACT_V1.md",
+      "sha256": "e6a9e464bbb62752371d2ca918aa23c19689a41b3ca99e97e710746e2ec8eb7e"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_thv1_mutation_ledger_v1.py",
+      "sha256": "af3d620ba8f29b96e23932164f10f8f479253dcb7f0c612a8d06712c99d90b87",
+      "node_ids": [
+        "tests/test_thv1_mutation_ledger_v1.py::test_needle_must_occur_exactly_once",
+        "tests/test_thv1_mutation_ledger_v1.py::test_killer_forms_are_classified_and_malformed_ones_refused",
+        "tests/test_thv1_mutation_ledger_v1.py::test_pytest_verdicts_require_a_failing_test_run",
+        "tests/test_thv1_mutation_ledger_v1.py::test_cargo_verdicts_read_the_test_summary",
+        "tests/test_thv1_mutation_ledger_v1.py::test_report_shape_is_stable_sorted_and_counts_only_mechanical_rows",
+        "tests/test_thv1_mutation_ledger_v1.py::test_narrative_rows_are_not_counted",
+        "tests/test_thv1_mutation_ledger_v1.py::test_ledger_kills_survives_and_leaves_the_worktree_alone",
+        "tests/test_thv1_mutation_ledger_v1.py::test_cli_prints_one_json_document_and_exits_one_on_a_survivor",
+        "tests/test_thv1_mutation_ledger_v1.py::test_surviving_killer_fails_the_row_and_the_exit_code",
+        "tests/test_thv1_mutation_ledger_v1.py::test_control_failure_pin_drift_and_needle_count_are_errors",
+        "tests/test_thv1_mutation_ledger_v1.py::test_rust_row_runs_through_cargo",
+        "tests/test_thv1_mutation_ledger_v1.py::test_mechanical_row_requires_a_pinned_source_path_and_a_closed_mutant",
+        "tests/test_thv1_mutation_ledger_v1.py::test_row_shape_is_mechanical_or_narrative_and_nothing_else",
+        "tests/test_thv1_mutation_ledger_v1.py::test_string_only_rows_are_refused_from_the_cutover",
+        "tests/test_thv1_mutation_ledger_v1.py::test_cargo_killer_requires_a_pinned_rust_test_path",
+        "tests/test_thv1_mutation_ledger_v1.py::test_load_packets_keeps_its_public_shape",
+        "tests/test_thv1_mutation_ledger_v1.py::test_checker_counts_rows_and_checks_needles_on_current_pins",
+        "tests/test_thv1_mutation_ledger_v1.py::test_added_packet_with_string_only_rows_is_refused_in_diff_mode",
+        "tests/test_thv1_mutation_ledger_v1.py::test_repository_evidence_loads_with_row_kinds"
+      ]
+    },
+    {
+      "path": "tests/test_check_test_hygiene_v1.py",
+      "sha256": "985677620372e0c948d5d5816d337b7d04f2b2a114ad38f57045b624eb0a869c",
+      "node_ids": [
+        "tests/test_check_test_hygiene_v1.py::test_changed_critical_path_requires_evidence_packet",
+        "tests/test_check_test_hygiene_v1.py::test_current_pins_and_strong_evidence_cover_critical_change",
+        "tests/test_check_test_hygiene_v1.py::test_stale_source_pin_rejects_packet",
+        "tests/test_check_test_hygiene_v1.py::test_required_boundary_family_needs_boundary_inventory",
+        "tests/test_check_test_hygiene_v1.py::test_named_mutation_must_be_killed_by_pinned_node",
+        "tests/test_check_test_hygiene_v1.py::test_existing_evidence_packets_are_append_only",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_requires_explicit_replacement",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_replacement_must_be_a_pinned_test",
+        "tests/test_check_test_hygiene_v1.py::test_path_traversal_in_packet_rejects",
+        "tests/test_check_test_hygiene_v1.py::test_noncritical_document_change_needs_no_packet",
+        "tests/test_check_test_hygiene_v1.py::test_unknown_contract_field_rejects_fail_closed",
+        "tests/test_check_test_hygiene_v1.py::test_repository_contract_and_bootstrap_packet_are_structurally_valid",
+        "tests/test_check_test_hygiene_v1.py::test_default_contract_retains_mandatory_critical_path_probes",
+        "tests/test_check_test_hygiene_v1.py::test_pull_request_ci_runs_diff_aware_hygiene_gate",
+        "tests/test_check_test_hygiene_v1.py::test_critical_quality_gate_validates_static_hygiene_contract",
+        "tests/test_check_test_hygiene_v1.py::test_stale_lower_version_packet_cannot_shadow_a_newer_one",
+        "tests/test_check_test_hygiene_v1.py::test_lineage_key_matches_the_o008_checker_key",
+        "tests/test_check_test_hygiene_v1.py::test_added_packet_legacy_rule_needs_both_dates_before_the_cutover"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges one synthetic subject, packet, or run result, invokes one ledger or loader function, and asserts the exact verdict, count, or refusal."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The ledger reads the worktree only through git archive and discards every copy; the worktree-untouched regression asserts the source bytes after a run."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "row_shape",
+      "points": [
+        "mechanical",
+        "narrative",
+        "legacy before the cutover",
+        "any other shape refused"
+      ]
+    },
+    {
+      "name": "cutover",
+      "points": [
+        "20260902 keeps string-only rows as legacy",
+        "20260903 refuses them",
+        "an added packet is refused whatever its date"
+      ]
+    },
+    {
+      "name": "needle_count",
+      "points": [
+        "zero",
+        "exactly one",
+        "two",
+        "two overlapping"
+      ]
+    },
+    {
+      "name": "verdict",
+      "points": [
+        "exit 0 survived",
+        "exit 1 killed",
+        "exit 2 or 4 unviable",
+        "timeout",
+        "control failure",
+        "pin drift"
+      ]
+    },
+    {
+      "name": "cargo_summary",
+      "points": [
+        "ok with tests",
+        "ok with zero tests",
+        "FAILED",
+        "no summary"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "count a killer that still passes as a kill (drop the non-zero-exit requirement)",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_surviving_killer_fails_the_row_and_the_exit_code",
+      "mutant": {
+        "path": "tools/thv1_mutation_ledger_v1.py",
+        "needle_lines": [
+          "    if result.exit_code == 0:",
+          "        return VERDICT_SURVIVED",
+          ""
+        ],
+        "replacement_lines": [
+          "    if result.exit_code == 0:",
+          "        return VERDICT_KILLED",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "accept a needle that occurs more than once",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_needle_must_occur_exactly_once",
+      "mutant": {
+        "path": "tools/thv1_mutation_ledger_v1.py",
+        "needle_lines": [
+          "    if count != 1:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if count < 1:",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "count narrative rows as mechanical",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_narrative_rows_are_not_counted",
+      "mutant": {
+        "path": "tools/thv1_mutation_ledger_v1.py",
+        "needle_lines": [
+          "        \"mechanical\": len(ordered) - narrative - legacy,",
+          ""
+        ],
+        "replacement_lines": [
+          "        \"mechanical\": len(ordered) - legacy,",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "exit 0 while a row survived",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_report_shape_is_stable_sorted_and_counts_only_mechanical_rows",
+      "mutant": {
+        "path": "tools/thv1_mutation_ledger_v1.py",
+        "needle_lines": [
+          "    return 0 if report[\"survived\"] == 0 and report[\"errors\"] == 0 else 1",
+          ""
+        ],
+        "replacement_lines": [
+          "    return 0 if report[\"errors\"] == 0 else 1",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "exit 0 while a row errored",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_report_shape_is_stable_sorted_and_counts_only_mechanical_rows",
+      "mutant": {
+        "path": "tools/thv1_mutation_ledger_v1.py",
+        "needle_lines": [
+          "    return 0 if report[\"survived\"] == 0 and report[\"errors\"] == 0 else 1",
+          ""
+        ],
+        "replacement_lines": [
+          "    return 0 if report[\"survived\"] == 0 else 1",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "treat a failing control run as green",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_pytest_verdicts_require_a_failing_test_run",
+      "mutant": {
+        "path": "tools/thv1_mutation_ledger_v1.py",
+        "needle_lines": [
+          "    if result.exit_code != 0:",
+          "        return f\"control run exited {result.exit_code}\"",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
+      }
+    },
+    {
+      "description": "skip the pin check before mutating",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_control_failure_pin_drift_and_needle_count_are_errors",
+      "mutant": {
+        "path": "tools/thv1_mutation_ledger_v1.py",
+        "needle_lines": [
+          "        for path in (mutant.path, killer.test_path):",
+          ""
+        ],
+        "replacement_lines": [
+          "        for path in ():",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "treat a cargo compile failure as a kill",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_cargo_verdicts_read_the_test_summary",
+      "mutant": {
+        "path": "tools/thv1_mutation_ledger_v1.py",
+        "needle_lines": [
+          "        return VERDICT_KILLED if failed else VERDICT_UNVIABLE",
+          ""
+        ],
+        "replacement_lines": [
+          "        return VERDICT_KILLED",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "treat a pytest collection error as a kill",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_pytest_verdicts_require_a_failing_test_run",
+      "mutant": {
+        "path": "tools/thv1_mutation_ledger_v1.py",
+        "needle_lines": [
+          "    return VERDICT_KILLED if result.exit_code == _PYTEST_TESTS_FAILED_EXIT else VERDICT_UNVIABLE",
+          ""
+        ],
+        "replacement_lines": [
+          "    return VERDICT_KILLED",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "accept a string-only row in a packet dated at the cutover (move the cutover by a day)",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_string_only_rows_are_refused_from_the_cutover",
+      "mutant": {
+        "path": "tools/test_hygiene_evidence_v1.py",
+        "needle_lines": [
+          "MECHANICAL_MUTATION_ROWS_FROM = \"20260903\"",
+          ""
+        ],
+        "replacement_lines": [
+          "MECHANICAL_MUTATION_ROWS_FROM = \"20260904\"",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "accept a mutant path that is not a pinned source",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_mechanical_row_requires_a_pinned_source_path_and_a_closed_mutant",
+      "mutant": {
+        "path": "tools/test_hygiene_evidence_v1.py",
+        "needle_lines": [
+          "    require(path in source_pin_paths, f\"{context}.path: mutant path is not a pinned source path\")",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
+      }
+    },
+    {
+      "description": "accept narrative: false as a narrative row",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_row_shape_is_mechanical_or_narrative_and_nothing_else",
+      "mutant": {
+        "path": "tools/test_hygiene_evidence_v1.py",
+        "needle_lines": [
+          "            require(row[\"narrative\"] is True, f\"{item_context}.narrative: must be true\")",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
+      }
+    },
+    {
+      "description": "accept a cargo killer whose test path is not pinned",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_cargo_killer_requires_a_pinned_rust_test_path",
+      "mutant": {
+        "path": "tools/test_hygiene_evidence_v1.py",
+        "needle_lines": [
+          "            and path in rust_test_paths",
+          ""
+        ],
+        "replacement_lines": [
+          "            and path.endswith(\".rs\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "skip the needle-count check for current packets in the checker",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_checker_counts_rows_and_checks_needles_on_current_pins",
+      "mutant": {
+        "path": "tools/check_test_hygiene_v1.py",
+        "needle_lines": [
+          "            require(",
+          "                occurrences == 1,",
+          "                f\"{packet.evidence_id}: mutant needle occurs {occurrences} times in\"",
+          "                f\" {row.mutant.path}; a mechanical row needs exactly one\",",
+          "            )",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
+      }
+    },
+    {
+      "description": "let an added packet carry string-only rows in diff mode",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_added_packet_with_string_only_rows_is_refused_in_diff_mode",
+      "mutant": {
+        "path": "tools/check_test_hygiene_v1.py",
+        "needle_lines": [
+          "        if change.status != \"A\" or not change.path.startswith(evidence_prefix):",
+          "            continue",
+          ""
+        ],
+        "replacement_lines": [
+          "        continue",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "treat an unparseable created_date as pre-cutover, so a packet that will not say when it was authored earns the legacy exemption",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_added_packet_legacy_rule_needs_both_dates_before_the_cutover",
+      "mutant": {
+        "path": "tools/check_test_hygiene_v1.py",
+        "needle_lines": [
+          "    return compact if len(compact) == 8 and compact.isdigit() else \"99999999\""
+        ],
+        "replacement_lines": [
+          "    return compact if len(compact) == 8 and compact.isdigit() else \"00000000\""
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "The mutation ledger executes declared rows only; it does not measure mutants nobody declared.",
+    "A green ledger says nothing about code no row names; it makes the packet's mutation claims honest, not complete.",
+    "The ledger runs no Lean, verifies no receipts, mounts nothing, and raises no authority.",
+    "Legacy string-only rows in packets dated before 20260903 remain unexecuted historical records; the checker reports their count and nothing more."
+  ]
+}
