@@ -45,6 +45,12 @@ pattern. A receipt at epoch `t` is checked against the candidate table at
 proof-carrying value. A dangling or same-step-only reference collapses to `0`, so
 the append-only receipt table cannot grow from it in the executable shadow model.
 
+`11_governance_policy_migration.tau` uses specifications themselves as values.
+It checks exact policy equivalence, recognizes a stricter migration through the
+meet order, and proves safety properties against every future extension `x:tau`.
+The negative controls demonstrate that weakening the immutable core destroys the
+future-extension guarantee.
+
 The intended research architecture is:
 
 ```text
@@ -55,5 +61,15 @@ host arithmetic / canonical commitments
         -> Lean theorem bridge for the bounded claim
 ```
 
+A parallel governance lane is:
+
+```text
+current Tau-valued risk law
+        -> proposed Tau-valued law
+        -> equality / strengthening / weakening verdict
+        -> future-extension safety theorem
+        -> only then host/governance enactment
+```
+
 Large arithmetic, hashing, signatures, canonical encoding, and production
-settlement authority remain outside this lab.
+settlement or governance authority remain outside this lab.
