@@ -284,6 +284,20 @@ def test_report_shape_is_stable_sorted_and_counts_only_mechanical_rows() -> None
     assert json.loads(json.dumps(report, sort_keys=True)) == report
     green = ledger.ledger_report_v1(packet="p", subject_commit="0" * 40, outcomes=outcomes[:1])
     assert ledger.ledger_exit_code_v1(green) == 0
+    # Each disjunct of the exit rule is load-bearing on its own: a report carrying a
+    # survivor and no error, and one carrying an error and no survivor, both exit 1.
+    # Asserting only the mixed report above would admit an exit rule that reads one
+    # counter and ignores the other.
+    survivor_only = ledger.ledger_report_v1(
+        packet="p", subject_commit="0" * 40, outcomes=[outcomes[0], outcomes[1]]
+    )
+    assert (survivor_only["survived"], survivor_only["errors"]) == (1, 0)
+    assert ledger.ledger_exit_code_v1(survivor_only) == 1
+    error_only = ledger.ledger_report_v1(
+        packet="p", subject_commit="0" * 40, outcomes=[outcomes[0], outcomes[4]]
+    )
+    assert (error_only["survived"], error_only["errors"]) == (0, 1)
+    assert ledger.ledger_exit_code_v1(error_only) == 1
 
 
 def test_narrative_rows_are_not_counted() -> None:

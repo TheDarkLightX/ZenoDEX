@@ -40,7 +40,7 @@
   "test_pins": [
     {
       "path": "tests/test_thv1_mutation_ledger_v1.py",
-      "sha256": "f8365da7595275e4eb57f2896152926e717fd70246d30c332cbc82b5c722ce56",
+      "sha256": "3912c38bbf516c95bb95371d0584d3a6851cd2a99da94b881173a9e7806e25a1",
       "node_ids": [
         "tests/test_thv1_mutation_ledger_v1.py::test_needle_must_occur_exactly_once",
         "tests/test_thv1_mutation_ledger_v1.py::test_killer_forms_are_classified_and_malformed_ones_refused",
@@ -161,6 +161,15 @@
         "path": "tools/thv1_mutation_ledger_v1.py",
         "needle": "    return 0 if report[\"survived\"] == 0 and report[\"errors\"] == 0 else 1\n",
         "replacement": "    return 0 if report[\"errors\"] == 0 else 1\n"
+      }
+    },
+    {
+      "description": "exit 0 while a row errored",
+      "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_report_shape_is_stable_sorted_and_counts_only_mechanical_rows",
+      "mutant": {
+        "path": "tools/thv1_mutation_ledger_v1.py",
+        "needle": "    return 0 if report[\"survived\"] == 0 and report[\"errors\"] == 0 else 1\n",
+        "replacement": "    return 0 if report[\"survived\"] == 0 else 1\n"
       }
     },
     {
