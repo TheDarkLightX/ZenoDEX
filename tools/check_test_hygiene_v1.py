@@ -4,6 +4,11 @@
 With ``--base-ref`` or ``--changed-file``, every changed critical path requires
 a current source-pinned evidence packet. Static mode validates closed schemas
 while retaining historical packets as immutable replay records.
+
+Mutation rows are classified (mechanical, narrative, legacy) and counted in the
+report; for every mechanical row whose mutated path is still at its pinned
+bytes, the needle must occur exactly once. Executing the rows is the job of
+``tools/thv1_mutation_ledger_v1.py``; this checker never runs a test.
 """
 
 from __future__ import annotations
@@ -19,7 +24,12 @@ from typing import Sequence, cast
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from tools.test_hygiene_evidence_v1 import load_packets
+from tools.test_hygiene_evidence_v1 import (
+    MUTATION_ROW_KINDS,
+    MutationRowV1,
+    load_packets_with_mutations,
+    needle_occurrences_v1,
+)
 from tools.test_hygiene_model_v1 import (
     ALLOWED_STATUSES,
     CONTRACT_SCHEMA,
@@ -46,6 +56,8 @@ __all__ = [
     "check_repository",
     "collect_git_changed_paths",
 ]
+
+PacketRowsV1 = tuple[PacketV1, tuple[MutationRowV1, ...]]
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -142,6 +154,57 @@ def _select_packet(
     raise TestHygieneError(f"uncovered critical path: {change.status}:{change.path}")
 
 
+def _count_mutation_rows(
+    repo_root: Path, loaded: Sequence[PacketRowsV1]
+) -> dict[str, int]:
+    """Count rows by kind; a mechanical row on a current pin must find its needle exactly once."""
+
+    counts = {kind: 0 for kind in MUTATION_ROW_KINDS}
+    counts["mechanical_current"] = 0
+    digests: dict[str, str | None] = {}
+    for packet, rows in loaded:
+        for row in rows:
+            counts[row.kind] += 1
+            if row.mutant is None:
+                continue
+            pin = packet.current_pin_for(row.mutant.path)
+            require(pin is not None, f"{packet.evidence_id}: mutant path is not pinned")
+            absolute = repo_root / row.mutant.path
+            if row.mutant.path not in digests:
+                digests[row.mutant.path] = sha256_file(absolute) if absolute.is_file() else None
+            if digests[row.mutant.path] != cast(PinV1, pin).sha256:
+                continue
+            counts["mechanical_current"] += 1
+            text = absolute.read_bytes().decode("utf-8")
+            occurrences = needle_occurrences_v1(text, row.mutant.needle)
+            require(
+                occurrences == 1,
+                f"{packet.evidence_id}: mutant needle occurs {occurrences} times in"
+                f" {row.mutant.path}; a mechanical row needs exactly one",
+            )
+    return counts
+
+
+def _reject_added_legacy_packets(
+    changed_paths: Sequence[ChangedPathV1],
+    loaded: Sequence[PacketRowsV1],
+    *,
+    evidence_prefix: str,
+) -> None:
+    """An ADDED packet may not carry string-only rows, whatever date its name claims."""
+
+    rows_by_name = {packet.path.name: rows for packet, rows in loaded}
+    for change in changed_paths:
+        if change.status != "A" or not change.path.startswith(evidence_prefix):
+            continue
+        rows = rows_by_name.get(Path(change.path).name, ())
+        require(
+            all(row.kind != "legacy" for row in rows),
+            f"added evidence packet {change.path} declares string-only mutation rows;"
+            " declare mutant or narrative",
+        )
+
+
 def check_repository(
     *,
     repo_root: Path = REPO_ROOT,
@@ -152,11 +215,14 @@ def check_repository(
     """Validate contract structure and optional changed-file coverage."""
 
     contract = load_contract(contract_path)
-    packets = load_packets(evidence_dir, contract)
+    loaded = load_packets_with_mutations(evidence_dir, contract)
+    packets = tuple(packet for packet, _ in loaded)
     normalized = tuple(
         sorted(set(changed_paths), key=lambda item: (item.path, item.status))
     )
     _reject_packet_rewrites(normalized, evidence_prefix=contract.evidence_path_prefix)
+    _reject_added_legacy_packets(normalized, loaded, evidence_prefix=contract.evidence_path_prefix)
+    mutation_rows = _count_mutation_rows(repo_root, loaded)
 
     selected: dict[str, PacketV1] = {}
     critical: list[ChangedPathV1] = []
@@ -189,6 +255,7 @@ def check_repository(
         "covered_critical_paths": sorted(selected),
         "selected_evidence_ids": sorted(selected_packets),
         "pytest_node_ids": nodes,
+        "mutation_rows": mutation_rows,
     }
 
 
@@ -297,10 +364,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
+        rows = cast(dict[str, int], report["mutation_rows"])
         print(
             "test-hygiene-v1: ok "
             f"packets={report['evidence_packet_count']} "
-            f"critical={report['critical_path_count']}"
+            f"critical={report['critical_path_count']} "
+            f"mutation_rows=mechanical:{rows['mechanical']}"
+            f"/narrative:{rows['narrative']}/legacy:{rows['legacy']}"
         )
     return 0
 

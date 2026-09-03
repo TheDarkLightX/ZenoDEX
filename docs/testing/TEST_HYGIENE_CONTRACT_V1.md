@@ -38,9 +38,11 @@ control.
 - Closed model/parser: `tools/test_hygiene_model_v1.py`
 - Evidence parser: `tools/test_hygiene_evidence_v1.py`
 - Diff-aware runner: `tools/run_test_hygiene_gate_v1.py`
+- Mutation ledger: `tools/thv1_mutation_ledger_v1.py`
 - Evidence packets: `tests/evidence/test_hygiene/THV1-*.json`
 - Checker regressions: `tests/test_check_test_hygiene_v1.py`
 - Runner regressions: `tests/test_run_test_hygiene_gate_v1.py`
+- Ledger and row-schema regressions: `tests/test_thv1_mutation_ledger_v1.py`
 
 The JSON contract owns path classification and required evidence families. This
 document explains its intent and cannot override the checker.
@@ -105,7 +107,44 @@ It also adopts the archive-diversity principle from
 paper output nor an LLM-selected edge authorizes promotion without local
 deterministic evidence.
 
+## Mutation rows and the mutation ledger
+
+A packet's `mutations` list names the defects its pinned tests are claimed to
+catch. From evidence-id date `20260903` on, every row must take one of two
+shapes; the checker refuses any other:
+
+- Mechanical: `{"description", "killed_by", "mutant": {"path", "needle",
+  "replacement"}}`. `path` is one of the packet's `source_pins`; `needle` must
+  occur exactly once in that file (the checker verifies this while the pin is
+  current); `replacement` is the mutated text. `killed_by` is a pinned pytest
+  node, or `<pinned crate>/tests/<target>.rs::<filter>` for a cargo test.
+- Narrative: `{"description", "killed_by", "narrative": true}`. A defect the
+  packet argues about but cannot execute; the description says why. Narrative
+  rows are listed and never counted as killed.
+
+Packets dated before the cutover keep their string-only rows as immutable
+replay records; the checker reports them as `legacy`, and an added packet may
+not carry them whatever date its name claims.
+
+`tools/thv1_mutation_ledger_v1.py --packet <evidence-id>` executes the
+mechanical rows: each row gets a fresh `git archive HEAD` copy under
+`$TMPDIR/thv1-ledger/`, the pins are checked against the copy, the mutant is
+applied, and the killer runs there (`pytest -q -x -p no:cacheprovider` or
+`cargo test --offline --locked --test <target> <filter>`). The killer must pass
+on an unmutated control copy and fail on the mutated copy; a killer that still
+passes marks the row `SURVIVED` and the ledger exits 1. The report is one JSON
+object on stdout with rows sorted by description; logs go to stderr.
+
+Nonclaim: the mutation ledger executes declared rows only; it does not measure
+mutants nobody declared.
+
 ## Commands
+
+Execute a packet's declared mutation rows:
+
+```bash
+python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260903-example-v1
+```
 
 Validate the contract and all packet schemas:
 
