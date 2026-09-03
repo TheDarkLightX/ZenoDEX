@@ -30,7 +30,8 @@ so claimant identity and the split across claimants are not proved by the
 receipt here. They are bound at the certificate layer, whose entitlement
 check (``ENTITLEMENT_ROWS_DRIFT``) requires the derived allocation rows to
 equal the V1 ``liabilities`` partition of ``GlobalEconomicStateV1`` exactly;
-no acceptance path reaches that check while ASSET_TRANSFER stays at
+that check runs for the registered-empty certificate, but no acceptance
+path carries this producer's rows into it while ASSET_TRANSFER stays at
 NO_PRODUCER, and whether that partition is itself authoritative for
 asset-transfer custody is an unresolved policy question (UP-xx), not a claim
 of this module. No Rust twin of this admission exists yet

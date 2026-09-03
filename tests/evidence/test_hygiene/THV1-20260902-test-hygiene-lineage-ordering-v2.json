@@ -1,0 +1,94 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260902-test-hygiene-lineage-ordering-v2",
+  "created_date": "2026-09-02",
+  "claim_scope": "v2 (Opus P32 F-2, F-9): packet order stays date-first across lineages and numeric within a name; a version cut under an OLDER date prefix (which the newer-dated packet would shadow) is REFUSED at load time by both gates (require_lineage_versions_monotone_with_dates_v1; THV1_LINEAGE_VERSION_REGRESSES_ACROSS_DATES) instead of reordered; the key-parity test covers repo-relative paths. Earlier: The repository test-hygiene gate orders evidence packets by lineage name and NUMERIC -vN version (tools.test_hygiene_evidence_v1.hygiene_lineage_key_v1), the same key the O-008 packet checker uses, so the newest fully current packet is selected for a changed critical path. Before this change the loader sorted file names lexicographically, so a stale -v9 packet outranked -v27 for any path whose bytes it still matched and the gate failed on its other stale pins while the O-008 checker selected v27 (campaign finding at P31, the class of Opus P29 NEW-25 one level deeper). Research-only; grants no authority.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "HYGIENE-PACKET-ORDER-IS-LINEAGE-THEN-NUMERIC-VERSION",
+    "HYGIENE-AND-O008-SELECTION-KEYS-AGREE"
+  ],
+  "failure_modes": [
+    "a stale early packet shadows every newer packet of its lineage",
+    "the repository gate and the O-008 checker select different packets for the same path"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/test_hygiene_evidence_v1.py",
+      "sha256": "0df79abebc968b2544ccb8fae0e0fa41cf72dfeec442bb92aefa46dd1a2de807"
+    },
+    {
+      "path": "tools/check_test_hygiene_v1.py",
+      "sha256": "3b958699f5d96591cf174e910fd6f8000be73a879f6cc369da333bfdac1a55cd"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_test_hygiene_v1.py",
+      "sha256": "a11780ef766f0b90ba2c689f106f369d78053f17ba3d68241acf9f29e4daea60",
+      "node_ids": [
+        "tests/test_check_test_hygiene_v1.py::test_changed_critical_path_requires_evidence_packet",
+        "tests/test_check_test_hygiene_v1.py::test_current_pins_and_strong_evidence_cover_critical_change",
+        "tests/test_check_test_hygiene_v1.py::test_stale_source_pin_rejects_packet",
+        "tests/test_check_test_hygiene_v1.py::test_required_boundary_family_needs_boundary_inventory",
+        "tests/test_check_test_hygiene_v1.py::test_named_mutation_must_be_killed_by_pinned_node",
+        "tests/test_check_test_hygiene_v1.py::test_existing_evidence_packets_are_append_only",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_requires_explicit_replacement",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_replacement_must_be_a_pinned_test",
+        "tests/test_check_test_hygiene_v1.py::test_path_traversal_in_packet_rejects",
+        "tests/test_check_test_hygiene_v1.py::test_noncritical_document_change_needs_no_packet",
+        "tests/test_check_test_hygiene_v1.py::test_unknown_contract_field_rejects_fail_closed",
+        "tests/test_check_test_hygiene_v1.py::test_repository_contract_and_bootstrap_packet_are_structurally_valid",
+        "tests/test_check_test_hygiene_v1.py::test_default_contract_retains_mandatory_critical_path_probes",
+        "tests/test_check_test_hygiene_v1.py::test_pull_request_ci_runs_diff_aware_hygiene_gate",
+        "tests/test_check_test_hygiene_v1.py::test_critical_quality_gate_validates_static_hygiene_contract",
+        "tests/test_check_test_hygiene_v1.py::test_stale_lower_version_packet_cannot_shadow_a_newer_one",
+        "tests/test_check_test_hygiene_v1.py::test_lineage_key_matches_the_o008_checker_key"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges a two-packet lineage or a name list, invokes the gate or the key once, and asserts the exact selection."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The gate is a pure report over the repository; a rejected selection changes nothing."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "version_order",
+      "points": [
+        "unversioned below v1",
+        "v9 below v10",
+        "v9 below v27",
+        "other lineage independent"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "revert the loader to lexicographic file order",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_stale_lower_version_packet_cannot_shadow_a_newer_one"
+    },
+    {
+      "description": "diverge the lineage key from the O-008 checker's key",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_lineage_key_matches_the_o008_checker_key"
+    },
+    {
+      "description": "accept a version cut under an older date prefix (Opus P32 F-2)",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_lineage_key_matches_the_o008_checker_key"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not establish production readiness or grant any authority."
+  ]
+}

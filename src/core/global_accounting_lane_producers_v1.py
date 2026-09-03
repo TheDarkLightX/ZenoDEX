@@ -228,8 +228,9 @@ def produce_asset_transfer_fragment_v1(
     so claimant identity and the split across claimants are caller-chosen at
     THIS layer and not proved by the receipt; they are bound at the certificate
     layer by ENTITLEMENT_ROWS_DRIFT (derived rows must equal the V1 liabilities
-    partition of GlobalEconomicStateV1 exactly), a check no acceptance path
-    reaches while ASSET_TRANSFER stays at NO_PRODUCER. Receipt admission
+    partition of GlobalEconomicStateV1 exactly), into which no acceptance path
+    carries this producer's rows while ASSET_TRANSFER stays at NO_PRODUCER.
+    Receipt admission
     (``asset_transfer_receipt_admission_v1``, C9a) takes the module witness
     minted by ``lane_module_receipt_verification_v1`` and re-runs this producer
     on the exact-typed snapshot of ``accepted``; the registry flip is C9b.

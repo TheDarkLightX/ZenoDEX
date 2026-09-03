@@ -28,6 +28,7 @@ from tools.test_hygiene_model_v1 import (
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _EVIDENCE_ID_RE = re.compile(r"THV1-[0-9]{8}-[a-z0-9][a-z0-9-]*")
 _HYGIENE_LINEAGE_RE = re.compile(r"^(.*?)(?:-v([0-9]+))?(\.json)?$")
+_HYGIENE_DATE_PREFIX_RE = re.compile(r"^THV1-[0-9]{8}-")
 
 
 def hygiene_lineage_key_v1(name: str) -> tuple[str, int, str]:
@@ -37,6 +38,9 @@ def hygiene_lineage_key_v1(name: str) -> tuple[str, int, str]:
     ranks ``-v9`` above ``-v27``, so a stale early packet shadowed every later one for any path
     whose bytes it still matched (campaign finding at P31); this key is the same one
     ``tools/o008_formal_cycle_admission_v1.hygiene_lineage_key_v1`` uses, pinned equal by test.
+    The date prefix stays part of the name (recency across lineages); a version cut under an older
+    date is refused at load time by ``require_lineage_versions_monotone_with_dates_v1`` rather
+    than reordered (Opus P32 F-2).
     """
 
     match = _HYGIENE_LINEAGE_RE.fullmatch(name)
@@ -44,6 +48,38 @@ def hygiene_lineage_key_v1(name: str) -> tuple[str, int, str]:
         return (name, -1, name)
     version = -1 if match.group(2) is None else int(match.group(2))
     return (match.group(1), version, name)
+
+
+def hygiene_dated_lineage_v1(name: str) -> tuple[str, str, int]:
+    """Split a packet name into (date-stripped lineage, date prefix, numeric version)."""
+
+    lineage_with_date, version, _ = hygiene_lineage_key_v1(name)
+    stem = lineage_with_date.rsplit("/", 1)[-1]
+    date = stem[:14] if _HYGIENE_DATE_PREFIX_RE.match(stem) else ""
+    return (_HYGIENE_DATE_PREFIX_RE.sub("", stem), date, version)
+
+
+def require_lineage_versions_monotone_with_dates_v1(names: list[str]) -> None:
+    """Refuse a lineage whose versions regress across date prefixes (Opus P32 F-2).
+
+    Packets order by name first (recency across lineages) and by numeric version within a name, so
+    a later version cut under an OLDER date prefix would be shadowed by the newer-dated packet. Instead
+    of reordering, the loader refuses the mis-dated cut: within one date-stripped lineage, a packet
+    with a later date must carry a higher version than every packet with an earlier date.
+    """
+
+    by_lineage: dict[str, list[tuple[str, int, str]]] = {}
+    for name in names:
+        lineage, date, version = hygiene_dated_lineage_v1(name)
+        by_lineage.setdefault(lineage, []).append((date, version, name))
+    for lineage, rows in by_lineage.items():
+        for date_a, version_a, name_a in rows:
+            for date_b, version_b, name_b in rows:
+                if date_a < date_b and version_a >= version_b:
+                    raise TestHygieneError(
+                        f"lineage {lineage}: {name_a} (version {version_a}) is dated before {name_b}"
+                        f" (version {version_b}); versions must rise with the date prefix"
+                    )
 _PACKET_FIELDS = frozenset(
     {
         "schema",
@@ -298,6 +334,7 @@ def load_packets(evidence_dir: Path, contract: ContractV1) -> tuple[PacketV1, ..
         evidence_dir.glob("*.json"),
         key=lambda path: hygiene_lineage_key_v1(path.name),
     )
+    require_lineage_versions_monotone_with_dates_v1([path.name for path in ordered])
     packets = tuple(load_packet(path, contract) for path in ordered)
     ids = [packet.evidence_id for packet in packets]
     require(len(ids) == len(set(ids)), "duplicate evidence ids")

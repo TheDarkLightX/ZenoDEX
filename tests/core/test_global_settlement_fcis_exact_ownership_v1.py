@@ -348,6 +348,7 @@ _ADMISSION_PATH_MODULES = (
     "src/core/asset_transfer_receipt_admission_v1.py",
     "src/core/global_accounting_lane_producers_v1.py",
     "src/core/asset_transfer_lane_module_v1.py",
+    "src/core/asset_transfer_module_v1.py",
     "src/core/asset_lane_projection_v1.py",
     "src/core/asset_transfer_types_v1.py",
     "src/core/lane_module_receipt_verification_v1.py",
@@ -365,6 +366,10 @@ _ADMISSION_PATH_ISINSTANCE_INVENTORY = {
         "result discrimination on the inner transition's closed RejectedV1 return",
     ("src/core/asset_transfer_receipt_admission_v1.py", "verify_asset_transfer_fragment_receipt_v1", "ReceiptBackedProducerRejectedV1"):
         "result discrimination on the producer's closed RejectedV1 return",
+    ("src/core/asset_transfer_module_v1.py", "_prepare_transfer", "AssetTransferRejectCodeV1"):
+        "result discrimination on the closed reject-code enum (members cannot be subclassed)",
+    ("src/core/asset_transfer_module_v1.py", "transition_asset_transfer_v1", "AssetTransferRejectCodeV1"):
+        "result discrimination on the closed reject-code enum (members cannot be subclassed)",
 }
 
 
@@ -379,9 +384,13 @@ def _isinstance_sites(path: Path) -> list[tuple[str, str, str, bool]]:
             child_scope = scope
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 child_scope = child.name if not scope else f"{scope}.{child.name}"
-            negated = isinstance(child, ast.UnaryOp) and isinstance(child.op, ast.Not)
+            # Negation propagates through every ancestor of the call inside the enclosing
+            # expression (Opus P32 F-4): `not (isinstance(x, T) and ...)` is negated too.
+            negated = negated_parent or (isinstance(child, ast.UnaryOp) and isinstance(child.op, ast.Not))
+            if isinstance(child, ast.stmt):
+                negated = False
             if isinstance(child, ast.Call) and getattr(child.func, "id", None) == "isinstance":
-                sites.append((str(path.relative_to(_REPO_ROOT)), child_scope, ast.unparse(child.args[1]), negated_parent))
+                sites.append((str(path.relative_to(_REPO_ROOT)), child_scope, ast.unparse(child.args[1]), negated))
             visit(child, child_scope, negated)
 
     visit(tree, "", False)
@@ -396,18 +405,18 @@ def test_admission_path_isinstance_inventory_is_pinned() -> None:
     gate (input gates are exact: type(x) is not T). Adding any isinstance to the
     path fails here until the inventory is amended with a licence."""
 
-    observed: dict[tuple[str, str, str], bool] = {}
+    # A licensed key may occur more than once in its definition (two result reads of the same
+    # closed return); every occurrence must satisfy the rule.
+    observed: dict[tuple[str, str, str], list[bool]] = {}
     for module in _ADMISSION_PATH_MODULES:
         for path_text, scope, arg, negated in _isinstance_sites(_REPO_ROOT / module):
-            key = (path_text, scope.split(".")[-1], arg)
-            assert key not in observed, key
-            observed[key] = negated
+            observed.setdefault((path_text, scope.split(".")[-1], arg), []).append(negated)
     assert set(observed) == set(_ADMISSION_PATH_ISINSTANCE_INVENTORY), (
         sorted(set(observed) ^ set(_ADMISSION_PATH_ISINSTANCE_INVENTORY))
     )
-    for (module, scope, arg), negated in observed.items():
-        assert arg.endswith("RejectedV1"), (module, scope, arg)
-        assert not negated, (module, scope, arg)
+    for (module, scope, arg), negations in observed.items():
+        assert arg.endswith("RejectedV1") or arg.endswith("RejectCodeV1"), (module, scope, arg)
+        assert not any(negations), (module, scope, arg)
         assert scope != "__post_init__", (module, scope, arg)
 
 
@@ -438,10 +447,14 @@ def test_asset_lane_composition_accepted_rejects_root_bearing_subclasses() -> No
         genuine.supplies,
     )
     assert spoofed.state_root != genuine.state_root
-    with pytest.raises(TypeError, match="exact typed value"):
+    # Isolating (Fable P32 P2-1): the effects are GENUINE and the message is the post-state
+    # gate's own, so deleting that gate makes the journal gate fire with a different message.
+    from tests.core.test_global_accounting_lane_producers_v1 import _wave_b_accepted
+
+    with pytest.raises(TypeError, match="post-state must be the exact typed value"):
         AssetLaneCompositionAcceptedV1(
             post_state=spoofed,
-            effects=_BehaviorBearingEffectPlan((), (), (), (), (), ()),
+            effects=_wave_b_accepted().effects,
             lane_journal=object(),  # type: ignore[arg-type]
         )
     del state
@@ -590,3 +603,248 @@ def test_receipt_backed_composition_candidate_rejects_subclasses() -> None:
             module_effects=accepted.effects,
             verified_module=object(),  # type: ignore[arg-type]
         )
+
+
+# --- S34 (Opus P32 F-1/F-5, Fable P32 P3-1): the positive gate pin and the closure binding --------
+# Every exact-type gate on the scanned modules is frozen by (module, definition, expression, type): a
+# gate rewritten as isinstance, issubclass(type(x), T), x.__class__ is T, a match-class pattern, or an
+# alias disappears from this scan and fails the equality; the negative scan refuses those spellings.
+
+_ADMISSION_PATH_EXACT_TYPE_GATES = frozenset({
+    ('src/core/asset_lane_projection_v1.py', 'AssetLaneCompositionAcceptedV1.__post_init__', 'self.effects', 'GlobalEconomicEffectPlanV1'),
+    ('src/core/asset_lane_projection_v1.py', 'AssetLaneCompositionAcceptedV1.__post_init__', 'self.lane_journal', 'LaneCompositionJournalV1'),
+    ('src/core/asset_lane_projection_v1.py', 'AssetLaneCompositionAcceptedV1.__post_init__', 'self.post_state', 'AssetLaneStateProjectionV1'),
+    ('src/core/asset_lane_projection_v1.py', 'AssetLaneCompositionRejectedV1.__post_init__', 'self.code', 'AssetLaneCoordinatorRejectCodeV1'),
+    ('src/core/asset_lane_projection_v1.py', 'AssetLaneCompositionRejectedV1.__post_init__', 'self.effects', 'GlobalEconomicEffectPlanV1'),
+    ('src/core/asset_lane_projection_v1.py', 'AssetLanePrivatePortV1.__post_init__', 'self.post_state', 'AssetLaneStateProjectionV1'),
+    ('src/core/asset_lane_projection_v1.py', 'AssetLanePrivatePortV1.__post_init__', 'self.pre_state', 'AssetLaneStateProjectionV1'),
+    ('src/core/asset_lane_projection_v1.py', '_snapshot_asset_lane_private_port_v1', 'getattr(port, field_name)', 'str'),
+    ('src/core/asset_lane_projection_v1.py', '_snapshot_asset_lane_private_port_v1', 'port', 'AssetLanePrivatePortV1'),
+    ('src/core/asset_lane_projection_v1.py', '_snapshot_asset_lane_state_projection_v1', 'state', 'AssetLaneStateProjectionV1'),
+    ('src/core/asset_lane_projection_v1.py', 'project_asset_transfer_state_v1', 'state', 'AssetTransferStateV1'),
+    ('src/core/asset_lane_projection_v1.py', 'project_managed_asset_lifecycle_state_v1', 'state', 'ManagedAssetLifecycleStateV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', 'AssetTransferLaneModuleAcceptedV1.__post_init__', 'self.private_port', 'AssetLanePrivatePortV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', 'AssetTransferLaneModuleInputV1.__post_init__', 'self.command', 'AssetTransferCommandV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', 'AssetTransferLaneModuleInputV1.__post_init__', 'self.context', 'AssetTransferContextV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', 'AssetTransferLaneModuleInputV1.__post_init__', 'self.pre_state', 'AssetTransferStateV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_recompute_asset_transfer_lane_module_accepted_v1', 'expected', 'AssetTransferLaneModuleAcceptedV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_accepted_v1', 'accepted', 'AssetTransferLaneModuleAcceptedV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_accepted_v1', 'accepted.effects', 'GlobalEconomicEffectPlanV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_accepted_v1', 'accepted.module_journal', 'LaneModuleTransitionJournalV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_accepted_v1', 'accepted.post_state', 'AssetTransferStateV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_accepted_v1', 'accepted.statement_root', 'str'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_input_v1', 'module_input', 'AssetTransferLaneModuleInputV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_input_v1', 'module_input.asset_policy_registry_root', 'str'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_input_v1', 'module_input.command', 'AssetTransferCommandV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_input_v1', 'module_input.context', 'AssetTransferContextV1'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_input_v1', 'module_input.fee_policy_registry_root', 'str'),
+    ('src/core/asset_transfer_lane_module_v1.py', '_snapshot_asset_transfer_lane_module_input_v1', 'module_input.pre_state', 'AssetTransferStateV1'),
+    ('src/core/asset_transfer_module_v1.py', 'rebuild_asset_transfer_state_v1', 'state', 'AssetTransferStateV1'),
+    ('src/core/asset_transfer_module_v1.py', 'transition_asset_transfer_v1', 'command', 'AssetTransferCommandV1'),
+    ('src/core/asset_transfer_module_v1.py', 'transition_asset_transfer_v1', 'context', 'AssetTransferContextV1'),
+    ('src/core/asset_transfer_module_v1.py', 'transition_asset_transfer_v1', 'pre_state', 'AssetTransferStateV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', 'ReceiptWitnessRejectedV1.__post_init__', 'self.code', 'ReceiptWitnessRejectCodeV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', 'ReceiptWitnessRejectedV1.__post_init__', 'self.detail', 'str'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', 'ReceiptWitnessRejectedV1.__post_init__', 'self.lane_id', 'LaneIdV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_VerifiedFragmentFieldsV1.__post_init__', 'getattr(self, name)', 'str'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_VerifiedFragmentFieldsV1.__post_init__', 'self.fragment', 'LaneAllocationFragmentV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_rebuild_prior_fragment_v1', 'getattr(prior, name)', 'tuple'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_rebuild_prior_fragment_v1', 'prior', 'LaneAllocationFragmentV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_rebuild_prior_fragment_v1', 'prior.enabled', 'bool'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_rebuild_prior_fragment_v1', 'prior.lane_id', 'LaneIdV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_rebuild_prior_fragment_v1', 'prior.producer_kind', 'LaneProducerKindV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_rebuild_prior_fragment_v1', 'value', 'str'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', 'verify_asset_transfer_fragment_receipt_v1', 'lane_root', 'LaneStateRootV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', 'verify_asset_transfer_fragment_receipt_v1', 'witness', 'VerifiedLaneModuleTransitionV1'),
+    ('src/core/asset_transfer_types_v1.py', 'AssetTransferAcceptedV1.__post_init__', 'self.effects', 'GlobalEconomicEffectPlanV1'),
+    ('src/core/asset_transfer_types_v1.py', 'AssetTransferAcceptedV1.__post_init__', 'self.module_journal', 'LaneModuleTransitionJournalV1'),
+    ('src/core/asset_transfer_types_v1.py', 'AssetTransferAcceptedV1.__post_init__', 'self.post_state', 'AssetTransferStateV1'),
+    ('src/core/asset_transfer_types_v1.py', 'AssetTransferRejectedV1.__post_init__', 'self.code', 'AssetTransferRejectCodeV1'),
+    ('src/core/asset_transfer_types_v1.py', 'AssetTransferRejectedV1.__post_init__', 'self.effects', 'GlobalEconomicEffectPlanV1'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'LaneProducerRejectedV1.__post_init__', 'self.code', 'LaneProducerRejectCodeV1'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'LaneProducerRejectedV1.__post_init__', 'self.lane_id', 'LaneIdV1'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'ReceiptBackedProducerRejectedV1.__post_init__', 'self.code', 'ReceiptBackedProducerRejectCodeV1'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'ReceiptBackedProducerRejectedV1.__post_init__', 'self.detail', 'str'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'ReceiptBackedProducerRejectedV1.__post_init__', 'self.lane_id', 'LaneIdV1'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'produce_asset_transfer_fragment_v1', 'accepted', 'AssetTransferLaneModuleAcceptedV1'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'produce_asset_transfer_fragment_v1', 'claimant_entitlements', 'tuple'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'produce_asset_transfer_fragment_v1', 'lane_root', 'LaneStateRootV1'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'produce_asset_transfer_fragment_v1', 'prior_fragment', 'LaneAllocationFragmentV1'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'produce_asset_transfer_fragment_v1', 'row', 'ClaimantEntitlementRowV1'),
+    ('src/core/global_accounting_lane_producers_v1.py', 'produce_registered_empty_fragment_v1', 'lane_root', 'LaneStateRootV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', 'AssetTransferLaneModuleReceiptCandidateV1.__post_init__', 'value', 'expected_type'),
+    ('src/core/lane_module_receipt_verification_v1.py', 'LaneModuleReceiptEnvelopeV1.__post_init__', 'self.receipt_bytes', 'bytes'),
+    ('src/core/lane_module_receipt_verification_v1.py', 'LaneModuleReceiptEnvelopeV1.__post_init__', 'self.receipt_kind', 'ReceiptKindV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', 'ManagedAssetLifecycleLaneModuleReceiptCandidateV1.__post_init__', 'value', 'expected_type'),
+    ('src/core/lane_module_receipt_verification_v1.py', 'PerpsMarginLaneModuleReceiptCandidateV1.__post_init__', 'self.verified_price', 'VerifiedGlobalOraclePriceV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', 'PerpsMarginLaneModuleReceiptCandidateV1.__post_init__', 'value', 'expected_type'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_snapshot_asset_transfer_receipt_candidate_v1', 'candidate', 'AssetTransferLaneModuleReceiptCandidateV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_snapshot_lane_module_receipt_envelope_v1', 'receipt', 'LaneModuleReceiptEnvelopeV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_snapshot_managed_lifecycle_receipt_candidate_v1', 'candidate', 'ManagedAssetLifecycleLaneModuleReceiptCandidateV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_snapshot_perps_margin_receipt_candidate_v1', 'candidate', 'PerpsMarginLaneModuleReceiptCandidateV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', 'require_verified_lane_module_transition_scalars_v1', 'fields', '_VerifiedLaneModuleTransitionFieldsV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', 'require_verified_lane_module_transition_scalars_v1', 'fields.receipt_kind', 'ReceiptKindV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', 'require_verified_lane_module_transition_scalars_v1', 'witness', 'VerifiedLaneModuleTransitionV1'),
+    ('src/core/lane_module_release_route_binding_v1.py', 'AssetTransferReleaseRouteBindingCandidateV1.__post_init__', 'value', 'expected'),
+    ('src/core/lane_module_release_route_binding_v1.py', 'ManagedAssetLifecycleReleaseRouteBindingCandidateV1.__post_init__', 'value', 'expected'),
+    ('src/core/lane_module_release_route_binding_v1.py', 'PerpsMarginReleaseRouteBindingCandidateV1.__post_init__', 'self.verified_price', 'VerifiedGlobalOraclePriceV1'),
+    ('src/core/lane_module_release_route_binding_v1.py', 'PerpsMarginReleaseRouteBindingCandidateV1.__post_init__', 'value', 'expected'),
+    ('src/core/lane_module_release_route_binding_v1.py', '_require_perps_oracle_price_binding_v1', 'verified_price', 'VerifiedGlobalOraclePriceV1'),
+    ('src/core/lane_module_release_route_binding_v1.py', '_snapshot_asset_transfer_route_binding_candidate_v1', 'candidate', 'AssetTransferReleaseRouteBindingCandidateV1'),
+    ('src/core/lane_module_release_route_binding_v1.py', '_snapshot_exact_occurrence_v1', 'occurrence', 'EconomicCommandOccurrenceV1'),
+    ('src/core/lane_module_release_route_binding_v1.py', '_snapshot_managed_asset_route_binding_candidate_v1', 'candidate', 'ManagedAssetLifecycleReleaseRouteBindingCandidateV1'),
+    ('src/core/lane_module_release_route_binding_v1.py', 'bind_perps_margin_lane_output_to_release_route_v1', 'candidate', 'PerpsMarginReleaseRouteBindingCandidateV1'),
+    ('src/core/receipt_backed_asset_lane_composition_v1.py', 'ReceiptBackedAssetLaneCompositionCandidateV1.__post_init__', 'value', 'expected_type'),
+    ('src/core/receipt_backed_asset_lane_composition_v1.py', 'compose_receipt_backed_asset_lane_single_v1', 'candidate', 'ReceiptBackedAssetLaneCompositionCandidateV1'),
+    ('src/core/receipt_backed_asset_lane_composition_v1.py', 'compose_receipt_backed_asset_lane_single_v1', 'result', 'AssetLaneCompositionAcceptedV1'),
+})
+
+# The scanned set is bound to the transitive src.core import closure of the admission entry module:
+# every module in the closure is either scanned above or listed here with its isinstance count. A new
+# module joining the closure, or a new isinstance on a listed module, fails the binding until an
+# inventory decision is recorded. Listed modules are lanes and services the admission never reads
+# rows from, plus the shared helpers whose isinstance(..., Enum) checks are against the abstract base.
+_ADMISSION_CLOSURE_OUT_OF_SCOPE_ISINSTANCE_COUNTS = {
+    'asset_lane_coordinator_v1': 4,
+    'asset_transfer_policy_registry_v1': 0,
+    'economic_command_authentication_snapshot_v1': 0,
+    'economic_command_authentication_types_v1': 0,
+    'economic_command_authentication_v1': 0,
+    'economic_command_authentication_witness_v1': 0,
+    'economic_command_authorization_registry_v1': 0,
+    'economic_command_signature_verifier_capability_v1': 0,
+    'economic_command_signature_verifier_deployment_v1': 0,
+    'economic_command_signature_verifier_registry_v1': 0,
+    'economic_effect_occurrence_v1': 0,
+    'epoch_effect_composition_v1': 1,
+    'external_custody_disabled_lane_v1': 0,
+    'global_accounting_allocation_certificate_v1': 0,
+    'global_economic_capability_profile_binding_v1': 0,
+    'global_economic_profile_snapshot_v1': 1,
+    'global_economic_proof_v1': 13,
+    'global_economic_refinement_snapshot_v1': 2,
+    'global_economic_replay_refinement_v1': 0,
+    'global_economic_state_delta_v1': 0,
+    'global_economic_state_effect_refinement_v1': 0,
+    'global_oracle_occurrence_authority_v1': 0,
+    'global_oracle_price_occurrence_v1': 0,
+    'global_settlement_canonical_manifest_v1': 0,
+    'global_settlement_types_v1': 0,
+    'lane_capability_registry_v1': 0,
+    'lane_composition_receipt_verification_v1': 0,
+    'managed_asset_lifecycle_lane_module_v1': 2,
+    'managed_asset_lifecycle_module_v1': 3,
+    'managed_asset_lifecycle_types_v1': 6,
+    'managed_asset_policy_registry_v1': 0,
+    'perps_margin_lane_coordinator_v1': 0,
+    'perps_margin_lane_module_v1': 1,
+    'perps_margin_module_v1': 4,
+    'perps_margin_types_v1': 1,
+    'perps_market_policy_v1': 0,
+    'proof_rewards_policy_blocked_lane_v1': 0,
+    'receipt_backed_perps_margin_lane_composition_v1': 0,
+    'route_composition_receipt_verification_v1': 0,
+    'route_global_state_projection_v1': 0,
+}
+
+
+def _exact_type_gate_sites(path: Path) -> set[tuple[str, str, str, str]]:
+    import ast
+
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    rel = str(path.relative_to(_REPO_ROOT))
+    sites: set[tuple[str, str, str, str]] = set()
+
+    def visit(node: ast.AST, scope: str) -> None:
+        for child in ast.iter_child_nodes(node):
+            child_scope = scope
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                child_scope = child.name if not scope else f"{scope}.{child.name}"
+            if (
+                isinstance(child, ast.Compare)
+                and isinstance(child.left, ast.Call)
+                and getattr(child.left.func, "id", None) == "type"
+                and len(child.ops) == 1
+                and isinstance(child.ops[0], (ast.IsNot, ast.Is))
+            ):
+                sites.add((rel, child_scope, ast.unparse(child.left.args[0]), ast.unparse(child.comparators[0])))
+            visit(child, child_scope)
+
+    visit(tree, "")
+    return sites
+
+
+def _src_core_import_closure(entry: str) -> dict[str, int]:
+    import ast
+
+    root = _REPO_ROOT / "src/core"
+    seen: dict[str, int] = {}
+    frontier = [entry]
+    while frontier:
+        module = frontier.pop()
+        if module in seen:
+            continue
+        source = root / f"{module}.py"
+        if not source.exists():
+            continue
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                if node.level == 1:
+                    frontier.append(node.module)
+                elif node.module.startswith("src.core."):
+                    frontier.append(node.module.split(".")[-1])
+        seen[module] = sum(
+            1 for node in ast.walk(tree) if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "isinstance"
+        )
+    return seen
+
+
+def test_admission_path_exact_type_gates_are_pinned_positively() -> None:
+    """Opus P32 F-1 / Fable P32 P3-1: the negative inventory only sees bare-name isinstance; this
+    positive pin freezes every exact-type gate the path declares, so silently weakening one (to
+    isinstance, issubclass, __class__, a match pattern, or an alias) removes it from the scan."""
+
+    observed: set[tuple[str, str, str, str]] = set()
+    for module in _ADMISSION_PATH_MODULES:
+        observed |= _exact_type_gate_sites(_REPO_ROOT / module)
+    assert observed == _ADMISSION_PATH_EXACT_TYPE_GATES, sorted(observed ^ _ADMISSION_PATH_EXACT_TYPE_GATES)
+
+
+def test_admission_path_has_no_isinstance_spelling_variants() -> None:
+    """The negative scan widened (Opus P32 F-1): no issubclass, no __class__ comparisons, no
+    builtins.isinstance, no isinstance aliases, and no class patterns in match statements."""
+
+    import ast
+
+    for module in _ADMISSION_PATH_MODULES:
+        tree = ast.parse((_REPO_ROOT / module).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                target = ast.unparse(node.func)
+                assert target not in {"issubclass", "builtins.isinstance", "builtins.issubclass"}, (module, target)
+            if isinstance(node, ast.Attribute) and node.attr == "__class__":
+                raise AssertionError((module, ast.unparse(node)))
+            if isinstance(node, ast.MatchClass):
+                raise AssertionError((module, "match-class pattern"))
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                for alias in node.names:
+                    assert alias.name not in {"isinstance", "issubclass"} and (alias.asname or "") not in {"isinstance", "issubclass"}, (module, alias.name)
+            if isinstance(node, ast.Assign):
+                for target_node in node.targets:
+                    assert ast.unparse(target_node) not in {"isinstance", "issubclass"}, (module, ast.unparse(node))
+
+
+def test_admission_path_module_set_is_bound_to_the_import_closure() -> None:
+    """Opus P32 F-5: the scanned module tuple is not a free literal. Every module in the transitive
+    src.core import closure of the admission entry module is either scanned or listed out of scope
+    with its isinstance count pinned, so a new path module or a new isinstance on a listed module
+    forces an inventory decision."""
+
+    closure = _src_core_import_closure("asset_transfer_receipt_admission_v1")
+    scanned = {Path(module).stem for module in _ADMISSION_PATH_MODULES}
+    assert scanned <= set(closure), sorted(scanned - set(closure))
+    listed = {module: count for module, count in closure.items() if module not in scanned}
+    assert listed == _ADMISSION_CLOSURE_OUT_OF_SCOPE_ISINSTANCE_COUNTS, sorted(
+        set(listed.items()) ^ set(_ADMISSION_CLOSURE_OUT_OF_SCOPE_ISINSTANCE_COUNTS.items())
+    )

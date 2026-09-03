@@ -125,6 +125,8 @@ TRANSFER_REFINEMENT_GATE_PATH_V1: Final = "tests/formal/test_lean_asset_transfer
 TRANSFER_REFINEMENT_GATE_EXPECTED_PASSED_V1: Final = 40
 PARITY_GATE_PATH_V1: Final = "tests/core/test_global_settlement_abi_v1_resource_bounds.py"
 PARITY_GATE_EXPECTED_PASSED_V1: Final = 17
+CANDIDATE_CHAIN_SCRIPT_PATH_V1: Final = "tools/formal_core_candidate_chain_v1.sh"
+CANDIDATE_BATTERY_SCRIPT_PATH_V1: Final = "tools/formal_core_battery_v1.sh"
 
 SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (PYTHON_REFINEMENT_PATH_V1, "python_visible_necessary_checks"),
@@ -175,6 +177,8 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (TRANSFER_REFINEMENT_CORPUS_PATH_V1, "transfer_refinement_bounded_corpus"),
     (TRANSFER_REFINEMENT_GATE_PATH_V1, "transfer_refinement_replay_gate"),
     (PARITY_GATE_PATH_V1, "python_rust_bound_parity_gate"),
+    (CANDIDATE_CHAIN_SCRIPT_PATH_V1, "candidate_chain_script"),
+    (CANDIDATE_BATTERY_SCRIPT_PATH_V1, "candidate_battery_script"),
 )
 SOURCE_PIN_PATHS_V1: Final[tuple[str, ...]] = tuple(path for path, _ in SOURCE_PIN_ROLES_V1)
 EXECUTING_TOOL_PATHS_V1: Final[tuple[str, ...]] = (
@@ -229,6 +233,8 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     TRANSFER_REFINEMENT_CORPUS_PATH_V1,
     TRANSFER_REFINEMENT_GATE_PATH_V1,
     PARITY_GATE_PATH_V1,
+    CANDIDATE_CHAIN_SCRIPT_PATH_V1,
+    CANDIDATE_BATTERY_SCRIPT_PATH_V1,
 )
 
 PACKET_KEYS_V3: Final[frozenset[str]] = frozenset(
@@ -492,8 +498,8 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " producer folds, not claimant identity: the wave-B coverage fold is keyed on"
     " (asset, control_domain), claimant entitlements are caller-chosen at that layer, and"
     " they are bound only at the certificate layer by ENTITLEMENT_ROWS_DRIFT against the V1"
-    " liabilities partition, which no acceptance path reaches while ASSET_TRANSFER stays at"
-    " NO_PRODUCER; whether that partition is authoritative for asset-transfer custody is an"
+    " liabilities partition, into which no acceptance path carries this producer's rows while"
+    " ASSET_TRANSFER stays at NO_PRODUCER; whether that partition is authoritative for asset-transfer custody is an"
     " unresolved policy question.",
     "Exact-type gating is audited and mechanically pinned only on the receipt-admission"
     " path; the epoch-certificate verification inputs in global_economic_proof_v1 still"
@@ -1027,6 +1033,7 @@ OPAQUE_BINDINGS_V1: Final[tuple[str, ...]] = (
 ACCEPTED_KNOWN_GAPS_V1: Final[tuple[str, ...]] = (
     "same_lane_root_claimant_projection_substitution",
     "domainless_terminal_with_two_distinct_hidden_domain_preimages",
+    "exact_type_audit_epoch_path",
 )
 
 ADMISSION_SEMANTICS_V1: Final = (
@@ -3199,6 +3206,7 @@ def _hygiene_pins(blob: SourceBlobV1) -> dict[str, str]:
 
 
 _HYGIENE_LINEAGE_RE: Final = re.compile(r"^(.*?)(?:-v([0-9]+))?(\.json)?$")
+_HYGIENE_DATE_PREFIX_RE: Final = re.compile(r"^THV1-[0-9]{8}-")
 
 
 def hygiene_lineage_key_v1(path: str) -> tuple[str, int, str]:
@@ -3211,6 +3219,23 @@ def hygiene_lineage_key_v1(path: str) -> tuple[str, int, str]:
     return (match.group(1), version, path)
 
 
+def _require_hygiene_lineage_versions_monotone_v1(paths: list[str]) -> None:
+    """Refuse a hygiene lineage whose versions regress across date prefixes (Opus P32 F-2);
+    identical rule to tools.test_hygiene_evidence_v1.require_lineage_versions_monotone_with_dates_v1."""
+
+    by_lineage: dict[str, list[tuple[str, int, str]]] = {}
+    for path in paths:
+        lineage_with_date, version, _ = hygiene_lineage_key_v1(path)
+        stem = lineage_with_date.rsplit("/", 1)[-1]
+        date = stem[:14] if _HYGIENE_DATE_PREFIX_RE.match(stem) else ""
+        by_lineage.setdefault(_HYGIENE_DATE_PREFIX_RE.sub("", stem), []).append((date, version, path))
+    for lineage, rows in by_lineage.items():
+        for date_a, version_a, path_a in rows:
+            for date_b, version_b, path_b in rows:
+                if date_a < date_b and version_a >= version_b:
+                    _reject("THV1_LINEAGE_VERSION_REGRESSES_ACROSS_DATES", path_a, f"{lineage}: before {path_b.rsplit('/', 1)[-1]}")
+
+
 def _select_hygiene_packets(snapshot: SubjectSnapshotV1) -> list[dict[str, object]]:
     """Select, per required path, the newest hygiene packet whose pin equals the subject blob.
 
@@ -3219,13 +3244,17 @@ def _select_hygiene_packets(snapshot: SubjectSnapshotV1) -> list[dict[str, objec
     packet is drift, and a selected packet that pins the O-008 packet itself is circular. The
     repository hygiene gate orders packets by the same lineage key
     (tools.test_hygiene_evidence_v1.hygiene_lineage_key_v1, pinned equal to this one by a
-    parity test) and requires every pin of the packet it selects to be current, which this
-    selector mirrors over the subject-visible pins (``THV1_SELECTED_PACKET_STALE``); before that
-    alignment it
+    parity test), requires every pin of the packet it selects to be current (mirrored here over the
+    subject-visible pins as ``THV1_SELECTED_PACKET_STALE``), and additionally requires the
+    selected packet to satisfy the contract rules for the changed path (evidence families, risk
+    class), which this checker does not model; a version cut under an older date prefix is refused
+    by both gates (``THV1_LINEAGE_VERSION_REGRESSES_ACROSS_DATES`` here) instead of reordered, so
+    recency across lineages stays date-first (Opus P32 F-2); before the ordering alignment it
     iterated lexicographically, so a stale ``v9`` outranked ``v27`` for any path whose bytes
     it still matched, and it bound a partly stale packet as evidence.
     """
 
+    _require_hygiene_lineage_versions_monotone_v1([blob.path for blob in snapshot.hygiene_packets.values()])
     ordered = sorted(snapshot.hygiene_packets.values(), key=lambda blob: hygiene_lineage_key_v1(blob.path), reverse=True)
     pins_by_packet = {blob.path: _hygiene_pins(blob) for blob in ordered}
     selection: list[dict[str, object]] = []

@@ -490,6 +490,28 @@ def test_lineage_key_matches_the_o008_checker_key() -> None:
     ]
     for name in names + synthetic:
         assert hygiene_lineage_key_v1(name) == o008.hygiene_lineage_key_v1(name), name
+        relative = "tests/evidence/test_hygiene/" + name
+        assert hygiene_lineage_key_v1(relative) == o008.hygiene_lineage_key_v1(relative), name
+        assert hygiene_lineage_key_v1(relative)[0].rsplit("/", 1)[-1] == hygiene_lineage_key_v1(name)[0], name
+        assert hygiene_lineage_key_v1(relative)[1] == hygiene_lineage_key_v1(name)[1], name
+    # Opus P32 F-2: a version cut under an OLDER date prefix would be shadowed by the newer-dated
+    # packet; both gates refuse the mis-dated cut instead of reordering, and the consistent split
+    # (older date carries the lower version) is accepted.
+    from tools.test_hygiene_evidence_v1 import require_lineage_versions_monotone_with_dates_v1
+    from tools.test_hygiene_model_v1 import TestHygieneError as _HygieneError
+
+    consistent = [
+        "THV1-20260901-global-settlement-v1-canonical-exact-admission.json",
+        "THV1-20260902-global-settlement-v1-canonical-exact-admission-v2.json",
+        "THV1-20260902-global-settlement-v1-canonical-exact-admission-v3.json",
+    ]
+    require_lineage_versions_monotone_with_dates_v1(consistent)
+    require_lineage_versions_monotone_with_dates_v1(names)
+    misdated = consistent + ["THV1-20260901-global-settlement-v1-canonical-exact-admission-v4.json"]
+    with pytest.raises(_HygieneError, match="versions must rise with the date prefix"):
+        require_lineage_versions_monotone_with_dates_v1(misdated)
+    with pytest.raises(o008.AdmissionRejectV1, match="THV1_LINEAGE_VERSION_REGRESSES_ACROSS_DATES"):
+        o008._require_hygiene_lineage_versions_monotone_v1(["tests/evidence/test_hygiene/" + n for n in misdated])
     ranked = sorted(synthetic, key=hygiene_lineage_key_v1)
     assert ranked.index("THV1-20260805-example-v27.json") > ranked.index("THV1-20260805-example-v9.json")
     assert ranked.index("THV1-20260805-example-v9.json") > ranked.index("THV1-20260805-example.json")

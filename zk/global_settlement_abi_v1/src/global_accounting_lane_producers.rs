@@ -228,8 +228,9 @@ fn reject_receipt_backed(
 /// caller for `accepted` and its coverage fold is keyed on (asset, control_domain)
 /// only, so claimant identity and the split across claimants are caller-chosen at
 /// this layer; they are bound at the certificate layer by ENTITLEMENT_ROWS_DRIFT
-/// (derived rows must equal the V1 liabilities partition exactly), which no
-/// acceptance path reaches while ASSET_TRANSFER stays at NO_PRODUCER. The Python
+/// (derived rows must equal the V1 liabilities partition exactly), into which no
+/// acceptance path carries this producer's rows while ASSET_TRANSFER stays at
+/// NO_PRODUCER. The Python
 /// admission (`asset_transfer_receipt_admission_v1`, C9a) takes the module witness
 /// and re-runs the producer on an exact-typed snapshot; it has no Rust twin yet
 /// (lands with C9b). Research-only; authority NONE.
