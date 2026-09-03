@@ -1,0 +1,61 @@
+# ZenoDEX / governance policy migration as algebra over Tau-valued laws.
+# Research-only shadow contract. No governance execution or settlement authority.
+#
+# This uses the beyond-SQL property that specifications are values. A migration
+# can therefore be classified by equality and lattice order, and a safety core
+# can be checked against every future extension x:tau.
+# EXPECTED-RESULTS: T F T F T F T F
+set charvar off
+set maxsplits 1
+
+# Syntactic reordering does not change a policy value.
+n ({ zgsettle[t]:sbf=1:sbf && zgproof[t]:sbf=1:sbf } = { zgproof[t]:sbf=1:sbf && zgsettle[t]:sbf=1:sbf })
+
+# Old policy: settlement requires a proof.
+# Strengthened policy: settlement requires both proof and bound witness.
+# They are not equal.
+n (
+  { zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf }
+  =
+  { (zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf) && (zgsettle[t]:sbf=1:sbf -> zgwitness[t]:sbf=1:sbf) }
+)
+
+# Their meet is the strengthened policy: proposed rule is a tightening.
+n ((
+  { zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf }
+  &
+  { (zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf) && (zgsettle[t]:sbf=1:sbf -> zgwitness[t]:sbf=1:sbf) }
+) = { (zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf) && (zgsettle[t]:sbf=1:sbf -> zgwitness[t]:sbf=1:sbf) })
+
+# Control: the meet is not merely the weaker old policy.
+n ((
+  { zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf }
+  &
+  { (zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf) && (zgsettle[t]:sbf=1:sbf -> zgwitness[t]:sbf=1:sbf) }
+) = { zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf })
+
+# Safety theorem over ALL future policy extensions: as long as the core rule
+# remains in force, no extension can admit settle=1 with proof=0.
+n all x:tau (((
+  { zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf }
+  & x
+) & { zgsettle[t]:sbf=1:sbf && zgproof[t]:sbf=0:sbf }) = 0)
+
+# Vacuity/control: a weak core that only says settlement is allowed cannot make
+# the same future-extension guarantee.
+n all x:tau (((
+  { zgsettle[t]:sbf=1:sbf }
+  & x
+) & { zgsettle[t]:sbf=1:sbf && zgproof[t]:sbf=0:sbf }) = 0)
+
+# The strengthened policy similarly guarantees that no future extension can
+# admit a settlement with the bound witness missing.
+n all x:tau (((
+  { (zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf) && (zgsettle[t]:sbf=1:sbf -> zgwitness[t]:sbf=1:sbf) }
+  & x
+) & { zgsettle[t]:sbf=1:sbf && zgwitness[t]:sbf=0:sbf }) = 0)
+
+# Removing the proof requirement is observably a policy change, not an
+# equivalent migration.
+n ({ zgsettle[t]:sbf=1:sbf -> zgproof[t]:sbf=1:sbf } = { zgsettle[t]:sbf=1:sbf })
+quit
