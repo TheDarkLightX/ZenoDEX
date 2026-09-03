@@ -1,0 +1,105 @@
+# ZenoDEX / UPBA bounded candidate table as one Tau algebra value.
+# Research-only shadow contract. No settlement or value-moving authority.
+#
+# Rows are facts; the candidate table is their join. The raw 2x2 grid below
+# deliberately keeps denominator-zero rows present but marks them invalid,
+# matching the safer UPBA v1 design rule that completeness includes invalid
+# raw-grid keys rather than silently filtering them away.
+# EXPECTED-RESULTS: T T T F T T T T T T F
+set charvar off
+set maxsplits 1
+
+# Frozen witness rows for settlement 1 and raw grid {0,1} x {0,1}.
+# Streams:
+#   uset  settlement id
+#   upn   price numerator
+#   upd   price denominator
+#   ucand candidate id
+#   uvalid price-valid flag
+#   uscore host score-recomputed flag
+#   uvol  matched volume
+#   usurp surplus
+#   uwin  winner-row flag
+#   udom  dominated-by-winner flag
+
+# The four-row candidate table is live.
+n (
+  { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={0}:bv[8] && ucand[t]:bv[8]={10}:bv[8] && uvalid[t]:bv[1]={0}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={0}:bv[8] && usurp[t]:bv[8]={0}:bv[8] && uwin[t]:bv[1]={0}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={1}:bv[8] && ucand[t]:bv[8]={11}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={20}:bv[8] && usurp[t]:bv[8]={4}:bv[8] && uwin[t]:bv[1]={0}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={0}:bv[8] && ucand[t]:bv[8]={12}:bv[8] && uvalid[t]:bv[1]={0}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={0}:bv[8] && usurp[t]:bv[8]={0}:bv[8] && uwin[t]:bv[1]={0}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] && ucand[t]:bv[8]={13}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={30}:bv[8] && usurp[t]:bv[8]={5}:bv[8] && uwin[t]:bv[1]={1}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+) != 0
+
+# The winner's full row is a strict member: winner_row <= candidate_table.
+n (
+  { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] && ucand[t]:bv[8]={13}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={30}:bv[8] && usurp[t]:bv[8]={5}:bv[8] && uwin[t]:bv[1]={1}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+& (
+  { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={0}:bv[8] && ucand[t]:bv[8]={10}:bv[8] && uvalid[t]:bv[1]={0}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={0}:bv[8] && usurp[t]:bv[8]={0}:bv[8] && uwin[t]:bv[1]={0}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={1}:bv[8] && ucand[t]:bv[8]={11}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={20}:bv[8] && usurp[t]:bv[8]={4}:bv[8] && uwin[t]:bv[1]={0}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={0}:bv[8] && ucand[t]:bv[8]={12}:bv[8] && uvalid[t]:bv[1]={0}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={0}:bv[8] && usurp[t]:bv[8]={0}:bv[8] && uwin[t]:bv[1]={0}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] && ucand[t]:bv[8]={13}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={30}:bv[8] && usurp[t]:bv[8]={5}:bv[8] && uwin[t]:bv[1]={1}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+)') = 0
+
+# SELECT WHERE settlement=1 and price=(1,1) overlaps the winner row.
+n ({ uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] } & (
+  { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={0}:bv[8] && ucand[t]:bv[8]={10}:bv[8] && uvalid[t]:bv[1]={0}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={0}:bv[8] && usurp[t]:bv[8]={0}:bv[8] && uwin[t]:bv[1]={0}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={1}:bv[8] && ucand[t]:bv[8]={11}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={20}:bv[8] && usurp[t]:bv[8]={4}:bv[8] && uwin[t]:bv[1]={0}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={0}:bv[8] && ucand[t]:bv[8]={12}:bv[8] && uvalid[t]:bv[1]={0}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={0}:bv[8] && usurp[t]:bv[8]={0}:bv[8] && uwin[t]:bv[1]={0}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] && ucand[t]:bv[8]={13}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] && uscore[t]:bv[1]={1}:bv[1] && uvol[t]:bv[8]={30}:bv[8] && usurp[t]:bv[8]={5}:bv[8] && uwin[t]:bv[1]={1}:bv[1] && udom[t]:bv[1]={1}:bv[1] }
+)) != 0
+
+# Out-of-grid price (2,1) has no row.
+n ({ uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={2}:bv[8] && upd[t]:bv[8]={1}:bv[8] } & (
+  { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={0}:bv[8] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={1}:bv[8] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={0}:bv[8] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] }
+)) != 0
+
+# Raw-grid completeness keeps denominator-zero keys present.
+n ({ uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={0}:bv[8] } & (
+  { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={0}:bv[8] && uvalid[t]:bv[1]={0}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={1}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={0}:bv[8] && uvalid[t]:bv[1]={0}:bv[1] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] }
+)) != 0
+
+# No denominator-zero row is marked valid.
+n ({ upd[t]:bv[8]={0}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] } & (
+  { upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={0}:bv[8] && uvalid[t]:bv[1]={0}:bv[1] }
+| { upn[t]:bv[8]={0}:bv[8] && upd[t]:bv[8]={1}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] }
+| { upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={0}:bv[8] && uvalid[t]:bv[1]={0}:bv[1] }
+| { upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] && uvalid[t]:bv[1]={1}:bv[1] }
+)) = 0
+
+# Every frozen row says its score was independently recomputed.
+n ({ uscore[t]:bv[1]={0}:bv[1] } & (
+  { ucand[t]:bv[8]={10}:bv[8] && uscore[t]:bv[1]={1}:bv[1] }
+| { ucand[t]:bv[8]={11}:bv[8] && uscore[t]:bv[1]={1}:bv[1] }
+| { ucand[t]:bv[8]={12}:bv[8] && uscore[t]:bv[1]={1}:bv[1] }
+| { ucand[t]:bv[8]={13}:bv[8] && uscore[t]:bv[1]={1}:bv[1] }
+)) = 0
+
+# Every frozen row carries the winner-dominance rail.
+n ({ udom[t]:bv[1]={0}:bv[1] } & (
+  { ucand[t]:bv[8]={10}:bv[8] && udom[t]:bv[1]={1}:bv[1] }
+| { ucand[t]:bv[8]={11}:bv[8] && udom[t]:bv[1]={1}:bv[1] }
+| { ucand[t]:bv[8]={12}:bv[8] && udom[t]:bv[1]={1}:bv[1] }
+| { ucand[t]:bv[8]={13}:bv[8] && udom[t]:bv[1]={1}:bv[1] }
+)) = 0
+
+# Duplicate row insertion is algebraically idempotent.
+n ({ ucand[t]:bv[8]={13}:bv[8] && uvol[t]:bv[8]={30}:bv[8] } | { ucand[t]:bv[8]={13}:bv[8] && uvol[t]:bv[8]={30}:bv[8] }) = { ucand[t]:bv[8]={13}:bv[8] && uvol[t]:bv[8]={30}:bv[8] }
+
+# General theorem: replica insertion order does not change an append-only table.
+n all a:tau all b:tau all tb:tau (((tb | a) | b) = ((tb | b) | a))
+
+# General theorem: append cannot delete a row/fact that was already contained.
+n all old:tau all tb:tau all r:tau (((old & tb') = 0) -> ((old & (tb | r)') = 0))
+
+# NEGATIVE ARCHITECTURAL CONTROL: conflicting same-key rows do not overwrite.
+n (
+  { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] && ucand[t]:bv[8]={13}:bv[8] && uvol[t]:bv[8]={30}:bv[8] }
+| { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] && ucand[t]:bv[8]={99}:bv[8] && uvol[t]:bv[8]={31}:bv[8] }
+) = { uset[t]:bv[8]={1}:bv[8] && upn[t]:bv[8]={1}:bv[8] && upd[t]:bv[8]={1}:bv[8] && ucand[t]:bv[8]={99}:bv[8] && uvol[t]:bv[8]={31}:bv[8] }
+quit
