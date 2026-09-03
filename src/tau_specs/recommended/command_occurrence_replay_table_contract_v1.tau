@@ -1,0 +1,53 @@
+# ZenoDEX Command Occurrence Replay Table Contract V1
+#
+# Research-only bounded Tau table model for command-occurrence uniqueness.
+#
+# Seen occurrence ids are stored as key-only tau facts. Freshness is the
+# lattice difference:
+#   fresh[t] = occurrence_probe[t] & seen[t-1]'
+#
+# Because each key row fully fixes occurrence_id, fresh is:
+#   - the key fact itself when the id has never appeared;
+#   - 0 when the id is already represented by seen.
+#
+# A command contribution is command_row & fresh. Reusing an occurrence id
+# therefore annihilates the contribution even if other command fields change.
+#
+# EXPECTED-RESULTS: T T T T T T T T
+
+set charvar off
+set maxsplits 1
+
+type ReplayTableInputADT1 = {command_row: tau, occurrence_probe: tau}.
+type ReplayTableOutputADT1 = {seen: tau, commands: tau, fresh: tau}.
+
+# A key absent from seen survives lattice difference unchanged.
+n (({ occurrence_id[t]:bv[8] = { #x02 }:bv[8] } & ({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] })') = { occurrence_id[t]:bv[8] = { #x02 }:bv[8] })
+
+# A key already in seen is annihilated.
+n (({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] } & ({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] })') = 0)
+
+# A fresh command survives the key gate unchanged.
+n (({ occurrence_id[t]:bv[8] = { #x02 }:bv[8] && command_kind[t]:bv[4] = { #x1 }:bv[4] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16] } & ({ occurrence_id[t]:bv[8] = { #x02 }:bv[8] } & ({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] })')) = { occurrence_id[t]:bv[8] = { #x02 }:bv[8] && command_kind[t]:bv[4] = { #x1 }:bv[4] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16] })
+
+# Reusing the key kills a changed-payload command too.
+n (({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] && command_kind[t]:bv[4] = { #x1 }:bv[4] && amount_atoms[t]:bv[16] = { #x0063 }:bv[16] } & ({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] } & ({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] })')) = 0)
+
+# Duplicate-key update is an exact no-op on seen.
+n (({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] } | ({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] } & ({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] })')) = { occurrence_id[t]:bv[8] = { #x01 }:bv[8] })
+
+# A fresh key becomes represented after the update.
+n (({ occurrence_id[t]:bv[8] = { #x02 }:bv[8] } & ({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] } | ({ occurrence_id[t]:bv[8] = { #x02 }:bv[8] } & ({ occurrence_id[t]:bv[8] = { #x01 }:bv[8] })'))') = 0)
+
+# Freshness is always disjoint from the table it was derived against.
+n all seen:tau all probe:tau (((probe & seen') & seen) = 0)
+
+# Extending seen with its fresh part is monotone.
+n all seen:tau all probe:tau (((seen | (probe & seen')) & seen') = 0)
+
+irt:ReplayTableInputADT1 := in console.
+ort:ReplayTableOutputADT1 := out console.
+run (ort[0].seen = 0) && (ort[0].commands = 0) && (ort[0].fresh = 0) && (ort[t].fresh = irt[t].occurrence_probe & ort[t-1].seen') && (ort[t].seen = ort[t-1].seen | ort[t].fresh) && (ort[t].commands = ort[t-1].commands | (irt[t].command_row & ort[t].fresh))
+{ command_row: "occurrence_id[t]:bv[8] = { #x01 }:bv[8] && command_kind[t]:bv[4] = { #x1 }:bv[4] && amount_atoms[t]:bv[16] = { #x0005 }:bv[16].", occurrence_probe: "occurrence_id[t]:bv[8] = { #x01 }:bv[8]." }
+{ command_row: "occurrence_id[t]:bv[8] = { #x01 }:bv[8] && command_kind[t]:bv[4] = { #x1 }:bv[4] && amount_atoms[t]:bv[16] = { #x0063 }:bv[16].", occurrence_probe: "occurrence_id[t]:bv[8] = { #x01 }:bv[8]." }
+{ command_row: "occurrence_id[t]:bv[8] = { #x02 }:bv[8] && command_kind[t]:bv[4] = { #x1 }:bv[4] && amount_atoms[t]:bv[16] = { #x0007 }:bv[16].", occurrence_probe: "occurrence_id[t]:bv[8] = { #x02 }:bv[8]." }
