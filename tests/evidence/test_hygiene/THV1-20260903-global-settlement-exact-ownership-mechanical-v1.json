@@ -136,8 +136,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_scalar_subclasses_reject_before_behavior_runs",
       "mutant": {
         "path": "src/core/global_settlement_types_v1.py",
-        "needle": "def _require_token(value: object, *, name: str) -> str:\n    if type(value) is not str:\n",
-        "replacement": "def _require_token(value: object, *, name: str) -> str:\n    if not isinstance(value, str):\n"
+        "needle_lines": [
+          "def _require_token(value: object, *, name: str) -> str:",
+          "    if type(value) is not str:",
+          ""
+        ],
+        "replacement_lines": [
+          "def _require_token(value: object, *, name: str) -> str:",
+          "    if not isinstance(value, str):",
+          ""
+        ]
       }
     },
     {
@@ -145,8 +153,14 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_canonical_encoder_rejects_mapping_subclass_before_iteration",
       "mutant": {
         "path": "src/core/global_settlement_types_v1.py",
-        "needle": "    if value_type is dict:\n",
-        "replacement": "    if isinstance(value, dict):\n"
+        "needle_lines": [
+          "    if value_type is dict:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if isinstance(value, dict):",
+          ""
+        ]
       }
     },
     {
@@ -154,8 +168,14 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_canonical_encoder_rejects_sequence_subclass_before_iteration",
       "mutant": {
         "path": "src/core/global_settlement_types_v1.py",
-        "needle": "    if value_type is tuple or value_type is list:\n",
-        "replacement": "    if isinstance(value, (tuple, list)):\n"
+        "needle_lines": [
+          "    if value_type is tuple or value_type is list:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if isinstance(value, (tuple, list)):",
+          ""
+        ]
       }
     },
     {
@@ -163,8 +183,14 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_global_state_rejects_nested_subclass_before_projection",
       "mutant": {
         "path": "src/core/global_settlement_types_v1.py",
-        "needle": "        if any(type(item) is not LaneStateRootV1 for item in self.lane_roots):\n",
-        "replacement": "        if any(not isinstance(item, LaneStateRootV1) for item in self.lane_roots):\n"
+        "needle_lines": [
+          "        if any(type(item) is not LaneStateRootV1 for item in self.lane_roots):",
+          ""
+        ],
+        "replacement_lines": [
+          "        if any(not isinstance(item, LaneStateRootV1) for item in self.lane_roots):",
+          ""
+        ]
       }
     },
     {
@@ -172,8 +198,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_effect_plan_rejects_nested_subclass_before_key_access",
       "mutant": {
         "path": "src/core/global_settlement_types_v1.py",
-        "needle": "    if any(type(item) is not expected_type for item in items):\n        raise TypeError(f\"{name} contains an invalid value\")\n",
-        "replacement": "    if any(not isinstance(item, expected_type) for item in items):\n        raise TypeError(f\"{name} contains an invalid value\")\n"
+        "needle_lines": [
+          "    if any(type(item) is not expected_type for item in items):",
+          "        raise TypeError(f\"{name} contains an invalid value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "    if any(not isinstance(item, expected_type) for item in items):",
+          "        raise TypeError(f\"{name} contains an invalid value\")",
+          ""
+        ]
       }
     },
     {
@@ -181,8 +215,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_snapshot_boundaries_reject_outer_subclasses",
       "mutant": {
         "path": "src/core/global_economic_refinement_snapshot_v1.py",
-        "needle": "    if type(state) is not GlobalEconomicStateV1:\n        raise TypeError(\"economic refinement state must have the exact typed value\")\n",
-        "replacement": "    if not isinstance(state, GlobalEconomicStateV1):\n        raise TypeError(\"economic refinement state must have the exact typed value\")\n"
+        "needle_lines": [
+          "    if type(state) is not GlobalEconomicStateV1:",
+          "        raise TypeError(\"economic refinement state must have the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "    if not isinstance(state, GlobalEconomicStateV1):",
+          "        raise TypeError(\"economic refinement state must have the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -190,8 +232,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_accepted_transition_rejects_effect_plan_subclass",
       "mutant": {
         "path": "src/core/global_settlement_types_v1.py",
-        "needle": "        if type(self.effects) is not GlobalEconomicEffectPlanV1:\n            raise TypeError(\"accepted transition effects are invalid\")\n",
-        "replacement": "        if not isinstance(self.effects, GlobalEconomicEffectPlanV1):\n            raise TypeError(\"accepted transition effects are invalid\")\n"
+        "needle_lines": [
+          "        if type(self.effects) is not GlobalEconomicEffectPlanV1:",
+          "            raise TypeError(\"accepted transition effects are invalid\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.effects, GlobalEconomicEffectPlanV1):",
+          "            raise TypeError(\"accepted transition effects are invalid\")",
+          ""
+        ]
       }
     },
     {
@@ -199,8 +249,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_closed_factories_reject_subclass_dispatch",
       "mutant": {
         "path": "src/core/global_settlement_types_v1.py",
-        "needle": "        if cls is not GlobalEconomicStateRootV1:\n            raise TypeError(\"state root factory requires the exact declared type\")\n",
-        "replacement": "        if not issubclass(cls, GlobalEconomicStateRootV1):\n            raise TypeError(\"state root factory requires the exact declared type\")\n"
+        "needle_lines": [
+          "        if cls is not GlobalEconomicStateRootV1:",
+          "            raise TypeError(\"state root factory requires the exact declared type\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not issubclass(cls, GlobalEconomicStateRootV1):",
+          "            raise TypeError(\"state root factory requires the exact declared type\")",
+          ""
+        ]
       }
     },
     {
@@ -208,8 +266,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_isinstance_inventory_is_pinned",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if type(lane_root) is not LaneStateRootV1:\n        raise TypeError(\"fragment admission requires the exact LaneStateRootV1\")\n",
-        "replacement": "    if not isinstance(lane_root, LaneStateRootV1):\n        raise TypeError(\"fragment admission requires the exact LaneStateRootV1\")\n"
+        "needle_lines": [
+          "    if type(lane_root) is not LaneStateRootV1:",
+          "        raise TypeError(\"fragment admission requires the exact LaneStateRootV1\")",
+          ""
+        ],
+        "replacement_lines": [
+          "    if not isinstance(lane_root, LaneStateRootV1):",
+          "        raise TypeError(\"fragment admission requires the exact LaneStateRootV1\")",
+          ""
+        ]
       }
     },
     {
@@ -217,8 +283,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_lane_composition_accepted_rejects_root_bearing_subclasses",
       "mutant": {
         "path": "src/core/asset_lane_projection_v1.py",
-        "needle": "        if type(self.post_state) is not AssetLaneStateProjectionV1:\n            raise TypeError(\"asset lane accepted post-state must be the exact typed value\")\n",
-        "replacement": "        if not isinstance(self.post_state, AssetLaneStateProjectionV1):\n            raise TypeError(\"asset lane accepted post-state must be the exact typed value\")\n"
+        "needle_lines": [
+          "        if type(self.post_state) is not AssetLaneStateProjectionV1:",
+          "            raise TypeError(\"asset lane accepted post-state must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.post_state, AssetLaneStateProjectionV1):",
+          "            raise TypeError(\"asset lane accepted post-state must be the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -226,8 +300,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_transfer_accepted_rejects_root_bearing_subclasses",
       "mutant": {
         "path": "src/core/asset_transfer_types_v1.py",
-        "needle": "        if type(self.post_state) is not AssetTransferStateV1:\n            raise TypeError(\"asset transfer accepted state must be the exact typed value\")\n",
-        "replacement": "        if not isinstance(self.post_state, AssetTransferStateV1):\n            raise TypeError(\"asset transfer accepted state must be the exact typed value\")\n"
+        "needle_lines": [
+          "        if type(self.post_state) is not AssetTransferStateV1:",
+          "            raise TypeError(\"asset transfer accepted state must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.post_state, AssetTransferStateV1):",
+          "            raise TypeError(\"asset transfer accepted state must be the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -235,8 +317,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_transfer_accepted_rejects_root_bearing_subclasses",
       "mutant": {
         "path": "src/core/asset_transfer_types_v1.py",
-        "needle": "        if type(self.effects) is not GlobalEconomicEffectPlanV1:\n            raise TypeError(\"asset transfer accepted effects must be the exact typed value\")\n",
-        "replacement": "        if not isinstance(self.effects, GlobalEconomicEffectPlanV1):\n            raise TypeError(\"asset transfer accepted effects must be the exact typed value\")\n"
+        "needle_lines": [
+          "        if type(self.effects) is not GlobalEconomicEffectPlanV1:",
+          "            raise TypeError(\"asset transfer accepted effects must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.effects, GlobalEconomicEffectPlanV1):",
+          "            raise TypeError(\"asset transfer accepted effects must be the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -244,8 +334,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_transfer_accepted_rejects_root_bearing_subclasses",
       "mutant": {
         "path": "src/core/asset_transfer_types_v1.py",
-        "needle": "        if type(self.module_journal) is not LaneModuleTransitionJournalV1:\n            raise TypeError(\"asset transfer accepted journal must be the exact typed value\")\n",
-        "replacement": "        if not isinstance(self.module_journal, LaneModuleTransitionJournalV1):\n            raise TypeError(\"asset transfer accepted journal must be the exact typed value\")\n"
+        "needle_lines": [
+          "        if type(self.module_journal) is not LaneModuleTransitionJournalV1:",
+          "            raise TypeError(\"asset transfer accepted journal must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.module_journal, LaneModuleTransitionJournalV1):",
+          "            raise TypeError(\"asset transfer accepted journal must be the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -253,8 +351,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_projection_sources_reject_state_subclasses",
       "mutant": {
         "path": "src/core/asset_lane_projection_v1.py",
-        "needle": "    if type(state) is not AssetTransferStateV1:\n        raise TypeError(\"asset transfer projection source must be the exact typed value\")\n",
-        "replacement": "    if not isinstance(state, AssetTransferStateV1):\n        raise TypeError(\"asset transfer projection source must be the exact typed value\")\n"
+        "needle_lines": [
+          "    if type(state) is not AssetTransferStateV1:",
+          "        raise TypeError(\"asset transfer projection source must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "    if not isinstance(state, AssetTransferStateV1):",
+          "        raise TypeError(\"asset transfer projection source must be the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -262,8 +368,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_projection_sources_reject_state_subclasses",
       "mutant": {
         "path": "src/core/asset_lane_projection_v1.py",
-        "needle": "    if type(state) is not ManagedAssetLifecycleStateV1:\n        raise TypeError(\"managed asset projection source must be the exact typed value\")\n",
-        "replacement": "    if not isinstance(state, ManagedAssetLifecycleStateV1):\n        raise TypeError(\"managed asset projection source must be the exact typed value\")\n"
+        "needle_lines": [
+          "    if type(state) is not ManagedAssetLifecycleStateV1:",
+          "        raise TypeError(\"managed asset projection source must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "    if not isinstance(state, ManagedAssetLifecycleStateV1):",
+          "        raise TypeError(\"managed asset projection source must be the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -271,8 +385,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_lane_private_port_rejects_projection_subclasses",
       "mutant": {
         "path": "src/core/asset_lane_projection_v1.py",
-        "needle": "        if type(self.pre_state) is not AssetLaneStateProjectionV1:\n            raise TypeError(\"asset lane port pre-state must be the exact typed value\")\n",
-        "replacement": "        if not isinstance(self.pre_state, AssetLaneStateProjectionV1):\n            raise TypeError(\"asset lane port pre-state must be the exact typed value\")\n"
+        "needle_lines": [
+          "        if type(self.pre_state) is not AssetLaneStateProjectionV1:",
+          "            raise TypeError(\"asset lane port pre-state must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.pre_state, AssetLaneStateProjectionV1):",
+          "            raise TypeError(\"asset lane port pre-state must be the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -280,8 +402,16 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_exact_type_gates_are_pinned_positively",
       "mutant": {
         "path": "src/core/receipt_backed_asset_lane_composition_v1.py",
-        "needle": "            if type(value) is not expected_type:\n                raise TypeError(f\"receipt-backed lane {label} must be the exact typed value\")\n",
-        "replacement": "            if not isinstance(value, expected_type):\n                raise TypeError(f\"receipt-backed lane {label} must be the exact typed value\")\n"
+        "needle_lines": [
+          "            if type(value) is not expected_type:",
+          "                raise TypeError(f\"receipt-backed lane {label} must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "            if not isinstance(value, expected_type):",
+          "                raise TypeError(f\"receipt-backed lane {label} must be the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -289,8 +419,14 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_lane_composition_accepted_rejects_root_bearing_subclasses",
       "mutant": {
         "path": "src/core/asset_lane_projection_v1.py",
-        "needle": "        if type(self.post_state) is not AssetLaneStateProjectionV1:\n            raise TypeError(\"asset lane accepted post-state must be the exact typed value\")\n",
-        "replacement": ""
+        "needle_lines": [
+          "        if type(self.post_state) is not AssetLaneStateProjectionV1:",
+          "            raise TypeError(\"asset lane accepted post-state must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -298,8 +434,14 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_exact_type_gates_are_pinned_positively",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if type(prior) is not LaneAllocationFragmentV1:\n",
-        "replacement": "    if prior.__class__ is not LaneAllocationFragmentV1:\n"
+        "needle_lines": [
+          "    if type(prior) is not LaneAllocationFragmentV1:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if prior.__class__ is not LaneAllocationFragmentV1:",
+          ""
+        ]
       }
     },
     {
@@ -307,8 +449,14 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_has_no_isinstance_spelling_variants",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if type(prior.enabled) is not bool:\n",
-        "replacement": "    if not issubclass(type(prior.enabled), bool):\n"
+        "needle_lines": [
+          "    if type(prior.enabled) is not bool:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if not issubclass(type(prior.enabled), bool):",
+          ""
+        ]
       }
     },
     {
@@ -316,8 +464,14 @@
       "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_exact_type_gates_are_pinned_positively",
       "mutant": {
         "path": "src/core/global_accounting_allocation_certificate_v1.py",
-        "needle": "        if slot is not None and type(slot) is not VerifiedLaneAllocationFragmentV1:\n",
-        "replacement": "        if slot is not None and not isinstance(slot, VerifiedLaneAllocationFragmentV1):\n"
+        "needle_lines": [
+          "        if slot is not None and type(slot) is not VerifiedLaneAllocationFragmentV1:",
+          ""
+        ],
+        "replacement_lines": [
+          "        if slot is not None and not isinstance(slot, VerifiedLaneAllocationFragmentV1):",
+          ""
+        ]
       }
     }
   ],

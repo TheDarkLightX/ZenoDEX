@@ -25,7 +25,7 @@
     },
     {
       "path": "tools/test_hygiene_evidence_v1.py",
-      "sha256": "3700849a30a63b254c05829d6ae9d08248057319e679c5cdd6aa0dea4dcbc920"
+      "sha256": "b63cc10996b30c5b711b45f83d9fe348da7f4b67354e5cbbf19452c5cb9825a1"
     },
     {
       "path": "tools/check_test_hygiene_v1.py",
@@ -40,7 +40,7 @@
   "test_pins": [
     {
       "path": "tests/test_thv1_mutation_ledger_v1.py",
-      "sha256": "3912c38bbf516c95bb95371d0584d3a6851cd2a99da94b881173a9e7806e25a1",
+      "sha256": "af3d620ba8f29b96e23932164f10f8f479253dcb7f0c612a8d06712c99d90b87",
       "node_ids": [
         "tests/test_thv1_mutation_ledger_v1.py::test_needle_must_occur_exactly_once",
         "tests/test_thv1_mutation_ledger_v1.py::test_killer_forms_are_classified_and_malformed_ones_refused",
@@ -132,8 +132,16 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_surviving_killer_fails_the_row_and_the_exit_code",
       "mutant": {
         "path": "tools/thv1_mutation_ledger_v1.py",
-        "needle": "    if result.exit_code == 0:\n        return VERDICT_SURVIVED\n",
-        "replacement": "    if result.exit_code == 0:\n        return VERDICT_KILLED\n"
+        "needle_lines": [
+          "    if result.exit_code == 0:",
+          "        return VERDICT_SURVIVED",
+          ""
+        ],
+        "replacement_lines": [
+          "    if result.exit_code == 0:",
+          "        return VERDICT_KILLED",
+          ""
+        ]
       }
     },
     {
@@ -141,8 +149,14 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_needle_must_occur_exactly_once",
       "mutant": {
         "path": "tools/thv1_mutation_ledger_v1.py",
-        "needle": "    if count != 1:\n",
-        "replacement": "    if count < 1:\n"
+        "needle_lines": [
+          "    if count != 1:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if count < 1:",
+          ""
+        ]
       }
     },
     {
@@ -150,8 +164,14 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_narrative_rows_are_not_counted",
       "mutant": {
         "path": "tools/thv1_mutation_ledger_v1.py",
-        "needle": "        \"mechanical\": len(ordered) - narrative - legacy,\n",
-        "replacement": "        \"mechanical\": len(ordered) - legacy,\n"
+        "needle_lines": [
+          "        \"mechanical\": len(ordered) - narrative - legacy,",
+          ""
+        ],
+        "replacement_lines": [
+          "        \"mechanical\": len(ordered) - legacy,",
+          ""
+        ]
       }
     },
     {
@@ -159,8 +179,14 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_report_shape_is_stable_sorted_and_counts_only_mechanical_rows",
       "mutant": {
         "path": "tools/thv1_mutation_ledger_v1.py",
-        "needle": "    return 0 if report[\"survived\"] == 0 and report[\"errors\"] == 0 else 1\n",
-        "replacement": "    return 0 if report[\"errors\"] == 0 else 1\n"
+        "needle_lines": [
+          "    return 0 if report[\"survived\"] == 0 and report[\"errors\"] == 0 else 1",
+          ""
+        ],
+        "replacement_lines": [
+          "    return 0 if report[\"errors\"] == 0 else 1",
+          ""
+        ]
       }
     },
     {
@@ -168,8 +194,14 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_report_shape_is_stable_sorted_and_counts_only_mechanical_rows",
       "mutant": {
         "path": "tools/thv1_mutation_ledger_v1.py",
-        "needle": "    return 0 if report[\"survived\"] == 0 and report[\"errors\"] == 0 else 1\n",
-        "replacement": "    return 0 if report[\"survived\"] == 0 else 1\n"
+        "needle_lines": [
+          "    return 0 if report[\"survived\"] == 0 and report[\"errors\"] == 0 else 1",
+          ""
+        ],
+        "replacement_lines": [
+          "    return 0 if report[\"survived\"] == 0 else 1",
+          ""
+        ]
       }
     },
     {
@@ -177,8 +209,14 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_pytest_verdicts_require_a_failing_test_run",
       "mutant": {
         "path": "tools/thv1_mutation_ledger_v1.py",
-        "needle": "    if result.exit_code != 0:\n        return f\"control run exited {result.exit_code}\"\n",
-        "replacement": ""
+        "needle_lines": [
+          "    if result.exit_code != 0:",
+          "        return f\"control run exited {result.exit_code}\"",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -186,8 +224,14 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_control_failure_pin_drift_and_needle_count_are_errors",
       "mutant": {
         "path": "tools/thv1_mutation_ledger_v1.py",
-        "needle": "        for path in (mutant.path, killer.test_path):\n",
-        "replacement": "        for path in ():\n"
+        "needle_lines": [
+          "        for path in (mutant.path, killer.test_path):",
+          ""
+        ],
+        "replacement_lines": [
+          "        for path in ():",
+          ""
+        ]
       }
     },
     {
@@ -195,8 +239,14 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_cargo_verdicts_read_the_test_summary",
       "mutant": {
         "path": "tools/thv1_mutation_ledger_v1.py",
-        "needle": "        return VERDICT_KILLED if failed else VERDICT_UNVIABLE\n",
-        "replacement": "        return VERDICT_KILLED\n"
+        "needle_lines": [
+          "        return VERDICT_KILLED if failed else VERDICT_UNVIABLE",
+          ""
+        ],
+        "replacement_lines": [
+          "        return VERDICT_KILLED",
+          ""
+        ]
       }
     },
     {
@@ -204,8 +254,14 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_pytest_verdicts_require_a_failing_test_run",
       "mutant": {
         "path": "tools/thv1_mutation_ledger_v1.py",
-        "needle": "    return VERDICT_KILLED if result.exit_code == _PYTEST_TESTS_FAILED_EXIT else VERDICT_UNVIABLE\n",
-        "replacement": "    return VERDICT_KILLED\n"
+        "needle_lines": [
+          "    return VERDICT_KILLED if result.exit_code == _PYTEST_TESTS_FAILED_EXIT else VERDICT_UNVIABLE",
+          ""
+        ],
+        "replacement_lines": [
+          "    return VERDICT_KILLED",
+          ""
+        ]
       }
     },
     {
@@ -213,8 +269,14 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_string_only_rows_are_refused_from_the_cutover",
       "mutant": {
         "path": "tools/test_hygiene_evidence_v1.py",
-        "needle": "MECHANICAL_MUTATION_ROWS_FROM = \"20260903\"\n",
-        "replacement": "MECHANICAL_MUTATION_ROWS_FROM = \"20260904\"\n"
+        "needle_lines": [
+          "MECHANICAL_MUTATION_ROWS_FROM = \"20260903\"",
+          ""
+        ],
+        "replacement_lines": [
+          "MECHANICAL_MUTATION_ROWS_FROM = \"20260904\"",
+          ""
+        ]
       }
     },
     {
@@ -222,8 +284,13 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_mechanical_row_requires_a_pinned_source_path_and_a_closed_mutant",
       "mutant": {
         "path": "tools/test_hygiene_evidence_v1.py",
-        "needle": "    require(path in source_pin_paths, f\"{context}.path: mutant path is not a pinned source path\")\n",
-        "replacement": ""
+        "needle_lines": [
+          "    require(path in source_pin_paths, f\"{context}.path: mutant path is not a pinned source path\")",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -231,8 +298,13 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_row_shape_is_mechanical_or_narrative_and_nothing_else",
       "mutant": {
         "path": "tools/test_hygiene_evidence_v1.py",
-        "needle": "            require(row[\"narrative\"] is True, f\"{item_context}.narrative: must be true\")\n",
-        "replacement": ""
+        "needle_lines": [
+          "            require(row[\"narrative\"] is True, f\"{item_context}.narrative: must be true\")",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -240,8 +312,14 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_cargo_killer_requires_a_pinned_rust_test_path",
       "mutant": {
         "path": "tools/test_hygiene_evidence_v1.py",
-        "needle": "            and path in rust_test_paths\n",
-        "replacement": "            and path.endswith(\".rs\")\n"
+        "needle_lines": [
+          "            and path in rust_test_paths",
+          ""
+        ],
+        "replacement_lines": [
+          "            and path.endswith(\".rs\")",
+          ""
+        ]
       }
     },
     {
@@ -249,8 +327,17 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_checker_counts_rows_and_checks_needles_on_current_pins",
       "mutant": {
         "path": "tools/check_test_hygiene_v1.py",
-        "needle": "            require(\n                occurrences == 1,\n                f\"{packet.evidence_id}: mutant needle occurs {occurrences} times in\"\n                f\" {row.mutant.path}; a mechanical row needs exactly one\",\n            )\n",
-        "replacement": ""
+        "needle_lines": [
+          "            require(",
+          "                occurrences == 1,",
+          "                f\"{packet.evidence_id}: mutant needle occurs {occurrences} times in\"",
+          "                f\" {row.mutant.path}; a mechanical row needs exactly one\",",
+          "            )",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -258,8 +345,15 @@
       "killed_by": "tests/test_thv1_mutation_ledger_v1.py::test_added_packet_with_string_only_rows_is_refused_in_diff_mode",
       "mutant": {
         "path": "tools/check_test_hygiene_v1.py",
-        "needle": "        if change.status != \"A\" or not change.path.startswith(evidence_prefix):\n            continue\n",
-        "replacement": "        continue\n"
+        "needle_lines": [
+          "        if change.status != \"A\" or not change.path.startswith(evidence_prefix):",
+          "            continue",
+          ""
+        ],
+        "replacement_lines": [
+          "        continue",
+          ""
+        ]
       }
     }
   ],

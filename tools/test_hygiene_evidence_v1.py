@@ -2,12 +2,16 @@
 
 Mutation rows (``mutations[]``) come in three shapes:
 
-- MECHANICAL: ``{description, killed_by, mutant: {path, needle, replacement}}``.
-  ``path`` is one of the packet's ``source_pins``; ``needle`` must occur exactly once
-  in that file (checked by ``tools/check_test_hygiene_v1.py`` while the pin is current
-  and by ``tools/thv1_mutation_ledger_v1.py`` before it mutates); ``killed_by`` is a
-  pinned pytest node or ``<pinned crate>/tests/<target>.rs::<filter>`` for a cargo
-  test. The ledger executes the row: the killer must fail on the mutated copy.
+- MECHANICAL: ``{description, killed_by, mutant: {path, needle_lines, replacement_lines}}``.
+  ``path`` is one of the packet's ``source_pins``; the needle (``needle_lines`` joined
+  with a newline) must occur exactly once in that file (checked by
+  ``tools/check_test_hygiene_v1.py`` while the pin is current and by
+  ``tools/thv1_mutation_ledger_v1.py`` before it mutates); ``killed_by`` is a pinned
+  pytest node or ``<pinned crate>/tests/<target>.rs::<filter>`` for a cargo test. The
+  ledger executes the row: the killer must fail on the mutated copy. Mutant text is
+  carried as lines rather than one string because the only packet encoding the O-008
+  checker admits is printable ASCII (``PACKET_NON_ASCII``), so a literal newline in a
+  packet string is inadmissible; see ``_mutant_text``.
 - NARRATIVE: ``{description, killed_by, narrative: true}``. Declared but not executable
   (the description says why); never counted as killed.
 - LEGACY: ``{description, killed_by}``. The pre-ledger string claim. Accepted only for
@@ -48,6 +52,8 @@ _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _EVIDENCE_ID_RE = re.compile(r"THV1-[0-9]{8}-[a-z0-9][a-z0-9-]*")
 _HYGIENE_LINEAGE_RE = re.compile(r"^(.*?)(?:-v([0-9]+))?(\.json)?$")
 _HYGIENE_DATE_PREFIX_RE = re.compile(r"^THV1-[0-9]{8}-")
+# The one packet encoding the O-008 checker admits: printable ASCII, no control characters.
+_PRINTABLE_ASCII_RE = re.compile(r"[\x20-\x7e]*")
 
 # Evidence-id date (THV1-YYYYMMDD-...) from which string-only mutation rows are refused.
 MECHANICAL_MUTATION_ROWS_FROM = "20260903"
@@ -55,7 +61,7 @@ MUTATION_ROW_KINDS = ("mechanical", "narrative", "legacy")
 _LEGACY_ROW_FIELDS = frozenset({"description", "killed_by"})
 _MECHANICAL_ROW_FIELDS = frozenset({"description", "killed_by", "mutant"})
 _NARRATIVE_ROW_FIELDS = frozenset({"description", "killed_by", "narrative"})
-_MUTANT_FIELDS = frozenset({"path", "needle", "replacement"})
+_MUTANT_FIELDS = frozenset({"path", "needle_lines", "replacement_lines"})
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -255,17 +261,37 @@ def _validate_boundaries(raw: object, *, context: str, required: bool) -> None:
         )
 
 
+def _mutant_text(raw: object, *, context: str) -> str:
+    """Join one mutant's line list into the text the ledger matches and writes.
+
+    Lines are joined with ``"\\n"``, the exact inverse of ``text.split("\\n")``: the
+    trailing empty element of ``["return 0", ""]`` is the trailing newline of
+    ``"return 0\\n"``, so a whole-line mutant round-trips byte for byte. Each line must
+    be printable ASCII, which is what makes the packet admissible at all.
+    """
+
+    require(type(raw) is list, f"{context}: expected a list of lines")
+    lines = cast("list[object]", raw)
+    require(bool(lines), f"{context}: expected at least one line")
+    for index, line in enumerate(lines):
+        require(type(line) is str, f"{context}[{index}]: expected string")
+        require(
+            _PRINTABLE_ASCII_RE.fullmatch(cast(str, line)) is not None,
+            f"{context}[{index}]: expected printable ASCII without control characters",
+        )
+    return "\n".join(cast("list[str]", lines))
+
+
 def _parse_mutant(raw: object, *, context: str, source_pin_paths: frozenset[str]) -> MutantV1:
     mutant = object_value(raw, context=context)
     exact_fields(mutant, _MUTANT_FIELDS, context=context)
     path = portable_path(mutant["path"], context=f"{context}.path")
     require(path in source_pin_paths, f"{context}.path: mutant path is not a pinned source path")
-    needle = mutant["needle"]
-    require(type(needle) is str and needle != "", f"{context}.needle: expected non-empty string")
-    replacement = mutant["replacement"]
-    require(type(replacement) is str, f"{context}.replacement: expected string")
+    needle = _mutant_text(mutant["needle_lines"], context=f"{context}.needle_lines")
+    require(needle != "", f"{context}.needle_lines: expected a non-empty needle")
+    replacement = _mutant_text(mutant["replacement_lines"], context=f"{context}.replacement_lines")
     require(replacement != needle, f"{context}: replacement must differ from needle")
-    return MutantV1(path=path, needle=cast(str, needle), replacement=cast(str, replacement))
+    return MutantV1(path=path, needle=needle, replacement=replacement)
 
 
 def _validate_killer(

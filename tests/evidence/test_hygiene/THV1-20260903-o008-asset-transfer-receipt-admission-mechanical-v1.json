@@ -169,8 +169,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_foreign_accepted_value_is_rejected_at_the_journal_root",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if witness.module_journal_root != journal.journal_root:\n",
-        "replacement": "    if False and witness.module_journal_root != journal.journal_root:\n"
+        "needle_lines": [
+          "    if witness.module_journal_root != journal.journal_root:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if False and witness.module_journal_root != journal.journal_root:",
+          ""
+        ]
       }
     },
     {
@@ -178,8 +184,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_token_is_verifier_only",
       "mutant": {
         "path": "src/core/global_accounting_allocation_certificate_v1.py",
-        "needle": "        if token is not _VERIFIED_FRAGMENT_TOKEN:\n            raise TypeError(\"VerifiedLaneAllocationFragmentV1 is verifier-constructed\")\n",
-        "replacement": ""
+        "needle_lines": [
+          "        if token is not _VERIFIED_FRAGMENT_TOKEN:",
+          "            raise TypeError(\"VerifiedLaneAllocationFragmentV1 is verifier-constructed\")",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -187,8 +199,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_admission_requires_the_module_witness_type",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if type(witness) is not VerifiedLaneModuleTransitionV1:\n        raise TypeError(\"fragment admission requires the module receipt witness\")\n",
-        "replacement": ""
+        "needle_lines": [
+          "    if type(witness) is not VerifiedLaneModuleTransitionV1:",
+          "        raise TypeError(\"fragment admission requires the module receipt witness\")",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -196,8 +214,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_private_port_with_a_spoofed_root_is_refused_at_construction",
       "mutant": {
         "path": "src/core/asset_transfer_lane_module_v1.py",
-        "needle": "        if type(self.private_port) is not AssetLanePrivatePortV1:\n",
-        "replacement": "        if not isinstance(self.private_port, AssetLanePrivatePortV1):\n"
+        "needle_lines": [
+          "        if type(self.private_port) is not AssetLanePrivatePortV1:",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.private_port, AssetLanePrivatePortV1):",
+          ""
+        ]
       }
     },
     {
@@ -205,8 +229,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_planted_subclass_port_is_refused_by_the_admission_snapshot",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    owned = _snapshot_asset_transfer_lane_module_accepted_v1(accepted)\n",
-        "replacement": "    owned = accepted\n"
+        "needle_lines": [
+          "    owned = _snapshot_asset_transfer_lane_module_accepted_v1(accepted)",
+          ""
+        ],
+        "replacement_lines": [
+          "    owned = accepted",
+          ""
+        ]
       }
     },
     {
@@ -214,8 +244,16 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_projection_is_refused_by_the_port_gate",
       "mutant": {
         "path": "src/core/asset_lane_projection_v1.py",
-        "needle": "        if type(self.post_state) is not AssetLaneStateProjectionV1:\n            raise TypeError(\"asset lane port post-state must be the exact typed value\")\n",
-        "replacement": "        if not isinstance(self.post_state, AssetLaneStateProjectionV1):\n            raise TypeError(\"asset lane port post-state must be the exact typed value\")\n"
+        "needle_lines": [
+          "        if type(self.post_state) is not AssetLaneStateProjectionV1:",
+          "            raise TypeError(\"asset lane port post-state must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.post_state, AssetLaneStateProjectionV1):",
+          "            raise TypeError(\"asset lane port post-state must be the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -223,8 +261,16 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_subclassed_journal_with_a_spoofed_journal_root_is_refused",
       "mutant": {
         "path": "src/core/asset_transfer_types_v1.py",
-        "needle": "        if type(self.module_journal) is not LaneModuleTransitionJournalV1:\n            raise TypeError(\"asset transfer accepted journal must be the exact typed value\")\n",
-        "replacement": "        if not isinstance(self.module_journal, LaneModuleTransitionJournalV1):\n            raise TypeError(\"asset transfer accepted journal must be the exact typed value\")\n"
+        "needle_lines": [
+          "        if type(self.module_journal) is not LaneModuleTransitionJournalV1:",
+          "            raise TypeError(\"asset transfer accepted journal must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.module_journal, LaneModuleTransitionJournalV1):",
+          "            raise TypeError(\"asset transfer accepted journal must be the exact typed value\")",
+          ""
+        ]
       }
     },
     {
@@ -232,8 +278,19 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_validation_bypassed_accepted_is_refused_by_the_snapshot",
       "mutant": {
         "path": "src/core/asset_transfer_lane_module_v1.py",
-        "needle": "        if self.module_journal.receipt_root != _receipt_root(\n            self.statement_root,\n            self.module_journal,\n            self.private_port,\n            self.effects,\n        ):\n            raise ValueError(\"asset transfer lane module receipt root mismatch\")\n",
-        "replacement": ""
+        "needle_lines": [
+          "        if self.module_journal.receipt_root != _receipt_root(",
+          "            self.statement_root,",
+          "            self.module_journal,",
+          "            self.private_port,",
+          "            self.effects,",
+          "        ):",
+          "            raise ValueError(\"asset transfer lane module receipt root mismatch\")",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -241,8 +298,19 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_defensive_witness_checks_have_forgery_witnesses",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if witness.receipt_kind is not ReceiptKindV1.SUCCINCT:\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_KIND_DRIFT,\n            lane_root.lane_id,\n            committed,\n            \"witness kind\",\n        )\n",
-        "replacement": ""
+        "needle_lines": [
+          "    if witness.receipt_kind is not ReceiptKindV1.SUCCINCT:",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_KIND_DRIFT,",
+          "            lane_root.lane_id,",
+          "            committed,",
+          "            \"witness kind\",",
+          "        )",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -250,8 +318,19 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_defensive_witness_checks_have_forgery_witnesses",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if witness.statement_root != owned.statement_root:\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_STATEMENT_ROOT_DRIFT,\n            lane_root.lane_id,\n            committed,\n            \"statement root\",\n        )\n",
-        "replacement": ""
+        "needle_lines": [
+          "    if witness.statement_root != owned.statement_root:",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_STATEMENT_ROOT_DRIFT,",
+          "            lane_root.lane_id,",
+          "            committed,",
+          "            \"statement root\",",
+          "        )",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -259,8 +338,19 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_defensive_witness_checks_have_forgery_witnesses",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if witness.command_occurrence_id != journal.command_occurrence_id:\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_OCCURRENCE_DRIFT,\n            lane_root.lane_id,\n            committed,\n            \"command occurrence\",\n        )\n",
-        "replacement": ""
+        "needle_lines": [
+          "    if witness.command_occurrence_id != journal.command_occurrence_id:",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_OCCURRENCE_DRIFT,",
+          "            lane_root.lane_id,",
+          "            committed,",
+          "            \"command occurrence\",",
+          "        )",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -268,8 +358,40 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_defensive_witness_checks_have_forgery_witnesses",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if witness.statement_root != owned.statement_root:\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_STATEMENT_ROOT_DRIFT,\n            lane_root.lane_id,\n            committed,\n            \"statement root\",\n        )\n    if witness.command_occurrence_id != journal.command_occurrence_id:\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_OCCURRENCE_DRIFT,\n            lane_root.lane_id,\n            committed,\n            \"command occurrence\",\n        )\n",
-        "replacement": "    if witness.command_occurrence_id != journal.command_occurrence_id:\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_STATEMENT_ROOT_DRIFT,\n            lane_root.lane_id,\n            committed,\n            \"statement root\",\n        )\n    if witness.statement_root != owned.statement_root:\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_OCCURRENCE_DRIFT,\n            lane_root.lane_id,\n            committed,\n            \"command occurrence\",\n        )\n"
+        "needle_lines": [
+          "    if witness.statement_root != owned.statement_root:",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_STATEMENT_ROOT_DRIFT,",
+          "            lane_root.lane_id,",
+          "            committed,",
+          "            \"statement root\",",
+          "        )",
+          "    if witness.command_occurrence_id != journal.command_occurrence_id:",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_OCCURRENCE_DRIFT,",
+          "            lane_root.lane_id,",
+          "            committed,",
+          "            \"command occurrence\",",
+          "        )",
+          ""
+        ],
+        "replacement_lines": [
+          "    if witness.command_occurrence_id != journal.command_occurrence_id:",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_STATEMENT_ROOT_DRIFT,",
+          "            lane_root.lane_id,",
+          "            committed,",
+          "            \"statement root\",",
+          "        )",
+          "    if witness.statement_root != owned.statement_root:",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_OCCURRENCE_DRIFT,",
+          "            lane_root.lane_id,",
+          "            committed,",
+          "            \"command occurrence\",",
+          "        )",
+          ""
+        ]
       }
     },
     {
@@ -277,8 +399,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_and_check_order_match_the_rust_twin",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "            \"journal root\",\n",
-        "replacement": "            \"journal-root\",\n"
+        "needle_lines": [
+          "            \"journal root\",",
+          ""
+        ],
+        "replacement_lines": [
+          "            \"journal-root\",",
+          ""
+        ]
       }
     },
     {
@@ -286,8 +414,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_and_check_order_match_the_rust_twin",
       "mutant": {
         "path": "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs",
-        "needle": "            \"journal root\",\n",
-        "replacement": "            \"journal-root\",\n"
+        "needle_lines": [
+          "            \"journal root\",",
+          ""
+        ],
+        "replacement_lines": [
+          "            \"journal-root\",",
+          ""
+        ]
       }
     },
     {
@@ -300,8 +434,96 @@
       "killed_by": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs::receipt_admission_passes_producer_rejects_through_after_the_witness_binds",
       "mutant": {
         "path": "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs",
-        "needle": "    let journal_root = journal.journal_root()?;\n    if witness.receipt_kind() != ReceiptKindV1::SUCCINCT {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_KIND_DRIFT,\n            lane_root,\n            \"witness kind\",\n        )));\n    }\n    if witness.module_journal_root() != &journal_root {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_JOURNAL_ROOT_DRIFT,\n            lane_root,\n            \"journal root\",\n        )));\n    }\n    if witness.statement_root() != &accepted.statement_root {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_STATEMENT_ROOT_DRIFT,\n            lane_root,\n            \"statement root\",\n        )));\n    }\n    if witness.command_occurrence_id() != &journal.command_occurrence_id {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_OCCURRENCE_DRIFT,\n            lane_root,\n            \"command occurrence\",\n        )));\n    }\n    let produced = match produce_asset_transfer_fragment_v1(\n        accepted,\n        lane_root,\n        prior_fragment,\n        claimant_entitlements,\n    ) {\n        Ok(fragment) => fragment,\n        Err(rejected) => {\n            return Ok(Err(AssetTransferFragmentAdmissionRejectedV1::Producer(\n                rejected,\n            )))\n        }\n    };\n",
-        "replacement": "    let journal_root = journal.journal_root()?;\n    let produced = match produce_asset_transfer_fragment_v1(\n        accepted,\n        lane_root,\n        prior_fragment,\n        claimant_entitlements,\n    ) {\n        Ok(fragment) => fragment,\n        Err(rejected) => {\n            return Ok(Err(AssetTransferFragmentAdmissionRejectedV1::Producer(\n                rejected,\n            )))\n        }\n    };\n    if witness.receipt_kind() != ReceiptKindV1::SUCCINCT {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_KIND_DRIFT,\n            lane_root,\n            \"witness kind\",\n        )));\n    }\n    if witness.module_journal_root() != &journal_root {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_JOURNAL_ROOT_DRIFT,\n            lane_root,\n            \"journal root\",\n        )));\n    }\n    if witness.statement_root() != &accepted.statement_root {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_STATEMENT_ROOT_DRIFT,\n            lane_root,\n            \"statement root\",\n        )));\n    }\n    if witness.command_occurrence_id() != &journal.command_occurrence_id {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_OCCURRENCE_DRIFT,\n            lane_root,\n            \"command occurrence\",\n        )));\n    }\n"
+        "needle_lines": [
+          "    let journal_root = journal.journal_root()?;",
+          "    if witness.receipt_kind() != ReceiptKindV1::SUCCINCT {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_KIND_DRIFT,",
+          "            lane_root,",
+          "            \"witness kind\",",
+          "        )));",
+          "    }",
+          "    if witness.module_journal_root() != &journal_root {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_JOURNAL_ROOT_DRIFT,",
+          "            lane_root,",
+          "            \"journal root\",",
+          "        )));",
+          "    }",
+          "    if witness.statement_root() != &accepted.statement_root {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_STATEMENT_ROOT_DRIFT,",
+          "            lane_root,",
+          "            \"statement root\",",
+          "        )));",
+          "    }",
+          "    if witness.command_occurrence_id() != &journal.command_occurrence_id {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_OCCURRENCE_DRIFT,",
+          "            lane_root,",
+          "            \"command occurrence\",",
+          "        )));",
+          "    }",
+          "    let produced = match produce_asset_transfer_fragment_v1(",
+          "        accepted,",
+          "        lane_root,",
+          "        prior_fragment,",
+          "        claimant_entitlements,",
+          "    ) {",
+          "        Ok(fragment) => fragment,",
+          "        Err(rejected) => {",
+          "            return Ok(Err(AssetTransferFragmentAdmissionRejectedV1::Producer(",
+          "                rejected,",
+          "            )))",
+          "        }",
+          "    };",
+          ""
+        ],
+        "replacement_lines": [
+          "    let journal_root = journal.journal_root()?;",
+          "    let produced = match produce_asset_transfer_fragment_v1(",
+          "        accepted,",
+          "        lane_root,",
+          "        prior_fragment,",
+          "        claimant_entitlements,",
+          "    ) {",
+          "        Ok(fragment) => fragment,",
+          "        Err(rejected) => {",
+          "            return Ok(Err(AssetTransferFragmentAdmissionRejectedV1::Producer(",
+          "                rejected,",
+          "            )))",
+          "        }",
+          "    };",
+          "    if witness.receipt_kind() != ReceiptKindV1::SUCCINCT {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_KIND_DRIFT,",
+          "            lane_root,",
+          "            \"witness kind\",",
+          "        )));",
+          "    }",
+          "    if witness.module_journal_root() != &journal_root {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_JOURNAL_ROOT_DRIFT,",
+          "            lane_root,",
+          "            \"journal root\",",
+          "        )));",
+          "    }",
+          "    if witness.statement_root() != &accepted.statement_root {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_STATEMENT_ROOT_DRIFT,",
+          "            lane_root,",
+          "            \"statement root\",",
+          "        )));",
+          "    }",
+          "    if witness.command_occurrence_id() != &journal.command_occurrence_id {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_OCCURRENCE_DRIFT,",
+          "            lane_root,",
+          "            \"command occurrence\",",
+          "        )));",
+          "    }",
+          ""
+        ]
       }
     },
     {
@@ -309,8 +531,40 @@
       "killed_by": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs::receipt_admission_rejects_a_witness_minted_for_another_occurrence",
       "mutant": {
         "path": "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs",
-        "needle": "    if witness.receipt_kind() != ReceiptKindV1::SUCCINCT {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_KIND_DRIFT,\n            lane_root,\n            \"witness kind\",\n        )));\n    }\n    if witness.module_journal_root() != &journal_root {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_JOURNAL_ROOT_DRIFT,\n            lane_root,\n            \"journal root\",\n        )));\n    }\n",
-        "replacement": "    if witness.module_journal_root() != &journal_root {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_KIND_DRIFT,\n            lane_root,\n            \"witness kind\",\n        )));\n    }\n    if witness.receipt_kind() != ReceiptKindV1::SUCCINCT {\n        return Ok(Err(reject_witness(\n            ReceiptWitnessRejectCodeV1::WITNESS_JOURNAL_ROOT_DRIFT,\n            lane_root,\n            \"journal root\",\n        )));\n    }\n"
+        "needle_lines": [
+          "    if witness.receipt_kind() != ReceiptKindV1::SUCCINCT {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_KIND_DRIFT,",
+          "            lane_root,",
+          "            \"witness kind\",",
+          "        )));",
+          "    }",
+          "    if witness.module_journal_root() != &journal_root {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_JOURNAL_ROOT_DRIFT,",
+          "            lane_root,",
+          "            \"journal root\",",
+          "        )));",
+          "    }",
+          ""
+        ],
+        "replacement_lines": [
+          "    if witness.module_journal_root() != &journal_root {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_KIND_DRIFT,",
+          "            lane_root,",
+          "            \"witness kind\",",
+          "        )));",
+          "    }",
+          "    if witness.receipt_kind() != ReceiptKindV1::SUCCINCT {",
+          "        return Ok(Err(reject_witness(",
+          "            ReceiptWitnessRejectCodeV1::WITNESS_JOURNAL_ROOT_DRIFT,",
+          "            lane_root,",
+          "            \"journal root\",",
+          "        )));",
+          "    }",
+          ""
+        ]
       }
     },
     {
@@ -318,8 +572,19 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_binding_root_drift_is_producer_drift_protection",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if produced.binding_root != journal.receipt_root:\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_BINDING_ROOT_DRIFT,\n            lane_root.lane_id,\n            committed,\n            \"binding root\",\n        )\n",
-        "replacement": ""
+        "needle_lines": [
+          "    if produced.binding_root != journal.receipt_root:",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_BINDING_ROOT_DRIFT,",
+          "            lane_root.lane_id,",
+          "            committed,",
+          "            \"binding root\",",
+          "        )",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -327,8 +592,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_admitted_controlled_rows_are_the_receipt_proved_custody_rows",
       "mutant": {
         "path": "src/core/global_accounting_lane_producers_v1.py",
-        "needle": "                ControlledLocationRowV1(row.asset, row.owner, row.custody_domain, row.amount_atoms)\n",
-        "replacement": "                ControlledLocationRowV1(row.asset, \"attacker\", row.custody_domain, row.amount_atoms)\n"
+        "needle_lines": [
+          "                ControlledLocationRowV1(row.asset, row.owner, row.custody_domain, row.amount_atoms)",
+          ""
+        ],
+        "replacement_lines": [
+          "                ControlledLocationRowV1(row.asset, \"attacker\", row.custody_domain, row.amount_atoms)",
+          ""
+        ]
       }
     },
     {
@@ -336,8 +607,21 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_producer_rejects_pass_through_unchanged",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if isinstance(produced, ReceiptBackedProducerRejectedV1):\n        return produced\n",
-        "replacement": "    if isinstance(produced, ReceiptBackedProducerRejectedV1):\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_BINDING_ROOT_DRIFT,\n            lane_root.lane_id,\n            committed,\n            \"producer reject\",\n        )\n"
+        "needle_lines": [
+          "    if isinstance(produced, ReceiptBackedProducerRejectedV1):",
+          "        return produced",
+          ""
+        ],
+        "replacement_lines": [
+          "    if isinstance(produced, ReceiptBackedProducerRejectedV1):",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_BINDING_ROOT_DRIFT,",
+          "            lane_root.lane_id,",
+          "            committed,",
+          "            \"producer reject\",",
+          "        )",
+          ""
+        ]
       }
     },
     {
@@ -345,8 +629,16 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_is_closed_and_ordered",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    WITNESS_KIND_DRIFT = \"WITNESS_KIND_DRIFT\"\n    WITNESS_JOURNAL_ROOT_DRIFT = \"WITNESS_JOURNAL_ROOT_DRIFT\"\n",
-        "replacement": "    WITNESS_JOURNAL_ROOT_DRIFT = \"WITNESS_JOURNAL_ROOT_DRIFT\"\n    WITNESS_KIND_DRIFT = \"WITNESS_KIND_DRIFT\"\n"
+        "needle_lines": [
+          "    WITNESS_KIND_DRIFT = \"WITNESS_KIND_DRIFT\"",
+          "    WITNESS_JOURNAL_ROOT_DRIFT = \"WITNESS_JOURNAL_ROOT_DRIFT\"",
+          ""
+        ],
+        "replacement_lines": [
+          "    WITNESS_JOURNAL_ROOT_DRIFT = \"WITNESS_JOURNAL_ROOT_DRIFT\"",
+          "    WITNESS_KIND_DRIFT = \"WITNESS_KIND_DRIFT\"",
+          ""
+        ]
       }
     },
     {
@@ -354,8 +646,19 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_is_a_no_op_value",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    if witness.module_journal_root != journal.journal_root:\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_JOURNAL_ROOT_DRIFT,\n",
-        "replacement": "    if witness.module_journal_root != journal.journal_root:\n        object.__setattr__(witness, \"_fields\", replace(witness._fields, module_journal_root=journal.journal_root))\n        return ReceiptWitnessRejectedV1(\n            ReceiptWitnessRejectCodeV1.WITNESS_JOURNAL_ROOT_DRIFT,\n"
+        "needle_lines": [
+          "    if witness.module_journal_root != journal.journal_root:",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_JOURNAL_ROOT_DRIFT,",
+          ""
+        ],
+        "replacement_lines": [
+          "    if witness.module_journal_root != journal.journal_root:",
+          "        object.__setattr__(witness, \"_fields\", replace(witness._fields, module_journal_root=journal.journal_root))",
+          "        return ReceiptWitnessRejectedV1(",
+          "            ReceiptWitnessRejectCodeV1.WITNESS_JOURNAL_ROOT_DRIFT,",
+          ""
+        ]
       }
     },
     {
@@ -363,8 +666,32 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_claimant_identity_is_not_bound_by_the_receipt_until_c9b",
       "mutant": {
         "path": "src/core/global_accounting_lane_producers_v1.py",
-        "needle": "        key = (row.asset, row.custody_domain)\n        total = controlled.get(key, 0) + row.amount_atoms\n        if total > MAX_ATOMS_U128_V1:\n            return _reject_receipt_backed(\n                ReceiptBackedProducerRejectCodeV1.CONTROLLED_FOLD_OVERFLOW, lane_root.lane_id, committed, \"controlled\"\n            )\n        controlled[key] = total\n    assigned: dict[tuple[str, str], int] = {}\n    for entitlement in claimant_entitlements:\n        key = (entitlement.asset, entitlement.control_domain)\n",
-        "replacement": "        key = (row.asset, row.owner, row.custody_domain)\n        total = controlled.get(key, 0) + row.amount_atoms\n        if total > MAX_ATOMS_U128_V1:\n            return _reject_receipt_backed(\n                ReceiptBackedProducerRejectCodeV1.CONTROLLED_FOLD_OVERFLOW, lane_root.lane_id, committed, \"controlled\"\n            )\n        controlled[key] = total\n    assigned: dict[tuple[str, str], int] = {}\n    for entitlement in claimant_entitlements:\n        key = (entitlement.asset, entitlement.claimant, entitlement.control_domain)\n"
+        "needle_lines": [
+          "        key = (row.asset, row.custody_domain)",
+          "        total = controlled.get(key, 0) + row.amount_atoms",
+          "        if total > MAX_ATOMS_U128_V1:",
+          "            return _reject_receipt_backed(",
+          "                ReceiptBackedProducerRejectCodeV1.CONTROLLED_FOLD_OVERFLOW, lane_root.lane_id, committed, \"controlled\"",
+          "            )",
+          "        controlled[key] = total",
+          "    assigned: dict[tuple[str, str], int] = {}",
+          "    for entitlement in claimant_entitlements:",
+          "        key = (entitlement.asset, entitlement.control_domain)",
+          ""
+        ],
+        "replacement_lines": [
+          "        key = (row.asset, row.owner, row.custody_domain)",
+          "        total = controlled.get(key, 0) + row.amount_atoms",
+          "        if total > MAX_ATOMS_U128_V1:",
+          "            return _reject_receipt_backed(",
+          "                ReceiptBackedProducerRejectCodeV1.CONTROLLED_FOLD_OVERFLOW, lane_root.lane_id, committed, \"controlled\"",
+          "            )",
+          "        controlled[key] = total",
+          "    assigned: dict[tuple[str, str], int] = {}",
+          "    for entitlement in claimant_entitlements:",
+          "        key = (entitlement.asset, entitlement.claimant, entitlement.control_domain)",
+          ""
+        ]
       }
     },
     {
@@ -372,8 +699,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_admitted_witness_exports_the_rebuilt_receipt_root",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "            receipt_root=journal.receipt_root,\n",
-        "replacement": "            receipt_root=witness.module_journal_root,\n"
+        "needle_lines": [
+          "            receipt_root=journal.receipt_root,",
+          ""
+        ],
+        "replacement_lines": [
+          "            receipt_root=witness.module_journal_root,",
+          ""
+        ]
       }
     },
     {
@@ -381,8 +714,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_producer_assigns_binding_root_from_the_journal_receipt_root",
       "mutant": {
         "path": "src/core/global_accounting_lane_producers_v1.py",
-        "needle": "            binding_root=journal.receipt_root,\n",
-        "replacement": "            binding_root=journal.post_lane_root,\n"
+        "needle_lines": [
+          "            binding_root=journal.receipt_root,",
+          ""
+        ],
+        "replacement_lines": [
+          "            binding_root=journal.post_lane_root,",
+          ""
+        ]
       }
     },
     {
@@ -390,8 +729,16 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_tuple_matches_the_enum",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    \"WITNESS_STATEMENT_ROOT_DRIFT\",\n    \"WITNESS_OCCURRENCE_DRIFT\",\n",
-        "replacement": "    \"WITNESS_OCCURRENCE_DRIFT\",\n    \"WITNESS_STATEMENT_ROOT_DRIFT\",\n"
+        "needle_lines": [
+          "    \"WITNESS_STATEMENT_ROOT_DRIFT\",",
+          "    \"WITNESS_OCCURRENCE_DRIFT\",",
+          ""
+        ],
+        "replacement_lines": [
+          "    \"WITNESS_OCCURRENCE_DRIFT\",",
+          "    \"WITNESS_STATEMENT_ROOT_DRIFT\",",
+          ""
+        ]
       }
     },
     {
@@ -399,8 +746,13 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_forged_witness_with_hostile_scalars_is_refused",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    require_verified_lane_module_transition_scalars_v1(witness)\n",
-        "replacement": ""
+        "needle_lines": [
+          "    require_verified_lane_module_transition_scalars_v1(witness)",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -408,8 +760,15 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_planted_entitlement_row_scalar_is_refused",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    claimant_entitlements = _snapshot_dataclass_tuple_v1(\n        claimant_entitlements, ClaimantEntitlementRowV1, \"claimant entitlements\"\n    )\n",
-        "replacement": ""
+        "needle_lines": [
+          "    claimant_entitlements = _snapshot_dataclass_tuple_v1(",
+          "        claimant_entitlements, ClaimantEntitlementRowV1, \"claimant entitlements\"",
+          "    )",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -422,8 +781,13 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_forged_prior_fragment_is_rebuilt_before_the_producer",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "    prior_fragment = _rebuild_prior_fragment_v1(prior_fragment)\n",
-        "replacement": ""
+        "needle_lines": [
+          "    prior_fragment = _rebuild_prior_fragment_v1(prior_fragment)",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
       }
     },
     {
@@ -431,8 +795,16 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_and_check_order_match_the_rust_twin",
       "mutant": {
         "path": "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs",
-        "needle": "        Self::WITNESS_STATEMENT_ROOT_DRIFT,\n        Self::WITNESS_OCCURRENCE_DRIFT,\n",
-        "replacement": "        Self::WITNESS_OCCURRENCE_DRIFT,\n        Self::WITNESS_STATEMENT_ROOT_DRIFT,\n"
+        "needle_lines": [
+          "        Self::WITNESS_STATEMENT_ROOT_DRIFT,",
+          "        Self::WITNESS_OCCURRENCE_DRIFT,",
+          ""
+        ],
+        "replacement_lines": [
+          "        Self::WITNESS_OCCURRENCE_DRIFT,",
+          "        Self::WITNESS_STATEMENT_ROOT_DRIFT,",
+          ""
+        ]
       }
     },
     {
@@ -440,8 +812,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_witness_reject_family_and_check_order_match_the_rust_twin",
       "mutant": {
         "path": "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs",
-        "needle": "            Self::WITNESS_OCCURRENCE_DRIFT => \"WITNESS_OCCURRENCE_DRIFT\",\n",
-        "replacement": "            Self::WITNESS_OCCURRENCE_DRIFT => \"WITNESS_OCCURENCE_DRIFT\",\n"
+        "needle_lines": [
+          "            Self::WITNESS_OCCURRENCE_DRIFT => \"WITNESS_OCCURRENCE_DRIFT\",",
+          ""
+        ],
+        "replacement_lines": [
+          "            Self::WITNESS_OCCURRENCE_DRIFT => \"WITNESS_OCCURENCE_DRIFT\",",
+          ""
+        ]
       }
     },
     {
@@ -449,8 +827,14 @@
       "killed_by": "tests/core/test_asset_transfer_receipt_admission_v1.py::test_minted_witness_exports_the_rebuilt_journal_header",
       "mutant": {
         "path": "src/core/asset_transfer_receipt_admission_v1.py",
-        "needle": "            writer_epoch=journal.writer_epoch,\n",
-        "replacement": "            writer_epoch=journal.writer_epoch + 1,\n"
+        "needle_lines": [
+          "            writer_epoch=journal.writer_epoch,",
+          ""
+        ],
+        "replacement_lines": [
+          "            writer_epoch=journal.writer_epoch + 1,",
+          ""
+        ]
       }
     }
   ],

@@ -83,7 +83,11 @@ def _killed_row() -> dict[str, object]:
     return {
         "description": "drop the negative guard",
         "killed_by": _NEGATIVE_NODE,
-        "mutant": {"path": "pkg/mod.py", "needle": _GUARD_NEEDLE, "replacement": ""},
+        "mutant": {
+            "path": "pkg/mod.py",
+            "needle_lines": _GUARD_NEEDLE.split("\n"),
+            "replacement_lines": [""],
+        },
     }
 
 
@@ -91,7 +95,11 @@ def _surviving_row() -> dict[str, object]:
     return {
         "description": "spell the admission differently",
         "killed_by": _POSITIVE_NODE,
-        "mutant": {"path": "pkg/mod.py", "needle": "    return True\n", "replacement": "    return bool(1)\n"},
+        "mutant": {
+            "path": "pkg/mod.py",
+            "needle_lines": ["    return True", ""],
+            "replacement_lines": ["    return bool(1)", ""],
+        },
     }
 
 
@@ -378,7 +386,7 @@ def test_control_failure_pin_drift_and_needle_count_are_errors(tmp_path: Path) -
     doubled: dict[str, object] = {
         "description": "needle that occurs twice",
         "killed_by": _NEGATIVE_NODE,
-        "mutant": {"path": "pkg/mod.py", "needle": "return", "replacement": "yield"},
+        "mutant": {"path": "pkg/mod.py", "needle_lines": ["return"], "replacement_lines": ["yield"]},
     }
     _commit_packet(repo, _packet(repo, rows=[doubled]))
     _write(repo / f"tests/evidence/test_hygiene/{_PACKET_ID}-drifted.json", json.dumps(drifted) + "\n")
@@ -417,7 +425,11 @@ def test_rust_row_runs_through_cargo(tmp_path: Path, monkeypatch: pytest.MonkeyP
     row: dict[str, object] = {
         "description": "return two from the probe",
         "killed_by": "zk/probe/tests/probe.rs::probe_returns_one",
-        "mutant": {"path": "zk/probe/src/lib.rs", "needle": "    1\n}", "replacement": "    2\n}"},
+        "mutant": {
+            "path": "zk/probe/src/lib.rs",
+            "needle_lines": ["    1", "}"],
+            "replacement_lines": ["    2", "}"],
+        },
     }
     packet = _packet(repo, rows=[row], source_paths=("pkg/mod.py", "zk/probe/src/lib.rs", "zk/probe/tests/probe.rs"))
     _commit_packet(repo, packet)
@@ -453,10 +465,16 @@ def test_mechanical_row_requires_a_pinned_source_path_and_a_closed_mutant(tmp_pa
         _load(tmp_path, _packet(repo, rows=[unpinned]))
 
     for field, value, message in (
-        ("needle", "", "expected non-empty string"),
-        ("needle", 7, "expected non-empty string"),
-        ("replacement", None, "expected string"),
-        ("replacement", _GUARD_NEEDLE, "replacement must differ from needle"),
+        ("needle_lines", [""], "expected a non-empty needle"),
+        ("needle_lines", [], "expected at least one line"),
+        ("needle_lines", 7, "expected a list of lines"),
+        ("needle_lines", ["ok", 7], "expected string"),
+        # A literal control character is what the line format exists to keep out of a
+        # packet: the O-008 checker admits printable ASCII only.
+        ("needle_lines", ["    if value < 0:\n        return False\n"], "printable ASCII"),
+        ("needle_lines", ["\ttab"], "printable ASCII"),
+        ("replacement_lines", None, "expected a list of lines"),
+        ("replacement_lines", _GUARD_NEEDLE.split("\n"), "replacement must differ from needle"),
         ("extra", "x", "unknown fields"),
     ):
         broken = _killed_row()
@@ -500,7 +518,7 @@ def test_cargo_killer_requires_a_pinned_rust_test_path(tmp_path: Path) -> None:
     rust_row: dict[str, object] = {
         "description": "a rust mutant",
         "killed_by": "zk/probe/tests/probe.rs::probe_one",
-        "mutant": {"path": "zk/probe/src/lib.rs", "needle": "1", "replacement": "2"},
+        "mutant": {"path": "zk/probe/src/lib.rs", "needle_lines": ["1"], "replacement_lines": ["2"]},
     }
     pinned = ("pkg/mod.py", "zk/probe/src/lib.rs", "zk/probe/tests/probe.rs")
     _, rows = _load(tmp_path, _packet(repo, rows=[rust_row], source_paths=pinned))
@@ -548,7 +566,7 @@ def test_checker_counts_rows_and_checks_needles_on_current_pins(tmp_path: Path) 
     assert _check(repo)["mutation_rows"] == {"mechanical": 1, "narrative": 1, "legacy": 0, "mechanical_current": 1}
 
     doubled = _killed_row()
-    doubled["mutant"]["needle"] = "return"  # type: ignore[index]
+    doubled["mutant"]["needle_lines"] = ["return"]  # type: ignore[index]
     _write(packet_path, json.dumps(_packet(repo, rows=[doubled])) + "\n")
     with pytest.raises(TestHygieneError, match="mutant needle occurs 2 times in pkg/mod.py"):
         _check(repo)
