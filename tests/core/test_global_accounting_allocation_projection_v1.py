@@ -10,9 +10,11 @@ entitlement exceeding custody) are now refused as UNRECONCILABLE, each with its 
 closed code and a test below.
 
 What is claimed, and tested with rows rather than vacuously:
-1. the projection derives ONE certificate from the state, and where V1 state admits more
-   than one certificate that passes every row, partition and aggregate check it refuses
-   rather than choosing (the AMBIGUOUS codes). Not "more than one ACCEPTED certificate":
+1. the projection derives ONE certificate from the state, and where the state does not pin
+   the row content it refuses rather than choosing (the AMBIGUOUS codes). Not "where more
+   than one row-checked certificate exists": for two sub-cases exactly one did, and those
+   are now derived (a terminal's domains are filtered by the entitlement that must carry
+   the row) or given their own UNSUPPORTED code (opus2 P41 P1-2). Not "more than one ACCEPTED certificate":
    under the current registry none of those states has an accepted certificate at all,
    because the only receipt-backed lane needs a witness whose fragment must equal the
    certificate's. A test exhibits the two row-checked certificates and shows the full
@@ -87,11 +89,14 @@ def _derive_rows(state):
     Under the current registry the only receipt-backed lane's producer emits controlled and
     entitlement rows only, so the entry point refuses a state that puts a reserve, a pending
     obligation or an open terminal on that lane BEFORE this logic runs
-    (PROJECTION_ROWS_BEYOND_PRODUCER). These cases therefore exercise the helpers directly:
-    they are the contract a future producer that can emit such rows would have to satisfy,
-    and they are not reachable through the public entry today. That is stated here rather
-    than hidden behind a lane whose registry entry would make every such state trivially
-    unreconcilable.
+    (PROJECTION_ROWS_BEYOND_PRODUCER). TEN of the twelve row cases are masked that way and
+    exercise the helpers directly: they are the contract a future producer that can emit such
+    rows would have to satisfy. TWO are not masked and reach their own code through the public
+    entry point -- entitlements exceeding custody, and controlled atoms no obligation can
+    absorb -- which is pinned as a partition by
+    test_which_row_cases_the_entry_point_reaches_is_pinned rather than restated here. The
+    earlier wording said none of the twelve was reachable, which was false for those two
+    (Opus P40 P1-2, still standing in this docstring at P41).
     """
 
     controlled = tuple(
@@ -103,7 +108,13 @@ def _derive_rows(state):
     reserves = tuple(
         cert.UnencumberedReserveRowV1(r.asset, r.owner, r.custody_domain, r.amount_atoms) for r in state.reserves
     )
-    lane_root = state.lane_roots[0]
+    # Opus P40 P3-4: this harness stands in for the entry point, so it must select the lane
+    # the way the entry point does -- the ENABLED one -- not lane zero. They agree for every
+    # fixture here, and the case that would expose a difference is precisely the lane-identity
+    # one (an OPEN obligation naming another lane).
+    enabled = [root for root in state.lane_roots if root.enabled]
+    assert len(enabled) <= 1, "the harness stands in for a single-owning-lane entry point"
+    lane_root = enabled[0] if enabled else state.lane_roots[0]
     try:
         external = _external_rows_v1(state, controlled, entitlements, reserves)
         terminals = _terminal_rows_v1(state, lane_root.lane_id, lane_root.state_root, controlled, entitlements)
@@ -112,7 +123,7 @@ def _derive_rows(state):
     return external, terminals
 
 
-def _state_consistent_candidate(state, *, source_principal: str | None = None):
+def _state_consistent_candidate(state, *, source_principal: str | None = None, zero_residual: bool = False):
     """A certificate the state implies, built without the projection.
 
     Every field a fragment can carry is copied from the state, so a checker refusal of
@@ -129,9 +140,15 @@ def _state_consistent_candidate(state, *, source_principal: str | None = None):
     """
 
     base = cert.build_registered_empty_certificate_v1(state)
-    lane_root = state.lane_roots[0]
+    # The same lane selection as the entry point (Opus P40 P3-4), and the fragment slot that
+    # goes with it, so the candidate is built on the lane the state actually enables.
+    enabled = [
+        (index, root) for index, root in enumerate(state.lane_roots) if root.enabled
+    ]
+    assert len(enabled) <= 1, "the candidate builder assumes a single owning lane"
+    slot, lane_root = enabled[0] if enabled else (0, state.lane_roots[0])
     fragment = replace(
-        base.ordered_lane_fragments[0],
+        base.ordered_lane_fragments[slot],
         enabled=lane_root.enabled,
         lane_state_root=lane_root.state_root,
         binding_root=lane_root.state_root,
@@ -209,10 +226,18 @@ def _state_consistent_candidate(state, *, source_principal: str | None = None):
         for row in controlled_rows:
             key = (row.asset, row.control_domain)
             open_cells[key] = open_cells.get(key, 0) + row.amount_atoms
-        open_cells = {k: v - claimed.get(k, 0) for k, v in open_cells.items() if v - claimed.get(k, 0) > 0}
+        residual = {k: v - claimed.get(k, 0) for k, v in open_cells.items()}
         pending = tuple(r for r in state.outbox if r.status is OutboxStatusV1.PENDING)
-        assert len(pending) == 1 and len(open_cells) == 1, (len(pending), open_cells)
-        (asset, control_domain), amount = next(iter(open_cells.items()))
+        if zero_residual:
+            # The single controlled cell, carrying zero atoms: the only row the state admits
+            # when nothing is left over (Opus P41 P2-3).
+            cells = sorted({(row.asset, row.control_domain) for row in controlled_rows})
+            assert len(cells) == 1 and len(pending) == 1, (cells, len(pending))
+            (asset, control_domain), amount = cells[0], 0
+        else:
+            open_cells = {k: v for k, v in residual.items() if v > 0}
+            assert len(pending) == 1 and len(open_cells) == 1, (len(pending), open_cells)
+            (asset, control_domain), amount = next(iter(open_cells.items()))
         assert any(
             (r.asset, r.control_domain, r.controlling_principal) == (asset, control_domain, source_principal)
             for r in controlled_rows
@@ -231,7 +256,11 @@ def _state_consistent_candidate(state, *, source_principal: str | None = None):
                 ),
             ),
         )
-    return renderer._certificate_with_fragments(base, (fragment, *base.ordered_lane_fragments[1:]))
+    fragments = tuple(
+        fragment if index == slot else existing
+        for index, existing in enumerate(base.ordered_lane_fragments)
+    )
+    return renderer._certificate_with_fragments(base, fragments)
 
 
 def _no_certificate_reconciles(state) -> str:
@@ -270,9 +299,14 @@ def _no_certificate_binds(state) -> str:
 
     The lane-binding pass is where the two state-level gates live, and neither depends on
     any field the projection chooses: the candidate copies ``enabled``, ``lane_state_root``
-    and the registered producer kind straight off the state. So a code returned here is the
-    code EVERY certificate over this state receives, which is what justifies the projection
-    refusing instead of deriving.
+    and the registered producer kind straight off the state. So a code returned here under
+    EMPTY witness slots is a code no arrangement of rows can avoid, which is what justifies
+    the projection refusing instead of deriving.
+
+    It is NOT necessarily the code every certificate over the state receives: the witness
+    pass runs between the two gates, so a state that also enables the receipt-backed lane
+    can receive RECEIPT_WITNESS_REQUIRED here while the projection reports the drift code
+    (Opus P41 P2-6). Both refuse; they differ in which obligation they name first.
     """
 
     candidate = _state_consistent_candidate(state)
@@ -464,12 +498,18 @@ def test_a_terminal_with_no_controlling_principal_is_unreconcilable_not_ambiguou
     atoms, surviving inside its repair. It now raises PROJECTION_TERMINAL_WITHOUT_BACKING,
     which the kinds table places in the UNRECONCILABLE kind.
 
-    The branch is DEFENSIVE: it cannot be reached through the entry point or through the
-    row harness, because a state entitling a claimant in a domain it controls nowhere fails
-    the negative-residual check first, and that check runs before the terminal rows. So it
-    is exercised where it lives, by calling the terminal row builder directly with the
-    controlled and entitlement tuples that reach it. That is stated here rather than left
-    for a reviewer to discover.
+    The branch is unreachable through the PUBLIC ENTRY POINT on all twelve lanes: on
+    ASSET_TRANSFER an OPEN terminal is masked by PROJECTION_ROWS_BEYOND_PRODUCER, and on the
+    other eleven by PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER.
+
+    It was reachable through the row harness with a zero-atom entitlement (Opus P41 P2-2,
+    which falsified the sentence that stood here claiming otherwise), and the capacity filter
+    added for opus2 P41 P1-2 closed that route: a domain entitled below the row's amount is
+    no longer a candidate, so that state now reports TERMINAL_EXCEEDS_ENTITLEMENT and keeps
+    its place in _ROW_CASES under that code. Every route this suite can find now refuses
+    earlier, so the branch is exercised by calling the builder directly, which is what this
+    test does. That is a statement about what has been searched, not a proof of
+    unreachability.
     """
 
     state = _backed_state((_terminal("terminal-1", 1),))
@@ -497,6 +537,166 @@ def test_a_terminal_with_no_controlling_principal_is_unreconcilable_not_ambiguou
     assert projected.code is not AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_WITHOUT_BACKING
 
 
+def test_a_witnessed_lane_whose_rows_drift_from_its_receipt_is_refused() -> None:
+    """opus2 P40 P2-7, closed where the caller can close it.
+
+    A minted witness is determined by the committed lane root: the producer folds the
+    custody the receipt admitted. So a state whose ASSET_TRANSFER rows differ from that
+    receipt's has NO accepted certificate -- one extra atom on a custody row is enough --
+    and the projection used to derive one anyway, because V1 state does not carry the
+    receipt's rows and the state alone cannot reveal the difference.
+
+    It can when the caller supplies the witness, which is the same object the checker
+    requires. With the witness the projection refuses; without it the derivation still
+    happens and the checker's witness pass is what refuses -- so the limit is a property of
+    what the caller passes, not a silent carve-out. Both halves are asserted here.
+    """
+
+    witness, state, _certificate, slots = _witnessed(with_rows=True)
+    roots = ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),)
+    drifted = replace(
+        state,
+        custody=tuple(
+            replace(row, amount_atoms=row.amount_atoms + 1) if index == 0 else row
+            for index, row in enumerate(state.custody)
+        ),
+        liabilities=tuple(
+            replace(row, amount_atoms=row.amount_atoms + 1) if index == 0 else row
+            for index, row in enumerate(state.liabilities)
+        ),
+    )
+
+    # Without the witness: derived, and the checker's witness pass is what refuses.
+    derived = project_allocation_certificate_v1(drifted, roots)
+    assert isinstance(derived, cert.GlobalAccountingAllocationCertificateV1), derived
+    outcome = cert.check_global_accounting_allocation_certificate_v1(derived, drifted, slots)
+    assert isinstance(outcome, cert.AllocationCertificateRejectedV1), outcome
+    assert outcome.code is cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_FRAGMENT_DRIFT
+
+    # With the witness: refused before anything is derived from it.
+    refused = project_allocation_certificate_v1(drifted, roots, slots)
+    assert isinstance(refused, AllocationProjectionRejectedV1), refused
+    assert refused.code is AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_FRAGMENT_DRIFT
+    assert refused.detail.startswith(LaneIdV1.ASSET_TRANSFER.value)
+    assert refused.state_root == drifted.state_root
+
+    # And the undrifted state still projects to exactly the witness's fragment, so the new
+    # check refuses drift rather than refusing witnesses.
+    agreed = project_allocation_certificate_v1(state, roots, slots)
+    assert isinstance(agreed, cert.GlobalAccountingAllocationCertificateV1), agreed
+    assert agreed.ordered_lane_fragments[0] == witness.fragment
+
+
+def test_the_witness_slots_are_exactly_typed() -> None:
+    """The witness input takes the checker's own slot shape and nothing else."""
+
+    witness, state, _certificate, slots = _witnessed(with_rows=True)
+    roots = ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),)
+    with pytest.raises(TypeError, match="exact tuple"):
+        project_allocation_certificate_v1(state, roots, list(slots))  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="one slot per lane"):
+        project_allocation_certificate_v1(state, roots, (None,))
+    with pytest.raises(TypeError, match="exact minted witness"):
+        project_allocation_certificate_v1(state, roots, (witness.fragment,) + (None,) * 11)  # type: ignore[arg-type]
+
+
+def test_a_state_level_code_is_not_always_the_checkers_first_code() -> None:
+    """Opus P41 P2-6, pinned as a counterexample rather than restated as a caveat.
+
+    The receipt-witness check runs BETWEEN the two state-level gates, so a state that
+    enables the receipt-backed lane and also drifts a registered-empty root gets
+    RECEIPT_WITNESS_REQUIRED from the checker under empty slots while the projection reports
+    the drift code. The refusal is sound either way -- no arrangement of rows or witnesses
+    makes this state acceptable -- and what this pins is that the two codes may differ, so
+    the docstrings claim ordering only among the two gates.
+    """
+
+    state = _backed_state()
+    foreign = "0x" + "ab" * 32
+    drifted = replace(
+        state,
+        lane_roots=tuple(
+            replace(root, state_root=foreign) if root.lane_id is LaneIdV1.PROOF_REWARDS else root
+            for root in state.lane_roots
+        ),
+    )
+    projected = _project(drifted, _root_of(drifted))
+    assert isinstance(projected, AllocationProjectionRejectedV1)
+    assert projected.code is AllocationProjectionRejectCodeV1.PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT
+    assert _no_certificate_binds(drifted) == "RECEIPT_WITNESS_REQUIRED"
+
+
+def test_a_pending_row_over_no_residual_cell_is_declined_not_called_ambiguous() -> None:
+    """Opus P41 P2-3: this branch reported an ambiguity for a DETERMINED state.
+
+    One controlled cell, fully claimed, one PENDING entry: the residual is empty, so any
+    certificate's external row must carry zero atoms, over the only cell the fragment
+    controls, sourced by the only principal that controls it. Exactly one certificate passes
+    the row checks, which this test exhibits -- so the state is determined and the old
+    ..._AMBIGUOUS code said otherwise. The projection still declines to derive a zero-atom
+    row (no producer has ever emitted one), and now says so with a code in its own kind.
+    """
+
+    state = _backed_state(
+        (),
+        custody=(("pool-a", "USD", "vault", 10),),
+        liabilities=(("alice", "USD", "vault", 10),),
+        outbox=((renderer._root(9_001), "dest-1", renderer._root(9_002), renderer._root(9_003), "PENDING"),),
+    )
+    observed, detail = _derive_rows(state)
+    assert observed is AllocationProjectionRejectCodeV1.PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED
+    assert "no residual cells" in detail
+    assert (
+        AllocationProjectionRejectCodeV1.PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED
+        in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1["unsupported"]
+    )
+
+    # The state is determined: the one candidate the state implies passes every row check.
+    candidate = _state_consistent_candidate(state, source_principal="pool-a", zero_residual=True)
+    for check in (cert._check_exactly_once,):
+        check(candidate)
+    for check in (
+        cert._check_entitlement_rows,
+        cert._check_reserve_rows,
+        cert._check_external_obligations,
+        cert._check_terminal_bindings,
+        cert._check_lane_aggregates,
+    ):
+        check(candidate, state)
+
+
+def test_only_a_domain_that_can_carry_the_amount_is_a_candidate() -> None:
+    """opus2 P41 P1-2 (B): two entitled domains were called an ambiguity when only one could
+    host the row, so a DETERMINED state was reported as undetermined.
+
+    The checker bounds each (asset, claimant, domain) key's terminal total by that key's
+    entitlement, so a domain entitled below the amount cannot carry the row at all. With that
+    filter the state determines the domain and the projection derives it; the reviewer's own
+    state is the fixture. The two-candidate case still refuses, so the filter narrows the
+    ambiguity rather than removing it.
+    """
+
+    determined = _backed_state(
+        (_terminal("terminal-1", 5),),
+        custody=(("pool-a", "USD", "spot-pool", 10), ("pool-b", "USD", "vault", 1)),
+        liabilities=(("alice", "USD", "spot-pool", 10), ("alice", "USD", "vault", 1)),
+    )
+    _external, terminals = _derive_rows(determined)
+    assert len(terminals) == 1
+    assert terminals[0].control_domain == "spot-pool"
+    assert terminals[0].amount_atoms == 5
+
+    # Both domains can carry it: still refused, and still as an ambiguity.
+    ambiguous = _backed_state(
+        (_terminal("terminal-1", 1),),
+        custody=(("pool-a", "USD", "spot-pool", 10), ("pool-b", "USD", "vault", 10)),
+        liabilities=(("alice", "USD", "spot-pool", 10), ("alice", "USD", "vault", 10)),
+    )
+    observed, detail = _derive_rows(ambiguous)
+    assert observed is AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS
+    assert "2 entitlement domains" in detail
+
+
 def test_the_three_refusal_kinds_partition_the_family() -> None:
     """Both P40 reviews, P3-1: the prose split omitted three of its thirteen codes,
     PROJECTION_ROWS_BEYOND_PRODUCER among them -- the guard the candidate was named for.
@@ -504,7 +704,7 @@ def test_the_three_refusal_kinds_partition_the_family() -> None:
     describe a family it does not cover."""
 
     kinds = ALLOCATION_PROJECTION_REFUSAL_KINDS_V1
-    assert set(kinds) == {"caller_input", "undetermined", "unreconcilable"}
+    assert set(kinds) == {"caller_input", "undetermined", "unsupported", "unreconcilable"}
     flat = [code for members in kinds.values() for code in members]
     assert len(flat) == len(set(flat)), "a code appears in two kinds"
     assert set(flat) == set(AllocationProjectionRejectCodeV1), "kinds do not cover the family"
@@ -520,14 +720,20 @@ def test_the_three_refusal_kinds_partition_the_family() -> None:
 
 
 def test_reject_codes_are_closed_and_ordered() -> None:
-    """The reject family is the declaration order of the enum, and every code is asserted by
-    a test in this module: the claim is checked here by scanning this file's own assertions
-    (Opus P39 P3-4 found the sentence stated but not established)."""
+    """The reject family is the declaration order of the enum, and every code is NAMED
+    somewhere in this module.
+
+    Opus P40 P3-6: the previous docstring said "asserted by a test" and "scanning this
+    file's own assertions", which is stronger than what runs. The scan is textual over the
+    whole file, so a code named only in a comment or a docstring would satisfy it. What
+    this establishes is that no code can be added to the family without appearing here at
+    all; that each code has a test which REACHES it is established by the tests above, one
+    per code, not by this scan."""
 
     assert ALLOCATION_PROJECTION_REJECT_CODES_V1 == tuple(
         code.value for code in AllocationProjectionRejectCodeV1
     )
-    assert len(ALLOCATION_PROJECTION_REJECT_CODES_V1) == 16
+    assert len(ALLOCATION_PROJECTION_REJECT_CODES_V1) == 18
     import re as _re
     from pathlib import Path as _Path
 
@@ -651,7 +857,7 @@ _ROW_CASES = [
             "one terminal over-claiming its entitlement",
             {}, (("terminal-1", 99),),
             AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
-            "claims 99 of 10",
+            "99 exceeds every entitled domain",
         ),
         (
             "two terminals over-claiming together",
@@ -746,6 +952,16 @@ _ROW_CASES = [
             (),
             AllocationProjectionRejectCodeV1.PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS,
             "2 principals control USD:spot-pool",
+        ),
+        (
+            "a zero-atom entitlement cannot host a positive claim",
+            {
+                "custody": (("pool-a", "USD", "vault", 10),),
+                "liabilities": (("bob", "USD", "vault", 10), ("alice", "USD", "spot-pool", 0)),
+            },
+            (("terminal-1", 1),),
+            AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
+            "1 exceeds every entitled domain",
         ),
         (
             "an OPEN obligation naming another lane",

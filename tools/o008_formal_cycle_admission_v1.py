@@ -93,8 +93,9 @@ PROJECTION_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_alloc
 # string-only rows had. The expected kill counts are pinned so a row cannot be quietly dropped.
 LEDGER_TOOL_PATH_V1: Final = "tools/thv1_mutation_ledger_v1.py"
 LEDGER_GATED_PACKETS_V1: Final[tuple[tuple[str, str, int], ...]] = (
-    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v4", 24),
-    ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v5", 18),
+    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v5", 29),
+    ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v6", 21),
+    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v38", 3),
     ("ledger_admission_rows", "THV1-20260903-o008-asset-transfer-receipt-admission-mechanical-v3", 31),
     ("ledger_ownership_rows", "THV1-20260903-global-settlement-exact-ownership-mechanical-v3", 21),
     ("ledger_certificate_rows", "THV1-20260901-global-accounting-allocation-certificate-v23", 2),
@@ -556,17 +557,25 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " lane and no exact all-twelve-lane reconciliation exists.",
     "The allocation certificate is DERIVED from the verified state by the C9c projection, which"
     " refuses with a closed code wherever V1 state does not determine a certificate the checker can"
-    " accept. Two kinds of refusal share that family and the packet does not enumerate them: the THV1"
-    " projection packet carries the current list, and the module's own reject enum is the contract."
-    " UNDETERMINED means more than one acceptable certificate exists (a domainless terminal with two"
-    " entitlement domains, two principals controlling a cell, several ways to split a residual across"
-    " pending obligations); UNRECONCILABLE means none exists (entitlements exceeding custody,"
+    " accept. THREE kinds of refusal share that family and the packet does not enumerate them: the"
+    " THV1 projection packet carries the current list, and the module's own reject enum is the"
+    " contract. CALLER INPUT means the supplied binding roots or witness slots do not match the"
+    " enabled receipt-backed lanes. UNDETERMINED means more than one certificate that passes every"
+    " row, partition and aggregate check exists (a domainless terminal with two entitlement domains,"
+    " two principals controlling a cell, several ways to split a residual across pending obligations)"
+    " -- NOT more than one ACCEPTED certificate: under the current registry no accepted certificate"
+    " can carry an external, reserve or terminal row at all, so every state reaching one of those"
+    " codes is also one no accepted certificate exists for, and the distinction is about what the"
+    " STATE determines rather than about what the checker would take (opus2 P40 P1-1, restated in"
+    " this artifact after C9c-4 corrected it everywhere except here -- Opus P41 P1)."
+    " UNRECONCILABLE means none exists (entitlements exceeding custody,"
     " unassignable controlled atoms, an obligation with no controlled location, an over-claiming"
     " terminal, a claimant with no entitlement, a fold that would overflow, rows with no enabled lane,"
     " more than one enabled lane, an enabled lane whose registry entry has no producer, and a"
     " registered-empty lane committed at a foreign root -- the last two being lane-configuration facts"
-    " that no arrangement of rows can repair, refused before the rows are read and in the checker's own"
-    " order). The sealed witness contributes its binding root and its header,"
+    " that no arrangement of rows can repair, refused before the rows are read and, among themselves,"
+    " in the checker's order -- though not necessarily before every other code the checker could raise:"
+    " the receipt-witness check runs between them (Opus P41 P2-6)). The sealed witness contributes its binding root and its header,"
     " not its rows. The projection has no consumer: no publisher, verifier, or client calls it, so it"
     " refuses nothing at runtime, and it verifies no receipt.",
     "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher"
@@ -590,7 +599,15 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " proof replay as NOT_RUN unless the checker executed the recorded tools.",
     "Without proof replay the author record's python and rust versions and the Lean axioms"
     " probe hash are shape-checked only; fresh replay is what compares them.",
-    "Selected test-hygiene packets are bound by pin only; their evidence families and mutation"
+    "The packet binds exactly the test-hygiene packets its hygiene_selection names -- one per"
+    " required pin path, the newest whose pin equals the subject blob -- which is currently seven"
+    " distinct packets out of the repository's total. A THV1 packet a candidate message names but"
+    " the selection does not bind is covered only by the repository-wide sweep"
+    " (tools/check_test_hygiene_v1.py), never by this checker (Opus P40 P2-4). The six"
+    " ledger-gated packets are named by their replay commands and read by the ledger from the"
+    " subject commit, so their bytes are bound by subject_tree rather than by an individual pin,"
+    " and two of the six are not in hygiene_selection (opus2 P40 P3-3)."
+    " Selected test-hygiene packets are bound by pin only; their evidence families and mutation"
     " tables are validated by tools/check_test_hygiene_v1.py, which this checker does not run.",
     "No production, release, settlement, verifier, migration, publication, or value-moving"
     " authority is granted.",
@@ -1149,7 +1166,7 @@ ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
 ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 # C9c-1: the certificate derived from the state, and the two shapes V1 state leaves undetermined.
-PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 79
+PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 87
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 5
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
@@ -4146,9 +4163,11 @@ def _grade_ledger(obs: ReplayObservationV1, expected_killed: int) -> dict[str, o
             _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, str(row.get("description"))[:60])
         if mutation["needle_sha256"] == mutation["replacement_sha256"]:
             _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, "needle equals replacement")
-        for field in ("needle_sha256", "replacement_sha256"):
-            if _SHA256_HEX_RE_V1.fullmatch(mutation[field]) is None:
-                _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, f"{field} is not a sha256")
+        for digest_field in ("needle_sha256", "replacement_sha256"):
+            if _SHA256_HEX_RE_V1.fullmatch(mutation[digest_field]) is None:
+                _reject(
+                    "REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, f"{digest_field} is not a sha256"
+                )
         if not _portable_repo_path_v1(mutation["path"]):
             _reject("REPLAY_LEDGER_ROW_PATH_UNPORTABLE", obs.command_id, mutation["path"][:60])
         identity = (mutation["path"], mutation["needle_sha256"], mutation["replacement_sha256"])

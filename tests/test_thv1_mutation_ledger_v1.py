@@ -245,12 +245,16 @@ def test_killer_forms_are_classified_and_malformed_ones_refused() -> None:
     )
     # opus2 P40 P2-2: a guard whose only honest test is a crate unit test needs a killer form
     # of its own, or it can carry no mechanical row at all.
-    lib = ledger.parse_killer_v1("zk/probe/src/lib.rs::mod::tests::probe_")
+    lib = ledger.parse_killer_v1("zk/probe/src/lib.rs::lib::tests::probe_")
     assert isinstance(lib, ledger.CargoKillerV1) and lib.lib is True
-    assert (lib.crate_dir, lib.filter) == ("zk/probe", "mod::tests::probe_")
+    assert (lib.crate_dir, lib.filter) == ("zk/probe", "lib::tests::probe_")
     assert ledger.cargo_argv_v1(lib) == (
-        "cargo", "test", "--offline", "--locked", "--lib", "--", "mod::tests::probe_",
+        "cargo", "test", "--offline", "--locked", "--lib", "--", "lib::tests::probe_",
     )
+    # Opus P41 P2-4: a --lib filter runs across the whole crate, so without this the declared
+    # path is decorative and the pin check guards a file the test need not live in.
+    with pytest.raises(ledger.LedgerError, match="must start with the declared module"):
+        ledger.parse_killer_v1("zk/probe/src/state.rs::lib::tests::probe_")
     for malformed in ("tests/test_x.py", "tests/test_x.py::", "tests/test x.py::t", "notes.txt::t", "src/lib.rs::t"):
         with pytest.raises(ledger.LedgerError):
             ledger.parse_killer_v1(malformed)

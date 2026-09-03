@@ -1289,6 +1289,45 @@ def test_the_ledger_grader_refuses_a_report_that_names_no_real_mutation(
     assert raised.value.code == code, raised.value
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "code"),
+    [
+        pytest.param("survived", 1, "REPLAY_LEDGER_ROW_NOT_KILLED", id="a-row-survived"),
+        pytest.param("errors", 1, "REPLAY_LEDGER_ROW_NOT_KILLED", id="a-row-errored"),
+        pytest.param("killed", 999, "REPLAY_LEDGER_KILLED_COUNT_DRIFT", id="killed-count-drifts"),
+        pytest.param("mechanical", 999, "REPLAY_LEDGER_KILLED_COUNT_DRIFT", id="mechanical-count-drifts"),
+        pytest.param("killed", "many", "REPLAY_LEDGER_REPORT_UNPARSEABLE", id="a-total-is-not-an-integer"),
+    ],
+)
+def test_the_ledger_grader_refuses_a_report_whose_totals_do_not_hold(
+    packet: dict[str, Any], field: str, value: object, code: str
+) -> None:
+    """opus2 P40 P2-8 asked for these and named survived:1 explicitly; C9c-4 covered three of
+    the six codes and left the three totals codes untested (opus2 P41 P2-5)."""
+
+    expected = core.LEDGER_GATED_PACKETS_V1[0][2]
+    observation = _ledger_observation(_ledger_rows(expected), expected)
+    report = json.loads(observation.stdout.decode("utf-8"))
+    report[field] = value
+    mutated = core.ReplayObservationV1(
+        observation.command_id, 0, json.dumps(report).encode(), b"", False, None
+    )
+    with pytest.raises(core.AdmissionRejectV1) as raised:
+        core._grade_observation(mutated, packet)
+    assert raised.value.code == code, raised.value
+
+
+def test_the_ledger_grader_refuses_stdout_that_is_not_one_json_object(packet: dict[str, Any]) -> None:
+    """The third untested code: a report the checker cannot parse at all."""
+
+    command_id = core.LEDGER_GATED_PACKETS_V1[0][0]
+    for stdout in (b"not json", b"[]", b"\xff\xfe"):
+        observation = core.ReplayObservationV1(command_id, 0, stdout, b"", False, None)
+        with pytest.raises(core.AdmissionRejectV1) as raised:
+            core._grade_observation(observation, packet)
+        assert raised.value.code == "REPLAY_LEDGER_REPORT_UNPARSEABLE", (stdout, raised.value)
+
+
 def test_the_ledger_grader_accepts_the_green_report(packet: dict[str, Any]) -> None:
     """The complement, so the four refusals above are not vacuous."""
 

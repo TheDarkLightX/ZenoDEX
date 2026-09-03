@@ -176,6 +176,17 @@ def parse_killer_v1(killed_by: str) -> KillerV1:
         # private, and no accepted certificate can reach it from an integration test
         # (opus2 P40 P2-2/P2-3). Without this form such a guard could carry no mechanical
         # row at all, which is how one shipped with a test that never called it.
+        #
+        # Unlike the integration form, where the path selects the cargo --test target, a
+        # --lib filter runs across the whole crate, so the declared path would otherwise be
+        # decorative: two different pinned crate sources produce byte-identical commands and
+        # the pin check then guards the wrong file (Opus P41 P2-4). The filter must therefore
+        # start with the declared file's own module segment.
+        module = Path(path).stem
+        if not rest.startswith(f"{module}::"):
+            raise LedgerError(
+                f"crate unit-test filter must start with the declared module {module}::: {killed_by!r}"
+            )
         return CargoKillerV1(path, rest, lib=True)
     raise LedgerError(f"unsupported killer form: {killed_by!r}")
 
