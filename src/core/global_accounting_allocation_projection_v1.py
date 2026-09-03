@@ -1,4 +1,4 @@
-"""Projection of the allocation certificate from a verified global economic state (C9c-3).
+"""Projection of the allocation certificate from a verified global economic state (C9c-4).
 
 ``project_allocation_certificate_v1`` derives one certificate for one exact
 ``GlobalEconomicStateV1`` by inverting the checker's own expectations: the controlled
@@ -15,24 +15,37 @@ WHAT IS CLAIMED, and what three reviews have already falsified in earlier wordin
 
 1. The projection derives ONE certificate, and where V1 state leaves the answer open it
    refuses rather than guessing (the ``..._AMBIGUOUS`` codes). It does NOT follow that
-   a derived certificate is the only acceptable one. The checker binds a pending row's
-   source principal, and a terminal row's controlling principal, to SOME controlled
-   location of the same fragment rather than to a determined one, so a cell controlled
-   by two principals still admits two accepted certificates with different allocation
-   roots. The projection refuses such a state; the checker would take either. The
-   earlier form of this paragraph said the certificate was a function of the state
-   except one scalar per witnessed lane, and that was false twice over: the pending
-   row's source principal was read by no check at all (repaired), and it is now
-   constrained without being determined.
+   a derived certificate is the only one the checker's row checks would take. The
+   checker binds a pending row's source principal, and a terminal row's controlling
+   principal, to SOME controlled location of the same fragment rather than to a
+   determined one, so a cell controlled by two principals admits two certificates that
+   pass every row, partition and aggregate check with DIFFERENT allocation roots. That
+   is what UNDETERMINED means here, and a test exhibits the two.
+
+   It does NOT mean two ACCEPTED certificates exist. Under the current registry no
+   accepted certificate can carry an external, reserve or terminal row at all: the only
+   receipt-backed lane needs a minted witness whose fragment must EQUAL the
+   certificate's, that producer emits controlled and entitlement rows only, and a
+   disabled lane carrying any row fails DISABLED_LANE_NOT_EMPTY. So every state that
+   reaches an ``..._AMBIGUOUS`` code today is also one no accepted certificate exists
+   for. The distinction the two kinds draw is about what the STATE determines, not about
+   what the checker would accept, and it becomes observable when a producer that can
+   emit those rows is registered. Two earlier wordings of this paragraph were falsified
+   for saying otherwise: the certificate is not a function of the state (P39), and
+   UNDETERMINED does not mean two accepted certificates (P40).
 2. Where NO certificate over the state can be accepted, the projection refuses rather
    than deriving an object the checker must reject. That includes the structural case:
    a witnessed lane's fragment must equal the one its witness carries, and the single
    registered receipt-backed producer emits controlled and entitlement rows only, so a
    state placing a reserve, a pending obligation or an open terminal on that lane is
-   unreconcilable however its rows are arranged. Two state-level gates are outside this
-   remit and are reported by the checker rather than refused here: an enabled lane whose
-   registry entry has no producer, and a registered-empty lane committed at a foreign
-   root. Neither can be fixed by choosing rows.
+   unreconcilable however its rows are arranged. It also includes the two gates that are
+   not about allocation at all: an enabled lane whose registry entry has no producer, and
+   a registered-empty lane committed at a foreign root. Both are functions of the state
+   alone -- the projection copies ``enabled`` and ``state_root`` off the state into every
+   fragment it builds -- so no certificate over such a state is acceptable, and they are
+   refused here with their own codes rather than derived and left to the checker. The
+   earlier wording carried this claim with no exception while a test file carried the
+   exception (opus2 P39 P2-5); the exception is now closed in the code instead.
 3. Given the one scalar the state does not carry, the receipt root, the projection
    reproduces a witnessed certificate byte-for-byte, including a witness whose receipt
    proved a custody row. That evidence covers one row shape, stated in the test.
@@ -55,6 +68,7 @@ from typing import Final
 from .global_accounting_allocation_certificate_v1 import (
     LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
     MAX_ATOMS_U128_V1,
+    REGISTERED_EMPTY_LANE_ROOTS_V1,
     ChainContextV1,
     ClaimantEntitlementRowV1,
     ControlledLocationRowV1,
@@ -88,19 +102,37 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     two sites, one of them after the residual codes). The evaluation order is documented
     on ``project_allocation_certificate_v1``.
 
-    Two kinds of refusal share this family, and Opus P39 P1-1 found the previous split
-    false: unassignable controlled atoms were reported as an ambiguity although no
-    certificate over such a state is acceptable, and the negative-residual code could
-    fire only when an outbox entry happened to exist. UNDETERMINED means V1 state leaves
-    more than one acceptable certificate open, so deriving one would be a guess:
-    ``..._AMBIGUOUS``. UNRECONCILABLE means no certificate over this state can be
-    accepted at all, so deriving one would produce an object the checker must reject:
+    THREE kinds of refusal share this family. Both P40 reviews found the previous
+    two-kind wording wrong twice over: it omitted three of its own codes, including the
+    headline one, and it said UNDETERMINED means two ACCEPTED certificates exist.
+
+    CALLER INPUT -- the supplied binding roots do not match the enabled receipt-backed
+    lanes: ``..._BINDING_ROOT_UNEXPECTED``, ``..._BINDING_ROOT_MISSING``. These are about
+    the caller's argument, not about the state.
+
+    UNDETERMINED -- V1 state leaves more than one certificate open that passes every row,
+    partition and aggregate check, so deriving one would be a guess:
+    ``..._EXTERNAL_RESIDUAL_AMBIGUOUS``, ``..._TERMINAL_DOMAIN_AMBIGUOUS``. This does NOT
+    mean two ACCEPTED certificates exist; under the current registry none of those states
+    has one, as the module docstring sets out.
+
+    UNRECONCILABLE -- no certificate over this state can be accepted, so deriving one
+    would produce an object the checker must reject. From the allocation itself:
     ``..._NEGATIVE_RESIDUAL``, ``..._UNASSIGNED_CONTROLLED_ATOMS``,
     ``..._PENDING_WITHOUT_BACKING``, ``..._TERMINAL_WITHOUT_ENTITLEMENT``,
-    ``..._TERMINAL_EXCEEDS_ENTITLEMENT``, ``..._ROW_TOTAL_OVERFLOW``,
-    ``..._NO_LANE_FOR_ROWS`` and ``..._MULTIPLE_ENABLED_LANES``. The tests assert the
-    second kind by BUILDING the state-consistent certificate and showing the checker
-    refuses it, rather than by asserting the classification.
+    ``..._TERMINAL_WITHOUT_BACKING``, ``..._TERMINAL_EXCEEDS_ENTITLEMENT``,
+    ``..._ROW_TOTAL_OVERFLOW``,
+    ``..._NO_LANE_FOR_ROWS``, ``..._MULTIPLE_ENABLED_LANES``. From what the owning lane's
+    producer can source: ``..._ROWS_BEYOND_PRODUCER``. From the lane configuration, which
+    no arrangement of rows can repair, evaluated before the rows and in the checker's own
+    order so the projection names the code the checker would raise first:
+    ``..._ENABLED_LANE_WITHOUT_PRODUCER``, ``..._REGISTERED_EMPTY_ROOT_DRIFT``.
+
+    For each row case in the UNRECONCILABLE kind a test BUILDS the certificate the state
+    implies and shows the checker refusing it, rather than asserting the classification;
+    for the UNDETERMINED kind a test exhibits the two row-checked certificates with
+    different allocation roots. The three kinds are a partition of all sixteen codes and
+    a test pins that partition against this enum.
     """
 
     PROJECTION_MULTIPLE_ENABLED_LANES = "PROJECTION_MULTIPLE_ENABLED_LANES"
@@ -116,11 +148,44 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT = "PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT"
     PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT = "PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT"
     PROJECTION_ROW_TOTAL_OVERFLOW = "PROJECTION_ROW_TOTAL_OVERFLOW"
+    PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER = "PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER"
+    PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT = "PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT"
+    PROJECTION_TERMINAL_WITHOUT_BACKING = "PROJECTION_TERMINAL_WITHOUT_BACKING"
 
 
 ALLOCATION_PROJECTION_REJECT_CODES_V1: Final[tuple[str, ...]] = tuple(
     code.value for code in AllocationProjectionRejectCodeV1
 )
+
+
+# The three kinds the family docstring names, as data so a test can pin the partition
+# against the enum (both P40 reviews, P3-1: the previous prose split omitted three codes,
+# one of them the headline guard). Membership is a claim about WHY a code is raised, not
+# about the checker's own families.
+ALLOCATION_PROJECTION_REFUSAL_KINDS_V1: Final[dict[str, tuple[AllocationProjectionRejectCodeV1, ...]]] = {
+    "caller_input": (
+        AllocationProjectionRejectCodeV1.PROJECTION_BINDING_ROOT_UNEXPECTED,
+        AllocationProjectionRejectCodeV1.PROJECTION_BINDING_ROOT_MISSING,
+    ),
+    "undetermined": (
+        AllocationProjectionRejectCodeV1.PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS,
+        AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS,
+    ),
+    "unreconcilable": (
+        AllocationProjectionRejectCodeV1.PROJECTION_MULTIPLE_ENABLED_LANES,
+        AllocationProjectionRejectCodeV1.PROJECTION_NO_LANE_FOR_ROWS,
+        AllocationProjectionRejectCodeV1.PROJECTION_NEGATIVE_RESIDUAL,
+        AllocationProjectionRejectCodeV1.PROJECTION_UNASSIGNED_CONTROLLED_ATOMS,
+        AllocationProjectionRejectCodeV1.PROJECTION_PENDING_WITHOUT_BACKING,
+        AllocationProjectionRejectCodeV1.PROJECTION_ROWS_BEYOND_PRODUCER,
+        AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT,
+        AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
+        AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_WITHOUT_BACKING,
+        AllocationProjectionRejectCodeV1.PROJECTION_ROW_TOTAL_OVERFLOW,
+        AllocationProjectionRejectCodeV1.PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER,
+        AllocationProjectionRejectCodeV1.PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT,
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,6 +272,40 @@ def _single_owning_lane_v1(state: GlobalEconomicStateV1) -> LaneIdV1 | None:
             ",".join(lane.value for lane in enabled),
         )
     return enabled[0] if enabled else None
+
+
+def _state_level_refusals_v1(state: GlobalEconomicStateV1, owning_lane: LaneIdV1 | None) -> None:
+    """Refuse the two states no certificate survives for reasons that are not allocation.
+
+    Both conditions are functions of the state alone: the projection copies ``enabled`` and
+    ``state_root`` from ``state.lane_roots`` into every fragment it builds, so whatever
+    certificate it would derive carries them unchanged and the checker refuses it. The
+    previous version derived one anyway and let the checker reject it, which is what the
+    second P39 reviewer found: the module claimed a derived certificate is accepted, and
+    these two states were carved out in a test rather than stated in the claim.
+
+    Evaluated in the checker's own order, so the projection's code names the code the
+    checker would raise first: ``BLOCKED_LANE_PRODUCER_MISSING`` (an enabled lane whose
+    registered kind is not receipt-backed has no producer that could have written it) and
+    then ``REGISTERED_EMPTY_ROOT_DRIFT`` (a lane pinned to a registered empty root whose
+    committed root is not that root), which is checked over ALL twelve lanes because the
+    checker checks it over all twelve, not only the enabled one.
+    """
+
+    if owning_lane is not None:
+        registered_kind, blocked_on = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[owning_lane]
+        if registered_kind is not LaneProducerKindV1.RECEIPT_BACKED:
+            _fail(
+                AllocationProjectionRejectCodeV1.PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER,
+                f"{owning_lane.value} is enabled with {registered_kind.value} ({blocked_on})",
+            )
+    for lane_root in state.lane_roots:
+        registered_root = REGISTERED_EMPTY_LANE_ROOTS_V1.get(lane_root.lane_id)
+        if registered_root is not None and lane_root.state_root != registered_root:
+            _fail(
+                AllocationProjectionRejectCodeV1.PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT,
+                lane_root.lane_id.value,
+            )
 
 
 def _external_rows_v1(
@@ -348,6 +447,15 @@ def _terminal_rows_v1(
                 if location.asset == terminal.asset and location.control_domain == control_domain
             }
         )
+        if not principals:
+            # Opus P40 P2-3: zero candidates is not an ambiguity. No controlled location can
+            # bind this row, so no certificate over the state is acceptable -- the same
+            # misclassification P39 P1-1 found for unassignable atoms, surviving inside its
+            # repair.
+            _fail(
+                AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_WITHOUT_BACKING,
+                f"{terminal.obligation_id}: no controlled location in {control_domain}",
+            )
         if len(principals) != 1:
             _fail(
                 AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS,
@@ -398,7 +506,9 @@ def project_allocation_certificate_v1(
     """Derive the certificate for one exact state, or refuse with a closed code.
 
     Check order: (0) the type boundary (the exact state, exact lane/root pairs, each
-    lane named at most once); (1) at most one lane is enabled; (2) the supplied
+    lane named at most once); (1) at most one lane is enabled; (1b) the two state-level
+    gates, in the checker's order: an enabled lane with no producer, then a
+    registered-empty lane at a foreign root; (2) the supplied
     binding roots are exactly the enabled receipt-backed lanes'; (3) every row of the
     state's economic tables is placed on the single enabled lane, the external
     residual and terminal domains being refused where the state leaves them open;
@@ -414,6 +524,7 @@ def project_allocation_certificate_v1(
     state_root = state.state_root
     try:
         owning_lane = _single_owning_lane_v1(state)
+        _state_level_refusals_v1(state, owning_lane)
         binding_roots = _binding_roots_v1(state, lane_binding_roots)
         controlled = tuple(
             ControlledLocationRowV1(
@@ -513,6 +624,7 @@ def project_allocation_certificate_v1(
 
 
 __all__ = [
+    "ALLOCATION_PROJECTION_REFUSAL_KINDS_V1",
     "ALLOCATION_PROJECTION_REJECT_CODES_V1",
     "ALLOCATION_PROJECTION_SCHEMA_V1",
     "AllocationProjectionRejectCodeV1",

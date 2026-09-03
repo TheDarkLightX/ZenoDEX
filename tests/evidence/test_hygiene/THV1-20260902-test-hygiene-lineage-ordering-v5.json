@@ -1,0 +1,108 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260902-test-hygiene-lineage-ordering-v5",
+  "created_date": "2026-09-03",
+  "claim_scope": "Candidate C9c-4: re-pin, and one duplicate row dropped -- this packet declared its single mutation twice, so its 'two mechanical rows' were one mutation counted twice, caught by the grader distinctness rule added in the same candidate. tools/test_hygiene_evidence_v1.py gains the crate unit-test killer form described in the mutation-ledger packet; no lineage or ordering rule changes. PREDECESSOR: v3 (C9c-2): the hygiene loader and checker move with the mechanical mutation ledger, and the added-packet rule now applies to a row a packet DECLARES rather than to one it carries forward: stamping the honest authoring date on a re-pin successor would otherwise have made every inherited string-only row illegal, and evidence packets are append-only so re-cutting history is not available. A carried row is identified by its (description, killer) pair appearing in an earlier packet of the same lineage, which is itself a declared residual: a new row copying an old row's text exactly reads as carried. Earlier: v3 (C9c-2): the hygiene loader and checker move with the mechanical mutation ledger, and the added-packet rule now applies to a row a packet DECLARES rather than to one it carries forward: stamping the honest authoring date on a re-pin successor would otherwise have made every inherited string-only row illegal, and evidence packets are append-only so re-cutting history is not available. A carried row is identified by its (description, killer) pair appearing in an earlier packet of the same lineage, which is itself a declared residual: a new row copying an old row's text exactly reads as carried. Earlier: v2 (Opus P32 F-2, F-9): packet order stays date-first across lineages and numeric within a name; a version cut under an OLDER date prefix (which the newer-dated packet would shadow) is REFUSED at load time by both gates (require_lineage_versions_monotone_with_dates_v1; THV1_LINEAGE_VERSION_REGRESSES_ACROSS_DATES) instead of reordered; the key-parity test covers repo-relative paths. Earlier: The repository test-hygiene gate orders evidence packets by lineage name and NUMERIC -vN version (tools.test_hygiene_evidence_v1.hygiene_lineage_key_v1), the same key the O-008 packet checker uses, so the newest fully current packet is selected for a changed critical path. Before this change the loader sorted file names lexicographically, so a stale -v9 packet outranked -v27 for any path whose bytes it still matched and the gate failed on its other stale pins while the O-008 checker selected v27 (campaign finding at P31, the class of Opus P29 NEW-25 one level deeper). Research-only; grants no authority.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "HYGIENE-PACKET-ORDER-IS-LINEAGE-THEN-NUMERIC-VERSION",
+    "HYGIENE-AND-O008-SELECTION-KEYS-AGREE"
+  ],
+  "failure_modes": [
+    "a stale early packet shadows every newer packet of its lineage",
+    "the repository gate and the O-008 checker select different packets for the same path"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/test_hygiene_evidence_v1.py",
+      "sha256": "00c47e5f6cc1961cd6e6bcb177950f8d97e3d30661f2c8ae4c55bc4f768fefa1"
+    },
+    {
+      "path": "tools/check_test_hygiene_v1.py",
+      "sha256": "f2de596694866fdf2f87f33bde2912a84e5107153aa3af49fd517ff7910bb797"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_test_hygiene_v1.py",
+      "sha256": "7635c24ed171493ede2b8f292c9714e905466a49bcd93336cd5bd7550a974d2a",
+      "node_ids": [
+        "tests/test_check_test_hygiene_v1.py::test_changed_critical_path_requires_evidence_packet",
+        "tests/test_check_test_hygiene_v1.py::test_current_pins_and_strong_evidence_cover_critical_change",
+        "tests/test_check_test_hygiene_v1.py::test_stale_source_pin_rejects_packet",
+        "tests/test_check_test_hygiene_v1.py::test_required_boundary_family_needs_boundary_inventory",
+        "tests/test_check_test_hygiene_v1.py::test_named_mutation_must_be_killed_by_pinned_node",
+        "tests/test_check_test_hygiene_v1.py::test_existing_evidence_packets_are_append_only",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_requires_explicit_replacement",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_replacement_must_be_a_pinned_test",
+        "tests/test_check_test_hygiene_v1.py::test_path_traversal_in_packet_rejects",
+        "tests/test_check_test_hygiene_v1.py::test_noncritical_document_change_needs_no_packet",
+        "tests/test_check_test_hygiene_v1.py::test_unknown_contract_field_rejects_fail_closed",
+        "tests/test_check_test_hygiene_v1.py::test_repository_contract_and_bootstrap_packet_are_structurally_valid",
+        "tests/test_check_test_hygiene_v1.py::test_default_contract_retains_mandatory_critical_path_probes",
+        "tests/test_check_test_hygiene_v1.py::test_pull_request_ci_runs_diff_aware_hygiene_gate",
+        "tests/test_check_test_hygiene_v1.py::test_critical_quality_gate_validates_static_hygiene_contract",
+        "tests/test_check_test_hygiene_v1.py::test_stale_lower_version_packet_cannot_shadow_a_newer_one",
+        "tests/test_check_test_hygiene_v1.py::test_lineage_key_matches_the_o008_checker_key",
+        "tests/test_check_test_hygiene_v1.py::test_added_packet_legacy_rule_needs_both_dates_before_the_cutover"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges a two-packet lineage or a name list, invokes the gate or the key once, and asserts the exact selection."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The gate is a pure report over the repository; a rejected selection changes nothing."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "version_order",
+      "points": [
+        "unversioned below v1",
+        "v9 below v10",
+        "v9 below v27",
+        "other lineage independent"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "revert the loader to lexicographic file order",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_stale_lower_version_packet_cannot_shadow_a_newer_one"
+    },
+    {
+      "description": "diverge the lineage key from the O-008 checker's key",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_lineage_key_matches_the_o008_checker_key"
+    },
+    {
+      "description": "accept a version cut under an older date prefix (Opus P32 F-2)",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_lineage_key_matches_the_o008_checker_key"
+    },
+    {
+      "description": "apply the cutover rule to rows a re-pin successor carries forward, not only to rows it declares",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_added_packet_legacy_rule_needs_both_dates_before_the_cutover",
+      "mutant": {
+        "path": "tools/check_test_hygiene_v1.py",
+        "needle_lines": [
+          "        carried = _carried_rows_v1(evidence_id, loaded)"
+        ],
+        "replacement_lines": [
+          "        carried = frozenset()"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "This packet does not establish production readiness or grant any authority."
+  ]
+}

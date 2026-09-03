@@ -144,9 +144,12 @@ class PytestKillerV1:
 class CargoKillerV1:
     test_path: str
     filter: str
+    lib: bool = False
 
     @property
     def crate_dir(self) -> str:
+        if self.lib:
+            return self.test_path.rsplit("/src/", 1)[0]
         return self.test_path.rsplit("/tests/", 1)[0]
 
     @property
@@ -158,7 +161,8 @@ KillerV1 = PytestKillerV1 | CargoKillerV1
 
 
 def parse_killer_v1(killed_by: str) -> KillerV1:
-    """Classify a ``killed_by`` string: a pytest node id or ``<crate>/tests/<target>.rs::<filter>``."""
+    """Classify a ``killed_by`` string: a pytest node id, ``<crate>/tests/<target>.rs::<filter>``
+    (an integration test) or ``<crate>/src/<file>.rs::<filter>`` (a crate unit test)."""
 
     path, separator, rest = killed_by.partition("::")
     if not separator or not rest or any(character.isspace() for character in killed_by):
@@ -167,6 +171,12 @@ def parse_killer_v1(killed_by: str) -> KillerV1:
         return PytestKillerV1(killed_by)
     if path.endswith(".rs") and "/tests/" in path:
         return CargoKillerV1(path, rest)
+    if path.endswith(".rs") and "/src/" in path:
+        # A guard whose only honest test is a crate unit test: the check it protects is
+        # private, and no accepted certificate can reach it from an integration test
+        # (opus2 P40 P2-2/P2-3). Without this form such a guard could carry no mechanical
+        # row at all, which is how one shipped with a test that never called it.
+        return CargoKillerV1(path, rest, lib=True)
     raise LedgerError(f"unsupported killer form: {killed_by!r}")
 
 
@@ -175,6 +185,8 @@ def pytest_argv_v1(python: str, killer: PytestKillerV1) -> tuple[str, ...]:
 
 
 def cargo_argv_v1(killer: CargoKillerV1) -> tuple[str, ...]:
+    if killer.lib:
+        return ("cargo", "test", "--offline", "--locked", "--lib", "--", killer.filter)
     return ("cargo", "test", "--offline", "--locked", "--test", killer.target, killer.filter)
 
 

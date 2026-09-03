@@ -1416,7 +1416,8 @@ pub fn build_registered_empty_certificate_v1(
 #[cfg(test)]
 mod tests {
     use super::{
-        pending_external_rows, AllocationCertificateRejectCodeV1, LaneAllocationFragmentV1,
+        check_external_obligations, pending_external_rows, AllocationCertificateRejectCodeV1,
+        GlobalAccountingAllocationCertificateV1, GlobalEconomicStateV1, LaneAllocationFragmentV1,
     };
 
     fn fragment(lane: &str, effect_ids: &[u8]) -> LaneAllocationFragmentV1 {
@@ -1448,6 +1449,65 @@ mod tests {
             "terminal_bindings": [],
         }))
         .expect("fragment decodes")
+    }
+
+    #[test]
+    fn the_source_principal_guard_refuses_and_the_check_is_what_refuses() {
+        // opus2 P40 P2-2: the integration test for this guard evaluated a COPY of the
+        // predicate inline and never called the check, so replacing the guard body with
+        // `let _ = controlled;` left all 535 crate tests green. This calls the check.
+        // It is a unit test rather than an integration test because no ACCEPTED certificate
+        // can carry a pending external row under the current registry -- a disabled lane
+        // carrying rows is refused first, an enabled one needs a minted witness whose
+        // fragment equals the certificate's, and the only producer emits neither -- so the
+        // full checker cannot reach this branch from outside the crate.
+        let fixture = fixture_value();
+        let vector = &fixture["vectors"]["accepts_registered_empty_certificate_over_empty_state"];
+        let mut certificate_value = vector["certificate"].clone();
+        let mut state_value = vector["state"].clone();
+        let effect_id = certificate_value["ordered_lane_fragments"][0]["lane_state_root"].clone();
+        state_value["outbox"] = serde_json::json!([{
+            "effect_id": effect_id,
+            "destination_id": "bridge-a",
+            "payload_hash": effect_id,
+            "commit_id": effect_id,
+            "status": "PENDING",
+        }]);
+        certificate_value["ordered_lane_fragments"][0]["pending_external_obligations"] = serde_json::json!([{
+            "effect_id": effect_id,
+            "asset": "USD",
+            "amount_atoms": 7u64,
+            "destination_id": "bridge-a",
+            "commitment_root": effect_id,
+            "control_domain": "spot-pool",
+            "source_principal": "pool-a",
+        }]);
+        let state: GlobalEconomicStateV1 =
+            serde_json::from_value(state_value).expect("state decodes");
+        let unbacked: GlobalAccountingAllocationCertificateV1 =
+            serde_json::from_value(certificate_value.clone()).expect("certificate decodes");
+        let refused = check_external_obligations(&unbacked, &state)
+            .expect_err("a source principal backed by no controlled location is refused");
+        assert_eq!(
+            refused.0,
+            AllocationCertificateRejectCodeV1::ExternalObligationBindingDrift
+        );
+        assert!(
+            refused.1.ends_with("source binding"),
+            "the source-binding branch refused, not one of the checks around it: {}",
+            refused.1
+        );
+
+        certificate_value["ordered_lane_fragments"][0]["controlled_locations"] = serde_json::json!([{
+            "asset": "USD",
+            "controlling_principal": "pool-a",
+            "control_domain": "spot-pool",
+            "amount_atoms": 7u64,
+        }]);
+        let backed: GlobalAccountingAllocationCertificateV1 =
+            serde_json::from_value(certificate_value).expect("certificate decodes");
+        check_external_obligations(&backed, &state)
+            .expect("the same row backed by a controlled location passes the same check");
     }
 
     #[test]

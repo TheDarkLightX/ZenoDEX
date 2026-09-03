@@ -93,12 +93,12 @@ PROJECTION_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_alloc
 # string-only rows had. The expected kill counts are pinned so a row cannot be quietly dropped.
 LEDGER_TOOL_PATH_V1: Final = "tools/thv1_mutation_ledger_v1.py"
 LEDGER_GATED_PACKETS_V1: Final[tuple[tuple[str, str, int], ...]] = (
-    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v3", 20),
-    ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v4", 22),
+    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v4", 24),
+    ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v5", 18),
     ("ledger_admission_rows", "THV1-20260903-o008-asset-transfer-receipt-admission-mechanical-v3", 31),
     ("ledger_ownership_rows", "THV1-20260903-global-settlement-exact-ownership-mechanical-v3", 21),
-    ("ledger_certificate_rows", "THV1-20260901-global-accounting-allocation-certificate-v22", 1),
-    ("ledger_lineage_rows", "THV1-20260902-test-hygiene-lineage-ordering-v4", 2),
+    ("ledger_certificate_rows", "THV1-20260901-global-accounting-allocation-certificate-v23", 2),
+    ("ledger_lineage_rows", "THV1-20260902-test-hygiene-lineage-ordering-v5", 1),
 )
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
@@ -563,7 +563,10 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " pending obligations); UNRECONCILABLE means none exists (entitlements exceeding custody,"
     " unassignable controlled atoms, an obligation with no controlled location, an over-claiming"
     " terminal, a claimant with no entitlement, a fold that would overflow, rows with no enabled lane,"
-    " and more than one enabled lane). The sealed witness contributes its binding root and its header,"
+    " more than one enabled lane, an enabled lane whose registry entry has no producer, and a"
+    " registered-empty lane committed at a foreign root -- the last two being lane-configuration facts"
+    " that no arrangement of rows can repair, refused before the rows are read and in the checker's own"
+    " order). The sealed witness contributes its binding root and its header,"
     " not its rows. The projection has no consumer: no publisher, verifier, or client calls it, so it"
     " refuses nothing at runtime, and it verifies no receipt.",
     "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher"
@@ -1146,15 +1149,26 @@ ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
 ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 # C9c-1: the certificate derived from the state, and the two shapes V1 state leaves undetermined.
-PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 53
+PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 79
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
-CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 4
+CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 5
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
 _CARGO_VERSION_RE: Final = re.compile(r"^cargo ([0-9]+\.[0-9]+\.[0-9]+)")
 _RUSTC_FIELD_RE: Final = re.compile(r"^(release|commit-hash|host): (\S+)$", re.MULTILINE)
 _HOST_TRIPLE_RE: Final = re.compile(r"[A-Za-z0-9_.-]+")
 EMPTY_SHA256_V1: Final = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 _SEMVER_RE: Final = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
+_SHA256_HEX_RE_V1: Final = re.compile(r"[0-9a-f]{64}")
+
+
+def _portable_repo_path_v1(path: str) -> bool:
+    """A repository-relative path with no absolute root, drive, traversal or empty segment."""
+
+    if not path or path.startswith("/") or "\\" in path or ":" in path:
+        return False
+    segments = path.split("/")
+    return all(segment not in ("", ".", "..") for segment in segments)
+
 _CARGO_SUMMARY_RE: Final = re.compile(
     r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed;", re.MULTILINE
 )
@@ -4076,7 +4090,21 @@ def _grade_python_version(obs: ReplayObservationV1) -> dict[str, object]:
 
 
 def _grade_ledger(obs: ReplayObservationV1, expected_killed: int) -> dict[str, object]:
-    """Every mechanical row of the packet killed, none survived, none errored."""
+    """Every mechanical row of the packet killed, none survived, none errored.
+
+    Both P40 reviews attacked this grader and both got through, in three ways it now
+    refuses: a digest field that is not a digest (any non-empty string passed), one
+    mutation reported N times to reach the expected count, and a mutated path that is not
+    a portable repository-relative path.
+
+    What it does NOT check, and cannot from here: that the mutated path is one the THV1
+    packet pins. That binding is the packet validator's ("mutant path is not a pinned
+    source path"), enforced by tools/check_test_hygiene_v1.py, which this checker does not
+    run -- nonclaim 14. A first version of this guard required the path to be pinned by the
+    FORMAL-CYCLE packet instead, which is a different set: it refused a real row that
+    mutates a tool only the THV1 packet pins. Nor can it check that a row's English
+    description describes the mutation that ran; that is semantic.
+    """
 
     try:
         report = json.loads(obs.stdout.decode("utf-8"))
@@ -4106,6 +4134,7 @@ def _grade_ledger(obs: ReplayObservationV1, expected_killed: int) -> dict[str, o
     # name the mutation that produced its verdict, so a KILLED row can be tied to the row
     # declaring it rather than to some other edit of the same file.
     described = 0
+    seen: set[tuple[str, str, str]] = set()
     for row in rows:
         if not isinstance(row, dict) or row.get("verdict") != "KILLED":
             continue
@@ -4117,6 +4146,15 @@ def _grade_ledger(obs: ReplayObservationV1, expected_killed: int) -> dict[str, o
             _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, str(row.get("description"))[:60])
         if mutation["needle_sha256"] == mutation["replacement_sha256"]:
             _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, "needle equals replacement")
+        for field in ("needle_sha256", "replacement_sha256"):
+            if _SHA256_HEX_RE_V1.fullmatch(mutation[field]) is None:
+                _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, f"{field} is not a sha256")
+        if not _portable_repo_path_v1(mutation["path"]):
+            _reject("REPLAY_LEDGER_ROW_PATH_UNPORTABLE", obs.command_id, mutation["path"][:60])
+        identity = (mutation["path"], mutation["needle_sha256"], mutation["replacement_sha256"])
+        if identity in seen:
+            _reject("REPLAY_LEDGER_ROW_NOT_DISTINCT", obs.command_id, mutation["path"][:60])
+        seen.add(identity)
         described += 1
     if described != killed:
         _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, f"{described} described of {killed} killed")

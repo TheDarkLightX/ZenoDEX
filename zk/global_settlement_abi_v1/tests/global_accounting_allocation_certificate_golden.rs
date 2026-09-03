@@ -19,8 +19,8 @@ use zenodex_global_settlement_abi_v1::{
     derive_terminal_binding_root_v1, hash_bytes_sha256_v1, AllocationCertificateOutcomeV1,
     AllocationCertificateRejectCodeV1, ControlledLocationRowV1,
     GlobalAccountingAllocationCertificateV1, GlobalEconomicStateV1, LaneIdV1, LaneProducerKindV1,
-    PendingExternalObligationRowV1, ALL_LANE_IDS_V1, EMPTY_LANE_WITNESS_SLOTS_V1,
-    LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
+    OutboxStateV1, OutboxStatusV1, PendingExternalObligationRowV1, ALL_LANE_IDS_V1,
+    EMPTY_LANE_WITNESS_SLOTS_V1, LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
 };
 
 const FIXTURE_SCHEMA: &str = "zenodex/global-accounting-allocation-certificate-v1-golden/v2";
@@ -296,33 +296,37 @@ fn mutation_killers_name_recorded_vectors_with_the_expected_polarity() {
 }
 
 #[test]
-fn pending_external_source_principal_binds_to_a_controlled_location() {
-    // Opus P38 P1-1 in the Rust twin, and Opus P39 P2-2: the Python half of this binding had a
-    // test and the Rust half had none, so the twin's branch was never reached in-crate.
+fn no_certificate_carrying_a_pending_external_row_is_accepted_today() {
+    // opus2 P40 P1-1 in Rust. The source-principal guard itself is exercised by the crate
+    // unit test `the_source_principal_guard_refuses_and_the_check_is_what_refuses`, because
+    // the full checker cannot reach that branch: THIS test is why. Under the current
+    // registry a certificate carrying a pending external row is refused before the row is
+    // ever inspected -- on a disabled lane because the lane must be empty, on the enabled
+    // receipt-backed lane because it must carry a minted witness whose fragment equals the
+    // certificate's, and the only registered producer emits controlled and entitlement rows
+    // only. The previous version of this test evaluated a copy of the production predicate
+    // inline and called the checker on nothing.
     let fixture = load_fixture();
     let vector = fixture
         .vectors
         .get("accepts_registered_empty_certificate_over_empty_state")
         .expect("accepted vector");
-    let state: GlobalEconomicStateV1 = serde_json::from_value(vector.state.clone()).expect("state");
+    let base_state: GlobalEconomicStateV1 =
+        serde_json::from_value(vector.state.clone()).expect("state");
     let certificate: GlobalAccountingAllocationCertificateV1 =
         serde_json::from_value(vector.certificate.clone()).expect("certificate");
-    let outcome = check_global_accounting_allocation_certificate_v1(
-        &certificate,
-        &state,
-        &EMPTY_LANE_WITNESS_SLOTS_V1,
-    )
-    .expect("the registered-empty certificate parses");
-    assert!(matches!(
-        outcome,
-        AllocationCertificateOutcomeV1::Accepted(_)
-    ));
 
-    // A pending obligation whose source principal names no controlled location of its own
-    // fragment is refused, and the same row backed by one is accepted.
     let effect_id = certificate.ordered_lane_fragments[0]
         .lane_state_root
         .clone();
+    let mut state = base_state.clone();
+    state.outbox = vec![OutboxStateV1 {
+        effect_id: effect_id.clone(),
+        destination_id: "bridge-a".to_owned(),
+        payload_hash: effect_id.clone(),
+        commit_id: effect_id.clone(),
+        status: OutboxStatusV1::PENDING,
+    }];
     let row = PendingExternalObligationRowV1 {
         effect_id: effect_id.clone(),
         asset: "USD".to_owned(),
@@ -338,34 +342,49 @@ fn pending_external_source_principal_binds_to_a_controlled_location() {
         control_domain: "spot-pool".to_owned(),
         amount_atoms: 7,
     };
-    let mut unbacked = certificate.ordered_lane_fragments[0].clone();
-    unbacked.pending_external_obligations = vec![row.clone()];
-    let mut backed = unbacked.clone();
-    backed.controlled_locations = vec![backing];
-    assert!(
-        backed
-            .pending_external_obligations
-            .iter()
-            .all(
-                |pending| backed.controlled_locations.iter().any(|location| {
-                    location.asset == pending.asset
-                        && location.controlling_principal == pending.source_principal
-                        && location.control_domain == pending.control_domain
-                })
-            ),
-        "the backed fragment satisfies the source binding the checker enforces"
-    );
-    assert!(
-        !unbacked
-            .pending_external_obligations
-            .iter()
-            .all(
-                |pending| unbacked.controlled_locations.iter().any(|location| {
-                    location.asset == pending.asset
-                        && location.controlling_principal == pending.source_principal
-                        && location.control_domain == pending.control_domain
-                })
-            ),
-        "the unbacked fragment violates it"
-    );
+
+    let mut carrying = certificate.clone();
+    carrying.global_state_root = state.state_root().expect("state root");
+    carrying.ordered_lane_fragments[0].pending_external_obligations = vec![row];
+    carrying.ordered_lane_fragments[0].controlled_locations = vec![backing];
+
+    // Disabled: the lane must be empty, whatever the row says.
+    let disabled = check_global_accounting_allocation_certificate_v1(
+        &carrying,
+        &state,
+        &EMPTY_LANE_WITNESS_SLOTS_V1,
+    )
+    .expect("the certificate parses");
+    match disabled {
+        AllocationCertificateOutcomeV1::Rejected(rejected) => assert_eq!(
+            rejected.code,
+            AllocationCertificateRejectCodeV1::DisabledLaneNotEmpty
+        ),
+        AllocationCertificateOutcomeV1::Accepted(_) => {
+            panic!("a disabled lane carrying a pending row was accepted")
+        }
+    }
+
+    // Enabled: the receipt-backed lane needs its minted witness, which no test can forge
+    // and which the only producer would not build with an external row in it.
+    let mut enabled = carrying.clone();
+    enabled.ordered_lane_fragments[0].enabled = true;
+    let mut enabled_state = state.clone();
+    enabled_state.lane_roots[0].enabled = true;
+    enabled.global_state_root = enabled_state.state_root().expect("state root");
+    let witnessed = check_global_accounting_allocation_certificate_v1(
+        &enabled,
+        &enabled_state,
+        &EMPTY_LANE_WITNESS_SLOTS_V1,
+    )
+    .expect("the certificate parses");
+    match witnessed {
+        AllocationCertificateOutcomeV1::Rejected(rejected) => assert_eq!(
+            rejected.code,
+            AllocationCertificateRejectCodeV1::ReceiptWitnessRequired
+        ),
+        AllocationCertificateOutcomeV1::Accepted(_) => {
+            panic!("an enabled receipt-backed lane was accepted with no witness")
+        }
+    }
 }

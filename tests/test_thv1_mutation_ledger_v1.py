@@ -243,7 +243,15 @@ def test_killer_forms_are_classified_and_malformed_ones_refused() -> None:
     assert ledger.cargo_argv_v1(cargo) == (
         "cargo", "test", "--offline", "--locked", "--test", "probe", "probe_",
     )
-    for malformed in ("tests/test_x.py", "tests/test_x.py::", "tests/test x.py::t", "zk/probe/src/lib.rs::t", "notes.txt::t"):
+    # opus2 P40 P2-2: a guard whose only honest test is a crate unit test needs a killer form
+    # of its own, or it can carry no mechanical row at all.
+    lib = ledger.parse_killer_v1("zk/probe/src/lib.rs::mod::tests::probe_")
+    assert isinstance(lib, ledger.CargoKillerV1) and lib.lib is True
+    assert (lib.crate_dir, lib.filter) == ("zk/probe", "mod::tests::probe_")
+    assert ledger.cargo_argv_v1(lib) == (
+        "cargo", "test", "--offline", "--locked", "--lib", "--", "mod::tests::probe_",
+    )
+    for malformed in ("tests/test_x.py", "tests/test_x.py::", "tests/test x.py::t", "notes.txt::t", "src/lib.rs::t"):
         with pytest.raises(ledger.LedgerError):
             ledger.parse_killer_v1(malformed)
 
@@ -547,11 +555,22 @@ def test_cargo_killer_requires_a_pinned_rust_test_path(tmp_path: Path) -> None:
     pinned = ("pkg/mod.py", "zk/probe/src/lib.rs", "zk/probe/tests/probe.rs")
     _, rows = _load(tmp_path, _packet(repo, rows=[rust_row], source_paths=pinned))
     assert rows[0].kind == "mechanical"
-    with pytest.raises(TestHygieneError, match="not a pinned node or a pinned cargo test filter"):
+    with pytest.raises(TestHygieneError, match="mutation killer is not a pinned node"):
         _load(tmp_path, _packet(repo, rows=[rust_row], source_paths=("pkg/mod.py", "zk/probe/src/lib.rs")))
     spaced: dict[str, object] = {**rust_row, "killed_by": "zk/probe/tests/probe.rs::probe one"}
-    with pytest.raises(TestHygieneError, match="not a pinned node or a pinned cargo test filter"):
+    with pytest.raises(TestHygieneError, match="mutation killer is not a pinned node"):
         _load(tmp_path, _packet(repo, rows=[spaced], source_paths=pinned))
+    # The crate unit-test form: accepted when its crate source is pinned, refused when not.
+    lib_row: dict[str, object] = {
+        "description": "a rust guard whose only test is a crate unit test",
+        "killed_by": "zk/probe/src/lib.rs::probe::tests::probe_one",
+        "mutant": {"path": "zk/probe/src/lib.rs", "needle_lines": ["1"], "replacement_lines": ["2"]},
+    }
+    _, lib_rows = _load(tmp_path, _packet(repo, rows=[lib_row], source_paths=pinned))
+    assert lib_rows[0].kind == "mechanical"
+    unpinned_lib: dict[str, object] = {**lib_row, "killed_by": "zk/other/src/lib.rs::probe::tests::probe_one"}
+    with pytest.raises(TestHygieneError, match="mutation killer is not a pinned node"):
+        _load(tmp_path, _packet(repo, rows=[unpinned_lib], source_paths=pinned))
     legacy_cargo: dict[str, object] = {"description": "old", "killed_by": "zk/probe/tests/probe.rs::probe_one"}
     with pytest.raises(TestHygieneError, match="mutation killer is not a pinned node"):
         _load(tmp_path, _packet(repo, evidence_id="THV1-20260901-example-v1", rows=[legacy_cargo], source_paths=pinned))

@@ -1060,8 +1060,14 @@ def test_executing_tool_drift_fails_closed(snapshot: core.SubjectSnapshotV1, pac
 # ---------------------------------------------------------------------------
 
 
-def _ledger_report(packet_id: str, expected_killed: int) -> bytes:
-    """A green mutation-ledger report: every mechanical row killed, none survived or errored."""
+def _ledger_report(packet_id: str, expected_killed: int, **overrides: Any) -> bytes:
+    """A green mutation-ledger report: every mechanical row killed, none survived or errored.
+
+    The mutation path must be one the formal-cycle packet pins, because the grader now
+    refuses a mutation applied to a file this packet does not bind (Opus P40 P2-1).
+    ``overrides`` replaces top-level fields so the negative tests can bend one thing at a
+    time.
+    """
 
     return json.dumps(
         {
@@ -1073,7 +1079,7 @@ def _ledger_report(packet_id: str, expected_killed: int) -> bytes:
                     "description": f"row {index}",
                     "killer": "tests/core/test_x.py::test_y",
                     "mutation": {
-                        "path": "src/core/x.py",
+                        "path": core.LEDGER_TOOL_PATH_V1,
                         "needle_sha256": f"{index:064x}",
                         "replacement_sha256": f"{index + 1:064x}",
                         "needle_first_line": "    if guard:",
@@ -1091,6 +1097,7 @@ def _ledger_report(packet_id: str, expected_killed: int) -> bytes:
             "killed": expected_killed,
             "survived": 0,
             "errors": 0,
+            **overrides,
         }
     ).encode()
 
@@ -1193,6 +1200,101 @@ def _passing_observations(packet: dict[str, Any]) -> dict[str, core.ReplayObserv
         command_id: core.ReplayObservationV1(command_id, 0, stdout, b"", False, "ab" * 32 if command_id in ("lean_axioms_probe", "lean_certificate_axioms_probe") else None)
         for command_id, stdout in outputs.items()
     }
+
+
+def _ledger_rows(count: int, **row_overrides: Any) -> list[dict[str, Any]]:
+    rows = []
+    for index in range(count):
+        mutation = {
+            "path": core.LEDGER_TOOL_PATH_V1,
+            "needle_sha256": f"{index:064x}",
+            "replacement_sha256": f"{index + 1:064x}",
+            "needle_first_line": "    if guard:",
+        }
+        mutation.update(row_overrides.pop("mutation", {}))
+        rows.append(
+            {
+                "description": f"row {index}",
+                "killer": "tests/core/test_x.py::test_y",
+                "mutation": mutation,
+                "mutant_sha256": f"{index + 2:064x}",
+                "exit": 1,
+                "seconds": 1.0,
+                "verdict": "KILLED",
+            }
+        )
+    return rows
+
+
+def _ledger_observation(rows: list[dict[str, Any]], killed: int) -> core.ReplayObservationV1:
+    command_id, packet_id, _expected = core.LEDGER_GATED_PACKETS_V1[0]
+    stdout = json.dumps(
+        {
+            "schema": "zenodex/thv1-mutation-ledger/v1",
+            "packet": packet_id,
+            "subject_commit": "ab" * 20,
+            "rows": rows,
+            "mechanical": killed,
+            "narrative": 0,
+            "legacy": 0,
+            "killed": killed,
+            "survived": 0,
+            "errors": 0,
+        }
+    ).encode()
+    return core.ReplayObservationV1(command_id, 0, stdout, b"", False, None)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "code"),
+    [
+        pytest.param(
+            lambda rows: [dict(row, mutation=dict(row["mutation"], path="/etc/passwd")) for row in rows],
+            "REPLAY_LEDGER_ROW_PATH_UNPORTABLE",
+            id="mutation-path-is-absolute",
+        ),
+        pytest.param(
+            lambda rows: [dict(row, mutation=dict(row["mutation"], path="tools/../../escape.py")) for row in rows],
+            "REPLAY_LEDGER_ROW_PATH_UNPORTABLE",
+            id="mutation-path-escapes-the-repository",
+        ),
+        pytest.param(
+            lambda rows: [dict(row, mutation=dict(rows[0]["mutation"])) for row in rows],
+            "REPLAY_LEDGER_ROW_NOT_DISTINCT",
+            id="one-mutation-reported-many-times",
+        ),
+        pytest.param(
+            lambda rows: [dict(row, mutation=dict(row["mutation"], needle_sha256="not-a-digest")) for row in rows],
+            "REPLAY_LEDGER_ROW_WITHOUT_MUTATION",
+            id="digest-field-is-not-a-digest",
+        ),
+        pytest.param(
+            lambda rows: [dict(row, mutation={k: v for k, v in row["mutation"].items() if k != "path"}) for row in rows],
+            "REPLAY_LEDGER_ROW_WITHOUT_MUTATION",
+            id="mutation-without-a-path",
+        ),
+    ],
+)
+def test_the_ledger_grader_refuses_a_report_that_names_no_real_mutation(
+    packet: dict[str, Any], mutate, code: str
+) -> None:
+    """opus2 P40 P2-8 asked for these: the grader's reject codes had no test at all, and
+    P40 P2-1 and P2-5 showed two reports that satisfied it while proving nothing. Each case
+    bends exactly one thing about an otherwise green report."""
+
+    expected = core.LEDGER_GATED_PACKETS_V1[0][2]
+    rows = mutate(_ledger_rows(expected))
+    with pytest.raises(core.AdmissionRejectV1) as raised:
+        core._grade_observation(_ledger_observation(rows, expected), packet)
+    assert raised.value.code == code, raised.value
+
+
+def test_the_ledger_grader_accepts_the_green_report(packet: dict[str, Any]) -> None:
+    """The complement, so the four refusals above are not vacuous."""
+
+    expected = core.LEDGER_GATED_PACKETS_V1[0][2]
+    comparable = core._grade_observation(_ledger_observation(_ledger_rows(expected), expected), packet)
+    assert comparable == {"killed": expected, "mechanical": expected, "survived": 0, "errors": 0}
 
 
 def test_no_observations_is_not_run(packet: dict[str, Any]) -> None:

@@ -315,7 +315,8 @@ def _validate_killer(
         if cargo_filter:
             return
         raise TestHygieneError(
-            f"{packet_context}: mutation killer is not a pinned node or a pinned cargo test filter"
+            f"{packet_context}: mutation killer is not a pinned node, a pinned cargo test"
+            f" filter, or a pinned crate unit-test filter"
         )
     raise TestHygieneError(f"{packet_context}: mutation killer is not a pinned node")
 
@@ -335,8 +336,13 @@ def _validate_mutations(
     if required:
         require(bool(rows), f"{packet_context}: mutation evidence requires named mutants")
     source_pin_paths = frozenset(pin.path for pin in source_pins)
+    # A cargo killer names a pinned integration test, or -- for a guard whose only honest
+    # test is a crate unit test, because the check it protects is private and no accepted
+    # object can reach it from outside (opus2 P40 P2-2) -- a pinned crate source.
     rust_test_paths = frozenset(
-        pin.path for pin in source_pins if pin.path.endswith(".rs") and "/tests/" in pin.path
+        pin.path
+        for pin in source_pins
+        if pin.path.endswith(".rs") and ("/tests/" in pin.path or "/src/" in pin.path)
     )
     result: list[MutationRowV1] = []
     for index, item in enumerate(rows):
