@@ -48,9 +48,11 @@ jobs:
       - name: Build exact pinned Tau source
         run: |
           set -euxo pipefail
+          TAU_COMMIT=1c1e58aea7ddec04e48ce11cb0e6ed0cbe2a0d43
           git clone --recurse-submodules https://github.com/IDNI/tau-lang.git /tmp/tau-lang
           cd /tmp/tau-lang
-          git checkout 0ac2756fdff71338668bdeccd17b2a53e7be5198
+          git checkout "$TAU_COMMIT"
+          test "$(git rev-parse HEAD)" = "$TAU_COMMIT"
           git submodule update --init --recursive
           ./dev release -DTAU_DONT_USE_FTXUI=ON -DTAU_BUILD_JOBS=2
           /tmp/tau-lang/build-Release/tau -v | tee "$GITHUB_WORKSPACE/experiments/tau_adt_tables/tau-version.txt"
@@ -58,16 +60,20 @@ jobs:
       - name: Run upstream ADT table baselines
         run: |
           set -euxo pipefail
+          DEMOS_COMMIT=b149ca30f0143e3a4c31f0ce4fc4b5b75ff77c54
           git clone https://github.com/taumorrow/tau-lang-demos.git /tmp/tau-lang-demos
           cd /tmp/tau-lang-demos
-          git checkout 0cfbaac933a99402eb36eb3f61b4b686a1809cb4
+          git checkout "$DEMOS_COMMIT"
+          test "$(git rev-parse HEAD)" = "$DEMOS_COMMIT"
           cd "$GITHUB_WORKSPACE"
           mkdir -p experiments/tau_adt_tables/results/upstream
           TAU=/tmp/tau-lang/build-Release/tau
           TAU_BA_COMPONENT_FACTORING=1 timeout 120s "$TAU" -q -X < /tmp/tau-lang-demos/adt_tables_basic.tau | tee experiments/tau_adt_tables/results/upstream/basic.out
           TAU_BA_COMPONENT_FACTORING=1 timeout 120s "$TAU" -q -X < /tmp/tau-lang-demos/adt_tables_advanced.tau | tee experiments/tau_adt_tables/results/upstream/advanced.out
+          TAU_BA_COMPONENT_FACTORING=1 timeout 180s "$TAU" -q -X < /tmp/tau-lang-demos/adt_tables_beyond_sql.tau | tee experiments/tau_adt_tables/results/upstream/beyond_sql.out
           ! grep -Fq '(Error)' experiments/tau_adt_tables/results/upstream/basic.out
           ! grep -Fq '(Error)' experiments/tau_adt_tables/results/upstream/advanced.out
+          ! grep -Fq '(Error)' experiments/tau_adt_tables/results/upstream/beyond_sql.out
 
       - name: Run ZenoDEX contracts
         env:
