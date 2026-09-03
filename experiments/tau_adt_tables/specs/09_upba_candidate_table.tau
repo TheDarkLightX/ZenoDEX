@@ -5,7 +5,7 @@
 # deliberately keeps denominator-zero rows present but marks them invalid,
 # matching the safer UPBA v1 design rule that completeness includes invalid
 # raw-grid keys rather than silently filtering them away.
-# EXPECTED-RESULTS: T T T F T T T T T T F
+# EXPECTED-RESULTS: T T T F T T T T T T T F
 set charvar off
 set maxsplits 1
 
