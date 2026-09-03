@@ -8,7 +8,7 @@ BUILD_DIR="${3:-build-Release}"
 TAU_DIR="${ROOT}/${TAU_DIR_REL}"
 
 # Resolve the exact source with the repository's fail-closed updater, but do
-# not let that helper auto-parallelize the heavy cvc5 dependency build.
+# not let that helper auto-parallelize the heavy pinned dependency builds.
 bash "${ROOT}/tools/update_tau_lang.sh" \
   --ref "${TAU_REF}" \
   --tau-dir "${TAU_DIR_REL}" \
@@ -17,11 +17,18 @@ bash "${ROOT}/tools/update_tau_lang.sh" \
 
 git -C "${TAU_DIR}" submodule update --init --recursive
 
-# Tau's CMake passes TAU_BUILD_JOBS to its pinned cvc5 dependency builder.
-# GitHub-hosted runners expose many logical CPUs but substantially less memory;
-# the auto-parallel cvc5 build was observed to OOM-kill cc1plus around 51-54%.
-# One job is slower but deterministic and memory-bounded enough for replay CI.
+# Tau's dependency scripts accept TAU_BUILD_JOBS. GitHub-hosted runners expose
+# many logical CPUs relative to memory; the auto-parallel cvc5 build was
+# observed to OOM-kill cc1plus. Build Tau's exact pinned cvc5 and Boost/log
+# dependencies explicitly with one job before configuring Tau. Upstream CMake
+# only auto-builds Boost for PIC/Windows configurations, so a clean Linux
+# non-PIC checkout otherwise fails at find_package(Boost COMPONENTS log).
 export TAU_BUILD_JOBS=1
+(
+  cd "${TAU_DIR}"
+  bash ./dev dep-cvc5.sh -DTAU_BUILD_JOBS=1
+  bash ./dev dep-boost.sh -DTAU_BUILD_JOBS=1 -DTAU_BUILD_PIC=OFF
+)
 
 cmake \
   -S "${TAU_DIR}" \
