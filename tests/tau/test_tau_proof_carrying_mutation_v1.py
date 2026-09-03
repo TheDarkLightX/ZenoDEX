@@ -7,20 +7,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = ROOT / "config" / "tau_lang_adt_research.lock"
-MUTATION_SPEC = (
-    ROOT
-    / "src"
-    / "tau_specs"
-    / "recommended"
-    / "proof_carrying_constitutional_mutation_v1.tau"
-)
-COORDINATION_SPEC = (
-    ROOT
-    / "src"
-    / "tau_specs"
-    / "recommended"
-    / "mutation_coordination_classifier_v1.tau"
-)
+RECOMMENDED = ROOT / "src" / "tau_specs" / "recommended"
+MUTATION_SPEC = RECOMMENDED / "proof_carrying_constitutional_mutation_v1.tau"
+COORDINATION_SPEC = RECOMMENDED / "mutation_coordination_classifier_v1.tau"
+RELATION_SPEC = RECOMMENDED / "amendment_relation_classifier_v1.tau"
+KERNEL_SPEC = RECOMMENDED / "invariant_kernel_mutable_policy_v1.tau"
 TAU_DIR_REL = "external/tau-lang-adt-logical-abi-v1"
 TAU_DIR = ROOT / TAU_DIR_REL
 TAU_BIN = TAU_DIR / "build-Release" / "tau"
@@ -87,7 +78,7 @@ def _expected_results(text: str) -> list[str]:
     raise AssertionError("missing EXPECTED-RESULTS header")
 
 
-def _replay(tau_bin: Path, spec: Path, final_wire: str) -> None:
+def _replay(tau_bin: Path, spec: Path, final_wire: str | None = None) -> None:
     text = spec.read_text(encoding="utf-8")
     proc = subprocess.run(
         [str(tau_bin), "-q"],
@@ -102,21 +93,38 @@ def _replay(tau_bin: Path, spec: Path, final_wire: str) -> None:
     assert proc.returncode == 0, transcript
     assert "(Error)" not in transcript, transcript
     assert _VERDICT_RE.findall(clean_stdout) == _expected_results(text), transcript
-    assert final_wire in clean_stdout, transcript
+    if final_wire is not None:
+        assert final_wire in clean_stdout, transcript
 
 
 def test_tau_proof_carrying_mutation_source_contract() -> None:
     mutation = MUTATION_SPEC.read_text(encoding="utf-8")
     coordination = COORDINATION_SPEC.read_text(encoding="utf-8")
+    relation = RELATION_SPEC.read_text(encoding="utf-8")
+    kernel = KERNEL_SPEC.read_text(encoding="utf-8")
+
     assert "gmi[t].proposal & gmo[t-1].law'" in mutation
     assert "gmo[t-1].law & gmi[t].proposal" in mutation
     assert "all x:tau" in mutation
     assert "EXPECTED-RESULTS: T F T F T F T T F T" in mutation
     assert len(_expected_results(mutation)) == 10
+
     assert "(mco[t-1].state & mci[t].keep) | mci[t].add" in coordination
     assert "ex tb:tau ex a:tau ex b:tau" in coordination
     assert "EXPECTED-RESULTS: T T F T F T T T" in coordination
     assert len(_expected_results(coordination)) == 8
+
+    assert "escape(P,C) = P & C'" in relation
+    assert "removed(P,C)= C & P'" in relation
+    assert "mixed:" in relation
+    assert "EXPECTED-RESULTS: T T F T F T T T T T F T" in relation
+    assert len(_expected_results(relation)) == 12
+
+    assert "effective[t] = kernel[t] & policy[t]" in kernel
+    assert "iko[t].kernel = iko[t-1].kernel" in kernel
+    assert "iko[t].effective = iko[t].kernel & iko[t].policy" in kernel
+    assert "EXPECTED-RESULTS: T T T T F T T T F T" in kernel
+    assert len(_expected_results(kernel)) == 10
 
 
 def test_tau_proof_carrying_mutation_pinned_replay(capsys) -> None:
@@ -128,3 +136,5 @@ def test_tau_proof_carrying_mutation_pinned_replay(capsys) -> None:
         )
     _replay(tau_bin, MUTATION_SPEC, "gmo[3] :=")
     _replay(tau_bin, COORDINATION_SPEC, "mco[2] :=")
+    _replay(tau_bin, RELATION_SPEC)
+    _replay(tau_bin, KERNEL_SPEC, "iko[3] :=")
