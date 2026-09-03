@@ -1,0 +1,158 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-tau-adt-table-comprehensive-v8",
+  "created_date": "2026-09-03",
+  "claim_scope": "Comprehensive successor research evidence for every critical Tau logical-ABI path introduced by PR #534. It binds the original asset-transfer and lane-journal ADT specifications plus the asset-registry/transfer and command-occurrence tau-value table specifications to the exact locked IDNI/tau-lang source and the corrected single-job cvc5 + Boost/log + Tau build rail. This packet is intentionally broad so historical append-only packets remain immutable replay records without being selected for current changed paths whose shared build helper evolved. All executable claims remain bounded, research-only, and authority-free.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TAU-ADT-ASSET-TRANSFER-REJECT-IS-NOOP",
+    "TAU-ADT-ASSET-TRANSFER-RESOURCE-BOUND-CLOSED",
+    "TAU-ADT-WHOLE-VALUE-FLATTENING-ARITY",
+    "TAU-ADT-LANE-JOURNAL-STRUCTURAL-BINDING",
+    "TAU-ADT-SATURATING-REPLAY-CURSOR-NO-WRAP",
+    "TAU-TABLE-ASSET-REGISTRY-FK-GATE",
+    "TAU-TABLE-INVALID-TRANSFER-APPEND-NOOP",
+    "TAU-TABLE-PRIOR-STATE-NO-SELF-VOUCH",
+    "TAU-TABLE-OCCURRENCE-FRESHNESS-DIFFERENCE",
+    "TAU-TABLE-CHANGED-PAYLOAD-REPLAY-ANNIHILATES",
+    "TAU-TABLE-REPLAY-REJECT-NOOP",
+    "TAU-EXACT-UPSTREAM-SOURCE-LOCK",
+    "TAU-EXACT-SINGLE-VERDICT-FAIL-CLOSED",
+    "TAU-PINNED-CVC5-BOOST-MEMORY-BOUNDED-BUILD"
+  ],
+  "failure_modes": [
+    "a rejected asset-transfer result changes its abstract state root or carries effects",
+    "POST_STATE_RESOURCE_BOUND_EXCEEDED escapes the closed typed rejection algebra",
+    "whole or nested ADT arguments do not flatten to the intended predicate arity",
+    "the saturating journal cursor wraps from maximum to zero",
+    "an absent asset key contributes a transfer row",
+    "a same-step asset registration self-authorizes a transfer despite the prior-state gate",
+    "a reused occurrence id survives freshness difference",
+    "a changed-payload replay under the same occurrence id mutates the command table",
+    "an invalid table contribution changes prior logical state",
+    "the replay uses a mutable Tau source name rather than the exact lock",
+    "an earlier REPL answer masks a final wrong verdict",
+    "the hosted build OOMs by auto-parallelizing cvc5 or Boost",
+    "Tau configuration fails because pinned Boost/log was not bootstrapped",
+    "bounded logical-table evidence is overstated as physical storage, consensus, or settlement authority"
+  ],
+  "source_pins": [
+    {
+      "path": "config/tau_lang_adt_research.lock",
+      "sha256": "55e44d31eff9bddb5b046b33527eda7cb0e6d7cf661c5c2229ee1b4dce6b098f"
+    },
+    {
+      "path": "src/tau_specs/recommended/asset_transfer_adt_contract_v1.tau",
+      "sha256": "b88077953eebb392f158b4da2c1ddbf7a8960751dc33035922bf6bc5a93d7ad6"
+    },
+    {
+      "path": "src/tau_specs/recommended/lane_transition_journal_adt_contract_v1.tau",
+      "sha256": "82f47fdd414e1b4c9a16f6f92e85f6ba6858cc1bacf0f0589fa80e299ca8556d"
+    },
+    {
+      "path": "src/tau_specs/recommended/asset_registry_transfer_table_contract_v1.tau",
+      "sha256": "9f1c34d882fc35bca18efaa6781dca9abca25f8c7919e26ed8fb829f15dfcd98"
+    },
+    {
+      "path": "src/tau_specs/recommended/command_occurrence_replay_table_contract_v1.tau",
+      "sha256": "60c4f5de54ccb20dd3cd336bc87627538a3ee271b520be103681bb0d9afe6a2d"
+    },
+    {
+      "path": "tools/build_tau_adt_research_pin_v1.sh",
+      "sha256": "a3b995600bca52e34c9e5e76bb1aaaa13c8ef5aa929fcabbd19f692666188d7b"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/tau/test_tau_adt_logical_abi_v1.py",
+      "sha256": "f457682f5d245a776f269c76833ffb788f4ef1afee2492bc213053bb42642bc3",
+      "node_ids": [
+        "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_source_contract",
+        "tests/tau/test_tau_adt_logical_abi_v1.py::test_tau_adt_logical_abi_pinned_replay"
+      ]
+    },
+    {
+      "path": "tests/tau/test_tau_asset_registry_transfer_table_v1.py",
+      "sha256": "921310d1e94d82d5e57666c6ca6708ba681115f96e6ad859f1f79d29d2b3c0ab",
+      "node_ids": [
+        "tests/tau/test_tau_asset_registry_transfer_table_v1.py::test_tau_asset_registry_transfer_table_source_contract",
+        "tests/tau/test_tau_asset_registry_transfer_table_v1.py::test_tau_asset_registry_transfer_table_pinned_replay"
+      ]
+    },
+    {
+      "path": "tests/tau/test_tau_command_occurrence_replay_table_v1.py",
+      "sha256": "b85541ba27e5df83a6cc80c2ccf5bfdeb714deaf6e64ed4cd6cb1f0ed8cdefc4",
+      "node_ids": [
+        "tests/tau/test_tau_command_occurrence_replay_table_v1.py::test_tau_command_occurrence_replay_table_source_contract",
+        "tests/tau/test_tau_command_occurrence_replay_table_v1.py::test_tau_command_occurrence_replay_table_pinned_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The packet pins all current Tau sources and tests in one selection unit. Replays arrange ADT result boundaries, journal saturation, present/missing asset keys, prior-state activation, unseen/seen occurrence ids, and changed-payload replay; act through Tau's decision and temporal execution paths on an exact source checkout; and assert exact theorem verdicts, explicit false controls, and terminal structured stream states."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The ADT result algebra requires every reject to preserve its abstract root and carry no effects. Both table contracts reduce invalid contributions to lattice zero, and join with zero preserves prior logical state."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "asset_transfer_result_algebra",
+      "points": [
+        "accepted result uses no reject code",
+        "closed reject codes including abstract resource-bound rejection preserve root and empty effects"
+      ]
+    },
+    {
+      "name": "journal_replay_saturation",
+      "points": [
+        "non-max bv[16] advances by one",
+        "maximum remains maximum and never wraps"
+      ]
+    },
+    {
+      "name": "asset_table_membership_and_activation",
+      "points": [
+        "registered asset survives lookup",
+        "missing asset annihilates transfer contribution",
+        "same-step registration cannot self-vouch",
+        "later-step transfer may use an already-present key"
+      ]
+    },
+    {
+      "name": "occurrence_replay",
+      "points": [
+        "unseen key survives complement-meet freshness",
+        "seen key reduces to zero",
+        "seen key with changed command payload still reduces the command contribution to zero"
+      ]
+    },
+    {
+      "name": "source_and_build_binding",
+      "points": [
+        "exact 40-hex Tau revision is read from the lock",
+        "pinned cvc5 and Boost/log dependencies are bootstrapped with one job",
+        "only the Tau executable target is compiled with one job",
+        "built checkout HEAD must equal the locked revision"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "This evidence grants no production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "bv[8]/bv[16] roots, identifiers and amounts are bounded abstract tags; this is not production u128/u256 arithmetic.",
+    "The tau-value tables are logical row sets, not proofs of SQL semantics, physical persistence, indexing, crash consistency, concurrency control, or distributed storage durability.",
+    "The asset table proves bounded key existence only; enabled status, policy membership, authorization, balances, fees, signatures, encoding, hashes, and proof verification remain separate.",
+    "The occurrence replay table assumes the host probe is canonically bound to the occurrence id inside the command row; production canonical encoding/hash binding remains separate.",
+    "A successful exact-source build is research replayability evidence, not Tau Net consensus or deployment attestation.",
+    "This evidence does not close O-008, does not close any whole-value-movement gate, and does not make the pre-existing P22 formal-cycle packet current."
+  ]
+}
