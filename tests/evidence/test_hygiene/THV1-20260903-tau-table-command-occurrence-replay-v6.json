@@ -1,0 +1,97 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-tau-table-command-occurrence-replay-v6",
+  "created_date": "2026-09-03",
+  "claim_scope": "Research-only bounded replay evidence for a Tau command-occurrence replay index expressed as a tau-value table. Seen occurrence ids are key-only facts. Freshness is occurrence_probe & seen', which preserves a never-seen key and annihilates a reused key. Command contribution is command_row & fresh, so a reused occurrence id is suppressed even when the attacker changes other command fields. The temporal run updates seen and command tables only through this lattice-difference gate on the exact locked Tau source.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "TAU-TABLE-OCCURRENCE-FRESHNESS-DIFFERENCE",
+    "TAU-TABLE-OCCURRENCE-REPLAY-ANNIHILATES",
+    "TAU-TABLE-CHANGED-PAYLOAD-REPLAY-ANNIHILATES",
+    "TAU-TABLE-SEEN-DUPLICATE-NOOP",
+    "TAU-TABLE-SEEN-FRESH-KEY-ADMISSION",
+    "TAU-TABLE-FRESH-DISJOINT-FROM-SEEN",
+    "TAU-TABLE-REPLAY-EXACT-UPSTREAM-SOURCE-LOCK"
+  ],
+  "failure_modes": [
+    "a never-seen occurrence key is annihilated instead of admitted",
+    "an already-seen occurrence key survives the freshness difference",
+    "reusing an occurrence id with a changed amount or other payload survives the gate",
+    "a duplicate occurrence changes the seen table",
+    "a fresh occurrence fails to become represented by the seen table",
+    "the computed fresh contribution overlaps the prior seen table",
+    "the replay table is executed against a mutable Tau branch instead of the exact source lock"
+  ],
+  "source_pins": [
+    {
+      "path": "config/tau_lang_adt_research.lock",
+      "sha256": "55e44d31eff9bddb5b046b33527eda7cb0e6d7cf661c5c2229ee1b4dce6b098f"
+    },
+    {
+      "path": "src/tau_specs/recommended/command_occurrence_replay_table_contract_v1.tau",
+      "sha256": "60c4f5de54ccb20dd3cd336bc87627538a3ee271b520be103681bb0d9afe6a2d"
+    },
+    {
+      "path": "tools/build_tau_adt_research_pin_v1.sh",
+      "sha256": "aa115ca2c35a311a0660bd1c65307942adcb09aa8a731d18cb803631bde69796"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/tau/test_tau_command_occurrence_replay_table_v1.py",
+      "sha256": "b85541ba27e5df83a6cc80c2ccf5bfdeb714deaf6e64ed4cd6cb1f0ed8cdefc4",
+      "node_ids": [
+        "tests/tau/test_tau_command_occurrence_replay_table_v1.py::test_tau_command_occurrence_replay_table_source_contract",
+        "tests/tau/test_tau_command_occurrence_replay_table_v1.py::test_tau_command_occurrence_replay_table_pinned_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The replay arranges unseen, seen, and seen-with-changed-payload occurrence cases, acts by lattice difference and command-row meet inside Tau, and asserts the frozen theorem sequence plus structured temporal execution on the exact locked source."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "A reused occurrence id makes fresh = 0. Both seen | 0 and commands | (command_row & 0) preserve their previous table values, so replay rejection is an exact logical no-op."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "occurrence_membership",
+      "points": [
+        "key 2 against seen={key 1} survives unchanged",
+        "key 1 against seen={key 1} reduces to 0"
+      ]
+    },
+    {
+      "name": "payload_replay",
+      "points": [
+        "a fresh command row survives the occurrence gate",
+        "a command that reuses key 1 with a different amount is annihilated"
+      ]
+    },
+    {
+      "name": "seen_update",
+      "points": [
+        "duplicate-key update is an exact no-op",
+        "fresh key becomes represented after update",
+        "fresh contribution is disjoint from prior seen"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "This evidence grants no production, settlement, publication, verifier, migration, release, or value-moving authority.",
+    "Occurrence ids and command fields are bounded abstract tags; this does not model production canonical occurrence hashes or u128/u256 values.",
+    "This is a logical replay index, not a physical persistence, crash-consistency, concurrency, distributed-consensus, or storage-durability proof.",
+    "The contract assumes the host supplies an occurrence_probe that exactly fixes the same occurrence_id represented inside command_row; a production binding proof between canonical command encoding and the probe remains separate.",
+    "This evidence does not prove authorization, balance sufficiency, fees, signatures, asset policy, settlement validity, or receipt hashing.",
+    "This evidence does not close O-008 or any whole-value-movement gate and does not make P22 current."
+  ]
+}
