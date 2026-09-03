@@ -182,6 +182,23 @@ def test_duplicate_effect_id_across_lanes_is_rejected() -> None:
     with pytest.raises(cert._Reject) as unbound:
         cert._check_external_obligations(unbacked, state)
     assert unbound.value.detail.endswith("source binding")
+    # The binding is on the PRINCIPAL, not merely on the presence of custody: a fragment that
+    # controls the asset through a different principal is refused too (Opus P39: without this
+    # case a mutant that only checks for a non-null principal survives).
+    foreign = renderer._certificate_with_fragments(
+        base,
+        (
+            renderer._fragment_with_rows(
+                base.ordered_lane_fragments[0],
+                controlled_locations=(cert.ControlledLocationRowV1("USD", "pool-z", "spot-pool", 7),),
+                pending_external_obligations=(row,),
+            ),
+            *base.ordered_lane_fragments[1:],
+        ),
+    )
+    with pytest.raises(cert._Reject) as mismatched:
+        cert._check_external_obligations(foreign, state)
+    assert mismatched.value.detail.endswith("source binding")
 
 
 def _certificate_for(base: cert.GlobalAccountingAllocationCertificateV1, fragment: cert.LaneAllocationFragmentV1) -> cert.GlobalAccountingAllocationCertificateV1:

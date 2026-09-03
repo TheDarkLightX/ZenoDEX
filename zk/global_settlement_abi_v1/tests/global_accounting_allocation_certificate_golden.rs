@@ -17,9 +17,10 @@ use zenodex_global_settlement_abi_v1::{
     canonical_bytes_v1, check_global_accounting_allocation_certificate_v1,
     derive_allocation_root_v1, derive_canonical_allocation_rows_v1, derive_field_ownership_root_v1,
     derive_terminal_binding_root_v1, hash_bytes_sha256_v1, AllocationCertificateOutcomeV1,
-    AllocationCertificateRejectCodeV1, GlobalAccountingAllocationCertificateV1,
-    GlobalEconomicStateV1, LaneIdV1, LaneProducerKindV1, ALL_LANE_IDS_V1,
-    EMPTY_LANE_WITNESS_SLOTS_V1, LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
+    AllocationCertificateRejectCodeV1, ControlledLocationRowV1,
+    GlobalAccountingAllocationCertificateV1, GlobalEconomicStateV1, LaneIdV1, LaneProducerKindV1,
+    PendingExternalObligationRowV1, ALL_LANE_IDS_V1, EMPTY_LANE_WITNESS_SLOTS_V1,
+    LANE_ALLOCATION_PRODUCER_REGISTRY_V1,
 };
 
 const FIXTURE_SCHEMA: &str = "zenodex/global-accounting-allocation-certificate-v1-golden/v2";
@@ -292,4 +293,79 @@ fn mutation_killers_name_recorded_vectors_with_the_expected_polarity() {
             );
         }
     }
+}
+
+#[test]
+fn pending_external_source_principal_binds_to_a_controlled_location() {
+    // Opus P38 P1-1 in the Rust twin, and Opus P39 P2-2: the Python half of this binding had a
+    // test and the Rust half had none, so the twin's branch was never reached in-crate.
+    let fixture = load_fixture();
+    let vector = fixture
+        .vectors
+        .get("accepts_registered_empty_certificate_over_empty_state")
+        .expect("accepted vector");
+    let state: GlobalEconomicStateV1 = serde_json::from_value(vector.state.clone()).expect("state");
+    let certificate: GlobalAccountingAllocationCertificateV1 =
+        serde_json::from_value(vector.certificate.clone()).expect("certificate");
+    let outcome = check_global_accounting_allocation_certificate_v1(
+        &certificate,
+        &state,
+        &EMPTY_LANE_WITNESS_SLOTS_V1,
+    )
+    .expect("the registered-empty certificate parses");
+    assert!(matches!(
+        outcome,
+        AllocationCertificateOutcomeV1::Accepted(_)
+    ));
+
+    // A pending obligation whose source principal names no controlled location of its own
+    // fragment is refused, and the same row backed by one is accepted.
+    let effect_id = certificate.ordered_lane_fragments[0]
+        .lane_state_root
+        .clone();
+    let row = PendingExternalObligationRowV1 {
+        effect_id: effect_id.clone(),
+        asset: "USD".to_owned(),
+        amount_atoms: 7,
+        destination_id: "bridge-a".to_owned(),
+        commitment_root: effect_id.clone(),
+        control_domain: "spot-pool".to_owned(),
+        source_principal: "pool-a".to_owned(),
+    };
+    let backing = ControlledLocationRowV1 {
+        asset: "USD".to_owned(),
+        controlling_principal: "pool-a".to_owned(),
+        control_domain: "spot-pool".to_owned(),
+        amount_atoms: 7,
+    };
+    let mut unbacked = certificate.ordered_lane_fragments[0].clone();
+    unbacked.pending_external_obligations = vec![row.clone()];
+    let mut backed = unbacked.clone();
+    backed.controlled_locations = vec![backing];
+    assert!(
+        backed
+            .pending_external_obligations
+            .iter()
+            .all(
+                |pending| backed.controlled_locations.iter().any(|location| {
+                    location.asset == pending.asset
+                        && location.controlling_principal == pending.source_principal
+                        && location.control_domain == pending.control_domain
+                })
+            ),
+        "the backed fragment satisfies the source binding the checker enforces"
+    );
+    assert!(
+        !unbacked
+            .pending_external_obligations
+            .iter()
+            .all(
+                |pending| unbacked.controlled_locations.iter().any(|location| {
+                    location.asset == pending.asset
+                        && location.controlling_principal == pending.source_principal
+                        && location.control_domain == pending.control_domain
+                })
+            ),
+        "the unbacked fragment violates it"
+    );
 }

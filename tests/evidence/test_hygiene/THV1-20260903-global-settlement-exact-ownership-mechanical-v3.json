@@ -1,0 +1,488 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-global-settlement-exact-ownership-mechanical-v3",
+  "created_date": "2026-09-03",
+  "claim_scope": "v2 re-pin (C9c-2): the certificate module gains the pending-external source-principal binding (Opus P38 P1-1); rows unchanged. Earlier: v2 re-pin (C9c-2): the certificate module gains the pending-external source-principal binding (Opus P38 P1-1); rows unchanged. Earlier: mechanical-v1 (M1 / P3, item 01): every mutation row of this lineage is now executable by tools/thv1_mutation_ledger_v1.py. Rows carry the exact mutant (path, needle, replacement) and the ledger runs each one in a fresh git-archive copy: the killer must pass unmutated and fail mutated. Changes against v5: the mutated modules of the receipt-admission path (asset_transfer_receipt_admission_v1, asset_lane_projection_v1, asset_transfer_types_v1, global_accounting_allocation_certificate_v1, receipt_backed_asset_lane_composition_v1) join the source pins, because a mutant's path must be pinned; the 'any AssetTransferAcceptedV1 nested gate' row is three rows (post_state, effects, module_journal) and the projection-source row is two (transfer, managed); the receipt-backed composition candidate row keeps its mutant but its killer is the positive gate pin, because the behavioural test passes profile=object(), which isinstance refuses with the same message (Fable P34 P2-1); the 'loosen any input gate' row is executed as the receipt admission's lane-root gate, which also discharges the admission lineage's narrative lane-root row. Earlier: v5 (C9b-2a): the certificate module joins the scanned admission-path set (ten modules) because it now consumes the sealed witness; its exact-type gates are pinned positively and its isinstance count leaves the out-of-scope map. Earlier: v4 (Fable P32 P2-1, P3-1): the composition subclass-refusal test isolates the post-state gate (genuine effects, the gate's own message), and the exact-type discipline is pinned POSITIVELY: every exact-type gate on the eight path modules is frozen by (module, definition, expression, type) so a gate weakened to isinstance, issubclass, __class__, a match pattern, or an alias disappears from the scan; the negative scan refuses those spellings outright. Earlier: v3 (C9a'''): every declared construction gate on the receipt-admission path has a behavioural killer (accepted state/effects/journal subclasses, both projection sources, both port projections, the receipt-backed composition candidate), and the AST inventory covers eight modules. Earlier: v2 (C9a''): the exact-ownership discipline gains a mechanical pin over the seven modules of the receipt-admission path (isinstance survives only as result discrimination on a closed RejectedV1 return; every input gate is type(x) is not T) and a subclass-refusal witness for the third F1 site, AssetLaneCompositionAcceptedV1. Earlier: Research-only exact-ownership evidence for the Python GlobalSettlementABI V1 boundary. Exact scalar, container, nested-record, outer-snapshot, effect-plan, and factory types reject behavior-bearing subclasses before their hooks can influence canonical state or effects. The packet does not close the generic canonicalizable registry or resource-budget gaps.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSV1-FCIS-EXACT-PRIMITIVE-OWNERSHIP",
+    "GSV1-FCIS-EXACT-CONTAINER-OWNERSHIP",
+    "GSV1-FCIS-EXACT-NESTED-RECORD-OWNERSHIP",
+    "GSV1-FCIS-EXACT-SNAPSHOT-OWNERSHIP",
+    "GSV1-FCIS-CLOSED-FACTORY-DISPATCH",
+    "THV1-DECLARED-KILLER-MUST-KILL"
+  ],
+  "failure_modes": [
+    "a string subclass executes encoding or prefix behavior before token or root rejection",
+    "a mapping or sequence subclass executes iteration while canonical bytes are derived",
+    "a nested lane-state or effect-row subclass supplies forged projection or key behavior",
+    "an outer global state, effect plan, occurrence, or journal subclass reaches reflective snapshot reconstruction",
+    "an accepted or rejected transition retains a subclassed effect plan",
+    "an inherited class factory dispatches through a subclass and constructs a behavior-bearing authority value",
+    "a packet declares a killer that does not kill"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/global_economic_refinement_snapshot_v1.py",
+      "sha256": "0ab017a4fd6eee81e85bfeda3a829b34c78edb2b9af95d0959f1059be0469bb7"
+    },
+    {
+      "path": "src/core/asset_transfer_receipt_admission_v1.py",
+      "sha256": "a926bf7dd37e147b46f4e4815ffc167520d91fca0b2b8df520d3d33ae2a1d213"
+    },
+    {
+      "path": "src/core/asset_lane_projection_v1.py",
+      "sha256": "5420112e2dd321ce7f74604e66c13933ca714fc93467150f5cb6358f403b6839"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "5757c8b692820613e1eac30b7103e857a73b42efebbdda62d0a4469511f41277"
+    },
+    {
+      "path": "src/core/global_accounting_allocation_certificate_v1.py",
+      "sha256": "e27b05cfb6c8749366f11f88856ff25602a0aec9237d64d66b40fc5a84dc6b88"
+    },
+    {
+      "path": "src/core/receipt_backed_asset_lane_composition_v1.py",
+      "sha256": "4d7a3ed0a803e58d2a3fbd54ea2a7481cb1cc8c0e34b19ad0b14682d2daae074"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py",
+      "sha256": "01fc66803efb99fd6858b73eb088514fba10dbb3b7c6ea1c3a0c9c882246718f",
+      "node_ids": [
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_scalar_subclasses_reject_before_behavior_runs",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_canonical_encoder_rejects_mapping_subclass_before_iteration",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_canonical_encoder_rejects_sequence_subclass_before_iteration",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_global_state_rejects_nested_subclass_before_projection",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_effect_plan_rejects_nested_subclass_before_key_access",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_snapshot_boundaries_reject_outer_subclasses",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_accepted_transition_rejects_effect_plan_subclass",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_closed_factories_reject_subclass_dispatch",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_isinstance_inventory_is_pinned",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_lane_composition_accepted_rejects_root_bearing_subclasses",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_transfer_accepted_rejects_root_bearing_subclasses",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_projection_sources_reject_state_subclasses",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_lane_private_port_rejects_projection_subclasses",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_receipt_backed_composition_candidate_rejects_subclasses",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_exact_type_gates_are_pinned_positively",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_has_no_isinstance_spelling_variants",
+        "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_module_set_is_bound_to_the_import_closure"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges one exact valid authority value and one behavior-bearing subclass, invokes one admission, snapshot, transition, or factory boundary, and asserts the exact rejection plus non-execution of the hostile hook where observable."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "These tests exercise construction and projection admission before any state transition. Rejection returns no authority value and no effect plan; transition-level rejection purity remains covered by the shared GlobalSettlementABI suite."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "scalar_ownership",
+      "points": [
+        "exact built-in string accepted",
+        "equal behavior-bearing string subclass rejected before hook execution"
+      ]
+    },
+    {
+      "name": "container_ownership",
+      "points": [
+        "exact built-in tuple list and dict admitted by their declared canonical branches",
+        "mapping and sequence subclasses rejected before iteration"
+      ]
+    },
+    {
+      "name": "record_ownership",
+      "points": [
+        "exact nested and outer dataclass values accepted",
+        "nested and outer subclasses rejected before projection reflection or key access"
+      ]
+    },
+    {
+      "name": "factory_dispatch",
+      "points": [
+        "exact declared class constructs an exact value",
+        "subclass dispatch rejects before content projection or construction"
+      ]
+    },
+    {
+      "name": "mutation_rows",
+      "points": [
+        "behavioural killers execute a loosened gate on a hostile subclass",
+        "the positive gate pin executes a gate rewritten to isinstance, issubclass, or __class__",
+        "the isinstance inventory executes a new isinstance site on the admission path"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "replace exact string admission with subtype-permitting isinstance",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_scalar_subclasses_reject_before_behavior_runs",
+      "mutant": {
+        "path": "src/core/global_settlement_types_v1.py",
+        "needle_lines": [
+          "def _require_token(value: object, *, name: str) -> str:",
+          "    if type(value) is not str:",
+          ""
+        ],
+        "replacement_lines": [
+          "def _require_token(value: object, *, name: str) -> str:",
+          "    if not isinstance(value, str):",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "admit mapping subclasses and execute their items hook",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_canonical_encoder_rejects_mapping_subclass_before_iteration",
+      "mutant": {
+        "path": "src/core/global_settlement_types_v1.py",
+        "needle_lines": [
+          "    if value_type is dict:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if isinstance(value, dict):",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "admit sequence subclasses and execute their iterator hook",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_canonical_encoder_rejects_sequence_subclass_before_iteration",
+      "mutant": {
+        "path": "src/core/global_settlement_types_v1.py",
+        "needle_lines": [
+          "    if value_type is tuple or value_type is list:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if isinstance(value, (tuple, list)):",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "accept a nested lane-state subclass and hash its forged canonical projection",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_global_state_rejects_nested_subclass_before_projection",
+      "mutant": {
+        "path": "src/core/global_settlement_types_v1.py",
+        "needle_lines": [
+          "        if any(type(item) is not LaneStateRootV1 for item in self.lane_roots):",
+          ""
+        ],
+        "replacement_lines": [
+          "        if any(not isinstance(item, LaneStateRootV1) for item in self.lane_roots):",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "accept a nested effect-row subclass and execute its key hook",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_effect_plan_rejects_nested_subclass_before_key_access",
+      "mutant": {
+        "path": "src/core/global_settlement_types_v1.py",
+        "needle_lines": [
+          "    if any(type(item) is not expected_type for item in items):",
+          "        raise TypeError(f\"{name} contains an invalid value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "    if any(not isinstance(item, expected_type) for item in items):",
+          "        raise TypeError(f\"{name} contains an invalid value\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "run reflective snapshot reconstruction on an outer state subclass",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_snapshot_boundaries_reject_outer_subclasses",
+      "mutant": {
+        "path": "src/core/global_economic_refinement_snapshot_v1.py",
+        "needle_lines": [
+          "    if type(state) is not GlobalEconomicStateV1:",
+          "        raise TypeError(\"economic refinement state must have the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "    if not isinstance(state, GlobalEconomicStateV1):",
+          "        raise TypeError(\"economic refinement state must have the exact typed value\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "retain a subclassed effect plan in an accepted transition",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_accepted_transition_rejects_effect_plan_subclass",
+      "mutant": {
+        "path": "src/core/global_settlement_types_v1.py",
+        "needle_lines": [
+          "        if type(self.effects) is not GlobalEconomicEffectPlanV1:",
+          "            raise TypeError(\"accepted transition effects are invalid\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.effects, GlobalEconomicEffectPlanV1):",
+          "            raise TypeError(\"accepted transition effects are invalid\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "construct authority records through inherited subclass factory dispatch: accept subclasses in the state-root factory",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_closed_factories_reject_subclass_dispatch",
+      "mutant": {
+        "path": "src/core/global_settlement_types_v1.py",
+        "needle_lines": [
+          "        if cls is not GlobalEconomicStateRootV1:",
+          "            raise TypeError(\"state root factory requires the exact declared type\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not issubclass(cls, GlobalEconomicStateRootV1):",
+          "            raise TypeError(\"state root factory requires the exact declared type\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "loosen the receipt admission's lane-root gate back to isinstance (Opus P28 F1 audit; Opus P30 NEW-2: the admission suite's behavioural killer does not distinguish it from the producer's gate, Fable P34 P2-1, so the inventory pin is the executed killer)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_isinstance_inventory_is_pinned",
+      "mutant": {
+        "path": "src/core/asset_transfer_receipt_admission_v1.py",
+        "needle_lines": [
+          "    if type(lane_root) is not LaneStateRootV1:",
+          "        raise TypeError(\"fragment admission requires the exact LaneStateRootV1\")",
+          ""
+        ],
+        "replacement_lines": [
+          "    if not isinstance(lane_root, LaneStateRootV1):",
+          "        raise TypeError(\"fragment admission requires the exact LaneStateRootV1\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "admit a root-spoofing projection subclass into AssetLaneCompositionAcceptedV1: loosen its post-state gate to isinstance",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_lane_composition_accepted_rejects_root_bearing_subclasses",
+      "mutant": {
+        "path": "src/core/asset_lane_projection_v1.py",
+        "needle_lines": [
+          "        if type(self.post_state) is not AssetLaneStateProjectionV1:",
+          "            raise TypeError(\"asset lane accepted post-state must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.post_state, AssetLaneStateProjectionV1):",
+          "            raise TypeError(\"asset lane accepted post-state must be the exact typed value\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "loosen the AssetTransferAcceptedV1 post_state gate back to isinstance (Fable P30 P2-1)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_transfer_accepted_rejects_root_bearing_subclasses",
+      "mutant": {
+        "path": "src/core/asset_transfer_types_v1.py",
+        "needle_lines": [
+          "        if type(self.post_state) is not AssetTransferStateV1:",
+          "            raise TypeError(\"asset transfer accepted state must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.post_state, AssetTransferStateV1):",
+          "            raise TypeError(\"asset transfer accepted state must be the exact typed value\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "loosen the AssetTransferAcceptedV1 effects gate back to isinstance (Fable P30 P2-1)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_transfer_accepted_rejects_root_bearing_subclasses",
+      "mutant": {
+        "path": "src/core/asset_transfer_types_v1.py",
+        "needle_lines": [
+          "        if type(self.effects) is not GlobalEconomicEffectPlanV1:",
+          "            raise TypeError(\"asset transfer accepted effects must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.effects, GlobalEconomicEffectPlanV1):",
+          "            raise TypeError(\"asset transfer accepted effects must be the exact typed value\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "loosen the AssetTransferAcceptedV1 module_journal gate back to isinstance (Fable P30 P2-1)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_transfer_accepted_rejects_root_bearing_subclasses",
+      "mutant": {
+        "path": "src/core/asset_transfer_types_v1.py",
+        "needle_lines": [
+          "        if type(self.module_journal) is not LaneModuleTransitionJournalV1:",
+          "            raise TypeError(\"asset transfer accepted journal must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.module_journal, LaneModuleTransitionJournalV1):",
+          "            raise TypeError(\"asset transfer accepted journal must be the exact typed value\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "loosen the transfer projection-source gate back to isinstance (Fable P30 P2-1)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_projection_sources_reject_state_subclasses",
+      "mutant": {
+        "path": "src/core/asset_lane_projection_v1.py",
+        "needle_lines": [
+          "    if type(state) is not AssetTransferStateV1:",
+          "        raise TypeError(\"asset transfer projection source must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "    if not isinstance(state, AssetTransferStateV1):",
+          "        raise TypeError(\"asset transfer projection source must be the exact typed value\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "loosen the managed projection-source gate back to isinstance (Fable P30 P2-1)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_projection_sources_reject_state_subclasses",
+      "mutant": {
+        "path": "src/core/asset_lane_projection_v1.py",
+        "needle_lines": [
+          "    if type(state) is not ManagedAssetLifecycleStateV1:",
+          "        raise TypeError(\"managed asset projection source must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "    if not isinstance(state, ManagedAssetLifecycleStateV1):",
+          "        raise TypeError(\"managed asset projection source must be the exact typed value\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "loosen the port pre_state gate back to isinstance (Opus P30 NEW-3)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_lane_private_port_rejects_projection_subclasses",
+      "mutant": {
+        "path": "src/core/asset_lane_projection_v1.py",
+        "needle_lines": [
+          "        if type(self.pre_state) is not AssetLaneStateProjectionV1:",
+          "            raise TypeError(\"asset lane port pre-state must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "        if not isinstance(self.pre_state, AssetLaneStateProjectionV1):",
+          "            raise TypeError(\"asset lane port pre-state must be the exact typed value\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "loosen the receipt-backed composition candidate gates back to isinstance (Opus P30 NEW-4; the behavioural test passes profile=object(), which isinstance refuses with the same message, Fable P34 P2-1, so the positive gate pin is the executed killer)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_exact_type_gates_are_pinned_positively",
+      "mutant": {
+        "path": "src/core/receipt_backed_asset_lane_composition_v1.py",
+        "needle_lines": [
+          "            if type(value) is not expected_type:",
+          "                raise TypeError(f\"receipt-backed lane {label} must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          "            if not isinstance(value, expected_type):",
+          "                raise TypeError(f\"receipt-backed lane {label} must be the exact typed value\")",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "delete the composition accepted value's post-state gate (now isolated; Fable P32 P2-1)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_asset_lane_composition_accepted_rejects_root_bearing_subclasses",
+      "mutant": {
+        "path": "src/core/asset_lane_projection_v1.py",
+        "needle_lines": [
+          "        if type(self.post_state) is not AssetLaneStateProjectionV1:",
+          "            raise TypeError(\"asset lane accepted post-state must be the exact typed value\")",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
+      }
+    },
+    {
+      "description": "weaken an exact-type gate on the path to a __class__ comparison (Fable P32 P3-1)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_exact_type_gates_are_pinned_positively",
+      "mutant": {
+        "path": "src/core/asset_transfer_receipt_admission_v1.py",
+        "needle_lines": [
+          "    if type(prior) is not LaneAllocationFragmentV1:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if prior.__class__ is not LaneAllocationFragmentV1:",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "spell a gate as issubclass",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_has_no_isinstance_spelling_variants",
+      "mutant": {
+        "path": "src/core/asset_transfer_receipt_admission_v1.py",
+        "needle_lines": [
+          "    if type(prior.enabled) is not bool:",
+          ""
+        ],
+        "replacement_lines": [
+          "    if not issubclass(type(prior.enabled), bool):",
+          ""
+        ]
+      }
+    },
+    {
+      "description": "rewrite the certificate witness-slot gate as isinstance (the module is scanned from v5)",
+      "killed_by": "tests/core/test_global_settlement_fcis_exact_ownership_v1.py::test_admission_path_exact_type_gates_are_pinned_positively",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_certificate_v1.py",
+        "needle_lines": [
+          "        if slot is not None and type(slot) is not VerifiedLaneAllocationFragmentV1:",
+          ""
+        ],
+        "replacement_lines": [
+          "        if slot is not None and not isinstance(slot, VerifiedLaneAllocationFragmentV1):",
+          ""
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "The mutation ledger executes declared rows only; it does not measure mutants nobody declared, and every mutant here is a single textual edit chosen by the author.",
+    "The composition candidate's behavioural killer still does not reach its port gate (it passes profile=object()); building that test from genuine profile, occurrence, context and witness values is S38' work in this suite.",
+    "This packet establishes no production, settlement, release, migration, proof-receipt, or value-moving authority.",
+    "The generic _Canonicalizable to_canonical protocol remains open and needs a closed registry or private trusted boundary.",
+    "Canonical traversal still lacks one source-pinned cycle, depth, item, and byte budget.",
+    "Constructor and ownership errors do not yet share one typed canonical rejection-precedence algebra.",
+    "The evidence does not close every pool, perps, fill, delta, mounted publisher, durability, or no-bypass path.",
+    "Passing the hygiene gate proves only that the declared source and tests are current and executable."
+  ]
+}

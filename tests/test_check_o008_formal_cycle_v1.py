@@ -1068,7 +1068,23 @@ def _ledger_report(packet_id: str, expected_killed: int) -> bytes:
             "schema": "zenodex/thv1-mutation-ledger/v1",
             "packet": packet_id,
             "subject_commit": "ab" * 20,
-            "rows": [],
+            "rows": [
+                {
+                    "description": f"row {index}",
+                    "killer": "tests/core/test_x.py::test_y",
+                    "mutation": {
+                        "path": "src/core/x.py",
+                        "needle_sha256": f"{index:064x}",
+                        "replacement_sha256": f"{index + 1:064x}",
+                        "needle_first_line": "    if guard:",
+                    },
+                    "mutant_sha256": f"{index + 2:064x}",
+                    "exit": 1,
+                    "seconds": 1.0,
+                    "verdict": "KILLED",
+                }
+                for index in range(expected_killed)
+            ],
             "mechanical": expected_killed,
             "narrative": 0,
             "legacy": 0,

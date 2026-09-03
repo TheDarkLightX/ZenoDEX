@@ -93,8 +93,12 @@ PROJECTION_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_alloc
 # string-only rows had. The expected kill counts are pinned so a row cannot be quietly dropped.
 LEDGER_TOOL_PATH_V1: Final = "tools/thv1_mutation_ledger_v1.py"
 LEDGER_GATED_PACKETS_V1: Final[tuple[tuple[str, str, int], ...]] = (
-    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v2", 19),
-    ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v3", 19),
+    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v3", 20),
+    ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v4", 22),
+    ("ledger_admission_rows", "THV1-20260903-o008-asset-transfer-receipt-admission-mechanical-v3", 31),
+    ("ledger_ownership_rows", "THV1-20260903-global-settlement-exact-ownership-mechanical-v3", 21),
+    ("ledger_certificate_rows", "THV1-20260901-global-accounting-allocation-certificate-v22", 1),
+    ("ledger_lineage_rows", "THV1-20260902-test-hygiene-lineage-ordering-v4", 2),
 )
 PYTHON_TYPES_PATH_V1: Final = "src/core/global_settlement_types_v1.py"
 RUST_STATE_PATH_V1: Final = "zk/global_settlement_abi_v1/src/state.rs"
@@ -198,6 +202,8 @@ SOURCE_PIN_ROLES_V1: Final[tuple[tuple[str, str], ...]] = (
     (PROJECTION_PYTHON_PATH_V1, "allocation_projection"),
     (PROJECTION_PYTHON_TEST_PATH_V1, "allocation_projection_replay"),
     (LEDGER_TOOL_PATH_V1, "thv1_mutation_ledger"),
+    ("tools/test_hygiene_evidence_v1.py", "thv1_evidence_loader"),
+    ("tools/test_hygiene_model_v1.py", "thv1_evidence_model"),
 )
 SOURCE_PIN_PATHS_V1: Final[tuple[str, ...]] = tuple(path for path, _ in SOURCE_PIN_ROLES_V1)
 EXECUTING_TOOL_PATHS_V1: Final[tuple[str, ...]] = (
@@ -260,6 +266,8 @@ THV1_REQUIRED_PIN_PATHS_V1: Final[tuple[str, ...]] = (
     PROJECTION_PYTHON_PATH_V1,
     PROJECTION_PYTHON_TEST_PATH_V1,
     LEDGER_TOOL_PATH_V1,
+    "tools/test_hygiene_evidence_v1.py",
+    "tools/test_hygiene_model_v1.py",
 )
 
 PACKET_KEYS_V3: Final[frozenset[str]] = frozenset(
@@ -546,11 +554,18 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " producer (ASSET_TRANSFER, admitted only as the sealed C9 witness) and is not mounted; the"
     " other eleven lanes must be disabled and empty, so it reconciles at most the asset-transfer"
     " lane and no exact all-twelve-lane reconciliation exists.",
-    "The allocation certificate is DERIVED from the verified state by the C9c-1 projection, which refuses"
-    " with a closed code wherever V1 state does not determine it (a domainless terminal with two entitlement"
-    " domains; two PENDING outbox entries over one residual cell); the sealed witness contributes its binding"
-    " root and its header, not its rows. The projection has no consumer: no publisher, verifier, or client"
-    " calls it, so it refuses nothing at runtime, and it verifies no receipt.",
+    "The allocation certificate is DERIVED from the verified state by the C9c projection, which"
+    " refuses with a closed code wherever V1 state does not determine a certificate the checker can"
+    " accept. Two kinds of refusal share that family and the packet does not enumerate them: the THV1"
+    " projection packet carries the current list, and the module's own reject enum is the contract."
+    " UNDETERMINED means more than one acceptable certificate exists (a domainless terminal with two"
+    " entitlement domains, two principals controlling a cell, several ways to split a residual across"
+    " pending obligations); UNRECONCILABLE means none exists (entitlements exceeding custody,"
+    " unassignable controlled atoms, an obligation with no controlled location, an over-claiming"
+    " terminal, a claimant with no entitlement, a fold that would overflow, rows with no enabled lane,"
+    " and more than one enabled lane). The sealed witness contributes its binding root and its header,"
+    " not its rows. The projection has no consumer: no publisher, verifier, or client calls it, so it"
+    " refuses nothing at runtime, and it verifies no receipt.",
     "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher"
     " execution.",
     "The Rust receipt-admission twin mirrors the Python check order and reject family but not the"
@@ -1120,7 +1135,7 @@ RUST_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 3
 RUST_REFINEMENT_GATE_TARGET_V1: Final = "global_economic_state_effect_refinement"
 RUST_GOLDEN_GATE_TARGET_V1: Final = "claimant_backing_guard_golden"
 CERTIFICATE_RUST_GATE_TARGET_V1: Final = "global_accounting_allocation_certificate_golden"
-CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 3
+CERTIFICATE_RUST_GATE_EXPECTED_PASSED_V1: Final = 4
 CERTIFICATE_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 44
 PRODUCERS_PYTHON_GATE_EXPECTED_PASSED_V1: Final = 30
 PRODUCERS_RUST_GATE_TARGET_V1: Final = "global_accounting_lane_producers"
@@ -1131,7 +1146,7 @@ ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
 ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 # C9c-1: the certificate derived from the state, and the two shapes V1 state leaves undetermined.
-PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 50
+PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 53
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 4
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
@@ -4084,6 +4099,27 @@ def _grade_ledger(obs: ReplayObservationV1, expected_killed: int) -> dict[str, o
             obs.command_id,
             f"killed {killed} mechanical {mechanical} != {expected_killed}",
         )
+    rows = report.get("rows")
+    if not isinstance(rows, list):
+        _reject("REPLAY_LEDGER_REPORT_UNPARSEABLE", obs.command_id, "rows is not a list")
+    # Opus P39 P3: the totals alone said nothing about what ran. Every mechanical row must
+    # name the mutation that produced its verdict, so a KILLED row can be tied to the row
+    # declaring it rather than to some other edit of the same file.
+    described = 0
+    for row in rows:
+        if not isinstance(row, dict) or row.get("verdict") != "KILLED":
+            continue
+        mutation = row.get("mutation")
+        if not isinstance(mutation, dict) or not all(
+            type(mutation.get(field)) is str and mutation.get(field)
+            for field in ("path", "needle_sha256", "replacement_sha256")
+        ):
+            _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, str(row.get("description"))[:60])
+        if mutation["needle_sha256"] == mutation["replacement_sha256"]:
+            _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, "needle equals replacement")
+        described += 1
+    if described != killed:
+        _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, f"{described} described of {killed} killed")
     return {"killed": killed, "mechanical": mechanical, "survived": survived, "errors": errors}
 
 
