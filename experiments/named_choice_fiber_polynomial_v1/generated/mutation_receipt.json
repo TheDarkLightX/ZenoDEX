@@ -1,7 +1,7 @@
 {
   "authority": "NONE",
   "claim_status": "BOUNDED_RESEARCH_ONLY",
-  "killed": 7,
+  "killed": 9,
   "mutants": [
     {
       "killed": true,
@@ -30,6 +30,14 @@
     {
       "killed": true,
       "mutant": "support_like_printed_form_substituted_for_function_identity"
+    },
+    {
+      "killed": true,
+      "mutant": "ordered_truth_table_substituted_for_output_distribution"
+    },
+    {
+      "killed": true,
+      "mutant": "source_lineage_substituted_for_semantic_function_identity"
     }
   ],
   "object": "named_choice_fiber_polynomial_v1",

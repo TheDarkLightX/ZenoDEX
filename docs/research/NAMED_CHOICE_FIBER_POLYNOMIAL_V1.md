@@ -6,11 +6,14 @@ Authority: `NONE`
 
 The complete preserved packet is in
 [`experiments/named_choice_fiber_polynomial_v1/`](../../experiments/named_choice_fiber_polynomial_v1/README.md).
+The continuation index is
+[`NAMED_CHOICE_FIBER_EXPERIMENTS_V1.md`](NAMED_CHOICE_FIBER_EXPERIMENTS_V1.md).
 
-It formalizes a correlation-safe version of finite `+/-` branching as a named
-multilinear function over a closed Boolean cube. The degree-one fragment gives
-linear-time exact extrema. Multiplication requires explicit interaction fibers
-and can grow exponentially.
+It formalizes shared choice identity and independent uniform signs for finite
+`+/-` branching as a named multilinear function over a closed Boolean cube.
+The degree-one fragment gives linear-time exact extrema. Closure under
+arbitrary multiplication requires explicit interaction fibers and can grow
+exponentially.
 
 The packet includes:
 

@@ -5,14 +5,14 @@
   "claim_status": "BOUNDED_RESEARCH_ONLY",
   "entries": [
     {
-      "bytes": 1019,
+      "bytes": 1176,
       "path": "docs/research/NAMED_CHOICE_FIBER_POLYNOMIAL_V1.md",
-      "sha256": "c7f343777721189339a774a1b9581b1f0c8bcbfd6fe7a2bd4afa3cfaf320e45c"
+      "sha256": "8aefac5f4ca9696933b9d5d67e4b2f1b870540162edd3e81716e1081907ebea5"
     },
     {
-      "bytes": 4624,
+      "bytes": 5661,
       "path": "experiments/named_choice_fiber_polynomial_v1/README.md",
-      "sha256": "038b4cb884e3717c632836e52f3cf700fcefa481969c2ce3fa63fb6d1af98662"
+      "sha256": "ed9e6fcff116207467f551399c2839443caba2d4c046931c03995eb26016e940"
     },
     {
       "bytes": 3627,
@@ -20,14 +20,14 @@
       "sha256": "81f5115c15af5b60389e880e5a498f3d36565e96d6e85a9236126548bd00c403"
     },
     {
-      "bytes": 7111,
+      "bytes": 11209,
       "path": "experiments/named_choice_fiber_polynomial_v1/check_packet.py",
-      "sha256": "a1629217bcfc74cc3a85c245a9e28a745f3a2f545ed1be7e88777bfa1562e829"
+      "sha256": "ad0902b3edac54fad48c14e00c57bb265ba583fbc5a378584a81a333b239ecde"
     },
     {
-      "bytes": 12367,
+      "bytes": 19311,
       "path": "experiments/named_choice_fiber_polynomial_v1/choice_fiber_polynomial_v1.py",
-      "sha256": "c5225fe4223429bd036d445c62273f095936bbac37dd20b0a09b3ee08fb397df"
+      "sha256": "4d272f57538f2d033a00f52039826400587e9c13c1643f6c4db3bf0050f65d47"
     },
     {
       "bytes": 1156,
@@ -35,14 +35,14 @@
       "sha256": "60d3acf98031c90dce322c1beda48f8a591cb105e46f9af49f65c74b438331ce"
     },
     {
-      "bytes": 926,
+      "bytes": 1146,
       "path": "experiments/named_choice_fiber_polynomial_v1/generated/mutation_receipt.json",
-      "sha256": "ada94d9a680ff0567dc57322f6b261b192c5338dc60c1e9c29ad9d9918364cc2"
+      "sha256": "997701385f0b13bad81734ad8376356dc62b303b507fa2eb64828bf70fdaf732"
     },
     {
-      "bytes": 1833,
+      "bytes": 2010,
       "path": "experiments/named_choice_fiber_polynomial_v1/generated/reference_report.json",
-      "sha256": "63f139d1eecc91a38e843564f0b6e6bf096e1a6e5733265d7e0d0d7297f607a9"
+      "sha256": "b043699702e4d2a54923bd763966fd1e0f63fd3daae78dee82d2058735dc11b3"
     },
     {
       "bytes": 812,
@@ -55,14 +55,14 @@
       "sha256": "d85df65754009205cb4e7dc2db33f680b5af9ffdb199b7ef0741c3b94798e3bf"
     },
     {
-      "bytes": 3559,
+      "bytes": 5184,
       "path": "experiments/named_choice_fiber_polynomial_v1/reference_semantics.py",
-      "sha256": "51dde575e1d9f2cbff62a5efc8e949a09a2acb284d5bdbffdfba7f27e2b7c9cd"
+      "sha256": "0460f9d677e72daac0e9abec76c03875edf2bc9f64074999d167a55c2e10501b"
     },
     {
-      "bytes": 4594,
+      "bytes": 5453,
       "path": "experiments/named_choice_fiber_polynomial_v1/run_mutation_checks.py",
-      "sha256": "fedcbf2fd7c265a68434d95bce5920c0a78ac1336a16af8a1d43aa8040812b1e"
+      "sha256": "809ca446d5a6417b68bbea9296bbfded922208e9349b8c43a1cab046b5d009cc"
     },
     {
       "bytes": 3373,
@@ -75,9 +75,9 @@
       "sha256": "97381a1b5b40a3438fb4cb2d40687c3f409fa84e1dae546c20f7dfeb65691269"
     },
     {
-      "bytes": 6207,
+      "bytes": 11965,
       "path": "experiments/named_choice_fiber_polynomial_v1/test_choice_fiber_polynomial_v1.py",
-      "sha256": "1b66ba6fe8cebcfe61ac4ac207a9547a6f6ac503a001749d1f1d1d118de0f369"
+      "sha256": "9aaaa0d8c2b5269a09d5c74314b5009d6f187b9e9714216f4b038b02f2693eab"
     }
   ],
   "manifest_scope": "closed authoritative packet inputs and retained evidence; excludes self and packet_receipt to avoid a hash cycle",

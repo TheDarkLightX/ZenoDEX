@@ -1,0 +1,184 @@
+{
+  "affine_cases": [
+    {
+      "brute_assignments": 16,
+      "certificate_bytes": 306,
+      "certificate_rows": 4,
+      "choices": 4,
+      "minimum": -15,
+      "terms": 5
+    },
+    {
+      "brute_assignments": 256,
+      "certificate_bytes": 370,
+      "certificate_rows": 8,
+      "choices": 8,
+      "minimum": -19,
+      "terms": 9
+    },
+    {
+      "brute_assignments": 4096,
+      "certificate_bytes": 430,
+      "certificate_rows": 12,
+      "choices": 12,
+      "minimum": -23,
+      "terms": 13
+    },
+    {
+      "brute_assignments": 65536,
+      "certificate_bytes": 493,
+      "certificate_rows": 16,
+      "choices": 16,
+      "minimum": -38,
+      "terms": 17
+    }
+  ],
+  "bounded_campaign": {
+    "affine_assignments": 5000,
+    "affine_cases": 625,
+    "forest_assignments": 5832,
+    "forest_cases": 729,
+    "topology_assignments": 608,
+    "topology_cases": 64,
+    "topology_cycles_rejected": 26,
+    "topology_forests": 38,
+    "total_assignments": 11440,
+    "total_cases": 1418
+  },
+  "candidate": "Named Choice-Fiber Polynomial",
+  "claim_ceiling": "BOUNDED_RESEARCH_ONLY",
+  "classification": "USEFUL_COMPOSITE_NOT_CURRENTLY_NOVEL",
+  "content_sha256_without_this_field": "67180436adc12017585d9fb60649e9809fac9e9e08a30fc06067be1324c1d886",
+  "falsifiers": [
+    {
+      "id": "F01_CORRELATION_ERASURE",
+      "independent_minimum": -1,
+      "killed": true,
+      "shared_minimum": 1
+    },
+    {
+      "exact_minimum": -3,
+      "id": "F02_INTERACTION_DROPPED",
+      "killed": true,
+      "projected_minimum": 0
+    },
+    {
+      "dropped_edge_minimum": 0,
+      "exact_minimum": -3,
+      "forest_gate_rejected_cycle": true,
+      "id": "F03_CYCLE_EDGE_DROPPED",
+      "killed": true
+    },
+    {
+      "id": "F04_STALE_OR_REPOINTED_CERTIFICATE",
+      "killed": true
+    }
+  ],
+  "hardness_boundary": {
+    "affine": "exact O(n + m)",
+    "bounded_components": "exact O(sum(2^component_size * local_terms))",
+    "bounded_treewidth_extension": "known exact dynamic-programming direction; not implemented",
+    "general_pairwise_minimization": "NP-hard via weighted Max-Cut",
+    "pairwise_forest": "exact O(n + m)"
+  },
+  "nonclaims": [
+    "No novelty, patentability, or freedom-to-operate conclusion",
+    "No unbounded polynomial-size certificate for general interactions",
+    "No Tau runtime, ZRPF, M6, governance, or settlement authority",
+    "No open-population counting or Sybil-resistance theorem",
+    "No cryptographic binding beyond deterministic SHA-256 identities"
+  ],
+  "nonlinear_component_cases": [
+    {
+      "block_size": 3,
+      "blocks": 2,
+      "brute_assignments": 64,
+      "certificate_bytes": 606,
+      "choices": 6,
+      "component_assignments": 16,
+      "global_branches": 64,
+      "minimum": -7
+    },
+    {
+      "block_size": 3,
+      "blocks": 4,
+      "brute_assignments": 4096,
+      "certificate_bytes": 969,
+      "choices": 12,
+      "component_assignments": 32,
+      "global_branches": 4096,
+      "minimum": -16
+    },
+    {
+      "block_size": 3,
+      "blocks": 8,
+      "brute_assignments": null,
+      "certificate_bytes": 1697,
+      "choices": 24,
+      "component_assignments": 64,
+      "global_branches": 16777216,
+      "minimum": -40
+    },
+    {
+      "block_size": 3,
+      "blocks": 16,
+      "brute_assignments": null,
+      "certificate_bytes": 3150,
+      "choices": 48,
+      "component_assignments": 128,
+      "global_branches": 281474976710656,
+      "minimum": -79
+    }
+  ],
+  "pairwise_forest_cases": [
+    {
+      "brute_assignments": 16,
+      "certificate_bytes": 687,
+      "certificate_rows": 4,
+      "choices": 4,
+      "edges": 3,
+      "minimum": -5
+    },
+    {
+      "brute_assignments": 256,
+      "certificate_bytes": 1115,
+      "certificate_rows": 8,
+      "choices": 8,
+      "edges": 7,
+      "minimum": -11
+    },
+    {
+      "brute_assignments": 4096,
+      "certificate_bytes": 1550,
+      "certificate_rows": 12,
+      "choices": 12,
+      "edges": 11,
+      "minimum": -22
+    },
+    {
+      "brute_assignments": 65536,
+      "certificate_bytes": 1978,
+      "certificate_rows": 16,
+      "choices": 16,
+      "edges": 15,
+      "minimum": -27
+    },
+    {
+      "brute_assignments": null,
+      "certificate_bytes": 3699,
+      "certificate_rows": 32,
+      "choices": 32,
+      "edges": 31,
+      "minimum": -66
+    },
+    {
+      "brute_assignments": null,
+      "certificate_bytes": 7206,
+      "certificate_rows": 64,
+      "choices": 64,
+      "edges": 63,
+      "minimum": -139
+    }
+  ],
+  "schema": "zenodex.named-choice-fiber-experiment.v1"
+}

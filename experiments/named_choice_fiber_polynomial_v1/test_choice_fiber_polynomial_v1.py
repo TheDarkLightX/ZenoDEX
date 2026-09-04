@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import hashlib
+import json
+from collections.abc import Iterator, Mapping
 from fractions import Fraction
+from pathlib import Path
 
 import pytest
+from check_packet import _assert_manifest_identity, _assert_tau_receipt
 from choice_fiber_polynomial_v1 import (
+    MAX_COEFFICIENT_BITS,
+    MAX_EXACT_ENUMERATION_CHOICES,
     ChoiceAtomV1,
     ChoiceFiberPolynomialV1,
     ChoiceFiberReject,
@@ -128,6 +134,32 @@ def test_assignment_distribution_and_distinct_support_are_not_interchangeable() 
     assert value.distribution_root != value.support_root
 
 
+def test_distribution_is_independent_of_truth_table_coordinate_names() -> None:
+    manifest = _manifest("left", "right")
+    left = ChoiceFiberPolynomialV1.affine(
+        manifest,
+        center=0,
+        coefficients={"left": 1},
+    )
+    right = ChoiceFiberPolynomialV1.affine(
+        manifest,
+        center=0,
+        coefficients={"right": 1},
+    )
+
+    assert (
+        left.distribution()
+        == right.distribution()
+        == (
+            (-1, Fraction(1, 2)),
+            (1, Fraction(1, 2)),
+        )
+    )
+    assert left.distribution_root == right.distribution_root
+    assert left.truth_table_root != right.truth_table_root
+    assert left.function_root != right.function_root
+
+
 def test_foreign_manifest_cannot_be_hidden_by_equal_printed_choice_id() -> None:
     left_manifest = ChoiceManifestV1((ChoiceAtomV1("risk", _source_root("left-risk")),))
     right_manifest = ChoiceManifestV1((ChoiceAtomV1("risk", _source_root("right-risk")),))
@@ -142,6 +174,10 @@ def test_foreign_manifest_cannot_be_hidden_by_equal_printed_choice_id() -> None:
         coefficients={"risk": 1},
     )
 
+    assert left_manifest.semantic_root == right_manifest.semantic_root
+    assert left_manifest.lineage_root != right_manifest.lineage_root
+    assert left.function_root == right.function_root
+    assert left.root != right.root
     with pytest.raises(ChoiceFiberReject, match="FOREIGN_CHOICE_MANIFEST"):
         left.add(right)
 
@@ -166,6 +202,9 @@ def test_zero_impact_choice_remains_in_closed_coverage_manifest() -> None:
 
 
 def test_constructor_rejects_noncanonical_or_ambiguous_values() -> None:
+    class StringAlias(str):
+        pass
+
     risk = ChoiceAtomV1("risk", _source_root("risk"))
     policy = ChoiceAtomV1("policy", _source_root("policy"))
     with pytest.raises(ChoiceFiberReject, match="NON_CANONICAL_CHOICE_ORDER"):
@@ -178,9 +217,44 @@ def test_constructor_rejects_noncanonical_or_ambiguous_values() -> None:
         TermV1((), 0)
     with pytest.raises(ChoiceFiberReject, match="NON_INTEGER_COEFFICIENT"):
         TermV1((), True)
+    with pytest.raises(ChoiceFiberReject, match="INVALID_CHOICE_ID"):
+        ChoiceAtomV1(StringAlias("risk"), _source_root("risk"))
+    with pytest.raises(ChoiceFiberReject, match="INVALID_MONOMIAL_CHOICE_ID"):
+        TermV1((StringAlias("risk"),), 1)
+    with pytest.raises(ChoiceFiberReject, match="INVALID_MONOMIAL_CHOICE_ID"):
+        TermV1(("risk", 1), 1)  # type: ignore[arg-type]
+    with pytest.raises(ChoiceFiberReject, match="INVALID_MONOMIAL_CHOICE_ID"):
+        TermV1(([],), 1)  # type: ignore[arg-type]
+    with pytest.raises(ChoiceFiberReject, match="INVALID_MONOMIAL"):
+        ChoiceFiberPolynomialV1.from_coefficients(
+            _manifest("i", "k", "r", "s"),
+            {"risk": 1},  # type: ignore[dict-item]
+        )
+    with pytest.raises(ChoiceFiberReject, match="INVALID_MONOMIAL_CHOICE_ID"):
+        ChoiceFiberPolynomialV1.from_coefficients(
+            _manifest("risk"),
+            {(1,): 1},  # type: ignore[dict-item]
+        )
 
 
 def test_assignment_is_total_over_exact_manifest() -> None:
+    class SplitViewMapping(Mapping[str, int]):
+        def __getitem__(self, key: str) -> int:
+            if key != "risk":
+                raise KeyError(key)
+            return 7
+
+        def __iter__(self) -> Iterator[str]:
+            return iter(("risk",))
+
+        def __len__(self) -> int:
+            return 1
+
+        def values(self) -> tuple[int, ...]:  # type: ignore[override]
+            # Deliberately violates Mapping's view contract to model an
+            # adversarial split-view implementation.
+            return (1,)
+
     manifest = _manifest("policy", "risk")
     value = ChoiceFiberPolynomialV1.affine(
         manifest,
@@ -194,3 +268,65 @@ def test_assignment_is_total_over_exact_manifest() -> None:
         value.evaluate({"policy": 0, "risk": 1})
     with pytest.raises(ChoiceFiberReject, match="INVALID_SIGN_VALUE"):
         value.evaluate({"policy": -1, "risk": True})
+    with pytest.raises(ChoiceFiberReject, match="INVALID_SIGN_VALUE"):
+        ChoiceFiberPolynomialV1.affine(
+            _manifest("risk"),
+            center=0,
+            coefficients={"risk": 1},
+        ).evaluate(SplitViewMapping())
+    with pytest.raises(ChoiceFiberReject, match="INVALID_ASSIGNMENT_MAPPING"):
+        value.evaluate(None)  # type: ignore[arg-type]
+
+
+def test_resource_profile_fails_closed_before_unbounded_work() -> None:
+    maximum = (1 << MAX_COEFFICIENT_BITS) - 1
+    bounded = ChoiceFiberPolynomialV1.from_coefficients(_manifest("risk"), {(): maximum})
+    assert len(bounded.function_root) == 64
+    with pytest.raises(ChoiceFiberReject, match="COEFFICIENT_CAPACITY_EXCEEDED"):
+        ChoiceFiberPolynomialV1.from_coefficients(
+            _manifest("risk"),
+            {(): 1 << MAX_COEFFICIENT_BITS},
+        )
+
+    at_limit = _manifest(*(f"c{index:02d}" for index in range(MAX_EXACT_ENUMERATION_CHOICES)))
+    value_at_limit = ChoiceFiberPolynomialV1.from_coefficients(at_limit, {(): 1})
+    assert len(value_at_limit.assignments()) == 1 << MAX_EXACT_ENUMERATION_CHOICES
+
+    over_limit = _manifest(*(f"c{index:02d}" for index in range(MAX_EXACT_ENUMERATION_CHOICES + 1)))
+    value_over_limit = ChoiceFiberPolynomialV1.from_coefficients(over_limit, {(): 1})
+    with pytest.raises(ChoiceFiberReject, match="ASSIGNMENT_SPACE_TOO_LARGE"):
+        value_over_limit.assignments()
+
+
+def test_packet_gate_rejects_self_consistent_forged_tau_verdicts() -> None:
+    experiment = Path(__file__).resolve().parent
+    tau = json.loads((experiment / "generated" / "tau_receipt.json").read_text())
+    profile = json.loads((experiment / "tau_profile.json").read_text())
+    tau["actual"] = ["T"] * 15
+    tau["expected"] = ["T"] * 15
+    with pytest.raises(SystemExit, match="TAU_VERDICT_MISMATCH"):
+        _assert_tau_receipt(tau, profile)
+
+    tau = json.loads((experiment / "generated" / "tau_receipt.json").read_text())
+    tau["production_authority"] = True
+    with pytest.raises(SystemExit, match="TAU:FIELD_SET_MISMATCH"):
+        _assert_tau_receipt(tau, profile)
+
+
+def test_packet_gate_rejects_claim_promotion_and_subject_substitution() -> None:
+    experiment = Path(__file__).resolve().parent
+    profile = json.loads((experiment / "tau_profile.json").read_text())
+    tau = json.loads((experiment / "generated" / "tau_receipt.json").read_text())
+    profile["claim_status"] = "PRODUCTION_READY"
+    with pytest.raises(SystemExit, match="TAU_PROFILE_IDENTITY_MISMATCH"):
+        _assert_tau_receipt(tau, profile)
+
+    manifest = json.loads((experiment / "generated" / "source_manifest.json").read_text())
+    manifest["claim_status"] = "PRODUCTION_READY"
+    with pytest.raises(SystemExit, match="MANIFEST_IDENTITY_MISMATCH"):
+        _assert_manifest_identity(manifest)
+
+    manifest = json.loads((experiment / "generated" / "source_manifest.json").read_text())
+    manifest["base_commit"] = "0" * 40
+    with pytest.raises(SystemExit, match="MANIFEST_IDENTITY_MISMATCH"):
+        _assert_manifest_identity(manifest)

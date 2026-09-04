@@ -5,7 +5,7 @@
     "affine_bounds": "center +/- sum(abs(coefficients))",
     "choice_identity": "equal choice_id within one manifest means shared sign",
     "multiplication": "monomial choice sets combine by symmetric difference",
-    "projection_rule": "support and distribution cannot replace the named function"
+    "projection_rule": "truth table, output distribution, and support cannot replace the named function"
   },
   "nonclaims": [
     "not a production number type",
@@ -15,6 +15,7 @@
     "not a novelty or patent-clearance opinion"
   ],
   "object": "named_choice_fiber_polynomial_v1",
+  "oracle": "independent_direct_enumerator_without_runtime_import",
   "results": {
     "duplicate_branch_multiset": [
       -2,
@@ -78,5 +79,5 @@
     ]
   },
   "schema": "zenodex.choice_fiber_experiment_report.v1",
-  "strongest_claim": "Named choice identity is necessary for exact correlation semantics; affine extrema are linear-time; exact multiplication requires interaction terms."
+  "strongest_claim": "Exact correlation semantics require retained correlation identity; named choice IDs provide one canonical encoding. Affine extrema are linear-time; closure under arbitrary multiplication requires allowing higher-order interaction terms."
 }

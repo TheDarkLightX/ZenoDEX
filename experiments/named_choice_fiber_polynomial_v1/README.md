@@ -32,6 +32,13 @@ distinct support set
 source occurrence lineage
 ```
 
+The semantic manifest root contains only the ordered choice identifiers and
+correlation rule. A separate lineage-manifest root contains exact source
+occurrences, and the complete manifest root binds both. Likewise, the function
+root excludes source lineage while the complete polynomial root includes it.
+The truth-table root preserves named assignment order; the distribution root
+commits only to the reduced uniform output-probability histogram.
+
 Equal choice names inside one manifest mean a shared sign. Separately sourced
 choices remain distinct even when their printed coefficients are equal.
 
@@ -42,12 +49,12 @@ choices remain distinct even when their printed coefficients are equal.
   `(-2, 0, 2)`.
 - Mean equal to the center and variance equal to the sum of squared affine
   coefficients require independent fair signs with assignment multiplicity.
-- Not every finite symmetric distribution is a flat signed sum. In particular,
+- Not every finite symmetric support set is a flat signed sum. In particular,
   `{+/-1, +/-2, +/-4, +/-8}` is not the support of a three-sign affine form.
 - Addition needs named correlation semantics. Shared and independent copies of
   the same printed expression can have different results.
-- Multiplication introduces interaction terms. The affine fragment alone is
-  not closed.
+- Closure under arbitrary multiplication requires allowing interaction terms.
+  The affine fragment alone is not closed.
 - Compact syntax does not make every query cheap. Affine extrema are linear in
   the number of choices, while exact target membership contains subset-sum.
 
@@ -72,9 +79,17 @@ domains. It checks shared and independent identities, affine closure, sharp
 bounds, multiplication non-closure, and exact interaction recovery. All
 fifteen expected verdicts matched.
 
-Seven permanent semantic mutants cover identity freshening, premature
+Nine permanent semantic mutants cover identity freshening, premature
 deduplication, interaction loss, foreign-source aliasing, false symmetric-set
-universality, modular-wrap confusion, and function-identity substitution.
+universality, modular-wrap confusion, function-identity substitution,
+truth-table/distribution confusion, and semantic/lineage confusion.
+
+The executable research profile admits at most 256 named choices, 4,096
+canonical terms, 256 choice occurrences per raw monomial, and signed
+coefficients with magnitude below `2^256`. Exact branch enumeration is capped
+at twelve choices; affine bounds remain available for larger admitted
+manifests. Polynomial products reject before exceeding 1,000,000 term-pair
+probes.
 
 ## ZenoDEX use
 
@@ -129,6 +144,8 @@ python3 benchmark_tau_affine.py --tau-bin PATH_TO_PINNED_TAU_BINARY
 
 - No settlement, governance, migration, verifier, proof, or M6 authority.
 - No Tau Net throughput or scalability result.
+- No arbitrary correlated-sign distribution; distinct IDs are independent
+  only under the uniform assignment projection.
 - No claim that nonlinear expressions remain compact.
 - No general-purpose circuit-verification shortcut.
 - No worldwide novelty, patentability, or freedom-to-operate conclusion.

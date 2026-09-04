@@ -1,0 +1,126 @@
+{
+  "attack_summary": {
+    "killed": 11,
+    "named_attacks": 11,
+    "survived": 0
+  },
+  "attacks": [
+    {
+      "attack": "omit_one_subcube",
+      "killed_by": "MISSING_SPLIT_BRANCH"
+    },
+    {
+      "attack": "general_checker_omission",
+      "killed_by": "SUBCUBE_VOLUME_OMISSION"
+    },
+    {
+      "attack": "overlap_parent_and_children",
+      "killed_by": "REGION_LEAF_OVERLAPS_OTHER_SCOPE"
+    },
+    {
+      "attack": "general_checker_overlap",
+      "killed_by": "PAIRWISE_SUBCUBE_OVERLAP"
+    },
+    {
+      "attack": "swap_negative_positive_children",
+      "killed_by": "LEAF_SCOPE_PATH_MISMATCH"
+    },
+    {
+      "attack": "relabel_choice_ordinals",
+      "killed_by": "MANIFEST_ROOT_MISMATCH"
+    },
+    {
+      "attack": "cross_subject_receipt",
+      "killed_by": "FOREIGN_RECEIPT_SUBJECT"
+    },
+    {
+      "attack": "mutate_leaf_proof_commitment",
+      "killed_by": "UNKNOWN_LEAF_RECEIPT"
+    },
+    {
+      "attack": "surplus_unconsumed_receipt",
+      "killed_by": "SURPLUS_UNCONSUMED_RECEIPT"
+    },
+    {
+      "attack": "alternate_valid_split_order",
+      "killed_by": "NONCANONICAL_SPLIT_CHOICE"
+    },
+    {
+      "attack": "reuse_choice_on_path",
+      "killed_by": "CHOICE_REUSED_ON_PATH"
+    }
+  ],
+  "authority": "NONE",
+  "claim_status": "BOUNDED_RESEARCH_ONLY",
+  "classification": "USEFUL_COMPOSITE_NOT_CURRENTLY_NOVEL",
+  "content_sha256_without_this_field": "b84706c54cbf3a6fb8f33bd0616cc16c57e1deb601f8d516b1e1722dbae0448a",
+  "exhaustive_campaign": {
+    "by_choice_count": [
+      {
+        "distinct_partitions": 2,
+        "named_choices": 1
+      },
+      {
+        "distinct_partitions": 8,
+        "named_choices": 2
+      },
+      {
+        "distinct_partitions": 146,
+        "named_choices": 3
+      }
+    ],
+    "cases": 156,
+    "total_assignments_checked": 1204,
+    "total_certificate_nodes_checked": 1350,
+    "total_membership_probes": 5922
+  },
+  "object": "named_choice_subcube_coverage_v1",
+  "partition_classification": [
+    {
+      "exact_partitions": 2,
+      "found_nonrecursive": false,
+      "named_choices": 1,
+      "nonrecursive_partitions": 0,
+      "recursive_partitions": 2,
+      "witness": null
+    },
+    {
+      "exact_partitions": 8,
+      "found_nonrecursive": false,
+      "named_choices": 2,
+      "nonrecursive_partitions": 0,
+      "recursive_partitions": 8,
+      "witness": null
+    },
+    {
+      "exact_partitions": 154,
+      "found_nonrecursive": true,
+      "named_choices": 3,
+      "nonrecursive_partitions": 8,
+      "recursive_partitions": 146,
+      "witness": [
+        {
+          "fixed_mask": 3,
+          "positive_mask": 0
+        },
+        {
+          "fixed_mask": 5,
+          "positive_mask": 1
+        },
+        {
+          "fixed_mask": 6,
+          "positive_mask": 6
+        },
+        {
+          "fixed_mask": 7,
+          "positive_mask": 2
+        },
+        {
+          "fixed_mask": 7,
+          "positive_mask": 5
+        }
+      ]
+    }
+  ],
+  "schema": "zenodex.choice-subcube-coverage.receipt.v1"
+}

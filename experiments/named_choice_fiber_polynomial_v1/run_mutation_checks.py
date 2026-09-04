@@ -92,6 +92,16 @@ def run_mutations() -> list[dict[str, object]]:
 
     wrap_values = tuple((250 + sign * 10) % 256 for sign in (-1, 1))
     integer_values = tuple(250 + sign * 10 for sign in (-1, 1))
+    coordinate_left = ChoiceFiberPolynomialV1.affine(
+        manifest,
+        center=0,
+        coefficients={"policy": 1},
+    )
+    coordinate_right = ChoiceFiberPolynomialV1.affine(
+        manifest,
+        center=0,
+        coefficients={"risk": 1},
+    )
     rows = [
         {
             "killed": shared.support() != independent.support(),
@@ -123,6 +133,20 @@ def run_mutations() -> list[dict[str, object]]:
         {
             "killed": shared.function_root != independent.function_root,
             "mutant": "support_like_printed_form_substituted_for_function_identity",
+        },
+        {
+            "killed": (
+                coordinate_left.distribution_root == coordinate_right.distribution_root
+                and coordinate_left.truth_table_root != coordinate_right.truth_table_root
+            ),
+            "mutant": "ordered_truth_table_substituted_for_output_distribution",
+        },
+        {
+            "killed": (
+                foreign_left.function_root == foreign_right.function_root
+                and foreign_left.root != foreign_right.root
+            ),
+            "mutant": "source_lineage_substituted_for_semantic_function_identity",
         },
     ]
     if not all(row["killed"] is True for row in rows):
