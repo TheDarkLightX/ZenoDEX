@@ -1,0 +1,82 @@
+{
+  "authority": "NONE",
+  "claim_status": "BOUNDED_RESEARCH_ONLY",
+  "invariants": {
+    "affine_bounds": "center +/- sum(abs(coefficients))",
+    "choice_identity": "equal choice_id within one manifest means shared sign",
+    "multiplication": "monomial choice sets combine by symmetric difference",
+    "projection_rule": "support and distribution cannot replace the named function"
+  },
+  "nonclaims": [
+    "not a production number type",
+    "not a Tau Net throughput result",
+    "not a settlement or governance authority",
+    "not proof that nonlinear circuits remain compact",
+    "not a novelty or patent-clearance opinion"
+  ],
+  "object": "named_choice_fiber_polynomial_v1",
+  "results": {
+    "duplicate_branch_multiset": [
+      -2,
+      0,
+      0,
+      2
+    ],
+    "duplicate_support": [
+      -2,
+      0,
+      2
+    ],
+    "independent_product_coefficients": [
+      {
+        "coefficient": 200,
+        "monomial": []
+      },
+      {
+        "coefficient": 30,
+        "monomial": [
+          "policy"
+        ]
+      },
+      {
+        "coefficient": 6,
+        "monomial": [
+          "policy",
+          "risk"
+        ]
+      },
+      {
+        "coefficient": 40,
+        "monomial": [
+          "risk"
+        ]
+      }
+    ],
+    "independent_product_support": [
+      136,
+      184,
+      204,
+      276
+    ],
+    "independent_sign_support": [
+      22,
+      28,
+      32,
+      38
+    ],
+    "shared_sign_support": [
+      22,
+      38
+    ],
+    "uniform_assignment_mean": [
+      0,
+      1
+    ],
+    "uniform_assignment_variance": [
+      2,
+      1
+    ]
+  },
+  "schema": "zenodex.choice_fiber_experiment_report.v1",
+  "strongest_claim": "Named choice identity is necessary for exact correlation semantics; affine extrema are linear-time; exact multiplication requires interaction terms."
+}

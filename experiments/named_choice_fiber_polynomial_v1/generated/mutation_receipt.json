@@ -1,0 +1,38 @@
+{
+  "authority": "NONE",
+  "claim_status": "BOUNDED_RESEARCH_ONLY",
+  "killed": 7,
+  "mutants": [
+    {
+      "killed": true,
+      "mutant": "shared_choice_freshened_to_independent_choice"
+    },
+    {
+      "killed": true,
+      "mutant": "branch_multiplicity_erased_before_statistics"
+    },
+    {
+      "killed": true,
+      "mutant": "nonlinear_interaction_monomial_dropped"
+    },
+    {
+      "killed": true,
+      "mutant": "foreign_choice_source_reused_by_local_name"
+    },
+    {
+      "killed": true,
+      "mutant": "arbitrary_symmetric_support_declared_flat_affine"
+    },
+    {
+      "killed": true,
+      "mutant": "modular_wrap_misreported_as_integer_affine_bound"
+    },
+    {
+      "killed": true,
+      "mutant": "support_like_printed_form_substituted_for_function_identity"
+    }
+  ],
+  "object": "named_choice_fiber_polynomial_v1",
+  "schema": "zenodex.choice_fiber_mutation_receipt.v1",
+  "survived": 0
+}

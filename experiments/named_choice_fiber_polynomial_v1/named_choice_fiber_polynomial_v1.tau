@@ -1,0 +1,67 @@
+# Named Choice Fiber Polynomial V1 bounded Tau experiment.
+#
+# Scope: bounded 8-bit and 16-bit arithmetic at one pinned Tau profile.
+# Equal field names denote the same sign choice. Different field names denote
+# independent choices. Arithmetic constants are selected so no modular wrap is
+# reachable in these queries.
+#
+# EXPECTED: T T F T T T T T T T T T F T T
+# AUTHORITY: NONE
+
+set charvar off
+set maxsplits 1
+
+type PairSigns = {risk: bv[8], policy: bv[8]}.
+type TripleSigns = {risk: bv[8], policy: bv[8], market: bv[8]}.
+
+signbit8(s:bv[8]) := (s = { #x00 }:bv[8]) || (s = { #x01 }:bv[8]).
+choice8(c:bv[8], d:bv[8], s:bv[8], x:bv[8]) := signbit8(s) && x = c - d + s * (d + d).
+affine2_8(c:bv[8], d1:bv[8], d2:bv[8], s1:bv[8], s2:bv[8], x:bv[8]) := signbit8(s1) && signbit8(s2) && x = c - d1 - d2 + s1 * (d1 + d1) + s2 * (d2 + d2).
+affine3_8(c:bv[8], d1:bv[8], d2:bv[8], d3:bv[8], s1:bv[8], s2:bv[8], s3:bv[8], x:bv[8]) := signbit8(s1) && signbit8(s2) && signbit8(s3) && x = c - d1 - d2 - d3 + s1 * (d1 + d1) + s2 * (d2 + d2) + s3 * (d3 + d3).
+
+# 1. A single named branch has exactly its two intended values: 10 +/- 3.
+n all e:PairSigns all x:bv[8] (choice8({ #x0A }:bv[8], { #x03 }:bv[8], e.risk, x) -> (x = { #x07 }:bv[8] || x = { #x0D }:bv[8]))
+
+# 2. Reusing risk correlates the operands. The sum has two values.
+n all e:PairSigns all x:bv[8] all y:bv[8] all z:bv[8] ((choice8({ #x0A }:bv[8], { #x03 }:bv[8], e.risk, x) && choice8({ #x14 }:bv[8], { #x05 }:bv[8], e.risk, y) && z = x + y) -> (z = { #x16 }:bv[8] || z = { #x26 }:bv[8]))
+
+# 3. The shared-sign sum cannot reach 28.
+n ex e:PairSigns ex x:bv[8] ex y:bv[8] (choice8({ #x0A }:bv[8], { #x03 }:bv[8], e.risk, x) && choice8({ #x14 }:bv[8], { #x05 }:bv[8], e.risk, y) && x + y = { #x1C }:bv[8])
+
+# 4. Independent risk and policy signs can reach 28.
+n ex e:PairSigns ex x:bv[8] ex y:bv[8] (choice8({ #x0A }:bv[8], { #x03 }:bv[8], e.risk, x) && choice8({ #x14 }:bv[8], { #x05 }:bv[8], e.policy, y) && x + y = { #x1C }:bv[8])
+
+# 5. Independent signs give exactly four values: 22, 28, 32, 38.
+n all e:PairSigns all x:bv[8] all y:bv[8] all z:bv[8] ((choice8({ #x0A }:bv[8], { #x03 }:bv[8], e.risk, x) && choice8({ #x14 }:bv[8], { #x05 }:bv[8], e.policy, y) && z = x + y) -> (z = { #x16 }:bv[8] || z = { #x1C }:bv[8] || z = { #x20 }:bv[8] || z = { #x26 }:bv[8]))
+
+# 6. A value minus itself is zero when sign identity is retained.
+n all e:PairSigns all x:bv[8] all y:bv[8] (choice8({ #x0A }:bv[8], { #x03 }:bv[8], e.risk, x) && choice8({ #x0A }:bv[8], { #x03 }:bv[8], e.risk, y) -> x - y = { #x00 }:bv[8])
+
+# 7. Separately named copies can differ despite identical printed form.
+n ex e:PairSigns ex x:bv[8] ex y:bv[8] (choice8({ #x0A }:bv[8], { #x03 }:bv[8], e.risk, x) && choice8({ #x0A }:bv[8], { #x03 }:bv[8], e.policy, y) && x != y)
+
+# 8. Affine closure combines shared coefficients and retains other fibers.
+n all e:TripleSigns all x:bv[8] all y:bv[8] all z:bv[8] ((affine2_8({ #x64 }:bv[8], { #x07 }:bv[8], { #x0B }:bv[8], e.risk, e.policy, x) && affine2_8({ #x32 }:bv[8], { #x03 }:bv[8], { #x05 }:bv[8], e.risk, e.market, y) && z = x + y) -> affine3_8({ #x96 }:bv[8], { #x0A }:bv[8], { #x0B }:bv[8], { #x05 }:bv[8], e.risk, e.policy, e.market, z))
+
+# 9. Universal sharp interval for 128 +/- 7_r +/- 11_p +/- 13_m.
+n all e:TripleSigns all x:bv[8] (affine3_8({ #x80 }:bv[8], { #x07 }:bv[8], { #x0B }:bv[8], { #x0D }:bv[8], e.risk, e.policy, e.market, x) -> (x >= { #x61 }:bv[8] && x <= { #x9F }:bv[8]))
+n ex e:TripleSigns ex x:bv[8] (affine3_8({ #x80 }:bv[8], { #x07 }:bv[8], { #x0B }:bv[8], { #x0D }:bv[8], e.risk, e.policy, e.market, x) && x = { #x61 }:bv[8])
+n ex e:TripleSigns ex x:bv[8] (affine3_8({ #x80 }:bv[8], { #x07 }:bv[8], { #x0B }:bv[8], { #x0D }:bv[8], e.risk, e.policy, e.market, x) && x = { #x9F }:bv[8])
+
+signbit16(s:bv[16]) := (s = { #x0000 }:bv[16]) || (s = { #x0001 }:bv[16]).
+choice16(c:bv[16], d:bv[16], s:bv[16], x:bv[16]) := signbit16(s) && x = c - d + s * (d + d).
+quadratic2_16(a:bv[16], b:bv[16], c:bv[16], d:bv[16], s:bv[16], t:bv[16], z:bv[16]) := signbit16(s) && signbit16(t) && (((s = t) && z = a - b - c + d + s * (b + b) + t * (c + c)) || ((s != t) && z = a - b - c - d + s * (b + b) + t * (c + c))).
+
+# 12. Independent product (10 +/- 2_r)(20 +/- 3_p): four exact values.
+n all s:bv[16] all t:bv[16] all x:bv[16] all y:bv[16] all z:bv[16] ((choice16({ #x000A }:bv[16], { #x0002 }:bv[16], s, x) && choice16({ #x0014 }:bv[16], { #x0003 }:bv[16], t, y) && z = x * y) -> (z = { #x0088 }:bv[16] || z = { #x00B8 }:bv[16] || z = { #x00CC }:bv[16] || z = { #x0114 }:bv[16]))
+
+# 13. No two-sign affine rectangle matches those four products.
+n ex a:bv[16] ex b:bv[16] ex c:bv[16] (a - b - c = { #x0088 }:bv[16] && a - b + c = { #x00B8 }:bv[16] && a + b - c = { #x00CC }:bv[16] && a + b + c = { #x0114 }:bv[16])
+
+# 14. The degree-two risk*policy interaction restores exactness.
+n all s:bv[16] all t:bv[16] all x:bv[16] all y:bv[16] all z:bv[16] ((choice16({ #x000A }:bv[16], { #x0002 }:bv[16], s, x) && choice16({ #x0014 }:bv[16], { #x0003 }:bv[16], t, y) && z = x * y) -> quadratic2_16({ #x00C8 }:bv[16], { #x0028 }:bv[16], { #x001E }:bv[16], { #x0006 }:bv[16], s, t, z))
+
+# 15. Shared-sign multiplication uses epsilon^2 = 1 and remains affine.
+n all s:bv[16] all x:bv[16] all y:bv[16] all z:bv[16] ((choice16({ #x000A }:bv[16], { #x0002 }:bv[16], s, x) && choice16({ #x0014 }:bv[16], { #x0003 }:bv[16], s, y) && z = x * y) -> choice16({ #x00CE }:bv[16], { #x0046 }:bv[16], s, z))
+
+q

@@ -1,0 +1,40 @@
+{
+  "authority": "NONE",
+  "claim_status": "SINGLE_HOST_TIMING_OBSERVATION_ONLY",
+  "nonclaims": [
+    "not Tau Net throughput",
+    "not asymptotic complexity",
+    "not evidence for arbitrary nonlinear circuits"
+  ],
+  "rows": [
+    {
+      "elapsed_seconds": 0.086072,
+      "explicit_assignments": 2,
+      "named_signs": 1,
+      "source_sha256": "b50426fa35139f1c24b39f636b540b7cc683e96b1f7607aa2ebd483fca974aa8",
+      "verdict": "T"
+    },
+    {
+      "elapsed_seconds": 0.122019,
+      "explicit_assignments": 4,
+      "named_signs": 2,
+      "source_sha256": "632084026b1057370e407ea869cd7df44b3233f2dd25db05b2dd618c41862d98",
+      "verdict": "T"
+    },
+    {
+      "elapsed_seconds": 0.21733,
+      "explicit_assignments": 16,
+      "named_signs": 4,
+      "source_sha256": "b78d5faa62337c2a1563dab031e00e545602a4fc78a5618b9b24e2df49792a90",
+      "verdict": "T"
+    },
+    {
+      "elapsed_seconds": 0.555069,
+      "explicit_assignments": 256,
+      "named_signs": 8,
+      "source_sha256": "78db84c32f8f0b810248175fdad5b4d2e953dae0410906e545991ad3ecddd737",
+      "verdict": "T"
+    }
+  ],
+  "schema": "zenodex.choice_fiber_tau_timing.v1"
+}

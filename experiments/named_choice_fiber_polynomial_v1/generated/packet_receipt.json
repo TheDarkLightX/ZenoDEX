@@ -1,0 +1,14 @@
+{
+  "authority": "NONE",
+  "claim_status": "BOUNDED_RESEARCH_ONLY",
+  "components": {
+    "benchmark_observation_sha256": "60d3acf98031c90dce322c1beda48f8a591cb105e46f9af49f65c74b438331ce",
+    "mutation_receipt_sha256": "ada94d9a680ff0567dc57322f6b261b192c5338dc60c1e9c29ad9d9918364cc2",
+    "reference_report_sha256": "63f139d1eecc91a38e843564f0b6e6bf096e1a6e5733265d7e0d0d7297f607a9",
+    "source_manifest_sha256": "d595bcabd22d8c19d19c0d0cfbbeaf457a010213717e5284af2848c1b6d05e0e",
+    "tau_receipt_sha256": "0b17190fe6825ab83352986671140e10bc8fdcabbe18b426df4bf1772c67d923"
+  },
+  "object": "named_choice_fiber_polynomial_v1",
+  "packet_root": "f5881da194190633f2bc2d350b5929b3b875817c28e3dcedf181b68d41f723ee",
+  "schema": "zenodex.choice_fiber_packet_receipt.v1"
+}
