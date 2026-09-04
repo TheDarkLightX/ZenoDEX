@@ -59,8 +59,8 @@ from tests.core.test_global_accounting_allocation_certificate_v1_golden import _
 from tools import render_global_accounting_allocation_certificate_v1_golden as renderer
 
 
-def _project(state, roots=()):
-    return project_allocation_certificate_v1(state, roots)
+def _project(state, roots=(), slots=()):
+    return project_allocation_certificate_v1(state, roots, slots)
 
 
 # The two fixture states no certificate can reconcile for a reason that is not allocation:
@@ -417,14 +417,14 @@ def test_witnessed_certificate_is_the_projection_plus_one_receipt_root() -> None
     """
 
     witness, state, certificate, slots = _witnessed()
-    projected = _project(state, ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),))
+    projected = _project(state, ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),), slots)
     assert isinstance(projected, cert.GlobalAccountingAllocationCertificateV1), projected
     assert canonical_global_bytes_v1(projected) == canonical_global_bytes_v1(certificate)
     outcome = cert.check_global_accounting_allocation_certificate_v1(projected, state, slots)
     assert isinstance(outcome, cert.AllocationCertificateAcceptedV1), outcome
     assert outcome.allocation_root == certificate.allocation_root
 
-    missing = _project(state)
+    missing = _project(state, (), slots)
     assert isinstance(missing, AllocationProjectionRejectedV1)
     assert missing.code is AllocationProjectionRejectCodeV1.PROJECTION_BINDING_ROOT_MISSING
     assert missing.detail == LaneIdV1.ASSET_TRANSFER.value
@@ -504,13 +504,13 @@ def test_a_terminal_with_no_controlling_principal_is_unreconcilable_not_ambiguou
     ASSET_TRANSFER an OPEN terminal is masked by PROJECTION_ROWS_BEYOND_PRODUCER, and on the
     other eleven by PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER.
 
-    Through the row harness it IS reachable, by exactly one shape: a zero-atom entitlement in
-    the claimant's ONLY entitled domain, with a zero-atom obligation. The residual for that
-    cell is zero so the negative-residual check does not fire, and with one candidate domain
-    the capacity filter has nothing to reject (opus2 P42 P2-3 found this after the filter
-    closed the previous route, and it is a _ROW_CASES entry now, so this code has a case in
-    the table like every other). This test additionally calls the builder directly and checks
-    that the entry point reports something else.
+    The row-harness route that reached it -- a zero-atom entitlement in the claimant's only
+    entitled domain -- is closed too, by the key-support guard: an entitlement key with no
+    controlling counterpart and a zero residual is now refused as noncanonical before the
+    terminal rows are built. So every route this suite can find refuses earlier, and the
+    branch is exercised by calling the builder directly, which is what this test does. That
+    is a statement about what has been searched, not a proof of unreachability, and the
+    branch is kept because the checker's own binding rule is what it mirrors.
     """
 
     state = _backed_state((_terminal("terminal-1", 1),))
@@ -567,12 +567,12 @@ def test_a_witnessed_lane_whose_rows_drift_from_its_receipt_is_refused() -> None
         ),
     )
 
-    # Without the witness: derived, and the checker's witness pass is what refuses.
-    derived = project_allocation_certificate_v1(drifted, roots)
-    assert isinstance(derived, cert.GlobalAccountingAllocationCertificateV1), derived
-    outcome = cert.check_global_accounting_allocation_certificate_v1(derived, drifted, slots)
-    assert isinstance(outcome, cert.AllocationCertificateRejectedV1), outcome
-    assert outcome.code is cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_FRAGMENT_DRIFT
+    # Without the witness the projection no longer derives either: an enabled receipt-backed
+    # lane requires the witness the checker will demand, in both spellings of "no witness"
+    # (Codex re-grade P1 -- the last public derive-then-reject).
+    without = project_allocation_certificate_v1(drifted, roots)
+    assert isinstance(without, AllocationProjectionRejectedV1), without
+    assert without.code is AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_REQUIRED
 
     # With the witness: refused before anything is derived from it.
     refused = project_allocation_certificate_v1(drifted, roots, slots)
@@ -813,11 +813,13 @@ def test_an_empty_slot_on_an_enabled_receipt_backed_lane_is_refused() -> None:
     assert refused.code is AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_REQUIRED
     assert LaneIdV1.ASSET_TRANSFER.value in refused.detail
 
-    # Passing NO slots is the documented residue and still derives, so the new code refuses an
-    # incomplete argument rather than the absence of one.
-    assert isinstance(
-        project_allocation_certificate_v1(state, roots),
-        cert.GlobalAccountingAllocationCertificateV1,
+    # Both spellings of "no witness" now refuse identically. The residue that used to live
+    # here -- passing no slots at all derived, passing twelve empty slots refused -- meant the
+    # same state was derived or refused according to how the caller spelled it, and the
+    # derived object was one the checker refuses. That was the last public derive-then-reject.
+    assert (
+        project_allocation_certificate_v1(state, roots).code
+        is AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_REQUIRED
     )
 
 
@@ -853,7 +855,7 @@ def test_a_zero_amount_economic_row_is_refused_not_derived(label: str, tables: d
     assert refused.code is AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW
     assert (
         AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW
-        in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1["unreconcilable"]
+        in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1["unsupported"]
     )
 
     # The refusal is justified: the candidate the state implies fails the partition pass.
@@ -1036,34 +1038,42 @@ def _row_matrix_states():
 
 
 def test_the_generated_row_matrix_derives_no_certificate_the_row_checks_refuse() -> None:
-    """The second half of the standing gate, at the row level.
+    """The second half of the standing gate, at the ROW level and through the helpers.
 
     A derived certificate must pass every row, partition and aggregate check the checker
-    applies. The zero-support defect lived exactly here and was invisible to the full-checker
-    gate above, so this stratum exists and says why.
+    applies. The zero-support defect lived exactly here and was invisible to a full-checker
+    gate, because the checker's witness pass refuses first and masks it.
+
+    Since the entry point now requires the witness the checker requires, an enabled lane
+    without a real minted witness cannot derive at all -- so this stratum drives the ROW
+    BUILDERS directly, which is the same surface _ROW_CASES treats as the contract a future
+    producer must meet. That is helper reachability, not public reachability, and it is
+    labelled so rather than presented as the entry point's behaviour.
     """
 
     derived = refused = 0
     for label, state in _row_matrix_states():
-        projected = _project(state, _root_of(state))
-        if isinstance(projected, AllocationProjectionRejectedV1):
-            assert projected.code.value in ALLOCATION_PROJECTION_REJECT_CODES_V1, (label, projected)
+        observed = _derive_rows(state)
+        if isinstance(observed[0], AllocationProjectionRejectCodeV1):
+            assert observed[0].value in ALLOCATION_PROJECTION_REJECT_CODES_V1, (label, observed)
             refused += 1
             continue
+        # The rows the builders produced must survive the checker's row passes over the
+        # candidate the state itself implies.
+        candidate = _state_consistent_candidate(state)
         for check in (cert._check_exactly_once,):
-            check(projected)
+            check(candidate)
         for check in (
             cert._check_entitlement_rows,
             cert._check_reserve_rows,
-            cert._check_external_obligations,
             cert._check_terminal_bindings,
             cert._check_lane_aggregates,
         ):
-            check(projected, state)
-        cert._check_terminal_totals(projected)
+            check(candidate, state)
+        cert._check_terminal_totals(candidate)
         derived += 1
     assert derived >= 1, derived
-    assert refused >= 3, refused
+    assert refused >= 1, refused
 
 
 def test_the_matrix_excludes_ill_formed_invocations_explicitly() -> None:
@@ -1074,15 +1084,14 @@ def test_the_matrix_excludes_ill_formed_invocations_explicitly() -> None:
     witness, state, _certificate, slots = _witnessed(with_rows=True)
     roots = ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),)
 
-    # No witness supplied for a witnessed lane: the documented residue. It derives, and the
-    # CHECKER is what refuses -- which is why the gate above requires the slots.
-    derived = project_allocation_certificate_v1(state, roots)
-    assert isinstance(derived, cert.GlobalAccountingAllocationCertificateV1)
-    outcome = cert.check_global_accounting_allocation_certificate_v1(
-        derived, state, cert.EMPTY_LANE_WITNESS_SLOTS_V1
-    )
-    assert isinstance(outcome, cert.AllocationCertificateRejectedV1)
-    assert outcome.code is cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_REQUIRED
+    # No witness supplied for a witnessed lane. This USED to derive and be refused by the
+    # checker -- the last public derive-then-reject, and the reason the external re-grade held
+    # the chain below C. Both spellings of "no witness" refuse here now, so the invocation is
+    # no longer ill formed in a way the projection tolerates: it is refused.
+    for spelling in ((), cert.EMPTY_LANE_WITNESS_SLOTS_V1):
+        refused = project_allocation_certificate_v1(state, roots, spelling)
+        assert isinstance(refused, AllocationProjectionRejectedV1), spelling
+        assert refused.code is AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_REQUIRED
 
     # Missing and unexpected binding roots: refusals of the argument, not of the state.
     for bad_roots, code in (
@@ -1226,7 +1235,7 @@ def test_witnessed_certificate_with_rows_is_reproduced_byte_for_byte() -> None:
     assert not witness.fragment.unencumbered_reserves
     assert not witness.fragment.pending_external_obligations
     assert not witness.fragment.terminal_bindings
-    projected = _project(state, ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),))
+    projected = _project(state, ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),), slots)
     assert isinstance(projected, cert.GlobalAccountingAllocationCertificateV1), projected
     fragment = projected.ordered_lane_fragments[0]
     assert fragment.controlled_locations and fragment.claimant_entitlements
@@ -1363,8 +1372,8 @@ _ROW_CASES = [
                 "liabilities": (("bob", "USD", "vault", 10), ("alice", "USD", "spot-pool", 0)),
             },
             (("terminal-1", 1),),
-            AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
-            "no assignment of 1 obligations fits",
+            AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW,
+            "zero support for USD:spot-pool on one side only",
         ),
         (
             "a zero-atom entitlement in the claimant's only entitled domain, backed nowhere",
@@ -1373,8 +1382,8 @@ _ROW_CASES = [
                 "liabilities": (("bob", "USD", "spot-pool", 10), ("alice", "USD", "vault", 0)),
             },
             (("terminal-1", 0),),
-            AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_WITHOUT_BACKING,
-            "no controlled location in vault",
+            AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW,
+            "zero support for USD:vault on one side only",
         ),
         (
             "an OPEN obligation naming another lane",
@@ -1524,10 +1533,7 @@ def test_which_row_cases_the_entry_point_reaches_is_pinned(
     # producer guard: zero-present and absent differ to the checker, so no certificate over
     # such a state is acceptable (Codex C9c-5 P2-1). They are still row cases -- the harness
     # reaches their own code -- but the entry point reports the earlier fact.
-    refused_as_noncanonical = {
-        "a zero-atom entitlement cannot host a positive claim",
-        "a zero-atom entitlement in the claimant's only entitled domain, backed nowhere",
-    }
+    refused_as_noncanonical: set[str] = set()
     assert len(_ROW_CASES) == 14, "the counts in the docstrings above are over all of them"
     state = _backed_state(
         tuple(_terminal(t[0], t[1], **(t[2] if len(t) > 2 else {})) for t in terminals), **tables
@@ -1582,7 +1588,7 @@ def test_a_witnessed_lane_carrying_rows_no_producer_emits_is_refused() -> None:
 
     witness, state, _certificate, slots = _witnessed(with_rows=True)
     roots = ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),)
-    assert isinstance(_project(state, roots), cert.GlobalAccountingAllocationCertificateV1)
+    assert isinstance(_project(state, roots, slots), cert.GlobalAccountingAllocationCertificateV1)
     custody_row = state.custody[0]
     with_terminal = replace(
         state,

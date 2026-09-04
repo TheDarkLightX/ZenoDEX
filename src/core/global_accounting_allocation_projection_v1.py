@@ -250,6 +250,13 @@ ALLOCATION_PROJECTION_REFUSAL_KINDS_V1: Final[dict[str, tuple[AllocationProjecti
         # separate from UNDETERMINED because calling a determined state ambiguous is the
         # error three reviews have now found in this family (Opus P41 P2-3).
         AllocationProjectionRejectCodeV1.PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED,
+        # Both moved here by the external re-grade, which exhibited a candidate the checker
+        # accepts for each: the cap fires before the search runs, so "no certificate exists"
+        # was never established for it; and five zero-row states have a candidate that passes
+        # every semantic pass. Refusing them is this module declining, not the state being
+        # unreconcilable, and the difference is the whole point of having both kinds.
+        AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED,
+        AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW,
     ),
     "unreconcilable": (
         AllocationProjectionRejectCodeV1.PROJECTION_MULTIPLE_ENABLED_LANES,
@@ -264,8 +271,6 @@ ALLOCATION_PROJECTION_REFUSAL_KINDS_V1: Final[dict[str, tuple[AllocationProjecti
         AllocationProjectionRejectCodeV1.PROJECTION_ROW_TOTAL_OVERFLOW,
         AllocationProjectionRejectCodeV1.PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER,
         AllocationProjectionRejectCodeV1.PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT,
-        AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED,
-        AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW,
     ),
 }
 
@@ -427,6 +432,25 @@ def _external_rows_v1(
     for reserve in reserves:
         key = (reserve.asset, reserve.control_domain)
         residual[key] = residual.get(key, 0) - reserve.amount_atoms
+    # An external metamorphic matrix (Codex, C9c-5 P2-1) found that absent and zero support
+    # are not interchangeable: the checker compares support DICTIONARIES, so a key present
+    # with value zero on one side and absent on the other breaks its exactly-once partition
+    # even though every total is numerically zero.
+    #
+    # The invariant is about the KEYS, not the amounts. A first version of this guard refused
+    # any zero-amount row and was wrong in the opposite direction: a zero custody row and a
+    # zero claim row on the SAME key produce a certificate the checker accepts, and refusing
+    # it would be the refuse-an-acceptable-state defect the same matrix counts. So the rule is
+    # narrow: a key whose net residual is zero must be present on both sides or on neither.
+    controlled_keys = {(row.asset, row.control_domain) for row in controlled}
+    claim_keys = {(row.asset, row.control_domain) for row in entitlements}
+    claim_keys |= {(row.asset, row.control_domain) for row in reserves}
+    for key in sorted(set(residual)):
+        if residual[key] == 0 and (key in controlled_keys) != (key in claim_keys):
+            _fail(
+                AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW,
+                f"zero support for {asset_domain(key)} on one side only",
+            )
     # Classify the residual BEFORE the pending count is consulted (Opus P39 P1-1): more claimed
     # than controlled is unreconcilable whatever the outbox holds, and the previous order made
     # this code reachable only when an outbox entry happened to exist.
@@ -685,24 +709,6 @@ def project_allocation_certificate_v1(
     state_root = state.state_root
     try:
         owning_lane = _single_owning_lane_v1(state)
-        # An external metamorphic matrix (Codex, C9c-5 P2-1) found that absent and zero
-        # support are not interchangeable to the checker: it compares support DICTIONARIES,
-        # so a zero-amount row is a present key with value zero on one side and no key at
-        # all on the other, and the derived certificate fails SOURCE_ATOM_NOT_ASSIGNED_
-        # EXACTLY_ONCE. The state type admits such a row; no certificate over it is
-        # acceptable; so it is refused here rather than derived. Sixteen invocation cases
-        # over twelve state roots in that matrix, all with the same checker code.
-        for table_name, rows in (
-            ("custody", state.custody),
-            ("liabilities", state.liabilities),
-            ("reserves", state.reserves),
-        ):
-            for row in rows:
-                if row.amount_atoms == 0:
-                    _fail(
-                        AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW,
-                        f"{table_name} carries a zero-amount row for {row.asset}:{row.custody_domain}",
-                    )
         _state_level_refusals_v1(state, owning_lane)
         binding_roots = _binding_roots_v1(state, lane_binding_roots)
         controlled = tuple(
@@ -795,15 +801,21 @@ def project_allocation_certificate_v1(
         # the projection cannot detect that from the state alone. It CAN when the caller
         # supplies the witness, which is the same object the checker requires, and then
         # it refuses instead of deriving an object the witness check must reject.
-        if lane_witnesses:
-            for fragment, witness in zip(fragments, lane_witnesses, strict=True):
+        # The witness obligation does not depend on whether the caller passed slots. C9c-7
+        # refused an empty slot inside a supplied twelve-tuple and left the default
+        # ``lane_witnesses=()`` deriving, so the same state was refused or derived according
+        # to how the caller spelled "no witness" -- and the derived object was refused by the
+        # checker with RECEIPT_WITNESS_REQUIRED. That was the last public derive-then-reject
+        # the external re-grade could still execute, and it capped the grade. An enabled
+        # receipt-backed lane now requires its witness in both spellings.
+        supplied = lane_witnesses or (None,) * len(ALL_LANE_IDS_V1)
+        if True:
+            for fragment, witness in zip(fragments, supplied, strict=True):
                 registered_kind, _blocked = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[fragment.lane_id]
                 if witness is None:
-                    # Supplying the slots is a claim that they are the ones the checker
-                    # requires, so an empty slot on an enabled receipt-backed lane is an
-                    # incomplete argument, not the disclosed no-witness residue: without it
-                    # the projection derived and the checker refused RECEIPT_WITNESS_REQUIRED
-                    # (found in review of C9c-6 at its own tip).
+                    # An enabled receipt-backed lane needs the witness the checker will
+                    # demand, whether the caller passed no slots at all or a slot holding
+                    # nothing. Both spellings mean the same thing and both are refused.
                     if fragment.enabled and registered_kind is LaneProducerKindV1.RECEIPT_BACKED:
                         _fail(
                             AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_REQUIRED,

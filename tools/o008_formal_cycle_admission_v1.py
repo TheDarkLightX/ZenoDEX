@@ -93,9 +93,9 @@ PROJECTION_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_alloc
 # string-only rows had. The expected kill counts are pinned so a row cannot be quietly dropped.
 LEDGER_TOOL_PATH_V1: Final = "tools/thv1_mutation_ledger_v1.py"
 LEDGER_GATED_PACKETS_V1: Final[tuple[tuple[str, str, int], ...]] = (
-    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v9", 37),
+    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v10", 37),
     ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v7", 22),
-    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v42", 3),
+    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v43", 3),
     ("ledger_admission_rows", "THV1-20260903-o008-asset-transfer-receipt-admission-mechanical-v3", 31),
     ("ledger_ownership_rows", "THV1-20260903-global-settlement-exact-ownership-mechanical-v3", 21),
     ("ledger_certificate_rows", "THV1-20260901-global-accounting-allocation-certificate-v23", 2),
@@ -578,15 +578,16 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " and NOT that more than one row-checked certificate exists; both wordings were shipped and"
     " falsified, at P40 and P41."
     " UNSUPPORTED, the state determines the answer and this module declines to derive it:"
-    " PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED."
+    " PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED, PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED,"
+    " PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW -- the last two moved here from UNRECONCILABLE by"
+    " an external re-grade that exhibited a checker-accepted candidate for each."
     " UNRECONCILABLE, no certificate over this state can be accepted:"
     " PROJECTION_MULTIPLE_ENABLED_LANES, PROJECTION_NO_LANE_FOR_ROWS, PROJECTION_NEGATIVE_RESIDUAL,"
     " PROJECTION_UNASSIGNED_CONTROLLED_ATOMS, PROJECTION_PENDING_WITHOUT_BACKING,"
     " PROJECTION_ROWS_BEYOND_PRODUCER, PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT,"
     " PROJECTION_TERMINAL_WITHOUT_BACKING, PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,"
     " PROJECTION_ROW_TOTAL_OVERFLOW, PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER,"
-    " PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT, PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED,"
-    " PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW."
+    " PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT."
     " The claim is over a WELL-FORMED INVOCATION, not over a state alone: a caller_input code"
     " refuses the caller's argument and says nothing about whether the state has an accepted"
     " certificate, which it usually does (Codex C9c-5 P2-3)."
@@ -1192,7 +1193,7 @@ ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
 ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 # C9c-1: the certificate derived from the state, and the two shapes V1 state leaves undetermined.
-PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 104
+PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 102
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 5
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
