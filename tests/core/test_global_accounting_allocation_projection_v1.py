@@ -890,6 +890,216 @@ def test_a_caller_input_refusal_says_nothing_about_the_state() -> None:
     assert isinstance(_project(state), cert.GlobalAccountingAllocationCertificateV1)
 
 
+# --- the standing metamorphic gate -------------------------------------------------------
+#
+# An external reviewer's closing recommendation, after it found three defects five in-family
+# reviews had missed: "an independent metamorphic matrix would likely have found the new
+# issues quickly: mutate each witness field not copied into the fragment; vary
+# absent/zero/present in every map the checker reads; and range over coupled rows rather than
+# one row at a time." Its matrix was a one-off script outside the repository. This is the same
+# idea as a standing gate, written here so the property is checked on every run rather than
+# when someone thinks to look.
+#
+# The property, stated exactly: FOR A WELL-FORMED INVOCATION -- the binding roots the state
+# requires, and the witness slots the checker requires when a lane is witnessed -- the
+# projection either refuses with a code in the closed family, or derives a certificate the
+# FULL checker accepts. Invocations that are not well formed are excluded by the quantifier
+# and are asserted separately below, so the exclusion is visible rather than assumed.
+
+
+def _matrix_states():
+    """The generated states, each with the well-formed invocation for it.
+
+    Ranged over, following the reviewer's three axes: absent / zero / positive in every
+    economic map; coupled rows (two entries for one claimant or one cell) rather than one row
+    at a time; and the witness fields the projection does not copy into its fragment.
+    """
+
+    witness, witnessed_state, _certificate, slots = _witnessed(with_rows=True)
+    roots = ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),)
+
+    # The accepting baseline. If this stops deriving, every refusal below is vacuous.
+    yield "witnessed-baseline", witnessed_state, roots, slots, "accept"
+
+    # Axis 1: the witness header fields, singly and as a power set of two.
+    header_fields = ("chain_id", "deployment_root", "profile_root", "writer_epoch")
+    for index, field in enumerate(header_fields):
+        value = getattr(witnessed_state, field)
+        other = value + 1 if isinstance(value, int) else "0x" + f"{index + 1:02x}" * 32
+        yield f"header-{field}", replace(witnessed_state, **{field: other}), roots, slots, "refuse"
+    pair = replace(
+        witnessed_state,
+        chain_id=witnessed_state.chain_id + "-x",
+        writer_epoch=witnessed_state.writer_epoch + 1,
+    )
+    yield "header-pair", pair, roots, slots, "refuse"
+
+    # Axis 2: absent / zero / positive in each economic map, against a fixed witness.
+    for table in ("custody", "liabilities", "reserves"):
+        for shape, rows in (
+            ("absent", ()),
+            ("zero", (EconomicAmountV1(owner="alice", asset="USD", custody_domain="d1", amount_atoms=0),)),
+            ("positive", (EconomicAmountV1(owner="alice", asset="USD", custody_domain="d1", amount_atoms=7),)),
+        ):
+            yield f"{table}-{shape}", replace(witnessed_state, **{table: rows}), roots, slots, "refuse-or-accept"
+
+    # Axis 3: coupled rows -- two entries for one claimant, and two for one cell.
+    coupled = replace(
+        witnessed_state,
+        liabilities=(
+            EconomicAmountV1(owner="alice", asset="USD", custody_domain="d1", amount_atoms=3),
+            EconomicAmountV1(owner="alice", asset="USD", custody_domain="d2", amount_atoms=4),
+        ),
+    )
+    yield "coupled-claimant", coupled, roots, slots, "refuse-or-accept"
+    same_cell = replace(
+        witnessed_state,
+        custody=(
+            EconomicAmountV1(owner="pool-a", asset="USD", custody_domain="d1", amount_atoms=3),
+            EconomicAmountV1(owner="pool-b", asset="USD", custody_domain="d1", amount_atoms=4),
+        ),
+    )
+    yield "coupled-cell", same_cell, roots, slots, "refuse-or-accept"
+
+    # Axis 4: the witness SLOT SHAPE. Supplying the twelve slots is a claim that they are the
+    # ones the checker requires, so an empty slot on the witnessed lane is an incomplete
+    # argument. Without this axis the generator missed the guard for it -- checked by removing
+    # the guard and watching this gate stay green, which is why the axis is here.
+    yield "slots-empty", witnessed_state, roots, cert.EMPTY_LANE_WITNESS_SLOTS_V1, "refuse"
+
+    # Axis 5: the all-disabled state, where no witness is required at all.
+    empty = renderer.build_state_v1(renderer._spec())
+    yield "all-disabled", empty, (), (), "accept"
+
+
+def test_the_generated_matrix_derives_only_certificates_the_checker_accepts() -> None:
+    """The standing gate. Every well-formed invocation over the generated matrix either
+    refuses with a closed code, or derives a certificate the FULL checker accepts.
+
+    A derive-then-reject here is the defect three external findings were: the projection
+    handing back an object the checker must refuse.
+    """
+
+    accepted = refused = 0
+    for label, state, roots, slots, expectation in _matrix_states():
+        projected = project_allocation_certificate_v1(state, roots, slots)
+        if isinstance(projected, AllocationProjectionRejectedV1):
+            assert projected.code.value in ALLOCATION_PROJECTION_REJECT_CODES_V1, (label, projected)
+            assert projected.state_root == state.state_root, label
+            assert expectation != "accept", (label, projected.code)
+            refused += 1
+            continue
+        outcome = cert.check_global_accounting_allocation_certificate_v1(projected, state, slots or cert.EMPTY_LANE_WITNESS_SLOTS_V1)
+        assert isinstance(outcome, cert.AllocationCertificateAcceptedV1), (label, outcome)
+        assert expectation != "refuse", label
+        accepted += 1
+    # Non-vacuity in both directions: the matrix must exercise both outcomes.
+    assert accepted >= 2, accepted
+    assert refused >= 5, refused
+
+
+def _row_matrix_states():
+    """States for the row-level gate: one enabled receipt-backed lane, economic maps ranged.
+
+    The full checker masks row defects here behind its witness pass, which is exactly how the
+    zero-support defect survived: the certificate the projection derived failed the partition
+    check, and every public invocation reported RECEIPT_WITNESS_REQUIRED instead. So this
+    stratum's oracle is the checker's ROW passes rather than the full checker, and it is
+    labelled that way rather than presented as public reachability.
+    """
+
+    amounts = (0, 5)
+    for custody_amount in amounts:
+        for liability_amount in amounts:
+            yield (
+                f"custody{custody_amount}/liability{liability_amount}",
+                _backed_state(
+                    (),
+                    custody=(("pool-a", "USD", "d1", custody_amount),),
+                    liabilities=(("alice", "USD", "d1", liability_amount),),
+                    outbox=(),
+                ),
+            )
+    yield (
+        "cross-key-zeros",
+        _backed_state((), custody=(("pool-a", "USD", "d1", 0),), liabilities=(("alice", "USD", "d2", 0),), outbox=()),
+    )
+    yield (
+        "coupled-cell",
+        _backed_state(
+            (),
+            custody=(("pool-a", "USD", "d1", 3), ("pool-b", "USD", "d1", 4)),
+            liabilities=(("alice", "USD", "d1", 7),),
+            outbox=(),
+        ),
+    )
+
+
+def test_the_generated_row_matrix_derives_no_certificate_the_row_checks_refuse() -> None:
+    """The second half of the standing gate, at the row level.
+
+    A derived certificate must pass every row, partition and aggregate check the checker
+    applies. The zero-support defect lived exactly here and was invisible to the full-checker
+    gate above, so this stratum exists and says why.
+    """
+
+    derived = refused = 0
+    for label, state in _row_matrix_states():
+        projected = _project(state, _root_of(state))
+        if isinstance(projected, AllocationProjectionRejectedV1):
+            assert projected.code.value in ALLOCATION_PROJECTION_REJECT_CODES_V1, (label, projected)
+            refused += 1
+            continue
+        for check in (cert._check_exactly_once,):
+            check(projected)
+        for check in (
+            cert._check_entitlement_rows,
+            cert._check_reserve_rows,
+            cert._check_external_obligations,
+            cert._check_terminal_bindings,
+            cert._check_lane_aggregates,
+        ):
+            check(projected, state)
+        cert._check_terminal_totals(projected)
+        derived += 1
+    assert derived >= 1, derived
+    assert refused >= 3, refused
+
+
+def test_the_matrix_excludes_ill_formed_invocations_explicitly() -> None:
+    """The quantifier, made visible. These invocations are NOT well formed, so they are
+    outside the gate above; each is asserted here so the exclusion is a stated fact rather
+    than a silent gap."""
+
+    witness, state, _certificate, slots = _witnessed(with_rows=True)
+    roots = ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),)
+
+    # No witness supplied for a witnessed lane: the documented residue. It derives, and the
+    # CHECKER is what refuses -- which is why the gate above requires the slots.
+    derived = project_allocation_certificate_v1(state, roots)
+    assert isinstance(derived, cert.GlobalAccountingAllocationCertificateV1)
+    outcome = cert.check_global_accounting_allocation_certificate_v1(
+        derived, state, cert.EMPTY_LANE_WITNESS_SLOTS_V1
+    )
+    assert isinstance(outcome, cert.AllocationCertificateRejectedV1)
+    assert outcome.code is cert.AllocationCertificateRejectCodeV1.RECEIPT_WITNESS_REQUIRED
+
+    # Missing and unexpected binding roots: refusals of the argument, not of the state.
+    for bad_roots, code in (
+        ((), AllocationProjectionRejectCodeV1.PROJECTION_BINDING_ROOT_MISSING),
+        (
+            ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root), ),
+            None,
+        ),
+    ):
+        if code is None:
+            continue
+        refused = project_allocation_certificate_v1(state, bad_roots, slots)
+        assert isinstance(refused, AllocationProjectionRejectedV1), refused
+        assert refused.code is code
+        assert refused.code in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1["caller_input"]
+
+
 def test_the_three_refusal_kinds_partition_the_family() -> None:
     """Both P40 reviews, P3-1: the prose split omitted three of its thirteen codes,
     PROJECTION_ROWS_BEYOND_PRODUCER among them -- the guard the candidate was named for.

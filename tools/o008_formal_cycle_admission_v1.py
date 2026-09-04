@@ -93,9 +93,9 @@ PROJECTION_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_alloc
 # string-only rows had. The expected kill counts are pinned so a row cannot be quietly dropped.
 LEDGER_TOOL_PATH_V1: Final = "tools/thv1_mutation_ledger_v1.py"
 LEDGER_GATED_PACKETS_V1: Final[tuple[tuple[str, str, int], ...]] = (
-    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v8", 34),
+    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v9", 37),
     ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v7", 22),
-    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v41", 3),
+    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v42", 3),
     ("ledger_admission_rows", "THV1-20260903-o008-asset-transfer-receipt-admission-mechanical-v3", 31),
     ("ledger_ownership_rows", "THV1-20260903-global-settlement-exact-ownership-mechanical-v3", 21),
     ("ledger_certificate_rows", "THV1-20260901-global-accounting-allocation-certificate-v23", 2),
@@ -1192,7 +1192,7 @@ ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
 ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 # C9c-1: the certificate derived from the state, and the two shapes V1 state leaves undetermined.
-PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 101
+PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 104
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 5
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
