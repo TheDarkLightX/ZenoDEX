@@ -60,16 +60,20 @@ WHAT IS CLAIMED, and what five reviews have already falsified in earlier wording
    earlier wording carried this claim with no exception while a test file carried the
    exception (opus2 P39 P2-5); the exception is now closed in the code instead.
 
-   One case is closed only when the caller helps. A witnessed lane's minted witness is
-   determined by the committed lane root -- the producer folds the custody that root's
-   receipt admitted -- so a state whose rows differ from the receipt's has no acceptable
-   certificate, and one extra atom on a custody row is enough. V1 state does not carry
-   the receipt's rows, so from the state alone the projection cannot see it and derives.
-   Given ``lane_witnesses``, the same slots the checker requires, it refuses with
-   ``..._WITNESS_FRAGMENT_DRIFT`` instead (opus2 P40 P2-7, whose minimal fix was to
-   disclose this; disclosed AND closed for the caller who passes the witness). Without
-   the witness the derived object is refused by the checker's witness pass, so nothing
-   unsound is admitted either way -- what differs is which layer says no.
+   A witnessed lane's minted witness is determined by the committed lane root -- the
+   producer folds the custody that root's receipt admitted -- so a state whose rows differ
+   from the receipt's has no acceptable certificate, and one extra atom on a custody row is
+   enough. V1 state does not carry the receipt's rows, so the state alone cannot reveal it.
+   The witness can, and is therefore REQUIRED rather than optional: an enabled
+   receipt-backed lane refuses with ``..._WITNESS_REQUIRED`` when no witness is supplied,
+   in either spelling, and with ``..._WITNESS_FRAGMENT_DRIFT`` or ``..._WITNESS_HEADER_DRIFT``
+   when the supplied one disagrees with the state.
+
+   There is NO no-witness residue any more. Earlier wordings of this paragraph described
+   one -- "without the witness the projection derives and the checker refuses" -- and that
+   sentence outlived the code that made it true by one candidate, which is this module's
+   most persistent defect and not a small one: an evidence packet froze a residue that had
+   already been closed (external re-grade, C9c-10 P1).
 3. Given the one scalar the state does not carry, the receipt root, the projection
    reproduces a witnessed certificate byte-for-byte, including a witness whose receipt
    proved a custody row. That evidence covers one row shape, stated in the test.
@@ -140,7 +144,8 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     ``..._WITNESS_HEADER_DRIFT``, the supplied witness was minted under another chain,
     deployment, profile or writer epoch than the state's -- the comparison the checker makes
     in the pass after the fragment one, which an earlier candidate copied without its
-    neighbour; and ``..._WITNESS_REQUIRED``, an empty slot on an enabled receipt-backed lane,
+    neighbour; and ``..._WITNESS_UNEXPECTED``, a witness supplied for a lane that must not carry one;
+    ``..._WITNESS_REQUIRED``, an empty slot on an enabled receipt-backed lane,
     which is an incomplete argument rather than the disclosed no-witness residue.
 
     UNDETERMINED -- the state does not pin the row content, so the projection refuses rather
@@ -187,7 +192,7 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     For each row case in the UNRECONCILABLE kind a test BUILDS the certificate the state
     implies and shows the checker refusing it, rather than asserting the classification;
     for the UNDETERMINED kind a test exhibits the two row-checked certificates with
-    different allocation roots. The four kinds are a partition of all twenty-two codes and
+    different allocation roots. The four kinds are a partition of all twenty-three codes and
     a test pins that partition against this enum.
     """
 
@@ -213,6 +218,7 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     PROJECTION_WITNESS_HEADER_DRIFT = "PROJECTION_WITNESS_HEADER_DRIFT"
     PROJECTION_WITNESS_REQUIRED = "PROJECTION_WITNESS_REQUIRED"
     PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW = "PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW"
+    PROJECTION_WITNESS_UNEXPECTED = "PROJECTION_WITNESS_UNEXPECTED"
 
 
 # The exhaustive terminal-assignment search is refused rather than truncated beyond this many
@@ -240,6 +246,7 @@ ALLOCATION_PROJECTION_REFUSAL_KINDS_V1: Final[dict[str, tuple[AllocationProjecti
         AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_FRAGMENT_DRIFT,
         AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_HEADER_DRIFT,
         AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_REQUIRED,
+        AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_UNEXPECTED,
     ),
     "undetermined": (
         AllocationProjectionRejectCodeV1.PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS,
@@ -812,6 +819,20 @@ def project_allocation_certificate_v1(
         if True:
             for fragment, witness in zip(fragments, supplied, strict=True):
                 registered_kind, _blocked = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[fragment.lane_id]
+                if witness is not None and not (
+                    fragment.enabled and registered_kind is LaneProducerKindV1.RECEIPT_BACKED
+                ):
+                    # The checker's UNEXPECTED pass runs BEFORE the ones this loop mirrors, and
+                    # the loop mirrored REQUIRED, FRAGMENT and HEADER without it -- so a witness
+                    # supplied for a lane that must not carry one was derived against and the
+                    # checker refused RECEIPT_WITNESS_UNEXPECTED. All twelve slots reproduced
+                    # it (external re-grade, C9c-10 P2). Mirroring three passes of four is the
+                    # same defect as mirroring the fragment without the header: the complement
+                    # of what the guard reads is where the next counterexample lives.
+                    _fail(
+                        AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_UNEXPECTED,
+                        f"{fragment.lane_id.value} carries a witness it must not",
+                    )
                 if witness is None:
                     # An enabled receipt-backed lane needs the witness the checker will
                     # demand, whether the caller passed no slots at all or a slot holding

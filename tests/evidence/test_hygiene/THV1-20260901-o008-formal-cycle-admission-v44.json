@@ -1,0 +1,1243 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260901-o008-formal-cycle-admission-v44",
+  "created_date": "2026-09-03",
+  "claim_scope": "Candidate C9c-11. Nonclaim 5 stated a no-witness residue the previous candidate had already closed -- the packet froze behaviour that no longer existed, which is this campaign's most persistent defect and was caught by an external re-grade rather than by any of its own gates. Corrected, and the new caller_input code is named. Gate 103. PREDECESSOR: Candidate C9c-10: the projection gate moves to 102. PREDECESSOR: Candidate C9c-9: the projection gate moves to 104 for the standing metamorphic matrix. PREDECESSOR: Candidate C9c-8. Nonclaim 5 gains the two codes this candidate adds and states the quantifier the projection's claim always had and never wrote down: it is over a WELL-FORMED INVOCATION, not over a state alone. The projection gate moves to 101. PREDECESSOR: Candidate C9c-7. The projection nonclaim is now RENDERED from the module's own kinds table (ALLOCATION_PROJECTION_REFUSAL_KINDS_V1) rather than written beside it, so the count and the code lists cannot drift from the code they describe -- they drifted in three consecutive candidates, and C9c-6's test asserting agreement is kept as a regression guard on the renderer. The projection gate moves to 97. PREDECESSOR: Candidate C9c-6. Both P41 reviewers found, independently, that the ledger replay commands declare no --workdir, so each stages under the shared $TMPDIR/thv1-ledger/<packet> and REMOVES that directory before staging: two replays sharing a TMPDIR race. Both also established that the hazard is fail-closed -- a vanished tree makes the killer exit 4 and a KILLED verdict requires the tests-failed exit, so a collision yields UNVIABLE or errors and EXECUTED_FAIL, never a false kill. TMPDIR is now named in each ledger command's env_names, so the variable that decides where the run stages is part of the recorded observation instead of being implicit, and the nonclaim states the concurrency limit and its direction. PREDECESSOR: Candidate C9c-5. The projection gate's expected pass count moves to 87, a seventh ledger-gated packet appears (the checker file itself, which carried zero mechanical rows across all 231 packets) (the witness-drift refusal, its type gates and the entry-point pins), and nonclaim 14 now states which test-hygiene packets this checker binds -- exactly the seven its hygiene_selection names, one per required pin path -- and that a packet a candidate message names but the selection does not bind is covered only by the repository-wide sweep (Opus P40 P2-4). No pin role, replay command, or claim ceiling changes. PREDECESSOR: Candidate C9c-4. The projection gate's expected pass count moves from 53 to 56 (the two state-level refusals and their ordering test), and packet nonclaim 5 now enumerates the two lane-configuration shapes among the UNRECONCILABLE kind instead of describing a family that silently excluded them. No pin role, replay command, or claim ceiling changes. PREDECESSOR: Candidate C9c-3 (Opus P39 P2-4, P3-2, P3-3): the mutation ledger gate covers EVERY packet carrying mechanical rows, not two of five, and the grader no longer validates only four aggregate integers: each KILLED row must name the mutation that produced it, with distinct needle and replacement digests, and the described count must equal the killed count. The ledger's own parsing dependencies (the evidence loader and model) join the pinned surface, because they decide which rows are mechanical and what text a mutant replaces. Earlier: Candidate C9c-2: the packet EXECUTES the mutation ledger. Two replay commands run it over the two packets that carry mechanical rows and grade the report (every mechanical row killed, none survived, none errored, count pinned), closing the gap that ninety-two mechanical rows were gated by nothing; the ledger tool joins the pinned surface. Earlier: Candidate C9c-1: the packet pins the allocation projection module as the allocation_projection role and replays its suite as a thirty-second command (python_allocation_projection_gate); the nonclaims say the certificate is derived from the state with the receipt root as the witness's only row-level contribution, and that the projection has no consumer. Earlier: (Opus P35 P3-2/P3-4) the dropped-command row is attributed to the parametrized count case that fails without the command; lane_module_receipt_verification.rs (the module witness the admission rests on) joins the pinned surface as the admission_rust_witness_source role (53 pins). Candidate C9b-2b: the packet's expected certificate registry view registers ASSET_TRANSFER as RECEIPT_BACKED, receipt_backed_producers is 1, the fixture renders 29 vectors, and the nonclaims say the checker reconciles at most the asset-transfer lane (eleven lanes unregistered; not mounted). Earlier: Candidate C9b-2a: the sidecar's required checks gain receipt_witness_slots_bind_fragment_and_header (thirteen checks, mirrored by CHECK_ORDER_V1 and the golden fixture); the certificate reject-code family gains the four witness codes. Opus P34 P2-3/P2-4: the battery script exits non-zero when any part is red (deselecting only the lifecycle test that is red on a dirty tree by construction) and the chain script stops before the push and the tag on a red checker replay, builder round trip, or lifecycle test at P. Earlier: Candidate C9b-1: the packet replays a thirty-first command, rust_admission_gate (cargo test --test lane_module_release_route_binding receipt_admission_, 4 passed), and pins the Rust admission twin and the route-binding suite as the admission_rust_twin and admission_rust_replay roles (52 pins); the crate module list gains asset_transfer_receipt_admission. Earlier: Candidate C9a'''' (Fable P32 INFO): the candidate chain and battery scripts live in the repository (tools/formal_core_candidate_chain_v1.sh, tools/formal_core_battery_v1.sh) and join the packet's pinned surface as the candidate_chain_script and candidate_battery_script roles, so the process claim that every source commit is gated against its parent and the campaign base is verifiable. Earlier: Candidate C9a''': the transfer refinement corpus oracle exempts model-unreachable adjacent pairs (Opus P30 NEW-5); pins re-recorded. Earlier: Candidate C9a'': the packet nonclaims gain the scoped claimant-entitlement nonclaim and the named epoch-path exact-type audit gap; the hygiene-selection docstring states the shared lineage key instead of a false lexicographic equivalence (the repository gate now orders packets by the same key). Earlier: Candidate C8-p12 (Opus P29 repairs, receipt R26 2e6894f33, grade B-): the Python/Rust bound-parity test joins the packet's pinned surface as the python_rust_bound_parity_gate role so a change to it is visible to the packet replay (NEW-25), and the chain runs the repository hygiene gate against the parent of every source commit before a packet is built. Earlier: Candidate C9a' (Opus P28 repairs, receipt R25): the wave-B producer docstrings in both languages state the landed C9a admission in the present tense, record the caller-chosen-entitlement nonclaim, and name the missing Rust admission twin as an open gap; pinned bytes re-recorded. Earlier: Candidate C8-p11 (Opus P27 repairs, receipt R24, grade B): the transfer refinement lineage (bounded Lean model, challenge, corpus oracle, corpus, gate) joins the pinned surface as five new roles and its 40-test gate becomes the twenty-ninth replay command, closing the NEW-19 class (family drift invisible to the replay); the crate-scan recursion is structurally pinned (NEW-20) and the transfer transition takes exact-type inputs like its managed sibling, refusing post_init-skipping subclasses (NEW-21). Earlier: Candidate C8'''''' (Opus P22 repairs, receipt R19, grade A-): the total-parity claim becomes true as written (regex admits any integer type and spacing), the two boundary tests pin exact ceiling messages for transfer and managed issue, and the stray blank lines collapse; no gate count, reject family, or claim-ceiling change. Earlier: Candidate C8''''' (Opus P21 repairs, receipt R18, grade A-): completion_scope adopts the registered vocabulary (observation 1); the shared row-bound constants sit in the canonical mirror block in Rust declaration order and join __all__ (NEW-5); parity over canonical.rs is TOTAL (every pub const MAX_ bound must resolve through one Python mapping with an equal value, failing on any unlisted name, NEW-4); the shared non-total row-ceiling boundary of the transfer and managed-lifecycle transitions is documented in both docstrings and pinned by a construction boundary test (NEW-6, totalisation deferred to lane work). Earlier: Candidate C8'''' (Opus P20 repairs, receipt R17): the packet nonclaim and the certificate registry comment are registry-scoped (NEW-1, the last two live instances); the shared Rust canonical row bounds (MAX_ASSET_POLICY_ROWS_V1 256, MAX_ASSET_BALANCE_ROWS_V1 4096, MAX_ASSET_CUSTODY_ROWS_V1 4096) enter global_settlement_types_v1 and bound the seven sibling call sites of the asset-transfer and managed-asset families (NEW-2); the custody-vs-fragment ceiling inequality is pinned and the forgery-witness test is renamed to state exactly what it proves (NEW-3); python_producer_gate expects 30. Earlier: Candidate C8''' (Opus P19 repairs, receipt R16): the registered-receipt-backed rewording reaches its last instance, namely the certificate ESSO model notes and the pinned phrases of its gate (N1, the P2), namely and the gate re-records the moved model source sha and ir hash; the Python projection gains the three Rust row ceilings (balances 4096, custody 4096, supplies 256), so the oversized-accepted class fails construction in Python exactly where Rust fails validate at check 0 (N2); the family pin test also binds the Rust ALL array to the declaration order (N3) and the five mirrored ceiling constants to the parsed Rust integers (N4); FRAGMENT_INVALID has a reachability witness through construction forgery and is documented defensive in both languages (N5); the half-applied P3-c/P3-d wording is finished in both twins; python_producer_gate expects 29. Earlier: Candidate C8''' (Opus P19 repairs, receipt R16): the registered-receipt-backed rewording reaches its last instance, namely the certificate ESSO model notes and the pinned phrases of its gate (N1, the P2), namely and the gate re-records the moved model source sha and ir hash; the Python projection gains the three Rust row ceilings (balances 4096, custody 4096, supplies 256), so the oversized-accepted class fails construction in Python exactly where Rust fails validate at check 0 (N2); the family pin test also binds the Rust ALL array to the declaration order (N3) and the five mirrored ceiling constants to the parsed Rust integers (N4); FRAGMENT_INVALID has a reachability witness through construction forgery and is documented defensive in both languages (N5); the half-applied P3-c/P3-d wording is finished in both twins; python_producer_gate expects 29. Earlier: Candidate C8'' (Opus P18 repairs of the wave-B receipt-backed producer): the packet schema moves to v15; the esso certificate-model claim boundary and both certificate binding sentences are registry-scoped (no lane producer is REGISTERED receipt-backed and none is on an acceptance path; an implemented, unregistered wave-B producer exists); the receipt-backed reject family is the closed eleven-code enum (ACCEPTED_INVALID first, FRAGMENT_INVALID defensive last) mechanically pinned in both languages (PRODUCER_REJECT_CODES_DRIFT on drop or reorder); the producer checks the prior fragment's kind and enabled flag, enforces the entitlement and custody row ceilings, and re-sorts controlled rows under the shared fragment key (the shared key makes the sort defensive, pinned by an order-preservation test); the Rust twin's terminal-root check is exercised by a rebound accepted value that revalidates (pub(crate) receipt_root), replacing the masked disjunctive assertion; the replay gates expect python_producer_gate 27 and rust_producer_gate 7. Earlier: Candidate C5 (wave A): the registered-empty lane producers and the registered-empty root binding enter the pinned surface (four pins, two replay gates python_producer_gate 5 and rust_producer_gate 2, 28 commands, CERTIFICATE_REGISTERED_EMPTY_ROOTS_V1 pinned and checked against every accepted fixture fragment, sidecar implementation names the producers). Earlier: Candidate C4d repair of the Opus P10 findings (C1-quintuple-prime C+, C4a A-): the pinned Lean files may contain no double quote and no # command, so the comment/string stripper cannot be driven into a phantom string (LEAN_DOUBLE_QUOTE_FORBIDDEN); the Rust gate, state.rs, and bounded_vec.rs pins are exact sha256 of the committed bytes, so a // comment cannot absorb code; module-level __getattr__/__dir__ bindings of every form are rejected; the certificate fixture surface is total and pins three accepted vectors; a Rust unit gate replays the duplicate effect-id guard. Earlier: Candidate C4c: the bounded ESSO model of the certificate relation is a second pinned ESSO subject of the packet (EssoSubjectV1: model id, invariant and action surfaces, query set, named mutants, gate pins) with three replay commands (esso_certificate_validate, esso_certificate_verify_multi, esso_certificate_gate), and required_sidecar.implementation names the model. Earlier: Candidate C4b: the bounded Lean model of the certificate relation is a second pinned Lean subject of the packet (LeanSubjectV1: inventory, statement and definition-surface hashes, command closure, import root, own binding gate) with three replay commands (lean_certificate_direct_check, lean_certificate_axioms_probe, lean_certificate_binding_gate), and required_sidecar.implementation names the model. Earlier: Candidate C1-quintuple-prime repair of the Opus C1-quadruple-prime findings (grade C): a second macro_rules definition of the pinned name is rejected (RUST_MACRO_REDEFINED) and only the pinned bounded-vec macro may produce a fn; state.rs is a whole-file pin; the Lean proof file may use no notation, macro, syntax, instance, attribute, scope, or open command anywhere, an elided proof region is indented text ending at the next recognised column-zero item and may not contain an indented declaration, and indented namespace/end lines are counted; a module-level __getattr__ is rejected in the pinned Python modules; the static_closure and statement_binding sentences state only what is enforced; the golden lineage re-attributes the precedence mutation to the vector that fails under it. Earlier: Candidate C4a: the GlobalAccountingAllocationCertificateV1 sidecar checker (Python core, Rust twin, renderer, twenty-five-vector golden fixture, Python and Rust replay tests) enters the pinned surface; the packet binds its check order, closed reject codes, producer registry (no receipt-backed lane) and fixture invariants under required_sidecar.implementation, adds two replay gates (python_certificate_golden_gate 31, rust_certificate_golden_gate 3), pins the crate module set with the new module, and restates the sidecar nonclaim (implemented, registered-empty only, not mounted). Earlier: Candidate C1-quadruple-prime repair of the Codex C1-double-prime (grade D) and Opus C1-triple-prime (grade C) findings: theorem statements and the Lean definitional surface are bound to checker-embedded hashes (fresh-projection rejection and builder refusal on a regenerated chain); the container deserialiser macro must be invoked at item position, the state module has a closed unaliased import set, and the crate root module set is pinned with mod state and mod bounded_vec once each and no rebinding use; use statements are scanned with attributes blanked; serde prelude names bind only as serde::<name>; the Rust gate and bounded_vec.rs are pinned as whole raw files and the bounded-vec unit test is replayed; Python stores through attributes or computed subscripts and interpreter-state imports are rejected; replay runs in a sanitized environment (empty HOME and TMPDIR, registry-only CARGO_HOME, rebuilt PATH) and records rustc -vV in the closed toolchain block; the false killed_by rows of the v6 packet are corrected. Earlier: Candidate C1-triple-prime repair of the Opus C1-double-prime findings: use statements are tokenised on statement boundaries and expanded through brace groups and aliases (serde names bound only from serde, the bounded-vec deserialiser bound only by its exact path, no glob imports in the scanned modules); bounded_vec.rs is pinned as a whole normalised library template; both projection gates are pinned by normalised-content hash in addition to names and tables; attribute-level rebinding (__setattr__, __dict__, ...) is rejected in the pinned Python modules. Earlier: C3: the bounded ESSO target model exposes the allocation and binding coordinates as observables (the ir_hash now binds the ABI surface, checked by an ir-hash sensitivity test), adds inert named reserves (reserve_d0, reserve_d1) with a deposit_reserve action that no invariant reads, and the named mutant reserve_masking_open_claim proves a reserve cannot stand in for missing custody (two-solver counterexample attributed to inv_exact_custody_partition_d0); four inductive queries VERIFIED. Earlier: C1-double-prime repair of the Opus C1 and C1-prime findings: the record containers may carry only the closed deserialize_with attribute naming a function produced by the pinned local bounded-vec macro whose implementation file is pinned and closed; both projection gates have pinned content (field tables, forbidden-key tables, test names) and seeded unknown-key property tests; the replay records the cargo version and runs the Rust refinement and golden suites; Cargo.lock is pinned, .cargo configs are rejected, manifests keep exact versions and default targets; macro locality is definition-before-invocation and unqualified; extern crate and same-line foreign imports are rejected; the Python container class is closed and dynamic rebinding is rejected; packet strings are printable ASCII and promotion tokens are NFKC-folded; ESSO replay checks query counts and ids; the Lean necessity theorem states the universal claim it refutes and definitional theorems are counted separately. Earlier: C2-prime re-pin (golden evidence joined the pin set); C1-prime repair of the Codex C1 audit findings: the Rust and Python projection scans now run under a lexical closure (no cfg, include, path attributes, item-defining or foreign item-position macros, single depth-zero definition, exact attribute block, no field attributes, serde-only imports, unconditional mod state, default Cargo targets, closed dataclass decorators, unrebound class names, literal to_canonical) and are bound to the compiled and imported types by two replay gates; the author replay record has a closed per-command comparable schema and an exact toolchain block compared on fresh replay; the test-hygiene packet is selected per required path as the newest matching packet (hygiene-gate rule) instead of a fixed path. Research-only source-bound evidence that the O-008 formal-cycle admission checker is a pure core behind a read-only Git shell, admits only a packet that is the projection of one exact source commit S committed as an artifact-only direct child P, hashes every pin from Git blobs at S, verifies its own executing bytes against S, checks the ordered Lean theorem inventory and the exact Python/Rust V1 terminal projection structurally, keeps the five-invariant ESSO surface and the drain mutant, reports proof replay as NOT_RUN unless it executes the recorded tools, and cannot raise the zero-authority claim ceiling.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "O008-ADMISSION-TWO-COMMIT-SP-CHAIN",
+    "O008-EXECUTING-CHECKER-MATCHES-SUBJECT",
+    "O008-ORDERED-THEOREM-INVENTORY",
+    "O008-V1-TERMINAL-PROJECTION-FIELD-ORDER",
+    "O008-ESSO-FIVE-INVARIANT-SURFACE",
+    "O008-PROOF-REPLAY-NOT-RUN-UNLESS-EXECUTED",
+    "O008-ZERO-AUTHORITY-CLAIM-CEILING",
+    "O008-RUST-PYTHON-LEXICAL-CLOSURE",
+    "O008-COMPILED-PROJECTION-REPLAY-GATES",
+    "O008-AUTHOR-RECORD-CLOSED-SCHEMA",
+    "O008-HYGIENE-SELECTION-NEWEST-MATCHING",
+    "O008-CONTAINER-DESERIALIZER-BOUND-TO-LOCAL-MACRO",
+    "O008-PROJECTION-GATE-CONTENT-PINNED",
+    "O008-RUST-TOOLCHAIN-RECORDED-AND-HERMETIC",
+    "O008-ESSO-RESERVES-INERT-AND-OBSERVABLE-SURFACE-BOUND",
+    "O008-USE-TREE-EXPANDED-IMPORT-CLOSURE",
+    "O008-BOUNDED-VEC-WHOLE-TEMPLATE-PIN",
+    "O008-GATE-CONTENT-HASH-PIN",
+    "O008-LEAN-STATEMENT-AND-DEFINITION-SURFACE-EMBEDDED",
+    "O008-ITEM-POSITION-DESERIALIZER-MACRO",
+    "O008-STATE-IMPORT-CLOSURE",
+    "O008-CRATE-MODULE-SET-PINNED",
+    "O008-ATTRIBUTE-BLIND-USE-SCAN",
+    "O008-REPLAY-ENVIRONMENT-SANITIZED",
+    "O008-RUSTC-IDENTITY-BOUND",
+    "O008-PYTHON-STORE-TARGET-CLOSURE",
+    "O008-SIDECAR-IMPLEMENTATION-BOUND",
+    "O008-MACRO-DEFINED-ONCE-AND-STATE-FILE-PINNED",
+    "O008-LEAN-COMMAND-CLOSURE",
+    "O008-SECOND-LEAN-SUBJECT-BOUND",
+    "O008-SECOND-ESSO-SUBJECT-BOUND",
+    "O008-LEAN-LITERAL-FREE-PINNED-FILES",
+    "O008-EXACT-BYTE-RUST-PINS",
+    "O008-REGISTERED-EMPTY-PRODUCERS-BOUND"
+  ],
+  "failure_modes": [
+    "a packet admits itself by hashing the worktree instead of the subject commit",
+    "a renamed, reordered, or weakened theorem passes an unordered name check",
+    "a V1 terminal or outbox record silently gains or reorders fields",
+    "a packet author's replay record is treated as executed evidence",
+    "a hand-edited markdown companion or worktree packet passes as the committed projection",
+    "a contradictory nonclaim, promotion token, or COMPLETE lane status passes",
+    "the executing checker differs from the checker pinned at the subject",
+    "a cfg-disabled decoy struct or macro-generated live struct passes the textual scan",
+    "a well-shaped forged author replay record with a fabricated toolchain passes",
+    "a stale hygiene packet keeps admitting changed sources",
+    "a weakened theorem statement or definition is admitted once the packet is regenerated",
+    "a replayed tool reads the host cargo config, flags, or wrappers",
+    "a later macro definition or a smuggled Lean command changes what a pinned construct means without moving any pinned hash"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/check_o008_formal_cycle_v1.py",
+      "sha256": "ac69deaa9f84d63a8172f83e1ace6ca037b66c1218212f8d90337be32d551413"
+    },
+    {
+      "path": "tools/o008_formal_cycle_admission_v1.py",
+      "sha256": "7bbeb878c013bee8591c9c71b329c4a38d4dea0e023d6eb4a344c404f7b805b7"
+    },
+    {
+      "path": "tools/o008_formal_cycle_shell_v1.py",
+      "sha256": "8deb362d252b87acddc8f38d4ff508c6359f4b16016faeff242ddcb982403150"
+    },
+    {
+      "path": "tools/build_o008_formal_cycle_v1.py",
+      "sha256": "47db8ff88be04a80018e8ce4ef779aee282cb86bed47b1509a3dd4bcdc89c990"
+    },
+    {
+      "path": "tools/scan_lean_proof_placeholders_v1.py",
+      "sha256": "44a7c67142955ad3b7a803ab599d31ca8754d0f9cdd795588ea9745f58239fc4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalClaimantCustodyRelationV1.lean",
+      "sha256": "687a18bb663fbbbf0b565da137ecee8defb790126e1249303ba2773fb694d005"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "7ab56e31dfcd67cf2a214747e792fe27d3f047b247aa6c2396407a615a0a6c45"
+    },
+    {
+      "path": "src/kernels/dex/global_claimant_custody_certificate_v1.yaml",
+      "sha256": "d7b547e32790828c149fb0e3bdd6b32e11a235bbb67b6cf02eaaff4db2681252"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/state.rs",
+      "sha256": "44f6874589e72c7fefdcac8b6c220fb311c6dc0f1e53bb3b962e32a6d593b98c"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "b76ca340fc1404e61e2c571597e13cfadf10199fbff1b83f8ad8daa9bdcf85cb"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/Cargo.toml",
+      "sha256": "ecc25a42a338c6704ea32086e5c7e79eec2358405905a47747b313d56358ee89"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/bounded_vec.rs",
+      "sha256": "eb4539f793405c0120c7e95424c51daea6c78b7c5b9584b7bfdbbcf63a0b3be6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/Cargo.lock",
+      "sha256": "9420e887c5c030b19cdc721c339f9460ac1db0227567bcbe018337580589360a"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
+      "sha256": "e91f27cd2f38db434b1d8c77ef72a34508ec4ab744dff3843261fe263139316f"
+    },
+    {
+      "path": "tools/render_global_claimant_backing_guard_v1_golden.py",
+      "sha256": "684dc23d395eddfbaea5792cc97723c5d0ecc23e0e623f7f1eb426ed07cdd1fb"
+    },
+    {
+      "path": "tests/data/global_claimant_backing_guard_v1_golden.json",
+      "sha256": "00f5d453f55365d3274602d5b48ea815a9e05861ae28682c3baa385d91736029"
+    },
+    {
+      "path": "tests/core/test_global_claimant_backing_guard_v1_golden.py",
+      "sha256": "7439b01af9b5d5d89b960ec4bdf372141860c2de083fa93b486afab65bb2e919"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/claimant_backing_guard_golden.rs",
+      "sha256": "3d52352ccd9fe613910c6abdddad153cea418f53dbf2004e7a9b7ca2234f2077"
+    },
+    {
+      "path": "src/core/global_accounting_allocation_certificate_v1.py",
+      "sha256": "e27b05cfb6c8749366f11f88856ff25602a0aec9237d64d66b40fc5a84dc6b88"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_accounting_allocation_certificate.rs",
+      "sha256": "538428762e558db31db886f9662329a4e8787875ca9e1186d87882ca201526af"
+    },
+    {
+      "path": "tools/render_global_accounting_allocation_certificate_v1_golden.py",
+      "sha256": "5e053fa7204bc0c12d745bf18695c18797553aa6aa4fcb246a2a22cd0ee1ba98"
+    },
+    {
+      "path": "tests/data/global_accounting_allocation_certificate_v1_golden.json",
+      "sha256": "9af6991e6bfc5f5dd7bc1411829e027bcf069c20a4a51b1b9b24049fdf5bd588"
+    },
+    {
+      "path": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py",
+      "sha256": "ef9411422c105350c5488e9333e7f66cb1544770a603bf9e9468286e095ec9f9"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_accounting_allocation_certificate_golden.rs",
+      "sha256": "4e2f7cb2302bfef7fc4a620ab0cbdcbb462d5fd56c823489756a555fa2a54a87"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalAccountingAllocationCertificateV1.lean",
+      "sha256": "6c7b6a7b8120d5da697ac9404f23ca0a14cbcda52a39df9e5e3775cb26e51db5"
+    },
+    {
+      "path": "tests/formal/test_lean_global_accounting_allocation_certificate_v1.py",
+      "sha256": "cbbf9240e2d36c5b6e255c901c3206a730ee92dc17dc7a88f8ac1ff4eb7888d8"
+    },
+    {
+      "path": "src/kernels/dex/global_accounting_allocation_certificate_v1.yaml",
+      "sha256": "7afad7b256a19b1a162dd24dad5ca89f3ebe47c8c02f63bb60d1cfff7b709456"
+    },
+    {
+      "path": "tests/formal/test_esso_global_accounting_allocation_certificate_v1.py",
+      "sha256": "217121db35bc3d922c05d54ccdc0e4f501e74602a3ba3069d832c2942d002c50"
+    },
+    {
+      "path": "src/core/global_accounting_lane_producers_v1.py",
+      "sha256": "437973db878e23ba2b37bdd7a6b761f539167a3468f9fbf4059d3cc9a25cf41e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_accounting_lane_producers.rs",
+      "sha256": "7254bc00bf6fe894581e26047486704a9c6385a9c0bb54092b171daa04a21c3c"
+    },
+    {
+      "path": "tests/core/test_global_accounting_lane_producers_v1.py",
+      "sha256": "ce1bf434be00b534d36d6540915027bd6e5c447632e4a28eb0af05e45763d739"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/global_accounting_lane_producers.rs",
+      "sha256": "eddd63dde0b472b0967a4a5570aaa69eee3c02f733e2046fd260c0b7440bcab5"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/v1_projection_gate.rs",
+      "sha256": "d807778ab2a7169a7e9e2bb8f8b020a53cb3e106dae74ae37dc9106cf587753f"
+    },
+    {
+      "path": "lean-mathlib/lean-toolchain",
+      "sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1_resource_bounds.py",
+      "sha256": "16fbd5b07bbd0ac5512bf651ae7135e183b40366fcc31a467c9411fcd4d084ad"
+    },
+    {
+      "path": "tools/formal_core_candidate_chain_v1.sh",
+      "sha256": "cdf8590193549a5879dc78c74831d058e5822a43506fd3ca19157ea8e42c1d9c"
+    },
+    {
+      "path": "tools/formal_core_battery_v1.sh",
+      "sha256": "8f840e0cb77ca5af5420dc5e3cc88fd8f734afb618d473450812f6812e4ff65b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs",
+      "sha256": "07f8c57310088df79ccb496ffc34e5862e0463468fe2680154ab6deb7eb44b11"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "8864f4fccae10b9bc38538c2af6abf6e38d5bd64eb532f38273bcee85596eb8d"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs",
+      "sha256": "e990844d670b474c5b8c2bb6c816dcbaa17fed2d7d7ea5944e7c509e1dd0b1c6"
+    },
+    {
+      "path": "src/core/global_accounting_allocation_projection_v1.py",
+      "sha256": "2068d12b6bf0b35b39ae16c835de1cf8ef1c5d3bd395134ef0e11a161f879845"
+    },
+    {
+      "path": "tools/thv1_mutation_ledger_v1.py",
+      "sha256": "0598c625e00ad48170f607c51912b9d5e4fa2199d57012ffe1caa62b94215eee"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_o008_formal_cycle_v1.py",
+      "sha256": "f217f860fd1bb85e47ba7e8faaaf1ea489328b3a3d087b31f517fbfa4acad8e2",
+      "node_ids": [
+        "tests/test_check_o008_formal_cycle_v1.py::test_projection_of_worktree_subject_is_admitted",
+        "tests/test_check_o008_formal_cycle_v1.py::test_canonical_bytes_round_trip",
+        "tests/test_check_o008_formal_cycle_v1.py::test_report_claim_ceiling_is_constant_under_promotion",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promote_formal_core]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promote_settlement_authority]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promote_value_movement_gate]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promote_o008_status]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[type_confusion_zero_is_not_false]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[subject_tree_forged]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[packet_parent_declaration]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[write_set_declaration_widened]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[drop_pin]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[change_role]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[forge_sha256]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[forge_git_blob]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[executable_mode]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[forge_size]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[path_traversal]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[absolute_path]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[pin_shape]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[contradictory_nonclaim]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[reorder_nonclaims]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promotion_token_in_scope]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promotion_token_whitespace_folded]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promote_lane_status]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[drop_lane]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[reorder_lanes]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[drop_sidecar_check]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promote_sidecar_authority]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[reserve_interpretation_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[fingerprint_role_tamper]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[ir_hash_tamper]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[esso_code_commit_tamper]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[statement_hash_tamper]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[reorder_theorem_inventory_in_packet]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[absent_fields_cleared]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[sidecar_type_case]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[replay_commands_tamper]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[author_record_fake_executed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[author_record_status_verified]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[admission_semantics_tamper]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_projection_catch_all_names_the_drifted_section",
+        "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[duplicate_key]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[nan_number]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[float_number]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[pretty_printed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[old_schema_v14]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[non_ascii_string]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[unknown_top_key]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[not_an_object]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[malformed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[byte_ceiling]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_inventory_matches_closed_constant",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rename_theorem_is_inventory_drift",
+        "tests/test_check_o008_formal_cycle_v1.py::test_reorder_theorems_is_inventory_drift",
+        "tests/test_check_o008_formal_cycle_v1.py::test_weakened_statement_is_rejected_on_fresh_projection[swap_conclusion]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_weakened_statement_is_rejected_on_fresh_projection[codex_survivor_true_statement]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[notation_shadowed_statement]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[quote_free_notation_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[macro_rules_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[open_command_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[partial_def_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[instance_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[export_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[local_notation_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[local_instance_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[deriving_instance_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[unknown_column_zero_item]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[indented_def_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[indented_end_in_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[eval_command_forbidden]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[exit_command_forbidden]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[form_feed_eval_command]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[unicode_space_exit_command]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[guillemet_identifier_opens_comment]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[mid_line_eval_after_proof_text]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[indented_eval_inside_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[run_cmd_inside_region]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[guillemet_identifier]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[quote_in_comment]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[char_literal_quote]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_opus_p10_phantom_string_injection_is_rejected_before_stripping",
+        "tests/test_check_o008_formal_cycle_v1.py::test_lean_constructor_and_field_named_open_are_not_commands",
+        "tests/test_check_o008_formal_cycle_v1.py::test_definition_surface_binds_meaning_and_leaves_proofs_to_replay",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[insert_sorry]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[insert_axiom]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[private_theorem]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[namespace_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[drop_import_root]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[bump_toolchain]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[stale_lean_gate_theorems]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[stale_lean_gate_axioms]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[rename_esso_invariant]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[esso_model_id_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[extra_esso_action]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[renamed_esso_action]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[esso_code_commit_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[esso_ir_hash_malformed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[drop_drain_mutant]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[insert_liability_domain_python]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[reorder_python_fields]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[python_canonical_key_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[add_outbox_amount_python]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[insert_liability_domain_rust]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[reorder_rust_fields]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[drop_deny_unknown_fields]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cfg_decoy_macro_live]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[item_defining_macro]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[passthrough_macro_item_tokens]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[foreign_item_macro]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[nested_invocation_in_macro]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[include_macro]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[path_attribute]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[duplicate_rust_struct]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[nested_module_struct]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[serde_field_rename]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[serde_struct_rename_all]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[derive_without_deserialize]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[foreign_deserialize_import]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[state_container_type]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_cfg_mod_state]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_drops_mod_state]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_inline_mod_state]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cargo_lib_path]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cargo_test_target]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cargo_patch]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cargo_serde_path]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cargo_package_name]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cargo_workspace]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cargo_autotests]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cargo_loose_serde_version]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[terminal_deserialize_with_plain_fn]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[outbox_deserialize_with_plain_fn]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[container_extra_attribute]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[container_deserializer_renamed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_macro_body_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[path_qualified_item_macro]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[macro_defined_after_invocation]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[extern_crate_alias]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[same_line_foreign_import]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_import_redirected]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_manual_deserialize]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_visitor_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_non_test_cfg]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[rust_gate_extra_test]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[rust_gate_forbidden_shrunk]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[rust_gate_fields_reordered]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[rust_gate_other_include]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_brace_group_redirect]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_alias_binding]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[brace_group_foreign_deserialize]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[serde_alias_rebinding]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[glob_import_in_state]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_body_edit_outside_old_fragments]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_extra_fn]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[block_local_macro_decoy]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[imported_container_deserializer]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[aliased_container_deserializer]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[import_outside_closed_roots]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_module_import]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_extra_module]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_inline_module]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_dropped_module]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[attribute_prefixed_redirect]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[attribute_prefixed_glob]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[attribute_prefixed_foreign_deserialize]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[attribute_with_brackets_prefixed_import]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[serde_submodule_prelude_name]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_bounded_vec_rebound_through_new_module]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_drops_mod_bounded_vec]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_inline_mod_bounded_vec]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_reexports_bounded_vec_name]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_aliases_serde_name]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_attribute_prefixed_rebinding]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[rust_gate_string_literal_weakened]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_test_module_edit]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_check_order_swapped]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_extra_reject_code]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_module_rebinding]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_fixture_receipt_backed_producer]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_fixture_authority]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_fixture_malformed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_fixture_registered_root_forged]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_statement_weakened]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_definition_weakened]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_notation]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_macro_rules]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_guillemet]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_import_dropped]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_gate_theorem_dropped]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_esso_invariant_renamed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_esso_action_renamed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_esso_model_edit_without_repin]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_esso_mutant_dropped]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[second_macro_definition_shadows_pinned_body]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[second_macro_under_another_name_defining_fn]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[rust_gate_comment_absorbs_code]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[rust_gate_whitespace_only_edit]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_whitespace_only_edit]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[state_extra_fn]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[state_extra_struct_impl]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[state_nested_mod]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[state_comment_only_edit]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[state_whitespace_only_edit]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[rust_gate_emptied_body]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_certificate_fixture_surface_rejects_non_empty_accepted_vectors",
+        "tests/test_check_o008_formal_cycle_v1.py::test_codex_c1dprime_survivor_is_rejected_at_every_layer",
+        "tests/test_check_o008_formal_cycle_v1.py::test_gate_body_edits_are_rejected_even_with_pinned_names",
+        "tests/test_check_o008_formal_cycle_v1.py::test_vacuous_gate_files_are_rejected",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cargo_config_present_at_subject_is_rejected",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cargo_config_in_worktree_blocks_applicability",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_environment_is_sanitized",
+        "tests/test_check_o008_formal_cycle_v1.py::test_arrow_in_a_field_type_does_not_swallow_fields",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cargo_version_parser[cargo_banner]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cargo_version_parser[rustc_banner]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cargo_version_parser[empty]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rustc_version_parser_binds_release_commit_and_host",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[rebound_class_name]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[import_rebinds_class_name]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[base_class]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[extra_decorator]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[non_literal_dataclass_keyword]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[canonical_early_return]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[state_container_annotation]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[container_class_rebound]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[exec_rebinding]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[sys_modules_attribute_store]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[two_step_attribute_store]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[importlib_attribute_store]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[getattr_dict_subscript_store]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[attribute_delete]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[ctypes_import]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[class_attribute_store]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_lambda]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_alias]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_dir_annassign]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_import_alias]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_walrus]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_global_in_function]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_except_capture]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_match_capture]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_dir_nested_import_alias]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_dir_for_target]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_with_target]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_comprehension_target]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_def_inside_if]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_def_inside_try]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_dir_def_inside_for]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_async_def_inside_while]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_class_inside_with]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_def_inside_match_case]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_decorated_def_inside_if]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_def_inside_function]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[star_import]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[globals_subscript_rebinding]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[sys_modules_rebinding]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[object_setattr_rebinding]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_dict_rebinding]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hook_named_method_under_a_class_ancestor_is_allowed",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_worktree_mutation_is_fail_closed",
+        "tests/test_check_o008_formal_cycle_v1.py::test_deleted_lean_file_is_missing_pin",
+        "tests/test_check_o008_formal_cycle_v1.py::test_stale_lean_gate_pin_is_drift",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_brace_inside_string_is_ignored",
+        "tests/test_check_o008_formal_cycle_v1.py::test_rust_lifetime_tick_is_not_a_char_literal",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_selection_covers_every_required_path_from_committed_packets",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_selection_selected_packet_pinning_the_packet_is_circular",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_selection_orders_lineage_versions_numerically",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_selection_prefers_the_numerically_newest_matching_packet",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_selection_requires_a_matching_packet",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_selection_skips_a_stale_newer_packet",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_packet_shape_is_closed[evidence_id_mismatch]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_packet_shape_is_closed[schema_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_packet_shape_is_closed[pins_not_a_list]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_applicability_paths_include_selected_packets",
+        "tests/test_check_o008_formal_cycle_v1.py::test_created_date_is_validated",
+        "tests/test_check_o008_formal_cycle_v1.py::test_topology_mutations_fail_closed[wrong_parent]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_topology_mutations_fail_closed[merge_packet]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_topology_mutations_fail_closed[envelope_extra_path]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_topology_mutations_fail_closed[envelope_missing_markdown]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_topology_mutations_fail_closed[packet_not_in_history]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_topology_mutations_fail_closed[hand_edited_markdown]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_topology_mutations_fail_closed[head_packet_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_topology_mutations_fail_closed[worktree_packet_missing_or_symlink]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_topology_mutations_fail_closed[worktree_markdown_edit]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_head_source_drift_keeps_admission_but_blocks_applicability",
+        "tests/test_check_o008_formal_cycle_v1.py::test_worktree_source_drift_blocks_applicability",
+        "tests/test_check_o008_formal_cycle_v1.py::test_executing_tool_drift_fails_closed[checker_blob_ne_subject]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_executing_tool_drift_fails_closed[core_blob_ne_subject]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_executing_tool_drift_fails_closed[shell_blob_ne_subject]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_executing_tool_drift_fails_closed[scanner_blob_ne_subject]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_that_names_no_real_mutation[mutation-path-is-absolute]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_that_names_no_real_mutation[mutation-path-escapes-the-repository]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_that_names_no_real_mutation[one-mutation-reported-many-times]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_that_names_no_real_mutation[digest-field-is-not-a-digest]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_that_names_no_real_mutation[mutation-without-a-path]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_whose_totals_do_not_hold[a-row-survived]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_whose_totals_do_not_hold[a-row-errored]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_whose_totals_do_not_hold[killed-count-drifts]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_whose_totals_do_not_hold[mechanical-count-drifts]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_whose_totals_do_not_hold[a-total-is-not-an-integer]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_stdout_that_is_not_one_json_object",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_accepts_the_green_report",
+        "tests/test_check_o008_formal_cycle_v1.py::test_the_projection_nonclaim_is_bound_to_the_modules_kinds_table",
+        "tests/test_check_o008_formal_cycle_v1.py::test_no_observations_is_not_run",
+        "tests/test_check_o008_formal_cycle_v1.py::test_passing_observations_are_executed_pass",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[nonzero_exit]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[timed_out]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[lean_output_nonempty]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[lean_version_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[sorry_axiom]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[missing_theorem_probe]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[binding_gate_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[esso_gate_failed_line]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[esso_ir_hash_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[esso_verdict]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[esso_fingerprint_nondeterministic]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[esso_solver_version]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_replay_observation_mutations_are_executed_fail[esso_not_json]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_missing_replay_command_is_executed_fail",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_drift_is_reported",
+        "tests/test_check_o008_formal_cycle_v1.py::test_executed_record_round_trips_through_validation",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_lean_forged]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_solvers_forged]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_code_hash_forged]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_python_malformed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_python_differs_from_run]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_rust_differs_from_run]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_rust_missing]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_rustc_differs_from_run]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_rustc_host_malformed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_rustc_host_missing]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_rustc_missing]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[comparable_rustc_nightly]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_authority_key]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_nested_authority_key]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[record_extra_key]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[comparable_passed_tampered]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[comparable_unknown_key]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[comparable_ir_hash_forged]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[comparable_verdict_forged]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[comparable_nonempty_direct_check]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[comparable_theorems_probed]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[comparable_machine_path]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[comparable_bool_is_not_int]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[missing_last_run]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_forged_probe_hash_is_refuted_by_fresh_replay",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cargo_summary_parser_accepts_exactly_one_green_line[one_green_line]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cargo_summary_parser_accepts_exactly_one_green_line[failed_line]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cargo_summary_parser_accepts_exactly_one_green_line[two_summary_lines]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cargo_summary_parser_accepts_exactly_one_green_line[pytest_summary_is_not_cargo]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_version_parser_requires_one_semver_line[semver]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_version_parser_requires_one_semver_line[banner]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_version_parser_requires_one_semver_line[two_components]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_python_version_parser_requires_one_semver_line[empty]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[cargo_failed_line]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[cargo_count_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[python_gate_count_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[python_version_banner]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_version_banner]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rustc_vv_truncated]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rustc_vv_nightly]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_refinement_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_golden_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_bounded_vec_unit_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[python_certificate_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_certificate_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_certificate_unit_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[python_producer_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_producer_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_admission_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[allocation_projection_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[esso_zero_queries]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[esso_query_set_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[esso_certificate_query_set_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[esso_certificate_ir_hash_drift]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[esso_certificate_gate_count]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_validation[executed_without_toolchain]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_validation[executed_without_runs]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_validation[not_run_with_runs]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_validation[status_pass]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_validation[nonzero_exit]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_validation[comparable_not_an_object]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_validation[comparable_machine_path_value]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_validation[unknown_command_id]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_validation[nondeterministic_run_keys]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_author_record_validation[not_an_object]",
+        "tests/test_check_o008_formal_cycle_v1.py::test_core_module_imports_only_the_allowlist",
+        "tests/test_check_o008_formal_cycle_v1.py::test_closed_constants_are_internally_consistent",
+        "tests/test_check_o008_formal_cycle_v1.py::test_git_blob_oid_matches_git",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cli_admits_generated_chain",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cli_optimized_interpreter_gives_identical_report",
+        "tests/test_check_o008_formal_cycle_v1.py::test_builder_check_round_trip",
+        "tests/test_check_o008_formal_cycle_v1.py::test_builder_refuses_to_write_on_rejected_subject",
+        "tests/test_check_o008_formal_cycle_v1.py::test_builder_refuses_a_fresh_chain_with_a_weakened_theorem",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cli_worktree_packet_edit_is_drift",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cli_replay_refused_on_source_drift",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cli_wrong_parent_and_envelope_drift",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cli_source_commit_after_p_is_fail_closed",
+        "tests/test_check_o008_formal_cycle_v1.py::test_builder_check_mode_mismatch_is_named",
+        "tests/test_check_o008_formal_cycle_v1.py::test_cli_infrastructure_failures_exit_2",
+        "tests/test_check_o008_formal_cycle_v1.py::test_committed_packet_lifecycle_at_repository_head",
+        "tests/test_check_o008_formal_cycle_v1.py::test_shell_working_bytes_refuses_symlink",
+        "tests/test_check_o008_formal_cycle_v1.py::test_producer_reject_code_families_are_mechanically_pinned",
+        "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_selection_refuses_a_partly_stale_selected_packet"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_global_claimant_custody_relation_v1.py",
+      "sha256": "d6e4a272f4a77786e7c9ba1a4b462cd5d550cd926dc000829f8255ff32d67d9b",
+      "node_ids": [
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_exact_sources_are_pinned",
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_explicit_theorem_surface_is_compiler_checked",
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_repository_placeholder_scanner_accepts_the_proof",
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_theorem_surface_uses_only_standard_axioms",
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_lean_esso_and_runtime_sources_share_the_bounded_relation",
+        "tests/formal/test_lean_global_claimant_custody_relation_v1.py::test_claim_ceiling_excludes_runtime_and_authority_promotion"
+      ]
+    },
+    {
+      "path": "tests/formal/test_esso_global_claimant_custody_certificate_v1.py",
+      "sha256": "1dfae0e42b5091275599ecf3f421bbad8ef87a1409b87ac6528c8528f68e54ed",
+      "node_ids": [
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_model_source_scope_and_claim_ceiling_are_exact",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_exact_partition_model_has_no_unclassified_or_reserve_escape_hatch",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_ir_hash_binds_the_observable_surface",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_runtime_rejects_aggregate_only_cross_domain_backing",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_runtime_rejects_reserve_masking_as_claimant_backing",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_configured_esso_interpreter_missing_fails_closed",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_esso_two_solver_replay_is_exact_and_deterministic",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_each_invariant_has_a_sufficient_inductive_solver_projection[inv_accept_requires_exact_bound_evidence]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_each_invariant_has_a_sufficient_inductive_solver_projection[inv_exact_claimant_domain_liabilities]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_each_invariant_has_a_sufficient_inductive_solver_projection[inv_exact_custody_partition_d0]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_each_invariant_has_a_sufficient_inductive_solver_projection[inv_exact_custody_partition_d1]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_each_invariant_has_a_sufficient_inductive_solver_projection[inv_open_terminals_fit_exact_allocations]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[accept_without_global_root_binding]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[cross_domain_custody_substitution]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[claimant_column_substitution]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[terminal_domain_erasure]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[drain_cross_domain_custody_substitution]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[reserve_masking_open_claim]",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_v1_terminal_domain_erasure_has_distinct_exact_relation_preimages",
+        "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_v1_accepts_claimant_substitution_against_canonical_perps_projection"
+      ]
+    },
+    {
+      "path": "tests/test_o008_v1_projection_runtime_gate.py",
+      "sha256": "044bcf1f8a8fbb483fdf4051a1cda62c3d9f6b6247616ae5fafb8093a774db03",
+      "node_ids": [
+        "tests/test_o008_v1_projection_runtime_gate.py::test_terminal_record_runtime_fields_and_canonical_keys_are_exact",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_outbox_record_runtime_fields_and_canonical_keys_are_exact",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_terminal_record_rejects_unknown_fields_at_construction[liability_domain]",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_terminal_record_rejects_unknown_fields_at_construction[control_domain]",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_terminal_record_rejects_unknown_fields_at_construction[custody_domain]",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_terminal_record_rejects_unknown_fields_at_construction[custody_principal]",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_terminal_record_rejects_unknown_fields_at_construction[controlling_principal]",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_terminal_record_rejects_unknown_fields_at_construction[source_principal]",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_outbox_record_rejects_unknown_fields_at_construction[asset]",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_outbox_record_rejects_unknown_fields_at_construction[amount_atoms]",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_records_are_frozen_slots_classes_defined_in_the_pinned_module",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_records_reject_seeded_unknown_kwargs",
+        "tests/test_o008_v1_projection_runtime_gate.py::test_state_containers_hold_exactly_the_record_types"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "formal",
+    "replay",
+    "boundary",
+    "negative_regression",
+    "mutation",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each test arranges one exact snapshot, packet, topology, or observation set, invokes the pure core or the CLI once, and asserts the exact structured error code and claim ceiling."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The builder refuses to write any output on rejection and the checker writes nothing; the only observables are the JSON report and the exit code, and the tests assert the on-disk outputs are absent after a rejected build."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "claim_ceiling",
+      "points": [
+        "formal_core_complete false",
+        "O-008 open",
+        "zero of twelve value-movement gates",
+        "seven authority fields NONE",
+        "type confusion 0 is not false"
+      ]
+    },
+    {
+      "name": "inventory_cardinality",
+      "points": [
+        "exact 25 ordered Lean theorems",
+        "exact five ESSO invariants",
+        "exact five named ESSO mutants including drain",
+        "exact twelve ordered lanes",
+        "exact 42 ordered source pins",
+        "exact ten sidecar checks",
+        "exact 11 nonclaims"
+      ]
+    },
+    {
+      "name": "chain_topology",
+      "points": [
+        "one parent equal to the subject",
+        "two-row packet envelope",
+        "packet in HEAD history",
+        "HEAD and worktree copies equal P"
+      ]
+    },
+    {
+      "name": "information_boundary",
+      "points": [
+        "terminal liability_domain and custody_principal absent in Python and Rust",
+        "outbox asset and amount_atoms absent",
+        "deny_unknown_fields present",
+        "cross-language field order equal"
+      ]
+    },
+    {
+      "name": "packet_bytes",
+      "points": [
+        "canonical encoding",
+        "duplicate key",
+        "float and NaN",
+        "1 MiB ceiling",
+        "closed key set"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "promote the packet claim ceiling to formal-core completion",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promote_formal_core]"
+    },
+    {
+      "description": "grant settlement authority",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promote_settlement_authority]"
+    },
+    {
+      "description": "close a value-movement gate in the packet",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promote_value_movement_gate]"
+    },
+    {
+      "description": "rename a Lean theorem",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rename_theorem_is_inventory_drift"
+    },
+    {
+      "description": "reorder Lean theorems",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_reorder_theorems_is_inventory_drift"
+    },
+    {
+      "description": "weaken a Lean statement and regenerate the packet",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_weakened_statement_is_rejected_on_fresh_projection[swap_conclusion]"
+    },
+    {
+      "description": "restate a load-bearing theorem as True and regenerate the packet (Codex C1'' P1)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_weakened_statement_is_rejected_on_fresh_projection[codex_survivor_true_statement]"
+    },
+    {
+      "description": "weaken a definition the theorem statements depend on",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_definition_surface_binds_meaning_and_leaves_proofs_to_replay"
+    },
+    {
+      "description": "regenerate an S/P chain for a weakened theorem through the builder",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_builder_refuses_a_fresh_chain_with_a_weakened_theorem"
+    },
+    {
+      "description": "insert sorry or a local axiom",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[insert_sorry]"
+    },
+    {
+      "description": "insert liability_domain into the Python V1 terminal record",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[insert_liability_domain_python]"
+    },
+    {
+      "description": "insert liability_domain into the Rust V1 terminal struct",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[insert_liability_domain_rust]"
+    },
+    {
+      "description": "reorder Rust struct fields",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[reorder_rust_fields]"
+    },
+    {
+      "description": "drop serde deny_unknown_fields",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[drop_deny_unknown_fields]"
+    },
+    {
+      "description": "drop the ESSO drain mutant",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_subject_mutations_reject_projection[drop_drain_mutant]"
+    },
+    {
+      "description": "forge or drop a source pin",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[forge_sha256]"
+    },
+    {
+      "description": "append a contradictory nonclaim or promotion token",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promotion_token_in_scope]"
+    },
+    {
+      "description": "promote a lane to COMPLETE",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[promote_lane_status]"
+    },
+    {
+      "description": "commit the packet on the wrong parent or with extra paths",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_cli_wrong_parent_and_envelope_drift"
+    },
+    {
+      "description": "run a checker whose executing bytes differ from the subject",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_executing_tool_drift_fails_closed[checker_blob_ne_subject]"
+    },
+    {
+      "description": "fabricate an executed proof-replay record",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_packet_mutations_fail_closed[author_record_fake_executed]"
+    },
+    {
+      "description": "report replay as executed without running the tools",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_no_observations_is_not_run"
+    },
+    {
+      "description": "edit the packet in the worktree after P",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_cli_worktree_packet_edit_is_drift"
+    },
+    {
+      "description": "add an effectful import to the pure core",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_core_module_imports_only_the_allowlist"
+    },
+    {
+      "description": "disable the scanned Rust struct with cfg(any()) and define the live struct through a macro",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cfg_decoy_macro_live]"
+    },
+    {
+      "description": "invoke a macro from another module at item position",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[foreign_item_macro]"
+    },
+    {
+      "description": "define the struct inside a nested module",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[nested_module_struct]"
+    },
+    {
+      "description": "rename a wire field with a serde field attribute",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[serde_field_rename]"
+    },
+    {
+      "description": "add a struct-level serde attribute",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[serde_struct_rename_all]"
+    },
+    {
+      "description": "import Deserialize from a crate other than serde",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[foreign_deserialize_import]"
+    },
+    {
+      "description": "gate mod state behind cfg in the crate root",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_cfg_mod_state]"
+    },
+    {
+      "description": "redirect the lib or test target in Cargo.toml",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cargo_lib_path]"
+    },
+    {
+      "description": "point the state container at another record type",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[state_container_type]"
+    },
+    {
+      "description": "rebind the Python record name after the class",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[rebound_class_name]"
+    },
+    {
+      "description": "give the Python record a base class",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[base_class]"
+    },
+    {
+      "description": "wrap the Python record in an extra decorator",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[extra_decorator]"
+    },
+    {
+      "description": "return a second dict from to_canonical",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[canonical_early_return]"
+    },
+    {
+      "description": "forge the author record toolchain (lean 999.0, solver versions, authority key)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_lean_forged]"
+    },
+    {
+      "description": "tamper an author comparable value that the packet already carries",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[comparable_passed_tampered]"
+    },
+    {
+      "description": "forge a probe hash that only fresh replay can refute",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_forged_probe_hash_is_refuted_by_fresh_replay"
+    },
+    {
+      "description": "pin the required paths only in a stale packet",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_hygiene_selection_requires_a_matching_packet"
+    },
+    {
+      "description": "replace the container's bounded-vec deserializer with a lenient plain fn (Opus C1' P1-A)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[terminal_deserialize_with_plain_fn]"
+    },
+    {
+      "description": "add a second serde attribute to a record container",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[container_extra_attribute]"
+    },
+    {
+      "description": "alter the local bounded-vec macro body",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_macro_body_drift]"
+    },
+    {
+      "description": "invoke a path-qualified or later-defined macro at item position",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[path_qualified_item_macro]"
+    },
+    {
+      "description": "alias a crate as serde with extern crate",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[extern_crate_alias]"
+    },
+    {
+      "description": "add a manual Deserialize impl to the bounded-vec file",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_manual_deserialize]"
+    },
+    {
+      "description": "declare a workspace, auto-target flag, or loose dependency version in Cargo.toml",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[cargo_loose_serde_version]"
+    },
+    {
+      "description": "replace either projection gate with vacuous tests (Opus C1' P1-B)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_vacuous_gate_files_are_rejected"
+    },
+    {
+      "description": "commit a .cargo/config.toml anywhere Cargo would read it",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_cargo_config_present_at_subject_is_rejected"
+    },
+    {
+      "description": "rebind the Python container class or use exec/globals()",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[container_class_rebound]"
+    },
+    {
+      "description": "smuggle a non-ASCII homoglyph into a packet string",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_raw_packet_mutations_fail_closed[non_ascii_string]"
+    },
+    {
+      "description": "grade an ESSO verification that ran zero queries",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[esso_zero_queries]"
+    },
+    {
+      "description": "forge the rust toolchain entry",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_rust_differs_from_run]"
+    },
+    {
+      "description": "route an open claim's custody into a reserve",
+      "killed_by": "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_named_semantic_mutants_produce_two_solver_counterexamples[reserve_masking_open_claim]"
+    },
+    {
+      "description": "hide an allocation coordinate from the observable surface",
+      "killed_by": "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_ir_hash_binds_the_observable_surface"
+    },
+    {
+      "description": "let deposit_reserve touch a claimant, custody, or terminal coordinate",
+      "killed_by": "tests/formal/test_esso_global_claimant_custody_certificate_v1.py::test_exact_partition_model_has_no_unclassified_or_reserve_escape_hatch"
+    },
+    {
+      "description": "redirect the bounded-vec deserialiser through a brace-group or aliased use (Opus C1'' P1-1)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_brace_group_redirect]"
+    },
+    {
+      "description": "bind a serde name from another crate through a brace group or alias",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[brace_group_foreign_deserialize]"
+    },
+    {
+      "description": "add a glob import to the scanned state module",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[glob_import_in_state]"
+    },
+    {
+      "description": "edit bounded_vec.rs anywhere in its library portion (Opus C1'' P1-2)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_body_edit_outside_old_fragments]"
+    },
+    {
+      "description": "empty a gate test body while keeping its pinned names and tables (Opus C1'' P2-1)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_gate_body_edits_are_rejected_even_with_pinned_names"
+    },
+    {
+      "description": "rebind the Python record through object.__setattr__ or the module __dict__ (Opus C1'' P2-2)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[object_setattr_rebinding]"
+    },
+    {
+      "description": "invoke the container deserialiser macro inside a const block and import the live deserialiser from a new module (Codex C1'' P1)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_codex_c1dprime_survivor_is_rejected_at_every_layer"
+    },
+    {
+      "description": "import a container deserialiser or the macro name from any module",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[imported_container_deserializer]"
+    },
+    {
+      "description": "declare, drop, or inline a crate module",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_extra_module]"
+    },
+    {
+      "description": "hide a use statement behind a same-line attribute (Opus C1''' P1-1)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[attribute_prefixed_redirect]"
+    },
+    {
+      "description": "rebind crate::bounded_vec, canonical, release, or serde from the crate root (Opus C1''' P1-2)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[lib_reexports_bounded_vec_name]"
+    },
+    {
+      "description": "bind a serde prelude name from a serde submodule",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[serde_submodule_prelude_name]"
+    },
+    {
+      "description": "weaken a string literal in the Rust gate",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[rust_gate_string_literal_weakened]"
+    },
+    {
+      "description": "edit the bounded_vec.rs test module",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[bounded_vec_test_module_edit]"
+    },
+    {
+      "description": "rebind a record class through a module attribute store, importlib, or a computed subscript (Opus C1''' P2-1)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[sys_modules_attribute_store]"
+    },
+    {
+      "description": "forge or drop the rustc identity in the author record (Codex C1'' P2)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_forged_author_records_are_rejected_statically[toolchain_rustc_differs_from_run]"
+    },
+    {
+      "description": "inherit the host cargo config, flags, or wrappers during replay",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_replay_environment_is_sanitized"
+    },
+    {
+      "description": "report a truncated or nightly rustc -vV block",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rustc_vv_nightly]"
+    },
+    {
+      "description": "reorder or extend the certificate check order",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_check_order_swapped]"
+    },
+    {
+      "description": "add or drop a certificate reject code",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_extra_reject_code]"
+    },
+    {
+      "description": "declare a receipt-backed certificate producer in the fixture",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_fixture_receipt_backed_producer]"
+    },
+    {
+      "description": "accept a certificate vector with an enabled lane or rows",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_certificate_fixture_surface_rejects_non_empty_accepted_vectors"
+    },
+    {
+      "description": "under-report a certificate golden gate",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[python_certificate_count]"
+    },
+    {
+      "description": "define a second macro_rules with the pinned deserialiser name (Opus C1'''' P1-1)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[second_macro_definition_shadows_pinned_body]"
+    },
+    {
+      "description": "define a fn-producing macro under another name",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[second_macro_under_another_name_defining_fn]"
+    },
+    {
+      "description": "add any item or comment to state.rs",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[state_extra_fn]"
+    },
+    {
+      "description": "smuggle a notation, macro, instance, scope, or open command into an elided Lean proof region (Opus C1'''' P1-2)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[notation_shadowed_statement]"
+    },
+    {
+      "description": "place an unrecognised or indented declaration inside an elided Lean proof region",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[indented_def_in_region]"
+    },
+    {
+      "description": "close the Lean namespace early from inside a proof region",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[indented_end_in_region]"
+    },
+    {
+      "description": "add a module-level __getattr__ to a pinned Python module",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr]"
+    },
+    {
+      "description": "weaken a statement of the certificate Lean model",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_statement_weakened]"
+    },
+    {
+      "description": "weaken a definition of the certificate Lean model",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_definition_weakened]"
+    },
+    {
+      "description": "smuggle a notation into the certificate Lean model",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_notation]"
+    },
+    {
+      "description": "drop the certificate model from the Lean import root or its gate",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_lean_import_dropped]"
+    },
+    {
+      "description": "rename an invariant or action of the certificate ESSO model",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_esso_invariant_renamed]"
+    },
+    {
+      "description": "edit the certificate ESSO model without re-pinning its gate",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_esso_model_edit_without_repin]"
+    },
+    {
+      "description": "forge the certificate ESSO ir_hash or query set on replay",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[esso_certificate_ir_hash_drift]"
+    },
+    {
+      "description": "hide commands between a char-literal quote and a quote in a comment (Opus P10 P1-B1)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_opus_p10_phantom_string_injection_is_rejected_before_stripping"
+    },
+    {
+      "description": "place a # command in a pinned Lean file",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_lean_commands_smuggled_into_proof_regions_are_rejected[exit_command_forbidden]"
+    },
+    {
+      "description": "fold code into a preceding // comment of a whole-file-pinned Rust file (Opus P10 P1-B2)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[rust_gate_comment_absorbs_code]"
+    },
+    {
+      "description": "bind a module-level __getattr__ by assignment or import alias",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_python_closure_rejects_decoys[module_getattr_lambda]"
+    },
+    {
+      "description": "hand a malformed nested shape to the certificate fixture surface",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_certificate_fixture_surface_rejects_non_empty_accepted_vectors"
+    },
+    {
+      "description": "move an accepted registered-empty fragment off its empty state root in the fixture",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_rust_lexical_closure_rejects_decoys[certificate_fixture_registered_root_forged]"
+    },
+    {
+      "description": "under-report a producer gate",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[python_producer_count]"
+    },
+    {
+      "description": "drop or reorder a receipt-backed producer reject code (Opus P18 P3-f)",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_producer_reject_code_families_are_mechanically_pinned"
+    },
+    {
+      "description": "under-report the rust producer gate",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_producer_count]"
+    },
+    {
+      "description": "drop the rust_admission_gate grade branch or its comparable-schema row, or mis-set its expected count",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_admission_count]"
+    },
+    {
+      "description": "drop the rust_admission_gate replay command while keeping its grade branch",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_new_gate_observation_mutations_are_executed_fail[rust_admission_count]"
+    },
+    {
+      "description": "accept a ledger row whose digest fields are not digests",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_that_names_no_real_mutation[digest-field-is-not-a-digest]",
+      "mutant": {
+        "path": "tools/o008_formal_cycle_admission_v1.py",
+        "needle_lines": [
+          "            if _SHA256_HEX_RE_V1.fullmatch(mutation[digest_field]) is None:"
+        ],
+        "replacement_lines": [
+          "            if _SHA256_HEX_RE_V1.fullmatch(mutation[digest_field]) is None and False:"
+        ]
+      }
+    },
+    {
+      "description": "accept a ledger row whose mutated path is absolute or escapes the repository",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_that_names_no_real_mutation[mutation-path-is-absolute]",
+      "mutant": {
+        "path": "tools/o008_formal_cycle_admission_v1.py",
+        "needle_lines": [
+          "        if not _portable_repo_path_v1(mutation[\"path\"]):"
+        ],
+        "replacement_lines": [
+          "        if not _portable_repo_path_v1(mutation[\"path\"]) and False:"
+        ]
+      }
+    },
+    {
+      "description": "accept a ledger report that reaches its expected count by repeating one mutation",
+      "killed_by": "tests/test_check_o008_formal_cycle_v1.py::test_the_ledger_grader_refuses_a_report_that_names_no_real_mutation[one-mutation-reported-many-times]",
+      "mutant": {
+        "path": "tools/o008_formal_cycle_admission_v1.py",
+        "needle_lines": [
+          "        if identity in seen:"
+        ],
+        "replacement_lines": [
+          "        if identity in seen and False:"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "The hardened checker does not complete O-008 or the formal functional core.",
+    "Packet admission does not execute Lean or ESSO unless --replay is requested; NOT_RUN is the default report.",
+    "The Lean theorems remain bounded natural-number statements without runtime refinement, cryptographic binding, or authority.",
+    "No production, release, settlement, verifier, migration, publication, or value-moving authority is granted."
+  ]
+}

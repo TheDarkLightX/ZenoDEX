@@ -1022,6 +1022,16 @@ def _row_matrix_states():
                     outbox=(),
                 ),
             )
+    # A same-key zero pair: zero custody and zero claim on ONE key. The checker ACCEPTS the
+    # certificate for this, so the gate must see it derive. Without this case the gate is
+    # one-directional -- it would stay green under the over-broad "refuse any zero-amount
+    # row" rule that was written once and reverted, which is a refusal of an acceptable
+    # state (external re-grade, C9c-10 P2). A gate that only catches under-refusal teaches
+    # the author to over-refuse.
+    yield (
+        "same-key-zero-pair",
+        _backed_state((), custody=(("pool-a", "USD", "d1", 0),), liabilities=(("alice", "USD", "d1", 0),), outbox=()),
+    )
     yield (
         "cross-key-zeros",
         _backed_state((), custody=(("pool-a", "USD", "d1", 0),), liabilities=(("alice", "USD", "d2", 0),), outbox=()),
@@ -1074,6 +1084,13 @@ def test_the_generated_row_matrix_derives_no_certificate_the_row_checks_refuse()
         derived += 1
     assert derived >= 1, derived
     assert refused >= 1, refused
+    # Bidirectional by construction: the same-key zero pair must be among the DERIVED, or the
+    # gate cannot see an over-refusal at all.
+    same_key = _backed_state(
+        (), custody=(("pool-a", "USD", "d1", 0),), liabilities=(("alice", "USD", "d1", 0),), outbox=()
+    )
+    observed = _derive_rows(same_key)
+    assert not isinstance(observed[0], AllocationProjectionRejectCodeV1), observed
 
 
 def test_the_matrix_excludes_ill_formed_invocations_explicitly() -> None:
@@ -1107,6 +1124,43 @@ def test_the_matrix_excludes_ill_formed_invocations_explicitly() -> None:
         assert isinstance(refused, AllocationProjectionRejectedV1), refused
         assert refused.code is code
         assert refused.code in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1["caller_input"]
+
+
+def test_a_witness_for_a_lane_that_must_not_carry_one_is_refused() -> None:
+    """External re-grade of C9c-10, P2: the last derive-then-reject at the private boundary.
+
+    The checker runs four witness passes and the projection mirrored three: REQUIRED,
+    FRAGMENT and HEADER, but not UNEXPECTED, which runs BEFORE them. A witness handed in for
+    a disabled lane -- or for an enabled lane with no receipt-backed producer -- was derived
+    against, and the checker refused RECEIPT_WITNESS_UNEXPECTED. All twelve slots reproduced
+    it.
+
+    Mirroring three passes of four is the same defect as copying the fragment comparison
+    without the header comparison beside it. The complement of what the guard reads is where
+    the next counterexample lives, every time.
+    """
+
+    witness, state, _certificate, _slots = _witnessed(with_rows=True)
+    empty = renderer.build_state_v1(renderer._spec())
+    # A witness in the slot of a lane the state has disabled.
+    slots = (witness,) + (None,) * (len(ALL_LANE_IDS_V1) - 1)
+    refused = project_allocation_certificate_v1(empty, (), slots)
+    assert isinstance(refused, AllocationProjectionRejectedV1), refused
+    assert refused.code is AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_UNEXPECTED
+    assert refused.code in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1["caller_input"]
+
+    # Every slot reproduces it, not just the first.
+    for index in range(1, len(ALL_LANE_IDS_V1)):
+        shifted = tuple(witness if position == index else None for position in range(len(ALL_LANE_IDS_V1)))
+        out = project_allocation_certificate_v1(empty, (), shifted)
+        assert isinstance(out, AllocationProjectionRejectedV1), index
+        assert out.code is AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_UNEXPECTED, index
+
+    # And the same state with no witness at all still derives, so the code refuses the
+    # extra argument rather than the state.
+    assert isinstance(
+        project_allocation_certificate_v1(empty), cert.GlobalAccountingAllocationCertificateV1
+    )
 
 
 def test_the_three_refusal_kinds_partition_the_family() -> None:
@@ -1145,7 +1199,7 @@ def test_reject_codes_are_closed_and_ordered() -> None:
     assert ALLOCATION_PROJECTION_REJECT_CODES_V1 == tuple(
         code.value for code in AllocationProjectionRejectCodeV1
     )
-    assert len(ALLOCATION_PROJECTION_REJECT_CODES_V1) == 22
+    assert len(ALLOCATION_PROJECTION_REJECT_CODES_V1) == 23
     import re as _re
     from pathlib import Path as _Path
 

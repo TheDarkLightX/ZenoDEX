@@ -93,9 +93,9 @@ PROJECTION_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_alloc
 # string-only rows had. The expected kill counts are pinned so a row cannot be quietly dropped.
 LEDGER_TOOL_PATH_V1: Final = "tools/thv1_mutation_ledger_v1.py"
 LEDGER_GATED_PACKETS_V1: Final[tuple[tuple[str, str, int], ...]] = (
-    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v10", 37),
+    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v11", 38),
     ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v7", 22),
-    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v43", 3),
+    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v44", 3),
     ("ledger_admission_rows", "THV1-20260903-o008-asset-transfer-receipt-admission-mechanical-v3", 31),
     ("ledger_ownership_rows", "THV1-20260903-global-settlement-exact-ownership-mechanical-v3", 21),
     ("ledger_certificate_rows", "THV1-20260901-global-accounting-allocation-certificate-v23", 2),
@@ -572,7 +572,7 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " CALLER_INPUT, the supplied binding roots or witness slots do not match what the enabled"
     " receipt-backed lanes require: PROJECTION_BINDING_ROOT_UNEXPECTED,"
     " PROJECTION_BINDING_ROOT_MISSING, PROJECTION_WITNESS_FRAGMENT_DRIFT,"
-    " PROJECTION_WITNESS_HEADER_DRIFT, PROJECTION_WITNESS_REQUIRED."
+    " PROJECTION_WITNESS_HEADER_DRIFT, PROJECTION_WITNESS_REQUIRED, PROJECTION_WITNESS_UNEXPECTED."
     " UNDETERMINED, the state does not pin the row content: PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS,"
     " PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS -- NOT that more than one ACCEPTED certificate exists,"
     " and NOT that more than one row-checked certificate exists; both wordings were shipped and"
@@ -596,9 +596,10 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " witness contributes its binding root and its header, not its rows; when the caller supplies"
     " the witness slots the checker requires, a fragment or header that differs from the one the"
     " witness carries is refused rather than derived, and an empty slot on an enabled"
-    " receipt-backed lane is refused as an incomplete argument. WITHOUT slots the residue stands:"
-    " a state whose rows differ from the ones the committed lane root's receipt admitted still"
-    " projects to a certificate, which the checker's witness pass then refuses. The projection has"
+    " receipt-backed lane is refused as an incomplete argument, in either spelling: passing no"
+    " slots at all and passing twelve empty ones both refuse with PROJECTION_WITNESS_REQUIRED."
+    " There is no no-witness residue: an earlier version of THIS SENTENCE froze one that the"
+    " code had already closed, which an external re-grade caught (C9c-10 P1). The projection has"
     " no consumer: no publisher, verifier, or client calls it, so it refuses nothing at runtime,"
     " and it verifies no receipt.",
     "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher"
@@ -1193,7 +1194,7 @@ ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
 ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 # C9c-1: the certificate derived from the state, and the two shapes V1 state leaves undetermined.
-PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 102
+PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 103
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 5
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
