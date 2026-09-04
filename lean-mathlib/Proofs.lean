@@ -47,6 +47,8 @@ import Proofs.CALCoreSoundness
 import Proofs.CBCDisasterStateRefactors
 import Proofs.CeilingFeeRounding
 import Proofs.CertifiedFinancialMathObjects
+import Proofs.ChoiceFiberScopedTreewidth
+import Proofs.ChoiceFiberScopedTreewidthChallenge
 import Proofs.CircuitBreakerWindowArithmetic
 import Proofs.CollateralAcyclicity
 import Proofs.ConsensusGracePeriod
