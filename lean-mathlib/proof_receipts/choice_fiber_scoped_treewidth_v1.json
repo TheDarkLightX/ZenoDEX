@@ -1,0 +1,88 @@
+{
+  "schema": "zenodex-lean-proof-receipt/v1",
+  "artifact": "lean-mathlib/Proofs/ChoiceFiberScopedTreewidth.lean",
+  "challenge_artifact": "lean-mathlib/Proofs/ChoiceFiberScopedTreewidthChallenge.lean",
+  "implementation_commit": "0839f6e80d213a358eee95857649f541e153e3ca",
+  "implementation_tree": "4dc2359225be03672743a139d77ec4e755bb2405",
+  "parent_certificate_commit": "4fbebc6934757422541dc40d62104750b9523369",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "authority": "NONE",
+  "claim_status": "MACHINE_CHECKED_ABSTRACT_THEOREM_ONLY",
+  "source_sha256": {
+    "lean-mathlib/Proofs.lean": "a4b43e123c2d3818d4ecb7f87b88a5e74553e4b1179a0a39e4a3e2f045f143ec",
+    "lean-mathlib/Proofs/ChoiceFiberScopedTreewidth.lean": "3b21733d879f5b5fd583bf8063b3f07836ec1df2570f9808b8a01c844444c367",
+    "lean-mathlib/Proofs/ChoiceFiberScopedTreewidthChallenge.lean": "190ec4423c7e84cdba94e532735e5ad96b489d7333f4d958a20b52d4b708f260",
+    "tests/formal/test_lean_choice_fiber_scoped_treewidth.py": "f10ee7b6703e87317879904b2cea7ce8635a7dadba8e557330dc23437607c99f"
+  },
+  "parent_evidence_sha256": {
+    "experiments/choice_fiber_treewidth_certificate_v1/SHA256SUMS": "330ee4346d4191056ed5ce714ef87bf5281f02714d34a7391e198faf72493c08",
+    "experiments/choice_fiber_treewidth_certificate_v1/report.json": "51757f13d97d43084b428d05cc82dd6872d87c0a92dec1fc8a35433ecd90cc81",
+    "experiments/choice_fiber_treewidth_certificate_v1/treewidth_certificate.py": "eac0ab6b937bd020e7797b41bf1fbeea899296f869dcaa7e73cca7b209eb4adb"
+  },
+  "checker_commands": [
+    "cd lean-mathlib && lake env lean Proofs/ChoiceFiberScopedTreewidth.lean",
+    "cd lean-mathlib && lake env lean Proofs/ChoiceFiberScopedTreewidthChallenge.lean",
+    "python3 -m pytest -q experiments/choice_fiber_treewidth_certificate_v1/test_treewidth_certificate.py tests/formal/test_lean_choice_fiber_scoped_treewidth.py",
+    "python3 -m experiments.choice_fiber_treewidth_certificate_v1.run_experiment",
+    "python3 -m experiments.choice_fiber_treewidth_certificate_v1.check_packet",
+    "if rg -n '\\b(sorry|admit|axiom|unsafe|sorryAx|native_decide)\\b' lean-mathlib/Proofs/ChoiceFiberScopedTreewidth.lean; then exit 1; fi"
+  ],
+  "checker_results": {
+    "bounded_cases": 6457,
+    "focused_and_parent_tests": "23 passed",
+    "lean_challenge": "PASS",
+    "lean_target": "PASS",
+    "mutants": "15/15 killed",
+    "oracle_assignments": 51656,
+    "packet": "PASS",
+    "placeholder_scan": "PASS",
+    "proof_quality": "A 88/100"
+  },
+  "axiom_audit": {
+    "allowed_standard_axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "sorryAx": false,
+    "unsafe_dependencies": false,
+    "user_axioms": false
+  },
+  "theorems": [
+    "ZenoDEX.NamedChoiceFiberTreewidth.scope_substitution_correct",
+    "ZenoDEX.NamedChoiceFiberTreewidth.complete_extends",
+    "ZenoDEX.NamedChoiceFiberTreewidth.complete_eq_of_extends",
+    "ZenoDEX.NamedChoiceFiberTreewidth.restricted_minimum_iff",
+    "ZenoDEX.NamedChoiceFiberTreewidth.eliminationMessage_correct",
+    "ZenoDEX.NamedChoiceFiberTreewidth.ExactMessageRecurrence.sound",
+    "ZenoDEX.NamedChoiceFiberTreewidth.exactPartition_minimum_iff",
+    "ZenoDEX.NamedChoiceFiberTreewidth.scoped_treewidth_partition_composition",
+    "ZenoDEX.NamedChoiceFiberTreewidth.separatorCounterexample_exact_minimum",
+    "ZenoDEX.NamedChoiceFiberTreewidth.independent_owner_bag_minima_report_minus_three",
+    "ZenoDEX.NamedChoiceFiberTreewidth.independent_owner_bag_value_is_unattainable"
+  ],
+  "proof_idea": [
+    "Split every monomial support into fixed and free coordinates, absorb fixed Boolean signs into its coefficient, and prove exact evaluation preservation.",
+    "Prove one Boolean elimination message correct from exact negative and positive fibers, then lift it inductively through an abstract exact message recurrence.",
+    "Transport exact restricted minima back to scoped minima of the source polynomial and compose them through an exact partition of the declared whole set.",
+    "Retain y + z + yz as a checked witness that independent minimization of overlapping owner bags reports an unattainable value."
+  ],
+  "review": {
+    "focused_evidence_grade": "A-",
+    "lean_proof_grade": "A-",
+    "oracle_grade": 4,
+    "remaining_scoped_blockers": 0,
+    "review_passes": 2
+  },
+  "aggregate_library_build": {
+    "status": "NOT_CLAIMED",
+    "reason": "The focused modules compile directly. A broad Proofs build is blocked on this host by pre-existing unrelated missing or invalid Mathlib/Proofs artifacts and prior exit-139 resource failures."
+  },
+  "scope_limits": [
+    "This proves an abstract composition theorem for exact Boolean messages, scope substitution, and exact coverage.",
+    "It does not prove the Python decomposition algorithm, its canonical encodings or roots, source binding, or Python/Rust refinement.",
+    "It does not prove tree-decomposition validity, running intersection, induced-width correctness, separator or factor ownership, local-factor plus child-message decomposition, runtime message-table verification, or resource preflight bounds.",
+    "It does not prove canonical argmin tie-breaking or the Python-bitmask-to-Lean-scope projection.",
+    "It does not prove RISC0 receipt soundness, a ZRPF guest, M6 closure, settlement authority, or production readiness."
+  ]
+}
