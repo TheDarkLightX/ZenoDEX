@@ -1,0 +1,137 @@
+{
+  "attack_summary": {
+    "killed": 15,
+    "named_attacks": 15,
+    "survived": 0
+  },
+  "attacks": [
+    {
+      "id": "A01_DIRECT_RECEIPT_CONSTRUCTION",
+      "killed": true
+    },
+    {
+      "id": "A02_RESULT_REPOINTING",
+      "killed": true
+    },
+    {
+      "id": "A03_EVIDENCE_ROOT_REPOINTING",
+      "killed": true
+    },
+    {
+      "id": "A04_SCOPE_LEAF_REPOINTING",
+      "killed": true
+    },
+    {
+      "id": "A05_FOREIGN_PROFILE",
+      "killed": true
+    },
+    {
+      "id": "A06_INCOMPLETE_ELIMINATION_ORDER",
+      "killed": true
+    },
+    {
+      "id": "A07_SCOPE_OMISSION",
+      "killed": true
+    },
+    {
+      "id": "A08_SCOPE_OVERLAP",
+      "killed": true
+    },
+    {
+      "id": "A09_NONCANONICAL_SCOPE_ORDER",
+      "killed": true
+    },
+    {
+      "id": "A10_SEMANTIC_ROOT_LINEAGE_SUBSTITUTION",
+      "killed": true
+    },
+    {
+      "id": "A11_INDUCED_WIDTH_CAP",
+      "killed": true
+    },
+    {
+      "id": "A12_RESULT_LEAF_COUNT_REPOINTING",
+      "killed": true
+    },
+    {
+      "id": "A13_CYCLIC_UNTRUSTED_COVERAGE_TREE",
+      "killed": true
+    },
+    {
+      "id": "A14_DEEP_UNTRUSTED_COVERAGE_TREE",
+      "killed": true
+    },
+    {
+      "id": "A15_ALIASED_UNTRUSTED_COVERAGE_TREE",
+      "killed": true
+    }
+  ],
+  "authority": "NONE",
+  "checked_claims": [
+    "exact owned polynomial snapshot",
+    "declared source-pinned verifier profile",
+    "derived ZRPF ordinal manifest",
+    "scope substitution",
+    "derived elimination decomposition",
+    "complete separator messages",
+    "exact recursive subcube coverage",
+    "exact bounded global minimum"
+  ],
+  "claim_status": "BOUNDED_RESEARCH_ONLY",
+  "classification": "USEFUL_COMPOSITE_NOT_CURRENTLY_NOVEL",
+  "content_sha256_without_this_field": "baa8bd39a031b0d5c60e7d9ff209237fbd4edc2c44c04df79cfadb5da3d56495",
+  "demonstrations": {
+    "chain_partition": {
+      "aggregate_message_cells": 240,
+      "aggregate_work_units": 13664,
+      "brute_assignments": 4096,
+      "choices": 12,
+      "induced_width": 1,
+      "leaf_count": 16,
+      "minimum": -25
+    },
+    "scope_polarity": {
+      "minimizer": [
+        [
+          "x",
+          -1
+        ],
+        [
+          "y",
+          1
+        ]
+      ],
+      "minimum_under_x_negative": -1
+    },
+    "separator_counterexample": {
+      "exact_minimum": -1,
+      "independent_bag_minima_sum": -3,
+      "killed": true
+    }
+  },
+  "exhaustive_campaign": {
+    "full_cube_assignments_checked": 11664,
+    "full_cube_ordered_cases": 1458,
+    "higher_order_assignments_checked": 34992,
+    "higher_order_cases": 4374,
+    "maximum_induced_width_seen": 2,
+    "scoped_global_assignments_checked": 2500,
+    "scoped_leaf_assignments_checked": 2500,
+    "scoped_partition_cases": 625,
+    "total_cases": 6457,
+    "total_oracle_assignments_checked": 51656
+  },
+  "nonclaims": [
+    "novelty",
+    "optimal treewidth",
+    "cryptographic receipt soundness",
+    "unbounded scalability",
+    "governance completeness",
+    "M6 completion",
+    "settlement authority",
+    "production readiness"
+  ],
+  "object": "choice_fiber_treewidth_coverage_certificate_v1",
+  "receipt_backend": "PYTHON_REFERENCE_REPLAY",
+  "schema": "zenodex.choice-fiber-treewidth-campaign.v1"
+}
