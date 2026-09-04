@@ -93,9 +93,9 @@ PROJECTION_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_alloc
 # string-only rows had. The expected kill counts are pinned so a row cannot be quietly dropped.
 LEDGER_TOOL_PATH_V1: Final = "tools/thv1_mutation_ledger_v1.py"
 LEDGER_GATED_PACKETS_V1: Final[tuple[tuple[str, str, int], ...]] = (
-    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v5", 29),
-    ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v6", 21),
-    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v38", 3),
+    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v6", 31),
+    ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v7", 22),
+    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v39", 3),
     ("ledger_admission_rows", "THV1-20260903-o008-asset-transfer-receipt-admission-mechanical-v3", 31),
     ("ledger_ownership_rows", "THV1-20260903-global-settlement-exact-ownership-mechanical-v3", 21),
     ("ledger_certificate_rows", "THV1-20260901-global-accounting-allocation-certificate-v23", 2),
@@ -556,28 +556,34 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " other eleven lanes must be disabled and empty, so it reconciles at most the asset-transfer"
     " lane and no exact all-twelve-lane reconciliation exists.",
     "The allocation certificate is DERIVED from the verified state by the C9c projection, which"
-    " refuses with a closed code wherever V1 state does not determine a certificate the checker can"
-    " accept. THREE kinds of refusal share that family and the packet does not enumerate them: the"
-    " THV1 projection packet carries the current list, and the module's own reject enum is the"
-    " contract. CALLER INPUT means the supplied binding roots or witness slots do not match the"
-    " enabled receipt-backed lanes. UNDETERMINED means more than one certificate that passes every"
-    " row, partition and aggregate check exists (a domainless terminal with two entitlement domains,"
-    " two principals controlling a cell, several ways to split a residual across pending obligations)"
-    " -- NOT more than one ACCEPTED certificate: under the current registry no accepted certificate"
-    " can carry an external, reserve or terminal row at all, so every state reaching one of those"
-    " codes is also one no accepted certificate exists for, and the distinction is about what the"
-    " STATE determines rather than about what the checker would take (opus2 P40 P1-1, restated in"
-    " this artifact after C9c-4 corrected it everywhere except here -- Opus P41 P1)."
-    " UNRECONCILABLE means none exists (entitlements exceeding custody,"
-    " unassignable controlled atoms, an obligation with no controlled location, an over-claiming"
-    " terminal, a claimant with no entitlement, a fold that would overflow, rows with no enabled lane,"
-    " more than one enabled lane, an enabled lane whose registry entry has no producer, and a"
-    " registered-empty lane committed at a foreign root -- the last two being lane-configuration facts"
-    " that no arrangement of rows can repair, refused before the rows are read and, among themselves,"
-    " in the checker's order -- though not necessarily before every other code the checker could raise:"
-    " the receipt-witness check runs between them (Opus P41 P2-6)). The sealed witness contributes its binding root and its header,"
-    " not its rows. The projection has no consumer: no publisher, verifier, or client calls it, so it"
-    " refuses nothing at runtime, and it verifies no receipt.",
+    " refuses with a closed code wherever it cannot derive one the checker accepts. FOUR kinds of"
+    " refusal share that family, and this sentence is bound to the module's own kinds table by a"
+    " test, because it drifted from the code in three consecutive candidates (Opus P42 P1-1)."
+    " CALLER_INPUT, the supplied binding roots do not match the enabled receipt-backed lanes:"
+    " PROJECTION_BINDING_ROOT_UNEXPECTED, PROJECTION_BINDING_ROOT_MISSING, and"
+    " PROJECTION_WITNESS_FRAGMENT_DRIFT, which compares the derived fragment against the witness"
+    " the caller supplied and does not verify that it is the one the lane root's receipt admitted."
+    " UNDETERMINED, the state does not pin the row content, so deriving one would be a guess:"
+    " PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS, PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS. This does NOT"
+    " mean more than one ACCEPTED certificate exists (under the current registry none of these"
+    " states has one), nor that more than one row-checked certificate exists: both of those"
+    " wordings were shipped and falsified, at P40 and P41."
+    " UNSUPPORTED, the state determines the answer and the module declines to derive it:"
+    " PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED, a pending obligation over no residual cell whose"
+    " only candidate row carries zero atoms."
+    " UNRECONCILABLE, no certificate over this state can be accepted:"
+    " PROJECTION_MULTIPLE_ENABLED_LANES, PROJECTION_NO_LANE_FOR_ROWS, PROJECTION_NEGATIVE_RESIDUAL,"
+    " PROJECTION_UNASSIGNED_CONTROLLED_ATOMS, PROJECTION_PENDING_WITHOUT_BACKING,"
+    " PROJECTION_ROWS_BEYOND_PRODUCER, PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT,"
+    " PROJECTION_TERMINAL_WITHOUT_BACKING, PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,"
+    " PROJECTION_ROW_TOTAL_OVERFLOW, PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER,"
+    " PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT and"
+    " PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED (the assignment search is refused rather than"
+    " truncated past its cap, so a refusal never depends on how much of the space was examined)."
+    " The sealed witness contributes its binding root and its header, not its rows; when the caller"
+    " supplies the witness slots the checker requires, a fragment that differs from the one the"
+    " witness carries is refused rather than derived. The projection has no consumer: no publisher,"
+    " verifier, or client calls it, so it refuses nothing at runtime, and it verifies no receipt.",
     "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher"
     " execution.",
     "The Rust receipt-admission twin mirrors the Python check order and reject family but not the"
@@ -603,10 +609,14 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " required pin path, the newest whose pin equals the subject blob -- which is currently seven"
     " distinct packets out of the repository's total. A THV1 packet a candidate message names but"
     " the selection does not bind is covered only by the repository-wide sweep"
-    " (tools/check_test_hygiene_v1.py), never by this checker (Opus P40 P2-4). The six"
+    " (tools/check_test_hygiene_v1.py), never by this checker (Opus P40 P2-4). The seven"
     " ledger-gated packets are named by their replay commands and read by the ledger from the"
     " subject commit, so their bytes are bound by subject_tree rather than by an individual pin,"
-    " and two of the six are not in hygiene_selection (opus2 P40 P3-3)."
+    " and two of the seven are not in hygiene_selection (opus2 P40 P3-3). The ledger replay is"
+    " NOT concurrency-safe: each command stages under $TMPDIR/thv1-ledger/<packet> and removes"
+    " that directory first, so two replays sharing a TMPDIR race. The failure mode is a false"
+    " RED and never a false green -- a collision yields UNVIABLE or errors and EXECUTED_FAIL,"
+    " because a KILLED verdict requires the killer's tests-failed exit (both P41 reviewers)."
     " Selected test-hygiene packets are bound by pin only; their evidence families and mutation"
     " tables are validated by tools/check_test_hygiene_v1.py, which this checker does not run.",
     "No production, release, settlement, verifier, migration, publication, or value-moving"
@@ -1166,7 +1176,7 @@ ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
 ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 # C9c-1: the certificate derived from the state, and the two shapes V1 state leaves undetermined.
-PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 87
+PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 92
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 5
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
@@ -1660,7 +1670,14 @@ REPLAY_COMMANDS_V1: Final[tuple[ReplayCommandV1, ...]] = (
             command_id,
             (PYTHON_TOKEN_V1, LEDGER_TOOL_PATH_V1, "--packet", packet, "--rev", "HEAD", "--python", PYTHON_TOKEN_V1),
             ".",
-            (),
+            # TMPDIR is part of this command's meaning, not incidental: the ledger stages each
+            # row under $TMPDIR/thv1-ledger/<packet>/row-NN and REMOVES that directory before
+            # staging, so two replays sharing a TMPDIR race. Both P41 reviewers found this
+            # independently and both established it is fail-closed -- a vanished tree makes the
+            # killer exit 4, and a KILLED verdict requires the tests-failed exit, so a collision
+            # yields UNVIABLE or errors and EXECUTED_FAIL, never a false kill. Naming it here
+            # puts the variable in the recorded observation instead of leaving it implicit.
+            ("TMPDIR",),
             f"exit 0; {expected_killed} killed, 0 survived, 0 errors",
             2400,
         )
@@ -4106,7 +4123,9 @@ def _grade_python_version(obs: ReplayObservationV1) -> dict[str, object]:
     return {"python_version": version}
 
 
-def _grade_ledger(obs: ReplayObservationV1, expected_killed: int) -> dict[str, object]:
+def _grade_ledger(
+    obs: ReplayObservationV1, expected_killed: int, seen: set[tuple[str, str, str, str]]
+) -> dict[str, object]:
     """Every mechanical row of the packet killed, none survived, none errored.
 
     Both P40 reviews attacked this grader and both got through, in three ways it now
@@ -4151,7 +4170,6 @@ def _grade_ledger(obs: ReplayObservationV1, expected_killed: int) -> dict[str, o
     # name the mutation that produced its verdict, so a KILLED row can be tied to the row
     # declaring it rather than to some other edit of the same file.
     described = 0
-    seen: set[tuple[str, str, str]] = set()
     for row in rows:
         if not isinstance(row, dict) or row.get("verdict") != "KILLED":
             continue
@@ -4170,8 +4188,25 @@ def _grade_ledger(obs: ReplayObservationV1, expected_killed: int) -> dict[str, o
                 )
         if not _portable_repo_path_v1(mutation["path"]):
             _reject("REPLAY_LEDGER_ROW_PATH_UNPORTABLE", obs.command_id, mutation["path"][:60])
-        identity = (mutation["path"], mutation["needle_sha256"], mutation["replacement_sha256"])
+        # The identity is the (mutation, killer) PAIR, and the set spans the gated packets.
+        # Pair, because two packets legitimately declare the same mutation with different
+        # killers -- two independent tests that each kill it -- and refusing the second would
+        # delete evidence rather than padding. Cross-packet, because a per-packet set could
+        # not see a repeat at all (opus2 P42 P2-5). What this refuses is the same mutation
+        # reported by the same killer twice, which is the count-inflating shape.
+        killer = row.get("killer")
+        if type(killer) is not str or not killer:
+            _reject("REPLAY_LEDGER_ROW_WITHOUT_MUTATION", obs.command_id, "row names no killer")
+        identity = (
+            mutation["path"],
+            mutation["needle_sha256"],
+            mutation["replacement_sha256"],
+            killer,
+        )
         if identity in seen:
+            # The set spans the gated packets, not one call: a triple declared in two packets
+            # was invisible to a per-packet rule, and the claim "every one distinct" was
+            # broader than the guard (opus2 P42 P2-5).
             _reject("REPLAY_LEDGER_ROW_NOT_DISTINCT", obs.command_id, mutation["path"][:60])
         seen.add(identity)
         described += 1
@@ -4255,7 +4290,11 @@ def _solver_versions(reported: object, expected: object) -> dict[str, str] | Non
     return {str(solver): str(version) for solver, version in expected.items()}
 
 
-def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> dict[str, object]:
+def _grade_observation(
+    obs: ReplayObservationV1,
+    packet: Mapping[str, Any],
+    ledger_seen: set[tuple[str, str, str, str]] | None = None,
+) -> dict[str, object]:
     if obs.timed_out or obs.exit_code != 0:
         _reject("REPLAY_EXIT_CODE", obs.command_id, f"exit {obs.exit_code} timed_out={obs.timed_out}")
     esso = _section(packet, "esso_evidence")
@@ -4304,9 +4343,10 @@ def _grade_observation(obs: ReplayObservationV1, packet: Mapping[str, Any]) -> d
         return _grade_cargo(obs, ADMISSION_RUST_GATE_EXPECTED_PASSED_V1)
     if obs.command_id == "python_allocation_projection_gate":
         return _grade_pytest(obs, PROJECTION_GATE_EXPECTED_PASSED_V1)
+    ledger_seen = set() if ledger_seen is None else ledger_seen
     for command_id, _packet, expected_killed in LEDGER_GATED_PACKETS_V1:
         if obs.command_id == command_id:
-            return _grade_ledger(obs, expected_killed)
+            return _grade_ledger(obs, expected_killed, ledger_seen)
     if obs.command_id == "python_golden_gate":
         return _grade_pytest(obs, PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1)
     return _grade_esso(obs, esso)
@@ -4359,12 +4399,15 @@ def evaluate_proof_replay_v1(
     errors: list[AdmissionErrorV1] = []
     runs: list[dict[str, object]] = []
     observed = {obs.command_id: obs for obs in observations}
+    # One set for every ledger command in the replay, so a mutation declared in two gated
+    # packets is refused rather than counted twice (opus2 P42 P2-5).
+    ledger_seen: set[tuple[str, str, str, str]] = set()
     for command in REPLAY_COMMANDS_V1:
         obs = observed.get(command.command_id)
         if obs is None:
             errors.append(AdmissionErrorV1("REPLAY_COMMAND_MISSING", command.command_id, "not executed"))
             continue
-        comparable = _run_check(errors, functools.partial(_grade_observation, obs, packet))
+        comparable = _run_check(errors, functools.partial(_grade_observation, obs, packet, ledger_seen))
         runs.append(
             {
                 "command_id": command.command_id,

@@ -89,7 +89,7 @@ def _derive_rows(state):
     Under the current registry the only receipt-backed lane's producer emits controlled and
     entitlement rows only, so the entry point refuses a state that puts a reserve, a pending
     obligation or an open terminal on that lane BEFORE this logic runs
-    (PROJECTION_ROWS_BEYOND_PRODUCER). TEN of the twelve row cases are masked that way and
+    (PROJECTION_ROWS_BEYOND_PRODUCER). TWELVE of the fourteen row cases are masked that way and
     exercise the helpers directly: they are the contract a future producer that can emit such
     rows would have to satisfy. TWO are not masked and reach their own code through the public
     entry point -- entitlements exceeding custody, and controlled atoms no obligation can
@@ -133,10 +133,12 @@ def _state_consistent_candidate(state, *, source_principal: str | None = None, z
     the choice explicit and the caller can enumerate it. With it set, the single PENDING
     entry becomes an external row over the single open residual cell.
 
-    WHAT THIS DOES NOT COVER, stated because the previous wording of the claim did not
-    (Opus P39 primary, P1-1 second half): it builds no terminal binding rows, so for a state
-    with an OPEN terminal obligation it is one candidate among more than one, and a refusal
-    of it is not by itself a statement about every certificate over that state.
+    WHAT THIS DOES NOT COVER: it CHOOSES the first control domain and controlling principal
+    in canonical order, so for a state with an OPEN terminal obligation it is one candidate
+    among more than one, and a refusal of it is not by itself a statement about every
+    certificate over that state. The earlier wording gave a false reason -- "it builds no
+    terminal binding rows", which it has built since C9c-4 -- and both P41 reviewers found
+    that independently (Opus P42 P2-4).
     """
 
     base = cert.build_registered_empty_certificate_v1(state)
@@ -502,14 +504,13 @@ def test_a_terminal_with_no_controlling_principal_is_unreconcilable_not_ambiguou
     ASSET_TRANSFER an OPEN terminal is masked by PROJECTION_ROWS_BEYOND_PRODUCER, and on the
     other eleven by PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER.
 
-    It was reachable through the row harness with a zero-atom entitlement (Opus P41 P2-2,
-    which falsified the sentence that stood here claiming otherwise), and the capacity filter
-    added for opus2 P41 P1-2 closed that route: a domain entitled below the row's amount is
-    no longer a candidate, so that state now reports TERMINAL_EXCEEDS_ENTITLEMENT and keeps
-    its place in _ROW_CASES under that code. Every route this suite can find now refuses
-    earlier, so the branch is exercised by calling the builder directly, which is what this
-    test does. That is a statement about what has been searched, not a proof of
-    unreachability.
+    Through the row harness it IS reachable, by exactly one shape: a zero-atom entitlement in
+    the claimant's ONLY entitled domain, with a zero-atom obligation. The residual for that
+    cell is zero so the negative-residual check does not fire, and with one candidate domain
+    the capacity filter has nothing to reject (opus2 P42 P2-3 found this after the filter
+    closed the previous route, and it is a _ROW_CASES entry now, so this code has a case in
+    the table like every other). This test additionally calls the builder directly and checks
+    that the entry point reports something else.
     """
 
     state = _backed_state((_terminal("terminal-1", 1),))
@@ -697,6 +698,65 @@ def test_only_a_domain_that_can_carry_the_amount_is_a_candidate() -> None:
     assert "2 entitlement domains" in detail
 
 
+def test_the_terminal_domain_assignment_is_searched_not_decided_row_by_row() -> None:
+    """Opus P42 P1-2: the per-row capacity filter still called two shapes ambiguous.
+
+    The checker bounds the SUM of terminal rows per (asset, claimant, domain), so domains
+    cannot be chosen one row at a time: a domain that fits one row may not fit it once
+    another is placed there. A sweep found six misclassified states of two shapes. Both are
+    fixtures here.
+
+    Shape one, DETERMINED: two domains, two obligations, and exactly one assignment that
+    fits. Shape two, UNRECONCILABLE: three obligations of 10 against two domains entitled 10
+    each -- no assignment fits, so no certificate over the state is acceptable and calling it
+    an ambiguity was false.
+    """
+
+    determined = _backed_state(
+        (_terminal("t1", 10), _terminal("t2", 4)),
+        custody=(("pool-a", "USD", "spot-pool", 10), ("pool-b", "USD", "vault", 4)),
+        liabilities=(("alice", "USD", "spot-pool", 10), ("alice", "USD", "vault", 4)),
+    )
+    _external, terminals = _derive_rows(determined)
+    assert {row.obligation_id: row.control_domain for row in terminals} == {
+        "t1": "spot-pool",
+        "t2": "vault",
+    }
+
+    unreconcilable = _backed_state(
+        (_terminal("t1", 10), _terminal("t2", 10), _terminal("t3", 10)),
+        custody=(("pool-a", "USD", "spot-pool", 10), ("pool-b", "USD", "vault", 10)),
+        liabilities=(("alice", "USD", "spot-pool", 10), ("alice", "USD", "vault", 10)),
+    )
+    observed, detail = _derive_rows(unreconcilable)
+    assert observed is AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT
+    assert "no assignment of 3 obligations fits" in detail
+
+    # And a genuine ambiguity still refuses as one: two obligations that fit either way.
+    ambiguous = _backed_state(
+        (_terminal("t1", 1), _terminal("t2", 1)),
+        custody=(("pool-a", "USD", "spot-pool", 10), ("pool-b", "USD", "vault", 10)),
+        liabilities=(("alice", "USD", "spot-pool", 10), ("alice", "USD", "vault", 10)),
+    )
+    observed, detail = _derive_rows(ambiguous)
+    assert observed is AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS
+
+
+def test_an_unsearchable_terminal_assignment_is_refused_not_truncated() -> None:
+    """The cap is a refusal, not a truncation: a refusal must not depend on how much of the
+    assignment space was examined."""
+
+    import src.core.global_accounting_allocation_projection_v1 as module
+
+    terminals = tuple(_terminal(f"t{index}", 1) for index in range(4))
+    domains = tuple(f"domain-{index}" for index in range(9))
+    capacity = {domain: 10 for domain in domains}
+    assert len(domains) ** len(terminals) > module.TERMINAL_ASSIGNMENT_SEARCH_CAP_V1
+    with pytest.raises(module._Reject) as raised:
+        module._terminal_domain_assignment_v1(terminals, domains, capacity)
+    assert raised.value.code is AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED
+
+
 def test_the_three_refusal_kinds_partition_the_family() -> None:
     """Both P40 reviews, P3-1: the prose split omitted three of its thirteen codes,
     PROJECTION_ROWS_BEYOND_PRODUCER among them -- the guard the candidate was named for.
@@ -733,7 +793,7 @@ def test_reject_codes_are_closed_and_ordered() -> None:
     assert ALLOCATION_PROJECTION_REJECT_CODES_V1 == tuple(
         code.value for code in AllocationProjectionRejectCodeV1
     )
-    assert len(ALLOCATION_PROJECTION_REJECT_CODES_V1) == 18
+    assert len(ALLOCATION_PROJECTION_REJECT_CODES_V1) == 19
     import re as _re
     from pathlib import Path as _Path
 
@@ -857,14 +917,14 @@ _ROW_CASES = [
             "one terminal over-claiming its entitlement",
             {}, (("terminal-1", 99),),
             AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
-            "99 exceeds every entitled domain",
+            "no assignment of 1 obligations fits",
         ),
         (
             "two terminals over-claiming together",
             {"custody": (("pool-a", "USD", "spot-pool", 3),), "liabilities": (("alice", "USD", "spot-pool", 3),)},
             (("terminal-1", 2), ("terminal-2", 2)),
             AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
-            "claims 4 of 3",
+            "no assignment of 2 obligations fits",
         ),
         (
             "a claimant with no entitlement at all",
@@ -961,7 +1021,17 @@ _ROW_CASES = [
             },
             (("terminal-1", 1),),
             AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
-            "1 exceeds every entitled domain",
+            "no assignment of 1 obligations fits",
+        ),
+        (
+            "a zero-atom entitlement in the claimant's only entitled domain, backed nowhere",
+            {
+                "custody": (("pool-a", "USD", "spot-pool", 10),),
+                "liabilities": (("bob", "USD", "spot-pool", 10), ("alice", "USD", "vault", 0)),
+            },
+            (("terminal-1", 0),),
+            AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_WITHOUT_BACKING,
+            "no controlled location in vault",
         ),
         (
             "an OPEN obligation naming another lane",
@@ -1024,8 +1094,9 @@ def test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused(
     checker's row, partition and aggregate passes refuse it.
 
     What this shows is exactly one thing: THAT candidate is refused. For a state with an
-    OPEN terminal obligation the builder omits terminal rows, so other candidates exist and
-    this is evidence about one of them, not a quantifier over all. The states with neither a
+    OPEN terminal obligation the builder CHOOSES the first domain and principal in canonical
+    order, so other candidates exist and this is evidence about one of them, not a quantifier
+    over all (the earlier wording said the builder omits terminal rows, which is false). The states with neither a
     PENDING entry nor an OPEN terminal are the ones where the built candidate IS the only
     certificate the state implies up to the choices the checker itself pins.
     """
@@ -1062,8 +1133,17 @@ def test_an_undetermined_state_admits_two_row_checked_certificates_with_differen
         candidate = _state_consistent_candidate(state, source_principal=principal)
         for check in (cert._check_exactly_once,):
             check(candidate)
-        for check in (cert._check_entitlement_rows, cert._check_external_obligations, cert._check_lane_aggregates):
+        for check in (
+            cert._check_entitlement_rows,
+            cert._check_reserve_rows,
+            cert._check_external_obligations,
+            cert._check_terminal_bindings,
+            cert._check_lane_aggregates,
+        ):
             check(candidate, state)
+        # opus2 P42 P3-3: the sentence says "every row, partition and aggregate check" and the
+        # test ran four of the seven. The partition check is _check_reserve_rows.
+        cert._check_terminal_totals(candidate)
         roots.add(candidate.allocation_root)
         outcome = cert.check_global_accounting_allocation_certificate_v1(
             candidate, state, cert.EMPTY_LANE_WITNESS_SLOTS_V1
@@ -1097,6 +1177,7 @@ def test_which_row_cases_the_entry_point_reaches_is_pinned(
     """
 
     reaches_entry = {"entitlements exceeding custody", "controlled atoms no obligation can absorb"}
+    assert len(_ROW_CASES) == 14, "the counts in the docstrings above are over all of them"
     state = _backed_state(
         tuple(_terminal(t[0], t[1], **(t[2] if len(t) > 2 else {})) for t in terminals), **tables
     )

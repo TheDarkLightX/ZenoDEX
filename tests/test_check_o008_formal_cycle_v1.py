@@ -1077,7 +1077,10 @@ def _ledger_report(packet_id: str, expected_killed: int, **overrides: Any) -> by
             "rows": [
                 {
                     "description": f"row {index}",
-                    "killer": "tests/core/test_x.py::test_y",
+                    # Distinct per packet: the grader's distinctness rule spans the gated
+                    # packets now (opus2 P42 P2-5), so a fixture that repeated one row for
+                    # every packet would be refused for the reason the rule exists.
+                    "killer": f"tests/core/test_{packet_id}.py::test_y",
                     "mutation": {
                         "path": core.LEDGER_TOOL_PATH_V1,
                         "needle_sha256": f"{index:064x}",
@@ -1334,6 +1337,42 @@ def test_the_ledger_grader_accepts_the_green_report(packet: dict[str, Any]) -> N
     expected = core.LEDGER_GATED_PACKETS_V1[0][2]
     comparable = core._grade_observation(_ledger_observation(_ledger_rows(expected), expected), packet)
     assert comparable == {"killed": expected, "mechanical": expected, "survived": 0, "errors": 0}
+
+
+def test_the_projection_nonclaim_is_bound_to_the_modules_kinds_table() -> None:
+    """Opus P42 P1-1: this nonclaim drifted from the code in three consecutive candidates --
+    "Two kinds" when there were three, then "THREE kinds" when there were four, with codes
+    the family had gained named nowhere in the artifact. Nothing compared the two, which is
+    why it drifted every round. This compares them.
+
+    Every kind name and every reject code must appear in the nonclaim, and the count word
+    must be the count. The test is over the tool constant that generates the packet, so a
+    code added without a nonclaim edit fails here rather than shipping a pinned falsehood.
+    """
+
+    from src.core.global_accounting_allocation_projection_v1 import (
+        ALLOCATION_PROJECTION_REFUSAL_KINDS_V1,
+        AllocationProjectionRejectCodeV1,
+    )
+
+    nonclaim = next(text for text in core.NONCLAIMS_V1 if "C9c projection" in text)
+    counts = {2: "TWO", 3: "THREE", 4: "FOUR", 5: "FIVE", 6: "SIX"}
+    expected = counts[len(ALLOCATION_PROJECTION_REFUSAL_KINDS_V1)]
+    assert f"{expected} kinds of refusal" in nonclaim, nonclaim[:200]
+    for kind in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1:
+        assert kind.upper() in nonclaim, kind
+    missing = [code.value for code in AllocationProjectionRejectCodeV1 if code.value not in nonclaim]
+    assert not missing, missing
+    # And no code is named under the wrong kind: each kind's segment of the sentence holds
+    # exactly its own codes.
+    order = [(kind.upper(), nonclaim.index(kind.upper())) for kind in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1]
+    order.sort(key=lambda item: item[1])
+    for index, (kind_name, offset) in enumerate(order):
+        end = order[index + 1][1] if index + 1 < len(order) else len(nonclaim)
+        segment = nonclaim[offset:end]
+        kind = kind_name.lower()
+        for code in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1[kind]:
+            assert code.value in segment, (kind, code.value)
 
 
 def test_no_observations_is_not_run(packet: dict[str, Any]) -> None:

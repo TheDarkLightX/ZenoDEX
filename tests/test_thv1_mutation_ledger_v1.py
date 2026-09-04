@@ -567,14 +567,19 @@ def test_cargo_killer_requires_a_pinned_rust_test_path(tmp_path: Path) -> None:
     # The crate unit-test form: accepted when its crate source is pinned, refused when not.
     lib_row: dict[str, object] = {
         "description": "a rust guard whose only test is a crate unit test",
-        "killed_by": "zk/probe/src/lib.rs::probe::tests::probe_one",
+        "killed_by": "zk/probe/src/lib.rs::lib::tests::probe_one",
         "mutant": {"path": "zk/probe/src/lib.rs", "needle_lines": ["1"], "replacement_lines": ["2"]},
     }
     _, lib_rows = _load(tmp_path, _packet(repo, rows=[lib_row], source_paths=pinned))
     assert lib_rows[0].kind == "mechanical"
-    unpinned_lib: dict[str, object] = {**lib_row, "killed_by": "zk/other/src/lib.rs::probe::tests::probe_one"}
+    unpinned_lib: dict[str, object] = {**lib_row, "killed_by": "zk/other/src/lib.rs::lib::tests::probe_one"}
     with pytest.raises(TestHygieneError, match="mutation killer is not a pinned node"):
         _load(tmp_path, _packet(repo, rows=[unpinned_lib], source_paths=pinned))
+    # opus2 P42 P2-4: the module-segment rule the ledger enforces must also be enforced here,
+    # or the two readers of a row disagree about which rows are well formed.
+    foreign_module: dict[str, object] = {**lib_row, "killed_by": "zk/probe/src/lib.rs::other::tests::probe_one"}
+    with pytest.raises(TestHygieneError, match="must start with lib::"):
+        _load(tmp_path, _packet(repo, rows=[foreign_module], source_paths=pinned))
     legacy_cargo: dict[str, object] = {"description": "old", "killed_by": "zk/probe/tests/probe.rs::probe_one"}
     with pytest.raises(TestHygieneError, match="mutation killer is not a pinned node"):
         _load(tmp_path, _packet(repo, evidence_id="THV1-20260901-example-v1", rows=[legacy_cargo], source_paths=pinned))

@@ -1,10 +1,13 @@
-"""Projection of the allocation certificate from a verified global economic state (C9c-4).
+"""Projection of the allocation certificate from a verified global economic state (C9c-6).
 
 ``project_allocation_certificate_v1`` derives one certificate for one exact
 ``GlobalEconomicStateV1`` by inverting the checker's own expectations: the controlled
 rows are the state's custody, the entitlement rows its liabilities, the reserve rows
 its reserve partition, the external rows its PENDING outbox, and the terminal rows its
-OPEN terminal obligations. It is pure, takes no witness, and never mutates its inputs.
+OPEN terminal obligations. It is pure and never mutates its inputs. It takes the checker's own witness slots when the
+caller has them, and compares rather than verifies: it checks no receipt (Opus P42 P2-7,
+which found this sentence still saying "takes no witness" in the candidate whose headline
+change was that it does).
 
 WHY THIS EXISTS. Nothing else computes a certificate; every caller either builds the
 registered-empty projection or assembles one by hand in a test. A checker whose input
@@ -28,7 +31,7 @@ WHAT IS CLAIMED, and what three reviews have already falsified in earlier wordin
    certificate's, that producer emits controlled and entitlement rows only, and a
    disabled lane carrying any row fails DISABLED_LANE_NOT_EMPTY. So every state that
    reaches an ``..._AMBIGUOUS`` code today is also one no accepted certificate exists
-   for. The distinction the two kinds draw is about what the STATE determines, not about
+   for. The distinction these kinds draw is about what the STATE determines, not about
    what the checker would accept, and it becomes observable when a producer that can
    emit those rows is registered. Two earlier wordings of this paragraph were falsified
    for saying otherwise: the certificate is not a function of the state (P39), and
@@ -74,6 +77,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from itertools import product
 from typing import Final
 
 from .global_accounting_allocation_certificate_v1 import (
@@ -101,6 +105,7 @@ from .global_settlement_types_v1 import (
     LaneIdV1,
     OutboxStatusV1,
     TerminalObligationStatusV1,
+    TerminalObligationV1,
     _require_root,
 )
 
@@ -149,16 +154,22 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     ``..._NO_LANE_FOR_ROWS``, ``..._MULTIPLE_ENABLED_LANES``. From what the owning lane's
     producer can source: ``..._ROWS_BEYOND_PRODUCER``. From the lane configuration, which
     no arrangement of rows can repair, evaluated before the rows and in the checker's own
-    order so the projection names the code the checker would raise first:
-    ``..._ENABLED_LANE_WITHOUT_PRODUCER``, ``..._REGISTERED_EMPTY_ROOT_DRIFT``. And from
+    order AMONG THESE TWO, so among them the projection names the code the checker raises
+    first -- not in general, since the receipt-witness check runs between them (Opus P42
+    P2-6 found this sentence surviving 177 lines from the paragraph that denies it):
+    ``..._ENABLED_LANE_WITHOUT_PRODUCER``, ``..._REGISTERED_EMPTY_ROOT_DRIFT``. And from a
+    search this module refuses to truncate: ``..._TERMINAL_ASSIGNMENT_UNSEARCHED``, when the
+    space of domain assignments for one claimant exceeds the cap, so a refusal never depends
+    on how much of it was examined. And from
     the receipt behind a witnessed lane, when the caller supplies the witness the checker
     would require: ``..._WITNESS_FRAGMENT_DRIFT``, raised when the fragment the state
-    implies differs from the one the lane root's receipt admitted.
+    implies differs from the one the SUPPLIED witness carries -- not from the one the lane
+    root's receipt admitted, which this module does not verify (Opus P42 P2-1).
 
     For each row case in the UNRECONCILABLE kind a test BUILDS the certificate the state
     implies and shows the checker refusing it, rather than asserting the classification;
     for the UNDETERMINED kind a test exhibits the two row-checked certificates with
-    different allocation roots. The three kinds are a partition of all eighteen codes and
+    different allocation roots. The four kinds are a partition of all nineteen codes and
     a test pins that partition against this enum.
     """
 
@@ -180,6 +191,12 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     PROJECTION_TERMINAL_WITHOUT_BACKING = "PROJECTION_TERMINAL_WITHOUT_BACKING"
     PROJECTION_WITNESS_FRAGMENT_DRIFT = "PROJECTION_WITNESS_FRAGMENT_DRIFT"
     PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED = "PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED"
+    PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED = "PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED"
+
+
+# The exhaustive terminal-assignment search is refused rather than truncated beyond this many
+# combinations, so a refusal never depends on how much of the space was examined (Opus P42 P1-2).
+TERMINAL_ASSIGNMENT_SEARCH_CAP_V1: Final = 4096
 
 
 ALLOCATION_PROJECTION_REJECT_CODES_V1: Final[tuple[str, ...]] = tuple(
@@ -187,7 +204,7 @@ ALLOCATION_PROJECTION_REJECT_CODES_V1: Final[tuple[str, ...]] = tuple(
 )
 
 
-# The three kinds the family docstring names, as data so a test can pin the partition
+# The four kinds the family docstring names, as data so a test can pin the partition
 # against the enum (both P40 reviews, P3-1: the previous prose split omitted three codes,
 # one of them the headline guard). Membership is a claim about WHY a code is raised, not
 # about the checker's own families.
@@ -195,6 +212,11 @@ ALLOCATION_PROJECTION_REFUSAL_KINDS_V1: Final[dict[str, tuple[AllocationProjecti
     "caller_input": (
         AllocationProjectionRejectCodeV1.PROJECTION_BINDING_ROOT_UNEXPECTED,
         AllocationProjectionRejectCodeV1.PROJECTION_BINDING_ROOT_MISSING,
+        # Opus P42 P2-1: this compares the derived fragment against whatever object the
+        # caller handed over; it does not verify that the slot holds the witness that lane
+        # root's receipt admitted. A foreign witness therefore refuses a state that has an
+        # accepted certificate, which is a fact about the argument, not about the state.
+        AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_FRAGMENT_DRIFT,
     ),
     "undetermined": (
         AllocationProjectionRejectCodeV1.PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS,
@@ -219,7 +241,7 @@ ALLOCATION_PROJECTION_REFUSAL_KINDS_V1: Final[dict[str, tuple[AllocationProjecti
         AllocationProjectionRejectCodeV1.PROJECTION_ROW_TOTAL_OVERFLOW,
         AllocationProjectionRejectCodeV1.PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER,
         AllocationProjectionRejectCodeV1.PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT,
-        AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_FRAGMENT_DRIFT,
+        AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED,
     ),
 }
 
@@ -453,6 +475,69 @@ def _external_rows_v1(
     )
 
 
+def _terminal_domain_assignment_v1(
+    terminals: tuple[TerminalObligationV1, ...],
+    domains: tuple[str, ...],
+    capacity: dict[str, int],
+) -> dict[str, str]:
+    """Assign a control domain to every OPEN terminal of one (asset, claimant), or refuse.
+
+    The checker bounds the SUM of a fragment's terminal rows per (asset, claimant, control
+    domain) against that key's entitlement, so the domains are not chosen row by row: a
+    domain that can carry one row may be unable to carry it once another row is placed
+    there. The first version of this filter asked only whether SOME domain covered THIS
+    row, which left two shapes misclassified and a sweep found both (Opus P42 P1-2): states
+    where no assignment exists at all, reported as an ambiguity, and states where exactly
+    one exists, also reported as an ambiguity.
+
+    So the assignment is searched, not inferred. Zero valid assignments means no certificate
+    over this state is acceptable; exactly one means the state DETERMINES the answer and the
+    projection derives it; more than one is the genuine ambiguity the code names. The search
+    is exhaustive over ``len(domains) ** len(terminals)`` for one claimant and is refused
+    rather than truncated when that exceeds ``TERMINAL_ASSIGNMENT_SEARCH_CAP_V1``, so the
+    refusal never depends on how much of the space was looked at.
+    """
+
+    if not domains:
+        _fail(
+            AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT,
+            f"{terminals[0].obligation_id}: no entitlement for {terminals[0].claimant}",
+        )
+    if len(domains) ** len(terminals) > TERMINAL_ASSIGNMENT_SEARCH_CAP_V1:
+        _fail(
+            AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED,
+            f"{terminals[0].claimant}: {len(domains)} domains over {len(terminals)} obligations",
+        )
+    valid: list[dict[str, str]] = []
+    for choice in product(domains, repeat=len(terminals)):
+        placed: dict[str, int] = {}
+        for terminal, domain in zip(terminals, choice, strict=True):
+            total = placed.get(domain, 0) + terminal.amount_atoms
+            if total > MAX_ATOMS_U128_V1:
+                # The fold that used to catch this ran after the domains were chosen; the
+                # search subsumes it, so the bound is checked here or it is checked nowhere.
+                _fail(
+                    AllocationProjectionRejectCodeV1.PROJECTION_ROW_TOTAL_OVERFLOW,
+                    f"terminal totals for {terminals[0].asset}:{terminals[0].claimant}:{domain}",
+                )
+            placed[domain] = total
+        if all(total <= capacity.get(domain, 0) for domain, total in placed.items()):
+            valid.append({t.obligation_id: d for t, d in zip(terminals, choice, strict=True)})
+            if len(valid) > 1:
+                break
+    if not valid:
+        _fail(
+            AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
+            f"{terminals[0].claimant}: no assignment of {len(terminals)} obligations fits",
+        )
+    if len(valid) > 1:
+        _fail(
+            AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS,
+            f"{terminals[0].obligation_id}: {len(domains)} entitlement domains",
+        )
+    return valid[0]
+
+
 def _terminal_rows_v1(
     state: GlobalEconomicStateV1,
     lane_id: LaneIdV1,
@@ -462,58 +547,42 @@ def _terminal_rows_v1(
 ) -> tuple[TerminalBindingRowV1, ...]:
     """The OPEN terminal obligations, with the control domain the state implies.
 
-    A V1 terminal obligation names an obligation id, lane, claimant, asset and amount;
-    the certificate row additionally names a control domain and a controlling
-    principal, which the checker binds to an entitlement and a controlled location of
-    the same fragment. The state determines them only when exactly one entitlement
-    cell and one controlling principal match; two hidden domain preimages are the
-    campaign's declared gap, refused here instead of guessed.
+    A V1 terminal obligation names an obligation id, lane, claimant, asset and amount; the
+    certificate row additionally names a control domain and a controlling principal, which
+    the checker binds to an entitlement and a controlled location of the same fragment. The
+    domain is determined when exactly one assignment of ALL this claimant's OPEN obligations
+    to entitled domains satisfies the per-key sums the checker enforces -- see
+    ``_terminal_domain_assignment_v1``, which searches that rather than deciding row by row.
     """
 
-    rows: list[TerminalBindingRowV1] = []
-    for terminal in state.terminal_obligations:
-        if terminal.status is not TerminalObligationStatusV1.OPEN:
-            continue
+    open_terminals = tuple(
+        terminal
+        for terminal in state.terminal_obligations
+        if terminal.status is TerminalObligationStatusV1.OPEN
+    )
+    for terminal in open_terminals:
         if terminal.lane_id is not lane_id:
             _fail(
                 AllocationProjectionRejectCodeV1.PROJECTION_NO_LANE_FOR_ROWS,
                 f"terminal {terminal.obligation_id} names {terminal.lane_id.value}",
             )
-        domains = sorted(
-            {
-                entitlement.control_domain
-                for entitlement in entitlements
-                if entitlement.asset == terminal.asset and entitlement.claimant == terminal.claimant
-            }
-        )
-        if not domains:
-            _fail(
-                AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT,
-                f"{terminal.obligation_id}: no entitlement for {terminal.claimant}",
-            )
-        # opus2 P41 P1-2 (B): naming two candidate domains is not the same as leaving the
-        # answer open. The checker bounds each (asset, claimant, domain) key's terminal total
-        # by that key's entitlement, so a domain entitled below this row's amount cannot host
-        # it and is not a candidate at all. Filtering by that capacity is the checker's own
-        # rule, not a preference: where it leaves exactly one domain the state DOES determine
-        # the row, and reporting an ambiguity there was false.
+    groups: dict[tuple[str, str], list[TerminalObligationV1]] = {}
+    for terminal in open_terminals:
+        groups.setdefault((terminal.asset, terminal.claimant), []).append(terminal)
+    assigned: dict[str, str] = {}
+    for (asset, claimant), members in sorted(groups.items()):
         capacity = {
             entitlement.control_domain: entitlement.amount_atoms
             for entitlement in entitlements
-            if entitlement.asset == terminal.asset and entitlement.claimant == terminal.claimant
+            if entitlement.asset == asset and entitlement.claimant == claimant
         }
-        hosting = [domain for domain in domains if capacity.get(domain, 0) >= terminal.amount_atoms]
-        if not hosting:
-            _fail(
-                AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
-                f"{terminal.obligation_id}: {terminal.amount_atoms} exceeds every entitled domain",
-            )
-        if len(hosting) != 1:
-            _fail(
-                AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS,
-                f"{terminal.obligation_id}: {len(hosting)} entitlement domains",
-            )
-        control_domain = hosting[0]
+        ordered = tuple(sorted(members, key=lambda item: item.obligation_id))
+        assigned.update(
+            _terminal_domain_assignment_v1(ordered, tuple(sorted(capacity)), capacity)
+        )
+    rows: list[TerminalBindingRowV1] = []
+    for terminal in sorted(open_terminals, key=lambda item: item.obligation_id):
+        control_domain = assigned[terminal.obligation_id]
         principals = sorted(
             {
                 location.controlling_principal
@@ -523,9 +592,7 @@ def _terminal_rows_v1(
         )
         if not principals:
             # Opus P40 P2-3: zero candidates is not an ambiguity. No controlled location can
-            # bind this row, so no certificate over the state is acceptable -- the same
-            # misclassification P39 P1-1 found for unassignable atoms, surviving inside its
-            # repair.
+            # bind this row, so no certificate over the state is acceptable.
             _fail(
                 AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_WITHOUT_BACKING,
                 f"{terminal.obligation_id}: no controlled location in {control_domain}",
@@ -547,29 +614,12 @@ def _terminal_rows_v1(
                 lane_state_root=lane_state_root,
             )
         )
-    # Opus P38 P2-1: the checker bounds the SUM of a fragment's terminal rows per
-    # (asset, claimant, control_domain) against the entitlement, so a state whose OPEN
-    # obligations over-claim reconciles to nothing and is refused here rather than
-    # derived into a certificate the checker must reject.
-    claimed: dict[tuple[str, str, str], int] = {}
-    for row in rows:
-        key = (row.asset, row.claimant, row.control_domain)
-        total = claimed.get(key, 0) + row.amount_atoms
-        if total > MAX_ATOMS_U128_V1:
-            _fail(
-                AllocationProjectionRejectCodeV1.PROJECTION_ROW_TOTAL_OVERFLOW,
-                f"terminal totals for {':'.join(key)}",
-            )
-        claimed[key] = total
-    entitled = {
-        (row.asset, row.claimant, row.control_domain): row.amount_atoms for row in entitlements
-    }
-    for key, total in sorted(claimed.items()):
-        if total > entitled.get(key, 0):
-            _fail(
-                AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,
-                f"{':'.join(key)} claims {total} of {entitled.get(key, 0)}",
-            )
+    # The per-key aggregate fold that used to stand here (Opus P38 P2-1) is now the
+    # assignment search's acceptance test: an assignment is valid only when every domain's
+    # placed total fits that key's entitlement, and the u128 bound is checked as the totals
+    # are formed. Re-folding the chosen rows here could no longer refuse anything -- it would
+    # be a guard whose mutation survives, which is the shape two reviews have flagged -- so
+    # the bound lives in one place (Opus P42 P1-2).
     return tuple(sorted(rows, key=lambda row: row.obligation_id))
 
 

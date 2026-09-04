@@ -312,6 +312,18 @@ def _validate_killer(
             and bool(rest)
             and not any(character.isspace() for character in rest)
         )
+        if cargo_filter and "/src/" in path:
+            # opus2 P42 P2-4: the ledger tool requires a crate unit-test filter to begin with
+            # the declared file's own module segment, because a --lib filter runs across the
+            # whole crate and the path would otherwise be decorative. The validator that gates
+            # every packet accepted the decorative form, so the rule lived in one of the two
+            # places that read these rows. It lives in both now.
+            module = path.rsplit("/", 1)[-1][: -len(".rs")]
+            require(
+                rest.startswith(f"{module}::"),
+                f"{packet_context}: crate unit-test filter must start with {module}::",
+            )
+            return
         if cargo_filter:
             return
         raise TestHygieneError(
