@@ -126,7 +126,12 @@ class AllocationProjectionRejectCodeV1(str, Enum):
 
     CALLER INPUT -- the supplied binding roots do not match the enabled receipt-backed
     lanes: ``..._BINDING_ROOT_UNEXPECTED``, ``..._BINDING_ROOT_MISSING``. These are about
-    the caller's argument, not about the state.
+    the caller's argument, not about the state. Two more of the same kind:
+    ``..._WITNESS_HEADER_DRIFT``, the supplied witness was minted under another chain,
+    deployment, profile or writer epoch than the state's -- the comparison the checker makes
+    in the pass after the fragment one, which an earlier candidate copied without its
+    neighbour; and ``..._WITNESS_REQUIRED``, an empty slot on an enabled receipt-backed lane,
+    which is an incomplete argument rather than the disclosed no-witness residue.
 
     UNDETERMINED -- the state does not pin the row content, so the projection refuses rather
     than choosing: ``..._EXTERNAL_RESIDUAL_AMBIGUOUS``, ``..._TERMINAL_DOMAIN_AMBIGUOUS``.
@@ -169,7 +174,7 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     For each row case in the UNRECONCILABLE kind a test BUILDS the certificate the state
     implies and shows the checker refusing it, rather than asserting the classification;
     for the UNDETERMINED kind a test exhibits the two row-checked certificates with
-    different allocation roots. The four kinds are a partition of all nineteen codes and
+    different allocation roots. The four kinds are a partition of all twenty-one codes and
     a test pins that partition against this enum.
     """
 
@@ -192,6 +197,8 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     PROJECTION_WITNESS_FRAGMENT_DRIFT = "PROJECTION_WITNESS_FRAGMENT_DRIFT"
     PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED = "PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED"
     PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED = "PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED"
+    PROJECTION_WITNESS_HEADER_DRIFT = "PROJECTION_WITNESS_HEADER_DRIFT"
+    PROJECTION_WITNESS_REQUIRED = "PROJECTION_WITNESS_REQUIRED"
 
 
 # The exhaustive terminal-assignment search is refused rather than truncated beyond this many
@@ -217,6 +224,8 @@ ALLOCATION_PROJECTION_REFUSAL_KINDS_V1: Final[dict[str, tuple[AllocationProjecti
         # root's receipt admitted. A foreign witness therefore refuses a state that has an
         # accepted certificate, which is a fact about the argument, not about the state.
         AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_FRAGMENT_DRIFT,
+        AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_HEADER_DRIFT,
+        AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_REQUIRED,
     ),
     "undetermined": (
         AllocationProjectionRejectCodeV1.PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS,
@@ -755,12 +764,40 @@ def project_allocation_certificate_v1(
         # it refuses instead of deriving an object the witness check must reject.
         if lane_witnesses:
             for fragment, witness in zip(fragments, lane_witnesses, strict=True):
+                registered_kind, _blocked = LANE_ALLOCATION_PRODUCER_REGISTRY_V1[fragment.lane_id]
                 if witness is None:
+                    # Supplying the slots is a claim that they are the ones the checker
+                    # requires, so an empty slot on an enabled receipt-backed lane is an
+                    # incomplete argument, not the disclosed no-witness residue: without it
+                    # the projection derived and the checker refused RECEIPT_WITNESS_REQUIRED
+                    # (found in review of C9c-6 at its own tip).
+                    if fragment.enabled and registered_kind is LaneProducerKindV1.RECEIPT_BACKED:
+                        _fail(
+                            AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_REQUIRED,
+                            f"{fragment.lane_id.value} is enabled and receipt-backed with an empty slot",
+                        )
                     continue
                 if witness.fragment != fragment:
                     _fail(
                         AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_FRAGMENT_DRIFT,
                         f"{fragment.lane_id.value} differs from its minted witness",
+                    )
+                # The checker binds the witness's HEADER to the state as well as its
+                # fragment, in the pass immediately after the one this loop mirrors. C9c-5
+                # copied the fragment comparison and not the header comparison beside it, so
+                # a witness minted under another deployment passed here and the checker then
+                # refused RECEIPT_WITNESS_HEADER_DRIFT: a derive-then-reject at the public
+                # entry point, on the argument the feature was added to check. Found by the
+                # external reviewer (Codex, C9c-5 P1-1) and still firing at C9c-6's tip.
+                if (witness.chain_id, witness.deployment_root, witness.profile_root, witness.writer_epoch) != (
+                    state.chain_id,
+                    state.deployment_root,
+                    state.profile_root,
+                    state.writer_epoch,
+                ):
+                    _fail(
+                        AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_HEADER_DRIFT,
+                        f"{fragment.lane_id.value} witness header differs from the state",
                     )
     except _Reject as rejected:
         return AllocationProjectionRejectedV1(rejected.code, rejected.detail, state_root)

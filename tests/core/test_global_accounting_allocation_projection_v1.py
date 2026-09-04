@@ -757,6 +757,70 @@ def test_an_unsearchable_terminal_assignment_is_refused_not_truncated() -> None:
     assert raised.value.code is AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED
 
 
+@pytest.mark.parametrize(
+    "field",
+    ["chain_id", "deployment_root", "profile_root", "writer_epoch"],
+)
+def test_a_witness_minted_under_another_header_is_refused(field: str) -> None:
+    """The external reviewer's P1 against C9c-5, still firing at C9c-6's tip.
+
+    The checker binds the witness's HEADER to the state in the pass immediately after the
+    fragment comparison. C9c-5 copied the fragment comparison and not the header comparison
+    beside it, so a witness minted under another deployment passed the projection and the
+    checker then refused RECEIPT_WITNESS_HEADER_DRIFT -- a derive-then-reject at the public
+    entry point, on the very argument the witness feature was added to check. Ten in-family
+    reviews did not find it; one external review did, and named the shape: the repair copies
+    the named field and not its neighbours.
+
+    All four header fields are covered here rather than the one the reviewer exhibited.
+    """
+
+    witness, state, _certificate, slots = _witnessed(with_rows=True)
+    roots = ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),)
+    assert isinstance(
+        project_allocation_certificate_v1(state, roots, slots),
+        cert.GlobalAccountingAllocationCertificateV1,
+    ), "the undrifted state must still derive, or this test proves nothing"
+
+    value = getattr(state, field)
+    other = value + 1 if isinstance(value, int) else "0x" + "cd" * 32
+    drifted = replace(state, **{field: other})
+    refused = project_allocation_certificate_v1(drifted, roots, slots)
+    assert isinstance(refused, AllocationProjectionRejectedV1), refused
+    assert refused.code is AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_HEADER_DRIFT
+    assert refused.state_root == drifted.state_root
+
+    # Without the guard the checker is what refuses, which is the defect: the projection
+    # derived an object the checker must reject. Pinned so a regression is visible as the
+    # thing it is.
+    assert _no_certificate_binds(drifted) in {"RECEIPT_WITNESS_HEADER_DRIFT", "RECEIPT_WITNESS_REQUIRED"}
+
+
+def test_an_empty_slot_on_an_enabled_receipt_backed_lane_is_refused() -> None:
+    """The third derive-then-reject, found reviewing C9c-6 at its own tip.
+
+    Supplying the twelve slots is a claim that they are the ones the checker requires, so an
+    empty slot on an enabled receipt-backed lane is an incomplete argument -- not the
+    disclosed no-witness residue, which is the caller passing NO slots at all. Before this
+    guard the comparison loop skipped the empty slot, the projection derived, and the checker
+    refused RECEIPT_WITNESS_REQUIRED.
+    """
+
+    witness, state, _certificate, _slots = _witnessed(with_rows=True)
+    roots = ((LaneIdV1.ASSET_TRANSFER, witness.fragment.binding_root),)
+    refused = project_allocation_certificate_v1(state, roots, cert.EMPTY_LANE_WITNESS_SLOTS_V1)
+    assert isinstance(refused, AllocationProjectionRejectedV1), refused
+    assert refused.code is AllocationProjectionRejectCodeV1.PROJECTION_WITNESS_REQUIRED
+    assert LaneIdV1.ASSET_TRANSFER.value in refused.detail
+
+    # Passing NO slots is the documented residue and still derives, so the new code refuses an
+    # incomplete argument rather than the absence of one.
+    assert isinstance(
+        project_allocation_certificate_v1(state, roots),
+        cert.GlobalAccountingAllocationCertificateV1,
+    )
+
+
 def test_the_three_refusal_kinds_partition_the_family() -> None:
     """Both P40 reviews, P3-1: the prose split omitted three of its thirteen codes,
     PROJECTION_ROWS_BEYOND_PRODUCER among them -- the guard the candidate was named for.
@@ -793,7 +857,7 @@ def test_reject_codes_are_closed_and_ordered() -> None:
     assert ALLOCATION_PROJECTION_REJECT_CODES_V1 == tuple(
         code.value for code in AllocationProjectionRejectCodeV1
     )
-    assert len(ALLOCATION_PROJECTION_REJECT_CODES_V1) == 19
+    assert len(ALLOCATION_PROJECTION_REJECT_CODES_V1) == 21
     import re as _re
     from pathlib import Path as _Path
 

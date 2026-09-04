@@ -1,0 +1,650 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260903-global-accounting-allocation-projection-v7",
+  "created_date": "2026-09-03",
+  "claim_scope": "Candidate C9c-7, and the first repair in this campaign driven by a review from OUTSIDE the model family that produced it. Codex (Sol Max) graded C9c-1..C9c-5 D+ where ten Claude reviews graded the same work B/B-, and falsified the central claim at the PUBLIC entry point with genuine receipt-admitted objects: the projection compared a supplied witness's FRAGMENT and not the HEADER tuple the checker binds in the very next pass, so a witness minted under another chain, deployment, profile or writer epoch was derived against and the checker then refused RECEIPT_WITNESS_HEADER_DRIFT. It still fired at C9c-6's tip; it is reproduced here for all four fields and refused with PROJECTION_WITNESS_HEADER_DRIFT. A third derive-then-reject, found reviewing C9c-6 at its own tip, is closed with it: supplying the twelve slots with an EMPTY slot on an enabled receipt-backed lane is an incomplete argument, not the disclosed no-witness residue, and is refused with PROJECTION_WITNESS_REQUIRED. Both new codes are caller_input: they are facts about the argument. What is NOT claimed: that the derive-or-accepted property now holds. An independent metamorphic matrix over 3,071 generated cases reports five further families this candidate does not address -- zero-support disagreement at the typed state boundary, caller-side refusals over states that do have accepted certificates, uniquely determined coupled zero-amount external rows refused as unsupported, and two private-construction-only families. They are open.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GAAC-PROJECTION-DERIVES-ROWS-FROM-STATE",
+    "GAAC-PROJECTION-REFUSES-UNDETERMINED-SHAPES",
+    "GAAC-PROJECTION-WITNESS-ADDS-ONLY-BINDING-ROOT",
+    "GAAC-PROJECTION-REJECT-IS-VALUE"
+  ],
+  "failure_modes": [
+    "a projection guesses a terminal row's control domain when the state names two candidates",
+    "a projection splits the residual controlled atoms across two pending obligations arbitrarily",
+    "a projection substitutes the lane state root for a witnessed lane's receipt root",
+    "a projection places rows on a lane the state has not enabled, or across two enabled lanes",
+    "a projection mutates or aliases the caller's state",
+    "a projection derives a certificate for a state whose lane configuration no certificate can satisfy, leaving the refusal to the checker while the module claims a derived certificate is accepted",
+    "a state-level refusal is classified by the projection's own say-so rather than by showing the checker refuses the candidate the state itself implies",
+    "a projection derives a certificate for a witnessed lane whose rows differ from the ones the lane root's receipt admitted, while the module claims a derived certificate is accepted",
+    "a witness input is accepted whose slots do not line up with the lanes they are compared against",
+    "a projection copies one field of a checker comparison and not its neighbours, so the guard passes and the checker refuses the object the guard was added to prevent",
+    "a caller supplies an incomplete witness slot tuple and the projection treats the empty slot as the absence of an argument rather than as an incomplete one"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_accounting_allocation_projection_v1.py",
+      "sha256": "fdc632c3f490e1ae8f6ac16d71b692f21a589692be2a99df662c93141165e76c"
+    },
+    {
+      "path": "src/core/global_accounting_allocation_certificate_v1.py",
+      "sha256": "e27b05cfb6c8749366f11f88856ff25602a0aec9237d64d66b40fc5a84dc6b88"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_accounting_allocation_projection_v1.py",
+      "sha256": "aa6f405409bd04f249f224e02143662b3cae3c316ed04a06db44de8c048c2022",
+      "node_ids": [
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[accepts_acknowledged_outbox_without_external_rows]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[accepts_drained_terminal_without_binding_row]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[accepts_registered_empty_certificate_over_empty_state]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[pins_roots_of_a_fully_classified_synthetic_fragment]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[pins_roots_of_u128_boundary_rows]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_all_lanes_enabled_at_the_first_unregistered_lane]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_custody_without_controlled_locations]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_disabled_lane_with_rows]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_disabled_lane_with_single_reserve_row]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_enabled_lane_without_receipt_backed_producer]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_enabled_receipt_backed_lane_without_witness]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_forged_allocation_root]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_forged_binding_root]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_forged_field_ownership_root]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_forged_terminal_binding_root]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_header_chain_context_drift]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_header_profile_root_drift]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_header_writer_epoch_drift]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_lane_enabled_flag_forged]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_lane_order_missing_lane]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_lane_order_swap]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_lane_state_root_forged]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_later_lane_root_drift_before_earlier_lane_rows]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_liabilities_without_entitlement_rows]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_open_terminal_without_binding_row]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_pending_outbox_without_external_rows]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_producer_kind_drift]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_registered_empty_lane_with_foreign_root]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_no_fixture_state_projects_to_a_row_or_root_defect[rejects_reserves_without_reserve_rows]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_fixture_partition_of_states_is_pinned",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_accepted_fixture_vectors_are_reproduced_byte_for_byte",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_witnessed_certificate_is_the_projection_plus_one_receipt_root",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_binding_root_for_an_unwitnessed_lane_is_refused",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_more_than_one_enabled_lane_is_refused_before_any_row_is_read",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_rows_without_an_enabled_lane_are_refused",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_projection_type_boundary_is_exact",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_terminal_with_no_controlling_principal_is_unreconcilable_not_ambiguous",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_witnessed_lane_whose_rows_drift_from_its_receipt_is_refused",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_witness_slots_are_exactly_typed",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_state_level_code_is_not_always_the_checkers_first_code",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_pending_row_over_no_residual_cell_is_declined_not_called_ambiguous",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_only_a_domain_that_can_carry_the_amount_is_a_candidate",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_terminal_domain_assignment_is_searched_not_decided_row_by_row",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unsearchable_terminal_assignment_is_refused_not_truncated",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_witness_minted_under_another_header_is_refused[chain_id]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_witness_minted_under_another_header_is_refused[deployment_root]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_witness_minted_under_another_header_is_refused[profile_root]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_witness_minted_under_another_header_is_refused[writer_epoch]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_empty_slot_on_an_enabled_receipt_backed_lane_is_refused",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_three_refusal_kinds_partition_the_family",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_reject_codes_are_closed_and_ordered",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_two_state_level_shapes_are_refused_not_derived[enabled-lane-without-producer]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_two_state_level_shapes_are_refused_not_derived[registered-empty-root-drift]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_state_level_refusal_precedes_the_allocation_refusals",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_witnessed_certificate_with_rows_is_reproduced_byte_for_byte",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[one-terminal-over-claiming-its-entitlement]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[two-terminals-over-claiming-together]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[a-claimant-with-no-entitlement-at-all]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[a-claimant-entitled-in-two-domains]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[two-principals-controlling-the-terminal's-domain]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[entitlements-exceeding-custody]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[controlled-atoms-no-obligation-can-absorb]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[two-residual-cells-for-one-obligation]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[an-obligation-with-no-controlled-location-behind-it]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[two-obligations-over-one-residual-cell]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[two-principals-controlling-the-residual-cell]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[a-zero-atom-entitlement-cannot-host-a-positive-claim]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[a-zero-atom-entitlement-in-the-claimant's-only-entitled-domain,-backed-nowhere]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[an-OPEN-obligation-naming-another-lane]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused[one-terminal-over-claiming-its-entitlement]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused[two-terminals-over-claiming-together]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused[a-claimant-with-no-entitlement-at-all]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused[entitlements-exceeding-custody]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused[controlled-atoms-no-obligation-can-absorb]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused[two-residual-cells-for-one-obligation]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused[an-obligation-with-no-controlled-location-behind-it]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused[a-zero-atom-entitlement-cannot-host-a-positive-claim]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused[a-zero-atom-entitlement-in-the-claimant's-only-entitled-domain,-backed-nowhere]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unreconcilable_row_case_has_its_state_consistent_candidate_refused[an-OPEN-obligation-naming-another-lane]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_undetermined_state_admits_two_row_checked_certificates_with_different_roots",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[one-terminal-over-claiming-its-entitlement]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[two-terminals-over-claiming-together]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[a-claimant-with-no-entitlement-at-all]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[a-claimant-entitled-in-two-domains]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[two-principals-controlling-the-terminal's-domain]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[entitlements-exceeding-custody]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[controlled-atoms-no-obligation-can-absorb]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[two-residual-cells-for-one-obligation]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[an-obligation-with-no-controlled-location-behind-it]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[two-obligations-over-one-residual-cell]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[two-principals-controlling-the-residual-cell]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[a-zero-atom-entitlement-cannot-host-a-positive-claim]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[a-zero-atom-entitlement-in-the-claimant's-only-entitled-domain,-backed-nowhere]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[an-OPEN-obligation-naming-another-lane]",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_accepts_the_determined_shapes",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_witnessed_lane_carrying_rows_no_producer_emits_is_refused",
+        "tests/core/test_global_accounting_allocation_projection_v1.py::test_both_checked_folds_refuse_a_u128_overflow"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges one exact GlobalEconomicStateV1 (from the golden renderer or the admission fixture), invokes project_allocation_certificate_v1 once, and asserts either the exact canonical bytes of the derived certificate and the checker's outcome over it, or the exact closed refusal code and detail with the unchanged state root."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every projection refusal is a value carrying the pre-state root; the projection performs no mutation of the state or of any caller-supplied tuple, and the type-boundary refusals raise before any row is read."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "enabled_lane_count",
+      "points": [
+        "zero enabled lanes with no rows accepted",
+        "zero enabled lanes with rows refused",
+        "one enabled lane derived",
+        "two enabled lanes refused before any row is read"
+      ]
+    },
+    {
+      "name": "binding_root_supply",
+      "points": [
+        "absent for an unwitnessed lane accepted",
+        "absent for a witnessed lane refused",
+        "supplied for an unwitnessed lane refused",
+        "one lane named twice refused at the type boundary"
+      ]
+    },
+    {
+      "name": "terminal_domain_preimages",
+      "points": [
+        "exactly one entitlement domain derived",
+        "two entitlement domains refused"
+      ]
+    },
+    {
+      "name": "external_residual",
+      "points": [
+        "one pending entry over one residual cell derived",
+        "two pending entries over one residual cell refused",
+        "no pending entry with a non-zero residual refused"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "substitute the lane state root when a witnessed lane's binding root is missing instead of refusing",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_witnessed_certificate_is_the_projection_plus_one_receipt_root",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "        if lane not in supplied:"
+        ],
+        "replacement_lines": [
+          "        if lane not in supplied and False:"
+        ]
+      }
+    },
+    {
+      "description": "guess the first entitlement domain for a terminal row with two candidate domains",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_terminal_domain_assignment_is_searched_not_decided_row_by_row",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if len(valid) > 1:",
+          "        _fail("
+        ],
+        "replacement_lines": [
+          "    if len(valid) > 1 and False:",
+          "        _fail("
+        ]
+      }
+    },
+    {
+      "description": "assign the whole residual to the first of two pending obligations",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[two-obligations-over-one-residual-cell]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if len(pending) != 1 or len(open_cells) != 1:"
+        ],
+        "replacement_lines": [
+          "    if len(open_cells) != 1:"
+        ]
+      }
+    },
+    {
+      "description": "place no refusal on economic rows when every lane is disabled",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_rows_without_an_enabled_lane_are_refused",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "            if controlled or entitlements or reserves or open_terminals or pending_outbox:"
+        ],
+        "replacement_lines": [
+          "            if False:"
+        ]
+      }
+    },
+    {
+      "description": "project across two enabled lanes instead of refusing before any row is read",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_more_than_one_enabled_lane_is_refused_before_any_row_is_read",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if len(enabled) > 1:"
+        ],
+        "replacement_lines": [
+          "    if len(enabled) > 2:"
+        ]
+      }
+    },
+    {
+      "description": "accept a binding root for a lane that is not enabled and receipt-backed",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_binding_root_for_an_unwitnessed_lane_is_refused",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "        if lane not in required:"
+        ],
+        "replacement_lines": [
+          "        if lane not in required and False:"
+        ]
+      }
+    },
+    {
+      "description": "admit a list of lane/root pairs at the type boundary",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_projection_type_boundary_is_exact",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if type(lane_binding_roots) is not tuple:"
+        ],
+        "replacement_lines": [
+          "    if not isinstance(lane_binding_roots, (tuple, list)):"
+        ]
+      }
+    },
+    {
+      "description": "collapse a member of the closed projection reject family into an alias of another",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_reject_codes_are_closed_and_ordered",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    PROJECTION_BINDING_ROOT_UNEXPECTED = \"PROJECTION_BINDING_ROOT_UNEXPECTED\""
+        ],
+        "replacement_lines": [
+          "    PROJECTION_BINDING_ROOT_UNEXPECTED = \"PROJECTION_BINDING_ROOT_MISSING\""
+        ]
+      }
+    },
+    {
+      "description": "commit a binding root that is not the committed lane state root for un-witnessed lanes",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_fixture_partition_of_states_is_pinned",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "                binding_root=binding_roots.get(lane_root.lane_id, lane_root.state_root),"
+        ],
+        "replacement_lines": [
+          "                binding_root=lane_root.module_release_id,"
+        ]
+      }
+    },
+    {
+      "description": "derive a certificate whose terminal rows over-claim their entitlement (Opus P38 P2-1)",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[two-terminals-over-claiming-together]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if not valid:"
+        ],
+        "replacement_lines": [
+          "    if not valid and False:"
+        ]
+      }
+    },
+    {
+      "description": "derive a terminal row for a claimant the state gives no entitlement",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[a-claimant-with-no-entitlement-at-all]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if not domains:"
+        ],
+        "replacement_lines": [
+          "    if not domains and False:"
+        ]
+      }
+    },
+    {
+      "description": "derive an external row when entitlements and reserves exceed custody (Opus P39 P1-1: this code sat after an early return and could fire only when an outbox entry happened to exist)",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[entitlements-exceeding-custody]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if negative:"
+        ],
+        "replacement_lines": [
+          "    if False:"
+        ]
+      }
+    },
+    {
+      "description": "report unassignable controlled atoms as an ambiguity, though no certificate over such a state is acceptable",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[controlled-atoms-no-obligation-can-absorb]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if len(open_cells) > len(pending):"
+        ],
+        "replacement_lines": [
+          "    if False:"
+        ]
+      }
+    },
+    {
+      "description": "write an external row for an obligation with no controlled location to bind its source principal to",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[an-obligation-with-no-controlled-location-behind-it]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if not controlled and pending:"
+        ],
+        "replacement_lines": [
+          "    if False:"
+        ]
+      }
+    },
+    {
+      "description": "choose one of two principals controlling the residual cell",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[two-principals-controlling-the-residual-cell]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if len(principals) != 1:",
+          "        _fail("
+        ],
+        "replacement_lines": [
+          "    if False:",
+          "        _fail("
+        ]
+      }
+    },
+    {
+      "description": "choose one of two principals controlling a terminal row's domain",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[two-principals-controlling-the-terminal's-domain]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "        if len(principals) != 1:",
+          "            _fail(",
+          "                AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS,"
+        ],
+        "replacement_lines": [
+          "        if False:",
+          "            _fail(",
+          "                AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS,"
+        ]
+      }
+    },
+    {
+      "description": "attach an OPEN obligation of another lane to the enabled lane's fragment",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_row_derivation_refuses_every_shape_the_state_leaves_open_or_impossible[an-OPEN-obligation-naming-another-lane]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "        if terminal.lane_id is not lane_id:"
+        ],
+        "replacement_lines": [
+          "        if False:"
+        ]
+      }
+    },
+    {
+      "description": "fold controlled totals without the checked u128 bound",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_both_checked_folds_refuse_a_u128_overflow",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "        if total > MAX_ATOMS_U128_V1:",
+          "            _fail(",
+          "                AllocationProjectionRejectCodeV1.PROJECTION_ROW_TOTAL_OVERFLOW,",
+          "                f\"controlled totals for {asset_domain(key)}\","
+        ],
+        "replacement_lines": [
+          "        if total > MAX_ATOMS_U128_V1 and False:",
+          "            _fail(",
+          "                AllocationProjectionRejectCodeV1.PROJECTION_ROW_TOTAL_OVERFLOW,",
+          "                f\"controlled totals for {asset_domain(key)}\","
+        ]
+      }
+    },
+    {
+      "description": "fold terminal totals without the checked u128 bound",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_both_checked_folds_refuse_a_u128_overflow",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "            if total > MAX_ATOMS_U128_V1:"
+        ],
+        "replacement_lines": [
+          "            if total > MAX_ATOMS_U128_V1 and False:"
+        ]
+      }
+    },
+    {
+      "description": "reproduce a witnessed certificate without the rows the receipt proved",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_witnessed_certificate_with_rows_is_reproduced_byte_for_byte",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "            controlled_locations=controlled if lane_root.lane_id is owning_lane else (),"
+        ],
+        "replacement_lines": [
+          "            controlled_locations=(),"
+        ]
+      }
+    },
+    {
+      "description": "derive rows a receipt-backed producer cannot source instead of refusing (the guard this candidate's predecessor was named for, declared by neither)",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_which_row_cases_the_entry_point_reaches_is_pinned[one-terminal-over-claiming-its-entitlement]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "                if beyond:"
+        ],
+        "replacement_lines": [
+          "                if beyond and False:"
+        ]
+      }
+    },
+    {
+      "description": "report a terminal with zero candidate principals as an ambiguity, the UNDETERMINED kind, when no certificate over the state can bind it",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_terminal_with_no_controlling_principal_is_unreconcilable_not_ambiguous",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "        if not principals:"
+        ],
+        "replacement_lines": [
+          "        if not principals and False:"
+        ]
+      }
+    },
+    {
+      "description": "derive a certificate for an enabled lane whose registry entry has no producer instead of refusing",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_two_state_level_shapes_are_refused_not_derived[enabled-lane-without-producer]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "        if registered_kind is not LaneProducerKindV1.RECEIPT_BACKED:"
+        ],
+        "replacement_lines": [
+          "        if registered_kind is not LaneProducerKindV1.RECEIPT_BACKED and False:"
+        ]
+      }
+    },
+    {
+      "description": "derive a certificate for a registered-empty lane committed at a foreign root instead of refusing",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_two_state_level_shapes_are_refused_not_derived[registered-empty-root-drift]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "        if registered_root is not None and lane_root.state_root != registered_root:"
+        ],
+        "replacement_lines": [
+          "        if registered_root is not None and lane_root.state_root != registered_root and False:"
+        ]
+      }
+    },
+    {
+      "description": "derive a certificate for a witnessed lane whose rows differ from the ones its minted witness carries, instead of refusing when the witness is supplied",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_witnessed_lane_whose_rows_drift_from_its_receipt_is_refused",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "                if witness.fragment != fragment:"
+        ],
+        "replacement_lines": [
+          "                if witness.fragment != fragment and False:"
+        ]
+      }
+    },
+    {
+      "description": "accept a witness slot tuple of the wrong length, so a caller's slots need not line up with the twelve lanes they are zipped against",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_witness_slots_are_exactly_typed",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if lane_witnesses and len(lane_witnesses) != len(ALL_LANE_IDS_V1):"
+        ],
+        "replacement_lines": [
+          "    if lane_witnesses and len(lane_witnesses) != len(ALL_LANE_IDS_V1) and False:"
+        ]
+      }
+    },
+    {
+      "description": "accept an assignment that overfills a domain, so the per-key bound the checker enforces is not the one the search enforces",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_terminal_domain_assignment_is_searched_not_decided_row_by_row",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "        if all(total <= capacity.get(domain, 0) for domain, total in placed.items()):"
+        ],
+        "replacement_lines": [
+          "        if True:"
+        ]
+      }
+    },
+    {
+      "description": "truncate the assignment search past its cap instead of refusing, so a refusal would depend on how much of the space was examined",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_unsearchable_terminal_assignment_is_refused_not_truncated",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if len(domains) ** len(terminals) > TERMINAL_ASSIGNMENT_SEARCH_CAP_V1:"
+        ],
+        "replacement_lines": [
+          "    if len(domains) ** len(terminals) > TERMINAL_ASSIGNMENT_SEARCH_CAP_V1 and False:"
+        ]
+      }
+    },
+    {
+      "description": "report a pending row over no residual cell as an ambiguity when the state determines it",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_pending_row_over_no_residual_cell_is_declined_not_called_ambiguous",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "        if len(cells) == 1 and len(controlling) == 1:"
+        ],
+        "replacement_lines": [
+          "        if len(cells) == 1 and len(controlling) == 1 and False:"
+        ]
+      }
+    },
+    {
+      "description": "accept a witness slot that is not the exact minted witness type",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_witness_slots_are_exactly_typed",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    for slot in lane_witnesses:"
+        ],
+        "replacement_lines": [
+          "    for slot in ():"
+        ]
+      }
+    },
+    {
+      "description": "accept a witness argument that is not an exact tuple, where the parallel binding-roots guard three lines above has carried a row since C9c-1 (opus2 P42 P3-4)",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_the_witness_slots_are_exactly_typed",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "    if type(lane_witnesses) is not tuple:"
+        ],
+        "replacement_lines": [
+          "    if type(lane_witnesses) is not tuple and False:"
+        ]
+      }
+    },
+    {
+      "description": "compare a supplied witness's fragment and not the header tuple the checker binds beside it, the defect an external review found at the public entry point",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_a_witness_minted_under_another_header_is_refused[chain_id]",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "                if (witness.chain_id, witness.deployment_root, witness.profile_root, witness.writer_epoch) != ("
+        ],
+        "replacement_lines": [
+          "                if False and ("
+        ]
+      }
+    },
+    {
+      "description": "skip an empty witness slot on an enabled receipt-backed lane, so an incomplete argument derives and the checker refuses RECEIPT_WITNESS_REQUIRED",
+      "killed_by": "tests/core/test_global_accounting_allocation_projection_v1.py::test_an_empty_slot_on_an_enabled_receipt_backed_lane_is_refused",
+      "mutant": {
+        "path": "src/core/global_accounting_allocation_projection_v1.py",
+        "needle_lines": [
+          "                    if fragment.enabled and registered_kind is LaneProducerKindV1.RECEIPT_BACKED:"
+        ],
+        "replacement_lines": [
+          "                    if False:"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "This packet establishes no production, settlement, release, migration, proof-receipt, or value-moving authority.",
+    "The projection has no consumer: no publisher, verifier, or client calls it, so it refuses nothing at runtime.",
+    "The projection verifies no receipt; a binding root it accepts is bound to a receipt only where the caller obtained it from an admission witness, and the projection cannot tell the difference.",
+    "Multi-lane field ownership is undecided: more than one enabled lane is refused rather than apportioned.",
+    "The projection does not establish that the state is correct, only that a certificate over it reconciles.",
+    "The projection has NO Rust twin, against this cycle's convention that a Python authority carries one; the Rust checker therefore has no derived-certificate path and no parity vectors for one.",
+    "The certificate's source-principal and terminal controlling-principal bindings CONSTRAIN but do not DETERMINE: each binds to SOME controlled location of the fragment, so a cell controlled by two principals admits two certificates that pass every row, partition and aggregate check over one state, with different allocation roots. NOT two ACCEPTED certificates: under the current registry the full checker refuses both (RECEIPT_WITNESS_REQUIRED), which test_an_undetermined_state_admits_two_row_checked_certificates_with_different_roots asserts. The projection refuses such a state rather than choosing.",
+    "Under the current registry ELEVEN of the thirteen row cases are masked by PROJECTION_ROWS_BEYOND_PRODUCER before their own code can fire, and TWO reach their own code through the public entry point (entitlements exceeding custody, and controlled atoms no obligation can absorb) -- which test_which_row_cases_the_entry_point_reaches_is_pinned pins as a partition rather than restating. The ten are exercised through the module helpers and state the contract a future producer would have to meet, not behaviour any registered lane exhibits today.",
+    "The fixture partition is a statement about the twenty-nine golden states only. It is not a general property of the projection, and the general form of it was false before this cut.",
+    "A projection refusal says this state determines no single acceptable certificate; it does not say the state is invalid, and no consumer acts on either answer.",
+    "The projection compares a supplied witness; it does not verify one. Given lane_witnesses -- the same slots the checker requires -- a fragment that differs from the one the witness carries is refused (PROJECTION_WITNESS_FRAGMENT_DRIFT, a caller_input code) rather than derived. WITHOUT them the earlier behaviour stands: a state whose rows differ from the ones the committed lane root's receipt admitted still projects to a certificate, which the checker's witness pass then refuses. Both P41 reviewers asked for this residue in a numbered nonclaim and C9c-5 put it only in claim 2 and the claim_scope (opus2 P42 P3-5)."
+  ]
+}

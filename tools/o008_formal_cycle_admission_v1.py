@@ -93,9 +93,9 @@ PROJECTION_PYTHON_TEST_PATH_V1: Final = "tests/core/test_global_accounting_alloc
 # string-only rows had. The expected kill counts are pinned so a row cannot be quietly dropped.
 LEDGER_TOOL_PATH_V1: Final = "tools/thv1_mutation_ledger_v1.py"
 LEDGER_GATED_PACKETS_V1: Final[tuple[tuple[str, str, int], ...]] = (
-    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v6", 31),
+    ("ledger_projection_rows", "THV1-20260903-global-accounting-allocation-projection-v7", 33),
     ("ledger_tool_rows", "THV1-20260903-thv1-mutation-ledger-v7", 22),
-    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v39", 3),
+    ("ledger_checker_rows", "THV1-20260901-o008-formal-cycle-admission-v40", 3),
     ("ledger_admission_rows", "THV1-20260903-o008-asset-transfer-receipt-admission-mechanical-v3", 31),
     ("ledger_ownership_rows", "THV1-20260903-global-settlement-exact-ownership-mechanical-v3", 21),
     ("ledger_certificate_rows", "THV1-20260901-global-accounting-allocation-certificate-v23", 2),
@@ -538,6 +538,14 @@ CERTIFICATE_FRAGMENT_ROW_FIELDS_V1: Final[tuple[str, ...]] = (
 )
 CERTIFICATE_IMPLEMENTATION_STATUS_V1: Final = "IMPLEMENTED_REGISTERED_EMPTY_ONLY_NOT_MOUNTED"
 
+# opus2 P42 proposed rendering the projection's kind sentence FROM the module's kinds table so
+# the count and code lists cannot drift, which is a better construction than C9c-6's test that
+# asserts they agree. It is not adopted: the checker keeps CORE_IMPORT_ALLOWLIST so that
+# admitting a packet never executes the code the packet is about, and rendering requires
+# importing the subject. That invariant is worth more than removing a drift risk which the
+# binding test already catches -- a claim that drifts now fails a test rather than shipping.
+# The sentence below is therefore hand-written AND bound by
+# test_the_projection_nonclaim_is_bound_to_the_modules_kinds_table.
 NONCLAIMS_V1: Final[tuple[str, ...]] = (
     "The completed formal cycle does not complete O-008.",
     "Receipt admission for the ASSET_TRANSFER fragment (C9a) proves the custody rows the"
@@ -556,34 +564,38 @@ NONCLAIMS_V1: Final[tuple[str, ...]] = (
     " other eleven lanes must be disabled and empty, so it reconciles at most the asset-transfer"
     " lane and no exact all-twelve-lane reconciliation exists.",
     "The allocation certificate is DERIVED from the verified state by the C9c projection, which"
-    " refuses with a closed code wherever it cannot derive one the checker accepts. FOUR kinds of"
-    " refusal share that family, and this sentence is bound to the module's own kinds table by a"
-    " test, because it drifted from the code in three consecutive candidates (Opus P42 P1-1)."
-    " CALLER_INPUT, the supplied binding roots do not match the enabled receipt-backed lanes:"
-    " PROJECTION_BINDING_ROOT_UNEXPECTED, PROJECTION_BINDING_ROOT_MISSING, and"
-    " PROJECTION_WITNESS_FRAGMENT_DRIFT, which compares the derived fragment against the witness"
-    " the caller supplied and does not verify that it is the one the lane root's receipt admitted."
-    " UNDETERMINED, the state does not pin the row content, so deriving one would be a guess:"
-    " PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS, PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS. This does NOT"
-    " mean more than one ACCEPTED certificate exists (under the current registry none of these"
-    " states has one), nor that more than one row-checked certificate exists: both of those"
-    " wordings were shipped and falsified, at P40 and P41."
-    " UNSUPPORTED, the state determines the answer and the module declines to derive it:"
-    " PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED, a pending obligation over no residual cell whose"
-    " only candidate row carries zero atoms."
+    " refuses with a closed code wherever it cannot derive one the checker accepts. FOUR kinds"
+    " of refusal share that family, and this sentence is bound to the module's own kinds table"
+    " by a test rather than rendered from it, because the checker's import allowlist keeps it"
+    " from executing the code it checks (Opus P42 P1-1; opus2 P42 proposed rendering, which"
+    " that invariant forbids)."
+    " CALLER_INPUT, the supplied binding roots or witness slots do not match what the enabled"
+    " receipt-backed lanes require: PROJECTION_BINDING_ROOT_UNEXPECTED,"
+    " PROJECTION_BINDING_ROOT_MISSING, PROJECTION_WITNESS_FRAGMENT_DRIFT,"
+    " PROJECTION_WITNESS_HEADER_DRIFT, PROJECTION_WITNESS_REQUIRED."
+    " UNDETERMINED, the state does not pin the row content: PROJECTION_EXTERNAL_RESIDUAL_AMBIGUOUS,"
+    " PROJECTION_TERMINAL_DOMAIN_AMBIGUOUS -- NOT that more than one ACCEPTED certificate exists,"
+    " and NOT that more than one row-checked certificate exists; both wordings were shipped and"
+    " falsified, at P40 and P41."
+    " UNSUPPORTED, the state determines the answer and this module declines to derive it:"
+    " PROJECTION_ZERO_RESIDUAL_ROW_UNSUPPORTED."
     " UNRECONCILABLE, no certificate over this state can be accepted:"
     " PROJECTION_MULTIPLE_ENABLED_LANES, PROJECTION_NO_LANE_FOR_ROWS, PROJECTION_NEGATIVE_RESIDUAL,"
     " PROJECTION_UNASSIGNED_CONTROLLED_ATOMS, PROJECTION_PENDING_WITHOUT_BACKING,"
     " PROJECTION_ROWS_BEYOND_PRODUCER, PROJECTION_TERMINAL_WITHOUT_ENTITLEMENT,"
     " PROJECTION_TERMINAL_WITHOUT_BACKING, PROJECTION_TERMINAL_EXCEEDS_ENTITLEMENT,"
     " PROJECTION_ROW_TOTAL_OVERFLOW, PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER,"
-    " PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT and"
-    " PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED (the assignment search is refused rather than"
-    " truncated past its cap, so a refusal never depends on how much of the space was examined)."
-    " The sealed witness contributes its binding root and its header, not its rows; when the caller"
-    " supplies the witness slots the checker requires, a fragment that differs from the one the"
-    " witness carries is refused rather than derived. The projection has no consumer: no publisher,"
-    " verifier, or client calls it, so it refuses nothing at runtime, and it verifies no receipt.",
+    " PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT, PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED."
+    " The assignment search is refused rather than truncated"
+    " past its cap, so a refusal never depends on how much of the space was examined. The sealed"
+    " witness contributes its binding root and its header, not its rows; when the caller supplies"
+    " the witness slots the checker requires, a fragment or header that differs from the one the"
+    " witness carries is refused rather than derived, and an empty slot on an enabled"
+    " receipt-backed lane is refused as an incomplete argument. WITHOUT slots the residue stands:"
+    " a state whose rows differ from the ones the committed lane root's receipt admitted still"
+    " projects to a certificate, which the checker's witness pass then refuses. The projection has"
+    " no consumer: no publisher, verifier, or client calls it, so it refuses nothing at runtime,"
+    " and it verifies no receipt.",
     "The ESSO model does not refine current Python, Rust, RISC0, Tau, verifier, or publisher"
     " execution.",
     "The Rust receipt-admission twin mirrors the Python check order and reject family but not the"
@@ -1176,7 +1188,7 @@ ADMISSION_RUST_GATE_TARGET_V1: Final = "lane_module_release_route_binding"
 ADMISSION_RUST_GATE_FILTER_V1: Final = "receipt_admission_"
 ADMISSION_RUST_GATE_EXPECTED_PASSED_V1: Final = 5
 # C9c-1: the certificate derived from the state, and the two shapes V1 state leaves undetermined.
-PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 92
+PROJECTION_GATE_EXPECTED_PASSED_V1: Final = 97
 CERTIFICATE_RUST_UNIT_FILTER_V1: Final = "global_accounting_allocation_certificate::tests::"
 CERTIFICATE_RUST_UNIT_GATE_EXPECTED_PASSED_V1: Final = 5
 PYTHON_GOLDEN_GATE_EXPECTED_PASSED_V1: Final = 35
