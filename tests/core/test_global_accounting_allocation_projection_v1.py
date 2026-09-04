@@ -821,6 +821,75 @@ def test_an_empty_slot_on_an_enabled_receipt_backed_lane_is_refused() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("label", "tables"),
+    [
+        pytest.param("zero-custody", {"custody": (("alice", "USD", "d1", 0),), "liabilities": ()}, id="zero-custody-row"),
+        pytest.param("zero-liability", {"custody": (), "liabilities": (("alice", "USD", "d1", 0),)}, id="zero-liability-row"),
+        pytest.param(
+            "cross-key",
+            {"custody": (("alice", "USD", "d1", 0),), "liabilities": (("alice", "USD", "d2", 0),)},
+            id="cross-key-zero-rows",
+        ),
+    ],
+)
+def test_a_zero_amount_economic_row_is_refused_not_derived(label: str, tables: dict) -> None:
+    """Codex's metamorphic matrix, P2-1: absent and zero support are not interchangeable.
+
+    The checker compares support DICTIONARIES, so a zero-amount row is a present key with
+    value zero on one side and no key at all on the other. The projection derived, and the
+    derived certificate failed SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE. Sixteen invocation
+    cases over twelve state roots in that matrix; these are its three minima.
+
+    Both halves are pinned: the state is refused now, AND the certificate that used to be
+    derived is shown to fail the checker's partition pass, so the refusal is justified rather
+    than asserted. At the public entry point the witness gate masked the row failure, which is
+    why this is checked against the row passes directly.
+    """
+
+    state = _backed_state((), outbox=(), **tables)
+    refused = _project(state, _root_of(state))
+    assert isinstance(refused, AllocationProjectionRejectedV1), refused
+    assert refused.code is AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW
+    assert (
+        AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW
+        in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1["unreconcilable"]
+    )
+
+    # The refusal is justified: the candidate the state implies fails the partition pass.
+    candidate = _state_consistent_candidate(state)
+    with pytest.raises(cert._Reject) as raised:
+        cert._check_exactly_once(candidate)
+    assert raised.value.code.value == "SOURCE_ATOM_NOT_ASSIGNED_EXACTLY_ONCE"
+
+
+def test_a_caller_input_refusal_says_nothing_about_the_state() -> None:
+    """Codex C9c-5 P2-3, pinned rather than argued.
+
+    Under a state-existential reading, a projection that refuses a state which HAS an accepted
+    certificate is a counterexample. Four such invocations exist and all four are refusals of
+    the ARGUMENT: an unexpected binding root on a state whose registered-empty certificate the
+    checker accepts. The claim is over a well-formed invocation, and this exhibits both sides
+    of that distinction in one test so the scoping cannot quietly become a universal claim.
+    """
+
+    state = renderer.build_state_v1(renderer._spec())
+    accepted = cert.build_registered_empty_certificate_v1(state)
+    outcome = cert.check_global_accounting_allocation_certificate_v1(
+        accepted, state, cert.EMPTY_LANE_WITNESS_SLOTS_V1
+    )
+    assert isinstance(outcome, cert.AllocationCertificateAcceptedV1), outcome
+
+    # The same state, with a binding root no enabled receipt-backed lane asked for.
+    refused = _project(state, ((LaneIdV1.ASSET_TRANSFER, state.lane_roots[0].state_root),))
+    assert isinstance(refused, AllocationProjectionRejectedV1), refused
+    assert refused.code is AllocationProjectionRejectCodeV1.PROJECTION_BINDING_ROOT_UNEXPECTED
+    assert refused.code in ALLOCATION_PROJECTION_REFUSAL_KINDS_V1["caller_input"]
+
+    # And the well-formed invocation over the same state derives.
+    assert isinstance(_project(state), cert.GlobalAccountingAllocationCertificateV1)
+
+
 def test_the_three_refusal_kinds_partition_the_family() -> None:
     """Both P40 reviews, P3-1: the prose split omitted three of its thirteen codes,
     PROJECTION_ROWS_BEYOND_PRODUCER among them -- the guard the candidate was named for.
@@ -857,7 +926,7 @@ def test_reject_codes_are_closed_and_ordered() -> None:
     assert ALLOCATION_PROJECTION_REJECT_CODES_V1 == tuple(
         code.value for code in AllocationProjectionRejectCodeV1
     )
-    assert len(ALLOCATION_PROJECTION_REJECT_CODES_V1) == 21
+    assert len(ALLOCATION_PROJECTION_REJECT_CODES_V1) == 22
     import re as _re
     from pathlib import Path as _Path
 
@@ -1241,13 +1310,26 @@ def test_which_row_cases_the_entry_point_reaches_is_pinned(
     """
 
     reaches_entry = {"entitlements exceeding custody", "controlled atoms no obligation can absorb"}
+    # Two cases carry a zero-amount economic row, which the entry point now refuses before the
+    # producer guard: zero-present and absent differ to the checker, so no certificate over
+    # such a state is acceptable (Codex C9c-5 P2-1). They are still row cases -- the harness
+    # reaches their own code -- but the entry point reports the earlier fact.
+    refused_as_noncanonical = {
+        "a zero-atom entitlement cannot host a positive claim",
+        "a zero-atom entitlement in the claimant's only entitled domain, backed nowhere",
+    }
     assert len(_ROW_CASES) == 14, "the counts in the docstrings above are over all of them"
     state = _backed_state(
         tuple(_terminal(t[0], t[1], **(t[2] if len(t) > 2 else {})) for t in terminals), **tables
     )
     projected = _project(state, _root_of(state))
     assert isinstance(projected, AllocationProjectionRejectedV1), label
-    if label in reaches_entry:
+    if label in refused_as_noncanonical:
+        assert (
+            projected.code
+            is AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW
+        ), (label, projected.code)
+    elif label in reaches_entry:
         assert projected.code is code, (label, projected.code)
     else:
         assert projected.code is AllocationProjectionRejectCodeV1.PROJECTION_ROWS_BEYOND_PRODUCER, (

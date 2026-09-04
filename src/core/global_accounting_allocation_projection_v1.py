@@ -14,7 +14,17 @@ registered-empty projection or assembles one by hand in a test. A checker whose 
 is hand-assembled proves that some object passes; a checker whose input is *derived*
 from the state proves something about the state.
 
-WHAT IS CLAIMED, and what three reviews have already falsified in earlier wordings.
+WHAT IS CLAIMED, and what five reviews have already falsified in earlier wordings.
+
+0. THE CLAIM IS OVER A WELL-FORMED INVOCATION, not over a state alone. The caller supplies
+   the binding roots and, optionally, the witness slots the checker requires; the
+   ``caller_input`` codes refuse the ARGUMENT, and such a refusal says nothing about whether
+   the state has an accepted certificate -- it usually does. An external metamorphic matrix
+   counted four of these as counterexamples under a state-existential reading (Codex,
+   C9c-5 P2-3), and it is right that the two readings differ, so the intended one is stated
+   here rather than left to be inferred. The reviewer's preferred fix is a contract change --
+   drop the redundant binding-root input and take the root from the witness -- which is not
+   made here and is named as open.
 
 1. The projection derives ONE certificate, and where V1 state leaves the answer open it
    refuses rather than guessing (the ``..._AMBIGUOUS`` codes). It does NOT follow that
@@ -162,7 +172,10 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     order AMONG THESE TWO, so among them the projection names the code the checker raises
     first -- not in general, since the receipt-witness check runs between them (Opus P42
     P2-6 found this sentence surviving 177 lines from the paragraph that denies it):
-    ``..._ENABLED_LANE_WITHOUT_PRODUCER``, ``..._REGISTERED_EMPTY_ROOT_DRIFT``. And from a
+    ``..._ENABLED_LANE_WITHOUT_PRODUCER``, ``..._REGISTERED_EMPTY_ROOT_DRIFT``, and
+    ``..._NONCANONICAL_ZERO_ECONOMIC_ROW`` (a zero-amount custody, liability or reserve row:
+    the checker compares support dictionaries, so zero-present and absent differ and no
+    certificate over such a state is acceptable). And from a
     search this module refuses to truncate: ``..._TERMINAL_ASSIGNMENT_UNSEARCHED``, when the
     space of domain assignments for one claimant exceeds the cap, so a refusal never depends
     on how much of it was examined. And from
@@ -174,7 +187,7 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     For each row case in the UNRECONCILABLE kind a test BUILDS the certificate the state
     implies and shows the checker refusing it, rather than asserting the classification;
     for the UNDETERMINED kind a test exhibits the two row-checked certificates with
-    different allocation roots. The four kinds are a partition of all twenty-one codes and
+    different allocation roots. The four kinds are a partition of all twenty-two codes and
     a test pins that partition against this enum.
     """
 
@@ -199,6 +212,7 @@ class AllocationProjectionRejectCodeV1(str, Enum):
     PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED = "PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED"
     PROJECTION_WITNESS_HEADER_DRIFT = "PROJECTION_WITNESS_HEADER_DRIFT"
     PROJECTION_WITNESS_REQUIRED = "PROJECTION_WITNESS_REQUIRED"
+    PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW = "PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW"
 
 
 # The exhaustive terminal-assignment search is refused rather than truncated beyond this many
@@ -251,6 +265,7 @@ ALLOCATION_PROJECTION_REFUSAL_KINDS_V1: Final[dict[str, tuple[AllocationProjecti
         AllocationProjectionRejectCodeV1.PROJECTION_ENABLED_LANE_WITHOUT_PRODUCER,
         AllocationProjectionRejectCodeV1.PROJECTION_REGISTERED_EMPTY_ROOT_DRIFT,
         AllocationProjectionRejectCodeV1.PROJECTION_TERMINAL_ASSIGNMENT_UNSEARCHED,
+        AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW,
     ),
 }
 
@@ -670,6 +685,24 @@ def project_allocation_certificate_v1(
     state_root = state.state_root
     try:
         owning_lane = _single_owning_lane_v1(state)
+        # An external metamorphic matrix (Codex, C9c-5 P2-1) found that absent and zero
+        # support are not interchangeable to the checker: it compares support DICTIONARIES,
+        # so a zero-amount row is a present key with value zero on one side and no key at
+        # all on the other, and the derived certificate fails SOURCE_ATOM_NOT_ASSIGNED_
+        # EXACTLY_ONCE. The state type admits such a row; no certificate over it is
+        # acceptable; so it is refused here rather than derived. Sixteen invocation cases
+        # over twelve state roots in that matrix, all with the same checker code.
+        for table_name, rows in (
+            ("custody", state.custody),
+            ("liabilities", state.liabilities),
+            ("reserves", state.reserves),
+        ):
+            for row in rows:
+                if row.amount_atoms == 0:
+                    _fail(
+                        AllocationProjectionRejectCodeV1.PROJECTION_NONCANONICAL_ZERO_ECONOMIC_ROW,
+                        f"{table_name} carries a zero-amount row for {row.asset}:{row.custody_domain}",
+                    )
         _state_level_refusals_v1(state, owning_lane)
         binding_roots = _binding_roots_v1(state, lane_binding_roots)
         controlled = tuple(
