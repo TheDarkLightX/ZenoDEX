@@ -324,3 +324,83 @@ contend with writers in DELETE journal mode; no mounted timing/resource
 isolation is claimed. This implementation closes the scoped two-root derivation
 defect and tests an ordinary committed transfer observation. It does not close
 whole W04, W05, W06 or production value safety.
+
+## Public pure Rust relation check, 2026-09-05
+
+The route-guest implementation needs to check the complete relation before
+separately verifying its receipt assumptions. The following diagnostic API is
+now exported through the existing root wildcard export:
+
+```rust
+pub fn check_asset_transfer_global_allocation_v1(
+    candidate: AssetTransferGlobalAllocationCandidateV1<'_>,
+) -> AbiResultV1<Option<GlobalAllocationBindingRejectCodeV1>>
+```
+
+The wrapper validates `accepted`, `occurrence`, `predecessor`, then `current`,
+in the same order as the existing global receipt admission. It delegates to the
+unchanged restricted relation predicate. Invalid representations return the
+existing typed `AbiErrorV1`; a valid representation with a relation mismatch
+returns its existing diagnostic code. `Ok(None)` diagnoses agreement and grants
+no receipt, snapshot, claimant or publication authority. A guest must separately
+verify every proof assumption it relies on.
+
+The global receipt admission reuses this wrapper. The private fragment witness
+constructor and the legacy module receipt admission remain unchanged. Exact
+source-slice comparisons confirmed that both the private relation predicate
+and legacy fragment admission function bodies are unchanged. No serializer,
+journal, wire format, root interpretation or public witness constructor changed.
+
+Verification against this addition:
+
+- Three focused Rust tests passed: sixteen shared Python relation vectors,
+  all four malformed input boundaries in their existing validation order, and
+  a 4,097-row table refusing before any partial projection. Empty predecessor
+  lane roots refuse through validation before the relation's lane indexing.
+- The retained Rust receipt/route harness passed 77 tests; the projection
+  harness passed four tests. Total scoped Rust replay: **84 passed**.
+- Retained Python global allocation, legacy admission, projection and parity
+  replay: **169 passed**, including the existing semantic guard mutants.
+- Rust library Clippy with `-D warnings`, rustfmt, generated-fixture replay and
+  diff whitespace checks passed. The security scanner's fourteen findings are
+  confined to fixture `expect` and exhaustive-case `unreachable!` calls inside
+  `#[cfg(test)]`; none was added to the runtime path. Existing long receipt
+  admission functions remain scoped inherited complexity.
+
+Commands from `zk/global_settlement_abi_v1`, using the existing populated cache
+and no dependency downloads or guest proof builds:
+
+```bash
+CARGO_INCREMENTAL=0 cargo test --offline --lib global_allocation_relation
+CARGO_INCREMENTAL=0 cargo test --offline --test lane_module_release_route_binding --test global_accounting_allocation_projection
+CARGO_INCREMENTAL=0 cargo clippy --offline --lib -- -D warnings
+```
+
+Commands from the repository root:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 tools/render_asset_transfer_global_allocation_v1_golden.py
+PYTHONDONTWRITEBYTECODE=1 python3 tools/render_asset_transfer_global_allocation_v1_golden.py --check
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider \
+  tests/core/test_asset_transfer_global_allocation_v1.py \
+  tests/core/test_asset_transfer_receipt_admission_v1.py \
+  tests/core/test_global_accounting_allocation_projection_v1.py \
+  tests/core/test_global_accounting_allocation_projection_v1_parity.py
+```
+
+The recorded renderer updated only the two Rust source hashes in the shared
+fixture. Removing `source_sha256` and comparing the old and new fixture objects
+confirmed that all semantic inputs and expected outcomes are identical.
+
+| Final subject | SHA-256 |
+|---|---|
+| `zk/global_settlement_abi_v1/src/asset_transfer_global_allocation.rs` | `b387ff6228eb25ef2ca0ecd7f5c7fee4ea9832971be30c886eb373092f87e0a9` |
+| `zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs` | `4129a028378b1cac34c0395f3315cfab0d613d58003d2e2424d3ea05efd320ff` |
+| `tests/data/asset_transfer_global_allocation_v1_golden.json` | `33d38985259f32a975018d4763baeafd5d48556052a803261e30e8945f5b3206` |
+
+These ABI sources are dependencies of module and composed guests. Qualification
+of a new source subject must rebuild and pin its dependent artifacts; unchanged
+relation semantics alone does not establish identical ELF bytes or image IDs.
+Earlier receipts remain evidence for their earlier exact builds. The integration
+owner was notified before guest-proof source-bundle refresh. No real proof,
+remote build or production authority was established by this addition.

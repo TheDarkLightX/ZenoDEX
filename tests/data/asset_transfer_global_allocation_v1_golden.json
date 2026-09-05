@@ -4790,7 +4790,7 @@
   "source_sha256": {
     "src/core/asset_transfer_global_allocation_v1.py": "b363549cca66950a22a6d34050f56be963ae5907d58e4f09b05d25c1d2fc52cb",
     "src/core/asset_transfer_receipt_admission_v1.py": "091e206cd7baa10f5ad020bc660213cf0ef1c01fbd4675b305413d5035052a57",
-    "zk/global_settlement_abi_v1/src/asset_transfer_global_allocation.rs": "ade3235a24c835d08bf45d8dc8ba68cd0e60a04ff8d01fc0c114f85cfd4d71f5",
-    "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs": "d45ec318ad64d292e333f9a82c9a1f8f69c902ea3382face641990610baed294"
+    "zk/global_settlement_abi_v1/src/asset_transfer_global_allocation.rs": "b387ff6228eb25ef2ca0ecd7f5c7fee4ea9832971be30c886eb373092f87e0a9",
+    "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs": "4129a028378b1cac34c0395f3315cfab0d613d58003d2e2424d3ea05efd320ff"
   }
 }

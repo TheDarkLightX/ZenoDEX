@@ -41,6 +41,25 @@ impl GlobalAllocationBindingRejectCodeV1 {
     ];
 }
 
+/// Diagnose the complete restricted relation after validating all four inputs.
+/// `Ok(None)` conveys no receipt, snapshot, claimant or publication authority.
+/// Guests must separately verify every proof assumption they rely on.
+pub fn check_asset_transfer_global_allocation_v1(
+    candidate: AssetTransferGlobalAllocationCandidateV1<'_>,
+) -> AbiResultV1<Option<GlobalAllocationBindingRejectCodeV1>> {
+    let AssetTransferGlobalAllocationCandidateV1 {
+        accepted,
+        occurrence,
+        predecessor,
+        current,
+    } = candidate;
+    accepted.validate()?;
+    occurrence.validate()?;
+    predecessor.validate()?;
+    current.validate()?;
+    global_allocation_binding_reject_v1(accepted, occurrence, predecessor, current)
+}
+
 pub(crate) fn global_allocation_binding_reject_v1(
     accepted: &AssetTransferLaneModuleAcceptedV1,
     occurrence: &EconomicCommandOccurrenceV1,
@@ -134,16 +153,41 @@ pub(crate) fn global_allocation_binding_reject_v1(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::canonical::{AbiErrorV1, MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1};
+
+    fn fixture() -> serde_json::Value {
+        serde_json::from_str(include_str!(
+            "../../../tests/data/asset_transfer_global_allocation_v1_golden.json"
+        ))
+        .expect("fixture JSON")
+    }
+
+    fn valid_inputs() -> (
+        AssetTransferLaneModuleAcceptedV1,
+        EconomicCommandOccurrenceV1,
+        GlobalEconomicStateV1,
+        GlobalEconomicStateV1,
+    ) {
+        let fixture = fixture();
+        let case = fixture["cases"]
+            .as_array()
+            .expect("cases")
+            .iter()
+            .find(|case| case["expected_code"].is_null())
+            .expect("accepted relation case");
+        (
+            serde_json::from_value(fixture["accepted"].clone()).expect("accepted"),
+            serde_json::from_value(case["occurrence"].clone()).expect("occurrence"),
+            serde_json::from_value(case["predecessor"].clone()).expect("predecessor"),
+            serde_json::from_value(case["current"].clone()).expect("current"),
+        )
+    }
 
     #[test]
     fn global_allocation_relation_matches_python_fixed_vectors() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../tests/data/asset_transfer_global_allocation_v1_golden.json"
-        ))
-        .expect("fixture JSON");
+        let fixture = fixture();
         let accepted: AssetTransferLaneModuleAcceptedV1 =
             serde_json::from_value(fixture["accepted"].clone()).expect("accepted input");
-        accepted.validate().expect("accepted invariants");
         for case in fixture["cases"].as_array().expect("cases") {
             let occurrence: EconomicCommandOccurrenceV1 =
                 serde_json::from_value(case["occurrence"].clone()).expect("occurrence");
@@ -151,12 +195,15 @@ mod tests {
                 serde_json::from_value(case["predecessor"].clone()).expect("predecessor");
             let current: GlobalEconomicStateV1 =
                 serde_json::from_value(case["current"].clone()).expect("current");
-            occurrence.validate().expect("occurrence boundary");
-            predecessor.validate().expect("predecessor boundary");
-            current.validate().expect("current boundary");
-            let result =
-                global_allocation_binding_reject_v1(&accepted, &occurrence, &predecessor, &current)
-                    .expect("relation boundary");
+            let result = crate::check_asset_transfer_global_allocation_v1(
+                AssetTransferGlobalAllocationCandidateV1 {
+                    accepted: &accepted,
+                    occurrence: &occurrence,
+                    predecessor: &predecessor,
+                    current: &current,
+                },
+            )
+            .expect("relation boundary");
             let actual = result.map(|code| format!("{code:?}"));
             assert_eq!(
                 actual.as_deref(),
@@ -165,5 +212,79 @@ mod tests {
                 case["name"]
             );
         }
+    }
+
+    #[test]
+    fn global_allocation_relation_validates_every_boundary_in_existing_order() {
+        let (accepted, occurrence, predecessor, current) = valid_inputs();
+        let mut changed_accepted = accepted.clone();
+        let mut changed_occurrence = occurrence.clone();
+        let mut changed_predecessor = predecessor.clone();
+        let mut changed_current = current.clone();
+        changed_accepted.post_state.schema.clear();
+        changed_occurrence.chain_id.clear();
+        changed_predecessor.lane_roots.clear();
+        changed_current.chain_id.clear();
+        let expected = [
+            AbiErrorV1::InvalidSchema,
+            AbiErrorV1::InvalidToken("occurrence chain id"),
+            AbiErrorV1::InvalidOrder("global state lane roots"),
+            AbiErrorV1::InvalidToken("global state chain id"),
+        ];
+        for (index, error) in expected.into_iter().enumerate() {
+            assert_eq!(
+                crate::check_asset_transfer_global_allocation_v1(
+                    AssetTransferGlobalAllocationCandidateV1 {
+                        accepted: &changed_accepted,
+                        occurrence: &changed_occurrence,
+                        predecessor: &changed_predecessor,
+                        current: &changed_current,
+                    },
+                ),
+                Err(error),
+            );
+            match index {
+                0 => changed_accepted = accepted.clone(),
+                1 => changed_occurrence = occurrence.clone(),
+                2 => changed_predecessor = predecessor.clone(),
+                3 => changed_current = current.clone(),
+                _ => unreachable!("four boundary cases"),
+            }
+        }
+        assert_eq!(
+            crate::check_asset_transfer_global_allocation_v1(
+                AssetTransferGlobalAllocationCandidateV1 {
+                    accepted: &changed_accepted,
+                    occurrence: &changed_occurrence,
+                    predecessor: &changed_predecessor,
+                    current: &changed_current,
+                },
+            ),
+            Ok(None),
+        );
+    }
+
+    #[test]
+    fn global_allocation_relation_refuses_oversized_tables_before_partial_projection() {
+        let (accepted, occurrence, predecessor, mut current) = valid_inputs();
+        current.balances.resize(
+            MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1 + 1,
+            current.balances[0].clone(),
+        );
+        assert_eq!(
+            crate::check_asset_transfer_global_allocation_v1(
+                AssetTransferGlobalAllocationCandidateV1 {
+                    accepted: &accepted,
+                    occurrence: &occurrence,
+                    predecessor: &predecessor,
+                    current: &current,
+                },
+            ),
+            Err(AbiErrorV1::InvalidBounds("global state balances")),
+        );
+        assert_eq!(
+            current.balances.len(),
+            MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1 + 1
+        );
     }
 }

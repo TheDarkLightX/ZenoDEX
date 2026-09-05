@@ -45,7 +45,7 @@
 //! adds no cryptographic claim of its own. Research-only evidence; authority NONE.
 
 use crate::asset_transfer_global_allocation::{
-    global_allocation_binding_reject_v1, AssetTransferGlobalAllocationCandidateV1,
+    check_asset_transfer_global_allocation_v1, AssetTransferGlobalAllocationCandidateV1,
     GlobalAllocationBindingRejectCodeV1,
 };
 use crate::asset_transfer_lane_module::AssetTransferLaneModuleAcceptedV1;
@@ -315,12 +315,13 @@ pub fn verify_asset_transfer_global_fragment_receipt_v1(
         predecessor,
         current,
     } = candidate;
-    accepted.validate()?;
-    occurrence.validate()?;
-    predecessor.validate()?;
-    current.validate()?;
     if let Some(code) =
-        global_allocation_binding_reject_v1(accepted, occurrence, predecessor, current)?
+        check_asset_transfer_global_allocation_v1(AssetTransferGlobalAllocationCandidateV1 {
+            accepted,
+            occurrence,
+            predecessor,
+            current,
+        })?
     {
         return Ok(Err(
             GlobalAssetTransferFragmentAdmissionRejectedV1::Binding(code),
