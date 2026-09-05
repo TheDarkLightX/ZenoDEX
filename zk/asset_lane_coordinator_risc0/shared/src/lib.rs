@@ -19,14 +19,14 @@ pub const MAX_ASSET_LANE_COORDINATOR_GUEST_INPUT_BYTES_U32_V1: u32 = 1_048_576;
 /// Changing this constant changes the coordinator statement and requires a new
 /// coordinator image plus replacement composition evidence.
 pub const ASSET_TRANSFER_MODULE_IMAGE_ID_V1: [u32; 8] = [
-    3_494_995_490,
-    1_275_137_722,
-    1_377_448_836,
-    1_356_757_021,
-    2_581_487_242,
-    1_957_138_521,
-    501_643_869,
-    607_044_243,
+    1_218_698_590,
+    4_021_078_641,
+    2_130_809_937,
+    3_454_643_553,
+    4_002_057_466,
+    122_282_464,
+    3_846_523_266,
+    956_060_292,
 ];
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

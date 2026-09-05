@@ -1,0 +1,16 @@
+[package]
+name = "zenodex-asset-transfer-route-composer-risc0-shared"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[dependencies]
+hex = "=0.4.3"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "=1.0.148", features = ["arbitrary_precision"] }
+zenodex-global-settlement-abi-v1 = { path = "../../global_settlement_abi_v1" }
+zenodex-asset-lane-coordinator-risc0-shared = { path = "../../asset_lane_coordinator_risc0/shared" }
+
+[lints.rust]
+unsafe_code = "forbid"

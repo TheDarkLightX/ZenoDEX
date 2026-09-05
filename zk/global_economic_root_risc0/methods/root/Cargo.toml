@@ -1,0 +1,17 @@
+[package]
+name = "zenodex-global-economic-root-risc0-guest"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[[bin]]
+name = "zenodex-economic-root-guest"
+path = "src/main.rs"
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.6", default-features = false, features = ["std"] }
+zenodex-global-economic-root-risc0-shared = { path = "../../shared" }
+
+[lints.rust]
+unsafe_code = "forbid"

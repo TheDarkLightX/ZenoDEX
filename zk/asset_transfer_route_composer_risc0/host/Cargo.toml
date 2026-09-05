@@ -1,0 +1,30 @@
+[package]
+name = "zenodex-asset-transfer-route-composer-risc0-host"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[lib]
+doctest = false
+
+[features]
+cuda = ["risc0-zkvm/cuda"]
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.6", features = ["disable-dev-mode"] }
+serde_json = "=1.0.148"
+zenodex-global-settlement-abi-v1 = { path = "../../global_settlement_abi_v1" }
+zenodex-asset-transfer-route-composer-risc0-methods = { path = "../methods" }
+zenodex-asset-transfer-route-composer-risc0-shared = { path = "../shared" }
+zenodex-asset-lane-coordinator-risc0-methods = { path = "../../asset_lane_coordinator_risc0/methods" }
+
+[dev-dependencies]
+serde = "=1.0.228"
+zenodex-asset-lane-coordinator-risc0-shared = { path = "../../asset_lane_coordinator_risc0/shared" }
+zenodex-asset-lane-coordinator-risc0-host = { path = "../../asset_lane_coordinator_risc0/host" }
+zenodex-asset-transfer-module-risc0-host = { path = "../../asset_transfer_module_risc0/host" }
+zenodex-asset-transfer-module-risc0-methods = { path = "../../asset_transfer_module_risc0/methods" }
+
+[lints.rust]
+unsafe_code = "forbid"
