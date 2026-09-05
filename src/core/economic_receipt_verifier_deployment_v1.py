@@ -210,6 +210,13 @@ class BoundEconomicReceiptVerifierV1:
                 or release.accepts_new_objects
             ):
                 raise ValueError("economic receipt verifier lane is outside shadow status")
+        elif authority.selection_purpose is EconomicReceiptVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION:
+            if (
+                owned_profile.status is not ProfileStatusV1.ACTIVE
+                or release.status is not ReleaseStatusV1.ACTIVE_NEW
+                or not release.accepts_new_objects
+            ):
+                raise ValueError("economic receipt verifier lane is outside isolated status")
         else:
             raise ValueError("production lane receipt verification is not implemented")
         self._verify_exact_receipt(
@@ -229,7 +236,7 @@ class BoundEconomicReceiptVerifierV1:
         expected_image_id: str,
         expected_journal_bytes: bytes,
     ) -> None:
-        """Verify one profile-selected lane-coordinator receipt in SHADOW."""
+        """Verify a selected coordinator under its explicit research purpose."""
 
         authority = _snapshot_bound_receipt_verifier_authority_v1(
             _bound_receipt_verifier_authority_v1(self)
@@ -271,6 +278,13 @@ class BoundEconomicReceiptVerifierV1:
                 raise ValueError(
                     "economic receipt verifier coordinator is outside shadow status"
                 )
+        elif authority.selection_purpose is EconomicReceiptVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION:
+            if (
+                owned_profile.status is not ProfileStatusV1.ACTIVE
+                or release.status is not ReleaseStatusV1.ACTIVE_NEW
+                or not release.accepts_new_objects
+            ):
+                raise ValueError("economic receipt verifier coordinator is outside isolated status")
         else:
             raise ValueError("production coordinator receipt verification is not implemented")
         self._verify_exact_receipt(
@@ -289,7 +303,7 @@ class BoundEconomicReceiptVerifierV1:
         expected_image_id: str,
         expected_journal_bytes: bytes,
     ) -> None:
-        """Verify one profile-selected route-composer receipt in SHADOW."""
+        """Verify a selected route under its explicit research purpose."""
 
         authority = _snapshot_bound_receipt_verifier_authority_v1(
             _bound_receipt_verifier_authority_v1(self)
@@ -326,6 +340,13 @@ class BoundEconomicReceiptVerifierV1:
                 or release.accepts_new_objects
             ):
                 raise ValueError("economic receipt verifier route is outside shadow status")
+        elif authority.selection_purpose is EconomicReceiptVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION:
+            if (
+                owned_profile.status is not ProfileStatusV1.ACTIVE
+                or release.status is not ReleaseStatusV1.ACTIVE_NEW
+                or not release.accepts_new_objects
+            ):
+                raise ValueError("economic receipt verifier route is outside isolated status")
         else:
             raise ValueError("production route receipt verification is not implemented")
         self._verify_exact_receipt(
