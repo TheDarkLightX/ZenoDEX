@@ -29,7 +29,8 @@ from ..core.global_economic_durable_activation_v1 import (
     _decode_exact_canonical_json_v1,
     decode_durable_economic_initial_state_bundle_v1,
 )
-from ..core.global_settlement_types_v1 import _require_root, hash_global_v1
+from ..core.global_economic_state_decoder_v1 import decode_global_economic_state_v1
+from ..core.global_settlement_types_v1 import GlobalEconomicStateV1, _require_root, hash_global_v1
 from .global_economic_authority_journal_v1 import (
     _attach_authority_store_v1,
     _validate_authority_store_on_connection_v1,
@@ -38,6 +39,7 @@ from .global_economic_durable_epoch_v1 import (
     DURABLE_ECONOMIC_EPOCH_SCHEMA_V1,
     DurableEconomicEpochBundleV1,
     DurableEconomicPublicationHeadV1,
+    _decode_payload_sections_v1,
     decode_durable_economic_epoch_bundle_v1,
 )
 
@@ -156,6 +158,19 @@ class DurableEconomicEpochCasTokenV1:
     @property
     def sequence(self) -> int:
         return self.__sequence
+
+
+@dataclass(frozen=True, slots=True)
+class _CommittedEconomicSourceV1:
+    """Journal-owned data; commit still requires this journal's writer capability."""
+
+    activation: DurableEconomicInitialStateBundleV1
+    source_bundle: DurableEconomicInitialStateBundleV1 | DurableEconomicEpochBundleV1
+    source_head: DurableEconomicPublicationHeadV1
+    state: GlobalEconomicStateV1
+    current_head: DurableEconomicPublicationHeadV1
+    authority: GlobalEconomicAuthorityHeadV1
+    cas_token: DurableEconomicEpochCasTokenV1
 
 
 class DurableEconomicEpochWriteCapabilityV1:
@@ -682,6 +697,7 @@ class GlobalEconomicEpochJournalV1:
             try:
                 self._validate_store_v1()
                 activation = self._read_activation_v1()
+                result: DurableEconomicPublicationHeadV1 | None
                 if publication_id == activation.record.activation_id:
                     result = DurableEconomicPublicationHeadV1.from_activation(
                         activation.head
@@ -761,24 +777,104 @@ class GlobalEconomicEpochJournalV1:
             raise RuntimeError("durable epoch predecessor row is absent")
         return self._decode_epoch_row_v1(source_row).head
 
+    def _publication_source_for_verified_publisher_v1(
+        self,
+        publication_id: str,
+        write_capability: DurableEconomicEpochWriteCapabilityV1,
+    ) -> _CommittedEconomicSourceV1 | None:
+        """Own full source, tip and authority under one journal read transaction.
+
+        Acquisition requires this handle's publisher capability. Stored receipts
+        are not cryptographically replayed here; verified creation/publication
+        and trusted process/store integrity remain the ancestry premises. A stale
+        source remains readable for exact retry. Commit revalidates authority/CAS.
+        """
+        _require_write_capability_v1(self, write_capability)
+        if type(publication_id) is not str:
+            raise TypeError("durable epoch publication id must be exact str")
+        _require_root(publication_id, name="durable epoch publication id")
+        with self._lock:
+            self._require_open_v1()
+            self._connection.execute("BEGIN")
+            try:
+                current = self._validate_store_v1()
+                activation = self._read_activation_v1()
+                source = self._source_bundle_under_transaction_v1(publication_id, activation)
+                if source is None:
+                    self._connection.execute("COMMIT")
+                    return None
+                authority = _validate_authority_store_on_connection_v1(
+                    self._connection, database="economic_authority",
+                )
+                source_head, state = self._decode_source_state_v1(source)
+                self._connection.execute("COMMIT")
+            except BaseException:
+                _rollback_v1(self._connection)
+                raise
+            token = self._mint_cas_token_v1(
+                current, (authority.authority_root, authority.generation),
+            )
+            return _CommittedEconomicSourceV1(
+                activation, source, source_head, state, current, authority, token,
+            )
+
+    def _source_bundle_under_transaction_v1(
+        self,
+        publication_id: str,
+        activation: DurableEconomicInitialStateBundleV1,
+    ) -> DurableEconomicInitialStateBundleV1 | DurableEconomicEpochBundleV1 | None:
+        if publication_id == activation.record.activation_id:
+            return activation
+        row = self._connection.execute(
+            "SELECT publication_id, commit_id, sequence_decimal, bundle_bytes "
+            "FROM economic_epochs WHERE publication_id = ?",
+            (publication_id,),
+        ).fetchone()
+        return None if row is None else self._decode_epoch_row_v1(row)
+
+    @staticmethod
+    def _decode_source_state_v1(
+        source: DurableEconomicInitialStateBundleV1 | DurableEconomicEpochBundleV1,
+    ) -> tuple[DurableEconomicPublicationHeadV1, GlobalEconomicStateV1]:
+        if type(source) is DurableEconomicInitialStateBundleV1:
+            state_bytes = next(
+                component.payload for component in source.components
+                if component.kind is DurableEconomicComponentKindV1.STATE
+            )
+            raw = _decode_exact_canonical_json_v1(state_bytes, name="publication source state")
+            head = DurableEconomicPublicationHeadV1.from_activation(source.head)
+        elif type(source) is DurableEconomicEpochBundleV1:
+            raw = _decode_payload_sections_v1(source.payload).state
+            head = source.head
+        else:
+            raise TypeError("publication source bundle type is not closed")
+        state = decode_global_economic_state_v1(raw)
+        if state.state_root != head.state_root or any(
+            getattr(state, field) != getattr(head, field)
+            for field in ("chain_id", "deployment_root", "profile_root", "writer_epoch", "height")
+        ):
+            raise ValueError("publication source state does not match its committed head")
+        return head, state
+
+    def _mint_cas_token_v1(
+        self,
+        head: DurableEconomicPublicationHeadV1,
+        authority_coordinates: tuple[str | None, int | None],
+    ) -> DurableEconomicEpochCasTokenV1:
+        token = DurableEconomicEpochCasTokenV1(
+            _CAS_TOKEN_MINT_V1, head.publication_id, head.sequence, *authority_coordinates,
+        )
+        self._cas_tokens[token] = (
+            self._instance_token, head.publication_id, head.sequence, *authority_coordinates,
+        )
+        return token
+
     def acquire_cas_head_token(self) -> DurableEconomicEpochCasTokenV1:
         with self._lock:
             self._require_open_v1()
             head = self._read_snapshot_v1()
             authority_coordinates = self._authority_coordinates_v1()
-            token = DurableEconomicEpochCasTokenV1(
-                _CAS_TOKEN_MINT_V1,
-                head.publication_id,
-                head.sequence,
-                *authority_coordinates,
-            )
-            self._cas_tokens[token] = (
-                self._instance_token,
-                head.publication_id,
-                head.sequence,
-                *authority_coordinates,
-            )
-            return token
+            return self._mint_cas_token_v1(head, authority_coordinates)
 
     def _authority_coordinates_v1(self) -> tuple[str | None, int | None]:
         expected = self._expected_authority

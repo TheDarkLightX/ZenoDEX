@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import sqlite3
 from collections import deque
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
 from ..core import global_settlement_types_v1 as types
 from ..core.global_accounting_allocation_certificate_v1 import (
@@ -36,7 +36,11 @@ from ..core.global_economic_durable_activation_v1 import (
     DurableEconomicComponentKindV1,
     _decode_exact_canonical_json_v1,
 )
-from ..core.global_economic_refinement_snapshot_v1 import _snapshot_state_v1
+from ..core.global_economic_state_decoder_v1 import (
+    GLOBAL_ECONOMIC_STATE_FIELDS_V1,
+    GLOBAL_ECONOMIC_STATE_TABLES_V1,
+    decode_global_economic_state_v1,
+)
 from .global_economic_durable_epoch_v1 import (
     DurableEconomicPublicationHeadV1,
     _decode_payload_sections_v1,
@@ -53,21 +57,6 @@ MAX_SHADOW_STORE_BYTES_V1: Final = 32 * 1024 * 1024
 MAX_SHADOW_STATE_ROWS_V1: Final = 8192
 MAX_SHADOW_DIAGNOSTICS_V1: Final = 128
 SHADOW_SOURCE_PROVENANCE_V1: Final = "LOCAL_JOURNAL_CONSISTENCY_RECEIPTS_UNVERIFIED"
-
-# Exact decode registry. Each table is decoded in full or observation fails.
-_TABLES_V1: Final = (
-    ("lane_roots", types.LaneStateRootV1, len(types.ALL_LANE_IDS_V1)),
-    ("balances", types.EconomicAmountV1, types.MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1),
-    ("supplies", types.AssetSupplyV1, types.MAX_GLOBAL_SUPPLY_ROWS_V1),
-    ("custody", types.EconomicAmountV1, types.MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1),
-    ("liabilities", types.EconomicAmountV1, types.MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1),
-    ("reserves", types.EconomicAmountV1, types.MAX_GLOBAL_AMOUNT_ROWS_PER_TABLE_V1),
-    ("oracle_occurrences", types.OracleOccurrenceStateV1, types.MAX_GLOBAL_ORACLE_ROWS_V1),
-    ("replay_state", types.ReplayStateV1, types.MAX_GLOBAL_REPLAY_ROWS_V1),
-    ("terminal_obligations", types.TerminalObligationV1, types.MAX_GLOBAL_TERMINAL_ROWS_V1),
-    ("outbox", types.OutboxStateV1, types.MAX_GLOBAL_OUTBOX_ROWS_V1),
-)
-
 
 class ShadowObservationStatusV1(str, Enum):
     AGREES = "AGREES"
@@ -109,41 +98,22 @@ class ShadowAllocationDiagnosticV1:
     authority: str = "NONE"
 
 
-def _exact_row_v1(row_type: type[Any], raw: object) -> Any:
-    if type(raw) is not dict or set(raw) != {field.name for field in fields(row_type)}:
-        raise ValueError("shadow state row has an open field set")
-    owned = dict(raw)
-    if "lane_id" in owned:
-        if type(owned["lane_id"]) is not str:
-            raise TypeError("shadow lane id must be text")
-        owned["lane_id"] = types.LaneIdV1(owned["lane_id"])
-    if row_type is types.TerminalObligationV1:
-        owned["status"] = types.TerminalObligationStatusV1(owned["status"])
-    if row_type is types.OutboxStateV1:
-        owned["status"] = types.OutboxStatusV1(owned["status"])
-    return row_type(**owned)
-
-
 def decode_shadow_state_v1(raw: object) -> types.GlobalEconomicStateV1:
-    """Decode exact V1 fields and bounded complete tables without coercion."""
+    """Apply the observation budget, then decode the shared complete V1 state."""
 
-    expected = {field.name for field in fields(types.GlobalEconomicStateV1)} | {"schema"}
-    if type(raw) is not dict or set(raw) != expected:
+    if type(raw) is not dict or set(raw) != GLOBAL_ECONOMIC_STATE_FIELDS_V1:
         raise ValueError("shadow state has an open field set")
     if raw["schema"] != types.GLOBAL_SETTLEMENT_ABI_V1:
         raise ValueError("shadow state schema mismatch")
     total = 0
-    for name, _row_type, limit in _TABLES_V1:
+    for name, _row_type, limit in GLOBAL_ECONOMIC_STATE_TABLES_V1:
         values = raw[name]
         if type(values) is not list:
             raise TypeError("shadow state table must be an exact array")
         total += len(values)
         if len(values) > limit or total > MAX_SHADOW_STATE_ROWS_V1:
             raise _ObservationLimitV1("shadow state row budget exceeded")
-    owned = {key: value for key, value in raw.items() if key != "schema"}
-    for name, row_type, _limit in _TABLES_V1:
-        owned[name] = tuple(_exact_row_v1(row_type, row) for row in raw[name])
-    return _snapshot_state_v1(types.GlobalEconomicStateV1(**owned))
+    return decode_global_economic_state_v1(raw)
 
 
 def _bind_snapshot_state_v1(

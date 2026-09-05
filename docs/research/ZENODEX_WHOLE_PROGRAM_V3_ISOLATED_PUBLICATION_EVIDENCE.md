@@ -64,3 +64,52 @@ admission and genuine economic publication remain separate obligations.
 No Lean, ESSO, Kani or whole-release proof claim follows from this patch. The
 low-level binder and other unmounted test adapters remain callable; deployment
 complete no-bypass remains open.
+
+## Publisher-owned committed source
+
+`GlobalEconomicEpochJournalV1._publication_source_for_verified_publisher_v1`
+requires the exact journal's registered write capability before IO. A single
+read transaction validates lineage, acquires the requested complete source
+bundle and activation, decodes its exact state, binds all head coordinates,
+and captures current tip and authority. Only after the successful read does the
+journal mint a CAS token for those captured coordinates. Unknown sources return
+no snapshot; failed reads release their transaction and grant no token.
+
+The publisher checks the candidate's disclosed pre-state against that acquired
+value, then passes the acquired state itself into the pure verifier. Complete
+state acquisition no longer depends on a caller supplying the preimage of a
+stored head. The existing canonical state format, journal bundles and single
+economic commit transaction are unchanged.
+
+Historical sources remain readable so an exact committed retry can be recognized
+after another writer wins or writer authority changes. The unchanged commit path
+recognizes exact retries before fresh admission and revalidates current authority
+and source CAS for a new transition. Acquiring a snapshot does not authorize a
+stale transition. Another winner may change physical files during a rejected
+attempt; logical rejection contributes no economic change.
+
+The independent `ZENODEX_WHOLE_PROGRAM_V3_SOURCE_ACQUISITION_REVIEW.md` records
+the exact final source hashes, competing-writer and revoked-authority replay,
+capability refusal before IO, historical PRE/current POST separation, decode
+failure lock release, six source faults and acquired-state mismatch refusal.
+Its expanded replay passed 111 tests and failed only the stale canonical pin.
+The final annotation-only typing correction was checked separately; all four
+new acquisition tests passed. Existing commit, CAS, authority and retry code
+retains its prior AST.
+
+After that independent audit, the explicit checker constant was updated from
+`e4cb0e935d5996b1e7b0978bd898673add91fc1f2f68a051b819440661366dbd`
+to `9643388a6da6ffbc42c909b49c4d9699d83cdacc8b710c06dd7823b83dcbf8d1`.
+Only the existing publisher and journal changed in the 95-file source closure;
+substituting their exact `9e1531539` bytes reproduces the prior digest. Counts
+and canonical serializers remain unchanged. The historical failed review stays
+intact. The final focused replay passed **233 tests**, including the canonical checker,
+107 decoder cases, retained observer cases and complete publisher/journal suites.
+Ruff and narrow mypy over the four touched implementation modules passed.
+
+The journal validates canonical bytes and committed ancestry under trusted
+publisher/process/store integrity. It does not reverify every stored receipt on
+each read, establish independent disk authenticity or restore writer authority
+on restart. Those remain explicit W11/release obligations. These tests use
+recording receipt backends. Allocation admission is still a separate publication
+prerequisite under development; W06 is open.

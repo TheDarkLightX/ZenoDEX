@@ -6,7 +6,12 @@ The read-only consumer is implemented and tested on isolated SQLite journals.
 Full W05 qualification remains open. No production profile, balance, publisher,
 receipt image, journal schema, activation decision or live service was changed.
 
-## Exact source and contract
+## Initial source freeze and contract
+
+The original implementation below is frozen at
+`b5e983008826d213375ffe93906e592910153a74`. A later shared-decoder extraction is
+recorded at the end; its additional malformed-input controls preserve all
+canonical V1 encodings and observation budget outcomes.
 
 | Artifact | SHA-256 at this review |
 | --- | --- |
@@ -159,3 +164,26 @@ The next integration step is to connect the implemented coordinator/global-lane
 allocation relation to real receipt witnesses and publisher-owned committed
 snapshots. The isolated ordinary-transfer observation currently uses mock
 cryptographic verification and supplies no publication authority.
+
+## Shared state decoder for source acquisition
+
+The pure `src/core/global_economic_state_decoder_v1.py` now owns the exact V1
+field/table registry and complete typed decoding. Its SHA-256 is
+`6ba710f308f73cdd58ecd8dadd167c4b5087eab6eb6d795fcdc22b594cc84eca`.
+The refactored observer SHA-256 is
+`ba25880cdaa5e7dfd673b49016d080397365bd7a260023d206b4922f90031fb5`.
+The new decoder test SHA-256 is
+`16c3315526117b8690e89ee1fe082e02ee6e9395c0488477180df05c45c76ce2`.
+
+The observer retains its separate 8192-row aggregate ceiling and visible
+`RESOURCE_LIMIT` outcome. The general decoder admits complete tables within the
+existing per-table ABI limits; it never truncates them to the observational
+ceiling. Nonexact in-process schema/status strings and mapping-key subclasses
+now reject explicitly. No accepted canonical byte encoding changes.
+
+The extraction replay passed 256 tests: 107 decoder cases, 14 retained observer
+cases, 32 global allocation cases and 103 retained projection cases. Ruff and
+narrow mypy passed. The new cases cover all ten tables, zero and finite-width
+limits, unknown and missing fields, canonical order, duplicate claimant/replay
+identities, exact scalar/enum types and aggregate limits at 8191/8192/8193.
+The decoder supplies owned values, never source provenance or writer authority.

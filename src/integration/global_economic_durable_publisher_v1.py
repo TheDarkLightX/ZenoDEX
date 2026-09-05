@@ -12,7 +12,7 @@ provided by the verifier instance selected at construction.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import Lock
 
@@ -914,10 +914,11 @@ class VerifiedDurableEconomicPublisherV1:
             ):
                 raise ValueError("durable publisher candidate profile is not selected")
 
-            stored_source = self.__journal.publication_head(source.publication_id)
-            if stored_source is None or not _same_publication_head_v1(
-                stored_source,
-                source,
+            acquired_source = self.__journal._publication_source_for_verified_publisher_v1(
+                source.publication_id, self.__write_capability,
+            )
+            if acquired_source is None or not _same_publication_head_v1(
+                acquired_source.source_head, source,
             ):
                 return _stale_outcome_v1(self.__journal.head)
             _require_candidate_source_v1(
@@ -928,7 +929,10 @@ class VerifiedDurableEconomicPublisherV1:
                 body=owned_body,
             )
 
-            cas_token = self.__journal.acquire_cas_head_token()
+            if owned_candidate.pre_state != acquired_source.state:
+                raise ValueError("durable publisher disclosed source differs from committed state")
+            owned_candidate = replace(owned_candidate, pre_state=acquired_source.state)
+            cas_token = acquired_source.cas_token
             receipt_verifier = self.__receipt_verifier
             receipt_verifier_binding_root = self.__receipt_verifier_binding_root
             receipt_verifier_release_id = self.__receipt_verifier_release_id
