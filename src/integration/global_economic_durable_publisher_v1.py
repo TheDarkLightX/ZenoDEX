@@ -202,7 +202,7 @@ def _prepare_verified_activation_v1(
         profile_root=admission_profile.profile_id,
         root_image_id=admission_profile.root_image_id,
         selection_purpose=(
-            EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW
+            EconomicReceiptVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION
         ),
     )
     verified = _verify_economic_initial_state_for_publisher_v1(
@@ -219,7 +219,7 @@ def _prepare_verified_activation_v1(
         profile_root=profile.profile_id,
         root_image_id=profile.root_image_id,
         selection_purpose=(
-            EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW
+            EconomicReceiptVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION
         ),
     )
     bundle = prepare_durable_economic_initial_state_bundle_v1(

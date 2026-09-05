@@ -105,7 +105,7 @@ def _bound_receipt_verifier_v1(
             profile=candidate.profile,
             verifier_registry=registry,
             selection_purpose=(
-                EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW
+                EconomicReceiptVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION
             ),
             evidence_manifest=manifest,
             measured_artifact_bytes=_ARTIFACT_BYTES,

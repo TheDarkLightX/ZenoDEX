@@ -55,6 +55,7 @@ class EconomicReceiptVerifierSelectionPurposeV1(str, Enum):
     """Closed authority purpose; shadow selection can never imply production."""
 
     RESEARCH_SHADOW = "RESEARCH_SHADOW"
+    ISOLATED_QUALIFICATION = "ISOLATED_QUALIFICATION"
     PRODUCTION_NEW = "PRODUCTION_NEW"
 
 
@@ -312,12 +313,15 @@ class EconomicReceiptVerifierRegistryV1:
         self.validate_current()
         if type(purpose) is not EconomicReceiptVerifierSelectionPurposeV1:
             raise TypeError("economic receipt verifier selection purpose is not closed")
-        if purpose is EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW:
+        if purpose in (
+            EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW,
+            EconomicReceiptVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION,
+        ):
             matches = tuple(
                 row for row in self.releases if row.status is ReleaseStatusV1.SHADOW
             )
             expected = "one shadow verifier release"
-        else:
+        elif purpose is EconomicReceiptVerifierSelectionPurposeV1.PRODUCTION_NEW:
             matches = tuple(
                 row
                 for row in self.releases
@@ -325,6 +329,8 @@ class EconomicReceiptVerifierRegistryV1:
                 and row.accepts_new_receipts
             )
             expected = "one active verifier release"
+        else:
+            raise ValueError("economic receipt verifier purpose is unsupported")
         if len(matches) != 1:
             raise ValueError(f"economic receipt profile requires {expected}")
         return matches[0]
@@ -352,6 +358,11 @@ def select_profile_governed_economic_receipt_verifier_release_v1(
         raise TypeError("economic receipt verifier registry must be exactly typed")
     owned_profile = snapshot_economic_profile_v1(profile)
     verifier_registry.validate_current()
+    if (
+        selection_purpose is EconomicReceiptVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION
+        and owned_profile.status is not ProfileStatusV1.ACTIVE
+    ):
+        raise ValueError("isolated receipt qualification requires active profile semantics")
     if (
         selection_purpose is EconomicReceiptVerifierSelectionPurposeV1.PRODUCTION_NEW
         and owned_profile.status is not ProfileStatusV1.ACTIVE
