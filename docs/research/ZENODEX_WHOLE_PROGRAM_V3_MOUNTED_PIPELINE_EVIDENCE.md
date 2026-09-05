@@ -80,8 +80,14 @@ review separates its suggestions from established defects:
   release. SHADOW and production status are registry content. Cross-purpose
   signature separation therefore depends on this existing registry binding,
   in addition to the new purpose-specific witness identities. Production
-  message bytes were deliberately preserved. A direct cross-status registry
-  regression remains a useful additional check.
+  message bytes were deliberately preserved. Four subsequently added real-BLS
+  controls in `test_economic_command_signature_purpose_separation_v1.py` passed
+  in 6.53 seconds: duplicate same-ID status entries refuse, status transitions
+  refuse the other purpose's signature in both directions, and two selected
+  releases in one profile sign distinct messages. The independent
+  [SPOT/FARM discovery review](ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md)
+  also reviewed and replayed these tests. They add bounded evidence without
+  changing the production message or claiming a universal cryptographic proof.
 - The suggested earlier duplicate port-identity check has no demonstrated
   acceptance impact: the exact sealed pipeline mounts its own retained ports,
   and the publisher checks identity before committing and again after ROOT
