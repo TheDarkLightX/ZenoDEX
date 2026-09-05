@@ -13,6 +13,9 @@ from .economic_command_authentication_types_v1 import EconomicCommandIntentV1
 from .economic_command_authorization_registry_v1 import (
     ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1,
 )
+from .economic_command_signature_verifier_registry_v1 import (
+    EconomicCommandSignatureVerifierSelectionPurposeV1,
+)
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1
 from .global_economic_refinement_snapshot_v1 import _snapshot_occurrence_v1
 from .global_settlement_types_v1 import _require_root, hash_global_v1
@@ -35,6 +38,7 @@ class _AuthenticatedIntentFieldsV1:
     command_body_bytes_digest: str
     authentication_message_digest: str
     signature_digest: str
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1
 
 
 class AuthenticatedEconomicCommandIntentV1:
@@ -64,11 +68,15 @@ class AuthenticatedEconomicCommandIntentV1:
         ).authentication_message_digest
 
     @property
+    def selection_purpose(self) -> EconomicCommandSignatureVerifierSelectionPurposeV1:
+        return _snapshot_authenticated_intent_authority_v1(
+            _authenticated_intent_authority_v1(self)
+        ).selection_purpose
+
+    @property
     def binding_root(self) -> str:
         return _authenticated_intent_binding_root_v1(
-            _snapshot_authenticated_intent_authority_v1(
-                _authenticated_intent_authority_v1(self)
-            )
+            _snapshot_authenticated_intent_authority_v1(_authenticated_intent_authority_v1(self))
         )
 
 
@@ -78,6 +86,7 @@ class _AuthenticatedCommandFieldsV1:
     occurrence_id: str
     authenticated_intent_binding_root: str
     authentication_message_digest: str
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1
 
 
 class AuthenticatedEconomicCommandV1:
@@ -113,11 +122,15 @@ class AuthenticatedEconomicCommandV1:
         ).authentication_message_digest
 
     @property
+    def selection_purpose(self) -> EconomicCommandSignatureVerifierSelectionPurposeV1:
+        return _snapshot_authenticated_command_authority_v1(
+            _authenticated_command_authority_v1(self)
+        ).selection_purpose
+
+    @property
     def binding_root(self) -> str:
         return _authenticated_command_binding_root_v1(
-            _snapshot_authenticated_command_authority_v1(
-                _authenticated_command_authority_v1(self)
-            )
+            _snapshot_authenticated_command_authority_v1(_authenticated_command_authority_v1(self))
         )
 
 
@@ -184,6 +197,8 @@ def _snapshot_authenticated_intent_authority_v1(
 ) -> _AuthenticatedIntentFieldsV1:
     if type(authority) is not _AuthenticatedIntentFieldsV1:
         raise TypeError("authenticated command intent authority must be exactly typed")
+    if type(authority.selection_purpose) is not EconomicCommandSignatureVerifierSelectionPurposeV1:
+        raise TypeError("authenticated command intent purpose is not closed")
     intent = snapshot_economic_command_intent_v1(authority.intent)
     roots = (
         ("intent id", authority.intent_id),
@@ -222,6 +237,7 @@ def _snapshot_authenticated_intent_authority_v1(
         command_body_bytes_digest=authority.command_body_bytes_digest,
         authentication_message_digest=authority.authentication_message_digest,
         signature_digest=authority.signature_digest,
+        selection_purpose=authority.selection_purpose,
     )
 
 
@@ -230,6 +246,8 @@ def _snapshot_authenticated_command_authority_v1(
 ) -> _AuthenticatedCommandFieldsV1:
     if type(authority) is not _AuthenticatedCommandFieldsV1:
         raise TypeError("authenticated command authority must be exactly typed")
+    if type(authority.selection_purpose) is not EconomicCommandSignatureVerifierSelectionPurposeV1:
+        raise TypeError("authenticated command purpose is not closed")
     occurrence = _snapshot_occurrence_v1(authority.occurrence)
     for label, root in (
         ("occurrence id", authority.occurrence_id),
@@ -246,11 +264,12 @@ def _snapshot_authenticated_command_authority_v1(
         occurrence_id=authority.occurrence_id,
         authenticated_intent_binding_root=authority.authenticated_intent_binding_root,
         authentication_message_digest=authority.authentication_message_digest,
+        selection_purpose=authority.selection_purpose,
     )
 
 
 def _authenticated_intent_binding_root_v1(authority: _AuthenticatedIntentFieldsV1) -> str:
-    return hash_global_v1(
+    legacy_root = hash_global_v1(
         "authenticated-economic-command-intent-v1",
         {
             "schema": ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1,
@@ -269,15 +288,39 @@ def _authenticated_intent_binding_root_v1(authority: _AuthenticatedIntentFieldsV
             "signature_digest": authority.signature_digest,
         },
     )
+    if (
+        authority.selection_purpose
+        is EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW
+    ):
+        return legacy_root
+    return hash_global_v1(
+        "authenticated-economic-command-isolated-intent-v1",
+        {
+            "legacy_binding_root": legacy_root,
+            "selection_purpose": authority.selection_purpose.value,
+        },
+    )
 
 
 def _authenticated_command_binding_root_v1(authority: _AuthenticatedCommandFieldsV1) -> str:
-    return hash_global_v1(
+    legacy_root = hash_global_v1(
         "authenticated-economic-command-v1",
         {
             "schema": ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1,
             "occurrence_id": authority.occurrence_id,
             "authenticated_intent_binding_root": authority.authenticated_intent_binding_root,
+        },
+    )
+    if (
+        authority.selection_purpose
+        is EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW
+    ):
+        return legacy_root
+    return hash_global_v1(
+        "authenticated-economic-command-isolated-occurrence-v1",
+        {
+            "legacy_binding_root": legacy_root,
+            "selection_purpose": authority.selection_purpose.value,
         },
     )
 

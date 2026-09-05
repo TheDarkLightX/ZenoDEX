@@ -40,6 +40,23 @@ REQUIRED_ACTIVE_COMMAND_SIGNATURE_VERIFIER_EVIDENCE_V1: Final = frozenset(
     CommandSignatureVerifierEvidenceStatusV1
 )
 
+REQUIRED_ISOLATED_COMMAND_SIGNATURE_VERIFIER_EVIDENCE_V1: Final = frozenset(
+    {
+        CommandSignatureVerifierEvidenceStatusV1.SPECIFIED,
+        CommandSignatureVerifierEvidenceStatusV1.IMPLEMENTED,
+        CommandSignatureVerifierEvidenceStatusV1.TESTED,
+        CommandSignatureVerifierEvidenceStatusV1.SOURCE_PINNED,
+        CommandSignatureVerifierEvidenceStatusV1.TOOLCHAIN_PINNED,
+    }
+)
+
+
+class EconomicCommandSignatureVerifierSelectionPurposeV1(str, Enum):
+    """Isolated evidence never implies permission for production authentication."""
+
+    PRODUCTION_NEW = "PRODUCTION_NEW"
+    ISOLATED_QUALIFICATION = "ISOLATED_QUALIFICATION"
+
 
 @dataclass(frozen=True, slots=True)
 class EconomicCommandSignatureVerifierReleaseV1:
@@ -284,17 +301,33 @@ class EconomicCommandSignatureVerifierRegistryV1:
         self,
         signature_algorithm: str,
     ) -> EconomicCommandSignatureVerifierReleaseV1:
+        return self.release_for(
+            signature_algorithm, EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW
+        )
+
+    def release_for(
+        self,
+        signature_algorithm: str,
+        selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1,
+    ) -> EconomicCommandSignatureVerifierReleaseV1:
         self.validate_current()
         _require_token(signature_algorithm, name="command signature algorithm")
+        if type(selection_purpose) is not EconomicCommandSignatureVerifierSelectionPurposeV1:
+            raise TypeError("command signature verifier purpose is not closed")
+        isolated = (
+            selection_purpose
+            is EconomicCommandSignatureVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION
+        )
+        status = ReleaseStatusV1.SHADOW if isolated else ReleaseStatusV1.ACTIVE_NEW
         matches = tuple(
             release
             for release in self.releases
-            if release.signature_algorithm == signature_algorithm
-            and release.status is ReleaseStatusV1.ACTIVE_NEW
-            and release.accepts_new_authentications
+            if release.signature_algorithm == signature_algorithm and release.status is status
         )
         if len(matches) != 1:
-            raise ValueError("command signature algorithm requires one active verifier release")
+            label = "shadow" if isolated else "active"
+            raise ValueError(f"command signature algorithm requires one {label} verifier release")
+        require_command_signature_verifier_release_purpose_v1(matches[0], selection_purpose)
         return matches[0]
 
     def validate_current(self) -> None:
@@ -308,6 +341,32 @@ class EconomicCommandSignatureVerifierRegistryV1:
         return {"schema": GLOBAL_SETTLEMENT_ABI_V1, "releases": self.releases}
 
 
+def require_command_signature_verifier_release_purpose_v1(
+    release: EconomicCommandSignatureVerifierReleaseV1,
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1,
+) -> None:
+    if type(selection_purpose) is not EconomicCommandSignatureVerifierSelectionPurposeV1:
+        raise TypeError("command signature verifier purpose is not closed")
+    if type(release) is not EconomicCommandSignatureVerifierReleaseV1:
+        raise TypeError("command signature verifier release must be exactly typed")
+    release.validate_current()
+    if selection_purpose is EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW:
+        if (
+            release.status is not ReleaseStatusV1.ACTIVE_NEW
+            or not release.accepts_new_authentications
+        ):
+            raise ValueError(
+                "production command authentication requires an active verifier release"
+            )
+    else:
+        if release.status is not ReleaseStatusV1.SHADOW or release.accepts_new_authentications:
+            raise ValueError("isolated command authentication requires a shadow verifier release")
+        if not REQUIRED_ISOLATED_COMMAND_SIGNATURE_VERIFIER_EVIDENCE_V1 <= set(
+            release.evidence_statuses
+        ):
+            raise ValueError("isolated command signature verifier lacks baseline evidence")
+
+
 def select_profile_governed_command_signature_verifier_release_v1(
     *,
     policy_registry: EconomicPolicyRegistryV1,
@@ -316,6 +375,7 @@ def select_profile_governed_command_signature_verifier_release_v1(
     signature_algorithm: str,
     signer_public_key: str,
     signature_bytes: bytes,
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1 = EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW,
 ) -> EconomicCommandSignatureVerifierReleaseV1:
     binding = policy_registry.require_binding(
         policy_kind=ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
@@ -323,7 +383,7 @@ def select_profile_governed_command_signature_verifier_release_v1(
     )
     if binding.policy_root != verifier_registry.registry_root:
         raise ValueError("command signature verifier registry is not profile governed")
-    release = verifier_registry.release_for_new_authentication(signature_algorithm)
+    release = verifier_registry.release_for(signature_algorithm, selection_purpose)
     if len(signer_public_key.encode("utf-8")) > release.max_public_key_bytes:
         raise ValueError("command signature public key exceeds release ceiling")
     if len(signature_bytes) > release.max_signature_bytes:
@@ -336,6 +396,9 @@ __all__ = [
     "ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1",
     "EconomicCommandSignatureVerifierRegistryV1",
     "EconomicCommandSignatureVerifierReleaseV1",
+    "EconomicCommandSignatureVerifierSelectionPurposeV1",
     "REQUIRED_ACTIVE_COMMAND_SIGNATURE_VERIFIER_EVIDENCE_V1",
+    "REQUIRED_ISOLATED_COMMAND_SIGNATURE_VERIFIER_EVIDENCE_V1",
+    "require_command_signature_verifier_release_purpose_v1",
     "select_profile_governed_command_signature_verifier_release_v1",
 ]

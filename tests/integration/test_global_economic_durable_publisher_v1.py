@@ -31,6 +31,7 @@ from src.core.global_economic_proof_v1 import EconomicEpochReceiptCandidateV1
 from src.core.global_settlement_types_v1 import (
     ZERO_ROOT_V1,
     GlobalEconomicStateV1,
+    canonical_global_bytes_v1,
     hash_global_v1,
 )
 from src.integration.global_economic_authority_journal_v1 import (
@@ -66,8 +67,11 @@ from src.integration.global_economic_monotonic_anchor_v1 import (
     global_economic_monotonic_anchor_backend_implementation_root_v1,
     global_economic_monotonic_anchor_backend_protocol_root_v1,
 )
+from src.integration.isolated_asset_receipt_pipeline_v1 import (
+    IsolatedAssetReceiptPipelineV1,
+    _isolated_asset_pipeline_mount_v1,
+)
 from src.integration.isolated_profile_receipt_ports_v1 import (
-    IsolatedProfileReceiptPortsV1,
     _bound_isolated_profile_receipt_verifier_v1,
 )
 from tests.core.test_economic_receipt_verifier_release_v1 import (
@@ -75,14 +79,16 @@ from tests.core.test_economic_receipt_verifier_release_v1 import (
     _release,
 )
 from tests.core.test_global_settlement_abi_v1 import (
-    _epoch_admission_fixture,
     _initial_state_admission,
     _migration_admission_for_source_head,
     _RecordingReceiptVerifier,
     _root,
 )
 from tests.integration.publisher_receipt_port_fixtures_v1 import (
-    bind_publisher_test_receipt_ports_v1,
+    bind_publisher_test_admission_pipeline_v1,
+    publisher_candidate_fixture_v1,
+    publisher_policy_registry_v1,
+    publisher_raw_evidence_v1,
     publisher_receipt_manifest_v1,
 )
 from tests.integration.publisher_receipt_port_fixtures_v1 import (
@@ -99,10 +105,10 @@ def _receipt_verifier_manifest_v1() -> EconomicReceiptVerifierEvidenceManifestV1
 def _bound_receipt_verifier_v1(
     candidate: EconomicEpochReceiptCandidateV1,
     backend: _RecordingBackend | None = None,
-) -> tuple[IsolatedProfileReceiptPortsV1, _RecordingBackend]:
+) -> tuple[IsolatedAssetReceiptPipelineV1, _RecordingBackend]:
     selected_backend = backend or _RecordingBackend()
     return (
-        bind_publisher_test_receipt_ports_v1(candidate, selected_backend),
+        bind_publisher_test_admission_pipeline_v1(candidate, selected_backend),
         selected_backend,
     )
 
@@ -114,12 +120,12 @@ def _publisher_candidate_v1(
     pre_state: GlobalEconomicStateV1 | None = None,
     nonce_start: int = 1,
 ) -> tuple[EconomicEpochReceiptCandidateV1, EconomicEpochBodyAndStateV1]:
-    candidate = _epoch_admission_fixture(
-        1,
-        verifier_registry_root=verifier_registry_root,
+    subject = publisher_candidate_fixture_v1(
         pre_state=pre_state,
         nonce_start=nonce_start,
     )
+    candidate = subject.candidate
+    assert candidate.profile.verifier_registry_root == verifier_registry_root
     body = EconomicEpochBodyAndStateV1(
         pre_state_root=candidate.pre_state.state_root,
         post_state=candidate.post_state,
@@ -159,7 +165,10 @@ def _publisher_fixture_v1(*, receipt_bytes: bytes = b"durable-publisher-epoch"):
         receipt_bytes=receipt_bytes,
         verifier_registry_root=registry.registry_root,
     )
-    admission = _initial_state_admission(candidate.profile, candidate.pre_state)
+    admission = replace(
+        _initial_state_admission(candidate.profile, candidate.pre_state),
+        policy_registry=publisher_policy_registry_v1(candidate),
+    )
     return admission, candidate, body
 
 
@@ -272,19 +281,27 @@ def _anchor_for_path_v1(
 
 
 @pytest.mark.parametrize("entrypoint", ["create", "open", "open_with_monotonic_anchor", "_open_v1"])
-@pytest.mark.parametrize("forged", [False, True])
+@pytest.mark.parametrize("forged", ["bound", "ports", "pipeline"])
 def test_generic_bound_verifier_cannot_create_isolated_writer(
     tmp_path: Path, entrypoint, forged,
 ) -> None:
     admission, candidate, _ = _publisher_fixture_v1()
     scope, backend = _bound_receipt_verifier_v1(candidate)
-    generic = object.__new__(IsolatedProfileReceiptPortsV1) if forged else (
+    selected_ports = _isolated_asset_pipeline_mount_v1(
+        scope, profile=candidate.profile, deployment_root=candidate.pre_state.deployment_root,
+        policy_registry_bytes=canonical_global_bytes_v1(admission.policy_registry),
+    )
+    generic = (
         _bound_isolated_profile_receipt_verifier_v1(
-            scope, profile=candidate.profile,
+            selected_ports, profile=candidate.profile,
             verifier_registry_root=candidate.profile.verifier_registry_root,
             deployment_root=candidate.pre_state.deployment_root,
         )
     )
+    if forged == "ports":
+        generic = selected_ports
+    elif forged == "pipeline":
+        generic = object.__new__(IsolatedAssetReceiptPipelineV1)
     path = tmp_path / "generic-bound-refused.sqlite"
     extra = {"monotonic_anchor_backend": None} if entrypoint == "_open_v1" else {}
     if entrypoint == "open_with_monotonic_anchor":
@@ -353,6 +370,7 @@ def test_create_publish_reopen_and_exact_retry_are_one_durable_history(
     committed = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
     publisher.close()
@@ -365,6 +383,7 @@ def test_create_publish_reopen_and_exact_retry_are_one_durable_history(
     retried = reopened.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -417,6 +436,7 @@ def test_publisher_v1_quarantines_object_consumption_without_durable_effect(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     assert tuple(backend.calls) == calls_before
@@ -589,6 +609,7 @@ def test_create_retry_rejects_matching_activation_with_nonzero_history(
     committed = publisher.publish_economic_epoch(
         expected_source=publisher.head,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
     publisher.close()
@@ -645,6 +666,7 @@ def test_fabricated_source_metadata_is_stale_before_receipt_verification(
     outcome = publisher.publish_economic_epoch(
         expected_source=fabricated,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -674,6 +696,7 @@ def test_body_binding_rejection_is_noop(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=wrong_body,
         )
     assert publisher.head == source
@@ -698,6 +721,7 @@ def test_receipt_replacement_rejects_without_publication(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=replaced_receipt,
+            raw_evidence=publisher_raw_evidence_v1(replaced_receipt),
             body_and_state=body,
         )
     assert publisher.head == source
@@ -741,6 +765,7 @@ def test_selected_verifier_rejection_is_noop(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     assert publisher.head == source
@@ -799,6 +824,7 @@ def test_backend_method_replacement_cannot_turn_rejection_into_publication(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     assert publisher.head == source
@@ -850,11 +876,13 @@ def test_two_publishers_from_one_source_linearize_one_valid_successor(
     winner = first.publish_economic_epoch(
         expected_source=source,
         candidate=first_candidate,
+        raw_evidence=publisher_raw_evidence_v1(first_candidate),
         body_and_state=first_body,
     )
     loser = second.publish_economic_epoch(
         expected_source=source,
         candidate=second_candidate,
+        raw_evidence=publisher_raw_evidence_v1(second_candidate),
         body_and_state=second_body,
     )
 
@@ -920,6 +948,7 @@ def test_head_change_during_receipt_verification_returns_stale_noop(
             delayed.publish_economic_epoch(
                 expected_source=source,
                 candidate=delayed_candidate,
+                raw_evidence=publisher_raw_evidence_v1(delayed_candidate),
                 body_and_state=delayed_body,
             )
         )
@@ -932,6 +961,7 @@ def test_head_change_during_receipt_verification_returns_stale_noop(
     winner = fast.publish_economic_epoch(
         expected_source=source,
         candidate=fast_candidate,
+        raw_evidence=publisher_raw_evidence_v1(fast_candidate),
         body_and_state=fast_body,
     )
     release.set()
@@ -1012,6 +1042,7 @@ def test_two_named_epoch_stores_cannot_share_one_authority_head(
     committed = first.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -1055,6 +1086,7 @@ def test_restored_pre_revocation_authority_remains_a_release_blocker(
     published = resurrected.publish_economic_epoch(
         expected_source=resurrected.head,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -1131,6 +1163,7 @@ def test_monotonic_anchor_rejects_epoch_only_rollback_without_mutation(
     committed = publisher.publish_economic_epoch(
         expected_source=publisher.head,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
     publisher.close()
@@ -1190,6 +1223,7 @@ def test_monotonic_anchor_advances_after_one_durable_epoch_commit(
     committed = publisher.publish_economic_epoch(
         expected_source=publisher.head,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -1237,6 +1271,7 @@ def test_post_commit_anchor_outage_recovers_only_by_exact_epoch_retry(
         first.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     assert first.head.sequence == 1
@@ -1251,6 +1286,7 @@ def test_post_commit_anchor_outage_recovers_only_by_exact_epoch_retry(
     retried = recovering.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -1298,11 +1334,13 @@ def test_post_commit_stale_anchor_cas_is_typed_indeterminate_and_no_double_commi
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     recovered = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -1349,11 +1387,13 @@ def test_post_commit_anchor_lost_ack_reconciles_the_exact_successor_on_retry(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     retried = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -1409,6 +1449,7 @@ def test_changed_external_anchor_rejects_unless_it_is_the_exact_local_successor(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     assert tuple(receipt_backend.calls) == calls_before
@@ -1454,6 +1495,7 @@ def test_exhausted_anchor_sequence_rejects_before_proof_or_local_commit(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     assert tuple(receipt_backend.calls) == calls_before
@@ -1521,11 +1563,13 @@ def test_post_commit_local_anchor_projection_fault_is_indeterminate_and_retryabl
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     retried = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -1603,6 +1647,7 @@ def test_concurrent_exact_retry_arms_recovery_before_projection_fault(
             alice.publish_economic_epoch(
                 expected_source=source,
                 candidate=candidate,
+                raw_evidence=publisher_raw_evidence_v1(candidate),
                 body_and_state=body,
             )
         except BaseException as exc:
@@ -1616,6 +1661,7 @@ def test_concurrent_exact_retry_arms_recovery_before_projection_fault(
         bob.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     original = GlobalEconomicEpochJournalV1._anchor_heads_for_verified_publisher_v1
@@ -1647,6 +1693,7 @@ def test_concurrent_exact_retry_arms_recovery_before_projection_fault(
     retried = alice.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -1714,12 +1761,14 @@ def test_lower_journal_commit_lost_ack_becomes_typed_anchor_recovery(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     monkeypatch.undo()
     retried = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -1794,6 +1843,7 @@ def test_external_forward_tip_without_matching_local_history_fails_closed(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
 
@@ -1806,6 +1856,7 @@ def test_external_forward_tip_without_matching_local_history_fails_closed(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     publisher.close()
@@ -1878,6 +1929,7 @@ def test_concurrent_forward_tip_with_matching_local_history_is_adopted(
                 bob.publish_economic_epoch(
                     expected_source=bob.head,
                     candidate=second_candidate,
+                    raw_evidence=publisher_raw_evidence_v1(second_candidate),
                     body_and_state=second_body,
                 )
             )
@@ -1897,6 +1949,7 @@ def test_concurrent_forward_tip_with_matching_local_history_is_adopted(
     first_outcome = alice.publish_economic_epoch(
         expected_source=alice.head,
         candidate=first_candidate,
+        raw_evidence=publisher_raw_evidence_v1(first_candidate),
         body_and_state=first_body,
     )
 
@@ -1974,12 +2027,14 @@ def test_post_commit_control_flow_interruption_arms_same_process_recovery(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     monkeypatch.undo()
     retried = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -2055,6 +2110,7 @@ def test_lower_journal_precommit_fault_preserves_error_and_no_effect(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     assert publisher.head == source
@@ -2063,6 +2119,7 @@ def test_lower_journal_precommit_fault_preserves_error_and_no_effect(
     committed = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
     assert committed.status is DurableEconomicEpochCommitStatusV1.COMMITTED
@@ -2112,6 +2169,7 @@ def test_replaced_authority_inode_remains_open_publisher_release_blocker(
     published = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -2159,6 +2217,7 @@ def test_separate_migration_commit_leaves_old_publisher_active_release_blocker(
     published = publisher.publish_economic_epoch(
         expected_source=publisher.head,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -2256,6 +2315,7 @@ def test_inflight_verification_cannot_publish_after_authority_revocation(
             publisher.publish_economic_epoch(
                 expected_source=source,
                 candidate=candidate,
+                raw_evidence=publisher_raw_evidence_v1(candidate),
                 body_and_state=body,
             )
         )
@@ -2303,6 +2363,7 @@ def test_exact_committed_retry_after_revocation_returns_history_without_mutation
     committed = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
     epoch_bytes = path.read_bytes()
@@ -2319,6 +2380,7 @@ def test_exact_committed_retry_after_revocation_returns_history_without_mutation
     retried = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -2352,6 +2414,7 @@ def test_epoch_only_sequence_zero_restore_allows_duplicate_release_blocker(
     first = publisher.publish_economic_epoch(
         expected_source=source,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
     publisher.close()
@@ -2367,6 +2430,7 @@ def test_epoch_only_sequence_zero_restore_allows_duplicate_release_blocker(
     duplicate = restored.publish_economic_epoch(
         expected_source=restored.head,
         candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
         body_and_state=body,
     )
 
@@ -2393,9 +2457,9 @@ def test_open_rejects_a_different_verified_activation(
         candidate.pre_state,
         history_root="0x" + "ef" * 32,
     )
-    different_admission = _initial_state_admission(
-        candidate.profile,
-        different_state,
+    different_admission = replace(
+        _initial_state_admission(candidate.profile, different_state),
+        policy_registry=admission.policy_registry,
     )
 
     # Act and assert: restart must reproduce the byte-identical durable activation.
@@ -2425,6 +2489,7 @@ def test_expected_source_rejects_boolean_sequence_alias(
         publisher.publish_economic_epoch(
             expected_source=source,
             candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
             body_and_state=body,
         )
     assert publisher.head.sequence == 0
@@ -2462,6 +2527,7 @@ def test_publication_api_has_no_caller_supplied_authority_objects() -> None:
         "expected_source",
         "candidate",
         "body_and_state",
+        "raw_evidence",
     )
     assert "journal" not in VerifiedDurableEconomicPublisherV1.__dict__
     assert "commit_epoch" not in GlobalEconomicEpochJournalV1.__dict__
@@ -2473,7 +2539,7 @@ def test_publication_api_has_no_caller_supplied_authority_objects() -> None:
     # Assert: create/open derive the shared authority path and expected head.
     assert tuple(
         inspect.signature(VerifiedDurableEconomicPublisherV1.create).parameters
-    ) == ("path", "initial_state_admission", "receipt_verifier")
+    ) == ("path", "initial_state_admission", "admission_pipeline")
     assert tuple(
         inspect.signature(VerifiedDurableEconomicPublisherV1.open).parameters
-    ) == ("path", "initial_state_admission", "receipt_verifier")
+    ) == ("path", "initial_state_admission", "admission_pipeline")

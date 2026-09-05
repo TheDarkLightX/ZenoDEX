@@ -21,6 +21,7 @@ from src.core.economic_command_signature_verifier_deployment_v1 import (
 )
 from src.core.economic_command_signature_verifier_registry_v1 import (
     EconomicCommandSignatureVerifierReleaseV1,
+    EconomicCommandSignatureVerifierSelectionPurposeV1,
 )
 
 
@@ -32,6 +33,7 @@ def bind_deployed_economic_command_signature_verifier_v1(
     deployment_root: str,
     profile_root: str,
     backend: EconomicCommandSignatureVerifierBackendV1,
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1 = EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW,
 ) -> BoundEconomicCommandSignatureVerifierV1:
     """Measure one artifact and construct its process-local bound capability."""
 
@@ -43,6 +45,7 @@ def bind_deployed_economic_command_signature_verifier_v1(
         deployment_root=deployment_root,
         profile_root=profile_root,
         backend=backend,
+        selection_purpose=selection_purpose,
     )
 
 
@@ -50,9 +53,7 @@ def _read_regular_artifact_bytes_v1(artifact_path: Path) -> bytes:
     flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0)
     no_follow = getattr(os, "O_NOFOLLOW", 0)
     if no_follow == 0:
-        raise ValueError(
-            "command signature verifier artifact loading requires O_NOFOLLOW"
-        )
+        raise ValueError("command signature verifier artifact loading requires O_NOFOLLOW")
     try:
         descriptor = os.open(artifact_path, flags | no_follow)
     except OSError as exc:

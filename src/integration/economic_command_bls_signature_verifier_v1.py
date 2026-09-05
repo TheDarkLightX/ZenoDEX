@@ -24,6 +24,7 @@ from src.core.economic_command_signature_verifier_deployment_v1 import (
 )
 from src.core.economic_command_signature_verifier_registry_v1 import (
     EconomicCommandSignatureVerifierReleaseV1,
+    EconomicCommandSignatureVerifierSelectionPurposeV1,
 )
 from src.core.global_settlement_types_v1 import MAX_JOURNAL_BYTES_V1
 from src.integration.economic_command_signature_verifier_deployment_v1 import (
@@ -111,6 +112,7 @@ def bind_deployed_bls_economic_command_signature_verifier_v1(
     evidence_manifest: EconomicCommandSignatureVerifierEvidenceManifestV1,
     deployment_root: str,
     profile_root: str,
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1 = EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW,
 ) -> BoundEconomicCommandSignatureVerifierV1:
     """Delegate measurement/binding to the loader with the fixed BLS backend."""
 
@@ -129,6 +131,7 @@ def bind_deployed_bls_economic_command_signature_verifier_v1(
         deployment_root=deployment_root,
         profile_root=profile_root,
         backend=make_bls_economic_command_signature_verifier_backend_v1(),
+        selection_purpose=selection_purpose,
     )
 
 

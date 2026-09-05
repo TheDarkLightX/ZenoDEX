@@ -24,6 +24,8 @@ from .economic_command_signature_verifier_registry_v1 import (
     MAX_COMMAND_SIGNATURE_BYTES_V1,
     CommandSignatureVerifierEvidenceStatusV1,
     EconomicCommandSignatureVerifierReleaseV1,
+    EconomicCommandSignatureVerifierSelectionPurposeV1,
+    require_command_signature_verifier_release_purpose_v1,
 )
 from .global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
@@ -35,15 +37,11 @@ from .global_settlement_types_v1 import (
 )
 
 MAX_COMMAND_SIGNATURE_VERIFIER_ARTIFACT_BYTES_V1: Final = 16 * 1024 * 1024
-_IMPLEMENTATION_ROOT_DOMAIN_V1: Final = (
-    "economic-command-signature-verifier-implementation-v1"
-)
+_IMPLEMENTATION_ROOT_DOMAIN_V1: Final = "economic-command-signature-verifier-implementation-v1"
 _EVIDENCE_MANIFEST_ROOT_DOMAIN_V1: Final = (
     "economic-command-signature-verifier-evidence-manifest-v1"
 )
-_BACKEND_PROTOCOL_ROOT_DOMAIN_V1: Final = (
-    "economic-command-signature-verifier-backend-protocol-v1"
-)
+_BACKEND_PROTOCOL_ROOT_DOMAIN_V1: Final = "economic-command-signature-verifier-backend-protocol-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,15 +210,20 @@ def bind_economic_command_signature_verifier_deployment_v1(
     deployment_root: str,
     profile_root: str,
     backend: EconomicCommandSignatureVerifierBackendV1,
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1 = EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW,
 ) -> BoundEconomicCommandSignatureVerifierV1:
     """Bind one measured verifier artifact to one governed deployment scope."""
 
     owned_release = _snapshot_signature_verifier_release_v1(release)
+    require_command_signature_verifier_release_purpose_v1(owned_release, selection_purpose)
     owned_manifest = _snapshot_signature_verifier_manifest_v1(evidence_manifest)
     if owned_manifest.manifest_root != owned_release.evidence_manifest_root:
         raise ValueError("command signature verifier evidence manifest root mismatch")
     _require_manifest_release_coordinates_v1(owned_manifest, owned_release)
-    if owned_manifest.backend_protocol_root != command_signature_verifier_backend_protocol_root_v1():
+    if (
+        owned_manifest.backend_protocol_root
+        != command_signature_verifier_backend_protocol_root_v1()
+    ):
         raise ValueError("command signature verifier backend protocol root mismatch")
     measured_root = command_signature_verifier_implementation_root_v1(measured_artifact_bytes)
     if measured_root != owned_release.implementation_root:
@@ -244,6 +247,7 @@ def bind_economic_command_signature_verifier_deployment_v1(
             max_public_key_bytes=owned_release.max_public_key_bytes,
             max_signature_bytes=owned_release.max_signature_bytes,
             backend=backend,
+            selection_purpose=selection_purpose,
         ),
     )
 

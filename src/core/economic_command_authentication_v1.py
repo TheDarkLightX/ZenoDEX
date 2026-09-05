@@ -39,6 +39,7 @@ from .economic_command_signature_verifier_deployment_v1 import (
 )
 from .economic_command_signature_verifier_registry_v1 import (
     EconomicCommandSignatureVerifierReleaseV1,
+    EconomicCommandSignatureVerifierSelectionPurposeV1,
     select_profile_governed_command_signature_verifier_release_v1,
 )
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1
@@ -56,6 +57,19 @@ def economic_command_authentication_message_bytes_v1(
 ) -> bytes:
     release = _select_signature_verifier_release_v1(candidate)
     return _authentication_message_bytes_v1(candidate, authorization, release)
+
+
+def _isolated_economic_command_authentication_message_bytes_v1(
+    candidate: EconomicCommandAuthenticationCandidateV1,
+    authorization: EconomicCommandAuthorizationV1,
+) -> bytes:
+    """Construct the same raw intent message for an isolated SHADOW release."""
+    owned = snapshot_command_authentication_candidate_v1(candidate)
+    release = _select_signature_verifier_release_v1(
+        owned,
+        EconomicCommandSignatureVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION,
+    )
+    return _authentication_message_bytes_v1(owned, authorization, release)
 
 
 def _authentication_message_bytes_v1(
@@ -87,12 +101,38 @@ def authenticate_economic_command_intent_v1(
     candidate: EconomicCommandAuthenticationCandidateV1,
     signature_verifier: BoundEconomicCommandSignatureVerifierV1,
 ) -> AuthenticatedEconomicCommandIntentV1:
+    return _authenticate_for_purpose_v1(
+        candidate,
+        signature_verifier,
+        EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW,
+    )
+
+
+def _authenticate_isolated_economic_command_intent_v1(
+    candidate: EconomicCommandAuthenticationCandidateV1,
+    signature_verifier: BoundEconomicCommandSignatureVerifierV1,
+) -> AuthenticatedEconomicCommandIntentV1:
+    """Internal isolated pipeline entry; never selects production authentication."""
+    return _authenticate_for_purpose_v1(
+        candidate,
+        signature_verifier,
+        EconomicCommandSignatureVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION,
+    )
+
+
+def _authenticate_for_purpose_v1(
+    candidate: EconomicCommandAuthenticationCandidateV1,
+    signature_verifier: BoundEconomicCommandSignatureVerifierV1,
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1,
+) -> AuthenticatedEconomicCommandIntentV1:
     if type(signature_verifier) is not BoundEconomicCommandSignatureVerifierV1:
         raise TypeError("command signature verifier must be an exact deployment binding")
+    if signature_verifier.selection_purpose is not selection_purpose:
+        raise ValueError("command signature verifier authentication purpose mismatch")
     owned = snapshot_command_authentication_candidate_v1(candidate)
     authorization = _select_authorization_v1(owned)
     _validate_authorization_for_intent_v1(owned.intent, owned.envelope, authorization)
-    release = _select_signature_verifier_release_v1(owned)
+    release = _select_signature_verifier_release_v1(owned, selection_purpose)
     message_bytes = _authentication_message_bytes_v1(
         owned,
         authorization,
@@ -102,6 +142,7 @@ def authenticate_economic_command_intent_v1(
         release_id=release.release_id,
         deployment_root=owned.intent.deployment_root,
         profile_root=owned.intent.profile_root,
+        selection_purpose=selection_purpose,
     )
     verified = signature_verifier.verify_command_signature(
         signature_algorithm=owned.envelope.signature_algorithm,
@@ -152,6 +193,7 @@ def bind_authenticated_intent_to_occurrence_v1(
             occurrence_id=owned_occurrence.occurrence_id,
             authenticated_intent_binding_root=authenticated_intent.binding_root,
             authentication_message_digest=(authenticated_intent.authentication_message_digest),
+            selection_purpose=authenticated_intent.selection_purpose,
         ),
     )
 
@@ -180,6 +222,7 @@ def _authenticated_intent_v1(
             command_body_bytes_digest=_sha256_root(envelope.command_body_bytes),
             authentication_message_digest=_sha256_root(message_bytes),
             signature_digest=_sha256_root(envelope.signature_bytes),
+            selection_purpose=signature_verifier.selection_purpose,
         ),
     )
 
@@ -240,6 +283,7 @@ def _select_authorization_v1(
 
 def _select_signature_verifier_release_v1(
     candidate: EconomicCommandAuthenticationCandidateV1,
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1 = EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW,
 ) -> EconomicCommandSignatureVerifierReleaseV1:
     return select_profile_governed_command_signature_verifier_release_v1(
         policy_registry=candidate.policy_registry,
@@ -248,6 +292,7 @@ def _select_signature_verifier_release_v1(
         signature_algorithm=candidate.envelope.signature_algorithm,
         signer_public_key=candidate.envelope.signer_public_key,
         signature_bytes=candidate.envelope.signature_bytes,
+        selection_purpose=selection_purpose,
     )
 
 

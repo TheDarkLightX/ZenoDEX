@@ -9,6 +9,7 @@ from weakref import WeakKeyDictionary
 
 from .economic_command_signature_verifier_registry_v1 import (
     MAX_COMMAND_SIGNATURE_BYTES_V1,
+    EconomicCommandSignatureVerifierSelectionPurposeV1,
 )
 from .global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
@@ -50,6 +51,7 @@ class _BoundVerifierAuthorityV1:
     max_public_key_bytes: int
     max_signature_bytes: int
     backend: EconomicCommandSignatureVerifierBackendV1
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1
 
 
 _BOUND_VERIFIER_TOKEN_V1: Final = object()
@@ -81,6 +83,12 @@ class BoundEconomicCommandSignatureVerifierV1:
         return _bound_verifier_authority_v1(self).profile_root
 
     @property
+    def selection_purpose(self) -> EconomicCommandSignatureVerifierSelectionPurposeV1:
+        return _snapshot_bound_verifier_authority_v1(
+            _bound_verifier_authority_v1(self)
+        ).selection_purpose
+
+    @property
     def binding_root(self) -> str:
         return _bound_verifier_binding_root_v1(_bound_verifier_authority_v1(self))
 
@@ -90,10 +98,13 @@ class BoundEconomicCommandSignatureVerifierV1:
         release_id: str,
         deployment_root: str,
         profile_root: str,
+        selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1 = EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW,
     ) -> None:
-        authority = _snapshot_bound_verifier_authority_v1(
-            _bound_verifier_authority_v1(self)
-        )
+        authority = _snapshot_bound_verifier_authority_v1(_bound_verifier_authority_v1(self))
+        if type(selection_purpose) is not EconomicCommandSignatureVerifierSelectionPurposeV1:
+            raise TypeError("command signature verifier purpose is not closed")
+        if selection_purpose is not authority.selection_purpose:
+            raise ValueError("command signature verifier purpose binding mismatch")
         if type(release_id) is not str or release_id != authority.release_id:
             raise ValueError("command signature verifier release binding mismatch")
         if type(deployment_root) is not str or deployment_root != authority.deployment_root:
@@ -109,9 +120,7 @@ class BoundEconomicCommandSignatureVerifierV1:
         message_bytes: bytes,
         signature_bytes: bytes,
     ) -> bool:
-        authority = _snapshot_bound_verifier_authority_v1(
-            _bound_verifier_authority_v1(self)
-        )
+        authority = _snapshot_bound_verifier_authority_v1(_bound_verifier_authority_v1(self))
         if type(signature_algorithm) is not str or (
             signature_algorithm != authority.signature_algorithm
         ):
@@ -134,9 +143,7 @@ class BoundEconomicCommandSignatureVerifierV1:
             message_bytes=message_bytes,
             signature_bytes=signature_bytes,
         )
-        retained = _snapshot_bound_verifier_authority_v1(
-            _bound_verifier_authority_v1(self)
-        )
+        retained = _snapshot_bound_verifier_authority_v1(_bound_verifier_authority_v1(self))
         if retained.backend is not backend or (
             _bound_verifier_authority_baseline_v1(retained) != baseline
         ):
@@ -179,6 +186,8 @@ def _snapshot_bound_verifier_authority_v1(
 ) -> _BoundVerifierAuthorityV1:
     if type(authority) is not _BoundVerifierAuthorityV1:
         raise TypeError("bound command signature verifier authority must be exactly typed")
+    if type(authority.selection_purpose) is not EconomicCommandSignatureVerifierSelectionPurposeV1:
+        raise TypeError("bound command signature verifier purpose is not closed")
     exact_strings = (
         authority.release_id,
         authority.deployment_root,
@@ -228,6 +237,7 @@ def _snapshot_bound_verifier_authority_v1(
         max_public_key_bytes=authority.max_public_key_bytes,
         max_signature_bytes=authority.max_signature_bytes,
         backend=authority.backend,
+        selection_purpose=authority.selection_purpose,
     )
 
 
@@ -244,12 +254,13 @@ def _bound_verifier_authority_baseline_v1(
         authority.signature_algorithm,
         authority.max_public_key_bytes,
         authority.max_signature_bytes,
+        authority.selection_purpose,
         _bound_verifier_binding_root_v1(authority),
     )
 
 
 def _bound_verifier_binding_root_v1(authority: _BoundVerifierAuthorityV1) -> str:
-    return hash_global_v1(
+    legacy_root = hash_global_v1(
         _DEPLOYMENT_BINDING_ROOT_DOMAIN_V1,
         {
             "schema": GLOBAL_SETTLEMENT_ABI_V1,
@@ -259,6 +270,18 @@ def _bound_verifier_binding_root_v1(authority: _BoundVerifierAuthorityV1) -> str
             "implementation_root": authority.implementation_root,
             "evidence_manifest_root": authority.evidence_manifest_root,
             "backend_protocol_root": authority.backend_protocol_root,
+        },
+    )
+    if (
+        authority.selection_purpose
+        is EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW
+    ):
+        return legacy_root
+    return hash_global_v1(
+        "economic-command-signature-verifier-isolated-binding-v1",
+        {
+            "legacy_binding_root": legacy_root,
+            "selection_purpose": authority.selection_purpose.value,
         },
     )
 

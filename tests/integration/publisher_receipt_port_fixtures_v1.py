@@ -56,6 +56,8 @@ class _SyntheticProcessV1:
         self.calls = {}
         self.lock = Lock()
         self.sequence = 0
+        self.publisher_seed = None
+        self.publisher_subjects = {}
         self.current = ContextVar("publisher_test_verifier_call")
         profile, _route = _profile()
         self.template = self.artifacts(profile, None)
@@ -138,6 +140,7 @@ def _owner():
 
 
 def publisher_receipt_manifest_v1():
+    _publisher_seed_v1()
     return _owner().manifest()
 
 
@@ -159,4 +162,68 @@ def bind_publisher_test_receipt_ports_v1(candidate, backend):
         artifacts=artifacts,
         deployment_root=candidate.pre_state.deployment_root,
         timeout_ms=1000,
+    )
+
+
+def _publisher_seed_v1():
+    from tests.integration.asset_receipt_pipeline_fixtures_v1 import _fixture
+
+    owner = _owner()
+    if owner.publisher_seed is None:
+        owner.publisher_seed = _fixture(owner)
+    return owner.publisher_seed
+
+
+def publisher_candidate_fixture_v1(*, pre_state=None, nonce_start=1):
+    from tests.integration.asset_receipt_pipeline_fixtures_v1 import _fixture
+
+    _publisher_seed_v1()
+    subject = _fixture(_owner(), pre_state=pre_state, nonce_start=nonce_start)
+    _owner().publisher_subjects[subject.candidate.command_occurrences[0].occurrence_id] = subject
+    return subject
+
+
+def publisher_raw_evidence_v1(candidate):
+    """Return the signed raw submission prepared for this exact occurrence."""
+    subject = _owner().publisher_subjects[candidate.command_occurrences[0].occurrence_id]
+    return (subject.raw,)
+
+
+def publisher_policy_registry_v1(candidate):
+    return _owner().publisher_subjects[candidate.command_occurrences[0].occurrence_id].policy
+
+
+def bind_publisher_test_admission_pipeline_v1(candidate, backend):
+    from src.integration import economic_command_bls_signature_verifier_v1 as bls
+    from src.integration.isolated_asset_receipt_pipeline_v1 import (
+        bind_isolated_asset_receipt_pipeline_v1,
+    )
+
+    subject = _owner().publisher_subjects[candidate.command_occurrences[0].occurrence_id]
+    root_call = backend.verify_succinct_receipt
+
+    class ReceiptStages:
+        def verify_succinct_receipt(
+            self, receipt_bytes, *, expected_image_id, expected_journal_bytes
+        ):
+            call = (
+                root_call
+                if expected_image_id == candidate.profile.root_image_id
+                else (subject.verify_succinct_receipt)
+            )
+            return call(
+                receipt_bytes,
+                expected_image_id=expected_image_id,
+                expected_journal_bytes=expected_journal_bytes,
+            )
+
+    ports = bind_publisher_test_receipt_ports_v1(candidate, ReceiptStages())
+    return bind_isolated_asset_receipt_pipeline_v1(
+        profile=candidate.profile,
+        policy_registry=subject.policy,
+        receipt_ports=ports,
+        deployment_root=candidate.pre_state.deployment_root,
+        signature_artifact_path=Path(bls.__file__),
+        signature_release=subject.signature_release,
+        signature_evidence_manifest=subject.signature_manifest,
     )

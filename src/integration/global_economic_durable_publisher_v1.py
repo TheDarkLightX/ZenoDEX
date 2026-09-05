@@ -6,9 +6,10 @@ publication record and complete byte bundle internally, and uses the journal's
 compare-and-swap transaction as the sole durable linearization point.
 
 It grants no production writer, settlement, consensus, finality, migration, or
-external-delivery authority. Receipt checking uses a measured profile-port set
-acquired by the isolated factory. Interpreter and operating-system integrity,
-command admission and allocation mediation remain separate obligations.
+external-delivery authority. A fixed isolated pipeline reauthenticates commands
+and verifies leaf receipts; derived allocation checks precede the commit.
+Interpreter and operating-system integrity and the documented lane limits
+remain explicit assumptions.
 """
 
 from __future__ import annotations
@@ -17,6 +18,11 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import Lock
 
+from ..core.asset_transfer_epoch_allocation_v1 import (
+    AssetTransferEpochAllocationAcceptedV1,
+    AssetTransferEpochAllocationRejectedV1,
+    check_asset_transfer_epoch_allocation_v1,
+)
 from ..core.economic_initial_state_publisher_verification_v1 import (
     _verify_economic_initial_state_for_publisher_v1,
 )
@@ -32,6 +38,7 @@ from ..core.global_economic_authority_head_v1 import (
     GlobalEconomicAuthorityStatusV1,
 )
 from ..core.global_economic_durable_activation_v1 import (
+    DurableEconomicComponentKindV1,
     DurableEconomicInitialStateBundleV1,
     prepare_durable_economic_initial_state_bundle_v1,
 )
@@ -77,6 +84,7 @@ from .global_economic_epoch_journal_v1 import (
     DurableEconomicEpochCommitStatusV1,
     DurableEconomicEpochWriteCapabilityV1,
     GlobalEconomicEpochJournalV1,
+    _CommittedEconomicSourceV1,
     _create_epoch_journal_for_verified_publisher_v1,
     _open_epoch_journal_for_verified_publisher_v1,
     _require_write_capability_v1,
@@ -86,6 +94,13 @@ from .global_economic_monotonic_anchor_v1 import (
     build_global_economic_epoch_anchor_successor_v1,
     global_economic_monotonic_anchor_publication_head_v1,
     require_global_economic_monotonic_anchor_matches_local_v1,
+)
+from .isolated_asset_receipt_pipeline_v1 import (
+    IsolatedAssetReceiptPipelineResultV1,
+    IsolatedAssetReceiptPipelineV1,
+    RawAssetTransferReceiptEvidenceV1,
+    _isolated_asset_pipeline_mount_v1,
+    _require_single_occurrence_shape_v1,
 )
 from .isolated_profile_receipt_ports_v1 import (
     IsolatedProfileReceiptPortsV1,
@@ -101,6 +116,16 @@ class GlobalEconomicRollbackDetectedV1(ValueError):
 
 class GlobalEconomicAnchorAdvanceIndeterminateV1(RuntimeError):
     """The local epoch committed, while external anchor advancement is unknown."""
+
+
+class GlobalEconomicAllocationRejectedV1(ValueError):
+    """A precommit allocation refusal with its closed core reason retained."""
+
+    def __init__(self, rejection: AssetTransferEpochAllocationRejectedV1) -> None:
+        if type(rejection) is not AssetTransferEpochAllocationRejectedV1:
+            raise TypeError("publisher allocation rejection must have the exact core type")
+        self.rejection = rejection
+        super().__init__(f"durable publisher allocation rejected: {rejection.code.value}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,16 +165,62 @@ class _VerifiedActivationV1:
 
 def _mount_isolated_receipt_ports_v1(
     admission: EconomicInitialStateAdmissionV1,
-    ports: IsolatedProfileReceiptPortsV1,
+    pipeline: IsolatedAssetReceiptPipelineV1,
 ) -> BoundEconomicReceiptVerifierV1:
     if type(admission) is not EconomicInitialStateAdmissionV1:
         raise TypeError("durable publisher requires exact initial-state admission")
+    ports = _isolated_asset_pipeline_mount_v1(
+        pipeline,
+        profile=admission.profile,
+        deployment_root=admission.state.deployment_root,
+        policy_registry_bytes=canonical_global_bytes_v1(admission.policy_registry),
+    )
     return _bound_isolated_profile_receipt_verifier_v1(
         ports,
         profile=admission.profile,
         verifier_registry_root=admission.profile.verifier_registry_root,
         deployment_root=admission.state.deployment_root,
     )
+
+
+def _activation_policy_bytes_v1(activation: DurableEconomicInitialStateBundleV1) -> bytes:
+    for component in activation.components:
+        if component.kind is DurableEconomicComponentKindV1.POLICY_REGISTRY:
+            return component.payload
+    raise ValueError("durable publisher activation lacks policy registry")
+
+
+def _admit_source_bound_epoch_v1(
+    pipeline: IsolatedAssetReceiptPipelineV1,
+    source: _CommittedEconomicSourceV1,
+    candidate: EconomicEpochReceiptCandidateV1,
+    raw_evidence: tuple[RawAssetTransferReceiptEvidenceV1, ...],
+) -> tuple[EconomicEpochReceiptCandidateV1, IsolatedProfileReceiptPortsV1]:
+    ports = _isolated_asset_pipeline_mount_v1(
+        pipeline,
+        profile=candidate.profile,
+        deployment_root=source.state.deployment_root,
+        policy_registry_bytes=_activation_policy_bytes_v1(source.activation),
+    )
+    admitted = pipeline.verify(
+        candidate=candidate,
+        predecessor=source.state,
+        raw_evidence=raw_evidence,
+    )
+    if type(admitted) is not IsolatedAssetReceiptPipelineResultV1:
+        raise TypeError("isolated admission returned an unregistered outcome")
+    allocation = check_asset_transfer_epoch_allocation_v1(
+        candidate=admitted.candidate,
+        predecessor=source.state,
+        module_evidence=admitted.module_evidence,
+    )
+    if type(allocation) is AssetTransferEpochAllocationRejectedV1:
+        raise GlobalEconomicAllocationRejectedV1(allocation)
+    if type(allocation) is not AssetTransferEpochAllocationAcceptedV1:
+        raise TypeError("allocation admission returned an unregistered outcome")
+    # The relation compared the entire pre-state; keep the acquired value at
+    # the final core boundary as well as at the allocation boundary.
+    return replace(admitted.candidate, pre_state=source.state), ports
 
 
 def _require_exact_publisher_class_v1(
@@ -376,6 +447,7 @@ class VerifiedDurableEconomicPublisherV1:
     """Sealed unmounted verifier-to-SQLite publication capability."""
 
     __slots__ = (
+        "__admission_pipeline",
         "__activation_id",
         "__binding_token",
         "__journal",
@@ -392,6 +464,7 @@ class VerifiedDurableEconomicPublisherV1:
         "__write_capability",
     )
     __activation_id: str
+    __admission_pipeline: IsolatedAssetReceiptPipelineV1
     __binding_token: object
     __journal: GlobalEconomicEpochJournalV1
     __lock: Lock
@@ -412,7 +485,7 @@ class VerifiedDurableEconomicPublisherV1:
         journal: GlobalEconomicEpochJournalV1,
         write_capability: DurableEconomicEpochWriteCapabilityV1,
         profile: EconomicProfileSnapshotV1,
-        receipt_verifier: IsolatedProfileReceiptPortsV1,
+        admission_pipeline: IsolatedAssetReceiptPipelineV1,
         activation_id: str,
         monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1
         | None = None,
@@ -427,8 +500,14 @@ class VerifiedDurableEconomicPublisherV1:
         if type(journal) is not GlobalEconomicEpochJournalV1:
             raise TypeError("durable publisher journal type is not closed")
         _require_write_capability_v1(journal, write_capability)
+        receipt_ports = _isolated_asset_pipeline_mount_v1(
+            admission_pipeline,
+            profile=profile,
+            deployment_root=journal.activation_bundle.head.deployment_root,
+            policy_registry_bytes=_activation_policy_bytes_v1(journal.activation_bundle),
+        )
         bound_verifier = _bound_isolated_profile_receipt_verifier_v1(
-            receipt_verifier,
+            receipt_ports,
             profile=profile,
             verifier_registry_root=profile.verifier_registry_root,
             deployment_root=journal.activation_bundle.head.deployment_root,
@@ -453,6 +532,11 @@ class VerifiedDurableEconomicPublisherV1:
         object.__setattr__(self, "_VerifiedDurableEconomicPublisherV1__journal", journal)
         object.__setattr__(
             self,
+            "_VerifiedDurableEconomicPublisherV1__admission_pipeline",
+            admission_pipeline,
+        )
+        object.__setattr__(
+            self,
             "_VerifiedDurableEconomicPublisherV1__write_capability",
             write_capability,
         )
@@ -464,7 +548,7 @@ class VerifiedDurableEconomicPublisherV1:
         object.__setattr__(
             self,
             "_VerifiedDurableEconomicPublisherV1__receipt_ports",
-            receipt_verifier,
+            receipt_ports,
         )
         object.__setattr__(
             self,
@@ -523,11 +607,11 @@ class VerifiedDurableEconomicPublisherV1:
         cls,
         path: str | Path,
         initial_state_admission: EconomicInitialStateAdmissionV1,
-        receipt_verifier: IsolatedProfileReceiptPortsV1,
+        admission_pipeline: IsolatedAssetReceiptPipelineV1,
     ) -> VerifiedDurableEconomicPublisherV1:
         _require_exact_publisher_class_v1(cls)
         bound_verifier = _mount_isolated_receipt_ports_v1(
-            initial_state_admission, receipt_verifier,
+            initial_state_admission, admission_pipeline,
         )
         verified = _prepare_verified_activation_v1(
             initial_state_admission,
@@ -558,7 +642,7 @@ class VerifiedDurableEconomicPublisherV1:
             journal,
             write_capability,
             verified.profile,
-            receipt_verifier,
+            admission_pipeline,
             verified.bundle.record.activation_id,
         )
 
@@ -567,13 +651,13 @@ class VerifiedDurableEconomicPublisherV1:
         cls,
         path: str | Path,
         initial_state_admission: EconomicInitialStateAdmissionV1,
-        receipt_verifier: IsolatedProfileReceiptPortsV1,
+        admission_pipeline: IsolatedAssetReceiptPipelineV1,
     ) -> VerifiedDurableEconomicPublisherV1:
         _require_exact_publisher_class_v1(cls)
         return cls._open_v1(
             path,
             initial_state_admission,
-            receipt_verifier,
+            admission_pipeline,
             monotonic_anchor_backend=None,
         )
 
@@ -582,7 +666,7 @@ class VerifiedDurableEconomicPublisherV1:
         cls,
         path: str | Path,
         initial_state_admission: EconomicInitialStateAdmissionV1,
-        receipt_verifier: IsolatedProfileReceiptPortsV1,
+        admission_pipeline: IsolatedAssetReceiptPipelineV1,
         monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1,
     ) -> VerifiedDurableEconomicPublisherV1:
         """Open only when an external current checkpoint matches or is one behind."""
@@ -595,7 +679,7 @@ class VerifiedDurableEconomicPublisherV1:
         return cls._open_v1(
             path,
             initial_state_admission,
-            receipt_verifier,
+            admission_pipeline,
             monotonic_anchor_backend=monotonic_anchor_backend,
         )
 
@@ -604,14 +688,14 @@ class VerifiedDurableEconomicPublisherV1:
         cls,
         path: str | Path,
         initial_state_admission: EconomicInitialStateAdmissionV1,
-        receipt_verifier: IsolatedProfileReceiptPortsV1,
+        admission_pipeline: IsolatedAssetReceiptPipelineV1,
         *,
         monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1
         | None,
     ) -> VerifiedDurableEconomicPublisherV1:
         _require_exact_publisher_class_v1(cls)
         bound_verifier = _mount_isolated_receipt_ports_v1(
-            initial_state_admission, receipt_verifier,
+            initial_state_admission, admission_pipeline,
         )
         verified = _prepare_verified_activation_v1(
             initial_state_admission,
@@ -659,7 +743,7 @@ class VerifiedDurableEconomicPublisherV1:
                 journal,
                 write_capability,
                 verified.profile,
-                receipt_verifier,
+                admission_pipeline,
                 verified.bundle.record.activation_id,
                 monotonic_anchor_backend,
                 monotonic_anchor,
@@ -946,13 +1030,18 @@ class VerifiedDurableEconomicPublisherV1:
         expected_source: DurableEconomicPublicationHeadV1,
         candidate: EconomicEpochReceiptCandidateV1,
         body_and_state: EconomicEpochBodyAndStateV1,
+        raw_evidence: tuple[RawAssetTransferReceiptEvidenceV1, ...],
     ) -> VerifiedDurableEconomicPublishOutcomeV1:
         """Verify and atomically persist one exact complete epoch bundle."""
 
         source = _snapshot_publication_head_v1(expected_source)
         if type(candidate) is not EconomicEpochReceiptCandidateV1:
             raise TypeError("durable publisher epoch candidate type is not closed")
-        owned_candidate = _snapshot_economic_epoch_candidate_v1(candidate)
+        _require_single_occurrence_shape_v1(candidate)
+        # Caller witnesses carry no authority here; the owned pipeline rebuilds them.
+        owned_candidate = _snapshot_economic_epoch_candidate_v1(
+            replace(candidate, verified_routes=()),
+        )
         owned_body = _snapshot_body_and_state_v1(body_and_state)
 
         with self.__lock:
@@ -984,7 +1073,12 @@ class VerifiedDurableEconomicPublisherV1:
                 raise ValueError("durable publisher disclosed source differs from committed state")
             owned_candidate = replace(owned_candidate, pre_state=acquired_source.state)
             cas_token = acquired_source.cas_token
-            receipt_ports = self.__receipt_ports
+            admission_pipeline = self.__admission_pipeline
+            owned_candidate, receipt_ports = _admit_source_bound_epoch_v1(
+                admission_pipeline, acquired_source, owned_candidate, raw_evidence,
+            )
+            if receipt_ports is not self.__receipt_ports:
+                raise ValueError("durable publisher admission receipt selection changed")
             receipt_verifier = _bound_isolated_profile_receipt_verifier_v1(
                 receipt_ports,
                 profile=selected_profile,
@@ -1002,7 +1096,8 @@ class VerifiedDurableEconomicPublisherV1:
                 binding_token,
             )
             if (
-                self.__receipt_ports is not receipt_ports
+                self.__admission_pipeline is not admission_pipeline
+                or self.__receipt_ports is not receipt_ports
                 or self.__receipt_verifier is not receipt_verifier
                 or self.__receipt_verifier_binding_root
                 != receipt_verifier_binding_root
@@ -1102,6 +1197,7 @@ class VerifiedDurableEconomicPublisherV1:
 
 
 __all__ = [
+    "GlobalEconomicAllocationRejectedV1",
     "GlobalEconomicAnchorAdvanceIndeterminateV1",
     "GlobalEconomicRollbackDetectedV1",
     "VerifiedDurableEconomicPublishOutcomeV1",

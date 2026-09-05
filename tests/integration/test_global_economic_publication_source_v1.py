@@ -9,6 +9,9 @@ from src.integration.global_economic_epoch_journal_v1 import (
     GlobalEconomicEpochJournalV1,
 )
 from tests.integration.publisher_receipt_port_fixtures_v1 import (
+    publisher_raw_evidence_v1,
+)
+from tests.integration.publisher_receipt_port_fixtures_v1 import (
     simulated_measured_publisher_crypto_v1 as simulated_measured_publisher_crypto_v1,
 )
 from tests.integration.test_global_economic_epoch_journal_v1 import (
@@ -116,6 +119,7 @@ def test_publisher_passes_the_acquired_committed_state_to_the_pure_verifier(
         tmp_path / "economic.sqlite", admission, verifier,
     ) as publisher:
         result = publisher.publish_economic_epoch(
-            expected_source=publisher.head, candidate=candidate, body_and_state=body,
+            expected_source=publisher.head, candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate), body_and_state=body,
         )
         assert result.status is DurableEconomicEpochCommitStatusV1.COMMITTED
