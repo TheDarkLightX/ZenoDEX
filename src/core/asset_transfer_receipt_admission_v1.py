@@ -74,10 +74,15 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Final
 
+from .asset_transfer_epoch_position_v1 import (
+    AssetTransferEpochPositionV1,
+    _snapshot_epoch_position_v1,
+)
 from .asset_transfer_global_allocation_v1 import (
     AssetTransferGlobalAllocationCandidateV1,
     GlobalAllocationBindingRejectedV1,
     _derived_global_entitlements_v1,
+    _epoch_allocation_binding_reject_v1,
     _global_allocation_binding_reject_v1,
 )
 from .asset_transfer_lane_module_v1 import (
@@ -107,6 +112,7 @@ from .global_economic_refinement_snapshot_v1 import (
     _snapshot_state_v1,
 )
 from .global_settlement_types_v1 import (
+    GlobalEconomicStateV1,
     LaneIdV1,
     LaneStateRootV1,
     _require_root,
@@ -330,15 +336,55 @@ def verify_asset_transfer_global_fragment_receipt_v1(
     coordinator, publication or initialization-ownership authority. Old module
     admission and all V1 encoded state shapes retain their meaning.
     """
+    owned = _snapshot_global_allocation_candidate_v1(candidate)
+    rejected = _global_allocation_binding_reject_v1(
+        owned.accepted, owned.occurrence, owned.predecessor, owned.current,
+    )
+    if rejected is not None:
+        return rejected
+    return _admit_global_fragment_v1(witness, owned.accepted, owned.predecessor, owned.current)
+
+
+def _snapshot_global_allocation_candidate_v1(
+    candidate: AssetTransferGlobalAllocationCandidateV1,
+) -> AssetTransferGlobalAllocationCandidateV1:
     if type(candidate) is not AssetTransferGlobalAllocationCandidateV1:
         raise TypeError("global allocation candidate must have the exact typed value")
     owned = _snapshot_asset_transfer_lane_module_accepted_v1(candidate.accepted)
     prior = _snapshot_state_v1(candidate.predecessor)
     post = _snapshot_state_v1(candidate.current)
     command = _snapshot_occurrence_v1(candidate.occurrence)
-    rejected = _global_allocation_binding_reject_v1(owned, command, prior, post)
+    return AssetTransferGlobalAllocationCandidateV1(owned, command, prior, post)
+
+
+def verify_asset_transfer_epoch_fragment_receipt_v1(
+    witness: VerifiedLaneModuleTransitionV1,
+    candidate: AssetTransferGlobalAllocationCandidateV1,
+    position: AssetTransferEpochPositionV1,
+) -> (
+    VerifiedLaneAllocationFragmentV1 | ReceiptWitnessRejectedV1
+    | ReceiptBackedProducerRejectedV1 | GlobalAllocationBindingRejectedV1
+):
+    """Admit a checked prospective epoch pair under an explicit source position.
+
+    The shell authenticates the initial source; the consuming epoch fold pairs
+    each later predecessor with the previous checked post-state. Position data
+    alone supplies no such authority. Standalone admission retains adjacent heights.
+    """
+    owned_position = _snapshot_epoch_position_v1(position)
+    owned = _snapshot_global_allocation_candidate_v1(candidate)
+    rejected = _epoch_allocation_binding_reject_v1(owned, owned_position)
     if rejected is not None:
         return rejected
+    return _admit_global_fragment_v1(witness, owned.accepted, owned.predecessor, owned.current)
+
+
+def _admit_global_fragment_v1(
+    witness: VerifiedLaneModuleTransitionV1,
+    owned: AssetTransferLaneModuleAcceptedV1,
+    prior: GlobalEconomicStateV1,
+    post: GlobalEconomicStateV1,
+) -> VerifiedLaneAllocationFragmentV1 | ReceiptWitnessRejectedV1 | ReceiptBackedProducerRejectedV1:
     # The legacy admission binds the complete private-port preimage through the
     # module journal. These local coordinates are derived from that module;
     # neither committed snapshot nor its coordinator root is rewritten.
@@ -379,4 +425,5 @@ __all__ = [
     "VerifiedLaneAllocationFragmentV1",
     "verify_asset_transfer_fragment_receipt_v1",
     "verify_asset_transfer_global_fragment_receipt_v1",
+    "verify_asset_transfer_epoch_fragment_receipt_v1",
 ]

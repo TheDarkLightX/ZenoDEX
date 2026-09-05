@@ -3,8 +3,8 @@
 The shell owns committed-source acquisition and the cryptographic origin of
 module witnesses. Only the initial predecessor is committed; later states are
 prospective. These ordinary diagnostic values grant no publication authority.
-The standalone W04 relation currently refuses the second ordinary command of
-an epoch because intermediate epoch heights do not increment per command.
+Epoch position is derived from that source and exact ordered disclosures.
+Standalone W04 admission separately retains its adjacent-height contract.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TypeAlias
 
+from .asset_transfer_epoch_position_v1 import AssetTransferEpochPositionV1
 from .asset_transfer_global_allocation_v1 import (
     AssetTransferGlobalAllocationCandidateV1,
     GlobalAllocationBindingRejectedV1,
@@ -23,7 +24,7 @@ from .asset_transfer_lane_module_v1 import (
 )
 from .asset_transfer_receipt_admission_v1 import (
     ReceiptWitnessRejectedV1,
-    verify_asset_transfer_global_fragment_receipt_v1,
+    verify_asset_transfer_epoch_fragment_receipt_v1,
 )
 from .global_accounting_allocation_certificate_v1 import (
     AllocationCertificateAcceptedV1,
@@ -229,7 +230,7 @@ def _check_occurrence_v1(
         return AssetTransferEpochAllocationRejectedV1(code, index)
     accepted, witness = evidence
     current = candidate.route_state_disclosures[index].post_state
-    fragment = verify_asset_transfer_global_fragment_receipt_v1(
+    fragment = verify_asset_transfer_epoch_fragment_receipt_v1(
         witness,
         AssetTransferGlobalAllocationCandidateV1(
             accepted,
@@ -237,6 +238,7 @@ def _check_occurrence_v1(
             predecessor,
             current,
         ),
+        AssetTransferEpochPositionV1(candidate.pre_state, index),
     )
     if not isinstance(fragment, VerifiedLaneAllocationFragmentV1):
         return AssetTransferEpochAllocationRejectedV1(

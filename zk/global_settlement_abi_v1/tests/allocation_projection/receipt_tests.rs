@@ -214,6 +214,67 @@ fn allocation_projection_global_receipt_preserves_distinct_roots_and_claimants()
 }
 
 #[test]
+fn allocation_epoch_position_admits_second_pair_without_rewriting_height() {
+    let (mut fixture, source, first_post) = global_allocation_receipt_fixture();
+    fixture.occurrence.pre_state_root = first_post.state_root().unwrap();
+    fixture.occurrence.tx_index += 1;
+    fixture.occurrence.nonce += 1;
+    fixture.input.pre_state = fixture.accepted.post_state.clone();
+    fixture.input.context.command_occurrence_id = fixture.occurrence.occurrence_id().unwrap();
+    remint_projection_module(&mut fixture);
+    let mut post = first_post.clone();
+    post.lane_roots[0].state_root = fixture
+        .accepted
+        .private_port
+        .post_state
+        .state_root()
+        .unwrap();
+    post.balances = fixture.accepted.private_port.post_state.balances.clone();
+    post.supplies = fixture.accepted.private_port.post_state.supplies.clone();
+    post.replay_state.push(ReplayStateV1 {
+        replay_id: fixture.occurrence.replay_id().unwrap().as_str().to_owned(),
+        occurrence_id: fixture.occurrence.occurrence_id().unwrap(),
+    });
+    post.replay_state
+        .sort_by(|a, b| a.replay_id.cmp(&b.replay_id));
+    let pair = || AssetTransferGlobalAllocationCandidateV1 {
+        accepted: &fixture.accepted,
+        occurrence: &fixture.occurrence,
+        predecessor: &first_post,
+        current: &post,
+    };
+    assert_eq!(
+        check_asset_transfer_global_allocation_v1(pair()).unwrap(),
+        Some(GlobalAllocationBindingRejectCodeV1::GLOBAL_OCCURRENCE_DRIFT)
+    );
+    let witness = verify_asset_transfer_epoch_fragment_receipt_v1(
+        &fixture.verified,
+        pair(),
+        AssetTransferEpochPositionV1 {
+            epoch_source: &source,
+            occurrence_index: 1,
+        },
+    )
+    .unwrap()
+    .expect("second prospective pair admits");
+    assert_eq!(first_post.height, post.height);
+    assert_eq!(
+        witness.fragment().lane_state_root,
+        post.lane_roots[0].state_root
+    );
+    let mut slots = EMPTY_LANE_WITNESS_SLOTS_V1;
+    slots[0] = Some(&witness);
+    let roots = [(LaneIdV1::ASSET_TRANSFER, witness.receipt_root().clone())];
+    let projected = project_allocation_certificate_v1(&post, &roots, &slots)
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        check_global_accounting_allocation_certificate_v1(&projected, &post, &slots).unwrap(),
+        AllocationCertificateOutcomeV1::Accepted(_)
+    ));
+}
+
+#[test]
 fn allocation_projection_global_receipt_rejects_conserved_predecessor_or_current_substitution() {
     let (fixture, pre, post) = global_allocation_receipt_fixture();
     for previous in [true, false] {

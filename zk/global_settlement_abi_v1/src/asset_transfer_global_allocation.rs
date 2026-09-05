@@ -2,7 +2,7 @@
 //! are shell premises; receipt admission separately binds the private port.
 
 use crate::asset_transfer_lane_module::AssetTransferLaneModuleAcceptedV1;
-use crate::canonical::AbiResultV1;
+use crate::canonical::{AbiErrorV1, AbiResultV1, MAX_EPOCH_COMMANDS_V1};
 use crate::proof::EconomicCommandOccurrenceV1;
 use crate::release::LaneIdV1;
 use crate::state::{GlobalEconomicStateV1, ReplayStateV1};
@@ -13,6 +13,19 @@ pub struct AssetTransferGlobalAllocationCandidateV1<'a> {
     pub occurrence: &'a EconomicCommandOccurrenceV1,
     pub predecessor: &'a GlobalEconomicStateV1,
     pub current: &'a GlobalEconomicStateV1,
+}
+
+/// Data only. Source authenticity and previous-pair association belong to the
+/// consuming epoch fold; an index is never an authority witness.
+pub struct AssetTransferEpochPositionV1<'a> {
+    pub epoch_source: &'a GlobalEconomicStateV1,
+    pub occurrence_index: usize,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum GlobalAllocationHeightModeV1 {
+    AdjacentState,
+    EpochPosition,
 }
 
 #[allow(non_camel_case_types)]
@@ -57,7 +70,70 @@ pub fn check_asset_transfer_global_allocation_v1(
     occurrence.validate()?;
     predecessor.validate()?;
     current.validate()?;
-    global_allocation_binding_reject_v1(accepted, occurrence, predecessor, current)
+    global_allocation_binding_reject_v1(
+        accepted,
+        occurrence,
+        predecessor,
+        current,
+        GlobalAllocationHeightModeV1::AdjacentState,
+    )
+}
+
+/// Check an explicit epoch position without changing either global state root.
+/// The caller must associate every later predecessor with the checked prefix.
+pub fn check_asset_transfer_epoch_allocation_v1(
+    candidate: AssetTransferGlobalAllocationCandidateV1<'_>,
+    position: AssetTransferEpochPositionV1<'_>,
+) -> AbiResultV1<Option<GlobalAllocationBindingRejectCodeV1>> {
+    use GlobalAllocationBindingRejectCodeV1::*;
+    let AssetTransferGlobalAllocationCandidateV1 {
+        accepted,
+        occurrence,
+        predecessor,
+        current,
+    } = candidate;
+    accepted.validate()?;
+    occurrence.validate()?;
+    predecessor.validate()?;
+    current.validate()?;
+    let source = position.epoch_source;
+    source.validate()?;
+    if position.occurrence_index >= MAX_EPOCH_COMMANDS_V1 {
+        return Err(AbiErrorV1::InvalidBinding("epoch position index"));
+    }
+    let journal = &accepted.module_journal;
+    if source.chain_id != journal.chain_id
+        || source.deployment_root != journal.deployment_root
+        || source.profile_root != journal.profile_root
+        || source.writer_epoch != journal.writer_epoch
+        || occurrence.chain_id != journal.chain_id
+        || occurrence.deployment_root != journal.deployment_root
+        || occurrence.profile_root != journal.profile_root
+    {
+        return Ok(Some(GLOBAL_CONTEXT_DRIFT));
+    }
+    let Some(target_height) = source.height.checked_add(1) else {
+        return Ok(Some(GLOBAL_OCCURRENCE_DRIFT));
+    };
+    let expected_prior = if position.occurrence_index == 0 {
+        source.height
+    } else {
+        target_height
+    };
+    if occurrence.height != target_height
+        || current.height != target_height
+        || predecessor.height != expected_prior
+        || (position.occurrence_index == 0 && predecessor != source)
+    {
+        return Ok(Some(GLOBAL_OCCURRENCE_DRIFT));
+    }
+    global_allocation_binding_reject_v1(
+        accepted,
+        occurrence,
+        predecessor,
+        current,
+        GlobalAllocationHeightModeV1::EpochPosition,
+    )
 }
 
 pub(crate) fn global_allocation_binding_reject_v1(
@@ -65,6 +141,7 @@ pub(crate) fn global_allocation_binding_reject_v1(
     occurrence: &EconomicCommandOccurrenceV1,
     predecessor: &GlobalEconomicStateV1,
     current: &GlobalEconomicStateV1,
+    height_mode: GlobalAllocationHeightModeV1,
 ) -> AbiResultV1<Option<GlobalAllocationBindingRejectCodeV1>> {
     use GlobalAllocationBindingRejectCodeV1::*;
     let journal = &accepted.module_journal;
@@ -86,7 +163,8 @@ pub(crate) fn global_allocation_binding_reject_v1(
     if occurrence.occurrence_id()? != journal.command_occurrence_id
         || occurrence.pre_state_root != predecessor.state_root()?
         || occurrence.height != current.height
-        || predecessor.height.checked_add(1) != Some(current.height)
+        || (height_mode == GlobalAllocationHeightModeV1::AdjacentState
+            && predecessor.height.checked_add(1) != Some(current.height))
     {
         return Ok(Some(GLOBAL_OCCURRENCE_DRIFT));
     }

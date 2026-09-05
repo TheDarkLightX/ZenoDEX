@@ -45,7 +45,8 @@
 //! adds no cryptographic claim of its own. Research-only evidence; authority NONE.
 
 use crate::asset_transfer_global_allocation::{
-    check_asset_transfer_global_allocation_v1, AssetTransferGlobalAllocationCandidateV1,
+    check_asset_transfer_epoch_allocation_v1, check_asset_transfer_global_allocation_v1,
+    AssetTransferEpochPositionV1, AssetTransferGlobalAllocationCandidateV1,
     GlobalAllocationBindingRejectCodeV1,
 };
 use crate::asset_transfer_lane_module::AssetTransferLaneModuleAcceptedV1;
@@ -59,7 +60,7 @@ use crate::global_accounting_lane_producers::{
 use crate::lane_module_receipt_verification::VerifiedLaneModuleTransitionV1;
 use crate::proof::ReceiptKindV1;
 use crate::release::LaneIdV1;
-use crate::state::LaneStateRootV1;
+use crate::state::{GlobalEconomicStateV1, LaneStateRootV1};
 
 pub const RECEIPT_ADMISSION_SCHEMA_V1: &str = "zenodex/asset-transfer-receipt-admission/v1";
 
@@ -327,6 +328,48 @@ pub fn verify_asset_transfer_global_fragment_receipt_v1(
             GlobalAssetTransferFragmentAdmissionRejectedV1::Binding(code),
         ));
     }
+    admit_global_fragment_v1(witness, accepted, predecessor, current)
+}
+
+/// Admit a prospective pair after its explicit epoch-position relation passes.
+/// The epoch consumer owns authenticated source acquisition and prefix pairing.
+pub fn verify_asset_transfer_epoch_fragment_receipt_v1(
+    witness: &VerifiedLaneModuleTransitionV1,
+    candidate: AssetTransferGlobalAllocationCandidateV1<'_>,
+    position: AssetTransferEpochPositionV1<'_>,
+) -> AbiResultV1<
+    Result<VerifiedLaneAllocationFragmentV1, GlobalAssetTransferFragmentAdmissionRejectedV1>,
+> {
+    let AssetTransferGlobalAllocationCandidateV1 {
+        accepted,
+        occurrence,
+        predecessor,
+        current,
+    } = candidate;
+    if let Some(code) = check_asset_transfer_epoch_allocation_v1(
+        AssetTransferGlobalAllocationCandidateV1 {
+            accepted,
+            occurrence,
+            predecessor,
+            current,
+        },
+        position,
+    )? {
+        return Ok(Err(
+            GlobalAssetTransferFragmentAdmissionRejectedV1::Binding(code),
+        ));
+    }
+    admit_global_fragment_v1(witness, accepted, predecessor, current)
+}
+
+fn admit_global_fragment_v1(
+    witness: &VerifiedLaneModuleTransitionV1,
+    accepted: &AssetTransferLaneModuleAcceptedV1,
+    predecessor: &GlobalEconomicStateV1,
+    current: &GlobalEconomicStateV1,
+) -> AbiResultV1<
+    Result<VerifiedLaneAllocationFragmentV1, GlobalAssetTransferFragmentAdmissionRejectedV1>,
+> {
     let journal = &accepted.module_journal;
     // Temporary module-local coordinates are derived internally. Both committed
     // snapshots retain their distinct, checked coordinator projection roots.

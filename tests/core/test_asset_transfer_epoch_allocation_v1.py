@@ -133,6 +133,7 @@ def _fixture(*, count=1, zero_claimant=False):
         ordered_route_journal_roots=tuple(row.journal_root for row in journals),
         ordered_route_assumption_roots=tuple(row.assumption_root for row in routes),
         module_leaf_occurrences=count,
+        aggregation_levels=0 if count <= 8 else 1,
         effect_plan_root=effect_plan.effect_plan_root,
         root_image_id=profile.root_image_id,
     )
@@ -252,10 +253,23 @@ def test_two_command_epoch_retains_current_standalone_height_limit():
     # The enclosing epoch accepts this ordinary history. Its intermediate height
     # remains constant; standalone W04 deliberately requires an adjacent height.
     proof.verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
-    result = _check(candidate, evidence)
-    assert result.code is consumer.AssetTransferEpochAllocationRejectCodeV1.GLOBAL_FRAGMENT_REJECTED
-    assert result.occurrence_index == 1
-    assert result.cause.code is GlobalAllocationBindingRejectCodeV1.GLOBAL_OCCURRENCE_DRIFT
+    from src.core.asset_transfer_global_allocation_v1 import (
+        AssetTransferGlobalAllocationCandidateV1,
+    )
+    from src.core.asset_transfer_receipt_admission_v1 import (
+        verify_asset_transfer_global_fragment_receipt_v1,
+    )
+
+    result = verify_asset_transfer_global_fragment_receipt_v1(
+        evidence[1][1],
+        AssetTransferGlobalAllocationCandidateV1(
+            evidence[1][0],
+            candidate.command_occurrences[1],
+            candidate.route_state_disclosures[0].post_state,
+            candidate.route_state_disclosures[1].post_state,
+        ),
+    )
+    assert result.code is GlobalAllocationBindingRejectCodeV1.GLOBAL_OCCURRENCE_DRIFT
 
 
 def test_module_evidence_cannot_be_reordered_between_occurrences():
