@@ -28,7 +28,7 @@ from tests.core.test_global_settlement_abi_v1 import (
 )
 
 
-def _global_allocation_fixture(*, controlled_atoms=0, claimant_count=1):
+def _global_allocation_fixture(*, controlled_atoms=0, claimant_count=1, history_root=types.ZERO_ROOT_V1):
     """Construct the restricted profile and complete pre-state before signing."""
     base, route = _profile()
     arguments = {
@@ -101,6 +101,7 @@ def _global_allocation_fixture(*, controlled_atoms=0, claimant_count=1):
         custody=custody,
         liabilities=liabilities,
         supplies=projection.supplies,
+        history_root=history_root,
     )
     occurrence = _occurrence(profile, route, pre)
     module_input = _asset_module_input_for_occurrence(
@@ -237,6 +238,84 @@ def test_predecessor_identity_and_occurrence_preimage_cannot_be_substituted():
     assert _admit(
         (profile, route, changed_occurrence, accepted, witness, pre, post)
     ) == GlobalAllocationBindingRejectedV1(Code.GLOBAL_OCCURRENCE_DRIFT)
+
+
+@pytest.mark.parametrize(
+    "changed_side,expected",
+    [
+        ("current", Code.GLOBAL_UNSUPPORTED_STATE),
+        ("predecessor", Code.GLOBAL_OCCURRENCE_DRIFT),
+        ("both", Code.GLOBAL_OCCURRENCE_DRIFT),
+    ],
+)
+def test_history_changes_require_the_existing_unchanged_history_rule_and_bound_occurrence(changed_side, expected):
+    fixture = _global_allocation_fixture(controlled_atoms=100)
+    pre, post = fixture[-2:]
+    history = "0x" + "de" * 32
+    if changed_side in {"predecessor", "both"}:
+        pre = replace(pre, history_root=history)
+    if changed_side in {"current", "both"}:
+        post = replace(post, history_root=history)
+    changed = (*fixture[:-2], pre, post)
+    before = types.canonical_global_bytes_v1((pre, post))
+    assert _admit(changed) == GlobalAllocationBindingRejectedV1(expected)
+    assert types.canonical_global_bytes_v1((pre, post)) == before
+
+
+def test_nonzero_equal_history_preserves_a_rebuilt_occurrence_and_module_witness():
+    baseline = _global_allocation_fixture(controlled_atoms=100)
+    history = "0x" + "de" * 32
+    rebuilt = _global_allocation_fixture(controlled_atoms=100, history_root=history)
+    _, _, occurrence, accepted, witness, pre, post = rebuilt
+    assert pre.history_root == post.history_root == history
+    assert occurrence.pre_state_root == pre.state_root
+    assert occurrence.occurrence_id != baseline[2].occurrence_id
+    assert accepted.module_journal.command_occurrence_id == occurrence.occurrence_id
+    assert witness.module_journal_root != baseline[4].module_journal_root
+    result = _admit(rebuilt)
+    assert isinstance(result, cert.VerifiedLaneAllocationFragmentV1)
+    assert result.module_journal_root == witness.module_journal_root
+    slots = (result, *(None for _ in types.ALL_LANE_IDS_V1[1:]))
+    projected = project_allocation_certificate_v1(
+        post, ((types.LaneIdV1.ASSET_TRANSFER, result.receipt_root),), slots
+    )
+    assert isinstance(projected, cert.GlobalAccountingAllocationCertificateV1)
+    assert isinstance(
+        cert.check_global_accounting_allocation_certificate_v1(projected, post, slots),
+        cert.AllocationCertificateAcceptedV1,
+    )
+
+
+def test_current_history_guard_kills_its_own_omission_mutant():
+    """Other unsupported-state guards cannot detect a history-only change."""
+    import ast
+    import inspect
+
+    from src.core import asset_transfer_global_allocation_v1 as relation
+
+    _, _, occurrence, accepted, _, pre, post = _global_allocation_fixture(controlled_atoms=100)
+    post = replace(post, history_root="0x" + "de" * 32)
+    original = relation._global_allocation_binding_reject_v1
+    assert original(accepted, occurrence, pre, post) == GlobalAllocationBindingRejectedV1(
+        Code.GLOBAL_UNSUPPORTED_STATE
+    )
+    tree = ast.parse(inspect.getsource(original))
+    changed = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BoolOp):
+            for index, value in enumerate(node.values):
+                if (
+                    isinstance(value, ast.Compare)
+                    and isinstance(value.left, ast.Attribute)
+                    and value.left.attr == "history_root"
+                ):
+                    node.values[index] = ast.Constant(False)
+                    changed += 1
+    assert changed == 1
+    ast.fix_missing_locations(tree)
+    namespace = dict(vars(relation))
+    exec(compile(tree, "<allocation-history-guard-mutant>", "exec"), namespace)
+    assert namespace[original.__name__](accepted, occurrence, pre, post) is None
 
 
 def test_foreign_receipt_witness_and_malformed_snapshot_refuse():

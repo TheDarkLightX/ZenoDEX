@@ -123,6 +123,7 @@ pub(crate) fn global_allocation_binding_reject_v1(
         return Ok(Some(GLOBAL_CLAIMANT_CONTINUITY_DRIFT));
     }
     if predecessor.custody != current.custody
+        || predecessor.history_root != current.history_root
         || predecessor.oracle_occurrences != current.oracle_occurrences
         || [predecessor, current].iter().any(|state| {
             !state.reserves.is_empty()
@@ -212,6 +213,46 @@ mod tests {
                 case["name"]
             );
         }
+    }
+
+    #[test]
+    fn global_allocation_relation_accepts_nonzero_history_bound_before_occurrence() {
+        let fixture = fixture();
+        let case = &fixture["nonzero_history"];
+        let accepted: AssetTransferLaneModuleAcceptedV1 =
+            serde_json::from_value(case["accepted"].clone()).expect("rebuilt accepted input");
+        let occurrence: EconomicCommandOccurrenceV1 =
+            serde_json::from_value(case["occurrence"].clone()).expect("rebuilt occurrence");
+        let predecessor: GlobalEconomicStateV1 =
+            serde_json::from_value(case["predecessor"].clone()).expect("nonzero predecessor");
+        let current: GlobalEconomicStateV1 =
+            serde_json::from_value(case["current"].clone()).expect("nonzero current");
+        let (_, baseline_occurrence, _, _) = valid_inputs();
+        assert_eq!(predecessor.history_root, current.history_root);
+        assert_eq!(
+            predecessor.history_root.as_str(),
+            format!("0x{}", "de".repeat(32))
+        );
+        assert_eq!(occurrence.pre_state_root, predecessor.state_root().unwrap());
+        assert_ne!(
+            occurrence.occurrence_id(),
+            baseline_occurrence.occurrence_id()
+        );
+        assert_eq!(
+            accepted.module_journal.command_occurrence_id,
+            occurrence.occurrence_id().unwrap()
+        );
+        assert_eq!(
+            crate::check_asset_transfer_global_allocation_v1(
+                AssetTransferGlobalAllocationCandidateV1 {
+                    accepted: &accepted,
+                    occurrence: &occurrence,
+                    predecessor: &predecessor,
+                    current: &current,
+                },
+            ),
+            Ok(None),
+        );
     }
 
     #[test]

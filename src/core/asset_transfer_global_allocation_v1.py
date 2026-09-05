@@ -109,6 +109,7 @@ def _global_allocation_binding_reject_v1(
         return GlobalAllocationBindingRejectedV1(code.GLOBAL_CLAIMANT_CONTINUITY_DRIFT)
     if (
         predecessor.custody != current.custody
+        or predecessor.history_root != current.history_root
         or predecessor.oracle_occurrences != current.oracle_occurrences
         or any(
             state.reserves or state.outbox or state.terminal_obligations

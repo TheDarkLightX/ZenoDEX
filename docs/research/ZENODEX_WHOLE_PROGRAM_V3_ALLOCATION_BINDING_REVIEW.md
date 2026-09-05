@@ -404,3 +404,73 @@ relation semantics alone does not establish identical ELF bytes or image IDs.
 Earlier receipts remain evidence for their earlier exact builds. The integration
 owner was notified before guest-proof source-bundle refresh. No real proof,
 remote build or production authority was established by this addition.
+
+## Restricted history preservation hardening, 2026-09-05
+
+The independent Opus review identified a local relation omission: changing only
+the current state's `history_root` still admitted an allocation fragment. The
+retained minimized test reproduced that result before repair: one failed and
+three passed in the history-only selection. Substituting the predecessor
+history, or both histories without rebuilding the occurrence, already refused
+as `GLOBAL_OCCURRENCE_DRIFT` because the occurrence commits the entire
+predecessor state root.
+
+Python and Rust now require equal predecessor/current history roots under the
+existing `GLOBAL_UNSUPPORTED_STATE` rejection family. This is the unchanged
+history rule already enforced by both versions of
+`global_economic_state_effect_refinement`. It neither defines a new journal
+history policy nor equates the distinct global and module-local state roots.
+The enclosing allocation certificate already checks the full global state
+root. The local omission therefore does not establish a publisher bypass.
+
+The positive nonzero-history control builds the complete predecessor first,
+then regenerates the occurrence, module input, accepted output and opaque
+module witness through the existing recording verifier. Its occurrence ID
+and witness journal root differ from the zero-history control. The resulting
+fragment still passes projection and the unchanged certificate checker. This
+is explicitly mock cryptographic evidence. No receipt metadata is relabeled
+to simulate a valid witness.
+
+The shared fixture now includes 19 independently specified baseline relation
+vectors and a separately rebuilt nonzero-history positive control. Rust
+validates that control and its exact occurrence binding. An additional Python
+semantic mutant removes only the new history comparison; the current-history
+negative distinguishes it while all other unsupported-state conditions remain
+false. Rejection preserves the complete input bytes.
+
+Verification of the frozen repair:
+
+- Python retained projection, parity, legacy receipt admission, restricted
+  relation and SHADOW suites: **188 passed**, including 37 relation cases.
+- Rust unit suite: **20 passed**; projection integration: **4 passed**;
+  retained release/module/route receipt harness: **77 passed**. These runs
+  include four relation unit tests and the rebuilt positive control.
+- Library Clippy with `-D warnings`, targeted Python mypy, Ruff, rustfmt and
+  regenerated fixture replay passed. The 20 scanner findings are fixture
+  `expect`/`unwrap` and exhaustive test dispatch calls within `#[cfg(test)]`.
+- Five unchanged Lean companion source-pin checks passed locally. No Lean
+  compiler, solver, guest proof build or whole-program release gate ran as
+  part of this local repair.
+
+The earlier commands remain valid. The additional complete Rust unit replay
+was `CARGO_INCREMENTAL=0 cargo test --offline --lib --test
+global_accounting_allocation_projection`, using the existing cache. The fixture
+was regenerated with `python3 tools/render_asset_transfer_global_allocation_v1_golden.py`
+and checked with the same command plus `--check`. Two initial test invocations
+used incorrect test target names and collected no cases; the corrected exact
+commands above and in the preceding sections supplied the reported results.
+
+Frozen source identities supplied to the remote proof builders:
+
+```text
+a11df90d2ccba89063b14ea9f740352bcdb439a3cfd5ab79544524041aaddfca  src/core/asset_transfer_global_allocation_v1.py
+96efc2020805b63bb6e7798b9c97aec66207d7e4f45f3450a32e0cc1df556a48  zk/global_settlement_abi_v1/src/asset_transfer_global_allocation.rs
+4129a028378b1cac34c0395f3315cfab0d613d58003d2e2424d3ea05efd320ff  zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs
+124ed821b59d5bf1ed4763870f296614c87dd7fd64bade8ceae4ad4ca339fa05  tests/core/test_asset_transfer_global_allocation_v1.py
+3a387231feb22b2e40e66a4be895ada2a5c042c1706e687a44960c17120713c6  tools/render_asset_transfer_global_allocation_v1_golden.py
+cf27dcdcc035edeba7c67e60c63859f35715b27fbb3e225d544b9dbfc2a732d6  tests/data/asset_transfer_global_allocation_v1_golden.json
+```
+
+This closes the named restricted-relation omission. Snapshot authenticity,
+initial claimant authorization, full runtime/formal refinement, all-lane
+semantics and production publication mediation remain separate obligations.

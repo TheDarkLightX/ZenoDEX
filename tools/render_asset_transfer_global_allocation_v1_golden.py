@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
 from src.core.asset_transfer_global_allocation_v1 import (  # noqa: E402
     _global_allocation_binding_reject_v1,
 )
+from src.core.asset_transfer_lane_module_v1 import AssetTransferLaneModuleAcceptedV1  # noqa: E402
 from src.core.global_settlement_types_v1 import (  # noqa: E402
     EconomicAmountV1,
     canonical_global_bytes_v1,
@@ -31,6 +32,16 @@ from tests.core.test_asset_transfer_global_allocation_v1 import (  # noqa: E402
 )
 
 FIXTURE = ROOT / "tests/data/asset_transfer_global_allocation_v1_golden.json"
+
+
+def _accepted_value(accepted: AssetTransferLaneModuleAcceptedV1) -> dict[str, object]:
+    return {
+        "statement_root": accepted.statement_root,
+        "post_state": accepted.post_state,
+        "effects": accepted.effects,
+        "module_journal": accepted.module_journal,
+        "private_port": accepted.private_port,
+    }
 
 
 def render() -> str:
@@ -56,6 +67,27 @@ def render() -> str:
         )
     cases.extend(
         [
+            (
+                "current_history",
+                occurrence,
+                predecessor,
+                replace(current, history_root=foreign),
+                "GLOBAL_UNSUPPORTED_STATE",
+            ),
+            (
+                "predecessor_history",
+                occurrence,
+                replace(predecessor, history_root=foreign),
+                current,
+                "GLOBAL_OCCURRENCE_DRIFT",
+            ),
+            (
+                "both_history",
+                occurrence,
+                replace(predecessor, history_root=foreign),
+                replace(current, history_root=foreign),
+                "GLOBAL_OCCURRENCE_DRIFT",
+            ),
             (
                 "occurrence_subject",
                 replace(occurrence, subject_id="mallory"),
@@ -173,17 +205,23 @@ def render() -> str:
                 "expected_code": expected,
             }
         )
+    _, _, command, rebuilt, _, pre, post = _global_allocation_fixture(
+        controlled_atoms=100, history_root="0x" + "de" * 32
+    )
+    if _global_allocation_binding_reject_v1(rebuilt, command, pre, post) is not None:
+        raise ValueError("rebuilt nonzero-history positive control rejected")
     payload = json.loads(
         canonical_global_bytes_v1(
             {
-                "accepted": {
-                    "statement_root": accepted.statement_root,
-                    "post_state": accepted.post_state,
-                    "effects": accepted.effects,
-                    "module_journal": accepted.module_journal,
-                    "private_port": accepted.private_port,
-                },
+                "accepted": _accepted_value(accepted),
                 "cases": tuple(rows),
+                "nonzero_history": {
+                    "accepted": _accepted_value(rebuilt),
+                    "occurrence": command,
+                    "predecessor": pre,
+                    "current": post,
+                    "expected_code": None,
+                },
             }
         )
     )
