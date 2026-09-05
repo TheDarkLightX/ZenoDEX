@@ -155,6 +155,12 @@ agreement does not establish correspondence to the retained ELF execution.
 Later custody and epoch-position work is not retroactively qualified by those
 images.
 
+The subsequent [retained-source preflight](ZENODEX_RETAINED_GUEST_BLS_PREFLIGHT_20260905.md)
+also matched all five journals using the exact saved shared libraries and
+dependency pins. It remains a native replay. The earlier GPU batch completed
+for its original profile and inputs; this new BLS profile requires fresh
+receipts. Runpod is intentionally off, and no restart is requested here.
+
 The next proof batch requires the exact retained build subject or direct
 execution of its retained ELFs. Portable guest-image reproducibility remains
 unqualified. Prove the three actual transfer receipts and the initialization
