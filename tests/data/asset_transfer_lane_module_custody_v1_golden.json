@@ -1,0 +1,2228 @@
+{
+  "authority": "NONE",
+  "cases": [
+    {
+      "accepted": {
+        "effects": {
+          "asset_conservation": [
+            {
+              "asset": "USD",
+              "authorized_burn_atoms": 0,
+              "authorized_issue_atoms": 0,
+              "owned_and_custodied_post_atoms": 115,
+              "owned_and_custodied_pre_atoms": 115,
+              "supply_post_atoms": 115,
+              "supply_pre_atoms": 115
+            }
+          ],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [
+            {
+              "asset": "USD",
+              "carried_residue_atoms": 0,
+              "current_allocations_atoms": 2,
+              "fee_charged_atoms": 2
+            }
+          ],
+          "lane_writes": [
+            {
+              "lane_id": "ASSET_TRANSFER",
+              "post_root": "0xbdb2605d119cc52da0f883c15e5979a9c8be98d728fc2f53e1c2af44d25de758",
+              "pre_root": "0x2e153465fca81b1035f8823db8368022c5ee4393b8bcdff136a2e4ec5de74ca8"
+            }
+          ],
+          "occurrence_consumptions": [
+            "0x0000000000000000000000000000000000000000000000000000000000000004"
+          ],
+          "rows": [
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": -32,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "alice"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 30,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "bob"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "treasury"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "FEE_ALLOCATION",
+              "principal": "treasury"
+            }
+          ],
+          "schema": "zenodex/global-settlement-abi/v1"
+        },
+        "module_journal": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "effect_plan_root": "0xb1b9e0b5c0078d0f90dbacce439026ac062c8d393f80533a1f9c1215c1f9e9fc",
+          "lane_id": "ASSET_TRANSFER",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_lane_root": "0xbdb2605d119cc52da0f883c15e5979a9c8be98d728fc2f53e1c2af44d25de758",
+          "pre_lane_root": "0x2e153465fca81b1035f8823db8368022c5ee4393b8bcdff136a2e4ec5de74ca8",
+          "private_port_root": "0x8bf6e49619c76a0c271d2b63cf5ca26cfb4b70114e9cfcaaf205aaf518984289",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "receipt_root": "0x3f9e60c18c0293971123a3da2b703ba3da574ba58704696519dc24d4a97121f7",
+          "schema": "zenodex/global-settlement-abi/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "writer_epoch": 7
+        },
+        "post_state": {
+          "balances": [
+            {
+              "amount_atoms": 68,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 40,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 7,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 115,
+              "asset": "USD"
+            }
+          ]
+        },
+        "private_port": {
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "module_effect_plan_root": "0xb1b9e0b5c0078d0f90dbacce439026ac062c8d393f80533a1f9c1215c1f9e9fc",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 68,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 40,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 7,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 115,
+                "asset": "USD"
+              }
+            ]
+          },
+          "pre_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 100,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 10,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 5,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 115,
+                "asset": "USD"
+              }
+            ]
+          },
+          "producer_module_schema": "zenodex/asset-transfer-module/v1",
+          "schema": "zenodex/asset-lane-private-port/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "statement_root": "0x9c9426e4c8c3f2047417815f76a91588a754fe4e692af165dcabbc9be8c8ab32"
+      },
+      "expected_total": "115",
+      "input": {
+        "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+        "command": {
+          "amount_atoms": 30,
+          "asset": "USD",
+          "command_kind": "asset_transfer",
+          "max_fee_atoms": 2,
+          "recipient": "bob",
+          "sender": "alice"
+        },
+        "context": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "subject_id": "alice",
+          "writer_epoch": 7
+        },
+        "custody": [],
+        "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+        "pre_state": {
+          "balances": [
+            {
+              "amount_atoms": 100,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 10,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 5,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 115,
+              "asset": "USD"
+            }
+          ]
+        },
+        "schema": "zenodex/asset-transfer-lane-module-input/v1"
+      },
+      "name": "custody_0"
+    },
+    {
+      "accepted": {
+        "effects": {
+          "asset_conservation": [
+            {
+              "asset": "USD",
+              "authorized_burn_atoms": 0,
+              "authorized_issue_atoms": 0,
+              "owned_and_custodied_post_atoms": 116,
+              "owned_and_custodied_pre_atoms": 116,
+              "supply_post_atoms": 116,
+              "supply_pre_atoms": 116
+            }
+          ],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [
+            {
+              "asset": "USD",
+              "carried_residue_atoms": 0,
+              "current_allocations_atoms": 2,
+              "fee_charged_atoms": 2
+            }
+          ],
+          "lane_writes": [
+            {
+              "lane_id": "ASSET_TRANSFER",
+              "post_root": "0x3369423c6ea58c14012710329c3ca5649d3f5a3ebd081121afffc689242a09f9",
+              "pre_root": "0xa3000b976ffc98931ef2c9e4fe7ffb7de26d39a1c3afc872e4ae09adaf1c1c56"
+            }
+          ],
+          "occurrence_consumptions": [
+            "0x0000000000000000000000000000000000000000000000000000000000000004"
+          ],
+          "rows": [
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": -32,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "alice"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 30,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "bob"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "treasury"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "FEE_ALLOCATION",
+              "principal": "treasury"
+            }
+          ],
+          "schema": "zenodex/global-settlement-abi/v1"
+        },
+        "module_journal": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "effect_plan_root": "0xe759747b2162922098f89fbf9ca6959cb0e027d2dc47d5438547f196ae4868f5",
+          "lane_id": "ASSET_TRANSFER",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_lane_root": "0x3369423c6ea58c14012710329c3ca5649d3f5a3ebd081121afffc689242a09f9",
+          "pre_lane_root": "0xa3000b976ffc98931ef2c9e4fe7ffb7de26d39a1c3afc872e4ae09adaf1c1c56",
+          "private_port_root": "0xf79bdd1f37b9b08afa84e6f0ade4b23dc3b69b16640fa72586b7adde54d32165",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "receipt_root": "0x5703c089b9c63309566debe32433c6e0894da70dc712da2103c487f3fea704b0",
+          "schema": "zenodex/global-settlement-abi/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "writer_epoch": 7
+        },
+        "post_state": {
+          "balances": [
+            {
+              "amount_atoms": 68,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 40,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 7,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 116,
+              "asset": "USD"
+            }
+          ]
+        },
+        "private_port": {
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "module_effect_plan_root": "0xe759747b2162922098f89fbf9ca6959cb0e027d2dc47d5438547f196ae4868f5",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 68,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 40,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 7,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [
+              {
+                "amount_atoms": 1,
+                "asset": "USD",
+                "custody_domain": "escrow",
+                "owner": "vault"
+              }
+            ],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 116,
+                "asset": "USD"
+              }
+            ]
+          },
+          "pre_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 100,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 10,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 5,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [
+              {
+                "amount_atoms": 1,
+                "asset": "USD",
+                "custody_domain": "escrow",
+                "owner": "vault"
+              }
+            ],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 116,
+                "asset": "USD"
+              }
+            ]
+          },
+          "producer_module_schema": "zenodex/asset-transfer-module/v1",
+          "schema": "zenodex/asset-lane-private-port/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "statement_root": "0x50291e27530441d25c8e0b02bf7507b865ba6212da1fee6e449d5fc480ee251c"
+      },
+      "expected_total": "116",
+      "input": {
+        "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+        "command": {
+          "amount_atoms": 30,
+          "asset": "USD",
+          "command_kind": "asset_transfer",
+          "max_fee_atoms": 2,
+          "recipient": "bob",
+          "sender": "alice"
+        },
+        "context": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "subject_id": "alice",
+          "writer_epoch": 7
+        },
+        "custody": [
+          {
+            "amount_atoms": 1,
+            "asset": "USD",
+            "custody_domain": "escrow",
+            "owner": "vault"
+          }
+        ],
+        "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+        "pre_state": {
+          "balances": [
+            {
+              "amount_atoms": 100,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 10,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 5,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 116,
+              "asset": "USD"
+            }
+          ]
+        },
+        "schema": "zenodex/asset-transfer-lane-module-input/v1"
+      },
+      "name": "custody_1"
+    },
+    {
+      "accepted": {
+        "effects": {
+          "asset_conservation": [
+            {
+              "asset": "USD",
+              "authorized_burn_atoms": 0,
+              "authorized_issue_atoms": 0,
+              "owned_and_custodied_post_atoms": 122,
+              "owned_and_custodied_pre_atoms": 122,
+              "supply_post_atoms": 122,
+              "supply_pre_atoms": 122
+            }
+          ],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [
+            {
+              "asset": "USD",
+              "carried_residue_atoms": 0,
+              "current_allocations_atoms": 2,
+              "fee_charged_atoms": 2
+            }
+          ],
+          "lane_writes": [
+            {
+              "lane_id": "ASSET_TRANSFER",
+              "post_root": "0xa19fa33c0dfbe260424f023f92d297dcbea8a6a94990198120c7dc43315835e5",
+              "pre_root": "0x0522ed0d63bf1cabcb726e2cb6a9420641e7b966138d5d602c283fef80c77d44"
+            }
+          ],
+          "occurrence_consumptions": [
+            "0x0000000000000000000000000000000000000000000000000000000000000004"
+          ],
+          "rows": [
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": -32,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "alice"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 30,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "bob"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "treasury"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "FEE_ALLOCATION",
+              "principal": "treasury"
+            }
+          ],
+          "schema": "zenodex/global-settlement-abi/v1"
+        },
+        "module_journal": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "effect_plan_root": "0xce204f86b8bab13a78d31c85a67ea90b719789183d2516a3d76f8b40279da24d",
+          "lane_id": "ASSET_TRANSFER",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_lane_root": "0xa19fa33c0dfbe260424f023f92d297dcbea8a6a94990198120c7dc43315835e5",
+          "pre_lane_root": "0x0522ed0d63bf1cabcb726e2cb6a9420641e7b966138d5d602c283fef80c77d44",
+          "private_port_root": "0x4864691befefc616018754f07559edf404b1942e5029e52b5adabe7f71d9a655",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "receipt_root": "0x7d720ed7fa345857904c6672f61e01f1e088ad69c5ae1b0ba51e97d368fa7a30",
+          "schema": "zenodex/global-settlement-abi/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "writer_epoch": 7
+        },
+        "post_state": {
+          "balances": [
+            {
+              "amount_atoms": 68,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 40,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 7,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 122,
+              "asset": "USD"
+            }
+          ]
+        },
+        "private_port": {
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "module_effect_plan_root": "0xce204f86b8bab13a78d31c85a67ea90b719789183d2516a3d76f8b40279da24d",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 68,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 40,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 7,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [
+              {
+                "amount_atoms": 7,
+                "asset": "USD",
+                "custody_domain": "escrow",
+                "owner": "vault"
+              }
+            ],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 122,
+                "asset": "USD"
+              }
+            ]
+          },
+          "pre_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 100,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 10,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 5,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [
+              {
+                "amount_atoms": 7,
+                "asset": "USD",
+                "custody_domain": "escrow",
+                "owner": "vault"
+              }
+            ],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 122,
+                "asset": "USD"
+              }
+            ]
+          },
+          "producer_module_schema": "zenodex/asset-transfer-module/v1",
+          "schema": "zenodex/asset-lane-private-port/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "statement_root": "0xf81c46911df61ad03be2d02dc997b585c248082b87b9d16db5fa6f634eaf6362"
+      },
+      "expected_total": "122",
+      "input": {
+        "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+        "command": {
+          "amount_atoms": 30,
+          "asset": "USD",
+          "command_kind": "asset_transfer",
+          "max_fee_atoms": 2,
+          "recipient": "bob",
+          "sender": "alice"
+        },
+        "context": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "subject_id": "alice",
+          "writer_epoch": 7
+        },
+        "custody": [
+          {
+            "amount_atoms": 7,
+            "asset": "USD",
+            "custody_domain": "escrow",
+            "owner": "vault"
+          }
+        ],
+        "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+        "pre_state": {
+          "balances": [
+            {
+              "amount_atoms": 100,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 10,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 5,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 122,
+              "asset": "USD"
+            }
+          ]
+        },
+        "schema": "zenodex/asset-transfer-lane-module-input/v1"
+      },
+      "name": "custody_7"
+    },
+    {
+      "accepted": {
+        "effects": {
+          "asset_conservation": [
+            {
+              "asset": "USD",
+              "authorized_burn_atoms": 0,
+              "authorized_issue_atoms": 0,
+              "owned_and_custodied_post_atoms": 170141183460469231731687303715884105843,
+              "owned_and_custodied_pre_atoms": 170141183460469231731687303715884105843,
+              "supply_post_atoms": 170141183460469231731687303715884105843,
+              "supply_pre_atoms": 170141183460469231731687303715884105843
+            }
+          ],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [
+            {
+              "asset": "USD",
+              "carried_residue_atoms": 0,
+              "current_allocations_atoms": 2,
+              "fee_charged_atoms": 2
+            }
+          ],
+          "lane_writes": [
+            {
+              "lane_id": "ASSET_TRANSFER",
+              "post_root": "0x596b617a702e2944c730e3fb2f0f29a1bd20ded74794752976962874ff65c09f",
+              "pre_root": "0x00ad525b29c733e3781287107b49b3a3155fdff40c5c47536d7e06d75f89d9eb"
+            }
+          ],
+          "occurrence_consumptions": [
+            "0x0000000000000000000000000000000000000000000000000000000000000004"
+          ],
+          "rows": [
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": -32,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "alice"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 30,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "bob"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "treasury"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "FEE_ALLOCATION",
+              "principal": "treasury"
+            }
+          ],
+          "schema": "zenodex/global-settlement-abi/v1"
+        },
+        "module_journal": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "effect_plan_root": "0x15aae9a29b147e45f6b2837bacb49523f4d8a4766b701d4e19b5b30a58ef2ac8",
+          "lane_id": "ASSET_TRANSFER",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_lane_root": "0x596b617a702e2944c730e3fb2f0f29a1bd20ded74794752976962874ff65c09f",
+          "pre_lane_root": "0x00ad525b29c733e3781287107b49b3a3155fdff40c5c47536d7e06d75f89d9eb",
+          "private_port_root": "0x2f142e03d46293457669cd8921fda261a5e5af8a8d36e459fd3a64c3d16c9cdb",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "receipt_root": "0x84e5bb9d6980dfa1dbc207a6fb5ef74269aa53a9ab1633aba78020f9d1b898bb",
+          "schema": "zenodex/global-settlement-abi/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "writer_epoch": 7
+        },
+        "post_state": {
+          "balances": [
+            {
+              "amount_atoms": 68,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 40,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 7,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 170141183460469231731687303715884105843,
+              "asset": "USD"
+            }
+          ]
+        },
+        "private_port": {
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "module_effect_plan_root": "0x15aae9a29b147e45f6b2837bacb49523f4d8a4766b701d4e19b5b30a58ef2ac8",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 68,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 40,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 7,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [
+              {
+                "amount_atoms": 170141183460469231731687303715884105728,
+                "asset": "USD",
+                "custody_domain": "escrow",
+                "owner": "vault"
+              }
+            ],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 170141183460469231731687303715884105843,
+                "asset": "USD"
+              }
+            ]
+          },
+          "pre_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 100,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 10,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 5,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [
+              {
+                "amount_atoms": 170141183460469231731687303715884105728,
+                "asset": "USD",
+                "custody_domain": "escrow",
+                "owner": "vault"
+              }
+            ],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 170141183460469231731687303715884105843,
+                "asset": "USD"
+              }
+            ]
+          },
+          "producer_module_schema": "zenodex/asset-transfer-module/v1",
+          "schema": "zenodex/asset-lane-private-port/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "statement_root": "0x64be4f8ce2234e9e6f577eaa76ca29ebd5f2ecabd41663cb0767e2b0197928d8"
+      },
+      "expected_total": "170141183460469231731687303715884105843",
+      "input": {
+        "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+        "command": {
+          "amount_atoms": 30,
+          "asset": "USD",
+          "command_kind": "asset_transfer",
+          "max_fee_atoms": 2,
+          "recipient": "bob",
+          "sender": "alice"
+        },
+        "context": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "subject_id": "alice",
+          "writer_epoch": 7
+        },
+        "custody": [
+          {
+            "amount_atoms": 170141183460469231731687303715884105728,
+            "asset": "USD",
+            "custody_domain": "escrow",
+            "owner": "vault"
+          }
+        ],
+        "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+        "pre_state": {
+          "balances": [
+            {
+              "amount_atoms": 100,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 10,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 5,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 170141183460469231731687303715884105843,
+              "asset": "USD"
+            }
+          ]
+        },
+        "schema": "zenodex/asset-transfer-lane-module-input/v1"
+      },
+      "name": "custody_170141183460469231731687303715884105728"
+    },
+    {
+      "accepted": {
+        "effects": {
+          "asset_conservation": [
+            {
+              "asset": "USD",
+              "authorized_burn_atoms": 0,
+              "authorized_issue_atoms": 0,
+              "owned_and_custodied_post_atoms": 340282366920938463463374607431768211454,
+              "owned_and_custodied_pre_atoms": 340282366920938463463374607431768211454,
+              "supply_post_atoms": 340282366920938463463374607431768211454,
+              "supply_pre_atoms": 340282366920938463463374607431768211454
+            }
+          ],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [
+            {
+              "asset": "USD",
+              "carried_residue_atoms": 0,
+              "current_allocations_atoms": 2,
+              "fee_charged_atoms": 2
+            }
+          ],
+          "lane_writes": [
+            {
+              "lane_id": "ASSET_TRANSFER",
+              "post_root": "0xb6b395c07b23eaf4762cad20f3b0bc0c4b9bcab5d3450fe54bc253f4867b48fd",
+              "pre_root": "0x39cc69dc8becec2b8e7057ce1ad2cc6cb6a32cfab0ade40d0a6075a4cca7dbb1"
+            }
+          ],
+          "occurrence_consumptions": [
+            "0x0000000000000000000000000000000000000000000000000000000000000004"
+          ],
+          "rows": [
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": -32,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "alice"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 30,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "bob"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "treasury"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "FEE_ALLOCATION",
+              "principal": "treasury"
+            }
+          ],
+          "schema": "zenodex/global-settlement-abi/v1"
+        },
+        "module_journal": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "effect_plan_root": "0x5b7f8bb4a6d40b5fc41ff820b74f21bb184a1f89fb55eb80668d1d73e836431c",
+          "lane_id": "ASSET_TRANSFER",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_lane_root": "0xb6b395c07b23eaf4762cad20f3b0bc0c4b9bcab5d3450fe54bc253f4867b48fd",
+          "pre_lane_root": "0x39cc69dc8becec2b8e7057ce1ad2cc6cb6a32cfab0ade40d0a6075a4cca7dbb1",
+          "private_port_root": "0x7decb24ea70f897407bb376fc4572d7d71c044cc78864cba06d73e31f1e12500",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "receipt_root": "0xb789d8bfbfbf41e51c0b8e3d5bab32fe8dd986af7518dd031e0e90b927ca63ba",
+          "schema": "zenodex/global-settlement-abi/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "writer_epoch": 7
+        },
+        "post_state": {
+          "balances": [
+            {
+              "amount_atoms": 68,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 40,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 7,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 340282366920938463463374607431768211454,
+              "asset": "USD"
+            }
+          ]
+        },
+        "private_port": {
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "module_effect_plan_root": "0x5b7f8bb4a6d40b5fc41ff820b74f21bb184a1f89fb55eb80668d1d73e836431c",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 68,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 40,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 7,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [
+              {
+                "amount_atoms": 340282366920938463463374607431768211339,
+                "asset": "USD",
+                "custody_domain": "escrow",
+                "owner": "vault"
+              }
+            ],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 340282366920938463463374607431768211454,
+                "asset": "USD"
+              }
+            ]
+          },
+          "pre_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 100,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 10,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 5,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [
+              {
+                "amount_atoms": 340282366920938463463374607431768211339,
+                "asset": "USD",
+                "custody_domain": "escrow",
+                "owner": "vault"
+              }
+            ],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 340282366920938463463374607431768211454,
+                "asset": "USD"
+              }
+            ]
+          },
+          "producer_module_schema": "zenodex/asset-transfer-module/v1",
+          "schema": "zenodex/asset-lane-private-port/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "statement_root": "0x9b63193b899c3a392f3b2d4cbed64731edaf0ead9bba3f7a85f421f197e971da"
+      },
+      "expected_total": "340282366920938463463374607431768211454",
+      "input": {
+        "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+        "command": {
+          "amount_atoms": 30,
+          "asset": "USD",
+          "command_kind": "asset_transfer",
+          "max_fee_atoms": 2,
+          "recipient": "bob",
+          "sender": "alice"
+        },
+        "context": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "subject_id": "alice",
+          "writer_epoch": 7
+        },
+        "custody": [
+          {
+            "amount_atoms": 340282366920938463463374607431768211339,
+            "asset": "USD",
+            "custody_domain": "escrow",
+            "owner": "vault"
+          }
+        ],
+        "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+        "pre_state": {
+          "balances": [
+            {
+              "amount_atoms": 100,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 10,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 5,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 340282366920938463463374607431768211454,
+              "asset": "USD"
+            }
+          ]
+        },
+        "schema": "zenodex/asset-transfer-lane-module-input/v1"
+      },
+      "name": "custody_340282366920938463463374607431768211339"
+    },
+    {
+      "accepted": {
+        "effects": {
+          "asset_conservation": [
+            {
+              "asset": "USD",
+              "authorized_burn_atoms": 0,
+              "authorized_issue_atoms": 0,
+              "owned_and_custodied_post_atoms": 340282366920938463463374607431768211455,
+              "owned_and_custodied_pre_atoms": 340282366920938463463374607431768211455,
+              "supply_post_atoms": 340282366920938463463374607431768211455,
+              "supply_pre_atoms": 340282366920938463463374607431768211455
+            }
+          ],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [
+            {
+              "asset": "USD",
+              "carried_residue_atoms": 0,
+              "current_allocations_atoms": 2,
+              "fee_charged_atoms": 2
+            }
+          ],
+          "lane_writes": [
+            {
+              "lane_id": "ASSET_TRANSFER",
+              "post_root": "0x451adfc22f3d11e5d193d7f77a55410f8a98289f912d41d28f7a31fe7397453e",
+              "pre_root": "0x80426db5d57fbe34fb87fbbcfd9bb9836c28679303ae5ac707f8ba6b791e8826"
+            }
+          ],
+          "occurrence_consumptions": [
+            "0x0000000000000000000000000000000000000000000000000000000000000004"
+          ],
+          "rows": [
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": -32,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "alice"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 30,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "bob"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "treasury"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "FEE_ALLOCATION",
+              "principal": "treasury"
+            }
+          ],
+          "schema": "zenodex/global-settlement-abi/v1"
+        },
+        "module_journal": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "effect_plan_root": "0xf577917aeb689f9044bfce92c324695f12cba61f810d4994e4293359fae04379",
+          "lane_id": "ASSET_TRANSFER",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_lane_root": "0x451adfc22f3d11e5d193d7f77a55410f8a98289f912d41d28f7a31fe7397453e",
+          "pre_lane_root": "0x80426db5d57fbe34fb87fbbcfd9bb9836c28679303ae5ac707f8ba6b791e8826",
+          "private_port_root": "0x4bca9498cecff22cf18a02f35f51df21a3d9914c340326b1ab85757ecda7f766",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "receipt_root": "0x2b187bd9f8e264fe17418bafc801b59d35e5f86a34a7bc6041bc0da8b69d3a03",
+          "schema": "zenodex/global-settlement-abi/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "writer_epoch": 7
+        },
+        "post_state": {
+          "balances": [
+            {
+              "amount_atoms": 68,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 40,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 7,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 340282366920938463463374607431768211455,
+              "asset": "USD"
+            }
+          ]
+        },
+        "private_port": {
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "module_effect_plan_root": "0xf577917aeb689f9044bfce92c324695f12cba61f810d4994e4293359fae04379",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 68,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 40,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 7,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [
+              {
+                "amount_atoms": 340282366920938463463374607431768211340,
+                "asset": "USD",
+                "custody_domain": "escrow",
+                "owner": "vault"
+              }
+            ],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 340282366920938463463374607431768211455,
+                "asset": "USD"
+              }
+            ]
+          },
+          "pre_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 100,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 10,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 5,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [
+              {
+                "amount_atoms": 340282366920938463463374607431768211340,
+                "asset": "USD",
+                "custody_domain": "escrow",
+                "owner": "vault"
+              }
+            ],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 340282366920938463463374607431768211455,
+                "asset": "USD"
+              }
+            ]
+          },
+          "producer_module_schema": "zenodex/asset-transfer-module/v1",
+          "schema": "zenodex/asset-lane-private-port/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "statement_root": "0x1f13c28183cebd515df38a39997840816e507a8a2196a3ee781734543f23893a"
+      },
+      "expected_total": "340282366920938463463374607431768211455",
+      "input": {
+        "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+        "command": {
+          "amount_atoms": 30,
+          "asset": "USD",
+          "command_kind": "asset_transfer",
+          "max_fee_atoms": 2,
+          "recipient": "bob",
+          "sender": "alice"
+        },
+        "context": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "subject_id": "alice",
+          "writer_epoch": 7
+        },
+        "custody": [
+          {
+            "amount_atoms": 340282366920938463463374607431768211340,
+            "asset": "USD",
+            "custody_domain": "escrow",
+            "owner": "vault"
+          }
+        ],
+        "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+        "pre_state": {
+          "balances": [
+            {
+              "amount_atoms": 100,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 10,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 5,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 340282366920938463463374607431768211455,
+              "asset": "USD"
+            }
+          ]
+        },
+        "schema": "zenodex/asset-transfer-lane-module-input/v1"
+      },
+      "name": "custody_340282366920938463463374607431768211340"
+    },
+    {
+      "input": {
+        "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+        "command": {
+          "amount_atoms": 0,
+          "asset": "USD",
+          "command_kind": "asset_transfer",
+          "max_fee_atoms": 2,
+          "recipient": "bob",
+          "sender": "alice"
+        },
+        "context": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "subject_id": "alice",
+          "writer_epoch": 7
+        },
+        "custody": [
+          {
+            "amount_atoms": 7,
+            "asset": "USD",
+            "custody_domain": "escrow",
+            "owner": "vault"
+          }
+        ],
+        "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+        "pre_state": {
+          "balances": [
+            {
+              "amount_atoms": 100,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 10,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 5,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 122,
+              "asset": "USD"
+            }
+          ]
+        },
+        "schema": "zenodex/asset-transfer-lane-module-input/v1"
+      },
+      "name": "zero",
+      "reject_code": "ZERO_AMOUNT"
+    },
+    {
+      "input": {
+        "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+        "command": {
+          "amount_atoms": 30,
+          "asset": "USD",
+          "command_kind": "asset_transfer",
+          "max_fee_atoms": 1,
+          "recipient": "bob",
+          "sender": "alice"
+        },
+        "context": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "subject_id": "alice",
+          "writer_epoch": 7
+        },
+        "custody": [
+          {
+            "amount_atoms": 7,
+            "asset": "USD",
+            "custody_domain": "escrow",
+            "owner": "vault"
+          }
+        ],
+        "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+        "pre_state": {
+          "balances": [
+            {
+              "amount_atoms": 100,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 10,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 5,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 122,
+              "asset": "USD"
+            }
+          ]
+        },
+        "schema": "zenodex/asset-transfer-lane-module-input/v1"
+      },
+      "name": "fee",
+      "reject_code": "FEE_LIMIT_EXCEEDED"
+    },
+    {
+      "input": {
+        "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+        "command": {
+          "amount_atoms": 1000,
+          "asset": "USD",
+          "command_kind": "asset_transfer",
+          "max_fee_atoms": 2,
+          "recipient": "bob",
+          "sender": "alice"
+        },
+        "context": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "subject_id": "alice",
+          "writer_epoch": 7
+        },
+        "custody": [
+          {
+            "amount_atoms": 7,
+            "asset": "USD",
+            "custody_domain": "escrow",
+            "owner": "vault"
+          }
+        ],
+        "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+        "pre_state": {
+          "balances": [
+            {
+              "amount_atoms": 100,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 10,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 5,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 122,
+              "asset": "USD"
+            }
+          ]
+        },
+        "schema": "zenodex/asset-transfer-lane-module-input/v1"
+      },
+      "name": "balance",
+      "reject_code": "INSUFFICIENT_BALANCE"
+    },
+    {
+      "accepted": {
+        "effects": {
+          "asset_conservation": [
+            {
+              "asset": "USD",
+              "authorized_burn_atoms": 0,
+              "authorized_issue_atoms": 0,
+              "owned_and_custodied_post_atoms": 170141183460469231731687303715884105743,
+              "owned_and_custodied_pre_atoms": 170141183460469231731687303715884105743,
+              "supply_post_atoms": 170141183460469231731687303715884105743,
+              "supply_pre_atoms": 170141183460469231731687303715884105743
+            }
+          ],
+          "external_outbox_enqueue": [],
+          "fee_conservation": [
+            {
+              "asset": "USD",
+              "carried_residue_atoms": 0,
+              "current_allocations_atoms": 2,
+              "fee_charged_atoms": 2
+            }
+          ],
+          "lane_writes": [
+            {
+              "lane_id": "ASSET_TRANSFER",
+              "post_root": "0x8b4a7b3944fd6c5c02461e1c041e93c681c3c6416c5fe59debb2e871b5af6168",
+              "pre_root": "0xafe651b8961567d0e16220c84d5fc4339decc0938ddb49dbcb4231a66ba867c4"
+            }
+          ],
+          "occurrence_consumptions": [
+            "0x0000000000000000000000000000000000000000000000000000000000000004"
+          ],
+          "rows": [
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": -32,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "alice"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 30,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "bob"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "ACCOUNT_MOVEMENT",
+              "principal": "treasury"
+            },
+            {
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "delta_atoms": 2,
+              "kind": "FEE_ALLOCATION",
+              "principal": "treasury"
+            }
+          ],
+          "schema": "zenodex/global-settlement-abi/v1"
+        },
+        "module_journal": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "effect_plan_root": "0x531944e472c2943dc57c2f5fc8eba600f80573374c3fa6437910af8fa5ffe5c1",
+          "lane_id": "ASSET_TRANSFER",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_lane_root": "0x8b4a7b3944fd6c5c02461e1c041e93c681c3c6416c5fe59debb2e871b5af6168",
+          "pre_lane_root": "0xafe651b8961567d0e16220c84d5fc4339decc0938ddb49dbcb4231a66ba867c4",
+          "private_port_root": "0x3cb8497ae0e72a9557ea2ec80054e6f5f0ee8fbc6415ad1b49fc492cbeb2b496",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "receipt_root": "0x1252571e1a87662aec4c3460b91a23a23c8858d3010d38f130b8d0dea346761b",
+          "schema": "zenodex/global-settlement-abi/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "writer_epoch": 7
+        },
+        "post_state": {
+          "balances": [
+            {
+              "amount_atoms": 170141183460469231731687303715884105696,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 40,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 7,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 170141183460469231731687303715884105743,
+              "asset": "USD"
+            }
+          ]
+        },
+        "private_port": {
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "module_effect_plan_root": "0x531944e472c2943dc57c2f5fc8eba600f80573374c3fa6437910af8fa5ffe5c1",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "post_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 170141183460469231731687303715884105696,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 40,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 7,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 170141183460469231731687303715884105743,
+                "asset": "USD"
+              }
+            ]
+          },
+          "pre_state": {
+            "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+            "balances": [
+              {
+                "amount_atoms": 170141183460469231731687303715884105728,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "alice"
+              },
+              {
+                "amount_atoms": 10,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "bob"
+              },
+              {
+                "amount_atoms": 5,
+                "asset": "USD",
+                "custody_domain": "accounts",
+                "owner": "treasury"
+              }
+            ],
+            "custody": [],
+            "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+            "schema": "zenodex/asset-lane-state-projection/v1",
+            "supplies": [
+              {
+                "amount_atoms": 170141183460469231731687303715884105743,
+                "asset": "USD"
+              }
+            ]
+          },
+          "producer_module_schema": "zenodex/asset-transfer-module/v1",
+          "schema": "zenodex/asset-lane-private-port/v1",
+          "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "statement_root": "0x2723b607e0d83b5af668bae46fd285c2c76b6e5e1a7d186ae08e04d9bc9ef133"
+      },
+      "expected_total": "170141183460469231731687303715884105743",
+      "input": {
+        "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+        "command": {
+          "amount_atoms": 30,
+          "asset": "USD",
+          "command_kind": "asset_transfer",
+          "max_fee_atoms": 2,
+          "recipient": "bob",
+          "sender": "alice"
+        },
+        "context": {
+          "chain_id": "zeno-asset-test",
+          "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "subject_id": "alice",
+          "writer_epoch": 7
+        },
+        "custody": [],
+        "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+        "pre_state": {
+          "balances": [
+            {
+              "amount_atoms": 170141183460469231731687303715884105728,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "alice"
+            },
+            {
+              "amount_atoms": 10,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "bob"
+            },
+            {
+              "amount_atoms": 5,
+              "asset": "USD",
+              "custody_domain": "accounts",
+              "owner": "treasury"
+            }
+          ],
+          "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "policies": [
+            {
+              "asset": "USD",
+              "enabled": true,
+              "fee_owner": "treasury",
+              "transfer_fee_atoms": 2
+            }
+          ],
+          "schema": "zenodex/asset-transfer-module/v1",
+          "supplies": [
+            {
+              "amount_atoms": 170141183460469231731687303715884105743,
+              "asset": "USD"
+            }
+          ]
+        },
+        "schema": "zenodex/asset-transfer-lane-module-input/v1"
+      },
+      "name": "high_account_small_delta"
+    }
+  ],
+  "coordinator_context": {
+    "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+    "chain_id": "zeno-asset-test",
+    "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+    "compatible_modules": [
+      {
+        "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+        "module_schema": "zenodex/asset-transfer-module/v1"
+      }
+    ],
+    "coordinator_release_id": "0x000000000000000000000000000000000000000000000000000000000000000a",
+    "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+    "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+    "schema": "zenodex/asset-lane-coordinator/v1",
+    "writer_epoch": 7
+  },
+  "overflow_input": {
+    "asset_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000b",
+    "command": {
+      "amount_atoms": 30,
+      "asset": "USD",
+      "command_kind": "asset_transfer",
+      "max_fee_atoms": 2,
+      "recipient": "bob",
+      "sender": "alice"
+    },
+    "context": {
+      "chain_id": "zeno-asset-test",
+      "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+      "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005",
+      "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+      "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002",
+      "subject_id": "alice",
+      "writer_epoch": 7
+    },
+    "custody": [
+      {
+        "amount_atoms": 340282366920938463463374607431768211341,
+        "asset": "USD",
+        "custody_domain": "escrow",
+        "owner": "vault"
+      }
+    ],
+    "fee_policy_registry_root": "0x000000000000000000000000000000000000000000000000000000000000000c",
+    "pre_state": {
+      "balances": [
+        {
+          "amount_atoms": 100,
+          "asset": "USD",
+          "custody_domain": "accounts",
+          "owner": "alice"
+        },
+        {
+          "amount_atoms": 10,
+          "asset": "USD",
+          "custody_domain": "accounts",
+          "owner": "bob"
+        },
+        {
+          "amount_atoms": 5,
+          "asset": "USD",
+          "custody_domain": "accounts",
+          "owner": "treasury"
+        }
+      ],
+      "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+      "policies": [
+        {
+          "asset": "USD",
+          "enabled": true,
+          "fee_owner": "treasury",
+          "transfer_fee_atoms": 2
+        }
+      ],
+      "schema": "zenodex/asset-transfer-module/v1",
+      "supplies": [
+        {
+          "amount_atoms": 340282366920938463463374607431768211455,
+          "asset": "USD"
+        }
+      ]
+    },
+    "schema": "zenodex/asset-transfer-lane-module-input/v1"
+  },
+  "schema": "zenodex/asset-transfer-lane-module-custody-golden/v1",
+  "source_sha256": {
+    "src/core/asset_transfer_lane_module_custody_v1.py": "0d2118f275f6aa5bd308125b83b7c4528dbfc086749c8cb744bacea15983b45e",
+    "src/core/asset_transfer_lane_module_v1.py": "7c043b222d4e8aa3d54477ad7508ff65afd716f1b720f76f63995afc4daa7c1a",
+    "zk/global_settlement_abi_v1/src/asset_transfer_lane_module.rs": "26ac83d8359690a352328893debbf7d64685bd3bb44982527afcfbc4e4ce57a9",
+    "zk/global_settlement_abi_v1/src/asset_transfer_lane_module_custody.rs": "28f1e2847ec28f07ed95f7c2c9e0dbcafdf781bafc446bd1d550ebae1b8c422b"
+  }
+}
