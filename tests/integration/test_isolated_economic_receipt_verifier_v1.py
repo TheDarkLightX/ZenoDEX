@@ -15,19 +15,26 @@ from src.core.economic_receipt_verifier_registry_v1 import (
 from src.core.global_settlement_types_v1 import ProfileStatusV1
 from src.integration.global_economic_durable_publisher_v1 import VerifiedDurableEconomicPublisherV1
 from tests.core.test_economic_receipt_verifier_release_v1 import (
-    _ARTIFACT_BYTES,
     _manifest,
     _RecordingBackend,
     _release,
 )
 from tests.core.test_global_settlement_abi_v1 import _profile
+from tests.integration.publisher_receipt_port_fixtures_v1 import (
+    publisher_synthetic_artifact_bytes_v1,
+)
+from tests.integration.publisher_receipt_port_fixtures_v1 import (
+    simulated_measured_publisher_crypto_v1 as simulated_measured_publisher_crypto_v1,
+)
 from tests.integration.test_global_economic_durable_publisher_v1 import (
     _publisher_fixture_v1,
     _receipt_verifier_manifest_v1,
 )
 
 
-def test_shadow_verifier_cannot_construct_economic_publisher(tmp_path: Path) -> None:
+def test_shadow_verifier_cannot_construct_economic_publisher(
+    tmp_path: Path, simulated_measured_publisher_crypto_v1,
+) -> None:
     admission, candidate, _body = _publisher_fixture_v1()
     manifest = _receipt_verifier_manifest_v1()
     registry = EconomicReceiptVerifierRegistryV1((_release(manifest),))
@@ -35,10 +42,10 @@ def test_shadow_verifier_cannot_construct_economic_publisher(tmp_path: Path) -> 
     shadow = bind_economic_receipt_verifier_deployment_v1(
         profile=candidate.profile, verifier_registry=registry,
         selection_purpose=EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW,
-        evidence_manifest=manifest, measured_artifact_bytes=_ARTIFACT_BYTES,
+        evidence_manifest=manifest, measured_artifact_bytes=publisher_synthetic_artifact_bytes_v1(),
         deployment_root=candidate.pre_state.deployment_root, backend=backend,
     )
-    with pytest.raises(ValueError, match="selection purpose"):
+    with pytest.raises(TypeError, match="exact factory type"):
         publisher = VerifiedDurableEconomicPublisherV1.create(
             tmp_path / "economic.sqlite", admission, shadow,
         )

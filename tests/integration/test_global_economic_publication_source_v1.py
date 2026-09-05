@@ -8,6 +8,9 @@ from src.integration.global_economic_epoch_journal_v1 import (
     DurableEconomicEpochCommitStatusV1,
     GlobalEconomicEpochJournalV1,
 )
+from tests.integration.publisher_receipt_port_fixtures_v1 import (
+    simulated_measured_publisher_crypto_v1 as simulated_measured_publisher_crypto_v1,
+)
 from tests.integration.test_global_economic_epoch_journal_v1 import (
     _commit_v1,
     _create_writer_v1,
@@ -80,7 +83,9 @@ def test_source_snapshot_unknown_source_and_decode_failure_leave_no_effect(tmp_p
         assert _commit_v1(journal, capability, epoch, journal.acquire_cas_head_token()).status is DurableEconomicEpochCommitStatusV1.COMMITTED
 
 
-def test_publisher_passes_the_acquired_committed_state_to_the_pure_verifier(tmp_path: Path, monkeypatch) -> None:
+def test_publisher_passes_the_acquired_committed_state_to_the_pure_verifier(
+    tmp_path: Path, monkeypatch, simulated_measured_publisher_crypto_v1,
+) -> None:
     import src.integration.global_economic_durable_publisher_v1 as publisher_module
     from tests.integration.test_global_economic_durable_publisher_v1 import (
         _bound_receipt_verifier_v1,

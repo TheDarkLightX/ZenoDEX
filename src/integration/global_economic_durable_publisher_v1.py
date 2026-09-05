@@ -6,8 +6,9 @@ publication record and complete byte bundle internally, and uses the journal's
 compare-and-swap transaction as the sole durable linearization point.
 
 It grants no production writer, settlement, consensus, finality, migration, or
-external-delivery authority.  Its receipt assurance is exactly the assurance
-provided by the verifier instance selected at construction.
+external-delivery authority. Receipt checking uses a measured profile-port set
+acquired by the isolated factory. Interpreter and operating-system integrity,
+command admission and allocation mediation remain separate obligations.
 """
 
 from __future__ import annotations
@@ -86,6 +87,10 @@ from .global_economic_monotonic_anchor_v1 import (
     global_economic_monotonic_anchor_publication_head_v1,
     require_global_economic_monotonic_anchor_matches_local_v1,
 )
+from .isolated_profile_receipt_ports_v1 import (
+    IsolatedProfileReceiptPortsV1,
+    _bound_isolated_profile_receipt_verifier_v1,
+)
 
 _DURABLE_PUBLISHER_MINT_V1 = object()
 
@@ -131,6 +136,27 @@ class _VerifiedActivationV1:
     state: GlobalEconomicStateV1
     certificate_root: str
     bundle: DurableEconomicInitialStateBundleV1
+
+
+def _mount_isolated_receipt_ports_v1(
+    admission: EconomicInitialStateAdmissionV1,
+    ports: IsolatedProfileReceiptPortsV1,
+) -> BoundEconomicReceiptVerifierV1:
+    if type(admission) is not EconomicInitialStateAdmissionV1:
+        raise TypeError("durable publisher requires exact initial-state admission")
+    return _bound_isolated_profile_receipt_verifier_v1(
+        ports,
+        profile=admission.profile,
+        verifier_registry_root=admission.profile.verifier_registry_root,
+        deployment_root=admission.state.deployment_root,
+    )
+
+
+def _require_exact_publisher_class_v1(
+    cls: type[VerifiedDurableEconomicPublisherV1],
+) -> None:
+    if cls is not VerifiedDurableEconomicPublisherV1:
+        raise TypeError("durable publisher requires exact class")
 
 
 def _snapshot_publication_head_v1(
@@ -358,6 +384,7 @@ class VerifiedDurableEconomicPublisherV1:
         "__monotonic_anchor_backend",
         "__monotonic_anchor_recovery_source",
         "__profile",
+        "__receipt_ports",
         "__receipt_verifier",
         "__receipt_verifier_binding_root",
         "__receipt_verifier_release_id",
@@ -372,6 +399,7 @@ class VerifiedDurableEconomicPublisherV1:
     __monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1 | None
     __monotonic_anchor_recovery_source: DurableEconomicPublicationHeadV1 | None
     __profile: EconomicProfileSnapshotV1
+    __receipt_ports: IsolatedProfileReceiptPortsV1
     __receipt_verifier: BoundEconomicReceiptVerifierV1
     __receipt_verifier_binding_root: str
     __receipt_verifier_release_id: str
@@ -384,7 +412,7 @@ class VerifiedDurableEconomicPublisherV1:
         journal: GlobalEconomicEpochJournalV1,
         write_capability: DurableEconomicEpochWriteCapabilityV1,
         profile: EconomicProfileSnapshotV1,
-        receipt_verifier: BoundEconomicReceiptVerifierV1,
+        receipt_verifier: IsolatedProfileReceiptPortsV1,
         activation_id: str,
         monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1
         | None = None,
@@ -392,11 +420,19 @@ class VerifiedDurableEconomicPublisherV1:
         monotonic_anchor_recovery_source: DurableEconomicPublicationHeadV1
         | None = None,
     ) -> None:
+        if type(self) is not VerifiedDurableEconomicPublisherV1:
+            raise TypeError("durable publisher requires exact class")
         if mint is not _DURABLE_PUBLISHER_MINT_V1:
             raise TypeError("durable publisher is factory-constructed")
         if type(journal) is not GlobalEconomicEpochJournalV1:
             raise TypeError("durable publisher journal type is not closed")
         _require_write_capability_v1(journal, write_capability)
+        bound_verifier = _bound_isolated_profile_receipt_verifier_v1(
+            receipt_verifier,
+            profile=profile,
+            verifier_registry_root=profile.verifier_registry_root,
+            deployment_root=journal.activation_bundle.head.deployment_root,
+        )
         anchor_values = (monotonic_anchor_backend, monotonic_anchor)
         if (anchor_values[0] is None) != (anchor_values[1] is None):
             raise ValueError("durable publisher monotonic anchor binding is incomplete")
@@ -427,18 +463,23 @@ class VerifiedDurableEconomicPublisherV1:
         )
         object.__setattr__(
             self,
-            "_VerifiedDurableEconomicPublisherV1__receipt_verifier",
+            "_VerifiedDurableEconomicPublisherV1__receipt_ports",
             receipt_verifier,
         )
         object.__setattr__(
             self,
+            "_VerifiedDurableEconomicPublisherV1__receipt_verifier",
+            bound_verifier,
+        )
+        object.__setattr__(
+            self,
             "_VerifiedDurableEconomicPublisherV1__receipt_verifier_binding_root",
-            receipt_verifier.binding_root,
+            bound_verifier.binding_root,
         )
         object.__setattr__(
             self,
             "_VerifiedDurableEconomicPublisherV1__receipt_verifier_release_id",
-            receipt_verifier.release_id,
+            bound_verifier.release_id,
         )
         object.__setattr__(
             self,
@@ -482,17 +523,21 @@ class VerifiedDurableEconomicPublisherV1:
         cls,
         path: str | Path,
         initial_state_admission: EconomicInitialStateAdmissionV1,
-        receipt_verifier: BoundEconomicReceiptVerifierV1,
+        receipt_verifier: IsolatedProfileReceiptPortsV1,
     ) -> VerifiedDurableEconomicPublisherV1:
+        _require_exact_publisher_class_v1(cls)
+        bound_verifier = _mount_isolated_receipt_ports_v1(
+            initial_state_admission, receipt_verifier,
+        )
         verified = _prepare_verified_activation_v1(
             initial_state_admission,
-            receipt_verifier,
+            bound_verifier,
         )
         authority = _build_initial_authority_v1(
             verified.bundle,
             verified.profile,
             verified.state,
-            receipt_verifier,
+            bound_verifier,
             path,
         )
         authority_path = authority_journal_path_for_epoch_v1(path)
@@ -522,8 +567,9 @@ class VerifiedDurableEconomicPublisherV1:
         cls,
         path: str | Path,
         initial_state_admission: EconomicInitialStateAdmissionV1,
-        receipt_verifier: BoundEconomicReceiptVerifierV1,
+        receipt_verifier: IsolatedProfileReceiptPortsV1,
     ) -> VerifiedDurableEconomicPublisherV1:
+        _require_exact_publisher_class_v1(cls)
         return cls._open_v1(
             path,
             initial_state_admission,
@@ -536,11 +582,12 @@ class VerifiedDurableEconomicPublisherV1:
         cls,
         path: str | Path,
         initial_state_admission: EconomicInitialStateAdmissionV1,
-        receipt_verifier: BoundEconomicReceiptVerifierV1,
+        receipt_verifier: IsolatedProfileReceiptPortsV1,
         monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1,
     ) -> VerifiedDurableEconomicPublisherV1:
         """Open only when an external current checkpoint matches or is one behind."""
 
+        _require_exact_publisher_class_v1(cls)
         if type(
             monotonic_anchor_backend
         ) is not BoundGlobalEconomicMonotonicAnchorBackendV1:
@@ -557,20 +604,24 @@ class VerifiedDurableEconomicPublisherV1:
         cls,
         path: str | Path,
         initial_state_admission: EconomicInitialStateAdmissionV1,
-        receipt_verifier: BoundEconomicReceiptVerifierV1,
+        receipt_verifier: IsolatedProfileReceiptPortsV1,
         *,
         monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1
         | None,
     ) -> VerifiedDurableEconomicPublisherV1:
+        _require_exact_publisher_class_v1(cls)
+        bound_verifier = _mount_isolated_receipt_ports_v1(
+            initial_state_admission, receipt_verifier,
+        )
         verified = _prepare_verified_activation_v1(
             initial_state_admission,
-            receipt_verifier,
+            bound_verifier,
         )
         authority = _build_initial_authority_v1(
             verified.bundle,
             verified.profile,
             verified.state,
-            receipt_verifier,
+            bound_verifier,
             path,
         )
         authority_path = authority_journal_path_for_epoch_v1(path)
@@ -933,7 +984,15 @@ class VerifiedDurableEconomicPublisherV1:
                 raise ValueError("durable publisher disclosed source differs from committed state")
             owned_candidate = replace(owned_candidate, pre_state=acquired_source.state)
             cas_token = acquired_source.cas_token
-            receipt_verifier = self.__receipt_verifier
+            receipt_ports = self.__receipt_ports
+            receipt_verifier = _bound_isolated_profile_receipt_verifier_v1(
+                receipt_ports,
+                profile=selected_profile,
+                verifier_registry_root=selected_profile.verifier_registry_root,
+                deployment_root=acquired_source.state.deployment_root,
+            )
+            if receipt_verifier is not self.__receipt_verifier:
+                raise ValueError("durable publisher measured receipt selection changed")
             receipt_verifier_binding_root = self.__receipt_verifier_binding_root
             receipt_verifier_release_id = self.__receipt_verifier_release_id
             binding_token = self.__binding_token
@@ -943,7 +1002,8 @@ class VerifiedDurableEconomicPublisherV1:
                 binding_token,
             )
             if (
-                self.__receipt_verifier is not receipt_verifier
+                self.__receipt_ports is not receipt_ports
+                or self.__receipt_verifier is not receipt_verifier
                 or self.__receipt_verifier_binding_root
                 != receipt_verifier_binding_root
                 or self.__receipt_verifier_release_id

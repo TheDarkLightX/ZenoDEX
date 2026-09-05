@@ -15,13 +15,10 @@ import pytest
 import src.integration.global_economic_authority_journal_v1 as authority_journal_module
 import tests.core.test_global_settlement_abi_v1 as abi_fixture_module
 from src.core.economic_receipt_verifier_deployment_v1 import (
-    BoundEconomicReceiptVerifierV1,
     EconomicReceiptVerifierEvidenceManifestV1,
-    bind_economic_receipt_verifier_deployment_v1,
 )
 from src.core.economic_receipt_verifier_registry_v1 import (
     EconomicReceiptVerifierRegistryV1,
-    EconomicReceiptVerifierSelectionPurposeV1,
 )
 from src.core.global_economic_durable_activation_v1 import (
     prepare_durable_economic_initial_state_bundle_v1,
@@ -69,9 +66,11 @@ from src.integration.global_economic_monotonic_anchor_v1 import (
     global_economic_monotonic_anchor_backend_implementation_root_v1,
     global_economic_monotonic_anchor_backend_protocol_root_v1,
 )
+from src.integration.isolated_profile_receipt_ports_v1 import (
+    IsolatedProfileReceiptPortsV1,
+    _bound_isolated_profile_receipt_verifier_v1,
+)
 from tests.core.test_economic_receipt_verifier_release_v1 import (
-    _ARTIFACT_BYTES,
-    _manifest,
     _RecordingBackend,
     _release,
 )
@@ -82,36 +81,28 @@ from tests.core.test_global_settlement_abi_v1 import (
     _RecordingReceiptVerifier,
     _root,
 )
+from tests.integration.publisher_receipt_port_fixtures_v1 import (
+    bind_publisher_test_receipt_ports_v1,
+    publisher_receipt_manifest_v1,
+)
+from tests.integration.publisher_receipt_port_fixtures_v1 import (
+    simulated_measured_publisher_crypto_v1 as simulated_measured_publisher_crypto_v1,
+)
+
+pytestmark = pytest.mark.usefixtures("simulated_measured_publisher_crypto_v1")
 
 
 def _receipt_verifier_manifest_v1() -> EconomicReceiptVerifierEvidenceManifestV1:
-    return _manifest(
-        root_image_id=_root(411),
-        max_receipt_bytes=4_096,
-        max_journal_bytes=1_048_576,
-    )
+    return publisher_receipt_manifest_v1()
 
 
 def _bound_receipt_verifier_v1(
     candidate: EconomicEpochReceiptCandidateV1,
     backend: _RecordingBackend | None = None,
-) -> tuple[BoundEconomicReceiptVerifierV1, _RecordingBackend]:
-    manifest = _receipt_verifier_manifest_v1()
-    registry = EconomicReceiptVerifierRegistryV1((_release(manifest),))
-    assert registry.registry_root == candidate.profile.verifier_registry_root
+) -> tuple[IsolatedProfileReceiptPortsV1, _RecordingBackend]:
     selected_backend = backend or _RecordingBackend()
     return (
-        bind_economic_receipt_verifier_deployment_v1(
-            profile=candidate.profile,
-            verifier_registry=registry,
-            selection_purpose=(
-                EconomicReceiptVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION
-            ),
-            evidence_manifest=manifest,
-            measured_artifact_bytes=_ARTIFACT_BYTES,
-            deployment_root=candidate.pre_state.deployment_root,
-            backend=selected_backend,
-        ),
+        bind_publisher_test_receipt_ports_v1(candidate, selected_backend),
         selected_backend,
     )
 
@@ -278,6 +269,70 @@ def _anchor_for_path_v1(
         authority=authority,
         publication=publication,
     )
+
+
+@pytest.mark.parametrize("entrypoint", ["create", "open", "open_with_monotonic_anchor", "_open_v1"])
+@pytest.mark.parametrize("forged", [False, True])
+def test_generic_bound_verifier_cannot_create_isolated_writer(
+    tmp_path: Path, entrypoint, forged,
+) -> None:
+    admission, candidate, _ = _publisher_fixture_v1()
+    scope, backend = _bound_receipt_verifier_v1(candidate)
+    generic = object.__new__(IsolatedProfileReceiptPortsV1) if forged else (
+        _bound_isolated_profile_receipt_verifier_v1(
+            scope, profile=candidate.profile,
+            verifier_registry_root=candidate.profile.verifier_registry_root,
+            deployment_root=candidate.pre_state.deployment_root,
+        )
+    )
+    path = tmp_path / "generic-bound-refused.sqlite"
+    extra = {"monotonic_anchor_backend": None} if entrypoint == "_open_v1" else {}
+    if entrypoint == "open_with_monotonic_anchor":
+        baseline_path = tmp_path / "baseline" / "known-authorized-store.sqlite"
+        baseline_path.parent.mkdir()
+        VerifiedDurableEconomicPublisherV1.create(baseline_path, admission, scope).close()
+        anchor = _anchor_for_path_v1(
+            baseline_path, anchor_sequence=0, previous_anchor_root=ZERO_ROOT_V1,
+        )
+        extra = {"monotonic_anchor_backend": _bound_monotonic_anchor_backend_v1(
+            anchor, _MemoryMonotonicAnchorBackendV1(anchor),
+        )}
+    calls_before = tuple(backend.calls)
+    with pytest.raises((TypeError, ValueError), match="exact factory type|not factory-minted"):
+        getattr(VerifiedDurableEconomicPublisherV1, entrypoint)(path, admission, generic, **extra)
+    assert not path.exists()
+    assert not authority_journal_path_for_epoch_v1(path).exists()
+    assert tuple(backend.calls) == calls_before
+
+
+@pytest.mark.parametrize("entrypoint", ["create", "open", "open_with_monotonic_anchor", "_open_v1"])
+def test_publisher_subclass_factory_rejects_before_target_store_writes(
+    tmp_path: Path, entrypoint,
+) -> None:
+    class BenignSubclass(VerifiedDurableEconomicPublisherV1):
+        pass
+
+    admission, candidate, _ = _publisher_fixture_v1()
+    scope, backend = _bound_receipt_verifier_v1(candidate)
+    path = tmp_path / "subclass-refused.sqlite"
+    extra = {"monotonic_anchor_backend": None} if entrypoint == "_open_v1" else {}
+    if entrypoint == "open_with_monotonic_anchor":
+        baseline_path = tmp_path / "baseline" / "known-authorized-store.sqlite"
+        baseline_path.parent.mkdir()
+        VerifiedDurableEconomicPublisherV1.create(baseline_path, admission, scope).close()
+        anchor = _anchor_for_path_v1(
+            baseline_path, anchor_sequence=0, previous_anchor_root=ZERO_ROOT_V1,
+        )
+        extra = {"monotonic_anchor_backend": _bound_monotonic_anchor_backend_v1(
+            anchor, _MemoryMonotonicAnchorBackendV1(anchor),
+        )}
+    calls_before = tuple(backend.calls)
+    with pytest.raises(TypeError, match="exact.*type|exact.*class"):
+        result = getattr(BenignSubclass, entrypoint)(path, admission, scope, **extra)
+        result.close()
+    assert not path.exists()
+    assert not authority_journal_path_for_epoch_v1(path).exists()
+    assert tuple(backend.calls) == calls_before
 
 
 def test_create_publish_reopen_and_exact_retry_are_one_durable_history(
@@ -759,7 +814,7 @@ def test_generic_caller_selected_verifier_rejects_before_backend_use(
     generic = _RecordingReceiptVerifier()
 
     # Act and assert: only an exact measured profile-selected capability is accepted.
-    with pytest.raises(TypeError, match="bound economic receipt verifier"):
+    with pytest.raises(TypeError, match="exact factory type"):
         VerifiedDurableEconomicPublisherV1.create(
             tmp_path / "generic-verifier.sqlite",
             admission,
