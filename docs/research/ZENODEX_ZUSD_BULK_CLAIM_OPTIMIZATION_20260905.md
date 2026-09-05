@@ -96,4 +96,8 @@ Historical artifacts/checkers remain unchanged. The three-file patch was
 reverse-checked, removed from the worktree, and forward-checked successfully.
 
 Patch SHA-256:
-`a97b1339d3a9882cc506347d35d5908952db7bd294c6aec04997e84922eb93ce`.
+`6be58fba17f934791c5729d7701d10bcc8ba612b0b15413471cf36260e3871e4`.
+
+Empty context lines use Git-accepted bare newlines so the stored patch passes
+repository whitespace checks. `git apply --check` verifies this representation;
+no candidate source byte was changed by the context-only normalization.

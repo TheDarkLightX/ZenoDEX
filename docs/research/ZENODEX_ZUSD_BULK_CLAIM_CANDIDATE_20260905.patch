@@ -4,8 +4,8 @@ index 220372652..c5c669dcb 100644
 +++ b/src/integration/zusd_monetary_bridge.py
 @@ -2964,6 +2964,22 @@ def _fee_stake_debt_for(shares: int, acc_per_share_e8: int) -> int:
      return (int(shares) * int(acc_per_share_e8)) // _FEE_ACC_SCALE
- 
- 
+
+
 +def _is_exact_fee_stake_map(value: object) -> bool:
 +    if type(value) is not dict:
 +        return False
@@ -27,8 +27,8 @@ index 220372652..c5c669dcb 100644
      reward_debt = dict(fee_fields["fee_stake_reward_debt_e8"])
 @@ -2974,6 +2990,62 @@ def _fee_stake_claimable_e8(fee_fields: Mapping[str, Any], account: str) -> int:
      return max(0, accrued - int(reward_debt.get(account, 0)))
- 
- 
+
+
 +def _bulk_fee_stake_claimables_e8(
 +    fee_fields: Mapping[str, Any],
 +) -> tuple[int, ...]:
@@ -91,7 +91,7 @@ index 220372652..c5c669dcb 100644
 @@ -3014,11 +3086,7 @@ def _require_fee_routes_transport_exact(
              "host fee claims must be whole zUSD at v0.1 transport"
          )
- 
+
 -    active_stakes = dict(fee_fields["active_fee_stakes"])
 -    claimables = tuple(
 -        _fee_stake_claimable_e8(fee_fields, pubkey)
