@@ -1,0 +1,17 @@
+[package]
+name = "zenodex-asset-transfer-custody-module-risc0-shared"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+serde_json = { version = "=1.0.148", features = ["arbitrary_precision"] }
+zenodex-global-settlement-abi-v1 = { path = "../../global_settlement_abi_v1" }
+zenodex-asset-transfer-module-risc0-shared = { path = "../../asset_transfer_module_risc0/shared" }
+
+[lints.rust]
+unsafe_code = "forbid"
