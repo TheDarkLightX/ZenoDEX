@@ -297,3 +297,13 @@ fn governed_fixture_binds_the_exact_authenticated_command_occurrence() {
             .unwrap()
     );
 }
+
+// Runs after a methods build without invoking the prover. Placeholder child
+// methods have an all-zero ID and fail this gate instead of qualifying a pin.
+#[test]
+fn linked_child_method_id_matches_the_pinned_coordinator_child_image() {
+    assert_eq!(
+        ZENODEX_ASSET_TRANSFER_MODULE_GUEST_ID,
+        ASSET_TRANSFER_MODULE_IMAGE_ID_V1
+    );
+}
