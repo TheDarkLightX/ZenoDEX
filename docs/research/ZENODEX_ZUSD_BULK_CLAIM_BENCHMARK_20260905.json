@@ -1,0 +1,250 @@
+{
+  "cases": [
+    {
+      "baseline": {
+        "median_ms": 0.00631,
+        "samples_ms": [
+          0.0106,
+          0.00706,
+          0.00657,
+          0.00617,
+          0.00582,
+          0.00631,
+          0.00617
+        ]
+      },
+      "candidate": {
+        "median_ms": 0.00714,
+        "samples_ms": [
+          0.01096,
+          0.00867,
+          0.00729,
+          0.0069,
+          0.00714,
+          0.00694,
+          0.00654
+        ]
+      },
+      "candidate_at_least_4x": null,
+      "candidate_at_least_4x_applicable": false,
+      "candidate_at_least_4x_condition": "stakeholders == 4096",
+      "fixture": {
+        "accumulator_e8": 200000000000000,
+        "claimable_formula": "max(0, (shares * accumulator_e8) // fee_acc_scale - debt_e8)",
+        "expected_candidate_copied_entries_upper_bound": 0,
+        "expected_claimable_sum_e8": 0,
+        "expected_legacy_copied_entries": 0,
+        "reward_debt_e8_per_stakeholder": 100000000,
+        "shares_per_stakeholder": 1,
+        "stakeholders": 0,
+        "staking_pool_e8": 0
+      },
+      "independent_formula_matches_pool": true,
+      "median_speedup": 0.8837535014005602,
+      "outcomes": {
+        "baseline": {
+          "error": null,
+          "exception_type": null,
+          "ok": true
+        },
+        "candidate": {
+          "error": null,
+          "exception_type": null,
+          "ok": true
+        },
+        "equal": true
+      }
+    },
+    {
+      "baseline": {
+        "median_ms": 0.00839,
+        "samples_ms": [
+          0.01672,
+          0.00871,
+          0.00793,
+          0.00853,
+          0.0082,
+          0.00839,
+          0.00783
+        ]
+      },
+      "candidate": {
+        "median_ms": 0.01199,
+        "samples_ms": [
+          0.01597,
+          0.0126,
+          0.01199,
+          0.01159,
+          0.0112,
+          0.01127,
+          0.02886
+        ]
+      },
+      "candidate_at_least_4x": null,
+      "candidate_at_least_4x_applicable": false,
+      "candidate_at_least_4x_condition": "stakeholders == 4096",
+      "fixture": {
+        "accumulator_e8": 200000000000000,
+        "claimable_formula": "max(0, (shares * accumulator_e8) // fee_acc_scale - debt_e8)",
+        "expected_candidate_copied_entries_upper_bound": 2,
+        "expected_claimable_sum_e8": 100000000,
+        "expected_legacy_copied_entries": 3,
+        "reward_debt_e8_per_stakeholder": 100000000,
+        "shares_per_stakeholder": 1,
+        "stakeholders": 1,
+        "staking_pool_e8": 100000000
+      },
+      "independent_formula_matches_pool": true,
+      "median_speedup": 0.6997497914929107,
+      "outcomes": {
+        "baseline": {
+          "error": null,
+          "exception_type": null,
+          "ok": true
+        },
+        "candidate": {
+          "error": null,
+          "exception_type": null,
+          "ok": true
+        },
+        "equal": true
+      }
+    },
+    {
+      "baseline": {
+        "median_ms": 0.933143,
+        "samples_ms": [
+          0.943192,
+          0.932582,
+          0.935143,
+          0.933652,
+          0.922302,
+          0.933143,
+          0.929112
+        ]
+      },
+      "candidate": {
+        "median_ms": 0.22647,
+        "samples_ms": [
+          0.229491,
+          0.22594,
+          0.22647,
+          0.232711,
+          0.236611,
+          0.2237,
+          0.224651
+        ]
+      },
+      "candidate_at_least_4x": null,
+      "candidate_at_least_4x_applicable": false,
+      "candidate_at_least_4x_condition": "stakeholders == 4096",
+      "fixture": {
+        "accumulator_e8": 200000000000000,
+        "claimable_formula": "max(0, (shares * accumulator_e8) // fee_acc_scale - debt_e8)",
+        "expected_candidate_copied_entries_upper_bound": 512,
+        "expected_claimable_sum_e8": 25600000000,
+        "expected_legacy_copied_entries": 131328,
+        "reward_debt_e8_per_stakeholder": 100000000,
+        "shares_per_stakeholder": 1,
+        "stakeholders": 256,
+        "staking_pool_e8": 25600000000
+      },
+      "independent_formula_matches_pool": true,
+      "median_speedup": 4.120382390603612,
+      "outcomes": {
+        "baseline": {
+          "error": null,
+          "exception_type": null,
+          "ok": true
+        },
+        "candidate": {
+          "error": null,
+          "exception_type": null,
+          "ok": true
+        },
+        "equal": true
+      }
+    },
+    {
+      "baseline": {
+        "median_ms": 178.416825,
+        "samples_ms": [
+          181.516982,
+          176.74649,
+          178.416825,
+          182.923686,
+          174.411735,
+          177.221642,
+          179.089816
+        ]
+      },
+      "candidate": {
+        "median_ms": 3.325918,
+        "samples_ms": [
+          3.460589,
+          3.325918,
+          3.520198,
+          3.192748,
+          3.241108,
+          3.148677,
+          3.479259
+        ]
+      },
+      "candidate_at_least_4x": true,
+      "candidate_at_least_4x_applicable": true,
+      "candidate_at_least_4x_condition": "stakeholders == 4096",
+      "fixture": {
+        "accumulator_e8": 200000000000000,
+        "claimable_formula": "max(0, (shares * accumulator_e8) // fee_acc_scale - debt_e8)",
+        "expected_candidate_copied_entries_upper_bound": 8192,
+        "expected_claimable_sum_e8": 409600000000,
+        "expected_legacy_copied_entries": 33558528,
+        "reward_debt_e8_per_stakeholder": 100000000,
+        "shares_per_stakeholder": 1,
+        "stakeholders": 4096,
+        "staking_pool_e8": 409600000000
+      },
+      "independent_formula_matches_pool": true,
+      "median_speedup": 53.644384798422564,
+      "outcomes": {
+        "baseline": {
+          "error": null,
+          "exception_type": null,
+          "ok": true
+        },
+        "candidate": {
+          "error": null,
+          "exception_type": null,
+          "ok": true
+        },
+        "equal": true
+      }
+    }
+  ],
+  "claim_scope": {
+    "measured": [
+      "Python zUSD whole-transport fee guard",
+      "Exact baseline/candidate guard outcomes and error tuples",
+      "Synthetic stakeholder counts selected by this tool"
+    ],
+    "nonclaims": [
+      "No full monetary-path or transaction throughput claim",
+      "No native, Rust, guest, proof, verifier, release, or production claim",
+      "No economic parameter or product stakeholder-limit selection",
+      "Synthetic timings do not represent arbitrary workload distributions"
+    ]
+  },
+  "repeats": 7,
+  "source_hashes": {
+    "baseline_bulk_caller_sha256": "115fc4ce5064dbccd512b376bff13ad5c0d80d0fe7a39709737f961c5d079741",
+    "baseline_fee_stake_claimable_e8_sha256": "d4c747ff13471ef8b637f23a286d9c9f35ed5a4ec3598cf4a9a6bcc22fe3e78f",
+    "benchmark_py_sha256": "faab1a8fde57c7e9ee2200691447365e1271c333c2e4fd88d7bf15d8e6dc7ad1",
+    "candidate_bulk_caller_sha256": "474ee8ff0a7512ebe599611400217f01a1df741f67d0df314e97a3dfcc0e6e9b",
+    "candidate_bulk_snapshot_helper_sha256": "7743f51acc19a1ef27eca7d719a78009b19a2140c8e1292a30cad822d94d8f19",
+    "candidate_fee_stake_claimable_e8_sha256": "bf5bfb75876d8046b9965405be0b1338aa11c5f1bc705ec142506938f0d99e20",
+    "candidate_state_invariant_caller_sha256": "ee320ebb24c739dc6c92ed525ca9069c8aa08d7631faf2ac73fde3e27fd90efd",
+    "zusd_monetary_bridge_py_sha256": "2d02415537acf959471221bba58790db977fdceec540401b498ac5721645a2e2"
+  },
+  "subject_head": "04f0d32b6b6679aa23da645263ec6575f7872c4e",
+  "tool": "benchmark_zusd_bulk_fee_claims_v1"
+}

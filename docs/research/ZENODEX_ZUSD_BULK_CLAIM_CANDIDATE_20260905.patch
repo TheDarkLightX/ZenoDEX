@@ -1,0 +1,1360 @@
+diff --git a/src/integration/zusd_monetary_bridge.py b/src/integration/zusd_monetary_bridge.py
+index 220372652..c5c669dcb 100644
+--- a/src/integration/zusd_monetary_bridge.py
++++ b/src/integration/zusd_monetary_bridge.py
+@@ -2964,6 +2964,22 @@ def _fee_stake_debt_for(shares: int, acc_per_share_e8: int) -> int:
+     return (int(shares) * int(acc_per_share_e8)) // _FEE_ACC_SCALE
+ 
+ 
++def _is_exact_fee_stake_map(value: object) -> bool:
++    if type(value) is not dict:
++        return False
++    return all(
++        type(account) is str and type(amount) is int
++        for account, amount in value.items()
++    )
++
++
++def _has_exact_string_keys(value: object) -> bool:
++    return type(value) is dict and all(type(key) is str for key in value)
++
++
++_MISSING_FEE_STAKE_ACCUMULATOR = object()
++
++
+ def _fee_stake_claimable_e8(fee_fields: Mapping[str, Any], account: str) -> int:
+     active = dict(fee_fields["active_fee_stakes"])
+     reward_debt = dict(fee_fields["fee_stake_reward_debt_e8"])
+@@ -2974,6 +2990,62 @@ def _fee_stake_claimable_e8(fee_fields: Mapping[str, Any], account: str) -> int:
+     return max(0, accrued - int(reward_debt.get(account, 0)))
+ 
+ 
++def _bulk_fee_stake_claimables_e8(
++    fee_fields: Mapping[str, Any],
++) -> tuple[int, ...]:
++    """Calculate all transport claimant balances with an exact-map fast path.
++
++    The fast path owns both copied maps and only accepts exact primitive maps
++    and an exact ``int`` accumulator. Every other input uses the legacy
++    singleton helper, preserving its map-snapshot and scalar-conversion order.
++    """
++
++    exact_outer_fields = (
++        type(fee_fields) is dict
++        and _has_exact_string_keys(fee_fields)
++    )
++    active_source = fee_fields["active_fee_stakes"]
++    active_stakes = dict(active_source)
++    claimant_pubkeys = tuple(sorted(active_stakes))
++    if not claimant_pubkeys:
++        return ()
++
++    if (
++        exact_outer_fields
++        and type(active_source) is dict
++        and _is_exact_fee_stake_map(active_stakes)
++    ):
++        reward_source = fee_fields["fee_stake_reward_debt_e8"]
++        if _is_exact_fee_stake_map(reward_source):
++            accumulator_e8 = fee_fields.get(
++                "staking_zusd_fee_acc_per_share_e8",
++                _MISSING_FEE_STAKE_ACCUMULATOR,
++            )
++            if type(accumulator_e8) is int:
++                owned_active = cast(dict[str, int], active_stakes)
++                owned_reward_debt = cast(dict[str, int], dict(reward_source))
++                return tuple(
++                    (
++                        0
++                        if owned_active[pubkey] <= 0
++                        else max(
++                            0,
++                            _fee_stake_debt_for(
++                                owned_active[pubkey],
++                                accumulator_e8,
++                            )
++                            - owned_reward_debt.get(pubkey, 0),
++                        )
++                    )
++                    for pubkey in claimant_pubkeys
++                )
++
++    return tuple(
++        _fee_stake_claimable_e8(fee_fields, pubkey)
++        for pubkey in claimant_pubkeys
++    )
++
++
+ def _require_fee_routes_transport_exact(
+     *,
+     authority_binding: ZUSDAuthorityBinding,
+@@ -3014,11 +3086,7 @@ def _require_fee_routes_transport_exact(
+             "host fee claims must be whole zUSD at v0.1 transport"
+         )
+ 
+-    active_stakes = dict(fee_fields["active_fee_stakes"])
+-    claimables = tuple(
+-        _fee_stake_claimable_e8(fee_fields, pubkey)
+-        for pubkey in sorted(active_stakes)
+-    )
++    claimables = _bulk_fee_stake_claimables_e8(fee_fields)
+     if any(claimable_e8 % E8 != 0 for claimable_e8 in claimables):
+         raise ValueError(
+             "staking fee claims must be whole zUSD at v0.1 transport"
+diff --git a/tests/integration/test_zusd_bulk_fee_claims_v1.py b/tests/integration/test_zusd_bulk_fee_claims_v1.py
+new file mode 100644
+index 000000000..64be01d4d
+--- /dev/null
++++ b/tests/integration/test_zusd_bulk_fee_claims_v1.py
+@@ -0,0 +1,918 @@
++"""Differential and stateful evidence for the zUSD bulk fee-claim guard."""
++
++from __future__ import annotations
++
++from collections.abc import Iterator, Mapping
++from dataclasses import replace
++from typing import Any, cast
++
++import pytest
++
++import src.integration.zusd_monetary_bridge as bridge
++from src.core.consensus_time import (
++    clock_policy_schedule_hash_v1,
++    default_height_only_clock_schedule_v1,
++    verify_execution_clock_v1,
++)
++from src.core.dex import DexState
++from src.core.zusd import E8, init_state
++from src.state import BalanceTable, LPTable
++
++_FEE_SCALE = bridge._FEE_ACC_SCALE
++_ACCOUNT = "0x" + "01" * 48
++_SECOND_ACCOUNT = "0x" + "02" * 48
++_FEE_STAKE_ASSET = "0x" + "ab" * 32
++
++
++def _legacy_fee_stake_claimable_e8(
++    fee_fields: Mapping[str, Any],
++    account: str,
++) -> int:
++    """Frozen pre-change helper used as an independent behavior oracle."""
++
++    active = dict(fee_fields["active_fee_stakes"])
++    reward_debt = dict(fee_fields["fee_stake_reward_debt_e8"])
++    shares = int(active.get(account, 0))
++    if shares <= 0:
++        return 0
++    accrued = (int(shares) * int(fee_fields["staking_zusd_fee_acc_per_share_e8"])) // _FEE_SCALE
++    return max(0, accrued - int(reward_debt.get(account, 0)))
++
++
++def _claim_formula(*, shares: int, accumulator_e8: int, debt_e8: int) -> int:
++    if shares <= 0:
++        return 0
++    return max(0, (shares * accumulator_e8) // _FEE_SCALE - debt_e8)
++
++
++def _fee_fields(
++    *,
++    active: Mapping[str, Any],
++    reward_debt: Mapping[str, Any],
++    accumulator_e8: Any,
++    staking_pool_e8: int,
++    host_fees: Mapping[str, Any] | None = None,
++) -> dict[str, Any]:
++    return {
++        "host_zusd_fees_e8": {} if host_fees is None else host_fees,
++        "active_fee_stakes": active,
++        "fee_stake_reward_debt_e8": reward_debt,
++        "staking_zusd_fee_acc_per_share_e8": accumulator_e8,
++        "staking_zusd_fee_pool_e8": staking_pool_e8,
++    }
++
++
++def _fee_effects(
++    *,
++    host_e8: int = 0,
++    staking_e8: int = 0,
++    protocol_e8: int = 0,
++) -> dict[str, int]:
++    return {
++        "mint_fee_host_e8": host_e8,
++        "mint_fee_staking_e8": staking_e8,
++        "mint_fee_protocol_e8": protocol_e8,
++    }
++
++
++def _legacy_transport_outcome(
++    *,
++    fee_fields: Mapping[str, Any],
++    fee_effects: Mapping[str, Any],
++) -> tuple[str, str | None]:
++    """Frozen caller loop retaining the old per-claimant map copies."""
++
++    try:
++        routed: dict[str, int] = {}
++        for field_name in (
++            "mint_fee_host_e8",
++            "mint_fee_staking_e8",
++            "mint_fee_protocol_e8",
++        ):
++            amount_e8 = bridge._require_nonnegative_int(
++                fee_effects.get(field_name),
++                name=field_name,
++            )
++            if amount_e8 % E8 != 0:
++                raise ValueError("mint fee routes must be whole zUSD at v0.1 transport")
++            routed[field_name] = amount_e8
++
++        if routed["mint_fee_protocol_e8"] > 0:
++            bridge._require_protocol_fee_recipient(bridge.ZUSDAuthorityBinding())
++
++        host_fees = dict(fee_fields["host_zusd_fees_e8"])
++        if any(int(amount_e8) % E8 != 0 for amount_e8 in host_fees.values()):
++            raise ValueError("host fee claims must be whole zUSD at v0.1 transport")
++
++        active_stakes = dict(fee_fields["active_fee_stakes"])
++        claimables = tuple(
++            _legacy_fee_stake_claimable_e8(fee_fields, pubkey)
++            for pubkey in sorted(active_stakes)
++        )
++        if any(claimable_e8 % E8 != 0 for claimable_e8 in claimables):
++            raise ValueError("staking fee claims must be whole zUSD at v0.1 transport")
++        if sum(claimables) != int(fee_fields["staking_zusd_fee_pool_e8"]):
++            raise ValueError(
++                "staking fee pool must equal exactly claimable fees at v0.1 transport"
++            )
++    except Exception as exc:
++        return type(exc).__name__, str(exc)
++    return "ok", None
++
++
++def _candidate_transport_outcome(
++    *,
++    fee_fields: Mapping[str, Any],
++    fee_effects: Mapping[str, Any],
++) -> tuple[str, str | None]:
++    try:
++        bridge._require_fee_routes_transport_exact(
++            authority_binding=bridge.ZUSDAuthorityBinding(),
++            fee_fields=fee_fields,
++            fee_effects=fee_effects,
++        )
++    except Exception as exc:
++        return type(exc).__name__, str(exc)
++    return "ok", None
++
++
++def _bulk_fixture(count: int) -> dict[str, Any]:
++    active = {
++        f"0x{index + 1:096x}": 1
++        for index in range(count)
++    }
++    return _fee_fields(
++        active=active,
++        reward_debt={account: E8 for account in active},
++        accumulator_e8=2 * E8 * _FEE_SCALE,
++        staking_pool_e8=count * E8,
++    )
++
++
++class _ProbeInt(int):
++    calls = 0
++
++    def __new__(cls, value: int) -> _ProbeInt:
++        return int.__new__(cls, value)
++
++    def __int__(self) -> int:
++        type(self).calls += 1
++        return int.__int__(self)
++
++
++class _DebtMutatingAccumulator(int):
++    """Changes the later claimant debt on its first legacy conversion."""
++
++    _reward_debt: dict[str, int]
++    _later_account: str
++    _converted: bool
++
++    def __new__(
++        cls,
++        value: int,
++        *,
++        reward_debt: dict[str, int],
++        later_account: str,
++    ) -> _DebtMutatingAccumulator:
++        instance = int.__new__(cls, value)
++        instance._reward_debt = reward_debt
++        instance._later_account = later_account
++        instance._converted = False
++        return instance
++
++    def __int__(self) -> int:
++        if not self._converted:
++            self._converted = True
++            self._reward_debt[self._later_account] = E8
++        return int.__int__(self)
++
++
++class _ExplodingMapping(Mapping[str, int]):
++    touched = False
++
++    def __getitem__(self, key: str) -> int:
++        type(self).touched = True
++        raise AssertionError(f"unexpected lazy mapping access: {key}")
++
++    def __iter__(self) -> Iterator[str]:
++        type(self).touched = True
++        raise AssertionError("unexpected lazy mapping iteration")
++
++    def __len__(self) -> int:
++        type(self).touched = True
++        raise AssertionError("unexpected lazy mapping length")
++
++
++class _ChangingMapping(Mapping[str, int]):
++    """Stateful Mapping whose second snapshot makes fallback behavior visible."""
++
++    def __init__(self) -> None:
++        self.reads = 0
++
++    def __getitem__(self, key: str) -> int:
++        self.reads += 1
++        if key != _ACCOUNT:
++            raise KeyError(key)
++        return 1 if self.reads == 1 else 0
++
++    def __iter__(self) -> Iterator[str]:
++        return iter((_ACCOUNT,))
++
++    def __len__(self) -> int:
++        return 1
++
++
++class _SecondSnapshotRaisesMapping(Mapping[str, int]):
++    """Makes the legacy helper's second active-map snapshot observable."""
++
++    def __init__(self) -> None:
++        self.snapshots = 0
++
++    def __getitem__(self, key: str) -> int:
++        if key != _ACCOUNT:
++            raise KeyError(key)
++        return 1
++
++    def __iter__(self) -> Iterator[str]:
++        self.snapshots += 1
++        if self.snapshots == 2:
++            raise RuntimeError("active second snapshot")
++        return iter((_ACCOUNT,))
++
++    def __len__(self) -> int:
++        return 1
++
++
++class _RewardDebtLookupKey:
++    """A non-string outer key that changes debt on each matching lookup."""
++
++    def __init__(self, reward_debt: dict[str, int]) -> None:
++        self._reward_debt = reward_debt
++        self.lookups = 0
++
++    def __hash__(self) -> int:
++        return hash("fee_stake_reward_debt_e8")
++
++    def __eq__(self, other: object) -> bool:
++        if other != "fee_stake_reward_debt_e8":
++            return False
++        self.lookups += 1
++        self._reward_debt[_SECOND_ACCOUNT] = E8 if self.lookups == 1 else 0
++        return True
++
++
++def _state_with_claims(
++    *,
++    config: bridge.ZUSDMonetaryConfig | None = None,
++    claimable_e8: int = 100 * E8,
++) -> bridge.ZUSDMonetaryState:
++    if config is None:
++        core = replace(
++            init_state(),
++            collateral_e8=2 * claimable_e8,
++            debt_e8=claimable_e8,
++            free_debt_e8=claimable_e8,
++        )
++        return bridge.ZUSDMonetaryState(
++            core=core,
++            vault_owner_pubkey=_ACCOUNT,
++            active_fee_stakes={_ACCOUNT: 1},
++            fee_stake_reward_debt_e8={},
++            staking_zusd_fee_pool_e8=claimable_e8,
++            staking_zusd_fee_acc_per_share_e8=claimable_e8 * _FEE_SCALE,
++        )
++
++    base = bridge.init_monetary_state(config)
++    core = replace(
++        base.core,
++        collateral_e8=2 * claimable_e8,
++        debt_e8=claimable_e8,
++        free_debt_e8=claimable_e8,
++    )
++    return replace(
++        base,
++        core=core,
++        vault_owner_pubkey=_ACCOUNT,
++        active_fee_stakes={_ACCOUNT: 1},
++        fee_stake_reward_debt_e8={},
++        staking_zusd_fee_pool_e8=claimable_e8,
++        staking_zusd_fee_acc_per_share_e8=claimable_e8 * _FEE_SCALE,
++    )
++
++
++def _clock(chain_id: str, height: int):
++    schedule = default_height_only_clock_schedule_v1(chain_id=chain_id)
++    return verify_execution_clock_v1(
++        chain_id=chain_id,
++        height=height,
++        schedule=schedule,
++        expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
++    )
++
++
++@pytest.mark.parametrize(
++    ("shares", "accumulator_e8", "debt_e8"),
++    (
++        (0, E8 * _FEE_SCALE, 0),
++        (-3, E8 * _FEE_SCALE, 0),
++        (1, E8 * _FEE_SCALE, 0),
++        (3, 2 * E8 * _FEE_SCALE + 7, E8),
++        (1, E8 * _FEE_SCALE, 2 * E8),
++    ),
++)
++def test_claim_formula_matches_frozen_helper_and_candidate(
++    shares: int,
++    accumulator_e8: int,
++    debt_e8: int,
++) -> None:
++    fields = _fee_fields(
++        active={_ACCOUNT: shares},
++        reward_debt={_ACCOUNT: debt_e8},
++        accumulator_e8=accumulator_e8,
++        staking_pool_e8=0,
++    )
++
++    expected = _claim_formula(
++        shares=shares,
++        accumulator_e8=accumulator_e8,
++        debt_e8=debt_e8,
++    )
++    assert _legacy_fee_stake_claimable_e8(fields, _ACCOUNT) == expected
++    assert bridge._fee_stake_claimable_e8(fields, _ACCOUNT) == expected
++
++
++@pytest.mark.parametrize("count", (0, 1, 16, 256))
++def test_given_owned_snapshot_when_bulk_guard_runs_then_outcome_matches_frozen_oracle(
++    count: int,
++) -> None:
++    fields = _bulk_fixture(count)
++    before = {
++        "active": dict(fields["active_fee_stakes"]),
++        "reward_debt": dict(fields["fee_stake_reward_debt_e8"]),
++    }
++    expected = _legacy_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++    observed = _candidate_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++
++    assert observed == expected == ("ok", None)
++    assert fields["active_fee_stakes"] == before["active"]
++    assert fields["fee_stake_reward_debt_e8"] == before["reward_debt"]
++
++
++@pytest.mark.parametrize(
++    ("active", "reward_debt", "accumulator_e8", "pool_e8"),
++    (
++        ({_ACCOUNT: 2}, {}, (E8 * _FEE_SCALE) // 2 + 1, 100_000_002),
++        ({_ACCOUNT: 1}, {_ACCOUNT: 2 * E8}, E8 * _FEE_SCALE, 0),
++        ({_ACCOUNT: 1, _SECOND_ACCOUNT: 1}, {_SECOND_ACCOUNT: E8}, E8 * _FEE_SCALE, E8),
++        ({_ACCOUNT: 1}, {_ACCOUNT: "malformed"}, E8 * _FEE_SCALE, E8),
++    ),
++)
++def test_bulk_guard_preserves_dust_debt_attribution_and_errors(
++    active: Mapping[str, Any],
++    reward_debt: Mapping[str, Any],
++    accumulator_e8: int,
++    pool_e8: int,
++) -> None:
++    fields = _fee_fields(
++        active=active,
++        reward_debt=reward_debt,
++        accumulator_e8=accumulator_e8,
++        staking_pool_e8=pool_e8,
++    )
++    expected = _legacy_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++    observed = _candidate_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++    assert observed == expected
++
++
++def test_fractional_routed_fee_precedes_lazy_claim_map_access() -> None:
++    exploding = _ExplodingMapping()
++    fields = _fee_fields(
++        active={_ACCOUNT: 1},
++        reward_debt=exploding,
++        accumulator_e8=E8 * _FEE_SCALE,
++        staking_pool_e8=E8,
++    )
++    expected = _legacy_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(staking_e8=1),
++    )
++    observed = _candidate_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(staking_e8=1),
++    )
++
++    assert observed == expected == (
++        "ValueError",
++        "mint fee routes must be whole zUSD at v0.1 transport",
++    )
++    assert not exploding.touched
++
++
++def test_protocol_authorization_precedes_lazy_claim_map_access() -> None:
++    exploding = _ExplodingMapping()
++    fields = _fee_fields(
++        active={_ACCOUNT: 1},
++        reward_debt=exploding,
++        accumulator_e8=E8 * _FEE_SCALE,
++        staking_pool_e8=E8,
++    )
++    expected = _legacy_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(protocol_e8=E8),
++    )
++    observed = _candidate_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(protocol_e8=E8),
++    )
++
++    assert observed == expected == (
++        "ValueError",
++        "protocol fee recipient not configured",
++    )
++    assert not exploding.touched
++
++
++def test_empty_claimant_snapshot_does_not_eagerly_access_debt_or_accumulator() -> None:
++    _ProbeInt.calls = 0
++    exploding = _ExplodingMapping()
++    fields = _fee_fields(
++        active={},
++        reward_debt=exploding,
++        accumulator_e8=_ProbeInt(0),
++        staking_pool_e8=0,
++    )
++
++    bridge._require_fee_routes_transport_exact(
++        authority_binding=bridge.ZUSDAuthorityBinding(),
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++
++    assert not exploding.touched
++    assert _ProbeInt.calls == 0
++
++
++def test_zero_share_claim_does_not_convert_accumulator() -> None:
++    _ProbeInt.calls = 0
++    fields = _fee_fields(
++        active={_ACCOUNT: 0},
++        reward_debt={},
++        accumulator_e8=_ProbeInt(E8 * _FEE_SCALE),
++        staking_pool_e8=0,
++    )
++
++    bridge._require_fee_routes_transport_exact(
++        authority_binding=bridge.ZUSDAuthorityBinding(),
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++
++    assert _ProbeInt.calls == 0
++
++
++def test_positive_bulk_claims_keep_per_claim_accumulator_conversion_count() -> None:
++    fields = _fee_fields(
++        active={_ACCOUNT: 1, _SECOND_ACCOUNT: 1},
++        reward_debt={_ACCOUNT: E8, _SECOND_ACCOUNT: E8},
++        accumulator_e8=_ProbeInt(2 * E8 * _FEE_SCALE),
++        staking_pool_e8=2 * E8,
++    )
++
++    _ProbeInt.calls = 0
++    expected = _legacy_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++    legacy_calls = _ProbeInt.calls
++
++    _ProbeInt.calls = 0
++    observed = _candidate_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++    candidate_calls = _ProbeInt.calls
++
++    assert observed == expected == ("ok", None)
++    assert legacy_calls == candidate_calls == 2
++
++
++def test_non_owned_stateful_mapping_uses_legacy_fallback() -> None:
++    baseline_map = _ChangingMapping()
++    candidate_map = _ChangingMapping()
++    baseline_fields = _fee_fields(
++        active=baseline_map,
++        reward_debt={},
++        accumulator_e8=E8 * _FEE_SCALE,
++        staking_pool_e8=0,
++    )
++    candidate_fields = _fee_fields(
++        active=candidate_map,
++        reward_debt={},
++        accumulator_e8=E8 * _FEE_SCALE,
++        staking_pool_e8=0,
++    )
++
++    expected = _legacy_transport_outcome(
++        fee_fields=baseline_fields,
++        fee_effects=_fee_effects(),
++    )
++    observed = _candidate_transport_outcome(
++        fee_fields=candidate_fields,
++        fee_effects=_fee_effects(),
++    )
++
++    assert observed == expected == ("ok", None)
++    assert candidate_map.reads == baseline_map.reads == 2
++
++
++@pytest.mark.parametrize("shares", (0, -1))
++def test_nonpositive_exact_shares_ignore_negative_reward_debt(shares: int) -> None:
++    fields = _fee_fields(
++        active={_ACCOUNT: shares},
++        reward_debt={_ACCOUNT: -E8},
++        accumulator_e8=0,
++        staking_pool_e8=0,
++    )
++
++    expected = _legacy_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++    observed = _candidate_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++
++    assert expected == ("ok", None)
++    assert observed == expected
++
++
++def test_all_nonpositive_exact_shares_do_not_require_accumulator() -> None:
++    fields = {
++        "host_zusd_fees_e8": {},
++        "active_fee_stakes": {_ACCOUNT: 0, _SECOND_ACCOUNT: -1},
++        "fee_stake_reward_debt_e8": {},
++        "staking_zusd_fee_pool_e8": 0,
++    }
++
++    expected = _legacy_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++    observed = _candidate_transport_outcome(
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++
++    assert expected == ("ok", None)
++    assert observed == expected
++
++
++def test_nonstring_outer_field_key_preserves_per_claim_reward_lookup_order() -> None:
++    def fields() -> tuple[Mapping[str, Any], _RewardDebtLookupKey]:
++        reward_debt: dict[str, int] = {}
++        reward_key = _RewardDebtLookupKey(reward_debt)
++        return (
++            cast(
++                Mapping[str, Any],
++                {
++                    "host_zusd_fees_e8": {},
++                    "active_fee_stakes": {_ACCOUNT: 1, _SECOND_ACCOUNT: 1},
++                    reward_key: reward_debt,
++                    "staking_zusd_fee_acc_per_share_e8": E8 * _FEE_SCALE,
++                    "staking_zusd_fee_pool_e8": E8,
++                },
++            ),
++            reward_key,
++        )
++
++    baseline_fields, baseline_key = fields()
++    candidate_fields, candidate_key = fields()
++    expected = _legacy_transport_outcome(
++        fee_fields=baseline_fields,
++        fee_effects=_fee_effects(),
++    )
++    observed = _candidate_transport_outcome(
++        fee_fields=candidate_fields,
++        fee_effects=_fee_effects(),
++    )
++
++    assert expected == (
++        "ValueError",
++        "staking fee pool must equal exactly claimable fees at v0.1 transport",
++    )
++    assert observed == expected
++    assert baseline_key.lookups == candidate_key.lookups == 2
++
++
++def test_accumulator_subclass_keeps_per_claim_debt_snapshot_order() -> None:
++    def fields() -> dict[str, Any]:
++        reward_debt: dict[str, int] = {}
++        return _fee_fields(
++            active={_ACCOUNT: 1, _SECOND_ACCOUNT: 1},
++            reward_debt=reward_debt,
++            accumulator_e8=_DebtMutatingAccumulator(
++                E8 * _FEE_SCALE,
++                reward_debt=reward_debt,
++                later_account=_SECOND_ACCOUNT,
++            ),
++            staking_pool_e8=E8,
++        )
++
++    expected = _legacy_transport_outcome(
++        fee_fields=fields(),
++        fee_effects=_fee_effects(),
++    )
++    observed = _candidate_transport_outcome(
++        fee_fields=fields(),
++        fee_effects=_fee_effects(),
++    )
++
++    assert expected == ("ok", None)
++    assert observed == expected
++
++
++def test_nonexact_active_fallback_raises_on_second_snapshot_before_missing_debt() -> None:
++    def fields() -> tuple[dict[str, Any], _SecondSnapshotRaisesMapping]:
++        active = _SecondSnapshotRaisesMapping()
++        return (
++            {
++                "host_zusd_fees_e8": {},
++                "active_fee_stakes": active,
++                "staking_zusd_fee_acc_per_share_e8": E8 * _FEE_SCALE,
++                "staking_zusd_fee_pool_e8": E8,
++            },
++            active,
++        )
++
++    baseline_fields, baseline_active = fields()
++    candidate_fields, candidate_active = fields()
++    expected = _legacy_transport_outcome(
++        fee_fields=baseline_fields,
++        fee_effects=_fee_effects(),
++    )
++    observed = _candidate_transport_outcome(
++        fee_fields=candidate_fields,
++        fee_effects=_fee_effects(),
++    )
++
++    assert expected == ("RuntimeError", "active second snapshot")
++    assert observed == expected
++    assert baseline_active.snapshots == candidate_active.snapshots == 2
++
++
++def test_singleton_claim_helper_rejects_bulk_snapshot_injection() -> None:
++    fields = _fee_fields(
++        active={_ACCOUNT: 1},
++        reward_debt={},
++        accumulator_e8=E8 * _FEE_SCALE,
++        staking_pool_e8=E8,
++    )
++
++    singleton_helper = cast(Any, bridge._fee_stake_claimable_e8)
++    with pytest.raises(TypeError):
++        singleton_helper(
++            fields,
++            _ACCOUNT,
++            _owned_claim_maps=None,
++        )
++
++
++def test_int_subclass_snapshot_uses_legacy_fallback(monkeypatch) -> None:
++    class _Shares(int):
++        pass
++
++    fields = _fee_fields(
++        active={_ACCOUNT: _Shares(1)},
++        reward_debt={},
++        accumulator_e8=E8 * _FEE_SCALE,
++        staking_pool_e8=E8,
++    )
++    seen: list[tuple[Mapping[str, Any], str]] = []
++    original = bridge._fee_stake_claimable_e8
++
++    def spy(fee_fields: Mapping[str, Any], account: str) -> int:
++        seen.append((fee_fields, account))
++        return original(fee_fields, account)
++
++    monkeypatch.setattr(bridge, "_fee_stake_claimable_e8", spy)
++    bridge._require_fee_routes_transport_exact(
++        authority_binding=bridge.ZUSDAuthorityBinding(),
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++    assert len(seen) == 1
++    assert seen[0][1] == _ACCOUNT
++
++    # The fallback decision is exercised directly because this case has no
++    # caller patch point; its result remains the legacy result.
++    assert bridge._fee_stake_claimable_e8(fields, _ACCOUNT) == E8
++
++
++def test_exact_primitive_bulk_guard_uses_internal_snapshot(monkeypatch) -> None:
++    fields = _bulk_fixture(8)
++
++    def unexpected_singleton_call(*_args: object, **_kwargs: object) -> int:
++        raise AssertionError("exact primitive bulk guard used the singleton helper")
++
++    monkeypatch.setattr(bridge, "_fee_stake_claimable_e8", unexpected_singleton_call)
++    bridge._require_fee_routes_transport_exact(
++        authority_binding=bridge.ZUSDAuthorityBinding(),
++        fee_fields=fields,
++        fee_effects=_fee_effects(),
++    )
++
++
++def test_partial_and_repeated_claims_preserve_exact_state_and_reject_noop() -> None:
++    config = bridge.ZUSDMonetaryConfig(chain_id="tau-local")
++    state = _state_with_claims(config=config)
++    dex_state = DexState(
++        balances=BalanceTable(),
++        pools={},
++        lp_balances=LPTable(),
++    )
++    first = bridge.apply_zusd_monetary_ops(
++        config=config,
++        state=dex_state,
++        zusd_state=state,
++        operations=[
++            {
++                "module": "ZUSDFinance",
++                "version": "0.1",
++                "action": "claim_staking_fees",
++                "nonce": 1,
++                "amount_e8": 40 * E8,
++            }
++        ],
++        tx_sender_pubkey=_ACCOUNT,
++        block_timestamp=0,
++        execution_clock=_clock("tau-local", 0),
++    )
++    assert first.ok is True
++    assert first.zusd_state is not None
++    assert first.state is not None
++    assert first.effects is not None
++    assert first.effects[0]["effects"]["amount_e8"] == 40 * E8
++
++    second = bridge.apply_zusd_monetary_ops(
++        config=config,
++        state=first.state,
++        zusd_state=first.zusd_state,
++        operations=[
++            {
++                "module": "ZUSDFinance",
++                "version": "0.1",
++                "action": "claim_fee_rewards",
++                "nonce": 2,
++                "account_pubkey": _ACCOUNT,
++            }
++        ],
++        tx_sender_pubkey=_ACCOUNT,
++        block_timestamp=0,
++        execution_clock=_clock("tau-local", 0),
++    )
++    assert second.ok is True
++    assert second.zusd_state is not None
++    assert second.state is not None
++    assert second.effects is not None
++    assert second.effects[0]["effects"]["amount_e8"] == 60 * E8
++    assert second.zusd_state.staking_zusd_fee_pool_e8 == 0
++    assert second.state.balances.get(_ACCOUNT, config.zusd_asset) == 100
++
++    before_state = bridge.zusd_monetary_state_to_obj(second.zusd_state)
++    before_balances = second.state.balances.get_all_balances()
++    rejected = bridge.apply_zusd_monetary_ops(
++        config=config,
++        state=second.state,
++        zusd_state=second.zusd_state,
++        operations=[
++            {
++                "module": "ZUSDFinance",
++                "version": "0.1",
++                "action": "claim_staking_fees",
++                "nonce": 3,
++            }
++        ],
++        tx_sender_pubkey=_ACCOUNT,
++        block_timestamp=0,
++        execution_clock=_clock("tau-local", 0),
++    )
++    assert rejected.ok is False
++    assert rejected.error == "zusd op[0] no staking fees claimable"
++    assert bridge.zusd_monetary_state_to_obj(second.zusd_state) == before_state
++    assert second.state.balances.get_all_balances() == before_balances
++
++
++def test_activation_and_unstaking_history_keeps_pending_and_active_boundaries() -> None:
++    config = bridge.ZUSDMonetaryConfig(
++        chain_id="tau-local",
++        fee_stake_asset_id=_FEE_STAKE_ASSET,
++    )
++    monetary_state = bridge.init_monetary_state(config)
++    balances = BalanceTable()
++    balances.set(_ACCOUNT, _FEE_STAKE_ASSET, 3)
++    dex_state = DexState(balances=balances, pools={}, lp_balances=LPTable())
++
++    stake = bridge.apply_zusd_monetary_ops(
++        config=config,
++        state=dex_state,
++        zusd_state=monetary_state,
++        operations=[
++            {
++                "module": "ZUSDFinance",
++                "version": "0.1",
++                "action": "stake_fee_shares",
++                "nonce": 1,
++                "account_pubkey": _ACCOUNT,
++                "amount": 3,
++            }
++        ],
++        tx_sender_pubkey=_ACCOUNT,
++        block_timestamp=0,
++        execution_clock=_clock("tau-local", 0),
++    )
++    assert stake.ok is True
++    assert stake.zusd_state is not None
++    assert stake.state is not None
++    assert dict(stake.zusd_state.pending_fee_stakes or {}) == {_ACCOUNT: 3}
++    assert dict(stake.zusd_state.active_fee_stakes or {}) == {}
++
++    premature = bridge.apply_zusd_monetary_ops(
++        config=config,
++        state=stake.state,
++        zusd_state=stake.zusd_state,
++        operations=[
++            {
++                "module": "ZUSDFinance",
++                "version": "0.1",
++                "action": "activate_fee_stake",
++                "nonce": 2,
++                "account_pubkey": _ACCOUNT,
++            }
++        ],
++        tx_sender_pubkey=_ACCOUNT,
++        block_timestamp=0,
++        execution_clock=_clock("tau-local", 0),
++    )
++    assert premature.ok is False
++    assert premature.error == "zusd op[0] fee stake not mature"
++    assert dict(stake.zusd_state.pending_fee_stakes or {}) == {_ACCOUNT: 3}
++
++    activated = bridge.apply_zusd_monetary_ops(
++        config=config,
++        state=stake.state,
++        zusd_state=stake.zusd_state,
++        operations=[
++            {
++                "module": "ZUSDFinance",
++                "version": "0.1",
++                "action": "activate_fee_stake",
++                "nonce": 2,
++                "account_pubkey": _ACCOUNT,
++            }
++        ],
++        tx_sender_pubkey=_ACCOUNT,
++        block_timestamp=1,
++        execution_clock=_clock("tau-local", 1),
++    )
++    assert activated.ok is True
++    assert activated.zusd_state is not None
++    assert activated.state is not None
++    assert dict(activated.zusd_state.active_fee_stakes or {}) == {_ACCOUNT: 3}
++    assert dict(activated.zusd_state.pending_fee_stakes or {}) == {}
++
++    unstaked = bridge.apply_zusd_monetary_ops(
++        config=config,
++        state=activated.state,
++        zusd_state=activated.zusd_state,
++        operations=[
++            {
++                "module": "ZUSDFinance",
++                "version": "0.1",
++                "action": "unstake_fee_shares",
++                "nonce": 3,
++                "account_pubkey": _ACCOUNT,
++                "amount": 3,
++            }
++        ],
++        tx_sender_pubkey=_ACCOUNT,
++        block_timestamp=1,
++        execution_clock=_clock("tau-local", 1),
++    )
++    assert unstaked.ok is True
++    assert unstaked.zusd_state is not None
++    assert unstaked.state is not None
++    assert dict(unstaked.zusd_state.active_fee_stakes or {}) == {}
++    assert unstaked.state.balances.get(_ACCOUNT, _FEE_STAKE_ASSET) == 3
+diff --git a/tools/benchmark_zusd_bulk_fee_claims_v1.py b/tools/benchmark_zusd_bulk_fee_claims_v1.py
+new file mode 100644
+index 000000000..82b44664d
+--- /dev/null
++++ b/tools/benchmark_zusd_bulk_fee_claims_v1.py
+@@ -0,0 +1,327 @@
++#!/usr/bin/env python3
++"""Measure the owned-snapshot zUSD bulk fee-claim guard.
++
++The baseline caller and helper are frozen copies of the pre-change map-copying
++path. The candidate is the current private integration guard. This tool times
++only the guard on a synthetic fee-state fixture and emits advisory JSON; it
++does not represent a full monetary transaction, production workload, or
++release evidence.
++"""
++
++from __future__ import annotations
++
++import argparse
++import hashlib
++import inspect
++import json
++import subprocess
++import sys
++import time
++from collections.abc import Callable
++from pathlib import Path
++from statistics import median
++from typing import Any
++
++ROOT = Path(__file__).resolve().parents[1]
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++import src.integration.zusd_monetary_bridge as bridge  # noqa: E402
++
++_E8 = bridge.E8
++_FEE_SCALE = bridge._FEE_ACC_SCALE
++_MAX_STAKEHOLDERS = 4_096
++_BASELINE_HELPER = "baseline_fee_stake_claimable_e8"
++_CANDIDATE_HELPER = "candidate_fee_stake_claimable_e8"
++_Guard = Callable[..., None]
++
++
++def _legacy_fee_stake_claimable_e8(
++    fee_fields: dict[str, Any],
++    account: str,
++) -> int:
++    """Frozen pre-change helper retained as the benchmark oracle."""
++
++    active = dict(fee_fields["active_fee_stakes"])
++    reward_debt = dict(fee_fields["fee_stake_reward_debt_e8"])
++    shares = int(active.get(account, 0))
++    if shares <= 0:
++        return 0
++    accrued = (int(shares) * int(fee_fields["staking_zusd_fee_acc_per_share_e8"])) // _FEE_SCALE
++    return max(0, accrued - int(reward_debt.get(account, 0)))
++
++
++def _legacy_require_fee_routes_transport_exact(
++    *,
++    authority_binding: bridge.ZUSDAuthorityBinding,
++    fee_fields: dict[str, Any],
++    fee_effects: dict[str, int],
++) -> None:
++    """Frozen pre-change bulk caller with one full copy per claimant."""
++
++    routed: dict[str, int] = {}
++    for field_name in (
++        "mint_fee_host_e8",
++        "mint_fee_staking_e8",
++        "mint_fee_protocol_e8",
++    ):
++        amount_e8 = bridge._require_nonnegative_int(
++            fee_effects.get(field_name),
++            name=field_name,
++        )
++        if amount_e8 % _E8 != 0:
++            raise ValueError("mint fee routes must be whole zUSD at v0.1 transport")
++        routed[field_name] = amount_e8
++
++    if routed["mint_fee_protocol_e8"] > 0:
++        bridge._require_protocol_fee_recipient(authority_binding)
++
++    host_fees = dict(fee_fields["host_zusd_fees_e8"])
++    if any(int(amount_e8) % _E8 != 0 for amount_e8 in host_fees.values()):
++        raise ValueError("host fee claims must be whole zUSD at v0.1 transport")
++
++    active_stakes = dict(fee_fields["active_fee_stakes"])
++    claimables = tuple(
++        _legacy_fee_stake_claimable_e8(fee_fields, pubkey)
++        for pubkey in sorted(active_stakes)
++    )
++    if any(claimable_e8 % _E8 != 0 for claimable_e8 in claimables):
++        raise ValueError("staking fee claims must be whole zUSD at v0.1 transport")
++    if sum(claimables) != int(fee_fields["staking_zusd_fee_pool_e8"]):
++        raise ValueError(
++            "staking fee pool must equal exactly claimable fees at v0.1 transport"
++        )
++
++
++def _fixture(stakeholders: int) -> dict[str, Any]:
++    active = {
++        f"0x{index + 1:096x}": 1
++        for index in range(stakeholders)
++    }
++    # Positive debt keeps both legacy map copies populated while the exact
++    # formula remains one whole zUSD per account.
++    reward_debt = {account: _E8 for account in active}
++    return {
++        "host_zusd_fees_e8": {},
++        "active_fee_stakes": active,
++        "fee_stake_reward_debt_e8": reward_debt,
++        "staking_zusd_fee_acc_per_share_e8": 2 * _E8 * _FEE_SCALE,
++        "staking_zusd_fee_pool_e8": stakeholders * _E8,
++    }
++
++
++def _fee_effects() -> dict[str, int]:
++    return {
++        "mint_fee_host_e8": 0,
++        "mint_fee_staking_e8": 0,
++        "mint_fee_protocol_e8": 0,
++    }
++
++
++def _outcome(
++    guard: _Guard,
++    *,
++    fee_fields: dict[str, Any],
++    fee_effects: dict[str, int],
++) -> dict[str, object]:
++    try:
++        guard(
++            authority_binding=bridge.ZUSDAuthorityBinding(),
++            fee_fields=fee_fields,
++            fee_effects=fee_effects,
++        )
++    except Exception as exc:
++        return {
++            "ok": False,
++            "exception_type": type(exc).__name__,
++            "error": str(exc),
++        }
++    return {"ok": True, "exception_type": None, "error": None}
++
++
++def _timed(
++    guard: _Guard,
++    *,
++    fee_fields: dict[str, Any],
++    fee_effects: dict[str, int],
++) -> tuple[float, dict[str, object]]:
++    began_ns = time.perf_counter_ns()
++    outcome = _outcome(
++        guard,
++        fee_fields=fee_fields,
++        fee_effects=fee_effects,
++    )
++    elapsed_ms = (time.perf_counter_ns() - began_ns) / 1_000_000
++    return elapsed_ms, outcome
++
++
++def _measure_case(stakeholders: int, *, repeats: int) -> dict[str, object]:
++    fee_fields = _fixture(stakeholders)
++    fee_effects = _fee_effects()
++    baseline_guard = _legacy_require_fee_routes_transport_exact
++    candidate_guard = bridge._require_fee_routes_transport_exact
++    baseline_warm = _outcome(
++        baseline_guard,
++        fee_fields=fee_fields,
++        fee_effects=fee_effects,
++    )
++    candidate_warm = _outcome(
++        candidate_guard,
++        fee_fields=fee_fields,
++        fee_effects=fee_effects,
++    )
++    if baseline_warm != candidate_warm:
++        raise RuntimeError(
++            f"baseline/candidate outcomes disagreed before timing at stakeholders={stakeholders}"
++        )
++
++    samples: dict[str, list[float]] = {"baseline": [], "candidate": []}
++    outcomes: dict[str, dict[str, object]] = {}
++    for repeat in range(repeats):
++        order: tuple[tuple[str, _Guard], tuple[str, _Guard]]
++        if repeat % 2 == 0:
++            order = (("baseline", baseline_guard), ("candidate", candidate_guard))
++        else:
++            order = (("candidate", candidate_guard), ("baseline", baseline_guard))
++        for run in order:
++            name: str = run[0]
++            guard: _Guard = run[1]
++            elapsed_ms, outcome = _timed(
++                guard,
++                fee_fields=fee_fields,
++                fee_effects=fee_effects,
++            )
++            samples[name].append(elapsed_ms)
++            if outcome != baseline_warm:
++                raise RuntimeError(
++                    f"guard outcome changed during timing at stakeholders={stakeholders}"
++                )
++            outcomes[name] = outcome
++
++    baseline_median = float(median(samples["baseline"]))
++    candidate_median = float(median(samples["candidate"]))
++    speedup = baseline_median / candidate_median if candidate_median > 0 else float("inf")
++    expected_claimable_e8 = stakeholders * _E8
++    return {
++        "fixture": {
++            "stakeholders": stakeholders,
++            "shares_per_stakeholder": 1,
++            "accumulator_e8": 2 * _E8 * _FEE_SCALE,
++            "reward_debt_e8_per_stakeholder": _E8,
++            "staking_pool_e8": stakeholders * _E8,
++            "claimable_formula": "max(0, (shares * accumulator_e8) // fee_acc_scale - debt_e8)",
++            "expected_claimable_sum_e8": expected_claimable_e8,
++            "expected_legacy_copied_entries": stakeholders
++            + 2 * stakeholders * stakeholders,
++            "expected_candidate_copied_entries_upper_bound": 2 * stakeholders,
++        },
++        "outcomes": {
++            "baseline": outcomes["baseline"],
++            "candidate": outcomes["candidate"],
++            "equal": outcomes["baseline"] == outcomes["candidate"],
++        },
++        "baseline": {
++            "samples_ms": samples["baseline"],
++            "median_ms": baseline_median,
++        },
++        "candidate": {
++            "samples_ms": samples["candidate"],
++            "median_ms": candidate_median,
++        },
++        "median_speedup": speedup,
++        "candidate_at_least_4x": (
++            speedup >= 4.0 if stakeholders == _MAX_STAKEHOLDERS else None
++        ),
++        "candidate_at_least_4x_applicable": stakeholders == _MAX_STAKEHOLDERS,
++        "candidate_at_least_4x_condition": (
++            f"stakeholders == {_MAX_STAKEHOLDERS}"
++        ),
++        "independent_formula_matches_pool": expected_claimable_e8
++        == int(fee_fields["staking_zusd_fee_pool_e8"]),
++    }
++
++
++def _source_hashes() -> dict[str, str]:
++    source_path = ROOT / "src/integration/zusd_monetary_bridge.py"
++    tool_path = Path(__file__).resolve()
++
++    def _function_hash(function: Callable[..., object]) -> str:
++        return hashlib.sha256(inspect.getsource(function).encode("utf-8")).hexdigest()
++
++    return {
++        "zusd_monetary_bridge_py_sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
++        "benchmark_py_sha256": hashlib.sha256(tool_path.read_bytes()).hexdigest(),
++        f"{_BASELINE_HELPER}_sha256": _function_hash(_legacy_fee_stake_claimable_e8),
++        "baseline_bulk_caller_sha256": _function_hash(_legacy_require_fee_routes_transport_exact),
++        f"{_CANDIDATE_HELPER}_sha256": _function_hash(bridge._fee_stake_claimable_e8),
++        "candidate_bulk_snapshot_helper_sha256": _function_hash(
++            bridge._bulk_fee_stake_claimables_e8
++        ),
++        "candidate_bulk_caller_sha256": _function_hash(bridge._require_fee_routes_transport_exact),
++        "candidate_state_invariant_caller_sha256": _function_hash(bridge._state_invariant_error),
++    }
++
++
++def _git_head() -> str:
++    completed = subprocess.run(
++        ["git", "rev-parse", "HEAD"],
++        cwd=ROOT,
++        check=True,
++        capture_output=True,
++        text=True,
++    )
++    return completed.stdout.strip()
++
++
++def _parse_args() -> argparse.Namespace:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument(
++        "--repeats",
++        type=int,
++        default=5,
++        help="measured samples per path and case (minimum 3; default: 5)",
++    )
++    parser.add_argument(
++        "--counts",
++        type=int,
++        nargs="+",
++        default=(0, 1, 256),
++        help="stakeholder counts; pass 4096 explicitly for the large bound",
++    )
++    args = parser.parse_args()
++    if args.repeats < 3:
++        parser.error("--repeats must be at least 3")
++    if any(count < 0 or count > _MAX_STAKEHOLDERS for count in args.counts):
++        parser.error("--counts must be between 0 and 4096")
++    return args
++
++
++def main() -> int:
++    args = _parse_args()
++    cases = [_measure_case(count, repeats=args.repeats) for count in args.counts]
++    report = {
++        "tool": "benchmark_zusd_bulk_fee_claims_v1",
++        "subject_head": _git_head(),
++        "repeats": args.repeats,
++        "cases": cases,
++        "source_hashes": _source_hashes(),
++        "claim_scope": {
++            "measured": [
++                "Python zUSD whole-transport fee guard",
++                "Exact baseline/candidate guard outcomes and error tuples",
++                "Synthetic stakeholder counts selected by this tool",
++            ],
++            "nonclaims": [
++                "No full monetary-path or transaction throughput claim",
++                "No native, Rust, guest, proof, verifier, release, or production claim",
++                "No economic parameter or product stakeholder-limit selection",
++                "Synthetic timings do not represent arbitrary workload distributions",
++            ],
++        },
++    }
++    print(json.dumps(report, indent=2, sort_keys=True))
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
