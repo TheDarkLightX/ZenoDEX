@@ -21,6 +21,8 @@ _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
 def _reject_surrogates(s: str) -> None:
     # Surrogate code points are not valid Unicode scalar values and lead to
     # implementation-defined behavior across JSON encoders/UTF-8 encoders.
+    if type(s) is str and s.isascii():
+        return
     for ch in s:
         o = ord(ch)
         if 0xD800 <= o <= 0xDFFF:

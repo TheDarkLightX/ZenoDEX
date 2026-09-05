@@ -1,0 +1,843 @@
+{
+  "cases": [
+    {
+      "baseline": {
+        "bytes": 2671,
+        "median_ms": 8.264039,
+        "samples_ms": [
+          8.57778,
+          8.269559,
+          8.165168,
+          8.181018,
+          8.264039
+        ],
+        "sha256": "3f00869c435bf653d6a245cc73510051ff944e6bf8ce6ec68c61bca6a8e20529"
+      },
+      "candidate": {
+        "bytes": 2671,
+        "median_ms": 6.296242,
+        "samples_ms": [
+          6.479792,
+          6.476313,
+          6.296242,
+          6.237892,
+          6.291912
+        ],
+        "sha256": "3f00869c435bf653d6a245cc73510051ff944e6bf8ce6ec68c61bca6a8e20529"
+      },
+      "canonical_bytes": 2671,
+      "canonical_bytes_equal": true,
+      "canonical_bytes_sha256": "3f00869c435bf653d6a245cc73510051ff944e6bf8ce6ec68c61bca6a8e20529",
+      "custody_rows": 0,
+      "fixture_input": {
+        "bytes": 1439,
+        "sha256": "2fbba15bbbe950bd541c74e00f4872ef6b7d84fb097ea0610185e7efee9766cb"
+      },
+      "large_case_reduction_at_least_15_percent": true,
+      "median_reduction_percent": 23.811564780853523,
+      "small_case_regression_within_5_percent": true
+    },
+    {
+      "baseline": {
+        "bytes": 23150,
+        "median_ms": 88.068837,
+        "samples_ms": [
+          87.910585,
+          88.777148,
+          88.068837,
+          87.795665,
+          88.873499
+        ],
+        "sha256": "f38564928925645d06850ae94da33afb53dc76af058da4b4d09d8ed4f53429c8"
+      },
+      "candidate": {
+        "bytes": 23150,
+        "median_ms": 69.03167,
+        "samples_ms": [
+          68.81731,
+          69.03167,
+          68.479378,
+          69.449501,
+          69.844483
+        ],
+        "sha256": "f38564928925645d06850ae94da33afb53dc76af058da4b4d09d8ed4f53429c8"
+      },
+      "canonical_bytes": 23150,
+      "canonical_bytes_equal": true,
+      "canonical_bytes_sha256": "f38564928925645d06850ae94da33afb53dc76af058da4b4d09d8ed4f53429c8",
+      "custody_rows": 256,
+      "fixture_input": {
+        "bytes": 21918,
+        "sha256": "ca07a928760ed6576e6782af0805b3c90456fe9f8ef186d88d453442712245e2"
+      },
+      "large_case_reduction_at_least_15_percent": true,
+      "median_reduction_percent": 21.616235263785754,
+      "small_case_regression_within_5_percent": true
+    },
+    {
+      "baseline": {
+        "bytes": 330355,
+        "median_ms": 1285.651796,
+        "samples_ms": [
+          1281.723366,
+          1274.508509,
+          1285.651796,
+          1298.68201,
+          1303.961627
+        ],
+        "sha256": "a21a4a92e89aa4694edcf1964825a6cefb2bfe5c9b0634b353d2a02428066208"
+      },
+      "candidate": {
+        "bytes": 330355,
+        "median_ms": 1004.773228,
+        "samples_ms": [
+          1026.057446,
+          1011.573235,
+          998.377498,
+          999.609882,
+          1004.773228
+        ],
+        "sha256": "a21a4a92e89aa4694edcf1964825a6cefb2bfe5c9b0634b353d2a02428066208"
+      },
+      "canonical_bytes": 330355,
+      "canonical_bytes_equal": true,
+      "canonical_bytes_sha256": "a21a4a92e89aa4694edcf1964825a6cefb2bfe5c9b0634b353d2a02428066208",
+      "custody_rows": 4096,
+      "fixture_input": {
+        "bytes": 329119,
+        "sha256": "447ffc275484002b7155de0d62cefa3a0bbc6d6af0775accc7edb3554de03f77"
+      },
+      "large_case_reduction_at_least_15_percent": true,
+      "median_reduction_percent": 21.847172685005923,
+      "small_case_regression_within_5_percent": true
+    }
+  ],
+  "claim_scope": {
+    "measured": [
+      "Python custody module transition plus single-lane composition",
+      "Canonical post_state, effects, and lane_journal bytes",
+      "Fixture custody row counts selected by this tool"
+    ],
+    "nonclaims": [
+      "No native or Rust throughput or parity claim",
+      "No guest, proof image, verifier, release, publication, or runtime claim",
+      "No production readiness, authority, security, or economic claim",
+      "Synthetic fixture timings do not represent arbitrary workload distributions"
+    ]
+  },
+  "python": {
+    "build": [
+      "main",
+      "Jun 19 2026 12:46:00"
+    ],
+    "implementation": "CPython",
+    "version": "3.12.3"
+  },
+  "repeats": 5,
+  "source_closure": {
+    "manifest_sha256": "659dbffcbb823b3057d8d6f1cbc7c9bc87d7749cf8e9f6361dc147268cc079f2",
+    "manifest_sha256_after": "659dbffcbb823b3057d8d6f1cbc7c9bc87d7749cf8e9f6361dc147268cc079f2",
+    "module_count": 138,
+    "root_relative_py_modules": [
+      {
+        "module": "__main__",
+        "path": "tools/benchmark_canonical_surrogate_validation_v1.py",
+        "sha256": "9bf1c61c345151e43980e2066f0f3ac0e1df7e0c83a1dafe2021861697634bad"
+      },
+      {
+        "module": "src",
+        "path": "src/__init__.py",
+        "sha256": "9167a221f11035601a1390a78fa6baff6cac0eae14753853b14a87eb8bf7d68b"
+      },
+      {
+        "module": "src.core",
+        "path": "src/core/__init__.py",
+        "sha256": "37be961ff354a7aecba0745dfe18dea09ce6e4421ca65860575f9980f7bae1ee"
+      },
+      {
+        "module": "src.core.amm_dispatch",
+        "path": "src/core/amm_dispatch.py",
+        "sha256": "be50ee96522333ecc62bf792fdad8469aa722429dabba00dd4adfe4a6a2d263c"
+      },
+      {
+        "module": "src.core.asset_lane_coordinator_v1",
+        "path": "src/core/asset_lane_coordinator_v1.py",
+        "sha256": "6047468214d835ff9d6d9823d845df4ef0c4a1cd6d94f098911377daaf4996ae"
+      },
+      {
+        "module": "src.core.asset_lane_projection_v1",
+        "path": "src/core/asset_lane_projection_v1.py",
+        "sha256": "5420112e2dd321ce7f74604e66c13933ca714fc93467150f5cb6358f403b6839"
+      },
+      {
+        "module": "src.core.asset_transfer_lane_module_custody_v1",
+        "path": "src/core/asset_transfer_lane_module_custody_v1.py",
+        "sha256": "0d2118f275f6aa5bd308125b83b7c4528dbfc086749c8cb744bacea15983b45e"
+      },
+      {
+        "module": "src.core.asset_transfer_lane_module_v1",
+        "path": "src/core/asset_transfer_lane_module_v1.py",
+        "sha256": "7c043b222d4e8aa3d54477ad7508ff65afd716f1b720f76f63995afc4daa7c1a"
+      },
+      {
+        "module": "src.core.asset_transfer_module_v1",
+        "path": "src/core/asset_transfer_module_v1.py",
+        "sha256": "754d75a37ad70868bf20263fc189fc9e4f5a77cb864d8a1c7973afc253c938d7"
+      },
+      {
+        "module": "src.core.asset_transfer_types_v1",
+        "path": "src/core/asset_transfer_types_v1.py",
+        "sha256": "5757c8b692820613e1eac30b7103e857a73b42efebbdda62d0a4469511f41277"
+      },
+      {
+        "module": "src.core.batch_clearing",
+        "path": "src/core/batch_clearing.py",
+        "sha256": "f8cd53efa45d4b27a42e8398eb17c780743f5c1061720ceeaed0d6acc93021e2"
+      },
+      {
+        "module": "src.core.batch_clearing_ab_order",
+        "path": "src/core/batch_clearing_ab_order.py",
+        "sha256": "aa65949a844bc5640091c74657da2dfc13b9ca0813099054f658a7e308babb24"
+      },
+      {
+        "module": "src.core.batch_clearing_apply",
+        "path": "src/core/batch_clearing_apply.py",
+        "sha256": "ad8f766a0ca0d6fa0010595ff58516ee69394662fadb3117ce12bc15894ac05c"
+      },
+      {
+        "module": "src.core.batch_clearing_apply_settlement",
+        "path": "src/core/batch_clearing_apply_settlement.py",
+        "sha256": "211ab932e982ac11497644e2b1358ed4ca3c8604860cfc7bc97f02a7d03a2388"
+      },
+      {
+        "module": "src.core.batch_clearing_compute",
+        "path": "src/core/batch_clearing_compute.py",
+        "sha256": "0469f24adfb87e6790ed3612b54cfd282d6a1e159360aa94a1ba90bd5092314d"
+      },
+      {
+        "module": "src.core.batch_clearing_cow",
+        "path": "src/core/batch_clearing_cow.py",
+        "sha256": "be313ec82e1deb45bc0d9432e0c5dfe224467b89d274e2c526e1e28da5d39b46"
+      },
+      {
+        "module": "src.core.batch_clearing_cow_search",
+        "path": "src/core/batch_clearing_cow_search.py",
+        "sha256": "ed790e8fede5f35253a9f9dd7f43c1772f157ed738f712e88541b3fb63e863a5"
+      },
+      {
+        "module": "src.core.batch_clearing_create_pool",
+        "path": "src/core/batch_clearing_create_pool.py",
+        "sha256": "2010830fa6002bdccb2f9214253a731081805cef7929ebc90761443d21ca618d"
+      },
+      {
+        "module": "src.core.batch_clearing_deltas",
+        "path": "src/core/batch_clearing_deltas.py",
+        "sha256": "52857b67ac5110f02ca09c9a517138e63f66035b5a281a31d1d10ba2c0d5c035"
+      },
+      {
+        "module": "src.core.batch_clearing_liquidity",
+        "path": "src/core/batch_clearing_liquidity.py",
+        "sha256": "b46870b82b87c0e0790fb5e4e4989b66608bccd82166b02a0157825a5ab4e8e3"
+      },
+      {
+        "module": "src.core.batch_clearing_mci_ordering",
+        "path": "src/core/batch_clearing_mci_ordering.py",
+        "sha256": "ed9e31d01a1e6e760f14bb49a2a0031562a0b7a9b77f7492c40678c99ed2ea16"
+      },
+      {
+        "module": "src.core.batch_clearing_ordering",
+        "path": "src/core/batch_clearing_ordering.py",
+        "sha256": "0dfb00630257278c9da3edbde0009398df4e24d2ca0820a2604c72065a713ed6"
+      },
+      {
+        "module": "src.core.batch_clearing_requests",
+        "path": "src/core/batch_clearing_requests.py",
+        "sha256": "66e0a0abf639bb74881d120142476fe64df2fd14e8e1700a94d6784fc21386ee"
+      },
+      {
+        "module": "src.core.batch_clearing_single_pool",
+        "path": "src/core/batch_clearing_single_pool.py",
+        "sha256": "2080bed775dcbe6f979709ac124253b4ce71939c468d8c3535c03428d1c7e011"
+      },
+      {
+        "module": "src.core.batch_clearing_single_pool_liquidity",
+        "path": "src/core/batch_clearing_single_pool_liquidity.py",
+        "sha256": "6c97275be1dbb8ce49330e8fd0ac76931d14b9eea0ee5d93c99fb34d98b9534d"
+      },
+      {
+        "module": "src.core.batch_clearing_swaps",
+        "path": "src/core/batch_clearing_swaps.py",
+        "sha256": "35fda5c190a0b269b56920c2129d1422537cb5dc62439e43db1a53f30cbb0995"
+      },
+      {
+        "module": "src.core.batch_clearing_validate",
+        "path": "src/core/batch_clearing_validate.py",
+        "sha256": "5092c73399ff23531f95546a4464c69d229d708c95f31ae904af139e73c3fc8a"
+      },
+      {
+        "module": "src.core.cpmm",
+        "path": "src/core/cpmm.py",
+        "sha256": "5b216df8acf54f1bdc2241d7e9ae30291486e13de5ac8f59f2f2cce4a8e0c5d5"
+      },
+      {
+        "module": "src.core.cubic_sum_amm",
+        "path": "src/core/cubic_sum_amm.py",
+        "sha256": "f3af6a95f01287d33c1287cd4b1d10ad8b99172e1c26054d4fab5c15dc49842b"
+      },
+      {
+        "module": "src.core.dex",
+        "path": "src/core/dex.py",
+        "sha256": "dc3c66fd95dc22df717626f904111f03f83c7901254146f351d547192ed5f993"
+      },
+      {
+        "module": "src.core.domain_limits",
+        "path": "src/core/domain_limits.py",
+        "sha256": "8da457278ff54be6440b3779b8c4074d38656ceaf5bfdc2091d60e767bf564bd"
+      },
+      {
+        "module": "src.core.economic_effect_occurrence_v1",
+        "path": "src/core/economic_effect_occurrence_v1.py",
+        "sha256": "1e4015c0ad59c71ac2a2854ce45845befef5ec3bb269637212277624282ba329"
+      },
+      {
+        "module": "src.core.epoch_effect_composition_v1",
+        "path": "src/core/epoch_effect_composition_v1.py",
+        "sha256": "a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045"
+      },
+      {
+        "module": "src.core.epoch_oracle_commitment",
+        "path": "src/core/epoch_oracle_commitment.py",
+        "sha256": "f336efc1632f946225ccbd7f34452d98a69fb241bbe867a4179f3290be2b0a00"
+      },
+      {
+        "module": "src.core.fees",
+        "path": "src/core/fees.py",
+        "sha256": "db00f955480d9238b31b25907bbac41f4f44a674f9bf54ab34947a3227624213"
+      },
+      {
+        "module": "src.core.frontier_signature_root",
+        "path": "src/core/frontier_signature_root.py",
+        "sha256": "3059f982c760033c9857601b395c826a81de9629b06151e388cf915d1903aa4c"
+      },
+      {
+        "module": "src.core.global_economic_proof_v1",
+        "path": "src/core/global_economic_proof_v1.py",
+        "sha256": "f9ff27f3d346c2099ab3678ae87961cbc09653b6c641650ea0db0bf3bac23a50"
+      },
+      {
+        "module": "src.core.global_economic_refinement_snapshot_v1",
+        "path": "src/core/global_economic_refinement_snapshot_v1.py",
+        "sha256": "0ab017a4fd6eee81e85bfeda3a829b34c78edb2b9af95d0959f1059be0469bb7"
+      },
+      {
+        "module": "src.core.global_settlement_canonical_manifest_v1",
+        "path": "src/core/global_settlement_canonical_manifest_v1.py",
+        "sha256": "1e2d46bde9f9f222d58871f696bb125a73fc5972a85227d8ce4beb10f669e287"
+      },
+      {
+        "module": "src.core.global_settlement_types_v1",
+        "path": "src/core/global_settlement_types_v1.py",
+        "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+      },
+      {
+        "module": "src.core.liquidity",
+        "path": "src/core/liquidity.py",
+        "sha256": "63035d26cab4cc1ac45fb4996edaf5ce176f9e62903c043f1db6048fcddaea26"
+      },
+      {
+        "module": "src.core.managed_asset_lifecycle_types_v1",
+        "path": "src/core/managed_asset_lifecycle_types_v1.py",
+        "sha256": "f85ffc59628b673258ad6d72a9b6f8151f9def09e9e508aa2ec060251d75f315"
+      },
+      {
+        "module": "src.core.neutral_tiebreak",
+        "path": "src/core/neutral_tiebreak.py",
+        "sha256": "1d8ed494e38095afa4633fa8589e14292a46e0d711386c3e1ddc355f0250b277"
+      },
+      {
+        "module": "src.core.oracle",
+        "path": "src/core/oracle.py",
+        "sha256": "847334004c29e6869a59ba15c91dc9d7ae4abd3caac8fd76d78efaef668250d2"
+      },
+      {
+        "module": "src.core.perp_apply_funding_auto_gate",
+        "path": "src/core/perp_apply_funding_auto_gate.py",
+        "sha256": "786a3c745cac73d7bad9f766219915511033da2d8f4d2db2623b7381e01e5ed1"
+      },
+      {
+        "module": "src.core.perp_funding_apply_gate",
+        "path": "src/core/perp_funding_apply_gate.py",
+        "sha256": "f441f7a752db1b6f2d04ca4ced132bdd2ae9296e00af2c2011bbdfaf0a276e08"
+      },
+      {
+        "module": "src.core.perp_liquidation_eligibility_gate",
+        "path": "src/core/perp_liquidation_eligibility_gate.py",
+        "sha256": "dea350a797d8d483f146f49ae422f868338c38116afde05e56cf0795fbc1212b"
+      },
+      {
+        "module": "src.core.perp_liquidation_envelope",
+        "path": "src/core/perp_liquidation_envelope.py",
+        "sha256": "dca57529fa90b77810db7874f9e0b7d5186dd01826d86849dcfc2b4183a0e1d8"
+      },
+      {
+        "module": "src.core.perp_v2",
+        "path": "src/core/perp_v2/__init__.py",
+        "sha256": "9dddd1359b648fda954e1ba846d6cc399f266faa69c3bcbe9b6ff02a973c0058"
+      },
+      {
+        "module": "src.core.perp_v2.effects",
+        "path": "src/core/perp_v2/effects.py",
+        "sha256": "f9c82a878d9c3dd964766fda4fefa95b9b4e8c12ba8c4f4c55d58a22dce18d3d"
+      },
+      {
+        "module": "src.core.perp_v2.engine",
+        "path": "src/core/perp_v2/engine.py",
+        "sha256": "f19b110c2046ec158e292ed1c03aeab97cd4bdaa2f0abe07b359b218f7502d00"
+      },
+      {
+        "module": "src.core.perp_v2.errors",
+        "path": "src/core/perp_v2/errors.py",
+        "sha256": "c45964ff41340e83f380f50f95f81c9edcdc237af2a54dc2e9c43eee0c010a88"
+      },
+      {
+        "module": "src.core.perp_v2.funding_rule",
+        "path": "src/core/perp_v2/funding_rule.py",
+        "sha256": "ab845d69310e160c563861502adec6262670a1f080dc28eff3335e80174a0d2c"
+      },
+      {
+        "module": "src.core.perp_v2.guards",
+        "path": "src/core/perp_v2/guards.py",
+        "sha256": "4653aaa7922bb4c6144d908fe47913042d45ad002b1421f429d3119ad436024d"
+      },
+      {
+        "module": "src.core.perp_v2.invariants",
+        "path": "src/core/perp_v2/invariants.py",
+        "sha256": "193aa465d8cfd1379c3fc2310c7870d19d0c44464cf0518081681787b0348568"
+      },
+      {
+        "module": "src.core.perp_v2.math",
+        "path": "src/core/perp_v2/math.py",
+        "sha256": "86f281fbaa12ebe01ad0c797d6300c52b872f0a80082b61422ad443344722877"
+      },
+      {
+        "module": "src.core.perp_v2.state",
+        "path": "src/core/perp_v2/state.py",
+        "sha256": "e2bf10357dcf1fa2c8e58abf2c60a7831bdb0f21294348d85876103bcbdacb55"
+      },
+      {
+        "module": "src.core.perp_v2.types",
+        "path": "src/core/perp_v2/types.py",
+        "sha256": "4f08279956a4040d5167af21bdec75f8d9e608e4017c2b6d204ddbde78dae823"
+      },
+      {
+        "module": "src.core.perp_v2.updates",
+        "path": "src/core/perp_v2/updates.py",
+        "sha256": "485ab0e762e702e5ed15b5668f69e02cb6b82c0c4b16f29bd5ec6186b9730c93"
+      },
+      {
+        "module": "src.core.perps",
+        "path": "src/core/perps.py",
+        "sha256": "787aaa731c944042e2e362bb36057b6d3352ff6a0ca85dec228bfcf70f04b6d1"
+      },
+      {
+        "module": "src.core.perps_fixed_validation",
+        "path": "src/core/perps_fixed_validation.py",
+        "sha256": "37673cbd3435946404a44879bce5296d919990357b0c1092fc107b11fd5826fa"
+      },
+      {
+        "module": "src.core.perps_isolated_validation",
+        "path": "src/core/perps_isolated_validation.py",
+        "sha256": "1526ae6dffb675a11cda41f41a4071674c666d563982cce4b966e9f1afcdfb4e"
+      },
+      {
+        "module": "src.core.perps_np_validation",
+        "path": "src/core/perps_np_validation.py",
+        "sha256": "ad0fe6a260ee84665ddc8648d2403e75b7429561a06ca7cd92b7940a58c45b78"
+      },
+      {
+        "module": "src.core.price_impact_preview",
+        "path": "src/core/price_impact_preview.py",
+        "sha256": "f23bc83d3ebed90f5bc077548221d5e72c9aa368b32cfaf408fcd1dc34807912"
+      },
+      {
+        "module": "src.core.quartic_blend_amm",
+        "path": "src/core/quartic_blend_amm.py",
+        "sha256": "91562bd14f6dcd529e7589373b36dbb3fb2658e9c2b129da2a4e429ee0e04f62"
+      },
+      {
+        "module": "src.core.quintic_blend_amm",
+        "path": "src/core/quintic_blend_amm.py",
+        "sha256": "dd1a3154c0972b5b2d0e9bf638d0f75cbbca37e3c2b27a083b748dd9678aef57"
+      },
+      {
+        "module": "src.core.quote_receipt_body_verification",
+        "path": "src/core/quote_receipt_body_verification.py",
+        "sha256": "1f45bb68a5a9ac1438b5841f3a555ebe5b34827f9be82f4213bca7e758177787"
+      },
+      {
+        "module": "src.core.quote_receipt_building",
+        "path": "src/core/quote_receipt_building.py",
+        "sha256": "77e395035ef92d48c15865d6dd1e4d8e4a173f1ef7245a217f59e10422bee46a"
+      },
+      {
+        "module": "src.core.quote_receipt_gate_contract",
+        "path": "src/core/quote_receipt_gate_contract.py",
+        "sha256": "12927ce78f74919f91f2827b7d5a683a000b3498fb8b4a6a08673839ac6622ed"
+      },
+      {
+        "module": "src.core.quote_receipt_gates",
+        "path": "src/core/quote_receipt_gates.py",
+        "sha256": "27b6d6cb65f3aaabb409114e0bda3c83290718f442e553eacf7562a927d96515"
+      },
+      {
+        "module": "src.core.quote_receipt_hop_replay",
+        "path": "src/core/quote_receipt_hop_replay.py",
+        "sha256": "f8168f8680533c0517cd109ff8413eeb26f4a15b5c4070d0a44af245892c5556"
+      },
+      {
+        "module": "src.core.quote_receipt_limits",
+        "path": "src/core/quote_receipt_limits.py",
+        "sha256": "3e5a598672f069e707ce9efd625686bc61cf956784b388f3241ce21712350939"
+      },
+      {
+        "module": "src.core.quote_receipts",
+        "path": "src/core/quote_receipts.py",
+        "sha256": "6979b6627770140567bf49282f82570dcf821315987cc787ca47f73520b101a7"
+      },
+      {
+        "module": "src.core.routing",
+        "path": "src/core/routing.py",
+        "sha256": "48c3d509d58cf720e31c7a6980c667196b2c7a8a286fc914c952e4f1e9257e26"
+      },
+      {
+        "module": "src.core.routing_common",
+        "path": "src/core/routing_common.py",
+        "sha256": "687510496c238b01fc4c3f1443339ca1e6797b70d071edec922204b34d92fbce"
+      },
+      {
+        "module": "src.core.routing_exact_in",
+        "path": "src/core/routing_exact_in.py",
+        "sha256": "1dde36da44e09dc5bac5c6959ff733df57a3ce3ebbd5131eb057aa6a2df320f6"
+      },
+      {
+        "module": "src.core.routing_exact_in_split",
+        "path": "src/core/routing_exact_in_split.py",
+        "sha256": "55996511459a968c06c856b55cc93d59f841e8f8b474811808ed090ea360fbba"
+      },
+      {
+        "module": "src.core.routing_exact_out",
+        "path": "src/core/routing_exact_out.py",
+        "sha256": "bd6160481957a03ad41710ba41a0d0f8720be8cda3c0db2752ca7ec531b1cdd6"
+      },
+      {
+        "module": "src.core.routing_exact_out_gate",
+        "path": "src/core/routing_exact_out_gate.py",
+        "sha256": "35710bb89ce13ac412d1d9f8ea6c1ad4c770c5fea9ab33110f5b06ef4d77e793"
+      },
+      {
+        "module": "src.core.routing_mixed_split",
+        "path": "src/core/routing_mixed_split.py",
+        "sha256": "ba042e90cc855dcc5395973607f1b291d4505fbfc21469acc9b2e89d5c18afa7"
+      },
+      {
+        "module": "src.core.routing_types",
+        "path": "src/core/routing_types.py",
+        "sha256": "450163690f06ebd360854a5cac77a2050bea3bc3737d9c26a0771815b80f4bbe"
+      },
+      {
+        "module": "src.core.settlement",
+        "path": "src/core/settlement.py",
+        "sha256": "9bfc6d653cb4ff6811716881b5afe17a193ca4bbef975864a405503c5545e9ed"
+      },
+      {
+        "module": "src.core.settlement_canonical_deltas",
+        "path": "src/core/settlement_canonical_deltas.py",
+        "sha256": "c3d8af6f6dc1a1a6b19ce381bbc28544594e6f4e47a85da1360d28043124a1d6"
+      },
+      {
+        "module": "src.core.settlement_cow_pairs",
+        "path": "src/core/settlement_cow_pairs.py",
+        "sha256": "c6ce0945df381a86d7ecc8dd44f67b48161a74fef9139514e6a286355f7a60eb"
+      },
+      {
+        "module": "src.core.settlement_fill_fields",
+        "path": "src/core/settlement_fill_fields.py",
+        "sha256": "cd2e79a3812086d8500f417588d7dee58c10ad55a44c8ee4651528cfbfe41459"
+      },
+      {
+        "module": "src.core.settlement_quote_binding",
+        "path": "src/core/settlement_quote_binding.py",
+        "sha256": "12771d5247498647b9213d8d94dbaf8192e9e2f3386916f7051a1a8f70088ad9"
+      },
+      {
+        "module": "src.core.settlement_replay_add_liquidity",
+        "path": "src/core/settlement_replay_add_liquidity.py",
+        "sha256": "7e52255cd2df3281019b7e2c7d006cfe3533de672869ce5ec56d10779406c4c2"
+      },
+      {
+        "module": "src.core.settlement_replay_context",
+        "path": "src/core/settlement_replay_context.py",
+        "sha256": "feb2ecbab385f3c26821846aab6f76ab7b975f6a068a05dae1b884df9130b55c"
+      },
+      {
+        "module": "src.core.settlement_replay_cow_netting",
+        "path": "src/core/settlement_replay_cow_netting.py",
+        "sha256": "128ecf83e76d1e502bb05f2f9673f63a18a2541801fac5e3789a2ab52296c61c"
+      },
+      {
+        "module": "src.core.settlement_replay_create_pool",
+        "path": "src/core/settlement_replay_create_pool.py",
+        "sha256": "a9822bf73acfd9cca21a08b4480b65b2c3d91c66dd28f030b0fbf7c889f48469"
+      },
+      {
+        "module": "src.core.settlement_replay_index",
+        "path": "src/core/settlement_replay_index.py",
+        "sha256": "e50f637d642793cb8a18ac7004bd5c09b176e881baf091cef3ef503ed45cd634"
+      },
+      {
+        "module": "src.core.settlement_replay_remove_liquidity",
+        "path": "src/core/settlement_replay_remove_liquidity.py",
+        "sha256": "b89b49c75878074f30e13a2c6536ce5b9a07e81ee203c3a1d9cfe7cfecff58e5"
+      },
+      {
+        "module": "src.core.settlement_replay_swap_common",
+        "path": "src/core/settlement_replay_swap_common.py",
+        "sha256": "171c1a4a48c249ccfdc6609115121824c812702435d4bb23e96584b7d2500f9c"
+      },
+      {
+        "module": "src.core.settlement_replay_swap_exact_in",
+        "path": "src/core/settlement_replay_swap_exact_in.py",
+        "sha256": "ab2719250ca0f5cc68255d426a07d73e74ddeb6d11f6218af6a5063cf862a6e6"
+      },
+      {
+        "module": "src.core.settlement_replay_swap_exact_out",
+        "path": "src/core/settlement_replay_swap_exact_out.py",
+        "sha256": "a3a340b6d392cd1aa42272d3b65a668391e4d7422c08e814fad3bf03720187f3"
+      },
+      {
+        "module": "src.core.settlement_replay_swaps",
+        "path": "src/core/settlement_replay_swaps.py",
+        "sha256": "5e045ed7a1b6bcccf743aa0ca7adcba48a3e245466f7844aec5f75a1d4c7bce2"
+      },
+      {
+        "module": "src.core.settlement_strong_validator",
+        "path": "src/core/settlement_strong_validator.py",
+        "sha256": "4b3b1fb6793edb58cb283e02bf247b03b1142bf02a9925773b1d94b6d1da12de"
+      },
+      {
+        "module": "src.core.split_routing",
+        "path": "src/core/split_routing.py",
+        "sha256": "61cc96a322ecf02fd909e97238d45433729513d47cd9647a10b1c3239f141933"
+      },
+      {
+        "module": "src.core.split_routing_dgstr",
+        "path": "src/core/split_routing_dgstr.py",
+        "sha256": "1e942617f9bd11308e4e5c0665cf7be31d9e500e853ec9f3462ab621ff83f31c"
+      },
+      {
+        "module": "src.core.split_routing_dispatch",
+        "path": "src/core/split_routing_dispatch.py",
+        "sha256": "744d308763a72fe5dc94680309cae169239f04eef226625bb574030dbe954822"
+      },
+      {
+        "module": "src.core.split_routing_generic_exact_in",
+        "path": "src/core/split_routing_generic_exact_in.py",
+        "sha256": "b30eaec4f942d25e0f701bd385abe45b82ba552bb5739af1dce7f11d5d52e0a2"
+      },
+      {
+        "module": "src.core.split_routing_many_exact_in",
+        "path": "src/core/split_routing_many_exact_in.py",
+        "sha256": "c620fb92d39c79850295f32a824e8fab0ae869c272853c0c23fc220bb79e872e"
+      },
+      {
+        "module": "src.core.split_routing_many_exact_in_small",
+        "path": "src/core/split_routing_many_exact_in_small.py",
+        "sha256": "57656ef9a49bb19f3ff2ac7052e5fe52b944248bc016f6b38288714e0e300d78"
+      },
+      {
+        "module": "src.core.split_routing_many_exact_out",
+        "path": "src/core/split_routing_many_exact_out.py",
+        "sha256": "52fc2b96283b566a740c49fb2853937149fea8cecd7dc63a67aa6a31316001c3"
+      },
+      {
+        "module": "src.core.split_routing_pool_quotes",
+        "path": "src/core/split_routing_pool_quotes.py",
+        "sha256": "c0941cb43b9e30c4be20e02d2ab8efb0d24ba235b77296f90db59e900e91bfee"
+      },
+      {
+        "module": "src.core.split_routing_profiles",
+        "path": "src/core/split_routing_profiles.py",
+        "sha256": "add3963556ce819fdca01b72e3d4b89b92930de6c8c391af290e137ba043a21a"
+      },
+      {
+        "module": "src.core.split_routing_staircase",
+        "path": "src/core/split_routing_staircase.py",
+        "sha256": "d5a315a43d2411258dd4e9c4373cc69f2b8eaf3076898a7a7991cabe74706274"
+      },
+      {
+        "module": "src.core.split_routing_two_exact_out",
+        "path": "src/core/split_routing_two_exact_out.py",
+        "sha256": "bd533fe0c1e006d02c73cd997a78537e7f5840557a5f648a568642265329f026"
+      },
+      {
+        "module": "src.core.split_routing_types",
+        "path": "src/core/split_routing_types.py",
+        "sha256": "32afd9497eb9f1c91f6ce0b82be75382f72a1e597dbdee84d857b27817bff403"
+      },
+      {
+        "module": "src.core.split_routing_windowed",
+        "path": "src/core/split_routing_windowed.py",
+        "sha256": "a0f73f6ed0a341227f8d8827f10d41c93e352a59c7c8bd1bb6c99395897cd819"
+      },
+      {
+        "module": "src.core.sum_boost_amm",
+        "path": "src/core/sum_boost_amm.py",
+        "sha256": "ea065feeabd877082cc4b601e3175f1b338fe7b8cbeff3707da7f50ab47d1c45"
+      },
+      {
+        "module": "src.core.vault",
+        "path": "src/core/vault.py",
+        "sha256": "e8f3122ff5becefbc898f379ebc9511d45d31b48985e9154e716748b3b65019a"
+      },
+      {
+        "module": "src.core.zusd",
+        "path": "src/core/zusd.py",
+        "sha256": "f6e15cc1663069f214f7e1495c38ce63f74bb81913060e0964db411db2be6b29"
+      },
+      {
+        "module": "src.core.zusd_multi_redeem_selector",
+        "path": "src/core/zusd_multi_redeem_selector.py",
+        "sha256": "eadf91eb72ec13eb1d2d830ef67343fa493140977caeb5028e6c301f11712bb8"
+      },
+      {
+        "module": "src.core.zusd_redemption_guard",
+        "path": "src/core/zusd_redemption_guard.py",
+        "sha256": "f5ef1032095d5097f3086a27fd3b4a59483780473766078632f8563f403cd33b"
+      },
+      {
+        "module": "src.core.zusd_shutdown",
+        "path": "src/core/zusd_shutdown.py",
+        "sha256": "422884525d8b5d488e7f66b43d36b323f7eb41722779ea2ca996534e92029b1a"
+      },
+      {
+        "module": "src.kernels",
+        "path": "src/kernels/__init__.py",
+        "sha256": "50c97ed96643a00d9575dd1fa85ccd9231480a2a9f21b31f12788ec5343e26be"
+      },
+      {
+        "module": "src.kernels.python",
+        "path": "src/kernels/python/__init__.py",
+        "sha256": "e27029a47fe29be8c95e29fc16be8f108261bc55aeb12a6fae65543f4ff4e282"
+      },
+      {
+        "module": "src.kernels.python.cpmm_swap_v8",
+        "path": "src/kernels/python/cpmm_swap_v8.py",
+        "sha256": "dc8f321bc6f51d618ed014d6080546853587718700d37005ea3443f4ef548a4e"
+      },
+      {
+        "module": "src.kernels.python.cubic_sum_swap_v1",
+        "path": "src/kernels/python/cubic_sum_swap_v1.py",
+        "sha256": "87b8027e2c0a638dc024ea359cb552548f16ace17b30c3a1cda2c54419ebe95f"
+      },
+      {
+        "module": "src.kernels.python.exact_out_many_pool_canonical_domain_v1",
+        "path": "src/kernels/python/exact_out_many_pool_canonical_domain_v1.py",
+        "sha256": "668f648482b1b8be92f24293a061a90d59f61b5c2599c0b95d2f4b50afb7bcf8"
+      },
+      {
+        "module": "src.kernels.python.exact_out_many_pool_prefilter_subset_search_v1",
+        "path": "src/kernels/python/exact_out_many_pool_prefilter_subset_search_v1.py",
+        "sha256": "86023cd8bcd26c32efa879449dd09720220a3c2b99f74e5dfb6a69beedfbcf23"
+      },
+      {
+        "module": "src.kernels.python.exact_out_many_pool_repaired_prefilter_v1",
+        "path": "src/kernels/python/exact_out_many_pool_repaired_prefilter_v1.py",
+        "sha256": "cf17204bc7d325ca02ab88f65667bc2fce65b55a950c178d9c23d7b1979c71f2"
+      },
+      {
+        "module": "src.kernels.python.lp_math_v7",
+        "path": "src/kernels/python/lp_math_v7.py",
+        "sha256": "5025ebf7d0d0d91668235e17340838f707bb25a1b0caa4b3813fdc796249bc7d"
+      },
+      {
+        "module": "src.kernels.python.quartic_blend_swap_v1",
+        "path": "src/kernels/python/quartic_blend_swap_v1.py",
+        "sha256": "f0943102a2b49d0868d3687b12eb8fedd7f798ba8e9edce0b3b9f259c60bc906"
+      },
+      {
+        "module": "src.kernels.python.quintic_blend_swap_v1",
+        "path": "src/kernels/python/quintic_blend_swap_v1.py",
+        "sha256": "1611a98462d16faff012927e0ed3608a8ec2f74e6cf740e533bce874042616a0"
+      },
+      {
+        "module": "src.kernels.python.settlement_swap_runtime_v1",
+        "path": "src/kernels/python/settlement_swap_runtime_v1.py",
+        "sha256": "dbb6cad959e0995cdbdf5cd3281a07f68074f049e554d929ce40bbe6dc10f468"
+      },
+      {
+        "module": "src.kernels.python.sum_boost_swap_v1",
+        "path": "src/kernels/python/sum_boost_swap_v1.py",
+        "sha256": "cfa2f36be36aec73436a4f781f2f31e218628d25f033f9b721601c3caae6f6f5"
+      },
+      {
+        "module": "src.state",
+        "path": "src/state/__init__.py",
+        "sha256": "a9349c4a474930b4fc772874c788eb117cf829d7953ad84205d74a6a2621a93a"
+      },
+      {
+        "module": "src.state.balances",
+        "path": "src/state/balances.py",
+        "sha256": "1afc25328fa4f909ea3ecac62f4aff3614e320172170ecc25d918fd6a8677169"
+      },
+      {
+        "module": "src.state.canonical",
+        "path": "src/state/canonical.py",
+        "sha256": "3e1be2d2233b04d1e0e241e6f4c012ec458a2b1c66646597de410dd079b2e611"
+      },
+      {
+        "module": "src.state.intents",
+        "path": "src/state/intents.py",
+        "sha256": "7cf7e76edfb1e6c1a51d237c12923a770521d34e6e180f18a35134387d20f3cc"
+      },
+      {
+        "module": "src.state.lp",
+        "path": "src/state/lp.py",
+        "sha256": "ad65929f031344f2a7786f1b3ad8e3640bd055c8b466c87dee23ab79064f9853"
+      },
+      {
+        "module": "src.state.nonces",
+        "path": "src/state/nonces.py",
+        "sha256": "491795da9f4837be2d5b4dcf9e234953f28de0f55199e8744b77aaa1e19bc69d"
+      },
+      {
+        "module": "src.state.pools",
+        "path": "src/state/pools.py",
+        "sha256": "ef39554b3c4b2f877a336f47dda0b21cefce84fc49f6d7f8db7c9e4c7289f768"
+      },
+      {
+        "module": "tests",
+        "path": "tests/__init__.py",
+        "sha256": "ef736b94754fc1e69cd66e83a5eb9a78002ea3df31652b0743030910d48fe402"
+      },
+      {
+        "module": "tests.core.test_asset_transfer_lane_module_custody_v1",
+        "path": "tests/core/test_asset_transfer_lane_module_custody_v1.py",
+        "sha256": "15700d24078987cdf70376b4f9b8cefcf6cbcbb6aba96b9f6102c3006652e808"
+      },
+      {
+        "module": "tests.core.test_asset_transfer_lane_module_v1",
+        "path": "tests/core/test_asset_transfer_lane_module_v1.py",
+        "sha256": "742aa2982e92a89d6ccff1fffbb3514ed3c2f8d8f80db13ef3167d3592eb918a"
+      }
+    ],
+    "verified_unchanged_after_measurements": true
+  },
+  "source_hashes": {
+    "baseline_oracle_function_sha256": "ba3564c3b1a8a52ca65df548822c2ef2007b450024ad7c6a0d12d73b7c11142a",
+    "benchmark_py_sha256": "9bf1c61c345151e43980e2066f0f3ac0e1df7e0c83a1dafe2021861697634bad",
+    "candidate_function_sha256": "eb0a830bb54424d1f0bbac4d9aa28c5a04e320a0b9ed08f54a50c16c05d11343",
+    "canonical_py_sha256": "3e1be2d2233b04d1e0e241e6f4c012ec458a2b1c66646597de410dd079b2e611"
+  },
+  "subject_head": "dfdbc07e924a04053289532c776dd87463fd64fd",
+  "tool": "benchmark_canonical_surrogate_validation_v1"
+}
