@@ -40,7 +40,7 @@ pub(crate) struct DerivedGlobalEconomicStateDeltaV1 {
     pub(crate) state_delta_root: RootV1,
 }
 
-fn checked_signed_delta_v1(post_atoms: u128, pre_atoms: u128) -> AbiResultV1<i128> {
+pub(crate) fn checked_signed_delta_v1(post_atoms: u128, pre_atoms: u128) -> AbiResultV1<i128> {
     if post_atoms >= pre_atoms {
         i128::try_from(post_atoms - pre_atoms)
             .map_err(|_| AbiErrorV1::InvalidBounds("economic refinement signed state delta"))

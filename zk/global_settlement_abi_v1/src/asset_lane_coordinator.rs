@@ -8,10 +8,15 @@ use crate::asset_lane_projection::{
 use crate::asset_transfer_types::ACCOUNT_CUSTODY_DOMAIN_V1;
 use crate::canonical::{AbiResultV1, GLOBAL_SETTLEMENT_ABI_V1};
 use crate::effects::{EconomicEffectKindV1, GlobalEconomicEffectPlanV1, LaneWriteV1};
+use crate::global_economic_state_delta::checked_signed_delta_v1;
 use crate::proof::{LaneCompositionJournalV1, LaneModuleTransitionJournalV1};
 use crate::release::LaneIdV1;
 
 type HoldingKeyV1 = (String, String, String);
+
+#[cfg(test)]
+#[path = "asset_lane_coordinator_signed_delta_tests.rs"]
+mod signed_delta_tests;
 
 fn reject(
     code: AssetLaneCoordinatorRejectCodeV1,
@@ -84,9 +89,10 @@ fn expected_movement_deltas(
     let post = holdings(post_state);
     let mut deltas = BTreeMap::new();
     for key in pre.keys().chain(post.keys()) {
-        let pre_atoms = i128::try_from(*pre.get(key).unwrap_or(&0)).ok()?;
-        let post_atoms = i128::try_from(*post.get(key).unwrap_or(&0)).ok()?;
-        let delta = post_atoms.checked_sub(pre_atoms)?;
+        let pre_atoms = *pre.get(key).unwrap_or(&0);
+        let post_atoms = *post.get(key).unwrap_or(&0);
+        // Absolute holdings are u128; only their signed movement must fit i128.
+        let delta = checked_signed_delta_v1(post_atoms, pre_atoms).ok()?;
         if delta != 0 {
             deltas.insert(key.clone(), delta);
         }
@@ -130,6 +136,14 @@ fn effect_movement_deltas(
     Some(deltas)
 }
 
+fn movement_derivations_match(
+    expected: Option<BTreeMap<HoldingKeyV1, i128>>,
+    actual: Option<BTreeMap<HoldingKeyV1, i128>>,
+) -> bool {
+    // Failed derivations are refusals, including when both sides are unavailable.
+    matches!((expected, actual), (Some(expected), Some(actual)) if expected == actual)
+}
+
 fn conservation_reject(
     pre_state: &AssetLaneStateProjectionV1,
     post_state: &AssetLaneStateProjectionV1,
@@ -158,7 +172,10 @@ fn conservation_reject(
             ));
         }
     }
-    if expected_movement_deltas(pre_state, post_state) != effect_movement_deltas(effects) {
+    if !movement_derivations_match(
+        expected_movement_deltas(pre_state, post_state),
+        effect_movement_deltas(effects),
+    ) {
         return Ok(Some(
             AssetLaneCoordinatorRejectCodeV1::STATE_EFFECT_MISMATCH,
         ));
