@@ -74,6 +74,12 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Final
 
+from .asset_transfer_global_allocation_v1 import (
+    AssetTransferGlobalAllocationCandidateV1,
+    GlobalAllocationBindingRejectedV1,
+    _derived_global_entitlements_v1,
+    _global_allocation_binding_reject_v1,
+)
 from .asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleAcceptedV1,
     _snapshot_asset_transfer_lane_module_accepted_v1,
@@ -97,8 +103,14 @@ from .global_accounting_lane_producers_v1 import (
 from .global_economic_refinement_snapshot_v1 import (
     _require_exact_dataclass_scalars_v1,
     _snapshot_dataclass_tuple_v1,
+    _snapshot_occurrence_v1,
+    _snapshot_state_v1,
 )
-from .global_settlement_types_v1 import LaneIdV1, LaneStateRootV1, _require_root
+from .global_settlement_types_v1 import (
+    LaneIdV1,
+    LaneStateRootV1,
+    _require_root,
+)
 from .lane_module_receipt_verification_v1 import (
     ReceiptKindV1,
     VerifiedLaneModuleTransitionV1,
@@ -302,6 +314,63 @@ def verify_asset_transfer_fragment_receipt_v1(
     )
 
 
+def verify_asset_transfer_global_fragment_receipt_v1(
+    witness: VerifiedLaneModuleTransitionV1,
+    candidate: AssetTransferGlobalAllocationCandidateV1,
+) -> (
+    VerifiedLaneAllocationFragmentV1
+    | ReceiptWitnessRejectedV1
+    | ReceiptBackedProducerRejectedV1
+    | GlobalAllocationBindingRejectedV1
+):
+    """Bind one transfer allocation to complete global snapshots and occurrence.
+
+    Snapshots must be authenticated, adjacent committed state from the shell.
+    This function checks their exact content; it does not grant snapshot,
+    coordinator, publication or initialization-ownership authority. Old module
+    admission and all V1 encoded state shapes retain their meaning.
+    """
+    if type(candidate) is not AssetTransferGlobalAllocationCandidateV1:
+        raise TypeError("global allocation candidate must have the exact typed value")
+    owned = _snapshot_asset_transfer_lane_module_accepted_v1(candidate.accepted)
+    prior = _snapshot_state_v1(candidate.predecessor)
+    post = _snapshot_state_v1(candidate.current)
+    command = _snapshot_occurrence_v1(candidate.occurrence)
+    rejected = _global_allocation_binding_reject_v1(owned, command, prior, post)
+    if rejected is not None:
+        return rejected
+    # The legacy admission binds the complete private-port preimage through the
+    # module journal. These local coordinates are derived from that module;
+    # neither committed snapshot nor its coordinator root is rewritten.
+    journal = owned.module_journal
+    module_lane = replace(post.lane_roots[0], state_root=journal.post_lane_root)
+    module_prior = LaneAllocationFragmentV1(
+        lane_id=LaneIdV1.ASSET_TRANSFER,
+        module_release_id=journal.module_release_id,
+        enabled=True,
+        lane_state_root=journal.pre_lane_root,
+        producer_kind=LaneProducerKindV1.RECEIPT_BACKED,
+        binding_root=journal.pre_lane_root,
+        controlled_locations=(),
+        claimant_entitlements=(),
+        unencumbered_reserves=(),
+        pending_external_obligations=(),
+        terminal_bindings=(),
+    )
+    module_fragment = verify_asset_transfer_fragment_receipt_v1(
+        witness, owned, module_lane, module_prior, _derived_global_entitlements_v1(prior)
+    )
+    if not isinstance(module_fragment, VerifiedLaneAllocationFragmentV1):
+        return module_fragment
+    # Receipt binding plus the checked projection relation permits this lift.
+    # There is deliberately no public constructor accepting arbitrary roots.
+    fragment = replace(
+        module_fragment.fragment, lane_state_root=owned.private_port.post_state.state_root
+    )
+    return VerifiedLaneAllocationFragmentV1(
+        replace(module_fragment._fields, fragment=fragment), _VERIFIED_FRAGMENT_TOKEN
+    )
+
 __all__ = [
     "RECEIPT_ADMISSION_SCHEMA_V1",
     "RECEIPT_WITNESS_REJECT_CODES_V1",
@@ -309,4 +378,5 @@ __all__ = [
     "ReceiptWitnessRejectedV1",
     "VerifiedLaneAllocationFragmentV1",
     "verify_asset_transfer_fragment_receipt_v1",
+    "verify_asset_transfer_global_fragment_receipt_v1",
 ]

@@ -78,13 +78,15 @@ WHAT IS CLAIMED, and what five reviews have already falsified in earlier wording
    reproduces a witnessed certificate byte-for-byte, including a witness whose receipt
    proved a custody row. That evidence covers one row shape, stated in the test.
 
-NONCLAIMS. This is a projection, not a consumer: no publisher, verifier, or client
-calls it, so it refuses nothing at runtime. It verifies no receipt; a binding root it
-accepts is bound to a receipt only where the caller obtained it from an admission
-witness, and the projection cannot tell the difference. It does not establish that the
-state is correct, only what a certificate over it would have to say. Multi-lane field
-ownership is undecided: more than one enabled lane is refused outright. There is no
-Rust twin. Research-only evidence; authority NONE.
+NONCLAIMS. Derivation authenticates neither stored state nor a receipt. The research
+SHADOW observer consumes this function after reading a locally consistent committed
+snapshot; its result never gates publication. A binding root is bound to a receipt only
+where the caller obtained it from an admission witness. The projection establishes what
+a certificate over the supplied state would have to say. Multi-lane field ownership
+remains undecided, and more than one enabled lane is refused outright. The Rust public
+entry twin mirrors the currently registered producer surface; private hypothetical
+search helpers and formal/runtime refinement remain unqualified. Research-only
+evidence; authority NONE.
 """
 
 from __future__ import annotations

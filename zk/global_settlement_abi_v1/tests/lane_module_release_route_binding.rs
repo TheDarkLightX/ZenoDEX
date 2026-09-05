@@ -5962,6 +5962,9 @@ fn economic_epoch_wrong_kind_empty_receipt_and_verifier_rejection_create_no_witn
 
 // --- C9b-1: receipt admission of the minted module witness (twin of the Python C9a suite) ---
 
+#[path = "allocation_projection/receipt_tests.rs"]
+mod allocation_projection_receipt_tests;
+
 fn receipt_admission_inputs(
     fixture: &VerifiedAssetLaneFixture,
 ) -> (

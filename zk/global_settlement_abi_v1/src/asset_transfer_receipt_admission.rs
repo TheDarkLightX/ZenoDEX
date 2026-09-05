@@ -44,10 +44,14 @@
 //! succinct-receipt check is inherited from `lane_module_receipt_verification`; this module
 //! adds no cryptographic claim of its own. Research-only evidence; authority NONE.
 
+use crate::asset_transfer_global_allocation::{
+    global_allocation_binding_reject_v1, AssetTransferGlobalAllocationCandidateV1,
+    GlobalAllocationBindingRejectCodeV1,
+};
 use crate::asset_transfer_lane_module::AssetTransferLaneModuleAcceptedV1;
 use crate::canonical::{AbiResultV1, RootV1};
 use crate::global_accounting_allocation_certificate::{
-    ClaimantEntitlementRowV1, LaneAllocationFragmentV1,
+    ClaimantEntitlementRowV1, LaneAllocationFragmentV1, LaneProducerKindV1,
 };
 use crate::global_accounting_lane_producers::{
     produce_asset_transfer_fragment_v1, ReceiptBackedProducerRejectedV1,
@@ -288,4 +292,85 @@ pub fn verify_asset_transfer_fragment_receipt_v1(
         profile_root: journal.profile_root.clone(),
         writer_epoch: journal.writer_epoch,
     }))
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum GlobalAssetTransferFragmentAdmissionRejectedV1 {
+    Binding(GlobalAllocationBindingRejectCodeV1),
+    Admission(AssetTransferFragmentAdmissionRejectedV1),
+}
+
+/// Admit one global-state transfer fragment with an explicit occurrence preimage.
+/// The shell must authenticate complete adjacent snapshots; this pure boundary
+/// grants no snapshot, coordinator, publication or initial ownership authority.
+pub fn verify_asset_transfer_global_fragment_receipt_v1(
+    witness: &VerifiedLaneModuleTransitionV1,
+    candidate: AssetTransferGlobalAllocationCandidateV1<'_>,
+) -> AbiResultV1<
+    Result<VerifiedLaneAllocationFragmentV1, GlobalAssetTransferFragmentAdmissionRejectedV1>,
+> {
+    let AssetTransferGlobalAllocationCandidateV1 {
+        accepted,
+        occurrence,
+        predecessor,
+        current,
+    } = candidate;
+    accepted.validate()?;
+    occurrence.validate()?;
+    predecessor.validate()?;
+    current.validate()?;
+    if let Some(code) =
+        global_allocation_binding_reject_v1(accepted, occurrence, predecessor, current)?
+    {
+        return Ok(Err(
+            GlobalAssetTransferFragmentAdmissionRejectedV1::Binding(code),
+        ));
+    }
+    let journal = &accepted.module_journal;
+    // Temporary module-local coordinates are derived internally. Both committed
+    // snapshots retain their distinct, checked coordinator projection roots.
+    let mut module_lane = current.lane_roots[0].clone();
+    module_lane.state_root = journal.post_lane_root.clone();
+    let module_prior = LaneAllocationFragmentV1 {
+        lane_id: LaneIdV1::ASSET_TRANSFER,
+        module_release_id: journal.module_release_id.clone(),
+        enabled: true,
+        lane_state_root: journal.pre_lane_root.clone(),
+        producer_kind: LaneProducerKindV1::RECEIPT_BACKED,
+        binding_root: journal.pre_lane_root.clone(),
+        controlled_locations: vec![],
+        claimant_entitlements: vec![],
+        unencumbered_reserves: vec![],
+        pending_external_obligations: vec![],
+        terminal_bindings: vec![],
+    };
+    let entitlements: Vec<_> = predecessor
+        .liabilities
+        .iter()
+        .map(|row| ClaimantEntitlementRowV1 {
+            asset: row.asset.clone(),
+            claimant: row.owner.clone(),
+            control_domain: row.custody_domain.clone(),
+            amount_atoms: row.amount_atoms,
+        })
+        .collect();
+    let mut verified = match verify_asset_transfer_fragment_receipt_v1(
+        witness,
+        accepted,
+        &module_lane,
+        &module_prior,
+        &entitlements,
+    )? {
+        Ok(verified) => verified,
+        Err(rejected) => {
+            return Ok(Err(
+                GlobalAssetTransferFragmentAdmissionRejectedV1::Admission(rejected),
+            ))
+        }
+    };
+    // Receipt binding plus the checked complete projection relation permits this
+    // lift. Private fields keep arbitrary root relabeling outside the public API.
+    verified.fragment.lane_state_root = accepted.private_port.post_state.state_root()?;
+    verified.fragment.validate()?;
+    Ok(Ok(verified))
 }
