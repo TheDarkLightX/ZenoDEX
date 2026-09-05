@@ -93,9 +93,23 @@ inputs. This later BLS profile changes authorization and statement roots, so tha
 earlier completion does not cover the five new receipts. The user intentionally
 shut down the GPU host; this note requests no restart or remote action.
 
-The retained four ELFs can be supplied to a reviewed native prover
-driver with pinned SDK/CUDA dependencies, avoiding guest rebuilds. Recompute
-each ELF image before use and match the prepared subject; the prior path-sensitive
+The four actual guest-program byte artifacts are retained and match the durable
+final-root-route archive, rather than only being represented by image IDs.
+The exported `.elf` files contain an `R0BF` wrapper and embedded RISC-V ELF data
+at offset 32. Preserve the complete program bytes. Genesis and epoch ROOT
+programs are byte-identical. The artifacts total 3,213,436 bytes:
+
+| Export | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `transfer/module.elf` | 534492 | `eab76d00ceef6c47b1768a8941b3eaeb9010a414dc3f4a762be6c6af2d2b0f4d` |
+| `transfer/coordinator.elf` | 659568 | `a3b133a148d24dc866a5a0f08fa129da5344303f92e71ae085b2f3e32c6971a8` |
+| `transfer/route.elf` | 1320764 | `27e152d409415796c59307886f50f1713dd2c1774a3e4ddcda81308f623c2445` |
+| `genesis/root.elf` | 698612 | `872ed5e6e945f1285ad74bc9c46ccd77c722af6f7ead8e9f99cc5e8e217833ab` |
+
+These can be supplied to a reviewed native prover driver with pinned SDK/CUDA
+dependencies, avoiding guest rebuilds. That driver is not qualified by artifact
+availability. Recompute each program image before use and match the prepared
+subject; the prior path-sensitive
 build behavior makes silent image substitutions unacceptable. If rebuilding via
 the retained hosts, require the same images before proving.
 
