@@ -1,0 +1,728 @@
+{
+  "schema": "zenodex/whole-program-plan/v3",
+  "status": "RESEARCH_ONLY_CANDIDATE_PENDING_ADMISSION",
+  "authority": {
+    "production_authority": "NONE",
+    "settlement_authority": "NONE",
+    "release_authority": "NONE",
+    "value_movement_authority": "NONE"
+  },
+  "integration_subject": {
+    "commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+    "parent": "beb43baaef629276f3dae07e8e62ebc42cc3217a",
+    "tree": "4610bff736c26e436c43adb66de05f0a24ae20c7"
+  },
+  "normative_and_historical_inputs": [
+    {
+      "path": "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json",
+      "commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "sha256": "34930be9d4d69c4c46c7c97f57fd492d4c95061f8960f936261a8a3415d5db95"
+    },
+    {
+      "path": "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V1.json",
+      "commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "sha256": "29d67d2c8ebd35d6e0003927c73043f3f282efe16b780b4493504d1d00db390f"
+    },
+    {
+      "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
+      "commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "sha256": "001ddc29a48275ddae0a93b180ef827b0488b55ea97485810ca0a4a246a48341"
+    },
+    {
+      "path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json",
+      "commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "sha256": "8bbd05a875317fb75e4853f7babc3a91351e581f6d1ec7ed75db0e660ae4542f"
+    },
+    {
+      "path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_ADMISSION_V1.json",
+      "commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "sha256": "8d551e10a6a74ce46f39c611fe29960eeb4ef1b05c839702ce8b4779e474b87d"
+    },
+    {
+      "path": "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json",
+      "commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "sha256": "804d38156d8abf2b626a08561ca49155e27e420b8d6d06cf940b2aeae2df15ea"
+    }
+  ],
+  "requirements_floor": {
+    "capability_count": 103,
+    "lane_count": 12,
+    "route_count": 4,
+    "exclusion_count": 4,
+    "lanes": [
+      {
+        "lane_id": "ASSET_TRANSFER",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "account_lifecycle",
+          "native_asset_accounting",
+          "generic_transfer",
+          "managed_issue",
+          "managed_burn",
+          "transaction_fee",
+          "tau_originated_asset_registration"
+        ]
+      },
+      {
+        "lane_id": "SPOT_LIQUIDITY",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "pool_create",
+          "exact_in_swap",
+          "exact_out_swap",
+          "governed_route",
+          "atomic_batch",
+          "lp_issue",
+          "lp_burn",
+          "pool_close",
+          "fee_allocation",
+          "residue_terminal_disposition"
+        ]
+      },
+      {
+        "lane_id": "FARM_INCENTIVES",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "lp_stake",
+          "stake_activation",
+          "emission_accrual",
+          "emission_claim",
+          "farm_cancellation",
+          "farm_terminal_drain"
+        ]
+      },
+      {
+        "lane_id": "ZDEX_TOKENOMICS",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "fee_routing",
+          "staking_claim",
+          "host_compensation_claim",
+          "treasury_claim",
+          "reserve_lifecycle",
+          "atomic_purchase_and_burn",
+          "retained_supply_hyperdeflation"
+        ]
+      },
+      {
+        "lane_id": "ZUSD_MONETARY",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "vault_open",
+          "collateral_deposit",
+          "collateral_withdraw",
+          "zusd_mint",
+          "zusd_repay",
+          "vault_owner_close",
+          "multi_vault_redemption",
+          "stability_pool_deposit",
+          "stability_pool_withdraw",
+          "stability_pool_claim",
+          "liquidation",
+          "recovery_mode",
+          "all_claims_terminal_drain"
+        ]
+      },
+      {
+        "lane_id": "PERPS_MARKET",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "margin_deposit",
+          "margin_withdraw",
+          "position_open",
+          "position_adjust",
+          "funding_accrual",
+          "fee_allocation",
+          "liquidation",
+          "insurance_reserve",
+          "auto_deleveraging",
+          "bankruptcy_resolution",
+          "terminal_closeout"
+        ]
+      },
+      {
+        "lane_id": "ORACLE_MARKET",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "query_create",
+          "tip_escrow",
+          "reporter_bond",
+          "report_submit",
+          "report_finality",
+          "reporter_reward",
+          "report_dispute",
+          "reward_clawback",
+          "reporter_slash",
+          "oracle_terminal_drain"
+        ]
+      },
+      {
+        "lane_id": "SEALED_AUCTION",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "bid_commitment",
+          "bond_accounting_location",
+          "bid_reveal",
+          "deterministic_clearing",
+          "payment_settlement",
+          "inventory_settlement",
+          "refund",
+          "slash",
+          "auction_cancel",
+          "auction_expiry"
+        ]
+      },
+      {
+        "lane_id": "STRATEGY_ESCROW",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "value_reservation",
+          "strategy_activation",
+          "strategy_trigger",
+          "strategy_replace",
+          "strategy_cancel",
+          "strategy_expiry",
+          "strategy_recovery"
+        ]
+      },
+      {
+        "lane_id": "PROOF_REWARDS",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "reward_reserve",
+          "verified_result_binding",
+          "claimant_binding",
+          "claim_nullifier",
+          "reward_payout",
+          "task_terminal_state"
+        ]
+      },
+      {
+        "lane_id": "EXTERNAL_CUSTODY",
+        "disposition": "DISABLED_PENDING_COMPLETE_PROFILE",
+        "capabilities": [
+          "registered_external_lock",
+          "registered_external_burn",
+          "registered_external_release",
+          "registered_external_mint",
+          "external_finality",
+          "external_timeout",
+          "external_refund",
+          "outbox_acknowledgment",
+          "destination_idempotency"
+        ]
+      },
+      {
+        "lane_id": "GOVERNANCE_MIGRATION",
+        "disposition": "REQUIRED_UNRESOLVED",
+        "capabilities": [
+          "asset_registry_change",
+          "parameter_change",
+          "release_activation",
+          "treasury_action",
+          "schema_migration",
+          "writer_epoch_rotation",
+          "autonomous_governance_command_submission"
+        ]
+      }
+    ],
+    "required_cross_lane_routes": [
+      "fee_funded_zdex_purchase_and_burn",
+      "zusd_liquidation_settlement",
+      "perps_epoch_settlement",
+      "strategy_triggered_spot_swap"
+    ],
+    "explicit_exclusions": [
+      {
+        "capability": "zusd_emergency_shutdown",
+        "disposition": "EXCLUDED_DAY_ONE_PROVE_NO_WRITER"
+      },
+      {
+        "capability": "unregistered_external_destination",
+        "disposition": "REJECT_WITHOUT_MUTATION"
+      },
+      {
+        "capability": "autonomous_governance_publication_authority",
+        "disposition": "FORBIDDEN_COMMAND_SUBMISSION_ONLY"
+      },
+      {
+        "capability": "caller_selected_route_or_proof_profile",
+        "disposition": "FORBIDDEN_GOVERNED_SELECTION_ONLY"
+      }
+    ],
+    "expansion_rule": "New obligations expand the floor; disabled required capabilities remain incomplete."
+  },
+  "initial_zrpf_limits": {
+    "route_receipts_min": 1,
+    "route_receipts_max": 8,
+    "epoch_commands_min": 1,
+    "epoch_commands_max": 64
+  },
+  "milestones": [
+    "ISOLATED_SLICE_QUALIFIED",
+    "FORMAL_CORE_COMPLETE",
+    "PRODUCTION_VALUE_SAFETY_QUALIFIED",
+    "WHOLE_PRODUCT_COMPLETE"
+  ],
+  "tasks": [
+    {
+      "id": "W00",
+      "title": "Reconcile integration subject",
+      "closure_dependencies": [],
+      "start_after": [],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "docs/ZENODEX_COMPLETION_PLAN.md",
+        "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V3.json"
+      ],
+      "invariant": "Original scope and accepted decisions cannot disappear during integration.",
+      "acceptance_evidence": [
+        "Exact base/parent/tree; retained regression replay; candidate delta reviews; historical finding dispositions."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "SEC remains a separately reviewed candidate requiring changes and integration replay; recovered findings are not closed by review."
+      ]
+    },
+    {
+      "id": "W01",
+      "title": "Complete scope and authority discovery",
+      "closure_dependencies": [
+        "W00"
+      ],
+      "start_after": [],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md"
+      ],
+      "invariant": "Every reachable ingress, value writer and effect sink has an owned lifecycle.",
+      "acceptance_evidence": [
+        "Launcher-to-writer and writer-to-consumer passes; unknown writers block closure."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "A bounded static inventory is not deployment-complete mediation."
+      ]
+    },
+    {
+      "id": "W02",
+      "title": "Close policy and global semantics",
+      "closure_dependencies": [
+        "W01"
+      ],
+      "start_after": [
+        "W00"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V2.json",
+        "src/core/global_settlement_types_v1.py"
+      ],
+      "invariant": "Accounting, authorization, outcomes, rounding and terminal ownership are separately specified.",
+      "acceptance_evidence": [
+        "Recovered decision mapping; new normative successor; explicit unresolved policy rows."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "V3 precommit rejection supersedes historical nonce/history consumption; runtime refinement still required."
+      ]
+    },
+    {
+      "id": "W03",
+      "title": "Qualify real receipt verification",
+      "closure_dependencies": [
+        "W00"
+      ],
+      "start_after": [
+        "W00"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "src/integration/global_receipt_verifier_v1.py",
+        "zk/global_economic_epoch_risc0/host/src/bin/verify_receipt_v1.rs",
+        "tests/integration/test_global_receipt_verifier_v1.py"
+      ],
+      "invariant": "Only a measured verifier accepts a genuine receipt for the rebuilt selected guest and exact journal.",
+      "acceptance_evidence": [
+        "Real receipt positive control; malformed/foreign/fake/missing verifier controls; bounded protocol tests."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "Protocol fixture success is not cryptographic qualification; no publication authority."
+      ]
+    },
+    {
+      "id": "W04",
+      "title": "Complete allocation derivation",
+      "closure_dependencies": [
+        "W02"
+      ],
+      "start_after": [
+        "W00"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "src/core/global_accounting_allocation_projection_v1.py",
+        "zk/global_settlement_abi_v1/src/global_accounting_allocation_projection.rs"
+      ],
+      "invariant": "Every accounting atom has exactly one physical allocation and valid claimant/terminal ownership.",
+      "acceptance_evidence": [
+        "Rust/Python independent vectors; total typed rejection; formal projection relation; authenticated predecessor and complete snapshots."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "The base supports only the ASSET_TRANSFER receipt-backed producer; other required lanes remain incomplete."
+      ]
+    },
+    {
+      "id": "W05",
+      "title": "Qualify isolated SHADOW observation",
+      "closure_dependencies": [
+        "W04"
+      ],
+      "start_after": [
+        "W00"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "src/integration/global_allocation_shadow_v1.py",
+        "tests/integration/test_global_allocation_shadow_v1.py"
+      ],
+      "invariant": "Observation cannot affect economic state, profiles, roots, commits or delivery.",
+      "acceptance_evidence": [
+        "Read-only committed snapshot capability; independent agreement/disagreement; missing observation; observer fault isolation."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "Local store consistency does not establish cryptographic provenance; restricted profile only."
+      ]
+    },
+    {
+      "id": "W06",
+      "title": "Complete isolated publication path",
+      "closure_dependencies": [
+        "W02",
+        "W03",
+        "W04",
+        "W05"
+      ],
+      "start_after": [
+        "W02",
+        "W03",
+        "W04",
+        "W05"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "src/integration/global_economic_durable_publisher_v1.py",
+        "src/integration/global_economic_epoch_journal_v1.py"
+      ],
+      "invariant": "Receipt/context/allocation/store-current authority guard one complete atomic publication.",
+      "acceptance_evidence": [
+        "Wrong-context/stale-head rejection; exact retry; concurrent CAS; logical no-op; complete PRE/POST recovery."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "Real cryptography and complete allocation prerequisites block isolated qualification."
+      ]
+    },
+    {
+      "id": "W07",
+      "title": "Complete lane lifecycles",
+      "closure_dependencies": [
+        "W02"
+      ],
+      "start_after": [
+        "W02"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "src/core",
+        "src/kernels",
+        "lean-mathlib/Proofs"
+      ],
+      "invariant": "Each intended lane has accounting and authorization through cancellation, recovery and terminal disposition.",
+      "acceptance_evidence": [
+        "Per-capability happy/reject/auth/cancel/recover/terminal/version BDD, BVA, stateful and formal evidence."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "Disabled required capabilities do not count as complete."
+      ]
+    },
+    {
+      "id": "W08",
+      "title": "Complete cross-lane composition",
+      "closure_dependencies": [
+        "W06",
+        "W07"
+      ],
+      "start_after": [
+        "W02"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "src/core/route_composition_receipt_verification_v1.py",
+        "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs"
+      ],
+      "invariant": "Routes bind exact occurrence, ownership, aggregation and atomic outcome.",
+      "acceptance_evidence": [
+        "Four required route proofs and runtime evidence; exact acquired ZDEX burn."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "Relevant lane closures and W06 publication contract required."
+      ],
+      "route_start_requirements": [
+        {
+          "route_id": "fee_funded_zdex_purchase_and_burn",
+          "required_lane_lifecycle_contracts": [
+            "SPOT_LIQUIDITY",
+            "ZDEX_TOKENOMICS"
+          ],
+          "required_publication_contract": "W06",
+          "qualification_rule": "Route-local development may start when these contracts are fixed; closure still requires the relevant lane and publication evidence."
+        },
+        {
+          "route_id": "zusd_liquidation_settlement",
+          "required_lane_lifecycle_contracts": [
+            "ZUSD_MONETARY",
+            "ORACLE_MARKET"
+          ],
+          "required_publication_contract": "W06",
+          "qualification_rule": "Route-local development may start when these contracts are fixed; closure still requires the relevant lane and publication evidence."
+        },
+        {
+          "route_id": "perps_epoch_settlement",
+          "required_lane_lifecycle_contracts": [
+            "PERPS_MARKET",
+            "ORACLE_MARKET"
+          ],
+          "required_publication_contract": "W06",
+          "qualification_rule": "Route-local development may start when these contracts are fixed; closure still requires the relevant lane and publication evidence."
+        },
+        {
+          "route_id": "strategy_triggered_spot_swap",
+          "required_lane_lifecycle_contracts": [
+            "STRATEGY_ESCROW",
+            "SPOT_LIQUIDITY"
+          ],
+          "required_publication_contract": "W06",
+          "qualification_rule": "Route-local development may start when these contracts are fixed; closure still requires the relevant lane and publication evidence."
+        }
+      ]
+    },
+    {
+      "id": "W09",
+      "title": "Close formal/runtime refinement",
+      "closure_dependencies": [
+        "W02",
+        "W06",
+        "W07",
+        "W08"
+      ],
+      "start_after": [
+        "W02"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "lean-mathlib/Proofs",
+        "zk/global_settlement_abi_v1"
+      ],
+      "invariant": "Initialization and per-command preservation compose over actual finite-width runtime outcomes.",
+      "acceptance_evidence": [
+        "Lean trace/refinement proofs; pinned ESSO models; bounded Rust Kani; independent arithmetic/parsing evidence."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "Source hashes or parity alone do not prove refinement."
+      ]
+    },
+    {
+      "id": "W10",
+      "title": "Complete correctness-critical ZRPF",
+      "closure_dependencies": [
+        "W03",
+        "W08",
+        "W09"
+      ],
+      "start_after": [
+        "W03",
+        "W08",
+        "W09"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "zk/global_economic_epoch_risc0",
+        "zk/asset_lane_coordinator_risc0"
+      ],
+      "invariant": "Exact guests verify assumptions and bind selected images, journals, order and context.",
+      "acceptance_evidence": [
+        "Real module/coordinator/route/epoch receipt replay; 1-8 route receipts; 1-64 epoch commands; neighboring bound rejects."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "Full proof generation requires authorized remote infrastructure."
+      ]
+    },
+    {
+      "id": "W11",
+      "title": "Qualify production shell and lifecycle",
+      "closure_dependencies": [
+        "W06",
+        "W07",
+        "W08",
+        "W09",
+        "W10"
+      ],
+      "start_after": [
+        "W06",
+        "W07",
+        "W08",
+        "W09",
+        "W10"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "src/integration/global_economic_durable_publisher_v1.py",
+        "src/integration/global_economic_authority_journal_v1.py"
+      ],
+      "invariant": "Concrete durability, restart authority, writer fencing and committed-effect ancestry preserve value safety.",
+      "acceptance_evidence": [
+        "Isolated deployment replay; migration/restart/concurrency/delivery tests; deployment-complete no-bypass proof."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "Publisher process and operating system remain explicit trusted assumptions."
+      ]
+    },
+    {
+      "id": "W12",
+      "title": "Independent release assessment",
+      "closure_dependencies": [
+        "W01",
+        "W02",
+        "W03",
+        "W04",
+        "W05",
+        "W06",
+        "W07",
+        "W08",
+        "W09",
+        "W10",
+        "W11"
+      ],
+      "start_after": [
+        "W01",
+        "W02",
+        "W03",
+        "W04",
+        "W05",
+        "W06",
+        "W07",
+        "W08",
+        "W09",
+        "W10",
+        "W11"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "docs/research"
+      ],
+      "invariant": "Every applicable gate binds one immutable release subject before promotion is proposed.",
+      "acceptance_evidence": [
+        "Independent exact-release formal, runtime and mounted replay; blocking findings resolved."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "Live activation needs separate approval; this plan grants none."
+      ]
+    },
+    {
+      "id": "W13",
+      "title": "Product finishing and scaling",
+      "closure_dependencies": [
+        "W12"
+      ],
+      "start_after": [
+        "W06",
+        "W07"
+      ],
+      "status": "OPEN",
+      "source_commit": "c6a9fd028ded9224427a645c1217d0ce576f78af",
+      "owned_paths": [
+        "tools/dex-ui",
+        "tools",
+        "zk"
+      ],
+      "invariant": "Product and throughput changes preserve and requalify the corresponding safety contracts.",
+      "acceptance_evidence": [
+        "Frontend workflow completion; operational recovery; performance evidence; changed-build requalification."
+      ],
+      "reviewer": "ASTRA_INTEGRATION_AND_INDEPENDENT_ADVISORY_REVIEW",
+      "remaining_nonclaims": [
+        "Frontend work may start after its corresponding lane milestone; whole-product completion awaits W12."
+      ]
+    }
+  ],
+  "outcome_classes": [
+    "PRECOMMIT_REJECTION",
+    "COMMITTED_SUCCESS",
+    "EXACT_COMMITTED_RETRY",
+    "INDETERMINATE_CLIENT_KNOWLEDGE"
+  ],
+  "policy_resolution": "Reuse specifications and prior user decisions; keep genuine unknowns symbolic or disabled until approved. Tests cannot choose policy.",
+  "historical_findings": {
+    "projection_D_plus": "HISTORICAL_RETAINED_REGRESSIONS_REQUIRE_REPLAY",
+    "september_G1_G14": "RECOVERED_HASH_BOUND_FINDINGS_RECONCILED_IN_AUTHORITY_DISCOVERY",
+    "SEC_candidate": {
+      "commit": "b802c942a8c7ccf8bf17b1b61021cbd8c960b7ea",
+      "status": "SEPARATE_CANDIDATE_REQUIRES_INTEGRATION_REVIEW"
+    },
+    "prior_opus_requests": "TIMED_OUT_NO_VERDICT",
+    "prior_codex_reviews": "TWO_READ_ONLY_REVIEWS_REPORTED_NOT_CURRENT_EVIDENCE",
+    "prior_research_kernel_strategy": "UNAVAILABLE_THROUGH_PRIOR_CONNECTION"
+  },
+  "claim_ceiling": {
+    "formal_core_complete": false,
+    "whole_value_movement_safe": false,
+    "production_promotion": false,
+    "whole_product_complete": false,
+    "closed_value_movement_gate_count": 0
+  },
+  "nonclaims": [
+    "Graph validation checks coordination structure only.",
+    "Task status is advisory and cannot promote authority or release claims.",
+    "A local build or mock receipt cannot qualify real cryptography.",
+    "Full proof generation and large solver builds require authorized remote infrastructure.",
+    "No live balance migration or authority activation is authorized."
+  ],
+  "recovered_design_inputs": [
+    {
+      "name": "zenodex-formal-core-plan-analysis-20260903.md",
+      "sha256": "f01730253a7d6570c43a629ce72cc025d6bb17fd0881a90e35e980eeae46616f",
+      "classification": "HISTORICAL_USER_INTENT_AND_ADVISORY_ANALYSIS",
+      "disposition_path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md"
+    },
+    {
+      "name": "zenodex-formal-core-plan-a-plus-20260903.md",
+      "sha256": "fd8c0fcabd2be7f4555c47a350162f3ab4c5b9794dac5c2a2f67b55128c74f65",
+      "classification": "HISTORICAL_USER_INTENT_AND_ADVISORY_ANALYSIS",
+      "disposition_path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md"
+    }
+  ],
+  "coordination_rule": "owned_paths define task surfaces, not file locks. Before each parallel edit, issue a bounded disjoint exact-file packet; overlapping reviews are read-only."
+}
