@@ -1,0 +1,4 @@
+type Row = {owner: bv[1280], asset: bv[1280], custody_domain: bv[1280], amount_atoms: bv[128]}.
+i:Row := in file("/dev/stdin").
+o:Row := out console.
+run o[t] = i[t].
