@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Verify exact research-plan admission without granting economic authority."""
+"""Check current research selection, or explicitly replay historical V2.1 admission.
+
+The V1 Python function preserves its historical receipt contract. The established
+CLI follows the successor selection unless --historical is supplied.
+"""
 
 from __future__ import annotations
 
@@ -7,38 +11,27 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Final, Mapping
 
-try:
-    from tools.build_m6_normative_requirements_v1 import (
-        ShellRejectV1,
-        _read_bounded_regular_file_v1,
-        _run_git_v1,
-    )
-except ModuleNotFoundError:
-    from build_m6_normative_requirements_v1 import (
-        ShellRejectV1,
-        _read_bounded_regular_file_v1,
-        _run_git_v1,
-    )
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-try:
-    from tools.m6_normative_requirements_v1 import (
-        RequirementsRejectV1,
-        canonical_json_bytes_v1,
-        decode_json_object_v1,
-    )
-except ModuleNotFoundError:
-    from m6_normative_requirements_v1 import (
-        RequirementsRejectV1,
-        canonical_json_bytes_v1,
-        decode_json_object_v1,
-    )
+from tools.build_m6_normative_requirements_v1 import (
+    ShellRejectV1,
+    _read_bounded_regular_file_v1,
+    _run_git_v1,
+)
+from tools.m6_normative_requirements_v1 import (
+    RequirementsRejectV1,
+    canonical_json_bytes_v1,
+    decode_json_object_v1,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RECEIPT = Path("docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_ADMISSION_V1.json")
-DEFAULT_REGISTRY = Path("docs/research/ZENODEX_ACTIVE_WHOLE_PROGRAM_PLAN_V1.json")
+DEFAULT_REGISTRY = Path("docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2_1_REGISTRY.json")
 RECEIPT_SCHEMA = "zenodex/plan-admission-receipt/v1"
 REGISTRY_SCHEMA = "zenodex/active-whole-program-plan-registry/v1"
 PLAN_SCHEMA = "zenodex/whole-program-plan/v2.1"
@@ -401,8 +394,15 @@ def check_whole_program_plan_admission_v1(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args(argv)
-    report = check_whole_program_plan_admission_v1()
+    parser.add_argument("--historical", action="store_true", help="replay preserved V2.1 selection")
+    args = parser.parse_args(argv)
+    if args.historical:
+        report = check_whole_program_plan_admission_v1()
+        report["selection_scope"] = "HISTORICAL_REPLAY_ONLY"
+    else:
+        from tools.whole_program_plan_admission_v2 import check_active_whole_program_plan_v2
+
+        report = check_active_whole_program_plan_v2()
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 
