@@ -101,3 +101,8 @@ limited to table arithmetic.
 The next refinement step is to connect the proved complete-key totals to the
 runtime's canonical output rows and to the actual per-route admission checks.
 Neither this proof nor finite runtime agreement qualifies a release.
+
+The subsequent [canonical-row theorem](ZENODEX_CANONICAL_EPOCH_ECONOMIC_ROWS_20260905.md)
+closes the stated tuple-representation obligation in the Lean value model,
+under explicit endpoint key uniqueness. Universal runtime execution and
+per-route admission remain separate refinement obligations.

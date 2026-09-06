@@ -61,7 +61,7 @@
     },
     {
       "path": "src/integration/global_economic_durable_publisher_v1.py",
-      "sha256": "e83c96f27010d15c24bc1759134166ff24293206d0a0102d0cc8fc01c94aabba"
+      "sha256": "080b2d205bdc863eb2042f704614978b5f4ab7d6b5a306c52e20dc026c8d29fe"
     },
     {
       "path": "tests/integration/asset_receipt_pipeline_fixtures_v1.py",
@@ -73,7 +73,7 @@
     },
     {
       "path": "experiments/v3_completion_followup_v1/render_evidence.py",
-      "sha256": "2448502668a67ed7bb413bb5c91fa4acc090db3c019d1186995868fec9c18594"
+      "sha256": "efac36fded1a7e295673735b09729cd945f29626087ce2ed0e3ca5284ed8be1d"
     }
   ],
   "test_pins": [

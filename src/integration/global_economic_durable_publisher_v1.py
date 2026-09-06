@@ -81,9 +81,11 @@ from .global_economic_durable_epoch_v1 import (
     prepare_durable_economic_epoch_bundle_v1,
 )
 from .global_economic_epoch_journal_v1 import (
+    DurableEconomicEpochCasTokenV1,
     DurableEconomicEpochCommitOutcomeV1,
     DurableEconomicEpochCommitStatusV1,
     DurableEconomicEpochWriteCapabilityV1,
+    DurableEconomicWriterAuthorityPrecommitIdentityChangedV1,
     GlobalEconomicEpochJournalV1,
     _CommittedEconomicSourceV1,
     _create_epoch_journal_for_verified_publisher_v1,
@@ -1063,6 +1065,64 @@ class VerifiedDurableEconomicPublisherV1:
                 "the exact epoch committed before its publication acknowledgment"
             ) from cause
 
+    def _commit_and_project_epoch_v1(
+        self,
+        source: DurableEconomicPublicationHeadV1,
+        bundle: DurableEconomicEpochBundleV1,
+        published: PublishedEconomicEpochV1,
+        cas_token: DurableEconomicEpochCasTokenV1,
+    ) -> VerifiedDurableEconomicPublishOutcomeV1:
+        """Separate journal-proved prewrite rejection from later unknown outcomes."""
+
+        successful = {
+            DurableEconomicEpochCommitStatusV1.COMMITTED,
+            DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED,
+        }
+        try:
+            journal_outcome = self.__journal._commit_epoch_from_verified_publisher_v1(
+                bundle,
+                cas_token,
+                self.__write_capability,
+            )
+        except DurableEconomicWriterAuthorityPrecommitIdentityChangedV1:
+            # The journal constructs this subtype only while its empty commit
+            # transaction can still prove no economic write.
+            raise
+        except BaseException as exc:
+            if not isinstance(exc, Exception):
+                try:
+                    self._arm_monotonic_anchor_after_unknown_local_commit_v1(
+                        source,
+                        exc,
+                    )
+                except (GlobalEconomicRollbackDetectedV1, RuntimeError):
+                    # Preserve process-control semantics. Reopen performs the
+                    # same durable-head classification if arming is unavailable.
+                    pass
+                raise
+            self._raise_if_epoch_commit_indeterminate_v1(source, bundle, exc)
+            raise
+        try:
+            return self._outcome_v1(journal_outcome, published)
+        except BaseException as exc:
+            if journal_outcome.status not in successful:
+                # A completed journal refusal already establishes no commit
+                # for this attempt, even if projecting its response fails.
+                raise
+            if not isinstance(exc, Exception):
+                try:
+                    self._arm_monotonic_anchor_after_unknown_local_commit_v1(
+                        source,
+                        exc,
+                    )
+                except (GlobalEconomicRollbackDetectedV1, RuntimeError):
+                    # Preserve process-control semantics. Reopen performs the
+                    # same durable-head classification if arming is unavailable.
+                    pass
+                raise
+            self._raise_if_epoch_commit_indeterminate_v1(source, bundle, exc)
+            raise
+
     def publish_economic_epoch(
         self,
         *,
@@ -1183,36 +1243,16 @@ class VerifiedDurableEconomicPublisherV1:
                     receipt_bytes=owned_candidate.receipt_bytes,
                 )
             )
+            outcome = self._commit_and_project_epoch_v1(
+                source,
+                bundle,
+                published,
+                cas_token,
+            )
             successful = {
                 DurableEconomicEpochCommitStatusV1.COMMITTED,
                 DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED,
             }
-            journal_outcome = None
-            try:
-                journal_outcome = self.__journal._commit_epoch_from_verified_publisher_v1(
-                    bundle,
-                    cas_token,
-                    self.__write_capability,
-                )
-                outcome = self._outcome_v1(journal_outcome, published)
-            except BaseException as exc:
-                if journal_outcome is not None and journal_outcome.status not in successful:
-                    # A completed journal refusal already establishes no commit
-                    # for this attempt, even if projecting its response fails.
-                    raise
-                if not isinstance(exc, Exception):
-                    try:
-                        self._arm_monotonic_anchor_after_unknown_local_commit_v1(
-                            source,
-                            exc,
-                        )
-                    except (GlobalEconomicRollbackDetectedV1, RuntimeError):
-                        # Preserve process-control semantics. Reopen performs the
-                        # same durable-head classification if arming is unavailable.
-                        pass
-                    raise
-                self._raise_if_epoch_commit_indeterminate_v1(source, bundle, exc)
-                raise
             if outcome.status in successful:
                 self._advance_monotonic_anchor_after_publish_v1(outcome, source)
             return outcome

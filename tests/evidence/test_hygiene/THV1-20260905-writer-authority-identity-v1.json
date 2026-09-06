@@ -1,0 +1,197 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-LIVE-WRITER-AUTHORITY-IDENTITY",
+      "points": [
+        "replacement before verification",
+        "replacement during verification",
+        "replacement during exact committed retry",
+        "same-inode revocation and historical retry",
+        "missing pathname and private-mode drift",
+        "nonregular identity acquisition",
+        "descriptor release and open failure",
+        "postcommit outcome projection failure",
+        "postcommit detachment before monotonic anchor advancement"
+      ]
+    }
+  ],
+  "change_kind": "bug_fix",
+  "claim_scope": "A retained live authority identity detects observed pathname detachment and metadata drift before publication writes; postcommit observation failures remain indeterminate.",
+  "created_date": "2026-09-05",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "stateful"
+  ],
+  "evidence_id": "THV1-20260905-writer-authority-identity-v1",
+  "failure_modes": [
+    "replacement before verification",
+    "replacement during verification",
+    "replacement during exact committed retry",
+    "same-inode revocation and historical retry",
+    "missing pathname and private-mode drift",
+    "nonregular identity acquisition",
+    "descriptor release and open failure",
+    "postcommit outcome projection failure",
+    "postcommit detachment before monotonic anchor advancement"
+  ],
+  "invariant_ids": [
+    "V3-LIVE-WRITER-AUTHORITY-IDENTITY"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "The retained descriptor does not directly identify SQLite's internal attached descriptor.",
+    "Stable namespace around acquisition/ATTACH and between the final prewrite check and COMMIT remains a premise.",
+    "In-place restored bytes, epoch rollback or replacement, restart rollback and complete migration/writer fencing remain open.",
+    "The publisher process, operating system and filesystem remain trusted; receipt replies in these tests are synthetic."
+  ],
+  "reject_is_noop": {
+    "reason": "The precommit-only identity subtype is constructed before this attempt's first economic write; tests compare complete logical epoch-store snapshots. Postcommit controls retain the committed bundle and preserve indeterminate client knowledge.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/integration/global_economic_epoch_journal_v1.py",
+      "sha256": "d7cc321dfebd29be7926d82da7a565f11cf1e2ac36aeaf78d5635832856907d3"
+    },
+    {
+      "path": "src/integration/global_economic_durable_publisher_v1.py",
+      "sha256": "080b2d205bdc863eb2042f704614978b5f4ab7d6b5a306c52e20dc026c8d29fe"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "efac36fded1a7e295673735b09729cd945f29626087ce2ed0e3ca5284ed8be1d"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_generic_bound_verifier_cannot_create_isolated_writer",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_publisher_subclass_factory_rejects_before_target_store_writes",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_create_publish_reopen_and_exact_retry_are_one_durable_history",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_publisher_v1_quarantines_object_consumption_without_durable_effect",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_exact_create_retry_recovers_committed_activation_after_lost_ack",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_verified_publisher_create_recovers_post_link_bootstrap_crash",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_concurrent_verified_publisher_create_has_one_install_and_typed_busy",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_create_retry_rejects_matching_activation_with_nonzero_history",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_fabricated_source_metadata_is_stale_before_receipt_verification",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_body_binding_rejection_is_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_receipt_replacement_rejects_without_publication",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_selected_verifier_rejection_is_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_backend_method_replacement_cannot_turn_rejection_into_publication",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_generic_caller_selected_verifier_rejects_before_backend_use",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_two_publishers_from_one_source_linearize_one_valid_successor",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_head_change_during_receipt_verification_returns_stale_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_old_store_cannot_reopen_after_shared_authority_revocation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_two_named_epoch_stores_cannot_share_one_authority_head",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_restored_pre_revocation_authority_remains_a_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_monotonic_anchor_rejects_restored_pre_revocation_authority_bytes",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_monotonic_anchor_rejects_epoch_only_rollback_without_mutation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_monotonic_anchor_advances_after_one_durable_epoch_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_anchor_outage_recovers_only_by_exact_epoch_retry",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_stale_anchor_cas_is_typed_indeterminate_and_no_double_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_anchor_lost_ack_reconciles_the_exact_successor_on_retry",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_changed_external_anchor_rejects_unless_it_is_the_exact_local_successor",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_exhausted_anchor_sequence_rejects_before_proof_or_local_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_local_anchor_projection_fault_is_indeterminate_and_retryable",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_concurrent_exact_retry_arms_recovery_before_projection_fault",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_lower_journal_commit_lost_ack_becomes_typed_anchor_recovery",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_external_forward_tip_without_matching_local_history_fails_closed",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_concurrent_forward_tip_with_matching_local_history_is_adopted",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_control_flow_interruption_arms_same_process_recovery",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_lower_journal_precommit_fault_preserves_error_and_no_effect",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_authority_inode_rejects_before_proof_and_economic_write",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_authority_inode_cannot_report_exact_committed_retry",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_authority_inode_replacement_during_verification_rejects_before_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_path_drift_rejects_before_proof_and_write",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_identity_descriptor_closes_with_publisher",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_identity_acquisition_rejects_fifo_without_leak",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_identity_descriptor_open_failure_is_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_postcommit_identity_projection_error_remains_indeterminate",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_postcommit_authority_replacement_blocks_anchor_advance",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_separate_migration_commit_leaves_old_publisher_active_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_old_store_cannot_reopen_after_shared_profile_rotation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_inflight_verification_cannot_publish_after_authority_revocation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_exact_committed_retry_after_revocation_returns_history_without_mutation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_epoch_only_sequence_zero_restore_allows_duplicate_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_open_rejects_a_different_verified_activation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_expected_source_rejects_boolean_sequence_alias",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_direct_publisher_construction_is_rejected",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_publication_api_has_no_caller_supplied_authority_objects"
+      ],
+      "path": "tests/integration/test_global_economic_durable_publisher_v1.py",
+      "sha256": "31edc77b8b4ec6ca02e2bdc9e68002741a108e31f25713df1474d0bbdfebe484"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_complete_epoch_when_encoded_then_roundtrip_preserves_every_body",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_distinct_occurrences_may_repeat_the_same_command_body_hash",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_fully_rehashed_effect_consuming_foreign_occurrence_is_rejected",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_fully_rehashed_foreign_inner_schema_is_rejected",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_journal_byte_declaration_requires_exact_canonical_length",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_cycle_budget_ceiling_accepts_exact_limit_and_rejects_one_over",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_valid_epoch_when_economic_state_field_is_omitted_then_rejects",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_activation_when_epoch_commits_then_bundle_and_head_are_atomic",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_journal_resolves_owned_activation_and_exact_historical_heads",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_concurrent_epoch_bootstrap_has_one_writer_and_one_typed_busy",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_create_never_adopts_preexisting_namespace_entries",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_open_rejects_alias_and_mode_mismatch",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_crash_left_bootstrap_candidate_fails_closed",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_bootstrap_recovers_each_post_link_crash_boundary",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_bootstrap_recovery_rejects_lookalike_or_wrong_activation",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_bootstrap_recovery_rejects_paired_fifos_promptly",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_linked_recovery_has_explicit_shared_uid_and_platform_ceiling",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_lost_ack_when_exact_epoch_retries_then_no_duplicate_is_created",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_two_epoch_history_when_first_retries_then_tip_remains_second",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_adjacent_epoch_reusing_commit_id_then_replay_is_rejected",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_commit_resnapshots_epoch_after_hostile_frozen_object_mutation",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_two_valid_successors_when_one_wins_then_other_is_stale_no_effect",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_two_open_instances_when_one_commits_then_other_observes_stale",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_crash_boundary_when_reopened_then_store_is_exact_pre_or_post",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_abrupt_exit_when_reopened_then_sqlite_recovers_pre_or_post",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_foreign_cas_token_when_used_then_commit_rejects_without_effect",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_direct_journal_has_no_unfenced_epoch_commit_api",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_private_structural_writer_remains_a_same_process_release_blocker",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_write_capability_is_bound_to_one_journal_instance",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_extra_schema_object_when_opened_then_exact_schema_gate_rejects",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_wal_schema_mutant_when_open_rejects_then_store_is_unchanged",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_crash_left_wal_when_open_rejects_then_file_family_is_unchanged",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_behaviorful_path_subclass_rejects_before_store_access",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_zero_remaining_row_capacity_when_committing_then_typed_noop",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_open_accepts_history_at_exact_byte_capacity",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_open_rejects_history_one_byte_over_capacity",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_history_byte_bound_rejects_before_bundle_row_fetch"
+      ],
+      "path": "tests/integration/test_global_economic_epoch_journal_v1.py",
+      "sha256": "4b67d736f4adb9f8d5d9a42c649b1648919f31404daf8f0484f9fc6aa8768dd7"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_known_outcomes_v1.py::test_given_known_stale_when_projection_and_observation_fail_then_refusal_stays_known",
+        "tests/integration/test_global_economic_known_outcomes_v1.py::test_given_historical_committed_retry_when_newer_anchor_lags_then_result_stays_committed",
+        "tests/integration/test_global_economic_known_outcomes_v1.py::test_given_anchored_other_winner_when_stale_response_fails_then_its_commit_is_not_attributed"
+      ],
+      "path": "tests/integration/test_global_economic_known_outcomes_v1.py",
+      "sha256": "9b4f64580583b03b721a495cf33fd1df8d0b97a60ce899d61732a6c3760f5510"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_publication_outcomes_v1.py::test_given_journal_fault_then_precommit_is_noop_and_postcommit_is_indeterminate",
+        "tests/integration/test_global_economic_publication_outcomes_v1.py::test_given_committed_epoch_then_failed_response_projection_is_indeterminate",
+        "tests/integration/test_global_economic_publication_outcomes_v1.py::test_given_failed_attempt_and_unreadable_history_then_outcome_is_indeterminate",
+        "tests/integration/test_global_economic_publication_outcomes_v1.py::test_given_other_winner_then_failed_stale_attempt_is_not_attributed_its_commit",
+        "tests/integration/test_global_economic_publication_outcomes_v1.py::test_given_postcommit_interrupt_then_control_flow_is_preserved_and_retry_is_exact"
+      ],
+      "path": "tests/integration/test_global_economic_publication_outcomes_v1.py",
+      "sha256": "c8412ce0d0b231eecd61d87864e13e9ee0d125372d5547a22bcdae00957c0b15"
+    }
+  ]
+}

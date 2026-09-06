@@ -247,6 +247,13 @@ connects ordered signed-prefix aggregation to the existing balance, custody,
 liability and reserve table relation. Its per-route premises and runtime
 refinement limits remain explicit.
 
+The next [canonical-row proof](ZENODEX_CANONICAL_EPOCH_ECONOMIC_ROWS_20260905.md)
+constructs sorted, unique output rows and connects their table projections to
+checked endpoint tuples. The [live writer identity repair](ZENODEX_WRITER_AUTHORITY_IDENTITY_20260905.md)
+addresses observed authority pathname detachment while preserving precommit
+and postcommit outcome distinctions. Both follow-ups retain their narrower
+claim boundaries.
+
 The repository's earlier genuine five-receipt qualification and its later
 mounted isolated pipeline are distinct evidence subjects. The former covers an
 older zero-custody profile. The latter reauthenticates commands and derives

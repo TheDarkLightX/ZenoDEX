@@ -5,21 +5,20 @@
   },
   "boundary_dimensions": [
     {
-      "name": "V3-CHECKED-EPOCH-EXACT-TABLE-COMPOSITION",
+      "name": "V3-CANONICAL-EPOCH-ECONOMIC-ROWS",
       "points": [
-        "all four key coordinates and nine effect kinds",
-        "balance custody liability and reserve tables",
-        "26 actual composer histories and 129 ordered Lean command-prefix observations",
-        "signed i128 upper and lower intermediate overflow despite a representable endpoint",
-        "two locally exact runtime state histories with cancellation-masked overflow",
-        "same-epoch command heights",
-        "64-command positive control and 0/65 runtime arity refusals",
-        "three temporary model mutants rejected by proof compilation"
+        "all nine kind tokens and four complete-key coordinates",
+        "strict effect-key order and distinct table-delta order",
+        "ASCII order boundaries",
+        "cancellation and zero omission",
+        "i128 lower and upper endpoint neighbors",
+        "duplicate endpoint last-write versus sum behavior",
+        "temporary executable model mutants"
       ]
     }
   ],
   "change_kind": "assurance_infrastructure",
-  "claim_scope": "Universal Lean checked-prefix composition of four exact economic tables, under per-route table premises; finite correspondence to actual Python epoch composition and table checking.",
+  "claim_scope": "Constructive Lean canonical emission and checked endpoint-tuple equality for four economic tables under per-route table correctness and unique endpoint keys; finite full-tuple Python comparisons.",
   "created_date": "2026-09-05",
   "evidence_families": [
     "negative_regression",
@@ -27,38 +26,40 @@
     "formal",
     "differential"
   ],
-  "evidence_id": "THV1-20260905-checked-epoch-economic-tables-v1",
+  "evidence_id": "THV1-20260905-canonical-epoch-economic-rows-v1",
   "failure_modes": [
-    "all four key coordinates and nine effect kinds",
-    "balance custody liability and reserve tables",
-    "26 actual composer histories and 129 ordered Lean command-prefix observations",
-    "signed i128 upper and lower intermediate overflow despite a representable endpoint",
-    "two locally exact runtime state histories with cancellation-masked overflow",
-    "same-epoch command heights",
-    "64-command positive control and 0/65 runtime arity refusals",
-    "three temporary model mutants rejected by proof compilation"
+    "all nine kind tokens and four complete-key coordinates",
+    "strict effect-key order and distinct table-delta order",
+    "ASCII order boundaries",
+    "cancellation and zero omission",
+    "i128 lower and upper endpoint neighbors",
+    "duplicate endpoint last-write versus sum behavior",
+    "temporary executable model mutants"
   ],
   "invariant_ids": [
-    "V3-CHECKED-EPOCH-EXACT-TABLE-COMPOSITION"
+    "V3-CANONICAL-EPOCH-ECONOMIC-ROWS"
   ],
   "mutations": [],
   "nonclaims": [
     "Packet rendering does not execute tests or establish completeness or production authority.",
-    "Per-route ExactEconomicTables is a theorem premise, not a proved property of every route verifier.",
-    "The arithmetic model has no command-count, metadata or whole-state admission guard; 0/65 controls expose this boundary.",
-    "The four-table positive example is not a conserved or authenticated global transition.",
-    "Canonical sorted unique zero-eliding tuples and universal Python/Rust/compiler correspondence remain unproved.",
-    "Mutation evidence is rejected proof compilation; no executed mutant runtime observation is claimed.",
-    "Supply conservation, authorization, complete lane lifecycles, receipts, publication and release qualification remain outside this theorem."
+    "Endpoint amount-key uniqueness and per-route ExactEconomicTables are explicit premises.",
+    "Universal Python/Rust/compiler execution and canonical bytes remain unproved.",
+    "The list-based model makes no performance or complexity claim about Python dictionaries.",
+    "Token syntax, kind-specific sign admission, metadata, arity and resource limits remain separate obligations.",
+    "Supply conservation, authorization, lane lifecycles, receipts, publication and release qualification are outside this theorem."
   ],
   "reject_is_noop": {
-    "reason": "Exact signed-overflow refusal and complete unchanged plan/state snapshots are observed at pure Python composition boundaries; the Lean model returns a typed error without an output accumulator.",
+    "reason": "Checked signed-bound failures return no Lean delta tuple. Tests require exact Python builder/composer rejection and compare complete input snapshots for the composer histories. No publication or external effect is modeled.",
     "status": "applied"
   },
   "removed_paths": [],
   "risk_class": "critical",
   "schema": "zenodex/test-hygiene-evidence/v1",
   "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/CanonicalEpochEconomicRowsV1.lean",
+      "sha256": "5ff80f22fde38729468dc237dd5b40a28bacc57302a483bf42b3e9f90122fe64"
+    },
     {
       "path": "lean-mathlib/Proofs/CheckedEpochEconomicTablesV1.lean",
       "sha256": "ee6ebc40358879e168cbc245be1641a06e084a39642d5da2736caacfa60897cd"
@@ -97,6 +98,18 @@
     }
   ],
   "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_canonical_epoch_economic_rows_v1.py::test_all_47_theorem_signatures_axioms_and_nonvacuous_application",
+        "tests/formal/test_lean_canonical_epoch_economic_rows_v1.py::test_full_runtime_effect_tuples_cover_kind_order_keys_ascii_and_cancellation",
+        "tests/formal/test_lean_canonical_epoch_economic_rows_v1.py::test_all_four_runtime_table_tuples_equal_constructed_endpoints_despite_sort_conflicts",
+        "tests/formal/test_lean_canonical_epoch_economic_rows_v1.py::test_signed_endpoint_edges_zero_elision_and_exact_rejection",
+        "tests/formal/test_lean_canonical_epoch_economic_rows_v1.py::test_duplicate_endpoints_expose_last_write_and_uniqueness_premise",
+        "tests/formal/test_lean_canonical_epoch_economic_rows_v1.py::test_executed_model_mutants_disagree_with_real_tuple_oracles"
+      ],
+      "path": "tests/formal/test_lean_canonical_epoch_economic_rows_v1.py",
+      "sha256": "771fb9e425425842ae48960bc2d617667e3b196a102443ecf33a6ef3403ee985"
+    },
     {
       "node_ids": [
         "tests/formal/test_lean_checked_epoch_economic_tables_v1.py::test_all_named_types_sources_and_axioms",

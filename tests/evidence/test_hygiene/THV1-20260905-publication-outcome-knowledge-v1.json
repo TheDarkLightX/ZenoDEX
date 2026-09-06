@@ -54,15 +54,15 @@
   "source_pins": [
     {
       "path": "src/integration/global_economic_durable_publisher_v1.py",
-      "sha256": "e83c96f27010d15c24bc1759134166ff24293206d0a0102d0cc8fc01c94aabba"
+      "sha256": "080b2d205bdc863eb2042f704614978b5f4ab7d6b5a306c52e20dc026c8d29fe"
     },
     {
       "path": "src/integration/global_economic_epoch_journal_v1.py",
-      "sha256": "8cff61032207c04b138ea8e70726c369f3cbc676af345e446eb491beb2b95c19"
+      "sha256": "d7cc321dfebd29be7926d82da7a565f11cf1e2ac36aeaf78d5635832856907d3"
     },
     {
       "path": "experiments/v3_completion_followup_v1/render_evidence.py",
-      "sha256": "2448502668a67ed7bb413bb5c91fa4acc090db3c019d1186995868fec9c18594"
+      "sha256": "efac36fded1a7e295673735b09729cd945f29626087ce2ed0e3ca5284ed8be1d"
     }
   ],
   "test_pins": [
@@ -122,7 +122,15 @@
         "tests/integration/test_global_economic_durable_publisher_v1.py::test_concurrent_forward_tip_with_matching_local_history_is_adopted",
         "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_control_flow_interruption_arms_same_process_recovery",
         "tests/integration/test_global_economic_durable_publisher_v1.py::test_lower_journal_precommit_fault_preserves_error_and_no_effect",
-        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_authority_inode_remains_open_publisher_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_authority_inode_rejects_before_proof_and_economic_write",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_authority_inode_cannot_report_exact_committed_retry",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_authority_inode_replacement_during_verification_rejects_before_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_path_drift_rejects_before_proof_and_write",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_identity_descriptor_closes_with_publisher",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_identity_acquisition_rejects_fifo_without_leak",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_identity_descriptor_open_failure_is_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_postcommit_identity_projection_error_remains_indeterminate",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_postcommit_authority_replacement_blocks_anchor_advance",
         "tests/integration/test_global_economic_durable_publisher_v1.py::test_separate_migration_commit_leaves_old_publisher_active_release_blocker",
         "tests/integration/test_global_economic_durable_publisher_v1.py::test_old_store_cannot_reopen_after_shared_profile_rotation",
         "tests/integration/test_global_economic_durable_publisher_v1.py::test_inflight_verification_cannot_publish_after_authority_revocation",
@@ -134,7 +142,7 @@
         "tests/integration/test_global_economic_durable_publisher_v1.py::test_publication_api_has_no_caller_supplied_authority_objects"
       ],
       "path": "tests/integration/test_global_economic_durable_publisher_v1.py",
-      "sha256": "41ad6cdcc7666f6e435fc2042ef392bce78e532cf2a9afbb68c8cd97642640c7"
+      "sha256": "31edc77b8b4ec6ca02e2bdc9e68002741a108e31f25713df1474d0bbdfebe484"
     }
   ]
 }

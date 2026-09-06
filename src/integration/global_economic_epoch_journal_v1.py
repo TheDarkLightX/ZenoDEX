@@ -239,6 +239,33 @@ class DurableEconomicEpochBootstrapPlatformUnsupportedV1(RuntimeError):
     """Descriptor-bound recovery requires Linux O_PATH and usable procfs."""
 
 
+class DurableEconomicWriterAuthorityIdentityChangedV1(RuntimeError):
+    """A verified writer's authority path is absent, detached, or no longer private.
+
+    Writer operations raise this type only at gates that complete before the
+    current publication attempt's first economic write. Read-only observations
+    may also raise it; postcommit publication keeps its indeterminate semantics.
+    """
+
+
+class DurableEconomicWriterAuthorityPrecommitIdentityChangedV1(
+    DurableEconomicWriterAuthorityIdentityChangedV1
+):
+    """The empty commit transaction observed authority pathname detachment."""
+
+
+@dataclass(frozen=True, slots=True)
+class _WriterAuthorityIdentityV1:
+    path: Path
+    file_descriptor: int
+
+    def __post_init__(self) -> None:
+        if type(self.path) is not type(Path()):
+            raise TypeError("writer authority identity path must be a platform Path")
+        if type(self.file_descriptor) is not int or self.file_descriptor < 0:
+            raise TypeError("writer authority identity descriptor must be nonnegative int")
+
+
 def _normalize_path_v1(path: str | Path) -> Path:
     if type(path) is str:
         candidate = Path(path)
@@ -345,6 +372,61 @@ def _require_linked_private_epoch_inode_v1(
 
 def _same_epoch_inode_v1(left: os.stat_result, right: os.stat_result) -> bool:
     return left.st_dev == right.st_dev and left.st_ino == right.st_ino
+
+
+def _private_writer_authority_inode_v1(metadata: os.stat_result) -> bool:
+    return (
+        stat.S_ISREG(metadata.st_mode)
+        and metadata.st_uid == os.geteuid()
+        and stat.S_IMODE(metadata.st_mode) == 0o600
+        and metadata.st_nlink == 1
+    )
+
+
+def _require_writer_authority_path_identity_v1(
+    identity: _WriterAuthorityIdentityV1,
+) -> None:
+    try:
+        path_metadata = identity.path.lstat()
+        descriptor_metadata = os.fstat(identity.file_descriptor)
+    except OSError as exc:
+        raise DurableEconomicWriterAuthorityIdentityChangedV1(
+            "durable economic writer authority path identity changed"
+        ) from exc
+    if (
+        not _same_epoch_inode_v1(path_metadata, descriptor_metadata)
+        or not _private_writer_authority_inode_v1(path_metadata)
+        or not _private_writer_authority_inode_v1(descriptor_metadata)
+    ):
+        raise DurableEconomicWriterAuthorityIdentityChangedV1(
+            "durable economic writer authority path identity changed"
+        )
+
+
+def _acquire_writer_authority_identity_v1(
+    authority_path: Path,
+) -> _WriterAuthorityIdentityV1:
+    normalized = _normalize_path_v1(authority_path)
+    if not hasattr(os, "O_PATH"):
+        raise DurableEconomicWriterAuthorityIdentityChangedV1(
+            "durable economic writer cannot retain writer authority identity"
+        )
+    try:
+        file_descriptor = os.open(
+            normalized,
+            os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+    except OSError as exc:
+        raise DurableEconomicWriterAuthorityIdentityChangedV1(
+            "durable economic writer cannot retain writer authority identity"
+        ) from exc
+    try:
+        identity = _WriterAuthorityIdentityV1(normalized, file_descriptor)
+        _require_writer_authority_path_identity_v1(identity)
+    except BaseException:
+        os.close(file_descriptor)
+        raise
+    return identity
 
 
 def _require_epoch_path_matches_fd_v1(
@@ -588,12 +670,20 @@ class GlobalEconomicEpochJournalV1:
         connection: sqlite3.Connection,
         *,
         expected_authority: GlobalEconomicAuthorityHeadV1 | None = None,
+        writer_authority_identity: _WriterAuthorityIdentityV1 | None = None,
     ) -> None:
+        if writer_authority_identity is not None and type(
+            writer_authority_identity
+        ) is not _WriterAuthorityIdentityV1:
+            raise TypeError("durable epoch writer authority identity is not closed")
+        if writer_authority_identity is not None and expected_authority is None:
+            raise ValueError("writer authority identity requires an expected authority")
         self._path = path
         self._connection = connection
         self._lock = Lock()
         self._instance_token = object()
         self._expected_authority = expected_authority
+        self._writer_authority_identity = writer_authority_identity
         self._cas_tokens: WeakKeyDictionary[
             DurableEconomicEpochCasTokenV1,
             tuple[object, str, int, str | None, int | None],
@@ -652,13 +742,35 @@ class GlobalEconomicEpochJournalV1:
         if self._closed:
             raise RuntimeError("durable epoch journal is closed")
 
+    def _require_writer_authority_identity_v1(self) -> None:
+        identity = self._writer_authority_identity
+        if identity is None:
+            raise RuntimeError("durable epoch writer authority identity is absent")
+        _require_writer_authority_path_identity_v1(identity)
+
+    def _require_precommit_writer_authority_identity_v1(self) -> None:
+        try:
+            self._require_writer_authority_identity_v1()
+        except DurableEconomicWriterAuthorityIdentityChangedV1 as exc:
+            raise DurableEconomicWriterAuthorityPrecommitIdentityChangedV1(
+                "durable economic writer authority identity changed before commit"
+            ) from exc
+
     def close(self) -> None:
         with self._lock:
             if self._closed:
                 return
-            self._connection.close()
-            self._cas_tokens.clear()
-            self._closed = True
+            identity = self._writer_authority_identity
+            self._writer_authority_identity = None
+            try:
+                self._connection.close()
+            finally:
+                try:
+                    if identity is not None:
+                        os.close(identity.file_descriptor)
+                finally:
+                    self._cas_tokens.clear()
+                    self._closed = True
 
     @property
     def head(self) -> DurableEconomicPublicationHeadV1:
@@ -821,6 +933,7 @@ class GlobalEconomicEpochJournalV1:
         _require_root(publication_id, name="durable epoch publication id")
         with self._lock:
             self._require_open_v1()
+            self._require_writer_authority_identity_v1()
             self._connection.execute("BEGIN")
             try:
                 current = self._validate_store_v1()
@@ -1071,6 +1184,8 @@ class GlobalEconomicEpochJournalV1:
         return tuple(self._decode_epoch_row_v1(row) for row in rows)
 
     def _validate_store_v1(self) -> DurableEconomicPublicationHeadV1:
+        if self._writer_authority_identity is not None:
+            self._require_writer_authority_identity_v1()
         self._validate_schema_v1()
         activation = self._read_activation_v1()
         expected_release_root = _activation_release_observation_root_v1(activation)
@@ -1180,9 +1295,16 @@ class GlobalEconomicEpochJournalV1:
         try:
             if fault is _DurableEconomicEpochCommitFaultV1.AFTER_BEGIN:
                 raise _SimulatedDurableEconomicEpochCrashV1(fault.value)
-            current = self._validate_store_v1()
+            try:
+                current = self._validate_store_v1()
+            except DurableEconomicWriterAuthorityIdentityChangedV1 as exc:
+                raise DurableEconomicWriterAuthorityPrecommitIdentityChangedV1(
+                    "durable economic writer authority identity changed before commit"
+                ) from exc
+            self._require_precommit_writer_authority_identity_v1()
             retry = self._exact_retry_v1(epoch, target_bytes)
             if retry is not None:
+                self._require_precommit_writer_authority_identity_v1()
                 connection.execute("COMMIT")
                 committed = True
                 return DurableEconomicEpochCommitOutcomeV1(
@@ -1232,6 +1354,7 @@ class GlobalEconomicEpochJournalV1:
                     DurableEconomicEpochCommitStatusV1.CAPACITY_EXCEEDED,
                     current,
                 )
+            self._require_precommit_writer_authority_identity_v1()
             connection.execute(
                 "INSERT INTO economic_epochs("
                 "publication_id, commit_id, sequence_decimal, bundle_bytes"
@@ -1594,13 +1717,29 @@ def _open_epoch_journal_with_authority_v1(
         validation._read_snapshot_v1()
     finally:
         validation.close()
-    journal = GlobalEconomicEpochJournalV1(
-        normalized,
-        _connect_v1(normalized, authority_path),
-        expected_authority=expected_authority,
-    )
+    identity = _acquire_writer_authority_identity_v1(authority_path)
     try:
+        connection = _connect_v1(normalized, authority_path)
+    except BaseException:
+        os.close(identity.file_descriptor)
+        raise
+    try:
+        journal = GlobalEconomicEpochJournalV1(
+            normalized,
+            connection,
+            expected_authority=expected_authority,
+            writer_authority_identity=identity,
+        )
+    except BaseException:
+        try:
+            connection.close()
+        finally:
+            os.close(identity.file_descriptor)
+        raise
+    try:
+        journal._require_writer_authority_identity_v1()
         journal._read_snapshot_v1()
+        journal._require_writer_authority_identity_v1()
     except BaseException:
         journal.close()
         raise
@@ -1616,6 +1755,7 @@ def _mint_write_capability_for_verified_publisher_v1(
         raise TypeError("durable epoch write capability journal type is not closed")
     if journal._expected_authority is None:
         raise ValueError("durable epoch writer requires a current-authority fence")
+    journal._require_writer_authority_identity_v1()
     return DurableEconomicEpochWriteCapabilityV1(
         _WRITE_CAPABILITY_MINT_V1,
         journal,
@@ -1626,6 +1766,8 @@ __all__ = [
     "DurableEconomicEpochBootstrapBusyV1",
     "DurableEconomicEpochBootstrapPlatformUnsupportedV1",
     "DurableEconomicEpochLegacyStoreMigrationRequiredV1",
+    "DurableEconomicWriterAuthorityIdentityChangedV1",
+    "DurableEconomicWriterAuthorityPrecommitIdentityChangedV1",
     "DurableEconomicEpochCasTokenV1",
     "DurableEconomicEpochCommitOutcomeV1",
     "DurableEconomicEpochCommitStatusV1",
