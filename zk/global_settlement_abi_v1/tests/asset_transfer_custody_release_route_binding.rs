@@ -1,14 +1,14 @@
-//! Closed custody semantic selection and custody-release route binding.
-//!
-//! The reviewed bundle root selects the custody-complete family only when the
-//! governed module, coordinator, and single `ASSET_TRANSFER` route lane all
-//! carry it as their specification root. Every fixture is a coherent governed
-//! graph: release ids, registry roots, profile id, occurrence, and module
-//! context are rebuilt from the varied roots. Rejection before the custody
-//! recomputation is observed through a deterministic seam: the legacy
-//! acceptance for the same input recomputes differently under the custody
-//! family, so it is rejected by recomputation when the roots match and by the
-//! semantic guard when they do not.
+// Closed custody semantic selection and custody-release route binding.
+//
+// The reviewed bundle root selects the custody-complete family only when the
+// governed module, coordinator, and single `ASSET_TRANSFER` route lane all
+// carry it as their specification root. Every fixture is a coherent governed
+// graph: release ids, registry roots, profile id, occurrence, and module
+// context are rebuilt from the varied roots. Rejection before the custody
+// recomputation is observed through a deterministic seam: the legacy
+// acceptance for the same input recomputes differently under the custody
+// family, so it is rejected by recomputation when the roots match and by the
+// semantic guard when they do not.
 
 use serde_json::json;
 use zenodex_global_settlement_abi_v1::*;
@@ -118,6 +118,8 @@ struct Options {
     lane_status: (ReleaseStatusV1, bool),
     route_status: (ReleaseStatusV1, bool),
     profile_status: ProfileStatusV1,
+    authority_epoch: u64,
+    module_journal_byte_ceiling: u64,
     custody: Vec<EconomicAmountV1>,
 }
 
@@ -131,6 +133,8 @@ impl Options {
             lane_status: (ReleaseStatusV1::ACTIVE_NEW, true),
             route_status: (ReleaseStatusV1::ACTIVE_NEW, true),
             profile_status: ProfileStatusV1::ACTIVE,
+            authority_epoch: 7,
+            module_journal_byte_ceiling: 65_536,
             custody,
         }
     }
@@ -190,7 +194,11 @@ fn lane_release(lane_id: LaneIdV1, ordinal: u64, options: &Options) -> LaneModul
         terminal_coverage_root: root(offset + 5),
         migration_compatibility_root: root(offset + 6),
         max_cycles: 1_000_000,
-        max_journal_bytes: 65_536,
+        max_journal_bytes: if selected {
+            options.module_journal_byte_ceiling
+        } else {
+            65_536
+        },
         status,
         accepts_new_objects,
         evidence_statuses,
@@ -377,6 +385,7 @@ fn profile_snapshot(
     routes: &RouteRegistryV1,
     policy_registry_root: RootV1,
     status: ProfileStatusV1,
+    authority_epoch: u64,
 ) -> EconomicProfileSnapshotV1 {
     let lane_registry_root = lanes.registry_root().expect("lane registry must hash");
     let lane_coordinator_registry_root = coordinators
@@ -385,7 +394,7 @@ fn profile_snapshot(
     let route_registry_root = routes.registry_root().expect("route registry must hash");
     let content = json!({
         "schema": GLOBAL_SETTLEMENT_ABI_V1,
-        "authority_epoch": 7,
+        "authority_epoch": authority_epoch,
         "lane_registry_root": lane_registry_root,
         "lane_coordinator_registry_root": lane_coordinator_registry_root,
         "route_registry_root": route_registry_root,
@@ -400,7 +409,7 @@ fn profile_snapshot(
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
         profile_id: hash_global_v1("global-economic-profile-content-v1", &content)
             .expect("profile content must hash"),
-        authority_epoch: 7,
+        authority_epoch,
         lane_registry_root,
         lane_coordinator_registry_root,
         route_registry_root,
@@ -544,6 +553,7 @@ impl Governance {
                 .registry_root()
                 .expect("policy registry must hash"),
             options.profile_status,
+            options.authority_epoch,
         );
         let occurrence = occurrence(&profile, &routes.routes[0]);
         let module_input =

@@ -108,7 +108,7 @@
     },
     {
       "path": "zk/global_settlement_abi_v1/tests/asset_transfer_custody_release_route_binding.rs",
-      "sha256": "415c2fed828ee9be66db4918bf0ce3242458cf1c8c98774839b25f3e3eb091e2"
+      "sha256": "3bf5069957046ddf9c6463706a7e23600f2ec18f3c41ea257ed99cad764336cb"
     },
     {
       "path": "docs/specifications/asset-transfer-custody-semantic-bundle-v1.json",
@@ -124,7 +124,7 @@
     },
     {
       "path": "experiments/v3_completion_followup_v1/render_evidence.py",
-      "sha256": "9e26a32bf0cc5ac75dc8c92d7661e841de5e8202ddccd0b8cb532fb57b287791"
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
     }
   ],
   "test_pins": [

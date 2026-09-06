@@ -5,6 +5,7 @@ use crate::asset_transfer_lane_module::{
     AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
     RecomputedAssetTransferLaneModuleV1,
 };
+use crate::asset_transfer_lane_module_custody::recompute_asset_transfer_lane_module_custody_v1;
 use crate::asset_transfer_policy_registry::AssetTransferPolicyRegistryV1;
 use crate::canonical::{
     canonical_bytes_v1, hash_bytes_sha256_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1,
@@ -13,6 +14,7 @@ use crate::canonical::{
 use crate::economic_command_authentication::AuthenticatedEconomicCommandV1;
 use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
 use crate::lane_module_release_route_binding::{
+    bind_asset_transfer_custody_output_structural_v1,
     bind_asset_transfer_lane_output_structural_v1,
     bind_managed_asset_lifecycle_lane_output_structural_v1,
     bind_perps_margin_lane_output_to_release_route_v1, AssetTransferReleaseRouteBindingCandidateV1,
@@ -216,6 +218,7 @@ struct ReboundLaneModuleReceiptCandidateV1<'a> {
 
 enum RecomputedLaneModuleReceiptJournalV1<'a> {
     AssetTransfer(&'a RecomputedAssetTransferLaneModuleV1),
+    AssetTransferCustody(&'a AssetTransferLaneModuleAcceptedV1),
     ManagedAssetLifecycle(&'a RecomputedManagedAssetLifecycleLaneModuleV1),
     PerpsMargin(&'a PerpsMarginAcceptedV1),
 }
@@ -224,6 +227,7 @@ impl RecomputedLaneModuleReceiptJournalV1<'_> {
     fn module_journal(&self) -> &LaneModuleTransitionJournalV1 {
         match self {
             Self::AssetTransfer(recomputed) => recomputed.module_journal(),
+            Self::AssetTransferCustody(recomputed) => &recomputed.module_journal,
             Self::ManagedAssetLifecycle(recomputed) => recomputed.module_journal(),
             Self::PerpsMargin(recomputed) => &recomputed.module_journal,
         }
@@ -329,6 +333,45 @@ pub fn verify_asset_transfer_lane_module_receipt_v1(
             lanes: candidate.lanes,
             authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
             recomputed: RecomputedLaneModuleReceiptJournalV1::AssetTransfer(&expected),
+            rebound,
+            receipt: candidate.receipt,
+        },
+        receipt_verifier,
+    )
+}
+
+/// Verify one custody-complete asset-transfer module receipt under the selected successor.
+///
+/// The reviewed custody semantic selector and retained structural binder run before the
+/// custody recomputation and receipt port. The legacy transfer receipt entry above intentionally
+/// retains its ordinary-transfer recomputation and is not selected here.
+pub fn verify_asset_transfer_lane_module_custody_receipt_v1(
+    candidate: AssetTransferLaneModuleReceiptCandidateV1<'_>,
+    receipt_verifier: &dyn LaneModuleSuccinctReceiptVerifierV1,
+) -> AbiResultV1<VerifiedLaneModuleTransitionV1> {
+    let occurrence = candidate.authenticated_command.occurrence();
+    let structural_candidate = AssetTransferReleaseRouteBindingCandidateV1 {
+        profile: candidate.profile,
+        policy_registry: candidate.policy_registry,
+        asset_policy_registry: candidate.asset_policy_registry,
+        lanes: candidate.lanes,
+        coordinators: candidate.coordinators,
+        routes: candidate.routes,
+        occurrence,
+        module_input: candidate.module_input,
+        accepted: candidate.accepted,
+    };
+    let rebound = bind_asset_transfer_custody_output_structural_v1(&structural_candidate)?;
+    require_exact_release_route_binding_v1(candidate.release_route_binding, &rebound)?;
+    let expected = recompute_asset_transfer_lane_module_custody_v1(
+        candidate.module_input,
+        candidate.accepted,
+    )?;
+    verify_rebound_module_receipt_v1(
+        ReboundLaneModuleReceiptCandidateV1 {
+            lanes: candidate.lanes,
+            authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
+            recomputed: RecomputedLaneModuleReceiptJournalV1::AssetTransferCustody(&expected),
             rebound,
             receipt: candidate.receipt,
         },

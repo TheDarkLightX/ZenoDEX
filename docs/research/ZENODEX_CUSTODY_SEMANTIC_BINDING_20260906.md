@@ -74,6 +74,9 @@ against the unchanged baseline with `--shadow-file`; this patch adds none.
 This is tested host binding code. Synthetic ACTIVE_NEW and evidence-status
 fixture rows are ordinary test data. No genuine receipt, measured successor
 guest, qualified release/profile, activation, publisher mount, custody genesis,
-deposit/withdrawal policy, or migration is supplied by this increment. Custody
-receipt and native-route entries remain subsequent integration tasks. The
-whole formal core and production value-safety claims remain closed.
+deposit/withdrawal policy, or migration is supplied by this increment. Subsequent
+host receipt-entry work is recorded in
+[the receipt boundary report](ZENODEX_CUSTODY_RECEIPT_BOUNDARY_20260906.md).
+Genuine successor receipt qualification and native-route integration remain
+separate obligations. The whole formal core and production value-safety claims
+remain closed.

@@ -15,6 +15,9 @@ import hashlib
 from dataclasses import dataclass
 from typing import Final
 
+from .asset_transfer_lane_module_custody_v1 import (
+    recompute_asset_transfer_lane_module_custody_v1,
+)
 from .asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleAcceptedV1,
     AssetTransferLaneModuleInputV1,
@@ -54,6 +57,7 @@ from .lane_module_release_route_binding_v1 import (
     ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
     PerpsMarginReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
+    _bind_asset_transfer_custody_output_structural_v1,
     _bind_asset_transfer_lane_output_structural_v1,
     _bind_managed_asset_lifecycle_lane_output_structural_v1,
     bind_perps_margin_lane_output_to_release_route_v1,
@@ -444,6 +448,51 @@ def verify_asset_transfer_lane_module_receipt_v1(
     )
 
 
+def verify_asset_transfer_lane_module_custody_receipt_v1(
+    candidate: AssetTransferLaneModuleReceiptCandidateV1,
+    receipt_verifier: SuccinctReceiptVerifierV1,
+) -> VerifiedLaneModuleTransitionV1:
+    """Verify one custody-complete transfer receipt under the selected successor.
+
+    One owned candidate snapshot supplies the custody semantic selector,
+    structural binding, and exactly one custody-complete recomputation. Unknown
+    or mixed custody roots reject before recomputation and receipt-port I/O.
+    The retained receipt oracle then enforces the active successor image,
+    canonical journal bounds, and succinct-only envelope; this function grants
+    no release activation or publication authority.
+    """
+
+    owned = _snapshot_asset_transfer_receipt_candidate_v1(candidate)
+    occurrence = owned.authenticated_command.occurrence
+    rebound = _bind_asset_transfer_custody_output_structural_v1(
+        AssetTransferReleaseRouteBindingCandidateV1(
+            owned.profile,
+            owned.policy_registry,
+            owned.asset_policy_registry,
+            occurrence,
+            owned.module_input,
+            owned.accepted,
+        )
+    )
+    if owned.release_route_binding.binding_root != rebound.binding_root:
+        raise ValueError("lane module structural binding mismatch")
+    expected = recompute_asset_transfer_lane_module_custody_v1(
+        owned.module_input,
+        owned.accepted,
+    )
+    return _verify_rebound_module_receipt_v1(
+        _ReboundLaneModuleReceiptCandidateV1(
+            owned.profile,
+            owned.authenticated_command.binding_root,
+            expected.module_journal,
+            owned.release_route_binding,
+            rebound,
+            owned.receipt,
+        ),
+        receipt_verifier,
+    )
+
+
 def verify_managed_asset_lifecycle_lane_module_receipt_v1(
     candidate: ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
     receipt_verifier: SuccinctReceiptVerifierV1,
@@ -607,6 +656,7 @@ __all__ = [
     "PerpsMarginLaneModuleReceiptCandidateV1",
     "VERIFIED_LANE_MODULE_TRANSITION_SCHEMA_V1",
     "VerifiedLaneModuleTransitionV1",
+    "verify_asset_transfer_lane_module_custody_receipt_v1",
     "verify_asset_transfer_lane_module_receipt_v1",
     "verify_managed_asset_lifecycle_lane_module_receipt_v1",
     "verify_perps_margin_lane_module_receipt_v1",
