@@ -1,0 +1,231 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-CONSTRUCTED-TRANSFER-ANNOTATION-REFINEMENT",
+      "points": [
+        "Fresh Std-only Lean 4.27 source closure; eight independently restated public signatures; allowed transitive axioms propext, Classical.choice and Quot.sound.",
+        "Actual policy selection and structural plan admission are derived from the input premises; no caller-selected policy or desired output relation is a public premise.",
+        "Unique effect keys and actual account/fee kinds imply at most one nonzero state-bearing contribution at each full physical key, establishing every ordered i128 prefix.",
+        "Exact fee-owner alias arithmetic determines fee-credit eligibility; reward/slash absence, positive fee rows and zero residue are derived separately.",
+        "Eighteen input-derived public runtime vectors cover role aliases, distinct asset policies and signed-width neighbors; fourteen constructed plans check key coordinates, credit, residue and intermediate overflow.",
+        "Nonempty admitted witnesses apply the actual front-door, sender-refusal and rejected-empty-plan theorems.",
+        "Model-only final-total and unconditional-eligibility counterfactuals are refuted; they are not production-source mutations.",
+        "An orphan reward label passes the standalone fee observer but fails the actual full-runtime supported-effect guard and the formal full annotation relation."
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "The actual completed pre-state-policy transfer satisfies all five global AnnotationMirrors clauses exactly when its selected fee is zero or its fee owner differs from the sender, under quantitative pre-state admission, command bounds and actual acceptance.",
+  "created_date": "2026-09-06",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "formal",
+    "differential"
+  ],
+  "evidence_id": "THV1-20260906-transfer-annotation-mirrors-v1",
+  "failure_modes": [
+    "Fresh Std-only Lean 4.27 source closure; eight independently restated public signatures; allowed transitive axioms propext, Classical.choice and Quot.sound.",
+    "Actual policy selection and structural plan admission are derived from the input premises; no caller-selected policy or desired output relation is a public premise.",
+    "Unique effect keys and actual account/fee kinds imply at most one nonzero state-bearing contribution at each full physical key, establishing every ordered i128 prefix.",
+    "Exact fee-owner alias arithmetic determines fee-credit eligibility; reward/slash absence, positive fee rows and zero residue are derived separately.",
+    "Eighteen input-derived public runtime vectors cover role aliases, distinct asset policies and signed-width neighbors; fourteen constructed plans check key coordinates, credit, residue and intermediate overflow.",
+    "Nonempty admitted witnesses apply the actual front-door, sender-refusal and rejected-empty-plan theorems.",
+    "Model-only final-total and unconditional-eligibility counterfactuals are refuted; they are not production-source mutations.",
+    "An orphan reward label passes the standalone fee observer but fails the actual full-runtime supported-effect guard and the formal full annotation relation."
+  ],
+  "invariant_ids": [
+    "V3-CONSTRUCTED-TRANSFER-ANNOTATION-REFINEMENT"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "No full global Verified construction, arbitrary custody conservation, lane-root advancement, replay/height progression or lifecycle closure.",
+    "Opaque commitments, governed profile admission, signatures and current-store authority remain separate obligations.",
+    "Finite comparisons and source pins do not establish universal Python/Rust/compiler refinement, cryptographic receipt validity, publisher qualification or whole-program completion.",
+    "The standalone executable fee observer is not the complete AnnotationMirrors predicate for arbitrary effect plans.",
+    "No new source-level mutation score, runtime economic change, wire change, policy exemption or live authority."
+  ],
+  "reject_is_noop": {
+    "reason": "Rejected completion retains the exact empty plan. Runtime controls check exact leaf rejection codes, unchanged owned inputs, equal roots, all six empty effect fields and unchanged plans after global guard refusals.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "experiments/v3_transfer_policy_selection_v1/render_evidence.py",
+      "sha256": "eb53ce65652ad81491866b7fa4907a043ca86b7889afe0fb712118af034c88fd"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_POLICY_SELECTION_20260906.md",
+      "sha256": "65be43e0542c2a6d9b009d446d1aee4a2439eabc84568905af4e89b230a3996c"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "740fcc15ea490fc81cbe5b4d50ee8a560a91a2d5f319cfbf2ac0f04b15d7f2d5"
+    },
+    {
+      "path": "lean-mathlib/lean-toolchain",
+      "sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+    },
+    {
+      "path": "src/core/asset_transfer_module_v1.py",
+      "sha256": "754d75a37ad70868bf20263fc189fc9e4f5a77cb864d8a1c7973afc253c938d7"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "5757c8b692820613e1eac30b7103e857a73b42efebbdda62d0a4469511f41277"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_state_admission_v1.py",
+      "sha256": "7aa8186b3f24343b36feb10a4c3f19ec35424d17e557d76dd7c7f74af333767c"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_supply_v1.py",
+      "sha256": "e8adadca735bcd24b7729760f0a3b4718f01789ce197407468fc1c9ba0320197"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_tables_v1.py",
+      "sha256": "76fce0078560e812d10c07c66983430ea3a3eb32b20b2e8692a583322fbc621b"
+    },
+    {
+      "path": "tests/formal/test_lean_checked_epoch_economic_tables_v1.py",
+      "sha256": "efd3cb46a8a4c952c994d74f3084971a36c61ef6bdbaf99305e723a373d05566"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
+      "sha256": "b72155a1f32f01a5c96df725358d7fbc55d5014ee0d9894e6743516d37b04e4b"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean",
+      "sha256": "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
+      "sha256": "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEpochEconomicTablesV1.lean",
+      "sha256": "ee6ebc40358879e168cbc245be1641a06e084a39642d5da2736caacfa60897cd"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CanonicalEpochEconomicRowsV1.lean",
+      "sha256": "5ff80f22fde38729468dc237dd5b40a28bacc57302a483bf42b3e9f90122fe64"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferRefinementV1.lean",
+      "sha256": "2d9ed7beb6feb47b67afa63a40d1203bcca9004b49ba978b9927edded6a04932"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyCompletionV1.lean",
+      "sha256": "fc6869b223a427ef22d040e71276d57c1f7b5bca9b95b471d4059ae771a1f8dc"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedSignedDeltaRefinementV1.lean",
+      "sha256": "3a0b3e18a069b14c8fec4e705178a73cb1b3356d9813195e5e7c35b09cf74a4d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyCompositionV1.lean",
+      "sha256": "37375e914576993767eae7484e620e54be300798785b2a57a9953e86be2f34d2"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseTablesV1.lean",
+      "sha256": "5d303c709501cfe0604c3e845a3b2814b8c5ebe4f0fcfd4090bda2d697f077c0"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseTraceV1.lean",
+      "sha256": "5a77ac04b4e214ab7d0dc6cb4b77e2369e16a7914d02cffb5df1d0b88f119b83"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseSupplyV1.lean",
+      "sha256": "e2c056cba91173f6c454f4b60c1adc228d9ffd7df58a9cebcdbbc0e9b46a683d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseStateAdmissionV1.lean",
+      "sha256": "82f54f4d5a5ba5e28a2ed2a96cd6b4155e70458c05d104b31eea0717aaae8649"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseAuthorizationV1.lean",
+      "sha256": "91d41486e814f80a876746a1d8a542daeda77599415792b0915f4a2fccc495fa"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferPolicySelectionV1.lean",
+      "sha256": "6c330fb920885223089d774eaf6110a3007bd2790a3c69dc947f80255edff321"
+    },
+    {
+      "path": "experiments/v3_transfer_effect_plan_v1/render_evidence.py",
+      "sha256": "5483f2e5a3b05421f1fade78da2a92331246462b5ddc2dc9707f9b25898d723b"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_EFFECT_PLAN_20260906.md",
+      "sha256": "beb053eb92f351fa4907f9d86b4476374a398c79fceae28e68af3de5bf7bb910"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_policy_selection_v1.py",
+      "sha256": "0c4a81c33797c398407871ee0fc1fee65ddfb0d2551617d9f0131b65cd263a51"
+    },
+    {
+      "path": "src/core/global_economic_state_delta_v1.py",
+      "sha256": "5b06120b14176985a2889b81cc784145339b7f72720d7b161c74b296cb4e5634"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferEffectPlanV1.lean",
+      "sha256": "14cea53d90e1fdc6f068e581dcc8e737526475b323100c5d6c27b9354f769de9"
+    },
+    {
+      "path": "experiments/v3_transfer_annotation_mirrors_v1/render_evidence.py",
+      "sha256": "4964f75e6e47cb3b0a0c646bb80e47199cd946da8ab0e08a12c01634571d55ae"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_ANNOTATION_MIRRORS_20260906.md",
+      "sha256": "27d1565784b2b826dab9d09a4b4f3107bae41e0e680bdb7d28b2824b8741cbe0"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_effect_plan_v1.py",
+      "sha256": "6b3c5603c2724097751c6ce7df74893ffd5767cc499b57c4fd7c1fc9eacd7f35"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferFeeMirrorEligibilityV1.lean",
+      "sha256": "03ae7a9c1db3b8355fb2cd3f09206565cee524c3c735855a0af6c5287ecc5a10"
+    },
+    {
+      "path": "tools/scan_lean_proof_placeholders_v1.py",
+      "sha256": "44a7c67142955ad3b7a803ab599d31ca8754d0f9cdd795588ea9745f58239fc4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferAnnotationMirrorsV1.lean",
+      "sha256": "81e0fae0addd597b509f7890e4fa8cb1206f6b650414a5db948fcb75633afc30"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_asset_transfer_annotation_mirrors_v1.py::test_contract_axioms_placeholders_and_source_pins",
+        "tests/formal/test_lean_asset_transfer_annotation_mirrors_v1.py::test_runtime_aliases_widths_and_second_asset_match_lean_model_and_theorem_rhs",
+        "tests/formal/test_lean_asset_transfer_annotation_mirrors_v1.py::test_constructed_plans_prefix_overflow_coordinates_and_residue_match_lean_model",
+        "tests/formal/test_lean_asset_transfer_annotation_mirrors_v1.py::test_nonempty_admitted_witnesses_apply_the_actual_theorems",
+        "tests/formal/test_lean_asset_transfer_annotation_mirrors_v1.py::test_unconditional_acceptance_mutant_is_refuted_by_sender_witness"
+      ],
+      "path": "tests/formal/test_lean_asset_transfer_annotation_mirrors_v1.py",
+      "sha256": "c0f6e3ec00d3705dbdb069e4b173bd54bb891f38a5fecf17fdfba03ebb245edc"
+    }
+  ]
+}
