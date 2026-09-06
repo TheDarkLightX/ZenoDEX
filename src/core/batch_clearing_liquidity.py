@@ -9,6 +9,7 @@ from ..state.balances import BalanceTable
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 from ..state.pools import PoolState
+from ..state.support_root import LP_LOCK_PUBKEY
 from .domain_limits import is_strict_int
 from .settlement import Fill, FillAction
 
@@ -172,6 +173,8 @@ def _process_remove_liquidity_intent(
         amount0_min=params.amount0_min,
         amount1_min=params.amount1_min,
     )
+    if intent.sender_pubkey == LP_LOCK_PUBKEY:
+        return _reject_liquidity(intent.intent_id, "RESERVED_LP_LOCK")
 
     return _remove_liquidity_fill(
         intent_id=intent.intent_id,

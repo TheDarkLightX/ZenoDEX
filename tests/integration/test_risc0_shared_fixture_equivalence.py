@@ -2,20 +2,25 @@ from __future__ import annotations
 
 import hashlib
 import math
+from dataclasses import asdict
 
 import pytest
 
+from src.core.batch_clearing import compute_settlement
 from src.core.cpmm import MIN_LP_LOCK, compute_fee_total, swap_exact_in
 from src.core.liquidity import create_pool
+from src.core.settlement import FillAction
+from src.state.balances import BalanceTable
 from src.state.canonical import canonical_json_bytes
-from src.state.pools import compute_pool_id
-
+from src.state.intents import Intent, IntentKind
+from src.state.lp import LPTable
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
+from src.state.support_root import LP_LOCK_PUBKEY
 
 ASSET0 = "0x" + "11" * 32
 ASSET1 = "0x" + "22" * 32
 SENDER = "0x" + "aa" * 48
 RECIPIENT = "0x" + "bb" * 48
-LP_LOCK_PUBKEY = "0x" + "00" * 48
 POOL_ID = "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686"
 
 
@@ -145,3 +150,66 @@ def test_risc0_shared_fixture_swap_exact_in_matches_python_core() -> None:
 def test_risc0_shared_fixture_zero_output_swap_rejects_in_python_core() -> None:
     with pytest.raises(ValueError, match="amount_out is zero"):
         swap_exact_in(10_000, 10_000, 2, 30)
+
+
+def test_risc0_shared_fixed_remove_liquidity_lock_vector_matches_python_batch_core() -> None:
+    """This fixed vector is mirrored by the Rust shared-transition unit test."""
+    pool = PoolState(
+        pool_id=POOL_ID,
+        asset0=ASSET0,
+        asset1=ASSET1,
+        reserve0=10_000,
+        reserve1=10_000,
+        fee_bps=30,
+        lp_supply=10_000,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    lp_balances = LPTable()
+    lp_balances.set(LP_LOCK_PUBKEY, POOL_ID, MIN_LP_LOCK)
+    lp_balances.set(SENDER, POOL_ID, 9_000)
+
+    def remove_intent(*, sender: str, lp_amount: int, intent_number: int) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.REMOVE_LIQUIDITY,
+            intent_id="0x" + f"{intent_number:064x}",
+            sender_pubkey=sender,
+            deadline=100,
+            fields={
+                "pool_id": POOL_ID,
+                "lp_amount": lp_amount,
+                "amount0_min": 0,
+                "amount1_min": 0,
+                "recipient": RECIPIENT,
+            },
+        )
+
+    for lp_amount in (1, MIN_LP_LOCK):
+        before = (asdict(pool), balances.get_all_balances(), lp_balances.get_all_balances())
+        settlement = compute_settlement(
+            [remove_intent(sender=LP_LOCK_PUBKEY, lp_amount=lp_amount, intent_number=lp_amount)],
+            {POOL_ID: pool},
+            balances,
+            lp_balances,
+        )
+        assert len(settlement.fills) == 1
+        assert settlement.fills[0].action == FillAction.REJECT
+        assert settlement.fills[0].reason == "RESERVED_LP_LOCK"
+        assert (asdict(pool), balances.get_all_balances(), lp_balances.get_all_balances()) == before
+
+    settlement = compute_settlement(
+        [remove_intent(sender=SENDER, lp_amount=1, intent_number=9_001)],
+        {POOL_ID: pool},
+        balances,
+        lp_balances,
+    )
+    assert len(settlement.fills) == 1
+    assert settlement.fills[0].action == FillAction.FILL
+    assert (
+        settlement.fills[0].amount0_out,
+        settlement.fills[0].amount1_out,
+        settlement.fills[0].lp_burned,
+    ) == (1, 1, 1)

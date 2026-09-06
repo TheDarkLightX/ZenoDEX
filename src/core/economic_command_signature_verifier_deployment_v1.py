@@ -11,9 +11,14 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from enum import Enum
 from typing import Final
 
 from ..state.canonical import domain_sep_bytes
+from .bls_command_verifier_protocol_v1 import (
+    BLS_COMMAND_ALGORITHM_V1,
+    bls_command_verifier_protocol_root_v1,
+)
 from .economic_command_signature_verifier_capability_v1 import (
     _BOUND_VERIFIER_TOKEN_V1,
     BoundEconomicCommandSignatureVerifierV1,
@@ -37,11 +42,18 @@ from .global_settlement_types_v1 import (
 )
 
 MAX_COMMAND_SIGNATURE_VERIFIER_ARTIFACT_BYTES_V1: Final = 16 * 1024 * 1024
+BLS_COMMAND_PUBLIC_KEY_TOKEN_BYTES_V1: Final = 2 + (48 * 2)
+BLS_COMMAND_SIGNATURE_BYTES_V1: Final = 96
 _IMPLEMENTATION_ROOT_DOMAIN_V1: Final = "economic-command-signature-verifier-implementation-v1"
 _EVIDENCE_MANIFEST_ROOT_DOMAIN_V1: Final = (
     "economic-command-signature-verifier-evidence-manifest-v1"
 )
 _BACKEND_PROTOCOL_ROOT_DOMAIN_V1: Final = "economic-command-signature-verifier-backend-protocol-v1"
+
+
+class _CommandSignatureVerifierDeploymentProtocolV1(Enum):
+    LEGACY_CALLBACK = "LEGACY_CALLBACK"
+    SEALED_BLS = "SEALED_BLS"
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,17 +226,66 @@ def bind_economic_command_signature_verifier_deployment_v1(
 ) -> BoundEconomicCommandSignatureVerifierV1:
     """Bind one measured verifier artifact to one governed deployment scope."""
 
+    return _bind_command_signature_verifier_deployment_v1(
+        release=release,
+        evidence_manifest=evidence_manifest,
+        measured_artifact_bytes=measured_artifact_bytes,
+        deployment_root=deployment_root,
+        profile_root=profile_root,
+        backend=backend,
+        selection_purpose=selection_purpose,
+        protocol=_CommandSignatureVerifierDeploymentProtocolV1.LEGACY_CALLBACK,
+    )
+
+
+def bind_bls_command_signature_verifier_deployment_v1(
+    *,
+    release: EconomicCommandSignatureVerifierReleaseV1,
+    evidence_manifest: EconomicCommandSignatureVerifierEvidenceManifestV1,
+    measured_artifact_bytes: bytes,
+    deployment_root: str,
+    profile_root: str,
+    backend: EconomicCommandSignatureVerifierBackendV1,
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1 = EconomicCommandSignatureVerifierSelectionPurposeV1.PRODUCTION_NEW,
+) -> BoundEconomicCommandSignatureVerifierV1:
+    """Bind the fixed standalone BLS protocol to one measured release scope."""
+
+    return _bind_command_signature_verifier_deployment_v1(
+        release=release,
+        evidence_manifest=evidence_manifest,
+        measured_artifact_bytes=measured_artifact_bytes,
+        deployment_root=deployment_root,
+        profile_root=profile_root,
+        backend=backend,
+        selection_purpose=selection_purpose,
+        protocol=_CommandSignatureVerifierDeploymentProtocolV1.SEALED_BLS,
+    )
+
+
+def _bind_command_signature_verifier_deployment_v1(
+    *,
+    release: EconomicCommandSignatureVerifierReleaseV1,
+    evidence_manifest: EconomicCommandSignatureVerifierEvidenceManifestV1,
+    measured_artifact_bytes: bytes,
+    deployment_root: str,
+    profile_root: str,
+    backend: EconomicCommandSignatureVerifierBackendV1,
+    selection_purpose: EconomicCommandSignatureVerifierSelectionPurposeV1,
+    protocol: _CommandSignatureVerifierDeploymentProtocolV1,
+) -> BoundEconomicCommandSignatureVerifierV1:
     owned_release = _snapshot_signature_verifier_release_v1(release)
     require_command_signature_verifier_release_purpose_v1(owned_release, selection_purpose)
     owned_manifest = _snapshot_signature_verifier_manifest_v1(evidence_manifest)
     if owned_manifest.manifest_root != owned_release.evidence_manifest_root:
         raise ValueError("command signature verifier evidence manifest root mismatch")
     _require_manifest_release_coordinates_v1(owned_manifest, owned_release)
-    if (
-        owned_manifest.backend_protocol_root
-        != command_signature_verifier_backend_protocol_root_v1()
-    ):
+    required_backend_protocol_root = _command_signature_verifier_protocol_root_v1(protocol)
+    if owned_manifest.backend_protocol_root != required_backend_protocol_root:
         raise ValueError("command signature verifier backend protocol root mismatch")
+    _require_command_signature_verifier_protocol_release_contract_v1(
+        protocol,
+        owned_release,
+    )
     measured_root = command_signature_verifier_implementation_root_v1(measured_artifact_bytes)
     if measured_root != owned_release.implementation_root:
         raise ValueError("command signature verifier measured implementation root mismatch")
@@ -250,6 +311,36 @@ def bind_economic_command_signature_verifier_deployment_v1(
             selection_purpose=selection_purpose,
         ),
     )
+
+
+def _command_signature_verifier_protocol_root_v1(
+    protocol: _CommandSignatureVerifierDeploymentProtocolV1,
+) -> str:
+    if type(protocol) is not _CommandSignatureVerifierDeploymentProtocolV1:
+        raise TypeError("command signature verifier deployment protocol is not closed")
+    if protocol is _CommandSignatureVerifierDeploymentProtocolV1.LEGACY_CALLBACK:
+        return command_signature_verifier_backend_protocol_root_v1()
+    if protocol is _CommandSignatureVerifierDeploymentProtocolV1.SEALED_BLS:
+        return bls_command_verifier_protocol_root_v1()
+    raise ValueError("command signature verifier deployment protocol is unsupported")
+
+
+def _require_command_signature_verifier_protocol_release_contract_v1(
+    protocol: _CommandSignatureVerifierDeploymentProtocolV1,
+    release: EconomicCommandSignatureVerifierReleaseV1,
+) -> None:
+    if type(protocol) is not _CommandSignatureVerifierDeploymentProtocolV1:
+        raise TypeError("command signature verifier deployment protocol is not closed")
+    if protocol is _CommandSignatureVerifierDeploymentProtocolV1.LEGACY_CALLBACK:
+        return
+    if protocol is not _CommandSignatureVerifierDeploymentProtocolV1.SEALED_BLS:
+        raise ValueError("command signature verifier deployment protocol is unsupported")
+    if release.signature_algorithm != BLS_COMMAND_ALGORITHM_V1:
+        raise ValueError("BLS command verifier algorithm mismatch")
+    if release.max_public_key_bytes != BLS_COMMAND_PUBLIC_KEY_TOKEN_BYTES_V1:
+        raise ValueError("BLS command verifier public-key ceiling mismatch")
+    if release.max_signature_bytes != BLS_COMMAND_SIGNATURE_BYTES_V1:
+        raise ValueError("BLS command verifier signature ceiling mismatch")
 
 
 def _snapshot_signature_verifier_release_v1(
@@ -338,11 +429,14 @@ def _require_manifest_release_coordinates_v1(
 
 
 __all__ = [
+    "BLS_COMMAND_PUBLIC_KEY_TOKEN_BYTES_V1",
+    "BLS_COMMAND_SIGNATURE_BYTES_V1",
     "BoundEconomicCommandSignatureVerifierV1",
     "CommandSignatureVerifierEvidenceArtifactV1",
     "EconomicCommandSignatureVerifierBackendV1",
     "EconomicCommandSignatureVerifierEvidenceManifestV1",
     "MAX_COMMAND_SIGNATURE_VERIFIER_ARTIFACT_BYTES_V1",
+    "bind_bls_command_signature_verifier_deployment_v1",
     "bind_economic_command_signature_verifier_deployment_v1",
     "command_signature_verifier_backend_protocol_root_v1",
     "command_signature_verifier_implementation_root_v1",

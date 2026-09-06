@@ -1,16 +1,20 @@
 """Rebuild one isolated ASSET receipt chain from raw, unauthenticated evidence.
 
-The factory fixes a concrete BLS backend, measured receipt ports and an owned
-profile/policy snapshot. Each call snapshots disclosures, reauthenticates the
-signed intent and recomputes the module before verifying its three receipts.
-Caller-provided authentication, module and route witnesses supply no authority.
+Each public factory fixes one concrete BLS backend, measured receipt ports and
+an owned profile/policy snapshot. The legacy factory retains its Python BLS
+backend and artifact-to-loaded-code premise. The sealed factory executes the
+acquired standalone verifier bytes while retaining the Python interpreter, OS,
+dynamic loader and system libraries in its TCB. Each call snapshots disclosures,
+reauthenticates the signed intent and recomputes the module before verifying its
+three receipts. Caller-provided authentication, module and route witnesses
+supply no authority.
 
 This adapter performs no allocation admission, epoch proof verification, store
 acquisition, replay consumption or publication. Its caller acquires the explicit
 predecessor and must check allocation and epoch admission before atomic commit.
-The current isolated scope has one occurrence; the existing coordinator retains
-its nonzero-custody limitation. Interpreter/dependency integrity and the BLS
-artifact-to-loaded-code correspondence remain external premises.
+The current isolated scope has one occurrence; its selected legacy asset module
+remains limited to zero-custody composition. Interpreter and dependency
+integrity remain external premises.
 """
 
 from __future__ import annotations
@@ -110,6 +114,9 @@ from src.integration.economic_command_bls_signature_verifier_v1 import (
 from src.integration.isolated_profile_receipt_ports_v1 import (
     IsolatedProfileReceiptPortsV1,
     _bound_isolated_profile_receipt_verifier_v1,
+)
+from src.integration.sealed_bls_command_verifier_deployment_v1 import (
+    bind_deployed_sealed_bls_command_verifier_v1,
 )
 
 
@@ -226,7 +233,73 @@ def bind_isolated_asset_receipt_pipeline_v1(
     signature_release: EconomicCommandSignatureVerifierReleaseV1,
     signature_evidence_manifest: EconomicCommandSignatureVerifierEvidenceManifestV1,
 ) -> IsolatedAssetReceiptPipelineV1:
-    """Acquire the BLS artifact and retain only factory-minted measured ports."""
+    """Retain the legacy Python BLS backend and factory-minted measured ports."""
+    owned_profile, owned_policy = _prepare_isolated_asset_pipeline_context_v1(
+        profile=profile,
+        policy_registry=policy_registry,
+        receipt_ports=receipt_ports,
+        deployment_root=deployment_root,
+    )
+    signature_verifier = bind_deployed_bls_economic_command_signature_verifier_v1(
+        artifact_path=signature_artifact_path,
+        release=signature_release,
+        evidence_manifest=signature_evidence_manifest,
+        deployment_root=deployment_root,
+        profile_root=owned_profile.profile_id,
+        selection_purpose=EconomicCommandSignatureVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION,
+    )
+    return _mint_isolated_asset_receipt_pipeline_v1(
+        profile=owned_profile,
+        policy_registry=owned_policy,
+        deployment_root=deployment_root,
+        signature_verifier=signature_verifier,
+        receipt_ports=receipt_ports,
+    )
+
+
+def bind_isolated_asset_receipt_pipeline_with_sealed_bls_v1(
+    *,
+    profile: EconomicProfileSnapshotV1,
+    policy_registry: EconomicPolicyRegistryV1,
+    receipt_ports: IsolatedProfileReceiptPortsV1,
+    deployment_root: str,
+    signature_artifact_path: Path,
+    signature_release: EconomicCommandSignatureVerifierReleaseV1,
+    signature_evidence_manifest: EconomicCommandSignatureVerifierEvidenceManifestV1,
+    signature_timeout_ms: int,
+) -> IsolatedAssetReceiptPipelineV1:
+    """Acquire and execute one fixed standalone BLS verifier snapshot."""
+    owned_profile, owned_policy = _prepare_isolated_asset_pipeline_context_v1(
+        profile=profile,
+        policy_registry=policy_registry,
+        receipt_ports=receipt_ports,
+        deployment_root=deployment_root,
+    )
+    signature_verifier = bind_deployed_sealed_bls_command_verifier_v1(
+        artifact_path=signature_artifact_path,
+        release=signature_release,
+        evidence_manifest=signature_evidence_manifest,
+        deployment_root=deployment_root,
+        profile_root=owned_profile.profile_id,
+        timeout_ms=signature_timeout_ms,
+        selection_purpose=EconomicCommandSignatureVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION,
+    )
+    return _mint_isolated_asset_receipt_pipeline_v1(
+        profile=owned_profile,
+        policy_registry=owned_policy,
+        deployment_root=deployment_root,
+        signature_verifier=signature_verifier,
+        receipt_ports=receipt_ports,
+    )
+
+
+def _prepare_isolated_asset_pipeline_context_v1(
+    *,
+    profile: EconomicProfileSnapshotV1,
+    policy_registry: EconomicPolicyRegistryV1,
+    receipt_ports: IsolatedProfileReceiptPortsV1,
+    deployment_root: str,
+) -> tuple[EconomicProfileSnapshotV1, EconomicPolicyRegistryV1]:
     if type(deployment_root) is not str:
         raise TypeError("isolated asset pipeline deployment root must be an exact string")
     owned_profile = snapshot_economic_profile_v1(profile)
@@ -239,19 +312,22 @@ def bind_isolated_asset_receipt_pipeline_v1(
         verifier_registry_root=owned_profile.verifier_registry_root,
         deployment_root=deployment_root,
     )
-    signature_verifier = bind_deployed_bls_economic_command_signature_verifier_v1(
-        artifact_path=signature_artifact_path,
-        release=signature_release,
-        evidence_manifest=signature_evidence_manifest,
-        deployment_root=deployment_root,
-        profile_root=owned_profile.profile_id,
-        selection_purpose=EconomicCommandSignatureVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION,
-    )
+    return owned_profile, owned_policy
+
+
+def _mint_isolated_asset_receipt_pipeline_v1(
+    *,
+    profile: EconomicProfileSnapshotV1,
+    policy_registry: EconomicPolicyRegistryV1,
+    deployment_root: str,
+    signature_verifier: BoundEconomicCommandSignatureVerifierV1,
+    receipt_ports: IsolatedProfileReceiptPortsV1,
+) -> IsolatedAssetReceiptPipelineV1:
     pipeline = object.__new__(IsolatedAssetReceiptPipelineV1)
     with _LOCK:
         _AUTHORITIES[pipeline] = _PipelineAuthorityV1(
-            owned_profile,
-            owned_policy,
+            profile,
+            policy_registry,
             deployment_root,
             signature_verifier,
             receipt_ports,

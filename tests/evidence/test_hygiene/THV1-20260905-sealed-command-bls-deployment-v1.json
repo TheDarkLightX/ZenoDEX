@@ -1,0 +1,112 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-BLS-RELEASE-EXECUTION-BINDING",
+      "points": [
+        "legacy and successor protocol mismatches both directions",
+        "key token98 and signature96 byte ceilings with neighbors",
+        "artifact and manifest mismatch",
+        "deployment and profile roots",
+        "selection purpose",
+        "legacy Rust SHADOW and VERIFY_ONLY refusal with stable active binding root",
+        "real valid and invalid signatures"
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "Separate closed-protocol Python/Rust binders admit matching release, manifest, artifact and scope; the sealed shell executes the exact measured byte snapshot.",
+  "created_date": "2026-09-05",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "differential"
+  ],
+  "evidence_id": "THV1-20260905-sealed-command-bls-deployment-v1",
+  "failure_modes": [
+    "legacy and successor protocol mismatches both directions",
+    "key token98 and signature96 byte ceilings with neighbors",
+    "artifact and manifest mismatch",
+    "deployment and profile roots",
+    "selection purpose",
+    "legacy Rust SHADOW and VERIFY_ONLY refusal with stable active binding root",
+    "real valid and invalid signatures"
+  ],
+  "invariant_ids": [
+    "V3-BLS-RELEASE-EXECUTION-BINDING"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "Release and evidence roots in the tests are synthetic; the tests do not issue or qualify a governed production release.",
+    "The Rust legacy binder now requires production admission, closing its previous purpose gap; compound-invalid first-error order differs by language.",
+    "No pipeline mount, active profile, publication authority or fresh genuine proof chain is added.",
+    "Changed shared ABI source requires selected guest remeasurement; historical guest receipts do not qualify new source."
+  ],
+  "reject_is_noop": {
+    "reason": "Precommit refusals preserve complete owned input or logical store snapshots; committed response loss explicitly has a different contract. The standalone BLS endpoint and transport have no economic write port.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/core/bls_command_verifier_protocol_v1.py",
+      "sha256": "3be85c96f74d95f1a472b2d40903c7ab1aff6e4a240f1568f7a9e08f1bd10ddb"
+    },
+    {
+      "path": "src/core/economic_command_signature_verifier_deployment_v1.py",
+      "sha256": "2d551371b5cb67ba136f5987a129092c5e3e049e3766a53f94ad29e333228fe8"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_deployment_v1.py",
+      "sha256": "646a8a6d99508fc854c5baaaa6434b84a9d86114502040242c59a0be874dbf49"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_v1.py",
+      "sha256": "56cb70b822a20cc7cc7b3a3bd10aa8098f2ae145484f532a785d015465a3f08b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_command_signature_verifier_deployment.rs",
+      "sha256": "a460a98edd822b19cf9a24c5e4d1a15d2f06908edff8680ba3b5ec27482f62a5"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/bls_command_verifier_deployment.rs",
+      "sha256": "8c83ef1103d92da34a5ac9cd491b27439c8fca78df0f943491273d4f52067b8c"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/economic_command_signature_verifier_deployment.rs",
+      "sha256": "efb4d072fe45f03702dc7324c95e82dad01f802c3e8e49ac130db32ccf9af0ce"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "a41709b2d2f481f3d8f239b47cab4e460e2b54b86dce1585a660b41ace07b000"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/core/test_bls_command_verifier_deployment_v1.py::test_successor_protocol_root_is_fixed_and_distinct_from_legacy",
+        "tests/core/test_bls_command_verifier_deployment_v1.py::test_successor_binding_mints_only_the_requested_scoped_capability",
+        "tests/core/test_bls_command_verifier_deployment_v1.py::test_old_and_new_protocol_binders_reject_each_others_manifests",
+        "tests/core/test_bls_command_verifier_deployment_v1.py::test_successor_binder_requires_exact_bls_algorithm_and_ceilings",
+        "tests/core/test_bls_command_verifier_deployment_v1.py::test_successor_binder_rejects_artifact_manifest_and_scope_mismatches",
+        "tests/core/test_bls_command_verifier_deployment_v1.py::test_successor_binder_enforces_production_and_isolated_purposes"
+      ],
+      "path": "tests/core/test_bls_command_verifier_deployment_v1.py",
+      "sha256": "8130a73ee15f2cf0286be1590fb8781201c6cc3a8a3c03daf105b11ee72365ce"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_sealed_bls_command_verifier_deployment_v1.py::test_public_shell_factory_has_no_backend_injection_and_acquires_once",
+        "tests/integration/test_sealed_bls_command_verifier_deployment_v1.py::test_fresh_isolated_binding_executes_real_independent_g2basic_signature"
+      ],
+      "path": "tests/integration/test_sealed_bls_command_verifier_deployment_v1.py",
+      "sha256": "44eba5ac7180fb4514cf2b69eea0a2affd8f12ae25453d4842b9b830b89e902e"
+    }
+  ]
+}

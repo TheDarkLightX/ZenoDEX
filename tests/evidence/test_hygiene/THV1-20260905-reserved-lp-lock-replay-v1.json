@@ -1,0 +1,115 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "SPOT-RESERVED-LP-LOCK-NONSPENDABLE",
+      "points": [
+        "zero amount rejection precedence",
+        "one LP atom",
+        "entire minimum locked share",
+        "inactive pool",
+        "ordinary holder withdrawal"
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "Legacy REMOVE_LIQUIDITY producer, apply, and replay paths refuse spending the reserved LP lock before mutation; the Rust shared transition carries the same guard and mirrored fixed vector.",
+  "created_date": "2026-09-05",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "stateful"
+  ],
+  "evidence_id": "THV1-20260905-reserved-lp-lock-replay-v1",
+  "failure_modes": [
+    "zero amount rejection precedence",
+    "one LP atom",
+    "entire minimum locked share",
+    "inactive pool",
+    "ordinary holder withdrawal"
+  ],
+  "invariant_ids": [
+    "SPOT-RESERVED-LP-LOCK-NONSPENDABLE"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "No pool-close policy, terminal claimant, V3 lane mount or universal runtime/Rust refinement is established."
+  ],
+  "reject_is_noop": {
+    "reason": "Precommit refusals preserve complete owned input or logical store snapshots; committed response loss explicitly has a different contract. The standalone BLS endpoint and transport have no economic write port.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/core/settlement_replay_remove_liquidity.py",
+      "sha256": "be840e20f5b17b9670d902c14c15c1f93a1089ece40e34c8c41823151d478638"
+    },
+    {
+      "path": "src/state/support_root.py",
+      "sha256": "c8c3becc58ee196ee31e0bd0c03acf0b81b541f694feae76ab6c0e162aa42608"
+    },
+    {
+      "path": "src/core/batch_clearing_liquidity.py",
+      "sha256": "1b5ef32339361cfecd3ed4f96596287239f661c5d952f1a9688a817a0e550c2c"
+    },
+    {
+      "path": "src/core/batch_clearing_apply.py",
+      "sha256": "c87b3810070cc447f6a43f0ccf5801f0cf85eadce79779a9775fdc2957286a72"
+    },
+    {
+      "path": "src/core/batch_clearing_single_pool_liquidity.py",
+      "sha256": "20cf7e3a0ac44d9b015cb07380b055be924874e6a194e154c824635746a4bd61"
+    },
+    {
+      "path": "zk/state_proof_risc0/shared/src/lib.rs",
+      "sha256": "3d12f67f513b1125f396ac074a25be2ffe7617a0e8ca0e379d3c304d0addb8b8"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "a41709b2d2f481f3d8f239b47cab4e460e2b54b86dce1585a660b41ace07b000"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/core/test_settlement_replay_remove_liquidity_reserved_lock.py::test_reserved_lp_lock_rejects_positive_burn_without_mutating_replay",
+        "tests/core/test_settlement_replay_remove_liquidity_reserved_lock.py::test_reserved_lp_lock_keeps_invalid_amount_rejection_precedence",
+        "tests/core/test_settlement_replay_remove_liquidity_reserved_lock.py::test_reserved_lp_lock_keeps_inactive_pool_rejection_precedence",
+        "tests/core/test_settlement_replay_remove_liquidity_reserved_lock.py::test_ordinary_holder_can_remove_one_lp_atom"
+      ],
+      "path": "tests/core/test_settlement_replay_remove_liquidity_reserved_lock.py",
+      "sha256": "2580231126bcbe3165df3e7b6937e19d882279e0306ae62ea9233403df9ed950"
+    },
+    {
+      "node_ids": [
+        "tests/core/test_batch_clearing_remove_liquidity_reserved_lock.py::test_reserved_lp_lock_rejects_in_batch_producer_without_mutating_inputs",
+        "tests/core/test_batch_clearing_remove_liquidity_reserved_lock.py::test_reserved_lp_lock_keeps_invalid_parameter_rejection_precedence_in_batch_producer",
+        "tests/core/test_batch_clearing_remove_liquidity_reserved_lock.py::test_reserved_lp_lock_cannot_enter_general_or_single_pool_apply_paths",
+        "tests/core/test_batch_clearing_remove_liquidity_reserved_lock.py::test_ordinary_lp_holder_still_withdraws_one_atom_through_batch_apply"
+      ],
+      "path": "tests/core/test_batch_clearing_remove_liquidity_reserved_lock.py",
+      "sha256": "09a38ee3aafadbec93929ad71c8c42137700f64591a6abaa404eed61c2ce09df"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_risc0_shared_fixture_equivalence.py::test_risc0_shared_fixture_pool_id_matches_python_core",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py::test_risc0_shared_fixture_pool_id_normalizes_hex_asset_id_case",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py::test_risc0_shared_fixture_create_pool_rejects_canonical_equal_hex_asset_ids",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py::test_risc0_shared_fixture_create_pool_math_matches_python_core",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py::test_risc0_shared_fixture_insufficient_initial_liquidity_rejects_in_python_core",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py::test_risc0_shared_fixture_swap_exact_in_matches_python_core",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py::test_risc0_shared_fixture_zero_output_swap_rejects_in_python_core",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py::test_risc0_shared_fixed_remove_liquidity_lock_vector_matches_python_batch_core"
+      ],
+      "path": "tests/integration/test_risc0_shared_fixture_equivalence.py",
+      "sha256": "242690ae10f94eab8960f2746f33b58f376d568347dc9855ca810cc59f64c32d"
+    }
+  ]
+}

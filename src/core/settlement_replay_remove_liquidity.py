@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 from ..state.balances import PubKey
 from ..state.intents import Intent
 from ..state.pools import PoolState, PoolStatus
+from ..state.support_root import LP_LOCK_PUBKEY
 from .domain_limits import is_strict_int
 from .liquidity import remove_liquidity
 from .settlement import BalanceDelta, Fill, LPDelta, ReserveDelta
@@ -200,6 +201,8 @@ def replay_remove_liquidity_fill(
     )
     if replay_input is None:
         return err or f"missing REMOVE_LIQUIDITY lp_amount for intent_id={intent.intent_id}"
+    if replay_input.sender == LP_LOCK_PUBKEY:
+        return f"REMOVE_LIQUIDITY reserved LP lock cannot be burned for intent_id={replay_input.intent_id}"
 
     try:
         amount0_out, amount1_out = remove_liquidity(

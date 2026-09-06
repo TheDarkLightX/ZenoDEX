@@ -9,6 +9,7 @@ from ..state.balances import BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 from ..state.pools import PoolState
+from ..state.support_root import LP_LOCK_PUBKEY
 from .settlement import BalanceDelta, Fill, LPDelta, ReserveDelta
 from .settlement_fill_fields import read_optional_non_negative_fill_int
 
@@ -241,6 +242,8 @@ def _apply_remove_liquidity_fill_to_locals(
         field_name="amount1_out",
         fill=fill,
     )
+    if sender == LP_LOCK_PUBKEY:
+        raise ValueError("REMOVE_LIQUIDITY reserved LP lock cannot be burned")
 
     context.lp_balances.subtract(sender, context.pool_id, lp_burned)
     context.balances.add(recipient, context.pool_state.asset0, amount0_out)

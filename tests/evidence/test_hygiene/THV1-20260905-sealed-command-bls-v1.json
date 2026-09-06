@@ -1,0 +1,126 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-BLS-MEASURED-BYTES-EXECUTION",
+      "points": [
+        "message length one and maximum neighbors",
+        "public key and signature lengths",
+        "foreign message key and ciphersuite",
+        "infinity encoding",
+        "digest and framing mismatch",
+        "process failures",
+        "sealed descriptor and acquired path replacement"
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "Standalone G2 Basic endpoint and immutable measured-byte Python transport implement a separate bounded request-digest-bound protocol.",
+  "created_date": "2026-09-05",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "differential"
+  ],
+  "evidence_id": "THV1-20260905-sealed-command-bls-v1",
+  "failure_modes": [
+    "message length one and maximum neighbors",
+    "public key and signature lengths",
+    "foreign message key and ciphersuite",
+    "infinity encoding",
+    "digest and framing mismatch",
+    "process failures",
+    "sealed descriptor and acquired path replacement"
+  ],
+  "invariant_ids": [
+    "V3-BLS-MEASURED-BYTES-EXECUTION"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "The real transport test requires ZENODEX_BLS_VERIFIER_TEST_BINARY; a default skipped run supplies no real-execution evidence.",
+    "No release capability, active profile, publication mount or genuine five-receipt successor is created.",
+    "Python, the operating system, dynamic loader and native system libraries remain trusted."
+  ],
+  "reject_is_noop": {
+    "reason": "Precommit refusals preserve complete owned input or logical store snapshots; committed response loss explicitly has a different contract. The standalone BLS endpoint and transport have no economic write port.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/core/bls_command_verifier_protocol_v1.py",
+      "sha256": "3be85c96f74d95f1a472b2d40903c7ab1aff6e4a240f1568f7a9e08f1bd10ddb"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_v1.py",
+      "sha256": "56cb70b822a20cc7cc7b3a3bd10aa8098f2ae145484f532a785d015465a3f08b"
+    },
+    {
+      "path": "src/integration/global_receipt_verifier_v1.py",
+      "sha256": "5e727d826ea298559e3bc2136fe96dec62f2d56eb66e6488771e652b699fcd47"
+    },
+    {
+      "path": "src/integration/economic_command_signature_verifier_deployment_v1.py",
+      "sha256": "a9f93aa7788c55260907c20ac155b62ae385c37d3e60dd000b00a11ad517b55c"
+    },
+    {
+      "path": "zk/economic_command_bls_verifier_v1/Cargo.toml",
+      "sha256": "3ba0b5e95656c6fdbf5078dbe25c0993edbd3345dcebce09270022a36c5a4261"
+    },
+    {
+      "path": "zk/economic_command_bls_verifier_v1/Cargo.lock",
+      "sha256": "196c8c9fdfc2b4264728145bcb859e542ca99236bbf083c0580f6d1aa8fa4288"
+    },
+    {
+      "path": "zk/economic_command_bls_verifier_v1/src/main.rs",
+      "sha256": "de4a025c7ffd4dc7e58c5597a62b97e527ced35f2e17ad337f126dbeeed49a41"
+    },
+    {
+      "path": "zk/economic_command_bls_verifier_v1/tests/protocol.rs",
+      "sha256": "dad1bc5e9f8249f205b2a9a19e84ffd927123017d2ebd7eb585868629d585265"
+    },
+    {
+      "path": "zk/economic_command_bls_verifier_v1/README.md",
+      "sha256": "35a960c02c88eeee44537036c169c2f58256aad5ac7864e1906867a6996068db"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "a41709b2d2f481f3d8f239b47cab4e460e2b54b86dce1585a660b41ace07b000"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_request_fixed_vector_and_successor_identity_are_exact",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_message_boundary_frames_roundtrip_exact_response",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_invalid_request_cannot_be_qualified_by_a_matching_response_digest",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_invalid_signature_request_rejects_before_process",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_exact_response_is_bound_to_request_and_executed_snapshot_is_sealed",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_invalid_process_response_never_becomes_a_signature_verdict",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_shared_transport_failures_remain_typed_and_release_descriptor",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_acquired_bytes_survive_path_replacement_and_bad_identity_never_loads",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_real_measured_endpoint_matches_independent_g2basic_signatures"
+      ],
+      "path": "tests/integration/test_sealed_bls_command_verifier_v1.py",
+      "sha256": "5ef978c1637d56d5010bd1e00e5d02696c5f957235f755f4c14d34fe2452320a"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_sealed_bls_command_verifier_group_validation_v1.py::test_on_curve_canonical_g1_outside_subgroup_rejects_with_valid_signature",
+        "tests/integration/test_sealed_bls_command_verifier_group_validation_v1.py::test_on_curve_canonical_g2_outside_subgroup_rejects_with_valid_key",
+        "tests/integration/test_sealed_bls_command_verifier_group_validation_v1.py::test_malformed_g1_compression_reaches_native_rejection",
+        "tests/integration/test_sealed_bls_command_verifier_group_validation_v1.py::test_malformed_g2_compression_reaches_native_rejection",
+        "tests/integration/test_sealed_bls_command_verifier_group_validation_v1.py::test_noncanonical_g1_field_alias_of_valid_key_rejects",
+        "tests/integration/test_sealed_bls_command_verifier_group_validation_v1.py::test_noncanonical_g2_field_alias_of_valid_signature_rejects"
+      ],
+      "path": "tests/integration/test_sealed_bls_command_verifier_group_validation_v1.py",
+      "sha256": "31fec0ac295f2ff9b306387a10fcda32a9ec5323214acb4c009da57daf52aa5e"
+    }
+  ]
+}

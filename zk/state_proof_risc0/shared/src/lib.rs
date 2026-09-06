@@ -2745,6 +2745,11 @@ impl DexStateV1 {
         if amount1_out < intent.amount1_min {
             return Err(TransitionError::InvalidInput("amount1_out below minimum"));
         }
+        if intent.sender_pubkey == LP_LOCK_PUBKEY {
+            return Err(TransitionError::InvalidInput(
+                "reserved LP lock cannot be burned",
+            ));
+        }
 
         self.sub_lp(&intent.sender_pubkey, &intent.pool_id, intent.lp_amount)?;
         self.add_balance(&intent.recipient, &pool.asset0, amount0_out)?;
@@ -7805,6 +7810,132 @@ mod tests {
             sha256_canonical_dex_snapshot_v1(&post),
             decode_hex_32("15ba48c3948611ea40af205be1f3186b17f34b77dcf8f88c3d8649dbf7f121ba"),
         );
+    }
+
+    #[test]
+    fn remove_liquidity_reserved_lock_fixed_vector_rejects_without_mutation() {
+        let mut snapshot = empty_snapshot();
+        snapshot.pools = alloc::vec![pool_entry(10_000, 10_000)];
+        snapshot.lp_balances = alloc::vec![
+            DexLpBalanceEntryV1 {
+                pubkey: LP_LOCK_PUBKEY.to_string(),
+                pool_id: POOL_ID.to_string(),
+                amount: MIN_LP_LOCK,
+            },
+            DexLpBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                pool_id: POOL_ID.to_string(),
+                amount: 9_000,
+            },
+        ];
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let pre_hash = sha256_canonical_dex_snapshot_v1(&state.to_snapshot());
+
+        let zero_amount_tx = TauTxV1 {
+            sender_pubkey: LP_LOCK_PUBKEY.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::RemoveLiquidity(RemoveLiquidityIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "reserved-lock-zero".to_string(),
+                        sender_pubkey: LP_LOCK_PUBKEY.to_string(),
+                        deadline: 100,
+                        pool_id: POOL_ID.to_string(),
+                        lp_amount: 0,
+                        amount0_min: 0,
+                        amount1_min: 0,
+                        recipient: RECIPIENT.to_string(),
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+        assert!(matches!(
+            state.apply_tx(&zero_amount_tx, 1, &ProtocolFeeConfig::default()),
+            Err(TransitionError::InvalidInput("lp_amount must be positive"))
+        ));
+        assert_eq!(
+            sha256_canonical_dex_snapshot_v1(&state.to_snapshot()),
+            pre_hash
+        );
+
+        for lp_amount in [1, MIN_LP_LOCK] {
+            let tx = TauTxV1 {
+                sender_pubkey: LP_LOCK_PUBKEY.to_string(),
+                app_ops: TauTxAppOpsV1 {
+                    has_faucet: false,
+                    faucet_mint: Vec::new(),
+                    has_intents: true,
+                    intents: alloc::vec![SignedIntentV1 {
+                        signature: None,
+                        intent: DexIntentV1::RemoveLiquidity(RemoveLiquidityIntentV1 {
+                            module: "TauSwap".to_string(),
+                            version: "v1".to_string(),
+                            intent_id: alloc::format!("reserved-lock-{lp_amount}"),
+                            sender_pubkey: LP_LOCK_PUBKEY.to_string(),
+                            deadline: 100,
+                            pool_id: POOL_ID.to_string(),
+                            lp_amount,
+                            amount0_min: 0,
+                            amount1_min: 0,
+                            recipient: RECIPIENT.to_string(),
+                            salt: None,
+                        }),
+                    }],
+                },
+            };
+            assert!(matches!(
+                state.apply_tx(&tx, 1, &ProtocolFeeConfig::default()),
+                Err(TransitionError::InvalidInput(
+                    "reserved LP lock cannot be burned"
+                ))
+            ));
+            assert_eq!(
+                sha256_canonical_dex_snapshot_v1(&state.to_snapshot()),
+                pre_hash
+            );
+        }
+
+        let ordinary_tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::RemoveLiquidity(RemoveLiquidityIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "ordinary-one".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        pool_id: POOL_ID.to_string(),
+                        lp_amount: 1,
+                        amount0_min: 0,
+                        amount1_min: 0,
+                        recipient: RECIPIENT.to_string(),
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+        state
+            .apply_tx(&ordinary_tx, 1, &ProtocolFeeConfig::default())
+            .unwrap();
+        let post = state.to_snapshot();
+        assert_eq!(state.get_lp(LP_LOCK_PUBKEY, POOL_ID), MIN_LP_LOCK);
+        assert_eq!(state.get_lp(SENDER, POOL_ID), 8_999);
+        assert_eq!(state.get_balance(RECIPIENT, ASSET0), 1);
+        assert_eq!(state.get_balance(RECIPIENT, ASSET1), 1);
+        assert_eq!(post.pools[0].reserve0, 9_999);
+        assert_eq!(post.pools[0].reserve1, 9_999);
+        assert_eq!(post.pools[0].lp_supply, 9_999);
     }
 
     #[test]

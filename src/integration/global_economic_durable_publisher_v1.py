@@ -75,6 +75,7 @@ from .global_economic_commit_v1 import (
     _snapshot_body_and_state_v1,
 )
 from .global_economic_durable_epoch_v1 import (
+    DurableEconomicEpochBundleV1,
     DurableEconomicEpochMaterialV1,
     DurableEconomicPublicationHeadV1,
     prepare_durable_economic_epoch_bundle_v1,
@@ -114,8 +115,12 @@ class GlobalEconomicRollbackDetectedV1(ValueError):
     """Local durable heads disagree with the external monotonic checkpoint."""
 
 
-class GlobalEconomicAnchorAdvanceIndeterminateV1(RuntimeError):
-    """The local epoch committed, while external anchor advancement is unknown."""
+class GlobalEconomicPublicationIndeterminateV1(RuntimeError):
+    """Publication may have committed; recover or retry the exact occurrence."""
+
+
+class GlobalEconomicAnchorAdvanceIndeterminateV1(GlobalEconomicPublicationIndeterminateV1):
+    """Local commit or external anchor advancement needs reconciliation."""
 
 
 class GlobalEconomicAllocationRejectedV1(ValueError):
@@ -1024,6 +1029,40 @@ class VerifiedDurableEconomicPublisherV1:
         )
         return True
 
+    def _raise_if_epoch_commit_indeterminate_v1(
+        self,
+        source: DurableEconomicPublicationHeadV1,
+        bundle: DurableEconomicEpochBundleV1,
+        cause: Exception,
+    ) -> None:
+        """Keep precommit failures distinct from committed or unreadable history."""
+
+        try:
+            pending_anchor = self._arm_monotonic_anchor_after_unknown_local_commit_v1(source, cause)
+        except Exception as observation_error:
+            # An exact historical retry may coexist with a newer local winner.
+            # Failure to reconcile that anchor does not undo a committed epoch.
+            raise GlobalEconomicAnchorAdvanceIndeterminateV1(
+                "publication failed and monotonic anchor reconciliation is required"
+            ) from observation_error
+        if pending_anchor:
+            raise GlobalEconomicAnchorAdvanceIndeterminateV1(
+                "local epoch committed before its publication acknowledgment"
+            ) from cause
+        try:
+            committed = self.__journal._contains_exact_epoch_for_verified_publisher_v1(
+                bundle, self.__write_capability,
+            )
+        except Exception as observation_error:
+            # Failure to read durable history cannot establish rejection purity.
+            raise GlobalEconomicPublicationIndeterminateV1(
+                "publication failed and its durable outcome cannot be observed"
+            ) from observation_error
+        if committed:
+            raise GlobalEconomicPublicationIndeterminateV1(
+                "the exact epoch committed before its publication acknowledgment"
+            ) from cause
+
     def publish_economic_epoch(
         self,
         *,
@@ -1144,13 +1183,23 @@ class VerifiedDurableEconomicPublisherV1:
                     receipt_bytes=owned_candidate.receipt_bytes,
                 )
             )
+            successful = {
+                DurableEconomicEpochCommitStatusV1.COMMITTED,
+                DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED,
+            }
+            journal_outcome = None
             try:
                 journal_outcome = self.__journal._commit_epoch_from_verified_publisher_v1(
                     bundle,
                     cas_token,
                     self.__write_capability,
                 )
+                outcome = self._outcome_v1(journal_outcome, published)
             except BaseException as exc:
+                if journal_outcome is not None and journal_outcome.status not in successful:
+                    # A completed journal refusal already establishes no commit
+                    # for this attempt, even if projecting its response fails.
+                    raise
                 if not isinstance(exc, Exception):
                     try:
                         self._arm_monotonic_anchor_after_unknown_local_commit_v1(
@@ -1162,19 +1211,8 @@ class VerifiedDurableEconomicPublisherV1:
                         # same durable-head classification if arming is unavailable.
                         pass
                     raise
-                if self._arm_monotonic_anchor_after_unknown_local_commit_v1(
-                    source,
-                    exc,
-                ):
-                    raise GlobalEconomicAnchorAdvanceIndeterminateV1(
-                        "local epoch committed before its journal acknowledgment"
-                    ) from exc
+                self._raise_if_epoch_commit_indeterminate_v1(source, bundle, exc)
                 raise
-            outcome = self._outcome_v1(journal_outcome, published)
-            successful = {
-                DurableEconomicEpochCommitStatusV1.COMMITTED,
-                DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED,
-            }
             if outcome.status in successful:
                 self._advance_monotonic_anchor_after_publish_v1(outcome, source)
             return outcome
@@ -1199,6 +1237,7 @@ class VerifiedDurableEconomicPublisherV1:
 __all__ = [
     "GlobalEconomicAllocationRejectedV1",
     "GlobalEconomicAnchorAdvanceIndeterminateV1",
+    "GlobalEconomicPublicationIndeterminateV1",
     "GlobalEconomicRollbackDetectedV1",
     "VerifiedDurableEconomicPublishOutcomeV1",
     "VerifiedDurableEconomicPublisherV1",

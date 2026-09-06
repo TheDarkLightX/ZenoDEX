@@ -115,6 +115,46 @@ fn exact_manifest_measurement_and_scope_construct_bound_capability() {
 }
 
 #[test]
+fn legacy_entrypoint_is_production_only_and_keeps_the_active_binding_root() {
+    let manifest = manifest();
+    let active_release = release(&manifest);
+    let active_bound = bind_economic_command_signature_verifier_deployment_v1(
+        &active_release,
+        &manifest,
+        ARTIFACT_BYTES,
+        &root(401),
+        &root(402),
+        AcceptingBackend,
+    )
+    .unwrap();
+    assert_eq!(
+        active_bound.binding_root().unwrap().as_str(),
+        "0x4ad7612be045c5b6d7ea52f458dc9814075030ee866ff825b215da92b93d68bd"
+    );
+
+    for status in [ReleaseStatusV1::SHADOW, ReleaseStatusV1::VERIFY_ONLY] {
+        let mut non_production_release = active_release.clone();
+        non_production_release.status = status;
+        non_production_release.accepts_new_authentications = false;
+        non_production_release.validate().unwrap();
+        assert_eq!(non_production_release.release_id, active_release.release_id);
+        assert!(matches!(
+            bind_economic_command_signature_verifier_deployment_v1(
+                &non_production_release,
+                &manifest,
+                ARTIFACT_BYTES,
+                &root(401),
+                &root(402),
+                AcceptingBackend,
+            ),
+            Err(AbiErrorV1::InvalidBinding(
+                "production command authentication requires an active verifier release"
+            ))
+        ));
+    }
+}
+
+#[test]
 fn wrong_artifact_and_manifest_reject_before_capability_construction() {
     let manifest = manifest();
     let release = release(&manifest);

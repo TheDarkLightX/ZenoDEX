@@ -9,6 +9,7 @@ from ..state.balances import Amount, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 from ..state.pools import PoolState
+from ..state.support_root import LP_LOCK_PUBKEY
 from .settlement import Fill, FillAction
 from .settlement_fill_fields import read_optional_non_negative_fill_int
 
@@ -105,6 +106,8 @@ def _apply_add_liquidity_to_single_pool_runtime(request: _LiquidityRuntimeReques
 
 def _apply_remove_liquidity_to_single_pool_runtime(request: _LiquidityRuntimeRequest) -> None:
     amounts = _read_remove_liquidity_fill_amounts(request.fill)
+    if request.intent.sender_pubkey == LP_LOCK_PUBKEY:
+        raise ValueError("REMOVE_LIQUIDITY reserved LP lock cannot be burned")
     runtime = request.runtime
     snap_pool = request.snap_pool
     runtime.current_reserves = (

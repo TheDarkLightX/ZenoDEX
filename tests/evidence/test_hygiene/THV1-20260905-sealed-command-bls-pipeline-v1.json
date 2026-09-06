@@ -1,0 +1,113 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-SEALED-BLS-ISOLATED-PUBLICATION",
+      "points": [
+        "invalid signature before receipt calls with complete logical no-op",
+        "valid signature and exact committed epoch bundle",
+        "exact committed retry",
+        "legacy protocol refusal before pipeline authority mint"
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "A fixed sealed-BLS factory reauthenticates raw commands before isolated allocation admission and exact durable publication.",
+  "created_date": "2026-09-05",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "stateful"
+  ],
+  "evidence_id": "THV1-20260905-sealed-command-bls-pipeline-v1",
+  "failure_modes": [
+    "invalid signature before receipt calls with complete logical no-op",
+    "valid signature and exact committed epoch bundle",
+    "exact committed retry",
+    "legacy protocol refusal before pipeline authority mint"
+  ],
+  "invariant_ids": [
+    "V3-SEALED-BLS-ISOLATED-PUBLICATION"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "The native executable must be supplied explicitly; skipped default execution is not qualification.",
+    "RISC0 replies and release coordinates are synthetic; this is isolated test-state integration evidence.",
+    "The existing zero-custody one-occurrence module remains selected; no new lane lifecycle, active profile or production release is qualified."
+  ],
+  "reject_is_noop": {
+    "reason": "Precommit refusals preserve complete owned input or logical store snapshots; committed response loss explicitly has a different contract. The standalone BLS endpoint and transport have no economic write port.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/integration/isolated_asset_receipt_pipeline_v1.py",
+      "sha256": "53999e499d409c9b18a4d3d66cd980057284589f22bece7e7ecd24768a60054b"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_deployment_v1.py",
+      "sha256": "646a8a6d99508fc854c5baaaa6434b84a9d86114502040242c59a0be874dbf49"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_v1.py",
+      "sha256": "56cb70b822a20cc7cc7b3a3bd10aa8098f2ae145484f532a785d015465a3f08b"
+    },
+    {
+      "path": "src/integration/global_economic_durable_publisher_v1.py",
+      "sha256": "e83c96f27010d15c24bc1759134166ff24293206d0a0102d0cc8fc01c94aabba"
+    },
+    {
+      "path": "tests/integration/asset_receipt_pipeline_fixtures_v1.py",
+      "sha256": "782007b8e6f1e1a5d8dab893d9f294dd6059a56dab47b8be031d4f1eb81abece"
+    },
+    {
+      "path": "tests/integration/publisher_receipt_port_fixtures_v1.py",
+      "sha256": "f02f4d65201f9fbc80ca7a2e36049299284ad02b888b4206c637b636c767583a"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "a41709b2d2f481f3d8f239b47cab4e460e2b54b86dce1585a660b41ace07b000"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_sealed_bls_pipeline_v1.py::test_measured_sealed_bls_authentication_controls_exact_durable_publication",
+        "tests/integration/test_global_economic_sealed_bls_pipeline_v1.py::test_sealed_pipeline_factory_rejects_legacy_protocol_before_mint"
+      ],
+      "path": "tests/integration/test_global_economic_sealed_bls_pipeline_v1.py",
+      "sha256": "83ea0b17127d29f514a1557c3d39edc5d8dcbd449f4a9392b96091b823f401e9"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_real_signature_and_exact_three_receipt_statements_feed_allocation",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_each_wrong_receipt_rejects_at_its_own_stage",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_each_unavailable_receipt_backend_fails_without_economic_effects",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_raw_authentication_failure_precedes_every_receipt_callback",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_caller_witnesses_are_discarded_and_never_read",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_missing_raw_evidence_cannot_be_replaced_by_a_previous_route_witness",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_source_mismatch_rejects_before_signature_or_receipts",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_mount_requires_exact_origin_profile_deployment_and_acquired_policy_bytes",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_handle_is_nonconstructible_noncopyable_and_rejects_bare_ports",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_callback_mutation_cannot_change_the_owned_raw_command_or_post_state",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_malformed_present_receipt_is_rejected_before_any_verifier",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_unavailable_bls_backend_does_not_reuse_previous_authentication",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_changed_policy_fee_is_rejected_before_module_receipt_verification",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_raw_cardinality_and_exact_type_cannot_be_bypassed",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_two_occurrences_retain_the_explicit_unqualified_height_position_limit",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_mount_owns_profile_and_policy_before_caller_mutation",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_nonzero_custody_retains_existing_coordinator_rejection",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py::test_malformed_raw_disclosures_reject_before_crypto"
+      ],
+      "path": "tests/integration/test_isolated_asset_receipt_pipeline_v1.py",
+      "sha256": "bb038080313b7026054f3a367b0218b553ff19af9f271e3a4dcb5828c7d0ec1d"
+    }
+  ]
+}

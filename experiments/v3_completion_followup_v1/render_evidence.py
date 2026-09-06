@@ -1,0 +1,150 @@
+"""Render narrow source-pinned V3 evidence declarations without promoting claims.
+
+Replay: python3 -B -m experiments.v3_completion_followup_v1.render_evidence
+Tests and native build/qualification are separate executions, never inferred
+from successful rendering. Historical packets remain unchanged.
+"""
+
+from __future__ import annotations
+
+import ast
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+RENDERER = "experiments/v3_completion_followup_v1/render_evidence.py"
+
+
+def _pin(path: str) -> dict[str, object]:
+    return {"path": path, "sha256": hashlib.sha256((ROOT / path).read_bytes()).hexdigest()}
+
+
+def _test_pin(path: str) -> dict[str, object]:
+    nodes = [node.name for node in ast.parse((ROOT / path).read_bytes()).body
+             if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")]
+    if not nodes:
+        raise ValueError(f"no tests declared: {path}")
+    return _pin(path) | {"node_ids": [f"{path}::{name}" for name in nodes]}
+
+
+def _render(slug: str, sources: tuple[str, ...], tests: tuple[str, ...], *,
+            claim: str, invariant: str, families: list[str], bounds: list[str],
+            nonclaims: list[str]) -> None:
+    evidence_id = "THV1-20260905-" + slug + "-v1"
+    packet = {
+        "schema": "zenodex/test-hygiene-evidence/v1", "evidence_id": evidence_id,
+        "created_date": "2026-09-05", "change_kind": "behavior_change", "risk_class": "critical",
+        "claim_scope": claim, "invariant_ids": [invariant],
+        "failure_modes": bounds, "source_pins": [_pin(path) for path in sources + (RENDERER,)],
+        "test_pins": [_test_pin(path) for path in tests], "removed_paths": [],
+        "evidence_families": ["negative_regression", "boundary"] + families,
+        "aaa": {"status": "applied", "reason": "Explicit fixture, one transition or observation, and independent exact output assertions."},
+        "reject_is_noop": {"status": "applied", "reason": "Precommit refusals preserve complete owned input or logical store snapshots; committed response loss explicitly has a different contract. The standalone BLS endpoint and transport have no economic write port."},
+        "boundary_dimensions": [{"name": invariant, "points": bounds}],
+        "mutations": [],
+        "nonclaims": ["Packet rendering does not execute tests or establish completeness or production authority."] + nonclaims,
+    }
+    path = ROOT / "tests/evidence/test_hygiene" / (evidence_id + ".json")
+    path.write_text(json.dumps(packet, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    print(path.relative_to(ROOT))
+
+
+def main() -> None:
+    _render("publication-outcome-knowledge", (
+        "src/integration/global_economic_durable_publisher_v1.py",
+        "src/integration/global_economic_epoch_journal_v1.py",
+    ), (
+        "tests/integration/test_global_economic_publication_outcomes_v1.py",
+        "tests/integration/test_global_economic_known_outcomes_v1.py",
+        "tests/integration/test_global_economic_durable_publisher_v1.py",
+    ), claim="Isolated publication distinguishes known PRE refusal, exact committed retry, response loss and unreadable durable history.",
+       invariant="V3-PUBLICATION-OUTCOME-KNOWLEDGE", families=["stateful"],
+       bounds=["before insert", "after insert before commit", "after commit before acknowledgment",
+               "failed outcome projection", "known stale plus unreadable history",
+               "distinct concurrent winner", "historical retry with newer lagging anchor"],
+       nonclaims=["Synthetic RISC0 fixture replies are used; real BLS alone is not combined real-proof qualification.",
+                  "Storage rollback, writer fencing, authority inode replacement, migrations and deployment closure remain outside this repair."])
+    _render("reserved-lp-lock-replay", (
+        "src/core/settlement_replay_remove_liquidity.py", "src/state/support_root.py",
+        "src/core/batch_clearing_liquidity.py", "src/core/batch_clearing_apply.py",
+        "src/core/batch_clearing_single_pool_liquidity.py",
+        "zk/state_proof_risc0/shared/src/lib.rs",
+    ), ("tests/core/test_settlement_replay_remove_liquidity_reserved_lock.py",
+        "tests/core/test_batch_clearing_remove_liquidity_reserved_lock.py",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py"),
+       claim="Legacy REMOVE_LIQUIDITY producer, apply, and replay paths refuse spending the reserved LP lock before mutation; the Rust shared transition carries the same guard and mirrored fixed vector.",
+       invariant="SPOT-RESERVED-LP-LOCK-NONSPENDABLE", families=["stateful"],
+       bounds=["zero amount rejection precedence", "one LP atom", "entire minimum locked share", "inactive pool", "ordinary holder withdrawal"],
+       nonclaims=["No pool-close policy, terminal claimant, V3 lane mount or universal runtime/Rust refinement is established."])
+    _render("checked-economic-aggregation", (
+        "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
+        "src/core/zdex_atomic_buyback_lane_coordinator_v2.py",
+        "src/core/zdex_atomic_buyback_route_composition_v2.py",
+    ), ("tests/formal/test_lean_checked_economic_aggregation_v1.py",),
+       claim="Universal Lean checked-prefix arithmetic and all-key output theorem; finite differential correspondence to actual Python materializer/composer stages.",
+       invariant="V3-CHECKED-COMPLETE-KEY-PREFIX-SUMS", families=["formal", "differential"],
+       bounds=["i128 lower and upper neighbors", "intermediate overflow with representable final sum",
+               "four complete key coordinates", "materialization before composition", "five executable model mutants"],
+       nonclaims=["Finite helper comparisons do not prove universal Python/Rust/compiler refinement, canonical decoding or complete W09."])
+    _render("sealed-command-bls", (
+        "src/core/bls_command_verifier_protocol_v1.py",
+        "src/integration/sealed_bls_command_verifier_v1.py",
+        "src/integration/global_receipt_verifier_v1.py",
+        "src/integration/economic_command_signature_verifier_deployment_v1.py",
+        "zk/economic_command_bls_verifier_v1/Cargo.toml",
+        "zk/economic_command_bls_verifier_v1/Cargo.lock",
+        "zk/economic_command_bls_verifier_v1/src/main.rs",
+        "zk/economic_command_bls_verifier_v1/tests/protocol.rs",
+        "zk/economic_command_bls_verifier_v1/README.md",
+    ), ("tests/integration/test_sealed_bls_command_verifier_v1.py",
+        "tests/integration/test_sealed_bls_command_verifier_group_validation_v1.py"),
+       claim="Standalone G2 Basic endpoint and immutable measured-byte Python transport implement a separate bounded request-digest-bound protocol.",
+       invariant="V3-BLS-MEASURED-BYTES-EXECUTION", families=["differential"],
+       bounds=["message length one and maximum neighbors", "public key and signature lengths",
+               "foreign message key and ciphersuite", "infinity encoding", "digest and framing mismatch",
+               "process failures", "sealed descriptor and acquired path replacement"],
+       nonclaims=["The real transport test requires ZENODEX_BLS_VERIFIER_TEST_BINARY; a default skipped run supplies no real-execution evidence.",
+                  "No release capability, active profile, publication mount or genuine five-receipt successor is created.",
+                  "Python, the operating system, dynamic loader and native system libraries remain trusted."])
+    _render("sealed-command-bls-deployment", (
+        "src/core/bls_command_verifier_protocol_v1.py",
+        "src/core/economic_command_signature_verifier_deployment_v1.py",
+        "src/integration/sealed_bls_command_verifier_deployment_v1.py",
+        "src/integration/sealed_bls_command_verifier_v1.py",
+        "zk/global_settlement_abi_v1/src/economic_command_signature_verifier_deployment.rs",
+        "zk/global_settlement_abi_v1/tests/bls_command_verifier_deployment.rs",
+        "zk/global_settlement_abi_v1/tests/economic_command_signature_verifier_deployment.rs",
+    ), ("tests/core/test_bls_command_verifier_deployment_v1.py",
+        "tests/integration/test_sealed_bls_command_verifier_deployment_v1.py"),
+       claim="Separate closed-protocol Python/Rust binders admit matching release, manifest, artifact and scope; the sealed shell executes the exact measured byte snapshot.",
+       invariant="V3-BLS-RELEASE-EXECUTION-BINDING", families=["differential"],
+       bounds=["legacy and successor protocol mismatches both directions", "key token98 and signature96 byte ceilings with neighbors",
+               "artifact and manifest mismatch", "deployment and profile roots", "selection purpose",
+               "legacy Rust SHADOW and VERIFY_ONLY refusal with stable active binding root",
+               "real valid and invalid signatures"],
+       nonclaims=["Release and evidence roots in the tests are synthetic; the tests do not issue or qualify a governed production release.",
+                  "The Rust legacy binder now requires production admission, closing its previous purpose gap; compound-invalid first-error order differs by language.",
+                  "No pipeline mount, active profile, publication authority or fresh genuine proof chain is added.",
+                  "Changed shared ABI source requires selected guest remeasurement; historical guest receipts do not qualify new source."])
+    _render("sealed-command-bls-pipeline", (
+        "src/integration/isolated_asset_receipt_pipeline_v1.py",
+        "src/integration/sealed_bls_command_verifier_deployment_v1.py",
+        "src/integration/sealed_bls_command_verifier_v1.py",
+        "src/integration/global_economic_durable_publisher_v1.py",
+        "tests/integration/asset_receipt_pipeline_fixtures_v1.py",
+        "tests/integration/publisher_receipt_port_fixtures_v1.py",
+    ), ("tests/integration/test_global_economic_sealed_bls_pipeline_v1.py",
+        "tests/integration/test_isolated_asset_receipt_pipeline_v1.py"),
+       claim="A fixed sealed-BLS factory reauthenticates raw commands before isolated allocation admission and exact durable publication.",
+       invariant="V3-SEALED-BLS-ISOLATED-PUBLICATION", families=["stateful"],
+       bounds=["invalid signature before receipt calls with complete logical no-op",
+               "valid signature and exact committed epoch bundle", "exact committed retry",
+               "legacy protocol refusal before pipeline authority mint"],
+       nonclaims=["The native executable must be supplied explicitly; skipped default execution is not qualification.",
+                  "RISC0 replies and release coordinates are synthetic; this is isolated test-state integration evidence.",
+                  "The existing zero-custody one-occurrence module remains selected; no new lane lifecycle, active profile or production release is qualified."])
+
+
+if __name__ == "__main__":
+    main()

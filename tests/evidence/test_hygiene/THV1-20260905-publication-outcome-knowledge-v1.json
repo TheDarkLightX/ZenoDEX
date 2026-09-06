@@ -1,0 +1,140 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-PUBLICATION-OUTCOME-KNOWLEDGE",
+      "points": [
+        "before insert",
+        "after insert before commit",
+        "after commit before acknowledgment",
+        "failed outcome projection",
+        "known stale plus unreadable history",
+        "distinct concurrent winner",
+        "historical retry with newer lagging anchor"
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "Isolated publication distinguishes known PRE refusal, exact committed retry, response loss and unreadable durable history.",
+  "created_date": "2026-09-05",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "stateful"
+  ],
+  "evidence_id": "THV1-20260905-publication-outcome-knowledge-v1",
+  "failure_modes": [
+    "before insert",
+    "after insert before commit",
+    "after commit before acknowledgment",
+    "failed outcome projection",
+    "known stale plus unreadable history",
+    "distinct concurrent winner",
+    "historical retry with newer lagging anchor"
+  ],
+  "invariant_ids": [
+    "V3-PUBLICATION-OUTCOME-KNOWLEDGE"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "Synthetic RISC0 fixture replies are used; real BLS alone is not combined real-proof qualification.",
+    "Storage rollback, writer fencing, authority inode replacement, migrations and deployment closure remain outside this repair."
+  ],
+  "reject_is_noop": {
+    "reason": "Precommit refusals preserve complete owned input or logical store snapshots; committed response loss explicitly has a different contract. The standalone BLS endpoint and transport have no economic write port.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/integration/global_economic_durable_publisher_v1.py",
+      "sha256": "e83c96f27010d15c24bc1759134166ff24293206d0a0102d0cc8fc01c94aabba"
+    },
+    {
+      "path": "src/integration/global_economic_epoch_journal_v1.py",
+      "sha256": "8cff61032207c04b138ea8e70726c369f3cbc676af345e446eb491beb2b95c19"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "a41709b2d2f481f3d8f239b47cab4e460e2b54b86dce1585a660b41ace07b000"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_publication_outcomes_v1.py::test_given_journal_fault_then_precommit_is_noop_and_postcommit_is_indeterminate",
+        "tests/integration/test_global_economic_publication_outcomes_v1.py::test_given_committed_epoch_then_failed_response_projection_is_indeterminate",
+        "tests/integration/test_global_economic_publication_outcomes_v1.py::test_given_failed_attempt_and_unreadable_history_then_outcome_is_indeterminate",
+        "tests/integration/test_global_economic_publication_outcomes_v1.py::test_given_other_winner_then_failed_stale_attempt_is_not_attributed_its_commit",
+        "tests/integration/test_global_economic_publication_outcomes_v1.py::test_given_postcommit_interrupt_then_control_flow_is_preserved_and_retry_is_exact"
+      ],
+      "path": "tests/integration/test_global_economic_publication_outcomes_v1.py",
+      "sha256": "c8412ce0d0b231eecd61d87864e13e9ee0d125372d5547a22bcdae00957c0b15"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_known_outcomes_v1.py::test_given_known_stale_when_projection_and_observation_fail_then_refusal_stays_known",
+        "tests/integration/test_global_economic_known_outcomes_v1.py::test_given_historical_committed_retry_when_newer_anchor_lags_then_result_stays_committed",
+        "tests/integration/test_global_economic_known_outcomes_v1.py::test_given_anchored_other_winner_when_stale_response_fails_then_its_commit_is_not_attributed"
+      ],
+      "path": "tests/integration/test_global_economic_known_outcomes_v1.py",
+      "sha256": "9b4f64580583b03b721a495cf33fd1df8d0b97a60ce899d61732a6c3760f5510"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_generic_bound_verifier_cannot_create_isolated_writer",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_publisher_subclass_factory_rejects_before_target_store_writes",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_create_publish_reopen_and_exact_retry_are_one_durable_history",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_publisher_v1_quarantines_object_consumption_without_durable_effect",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_exact_create_retry_recovers_committed_activation_after_lost_ack",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_verified_publisher_create_recovers_post_link_bootstrap_crash",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_concurrent_verified_publisher_create_has_one_install_and_typed_busy",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_create_retry_rejects_matching_activation_with_nonzero_history",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_fabricated_source_metadata_is_stale_before_receipt_verification",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_body_binding_rejection_is_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_receipt_replacement_rejects_without_publication",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_selected_verifier_rejection_is_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_backend_method_replacement_cannot_turn_rejection_into_publication",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_generic_caller_selected_verifier_rejects_before_backend_use",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_two_publishers_from_one_source_linearize_one_valid_successor",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_head_change_during_receipt_verification_returns_stale_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_old_store_cannot_reopen_after_shared_authority_revocation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_two_named_epoch_stores_cannot_share_one_authority_head",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_restored_pre_revocation_authority_remains_a_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_monotonic_anchor_rejects_restored_pre_revocation_authority_bytes",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_monotonic_anchor_rejects_epoch_only_rollback_without_mutation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_monotonic_anchor_advances_after_one_durable_epoch_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_anchor_outage_recovers_only_by_exact_epoch_retry",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_stale_anchor_cas_is_typed_indeterminate_and_no_double_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_anchor_lost_ack_reconciles_the_exact_successor_on_retry",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_changed_external_anchor_rejects_unless_it_is_the_exact_local_successor",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_exhausted_anchor_sequence_rejects_before_proof_or_local_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_local_anchor_projection_fault_is_indeterminate_and_retryable",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_concurrent_exact_retry_arms_recovery_before_projection_fault",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_lower_journal_commit_lost_ack_becomes_typed_anchor_recovery",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_external_forward_tip_without_matching_local_history_fails_closed",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_concurrent_forward_tip_with_matching_local_history_is_adopted",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_control_flow_interruption_arms_same_process_recovery",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_lower_journal_precommit_fault_preserves_error_and_no_effect",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_authority_inode_remains_open_publisher_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_separate_migration_commit_leaves_old_publisher_active_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_old_store_cannot_reopen_after_shared_profile_rotation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_inflight_verification_cannot_publish_after_authority_revocation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_exact_committed_retry_after_revocation_returns_history_without_mutation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_epoch_only_sequence_zero_restore_allows_duplicate_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_open_rejects_a_different_verified_activation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_expected_source_rejects_boolean_sequence_alias",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_direct_publisher_construction_is_rejected",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_publication_api_has_no_caller_supplied_authority_objects"
+      ],
+      "path": "tests/integration/test_global_economic_durable_publisher_v1.py",
+      "sha256": "41ad6cdcc7666f6e435fc2042ef392bce78e532cf2a9afbb68c8cd97642640c7"
+    }
+  ]
+}

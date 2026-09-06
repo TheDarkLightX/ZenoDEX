@@ -1,0 +1,84 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-CHECKED-COMPLETE-KEY-PREFIX-SUMS",
+      "points": [
+        "i128 lower and upper neighbors",
+        "intermediate overflow with representable final sum",
+        "four complete key coordinates",
+        "materialization before composition",
+        "five executable model mutants"
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "Universal Lean checked-prefix arithmetic and all-key output theorem; finite differential correspondence to actual Python materializer/composer stages.",
+  "created_date": "2026-09-05",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "formal",
+    "differential"
+  ],
+  "evidence_id": "THV1-20260905-checked-economic-aggregation-v1",
+  "failure_modes": [
+    "i128 lower and upper neighbors",
+    "intermediate overflow with representable final sum",
+    "four complete key coordinates",
+    "materialization before composition",
+    "five executable model mutants"
+  ],
+  "invariant_ids": [
+    "V3-CHECKED-COMPLETE-KEY-PREFIX-SUMS"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "Finite helper comparisons do not prove universal Python/Rust/compiler refinement, canonical decoding or complete W09."
+  ],
+  "reject_is_noop": {
+    "reason": "Precommit refusals preserve complete owned input or logical store snapshots; committed response loss explicitly has a different contract. The standalone BLS endpoint and transport have no economic write port.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
+      "sha256": "b72155a1f32f01a5c96df725358d7fbc55d5014ee0d9894e6743516d37b04e4b"
+    },
+    {
+      "path": "src/core/zdex_atomic_buyback_lane_coordinator_v2.py",
+      "sha256": "bc8dd3adcdce73d1fc2cefdc4d7e2d705f3d53a91836cb9d7f49b74a29268511"
+    },
+    {
+      "path": "src/core/zdex_atomic_buyback_route_composition_v2.py",
+      "sha256": "c5590e3722be8e431e0473d3217e29e172ba0753186f05b48698d972299eb16d"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "a41709b2d2f481f3d8f239b47cab4e460e2b54b86dce1585a660b41ace07b000"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_checked_economic_aggregation_v1.py::test_all_theorem_types_compile_and_use_only_standard_axioms",
+        "tests/formal/test_lean_checked_economic_aggregation_v1.py::test_complete_key_bridge_covers_all_nine_kinds_and_each_coordinate",
+        "tests/formal/test_lean_checked_economic_aggregation_v1.py::test_real_materializer_matches_independent_prefix_sums_and_full_lean_keys",
+        "tests/formal/test_lean_checked_economic_aggregation_v1.py::test_real_composer_matches_independent_signed_boundaries_and_complete_rows",
+        "tests/formal/test_lean_checked_economic_aggregation_v1.py::test_given_later_cancellation_when_materialization_overflows_then_stage_rejects",
+        "tests/formal/test_lean_checked_economic_aggregation_v1.py::test_given_materialized_boundary_when_route_adds_then_only_composition_overflows",
+        "tests/formal/test_lean_checked_economic_aggregation_v1.py::test_arbitrary_ordered_model_prefixes_match_independent_bounded_oracle",
+        "tests/formal/test_lean_checked_economic_aggregation_v1.py::test_executable_semantic_mutants_break_fixed_proofs_and_independent_observations"
+      ],
+      "path": "tests/formal/test_lean_checked_economic_aggregation_v1.py",
+      "sha256": "910f5f79afd4a3ca733221c6af7eee3f39d3b1998e89b81a650445d2024686eb"
+    }
+  ]
+}

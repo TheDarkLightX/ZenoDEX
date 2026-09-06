@@ -719,6 +719,32 @@ class GlobalEconomicEpochJournalV1:
                 _rollback_v1(self._connection)
                 raise
 
+    def _contains_exact_epoch_for_verified_publisher_v1(
+        self,
+        epoch: DurableEconomicEpochBundleV1,
+        write_capability: DurableEconomicEpochWriteCapabilityV1,
+    ) -> bool:
+        """Resolve a lost acknowledgment against complete validated bundle bytes.
+
+        Absence is observed in one coherent history snapshot. Another writer's
+        successor cannot establish that this particular occurrence committed.
+        Read failures and identity collisions leave the outcome unknown.
+        """
+
+        _require_write_capability_v1(self, write_capability)
+        owned = _snapshot_epoch_v1(epoch)
+        with self._lock:
+            self._require_open_v1()
+            self._connection.execute("BEGIN")
+            try:
+                self._validate_store_v1()
+                committed = self._exact_retry_v1(owned, owned.canonical_bytes) is not None
+                self._connection.execute("COMMIT")
+                return committed
+            except BaseException:
+                _rollback_v1(self._connection)
+                raise
+
     def _anchor_heads_for_verified_publisher_v1(
         self,
         write_capability: DurableEconomicEpochWriteCapabilityV1,

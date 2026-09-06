@@ -1,0 +1,57 @@
+# Economic command BLS verifier V1
+
+This crate is a standalone, fail-closed endpoint for the existing economic-command BLS signature semantics. It verifies `py_ecc.bls.G2Basic` compatible signatures over the exact supplied message bytes. It does not prehash or augment the message.
+
+The endpoint has no release, profile, command-authentication, receipt, storage, publication, or policy authority. A caller must measure and qualify the executable and bind its new protocol root before using its Boolean result.
+
+## Wire protocol
+
+The protocol is new and intentionally separate from the legacy in-process backend protocol and the global receipt-verifier protocol.
+
+The request is one exact EOF-delimited byte string:
+
+```text
+"ZDXBLSV1"                       8 bytes
+compressed BLS12-381 G1 key      48 bytes
+compressed BLS12-381 G2 signature 96 bytes
+message length                   u32 little-endian
+message                          1..1_048_576 bytes
+```
+
+The endpoint fixes the ciphersuite to the minimal-public-key G2 Basic scheme with domain separation tag:
+
+```text
+BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_
+```
+
+A well-framed request produces exactly one 40-byte response and exit status zero:
+
+```text
+valid signature:   "ZDXBOKV1" || SHA256(full_request)
+invalid signature: "ZDXBNOV1" || SHA256(full_request)
+```
+
+Malformed, empty, truncated, trailing, or oversized input, as well as any command-line argument, produces no stdout and a nonzero exit status. The program writes no diagnostics to stderr. The supervising transport must treat nonzero exit, timeout, stderr, partial output, extra output, unknown magic, or request-digest mismatch as an operational failure rather than a cryptographic rejection.
+
+## Dependency decision
+
+The direct dependencies are pinned to the source versions already present in the local Cargo cache:
+
+- `blst = 0.3.16`, Apache-2.0, provides compressed BLS12-381 decoding, subgroup and infinity validation, and pairing verification. The endpoint also requires each validated point to re-encode byte-for-byte to its input, making canonical compressed encoding explicit. The `portable` and `no-threads` features avoid host-selected ADX compilation and parallel verification for this single-signature endpoint.
+- `sha2 = 0.10.9`, MIT OR Apache-2.0, binds each response to the complete request.
+
+`Cargo.lock` contains 24 third-party packages. `blst` compiles its bundled C and assembly through `cc`; its manifest also retains `threadpool`, `num_cpus`, `libc`, `zeroize`, and their support crates even with `no-threads` enabled. `sha2` retains the `digest`, `generic-array`, and CPU-feature support stack. The local release executable was about 0.5 MB, while the checksum-verified debug and release target directory was about 164 MB. Every package remains part of source, license, and advisory review.
+
+Every locked package declares a permissive license expression composed of Apache-2.0, MIT, or both; `unicode-ident` additionally declares Unicode-3.0. This is a metadata inventory rather than legal clearance. Release qualification must preserve applicable notices and review the archived license text for the exact source closure.
+
+The local cached advisory database contained 1,189 entries and reported zero known vulnerabilities for this 25-package lockfile. Its freshness was not established. Three initially missing registry archives, `blst`, `threadpool`, and `num_cpus`, were acquired from the official crates.io static archive service and matched the exact SHA-256 checksums in `Cargo.lock`. Local validation then checked all 24 third-party archives against the lockfile and built through a dedicated directory source containing per-file checksum manifests. The committed lockfile remained registry-checksummed and path-free. The repository does not vendor that source closure, so a later offline replay must supply checksum-matching registry archives or an independently reconstructed governed directory source.
+
+Source measurement must include the complete Cargo source closure, `Cargo.lock`, Rust compiler, C compiler, assembler, linker, target, flags, and produced executable. The observed Linux release artifact was dynamically linked to the system loader, `libc`, and `libgcc_s`; those components remain TCB unless a later qualified build changes the linkage. A current advisory and license review remains required before release qualification. Compilation and these tests do not establish absence of vulnerabilities.
+
+The removal alternative is a separately qualified standalone artifact containing the current `py_ecc` implementation and its complete Python/interpreter/native dependency closure, or another BLS implementation that passes the same independent G2 Basic vectors and protocol tests. No substitute inherits authority from this crate or its wire compatibility.
+
+## Evidence and nonclaims
+
+`tests/protocol.rs` uses a fixed public scalar-25 key/signature fixture generated by the repository's existing `py_ecc.bls.G2Basic` evidence tool. It also covers wrong-message, foreign-key, legacy-prehash, malformed-encoding, parser-boundary, response-digest, and exact-stdout cases.
+
+Passing tests establish bounded local protocol and cross-implementation compatibility evidence. They do not establish reproducible builds, executable provenance, process isolation, operating-system integrity, dynamic-loader integrity, release admission, publication safety, or production readiness.
