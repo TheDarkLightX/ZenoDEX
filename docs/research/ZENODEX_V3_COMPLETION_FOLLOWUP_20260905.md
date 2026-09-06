@@ -242,6 +242,11 @@ batch. Those missing qualifications remain explicit release obligations.
 
 ## Remaining V3 work
 
+The subsequent [checked epoch accounting proof](ZENODEX_CHECKED_EPOCH_ACCOUNTING_COMPOSITION_20260905.md)
+connects ordered signed-prefix aggregation to the existing balance, custody,
+liability and reserve table relation. Its per-route premises and runtime
+refinement limits remain explicit.
+
 The repository's earlier genuine five-receipt qualification and its later
 mounted isolated pipeline are distinct evidence subjects. The former covers an
 older zero-custody profile. The latter reauthenticates commands and derives

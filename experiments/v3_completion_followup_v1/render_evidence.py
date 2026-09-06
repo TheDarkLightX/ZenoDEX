@@ -30,17 +30,18 @@ def _test_pin(path: str) -> dict[str, object]:
 
 def _render(slug: str, sources: tuple[str, ...], tests: tuple[str, ...], *,
             claim: str, invariant: str, families: list[str], bounds: list[str],
-            nonclaims: list[str]) -> None:
+            nonclaims: list[str], change_kind: str = "behavior_change",
+            rejection_reason: str | None = None) -> None:
     evidence_id = "THV1-20260905-" + slug + "-v1"
     packet = {
         "schema": "zenodex/test-hygiene-evidence/v1", "evidence_id": evidence_id,
-        "created_date": "2026-09-05", "change_kind": "behavior_change", "risk_class": "critical",
+        "created_date": "2026-09-05", "change_kind": change_kind, "risk_class": "critical",
         "claim_scope": claim, "invariant_ids": [invariant],
         "failure_modes": bounds, "source_pins": [_pin(path) for path in sources + (RENDERER,)],
         "test_pins": [_test_pin(path) for path in tests], "removed_paths": [],
         "evidence_families": ["negative_regression", "boundary"] + families,
         "aaa": {"status": "applied", "reason": "Explicit fixture, one transition or observation, and independent exact output assertions."},
-        "reject_is_noop": {"status": "applied", "reason": "Precommit refusals preserve complete owned input or logical store snapshots; committed response loss explicitly has a different contract. The standalone BLS endpoint and transport have no economic write port."},
+        "reject_is_noop": {"status": "applied", "reason": rejection_reason or "Precommit refusals preserve complete owned input or logical store snapshots; committed response loss explicitly has a different contract. The standalone BLS endpoint and transport have no economic write port."},
         "boundary_dimensions": [{"name": invariant, "points": bounds}],
         "mutations": [],
         "nonclaims": ["Packet rendering does not execute tests or establish completeness or production authority."] + nonclaims,
@@ -144,6 +145,32 @@ def main() -> None:
        nonclaims=["The native executable must be supplied explicitly; skipped default execution is not qualification.",
                   "RISC0 replies and release coordinates are synthetic; this is isolated test-state integration evidence.",
                   "The existing zero-custody one-occurrence module remains selected; no new lane lifecycle, active profile or production release is qualified."])
+    _render("checked-epoch-economic-tables", (
+        "lean-mathlib/Proofs/CheckedEpochEconomicTablesV1.lean",
+        "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
+        "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean",
+        "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
+        "lean-mathlib/Proofs.lean",
+        "src/core/epoch_effect_composition_v1.py",
+        "src/core/global_economic_state_delta_v1.py",
+        "src/core/global_settlement_types_v1.py",
+    ), ("tests/formal/test_lean_checked_epoch_economic_tables_v1.py",),
+       claim="Universal Lean checked-prefix composition of four exact economic tables, under per-route table premises; finite correspondence to actual Python epoch composition and table checking.",
+       invariant="V3-CHECKED-EPOCH-EXACT-TABLE-COMPOSITION", families=["formal", "differential"],
+       change_kind="assurance_infrastructure",
+       rejection_reason="Exact signed-overflow refusal and complete unchanged plan/state snapshots are observed at pure Python composition boundaries; the Lean model returns a typed error without an output accumulator.",
+       bounds=["all four key coordinates and nine effect kinds", "balance custody liability and reserve tables",
+               "26 actual composer histories and 129 ordered Lean command-prefix observations",
+               "signed i128 upper and lower intermediate overflow despite a representable endpoint",
+               "two locally exact runtime state histories with cancellation-masked overflow",
+               "same-epoch command heights", "64-command positive control and 0/65 runtime arity refusals",
+               "three temporary model mutants rejected by proof compilation"],
+       nonclaims=["Per-route ExactEconomicTables is a theorem premise, not a proved property of every route verifier.",
+                  "The arithmetic model has no command-count, metadata or whole-state admission guard; 0/65 controls expose this boundary.",
+                  "The four-table positive example is not a conserved or authenticated global transition.",
+                  "Canonical sorted unique zero-eliding tuples and universal Python/Rust/compiler correspondence remain unproved.",
+                  "Mutation evidence is rejected proof compilation; no executed mutant runtime observation is claimed.",
+                  "Supply conservation, authorization, complete lane lifecycles, receipts, publication and release qualification remain outside this theorem."])
 
 
 if __name__ == "__main__":

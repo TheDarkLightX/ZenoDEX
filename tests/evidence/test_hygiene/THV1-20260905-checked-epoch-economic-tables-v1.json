@@ -1,0 +1,113 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-CHECKED-EPOCH-EXACT-TABLE-COMPOSITION",
+      "points": [
+        "all four key coordinates and nine effect kinds",
+        "balance custody liability and reserve tables",
+        "26 actual composer histories and 129 ordered Lean command-prefix observations",
+        "signed i128 upper and lower intermediate overflow despite a representable endpoint",
+        "two locally exact runtime state histories with cancellation-masked overflow",
+        "same-epoch command heights",
+        "64-command positive control and 0/65 runtime arity refusals",
+        "three temporary model mutants rejected by proof compilation"
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "Universal Lean checked-prefix composition of four exact economic tables, under per-route table premises; finite correspondence to actual Python epoch composition and table checking.",
+  "created_date": "2026-09-05",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "formal",
+    "differential"
+  ],
+  "evidence_id": "THV1-20260905-checked-epoch-economic-tables-v1",
+  "failure_modes": [
+    "all four key coordinates and nine effect kinds",
+    "balance custody liability and reserve tables",
+    "26 actual composer histories and 129 ordered Lean command-prefix observations",
+    "signed i128 upper and lower intermediate overflow despite a representable endpoint",
+    "two locally exact runtime state histories with cancellation-masked overflow",
+    "same-epoch command heights",
+    "64-command positive control and 0/65 runtime arity refusals",
+    "three temporary model mutants rejected by proof compilation"
+  ],
+  "invariant_ids": [
+    "V3-CHECKED-EPOCH-EXACT-TABLE-COMPOSITION"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "Per-route ExactEconomicTables is a theorem premise, not a proved property of every route verifier.",
+    "The arithmetic model has no command-count, metadata or whole-state admission guard; 0/65 controls expose this boundary.",
+    "The four-table positive example is not a conserved or authenticated global transition.",
+    "Canonical sorted unique zero-eliding tuples and universal Python/Rust/compiler correspondence remain unproved.",
+    "Mutation evidence is rejected proof compilation; no executed mutant runtime observation is claimed.",
+    "Supply conservation, authorization, complete lane lifecycles, receipts, publication and release qualification remain outside this theorem."
+  ],
+  "reject_is_noop": {
+    "reason": "Exact signed-overflow refusal and complete unchanged plan/state snapshots are observed at pure Python composition boundaries; the Lean model returns a typed error without an output accumulator.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/CheckedEpochEconomicTablesV1.lean",
+      "sha256": "ee6ebc40358879e168cbc245be1641a06e084a39642d5da2736caacfa60897cd"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
+      "sha256": "b72155a1f32f01a5c96df725358d7fbc55d5014ee0d9894e6743516d37b04e4b"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean",
+      "sha256": "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
+      "sha256": "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "901ca96e492f9ba028881476dce4f8b12e69439053d035693daa4fb9e86d6b18"
+    },
+    {
+      "path": "src/core/epoch_effect_composition_v1.py",
+      "sha256": "a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045"
+    },
+    {
+      "path": "src/core/global_economic_state_delta_v1.py",
+      "sha256": "5b06120b14176985a2889b81cc784145339b7f72720d7b161c74b296cb4e5634"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "2448502668a67ed7bb413bb5c91fa4acc090db3c019d1186995868fec9c18594"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_checked_epoch_economic_tables_v1.py::test_all_named_types_sources_and_axioms",
+        "tests/formal/test_lean_checked_epoch_economic_tables_v1.py::test_actual_composer_matches_independent_prefix_sums_and_lean",
+        "tests/formal/test_lean_checked_epoch_economic_tables_v1.py::test_real_route_table_checks_compose_and_preserve_same_epoch_height",
+        "tests/formal/test_lean_checked_epoch_economic_tables_v1.py::test_runtime_arity_guard_is_outside_the_model",
+        "tests/formal/test_lean_checked_epoch_economic_tables_v1.py::test_locally_exact_routes_reject_epoch_prefix_even_when_endpoint_fits",
+        "tests/formal/test_lean_checked_epoch_economic_tables_v1.py::test_semantic_model_mutants_fail_the_proof_packet"
+      ],
+      "path": "tests/formal/test_lean_checked_epoch_economic_tables_v1.py",
+      "sha256": "efd3cb46a8a4c952c994d74f3084971a36c61ef6bdbaf99305e723a373d05566"
+    }
+  ]
+}
