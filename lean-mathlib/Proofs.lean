@@ -41,6 +41,7 @@ import Proofs.AssetTransferFeeMirrorEligibilityV1
 import Proofs.AssetTransferAnnotationMirrorsV1
 import Proofs.AssetTransferCustodyEffectPlanV1
 import Proofs.AssetTransferGlobalSuccessorV1
+import Proofs.AssetTransferGlobalStateClosureV1
 import Proofs.AsynchronousIntentSettlement
 import Proofs.AtomicCrossMarginHealth
 import Proofs.AutotraderControllerPolicyClosure
