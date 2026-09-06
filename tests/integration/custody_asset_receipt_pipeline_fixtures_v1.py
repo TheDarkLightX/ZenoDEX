@@ -36,6 +36,7 @@ from src.core.asset_transfer_lane_module_v1 import AssetTransferLaneModuleAccept
 from src.core.asset_transfer_policy_registry_v1 import (
     ASSET_TRANSFER_ASSET_POLICY_KIND_V1,
     ASSET_TRANSFER_FEE_POLICY_KIND_V1,
+    AssetTransferPolicyRegistryV1,
 )
 from src.core.asset_transfer_types_v1 import ASSET_TRANSFER_COMMAND_KIND_V1
 from src.core.economic_command_authentication_types_v1 import (
@@ -64,6 +65,7 @@ from src.core.economic_initial_state_atom_coverage_v1 import (
     M6_INITIAL_STATE_ATOM_COVERAGE_POLICY_KIND_V1,
     EconomicInitialStateKindV1,
 )
+from src.core.economic_initial_state_v1 import EconomicInitialStateAdmissionV1
 from src.core.economic_receipt_verifier_registry_v1 import (
     EconomicReceiptVerifierRegistryV1,
 )
@@ -98,6 +100,22 @@ _CUSTODY_DOMAIN_V1 = "vault"
 _CLAIMANT_V1 = "alice"
 
 
+@dataclass(frozen=True, slots=True)
+class CustodyAssetReceiptActivationV1:
+    """Immutable activation context reused by forward-epoch fixtures."""
+
+    profile: abi.EconomicProfileSnapshotV1
+    policy: abi.EconomicPolicyRegistryV1
+    authorization_registry: EconomicCommandAuthorizationRegistryV1
+    signature_verifier_registry: EconomicCommandSignatureVerifierRegistryV1
+    asset_policy_registry: AssetTransferPolicyRegistryV1
+    signature_manifest: EconomicCommandSignatureVerifierEvidenceManifestV1
+    signature_release: EconomicCommandSignatureVerifierReleaseV1
+    signature_artifact_path: Path
+    initial_state_admission: EconomicInitialStateAdmissionV1
+    source_state: abi.GlobalEconomicStateV1
+
+
 @dataclass
 class _Fixture:
     """Existing publisher-fixture shape plus explicit custody rows."""
@@ -112,6 +130,7 @@ class _Fixture:
     custody_atoms: int
     custody_rows: tuple[abi.EconomicAmountV1, ...]
     liability_rows: tuple[abi.EconomicAmountV1, ...]
+    activation: CustodyAssetReceiptActivationV1
     fail_at: str | None = None
     on_call: Callable[[], None] | None = None
 
@@ -293,257 +312,35 @@ def _signature_coordinates_v1(
     return manifest, release
 
 
-def custody_asset_receipt_fixture_v1(
-    owner: Any,
+def _build_fixture_from_context_v1(
     *,
-    custody_atoms: int = _DEFAULT_CUSTODY_ATOMS_V1,
-    claimant_liabilities: tuple[abi.EconomicAmountV1, ...] | None = None,
-    semantic_root_overrides: Mapping[str, str] | None = None,
-    signature_artifact_path: Path | None = None,
-    signature_manifest_factory: Callable[[bytes], EconomicCommandSignatureVerifierEvidenceManifestV1]
-    | None = None,
-    signature_release_factory: Callable[
-        [EconomicCommandSignatureVerifierEvidenceManifestV1],
-        EconomicCommandSignatureVerifierReleaseV1,
-    ]
-    | None = None,
-    pre_state: abi.GlobalEconomicStateV1 | None = None,
-    nonce_start: int = 1,
+    profile: abi.EconomicProfileSnapshotV1,
+    route: abi.RouteReleaseV1,
+    policy: abi.EconomicPolicyRegistryV1,
+    authorizations: EconomicCommandAuthorizationRegistryV1,
+    signatures: EconomicCommandSignatureVerifierRegistryV1,
+    transfer_registry: AssetTransferPolicyRegistryV1,
+    authorization: EconomicCommandAuthorizationV1,
+    signature_manifest: EconomicCommandSignatureVerifierEvidenceManifestV1,
+    signature_release: EconomicCommandSignatureVerifierReleaseV1,
+    pre: abi.GlobalEconomicStateV1,
+    custody_rows: tuple[abi.EconomicAmountV1, ...],
+    liability_rows: tuple[abi.EconomicAmountV1, ...],
+    custody_atoms: int,
+    nonce_start: int,
+    activation: CustodyAssetReceiptActivationV1,
 ) -> _Fixture:
-    """Build one custody profile and its receipt-backed epoch candidate.
+    """Build a candidate from one already-authenticated activation context."""
 
-    ``custody_atoms`` changes the committed supply and custody projection.  A
-    positive default also commits the exact liability row consumed later by
-    allocation admission.  Passing ``claimant_liabilities=()`` deliberately
-    leaves custody unbacked for the publisher/allocation rejection test.
-    """
-
-    base, route_seed, _, _, _, _, _ = _global_allocation_fixture()
-    owner.template = owner.artifacts(base, None)
-    artifact = signature_artifact_path or Path(bls.__file__)
-    signature_manifest, signature_release = _signature_coordinates_v1(
-        artifact,
-        manifest_factory=signature_manifest_factory,
-        release_factory=signature_release_factory,
-    )
-    signatures = EconomicCommandSignatureVerifierRegistryV1((signature_release,))
-    verifier_registry_root = EconomicReceiptVerifierRegistryV1(
-        (_release(owner.manifest()),)
-    ).registry_root
-    # The policy bindings are inherited from the measured global fixture, then
-    # rebound to this fixture's authorization, signature and transfer rows.
-    authorization = EconomicCommandAuthorizationV1(
-        ASSET_TRANSFER_COMMAND_KIND_V1,
-        _CLAIMANT_V1,
-        abi_fixtures._root(600),
-        route_seed.route_release_id,
-        "alice-key-1",
-        "0x" + G2Basic.SkToPk(_SECRET).hex(),
-        "BLS12_381_G2_BASIC_V1",
-        0,
-        10,
-        0,
-        10,
-        True,
-    )
-    authorizations = EconomicCommandAuthorizationRegistryV1((authorization,))
-
-    custody_rows: tuple[abi.EconomicAmountV1, ...] = (
-        ()
-        if custody_atoms == 0
-        else (
-            abi.EconomicAmountV1(
-                _CUSTODY_OWNER_V1,
-                _CUSTODY_ASSET_V1,
-                _CUSTODY_DOMAIN_V1,
-                custody_atoms,
-            ),
-        )
-    )
-    liability_rows = (
-        (
-            abi.EconomicAmountV1(
-                _CLAIMANT_V1,
-                _CUSTODY_ASSET_V1,
-                _CUSTODY_DOMAIN_V1,
-                custody_atoms,
-            ),
-        )
-        if custody_atoms and claimant_liabilities is None
-        else (() if claimant_liabilities is None else claimant_liabilities)
-    )
-
-    # Build the profile once with a provisional route, then rebind the route
-    # and module ids together.  Policy rows depend only on the selected route's
-    # module id and are replaced after that route is available.
-    _provisional_profile, provisional_route = _custody_profile_v1(
-        base,
-        root_overrides=semantic_root_overrides,
-        policy=_governed_policy_registry_for_profile_v1(base),
-        verifier_registry_root=verifier_registry_root,
-    )
-    authorization = replace(
-        authorization,
-        route_release_id=provisional_route.route_release_id,
-    )
-    authorizations = EconomicCommandAuthorizationRegistryV1((authorization,))
-    transfer_registry = _asset_transfer_policy_registry_for_route_v1(provisional_route)
-    provisional_module_state = _epoch_asset_module_state(_provisional_profile)
-    if custody_atoms:
-        provisional_module_state = replace(
-            provisional_module_state,
-            supplies=tuple(
-                replace(row, amount_atoms=row.amount_atoms + custody_atoms)
-                if row.asset == _CUSTODY_ASSET_V1
-                else row
-                for row in provisional_module_state.supplies
-            ),
-        )
-    provisional_pre = abi_fixtures._global_state_from_asset_module(
-        _provisional_profile,
-        _epoch_asset_module_state(_provisional_profile),
-        height=0,
-    )
-    provisional_projection = project_asset_transfer_state_v1(
-        provisional_module_state,
-        asset_policy_registry_root=transfer_registry.asset_policy_root,
-        fee_policy_registry_root=transfer_registry.fee_policy_root,
-        custody=custody_rows,
-    )
-    provisional_pre = replace(
-        provisional_pre,
-        lane_roots=(
-            tuple(
-                replace(
-                    row,
-                    state_root=(
-                        provisional_projection.state_root
-                        if row.lane_id is abi.LaneIdV1.ASSET_TRANSFER
-                        else cert.REGISTERED_EMPTY_LANE_ROOTS_V1.get(
-                            row.lane_id, row.state_root
-                        )
-                    ),
-                )
-                for row in provisional_pre.lane_roots
-            )
-        ),
-        balances=provisional_projection.balances,
-        custody=provisional_projection.custody,
-        liabilities=liability_rows,
-        supplies=provisional_projection.supplies,
-    )
-    source_manifest = abi_fixtures._source_manifest_for_state_v1(
-        EconomicInitialStateKindV1.GENESIS,
-        provisional_pre if pre_state is None else pre_state,
-    )
-    bindings = _governed_policy_registry_for_profile_v1(base).bindings
-    roots = {
-        ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1: authorizations.registry_root,
-        ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1: signatures.registry_root,
-        ASSET_TRANSFER_ASSET_POLICY_KIND_V1: transfer_registry.asset_policy_root,
-        ASSET_TRANSFER_FEE_POLICY_KIND_V1: transfer_registry.fee_policy_root,
-    }
-    # Match by policy kind; the two transfer rows have distinct governed kinds.
-    policy = abi.EconomicPolicyRegistryV1(
-        tuple(
-            replace(
-                row,
-                policy_root=(
-                    authorizations.registry_root
-                    if row.policy_kind == ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1
-                    else (
-                        signatures.registry_root
-                        if row.policy_kind == ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1
-                        else (
-                            transfer_registry.asset_policy_root
-                            if row.policy_kind == ASSET_TRANSFER_ASSET_POLICY_KIND_V1
-                            else (
-                                transfer_registry.fee_policy_root
-                                if row.policy_kind == ASSET_TRANSFER_FEE_POLICY_KIND_V1
-                                else (
-                                    source_manifest.manifest_root
-                                    if row.policy_kind
-                                    == M6_INITIAL_STATE_ATOM_COVERAGE_POLICY_KIND_V1
-                                    else row.policy_root
-                                )
-                            )
-                        )
-                    )
-                ),
-            )
-            for row in bindings
-        )
-    )
-    profile, route = _custody_profile_v1(
-        base,
-        root_overrides=semantic_root_overrides,
-        policy=policy,
-        verifier_registry_root=verifier_registry_root,
-    )
-    # ``_custody_profile_v1`` derives the route from base, so its final route
-    # is the one whose module id the policy transfer registry names.
-    transfer_registry = _asset_transfer_policy_registry_for_route_v1(route)
-    if transfer_registry.asset_policy_root != roots[ASSET_TRANSFER_ASSET_POLICY_KIND_V1]:
-        raise AssertionError("custody fixture transfer policy route was not rebound")
-
-    module_state = _epoch_asset_module_state(profile)
-    if custody_atoms:
-        module_state = replace(
-            module_state,
-            supplies=tuple(
-                replace(row, amount_atoms=row.amount_atoms + custody_atoms)
-                if row.asset == _CUSTODY_ASSET_V1
-                else row
-                for row in module_state.supplies
-            ),
-        )
-    complete_pre = abi_fixtures._global_state_from_asset_module(
-        profile,
-        # The generic helper projects an accounts-only state.  Build its
-        # headers from the unextended rows, then replace all economic tables
-        # with the custody-aware projection below.
-        _epoch_asset_module_state(profile),
-        height=0,
-    )
-    projection = project_asset_transfer_state_v1(
-        module_state,
-        asset_policy_registry_root=transfer_registry.asset_policy_root,
-        fee_policy_registry_root=transfer_registry.fee_policy_root,
-        custody=custody_rows,
-    )
-    complete_pre = replace(
-        complete_pre,
-        lane_roots=(
-            tuple(
-                replace(
-                    row,
-                    state_root=(
-                        projection.state_root
-                        if row.lane_id is abi.LaneIdV1.ASSET_TRANSFER
-                        else cert.REGISTERED_EMPTY_LANE_ROOTS_V1.get(
-                            row.lane_id, row.state_root
-                        )
-                    ),
-                )
-                for row in complete_pre.lane_roots
-            )
-        ),
-        balances=projection.balances,
-        custody=projection.custody,
-        liabilities=liability_rows,
-        supplies=projection.supplies,
-    )
-    pre = complete_pre if pre_state is None else pre_state
     if pre.profile_root != profile.profile_id:
         raise ValueError("pipeline fixture predecessor profile mismatch")
-    if pre_state is not None:
-        custody_rows = pre.custody
-        liability_rows = pre.liabilities
-        module_state = replace(
-            module_state,
-            balances=pre.balances,
-            supplies=pre.supplies,
-        )
+    if pre.custody != custody_rows or pre.liabilities != liability_rows:
+        raise ValueError("pipeline fixture predecessor rows mismatch")
+    module_state = replace(
+        _epoch_asset_module_state(profile),
+        balances=pre.balances,
+        supplies=pre.supplies,
+    )
     occurrence = replace(
         abi_fixtures._occurrence(profile, route, pre),
         nonce=nonce_start,
@@ -702,20 +499,357 @@ def custody_asset_receipt_fixture_v1(
         )
     )
     return _Fixture(
-        candidate,
-        raw,
-        policy,
-        signature_manifest,
-        signature_release,
-        expected,
-        [],
-        custody_atoms,
-        custody_rows,
-        liability_rows,
+        candidate=candidate,
+        raw=raw,
+        policy=policy,
+        signature_manifest=signature_manifest,
+        signature_release=signature_release,
+        expected=expected,
+        calls=[],
+        custody_atoms=custody_atoms,
+        custody_rows=custody_rows,
+        liability_rows=liability_rows,
+        activation=activation,
+    )
+
+
+def custody_asset_receipt_fixture_v1(
+    owner: Any,
+    *,
+    custody_atoms: int = _DEFAULT_CUSTODY_ATOMS_V1,
+    claimant_liabilities: tuple[abi.EconomicAmountV1, ...] | None = None,
+    semantic_root_overrides: Mapping[str, str] | None = None,
+    signature_artifact_path: Path | None = None,
+    signature_manifest_factory: Callable[[bytes], EconomicCommandSignatureVerifierEvidenceManifestV1]
+    | None = None,
+    signature_release_factory: Callable[
+        [EconomicCommandSignatureVerifierEvidenceManifestV1],
+        EconomicCommandSignatureVerifierReleaseV1,
+    ]
+    | None = None,
+    activation: CustodyAssetReceiptActivationV1 | None = None,
+    pre_state: abi.GlobalEconomicStateV1 | None = None,
+    nonce_start: int = 1,
+) -> _Fixture:
+    """Build one custody profile and its receipt-backed epoch candidate.
+
+    ``custody_atoms`` changes the committed supply and custody projection.  A
+    positive default also commits the exact liability row consumed later by
+    allocation admission.  Passing ``claimant_liabilities=()`` deliberately
+    leaves custody unbacked for the publisher/allocation rejection test.
+
+    Forward epochs pass the prior fixture's ``activation`` together with a
+    later ``pre_state``.  That path reuses the original activation evidence.
+    """
+
+    if activation is not None:
+        if type(activation) is not CustodyAssetReceiptActivationV1:
+            raise TypeError("pipeline fixture activation type is not closed")
+        if semantic_root_overrides is not None:
+            raise ValueError("forward fixture cannot rebind activation semantic roots")
+        if signature_manifest_factory is not None or signature_release_factory is not None:
+            raise ValueError("forward fixture cannot rebuild activation signature coordinates")
+        if (
+            signature_artifact_path is not None
+            and signature_artifact_path != activation.signature_artifact_path
+        ):
+            raise ValueError("forward fixture signature artifact does not match activation")
+        pre = activation.source_state if pre_state is None else pre_state
+        forward_custody_rows = pre.custody
+        forward_liability_rows = pre.liabilities
+        if (
+            claimant_liabilities is not None
+            and claimant_liabilities != forward_liability_rows
+        ):
+            raise ValueError("forward fixture cannot rebind activation liabilities")
+        actual_custody_atoms = sum(row.amount_atoms for row in forward_custody_rows)
+        if (
+            custody_atoms != _DEFAULT_CUSTODY_ATOMS_V1
+            and custody_atoms != actual_custody_atoms
+        ):
+            raise ValueError("forward fixture custody atoms do not match predecessor")
+        route = activation.profile.route_registry.routes[0]
+        authorization = activation.authorization_registry.authorizations[0]
+        return _build_fixture_from_context_v1(
+            profile=activation.profile,
+            route=route,
+            policy=activation.policy,
+            authorizations=activation.authorization_registry,
+            signatures=activation.signature_verifier_registry,
+            transfer_registry=activation.asset_policy_registry,
+            authorization=authorization,
+            signature_manifest=activation.signature_manifest,
+            signature_release=activation.signature_release,
+            pre=pre,
+            custody_rows=forward_custody_rows,
+            liability_rows=forward_liability_rows,
+            custody_atoms=actual_custody_atoms,
+            nonce_start=nonce_start,
+            activation=activation,
+        )
+    if pre_state is not None:
+        raise ValueError("forward fixture requires an immutable activation context")
+
+    base, route_seed, _, _, _, _, _ = _global_allocation_fixture()
+    owner.template = owner.artifacts(base, None)
+    artifact = signature_artifact_path or Path(bls.__file__)
+    signature_manifest, signature_release = _signature_coordinates_v1(
+        artifact,
+        manifest_factory=signature_manifest_factory,
+        release_factory=signature_release_factory,
+    )
+    signatures = EconomicCommandSignatureVerifierRegistryV1((signature_release,))
+    verifier_registry_root = EconomicReceiptVerifierRegistryV1(
+        (_release(owner.manifest()),)
+    ).registry_root
+    # The policy bindings are inherited from the measured global fixture, then
+    # rebound to this fixture's authorization, signature and transfer rows.
+    authorization = EconomicCommandAuthorizationV1(
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        _CLAIMANT_V1,
+        abi_fixtures._root(600),
+        route_seed.route_release_id,
+        "alice-key-1",
+        "0x" + G2Basic.SkToPk(_SECRET).hex(),
+        "BLS12_381_G2_BASIC_V1",
+        0,
+        10,
+        0,
+        10,
+        True,
+    )
+    authorizations = EconomicCommandAuthorizationRegistryV1((authorization,))
+
+    custody_rows: tuple[abi.EconomicAmountV1, ...] = (
+        ()
+        if custody_atoms == 0
+        else (
+            abi.EconomicAmountV1(
+                _CUSTODY_OWNER_V1,
+                _CUSTODY_ASSET_V1,
+                _CUSTODY_DOMAIN_V1,
+                custody_atoms,
+            ),
+        )
+    )
+    liability_rows = (
+        (
+            abi.EconomicAmountV1(
+                _CLAIMANT_V1,
+                _CUSTODY_ASSET_V1,
+                _CUSTODY_DOMAIN_V1,
+                custody_atoms,
+            ),
+        )
+        if custody_atoms and claimant_liabilities is None
+        else (() if claimant_liabilities is None else claimant_liabilities)
+    )
+
+    # Build the profile once with a provisional route, then rebind the route
+    # and module ids together.  Policy rows depend only on the selected route's
+    # module id and are replaced after that route is available.
+    _provisional_profile, provisional_route = _custody_profile_v1(
+        base,
+        root_overrides=semantic_root_overrides,
+        policy=_governed_policy_registry_for_profile_v1(base),
+        verifier_registry_root=verifier_registry_root,
+    )
+    authorization = replace(
+        authorization,
+        route_release_id=provisional_route.route_release_id,
+    )
+    authorizations = EconomicCommandAuthorizationRegistryV1((authorization,))
+    transfer_registry = _asset_transfer_policy_registry_for_route_v1(provisional_route)
+    provisional_module_state = _epoch_asset_module_state(_provisional_profile)
+    if custody_atoms:
+        provisional_module_state = replace(
+            provisional_module_state,
+            supplies=tuple(
+                replace(row, amount_atoms=row.amount_atoms + custody_atoms)
+                if row.asset == _CUSTODY_ASSET_V1
+                else row
+                for row in provisional_module_state.supplies
+            ),
+        )
+    provisional_pre = abi_fixtures._global_state_from_asset_module(
+        _provisional_profile,
+        _epoch_asset_module_state(_provisional_profile),
+        height=0,
+    )
+    provisional_projection = project_asset_transfer_state_v1(
+        provisional_module_state,
+        asset_policy_registry_root=transfer_registry.asset_policy_root,
+        fee_policy_registry_root=transfer_registry.fee_policy_root,
+        custody=custody_rows,
+    )
+    provisional_pre = replace(
+        provisional_pre,
+        lane_roots=(
+            tuple(
+                replace(
+                    row,
+                    state_root=(
+                        provisional_projection.state_root
+                        if row.lane_id is abi.LaneIdV1.ASSET_TRANSFER
+                        else cert.REGISTERED_EMPTY_LANE_ROOTS_V1.get(
+                            row.lane_id, row.state_root
+                        )
+                    ),
+                )
+                for row in provisional_pre.lane_roots
+            )
+        ),
+        balances=provisional_projection.balances,
+        custody=provisional_projection.custody,
+        liabilities=liability_rows,
+        supplies=provisional_projection.supplies,
+    )
+    source_manifest = abi_fixtures._source_manifest_for_state_v1(
+        EconomicInitialStateKindV1.GENESIS,
+        provisional_pre,
+    )
+    bindings = _governed_policy_registry_for_profile_v1(base).bindings
+    roots = {
+        ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1: authorizations.registry_root,
+        ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1: signatures.registry_root,
+        ASSET_TRANSFER_ASSET_POLICY_KIND_V1: transfer_registry.asset_policy_root,
+        ASSET_TRANSFER_FEE_POLICY_KIND_V1: transfer_registry.fee_policy_root,
+    }
+    # Match by policy kind; the two transfer rows have distinct governed kinds.
+    policy = abi.EconomicPolicyRegistryV1(
+        tuple(
+            replace(
+                row,
+                policy_root=(
+                    authorizations.registry_root
+                    if row.policy_kind == ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1
+                    else (
+                        signatures.registry_root
+                        if row.policy_kind == ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1
+                        else (
+                            transfer_registry.asset_policy_root
+                            if row.policy_kind == ASSET_TRANSFER_ASSET_POLICY_KIND_V1
+                            else (
+                                transfer_registry.fee_policy_root
+                                if row.policy_kind == ASSET_TRANSFER_FEE_POLICY_KIND_V1
+                                else (
+                                    source_manifest.manifest_root
+                                    if row.policy_kind
+                                    == M6_INITIAL_STATE_ATOM_COVERAGE_POLICY_KIND_V1
+                                    else row.policy_root
+                                )
+                            )
+                        )
+                    )
+                ),
+            )
+            for row in bindings
+        )
+    )
+    profile, route = _custody_profile_v1(
+        base,
+        root_overrides=semantic_root_overrides,
+        policy=policy,
+        verifier_registry_root=verifier_registry_root,
+    )
+    # ``_custody_profile_v1`` derives the route from base, so its final route
+    # is the one whose module id the policy transfer registry names.
+    transfer_registry = _asset_transfer_policy_registry_for_route_v1(route)
+    if transfer_registry.asset_policy_root != roots[ASSET_TRANSFER_ASSET_POLICY_KIND_V1]:
+        raise AssertionError("custody fixture transfer policy route was not rebound")
+
+    module_state = _epoch_asset_module_state(profile)
+    if custody_atoms:
+        module_state = replace(
+            module_state,
+            supplies=tuple(
+                replace(row, amount_atoms=row.amount_atoms + custody_atoms)
+                if row.asset == _CUSTODY_ASSET_V1
+                else row
+                for row in module_state.supplies
+            ),
+        )
+    complete_pre = abi_fixtures._global_state_from_asset_module(
+        profile,
+        # The generic helper projects an accounts-only state.  Build its
+        # headers from the unextended rows, then replace all economic tables
+        # with the custody-aware projection below.
+        _epoch_asset_module_state(profile),
+        height=0,
+    )
+    projection = project_asset_transfer_state_v1(
+        module_state,
+        asset_policy_registry_root=transfer_registry.asset_policy_root,
+        fee_policy_registry_root=transfer_registry.fee_policy_root,
+        custody=custody_rows,
+    )
+    complete_pre = replace(
+        complete_pre,
+        lane_roots=(
+            tuple(
+                replace(
+                    row,
+                    state_root=(
+                        projection.state_root
+                        if row.lane_id is abi.LaneIdV1.ASSET_TRANSFER
+                        else cert.REGISTERED_EMPTY_LANE_ROOTS_V1.get(
+                            row.lane_id, row.state_root
+                        )
+                    ),
+                )
+                for row in complete_pre.lane_roots
+            )
+        ),
+        balances=projection.balances,
+        custody=projection.custody,
+        liabilities=liability_rows,
+        supplies=projection.supplies,
+    )
+    initial_admission = replace(
+        abi_fixtures._initial_state_admission(
+            profile,
+            complete_pre,
+            source_manifest=source_manifest,
+        ),
+        policy_registry=policy,
+    )
+    activation = CustodyAssetReceiptActivationV1(
+        profile=profile,
+        policy=policy,
+        authorization_registry=authorizations,
+        signature_verifier_registry=signatures,
+        asset_policy_registry=transfer_registry,
+        signature_manifest=signature_manifest,
+        signature_release=signature_release,
+        signature_artifact_path=artifact,
+        initial_state_admission=initial_admission,
+        source_state=complete_pre,
+    )
+    return _build_fixture_from_context_v1(
+        profile=profile,
+        route=route,
+        policy=policy,
+        authorizations=authorizations,
+        signatures=signatures,
+        transfer_registry=transfer_registry,
+        authorization=authorization,
+        signature_manifest=signature_manifest,
+        signature_release=signature_release,
+        pre=complete_pre,
+        custody_rows=custody_rows,
+        liability_rows=liability_rows,
+        custody_atoms=custody_atoms,
+        nonce_start=nonce_start,
+        activation=activation,
     )
 
 
 _fixture = custody_asset_receipt_fixture_v1
 
 
-__all__ = ["_Fixture", "custody_asset_receipt_fixture_v1", "_fixture"]
+__all__ = [
+    "CustodyAssetReceiptActivationV1",
+    "_Fixture",
+    "custody_asset_receipt_fixture_v1",
+    "_fixture",
+]

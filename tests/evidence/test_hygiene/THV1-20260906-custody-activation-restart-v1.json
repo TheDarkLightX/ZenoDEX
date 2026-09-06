@@ -1,0 +1,199 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-CUSTODY-ACTIVATION-REOPEN-SOURCE-CONTINUITY",
+      "points": [
+        "one SQLite store/path carries two epochs under one fixed test activation; custody and liability rows hold exactly 7 atoms in the vault domain",
+        "epoch one: create, commit, close, reopen, exact retry ALREADY_COMMITTED with an identical logical store",
+        "epoch two from the same activation object and the committed epoch-one post state with nonce 2: source publication id, pre-state root, height plus one and sequence plus one all bound to epoch one",
+        "current head sequence 2 and exactly two exact epoch rows; the exact epoch-two retry leaves the store unchanged",
+        "forward fixture identity: same activation and initial-state admission objects, same registries, pre state equal to the predecessor post state",
+        "Python BLS backend for the reopen history; the sealed BLS positive case is a separate parametrized run with an explicit checksum-qualified binary",
+        "retained invalid-signature refusal before receipt calls and absent or mismatched (0, 6, 8 atom) claimant backing refusals",
+        "the forward-fixture test failed against the pre-fix fixture before the repair"
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "One immutable custody activation context supports a same-process publisher close and reopen: the exact epoch-one retry is ALREADY_COMMITTED with unchanged store rows, and the adjacent epoch-two publication continues from the committed epoch-one head with unchanged custody and claimant liability ownership.",
+  "created_date": "2026-09-06",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "differential"
+  ],
+  "evidence_id": "THV1-20260906-custody-activation-restart-v1",
+  "failure_modes": [
+    "one SQLite store/path carries two epochs under one fixed test activation; custody and liability rows hold exactly 7 atoms in the vault domain",
+    "epoch one: create, commit, close, reopen, exact retry ALREADY_COMMITTED with an identical logical store",
+    "epoch two from the same activation object and the committed epoch-one post state with nonce 2: source publication id, pre-state root, height plus one and sequence plus one all bound to epoch one",
+    "current head sequence 2 and exactly two exact epoch rows; the exact epoch-two retry leaves the store unchanged",
+    "forward fixture identity: same activation and initial-state admission objects, same registries, pre state equal to the predecessor post state",
+    "Python BLS backend for the reopen history; the sealed BLS positive case is a separate parametrized run with an explicit checksum-qualified binary",
+    "retained invalid-signature refusal before receipt calls and absent or mismatched (0, 6, 8 atom) claimant backing refusals",
+    "the forward-fixture test failed against the pre-fix fixture before the repair"
+  ],
+  "invariant_ids": [
+    "V3-CUSTODY-ACTIVATION-REOPEN-SOURCE-CONTINUITY"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "RISC0 receipt replies and release coordinates are synthetic; no genuine custody guest chain, image or receipt is qualified.",
+    "Close and reopen happen in one test process on one path; killed-process recovery, crash consistency, rollback, migration and writer fencing are not exercised.",
+    "The Python BLS backend carries its loaded-code integrity premise; the sealed binary case supplies real-execution evidence only when ZENODEX_BLS_VERIFIER_TEST_BINARY names the checksum-qualified artifact, and a skipped run supplies none.",
+    "Initial claimant liability rows in test state do not approve production claimant, initial-ownership or migration policy.",
+    "The pre-fix AttributeError showed an absent activation attribute in the old fixture; it was a test-construction failure, not a production semantic defect. No publisher, journal, allocation or admission source changed.",
+    "No live activation, production qualification or whole-program completeness is established."
+  ],
+  "reject_is_noop": {
+    "reason": "An exact retry of a committed epoch returns ALREADY_COMMITTED with the committed head and published epoch while metadata, current head and epoch rows stay identical. The forward fixture refuses rebound semantic roots, signature coordinates, liabilities or custody atoms and a later state without an activation. Retained invalid-signature and uncovered-claimant refusals leave the logical store unchanged.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "experiments/v3_authorization_restart_v1/render_evidence.py",
+      "sha256": "e83aaa571ef0c4905241a0859afd202c00e8a3d404feff584c7b39bfd756da24"
+    },
+    {
+      "path": "docs/research/ZENODEX_SPARSE_AUTHORIZATION_AND_CUSTODY_RESTART_20260906.md",
+      "sha256": "db3106618938a01b3fe84f31d9dc242930cdcc1558e0d40e69a852ad7480d514"
+    },
+    {
+      "path": "tests/integration/custody_asset_receipt_pipeline_fixtures_v1.py",
+      "sha256": "70ede1d505f42d3bfbf92c935ffc109a61ce6dae394d9621d4579949fd1b656e"
+    },
+    {
+      "path": "src/integration/global_economic_durable_publisher_v1.py",
+      "sha256": "52890237d78f45a0369d16ef013501316a83cfd53fa3f865864f4a0abea23c77"
+    },
+    {
+      "path": "src/integration/global_economic_epoch_journal_v1.py",
+      "sha256": "0bb40e878165bcd3e5b72b2d20d5fc40c2da628585f2ef4a9905d17a436318f0"
+    },
+    {
+      "path": "src/integration/global_economic_durable_epoch_v1.py",
+      "sha256": "d3500267964f84e05dcc278ab0843a4b8b46b7c4163e27691ad4bfd9c29299ba"
+    },
+    {
+      "path": "src/integration/global_economic_commit_v1.py",
+      "sha256": "7ed2e205fa72d59cfde97229cc4a5d7408e9c891983dfb6a9f425cccead12f47"
+    },
+    {
+      "path": "src/integration/isolated_asset_receipt_pipeline_v1.py",
+      "sha256": "509c95afe667b78e56baa2f6a147a0c6e34de23bcab6605be9a746605ed49d9a"
+    },
+    {
+      "path": "src/integration/isolated_profile_receipt_ports_v1.py",
+      "sha256": "aee2c8de566727da7d214fd6af08b291af0966428c7fca4b458aa5f1b9aa6843"
+    },
+    {
+      "path": "src/integration/economic_command_bls_signature_verifier_v1.py",
+      "sha256": "3dbf54e13400fe84f78bb1be78238c037b43e8e068b4d07bbda68290652a75f9"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_v1.py",
+      "sha256": "56cb70b822a20cc7cc7b3a3bd10aa8098f2ae145484f532a785d015465a3f08b"
+    },
+    {
+      "path": "src/integration/global_receipt_verifier_v1.py",
+      "sha256": "5e727d826ea298559e3bc2136fe96dec62f2d56eb66e6488771e652b699fcd47"
+    },
+    {
+      "path": "src/core/economic_initial_state_v1.py",
+      "sha256": "68491754100f05564320ebba841bd354d83d0d1588acb581c89f33c386ec9455"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_custody_v1.py",
+      "sha256": "0d2118f275f6aa5bd308125b83b7c4528dbfc086749c8cb744bacea15983b45e"
+    },
+    {
+      "path": "src/core/asset_transfer_custody_semantics_v1.py",
+      "sha256": "9fd563c0ca06d565cce33226b534c09ac63efde6dd6f37ac6a81cf514c57d4a9"
+    },
+    {
+      "path": "src/core/asset_transfer_epoch_allocation_v1.py",
+      "sha256": "34a5012d84f130921ce80c87e367c56bfe92d6e6d7c59ccd6774d8fbc3bcb071"
+    },
+    {
+      "path": "src/core/asset_transfer_receipt_admission_v1.py",
+      "sha256": "2a954812ee4d4cbcb537872ff108c52576c6c5aef7eaca28bab124d27488837f"
+    },
+    {
+      "path": "src/core/lane_module_release_route_binding_v1.py",
+      "sha256": "a0c5d312332344ee9ec18e4ece6e4345bbc4f33a71b3aeb85fda245173c07c83"
+    },
+    {
+      "path": "src/core/lane_module_receipt_verification_v1.py",
+      "sha256": "c6298378e83389d0cd547b2b0ee557747112a25e667c45dce77524e2f085ad8b"
+    },
+    {
+      "path": "src/core/global_accounting_lane_producers_v1.py",
+      "sha256": "437973db878e23ba2b37bdd7a6b761f539167a3468f9fbf4059d3cc9a25cf41e"
+    },
+    {
+      "path": "tests/integration/publisher_receipt_port_fixtures_v1.py",
+      "sha256": "f02f4d65201f9fbc80ca7a2e36049299284ad02b888b4206c637b636c767583a"
+    },
+    {
+      "path": "tests/integration/test_global_economic_sealed_bls_pipeline_v1.py",
+      "sha256": "83ea0b17127d29f514a1557c3d39edc5d8dcbd449f4a9392b96091b823f401e9"
+    },
+    {
+      "path": "tests/integration/test_sealed_bls_command_verifier_deployment_v1.py",
+      "sha256": "44eba5ac7180fb4514cf2b69eea0a2affd8f12ae25453d4842b9b830b89e902e"
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "641c8c6771507b4a763417bd8c3fac5fa9a3df6eb66ed21ea67a085c5a403fb2"
+    },
+    {
+      "path": "tests/core/test_economic_receipt_verifier_release_v1.py",
+      "sha256": "23ae079aba968ac4ab64e6c1fe66ac805724d5245f374a0bd11001e2bfa684c7"
+    },
+    {
+      "path": "tests/core/test_asset_transfer_global_allocation_v1.py",
+      "sha256": "124ed821b59d5bf1ed4763870f296614c87dd7fd64bade8ceae4ad4ca339fa05"
+    },
+    {
+      "path": "tests/core/test_economic_command_authentication_v1.py",
+      "sha256": "aae449eb0d17291f6028c9e60aae3d0b5fca18754f08b1edec6372ba0ff8aa50"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_custody_pipeline_v1.py::test_backed_custody_commits_complete_bundle_and_exact_retry",
+        "tests/integration/test_global_economic_custody_pipeline_v1.py::test_missing_or_mismatched_claimant_backing_rejects_before_epoch_and_commit",
+        "tests/integration/test_global_economic_custody_pipeline_v1.py::test_forward_epoch_fixture_reuses_immutable_activation_context",
+        "tests/integration/test_global_economic_custody_pipeline_v1.py::test_custody_activation_reopens_and_commits_adjacent_forward_epoch"
+      ],
+      "path": "tests/integration/test_global_economic_custody_pipeline_v1.py",
+      "sha256": "203869aa5c88c5ca934aa52857b5fbe5aeb442137b66457f6bf315d06cc033e4"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_nonzero_custody_uses_exact_global_rows_and_feeds_allocation",
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_zero_custody_remains_a_valid_custody_semantics_epoch",
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_missing_or_misattributed_raw_custody_rejects_before_allocation",
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_wrong_semantic_root_is_coherently_bound_but_rejected_before_receipts",
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_invalid_signature_rejects_before_every_receipt_callback",
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_legacy_factory_still_accepts_zero_custody_under_the_legacy_contract"
+      ],
+      "path": "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py",
+      "sha256": "0f9180621f2cf08a08a995c15b6ac1c95c3d5409ac5fb1524267d13a4b1b7724"
+    }
+  ]
+}

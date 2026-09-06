@@ -33,6 +33,7 @@ import Proofs.AssetTransferRefinementV2
 import Proofs.AssetTransferSparseTablesV1
 import Proofs.AssetTransferSparseTraceV1
 import Proofs.AssetTransferSparseSupplyV1
+import Proofs.AssetTransferSparseAuthorizationV1
 import Proofs.AssetTransferFeeMirrorEligibilityV1
 import Proofs.AsynchronousIntentSettlement
 import Proofs.AtomicCrossMarginHealth
