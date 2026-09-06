@@ -1,0 +1,178 @@
+{
+  "aaa": {
+    "reason": "Arrange exact source and fixed observations, execute the pure checker or solver, and compare every declared output and failure disposition.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "unsigned arithmetic",
+      "points": [
+        "zero and one",
+        "uint32 maximum and neighbors",
+        "signed comparison seam",
+        "modular sum and delta wrap"
+      ]
+    },
+    {
+      "name": "nonce lifecycle",
+      "points": [
+        "gap 999, 1000 and 1001",
+        "replay and recovery",
+        "maximum nonce exhaustion",
+        "stale caller-state repetition"
+      ]
+    },
+    {
+      "name": "transcript and report",
+      "points": [
+        "one to eight rows",
+        "missing or extra outputs",
+        "nonzero exit and diagnostic text",
+        "initial and final report write failures"
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "Bounded current-Tau economic predicate replay: all observed output fields, independent fixed and generated vectors, caller-state nonce histories, and one manually translated full-bv32 optimization equivalence proof. Experimental only; no ownership or publication authority.",
+  "created_date": "2026-09-05",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "differential",
+    "stateful",
+    "formal"
+  ],
+  "evidence_id": "THV1-20260905-tau-economic-qualification-v1",
+  "failure_modes": [
+    "missing or reordered outputs",
+    "selected gate hides an incorrect standalone field",
+    "unproved solver result promoted",
+    "stale caller nonce mistaken for persistent replay protection",
+    "final report failure preserves an old success after execution"
+  ],
+  "invariant_ids": [
+    "TAU-COMPLETE-OUTPUT-TRACE",
+    "TAU-EXACT-SOURCE-AND-STREAM-BINDING",
+    "TAU-FAILED-RUN-NO-PASS-PROMOTION",
+    "TAU-TRANSFER-DELTA-CONSERVATION-EQUIVALENCE"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Rendering this packet does not execute its named tests, the explicit Tau CLI or the independent solver replay.",
+    "Unit tests need no Tau executable; the separate qualification CLI must be run and checked for actual-engine evidence.",
+    "No authenticated ownership, balances, signatures, host witnesses, persistent nonce changes or production publication is established.",
+    "Finite Boolean execution does not cover arbitrary algebra-valued sbf behavior or universal compiler/runtime refinement.",
+    "The equivalence proof manually translates pinned predicates and trusts Z3; execution and performance are separate claims.",
+    "Report replacement assumes a caller-owned path with one writer; initial invalidation failure reports possible preexisting output and never starts qualification."
+  ],
+  "reject_is_noop": {
+    "reason": "This research shell has no ledger mutation port. Its report is deliberately replaced on rejection. Caller-state nonce histories separately require no simulated nonce update on denied rows.",
+    "status": "not_applicable"
+  },
+  "removed_paths": [],
+  "risk_class": "assurance",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "experiments/tau_economic_qualification_v1/reference.py",
+      "sha256": "8d67ab35bc830a271a3162a95eb513a4c4531268ca450703205d90885144ccfb"
+    },
+    {
+      "path": "experiments/tau_economic_qualification_v1/runner.py",
+      "sha256": "e02465c3f91bf3b0af368a04cd875ecf1664555e57623cee92a7f0475c0215af"
+    },
+    {
+      "path": "experiments/tau_economic_qualification_v1/qualify.py",
+      "sha256": "c872ae24483a0017e49b8f376c56e4b84b0edb230566b582dce73d18f66ec36a"
+    },
+    {
+      "path": "experiments/tau_economic_qualification_v1/conservation_equivalence.py",
+      "sha256": "a19680b7242fa238d65bcf712a1349f862409d2eb1f4c6c38eb9eec839eefc22"
+    },
+    {
+      "path": "experiments/tau_economic_qualification_v1/render_evidence.py",
+      "sha256": "1e84c85468b3a13e749d66b0126aa8d7107e5a95e0444094d1c7856bb3f778f0"
+    },
+    {
+      "path": "src/tau_specs/recommended/nonce_replay_guard_v1.tau",
+      "sha256": "231f592b53e567c04951afff0aee5f5d9021a1d6a77ba0d9e68e866f0123a15a"
+    },
+    {
+      "path": "src/tau_specs/recommended/nonce_manager_v1.tau",
+      "sha256": "23fd3ca529ea8ed601ab21a97bc83cf97c74d949b6d51b11cdc4b893b25e1f73"
+    },
+    {
+      "path": "src/tau_specs/recommended/transfer_hook_guard_v1.tau",
+      "sha256": "64fa492391e9138b6d44bd39a0cdc4d1bba0f8c0b79d6d753a076838946a67c6"
+    },
+    {
+      "path": "src/tau_specs/recommended/zusd_transfer_guard_v1.tau",
+      "sha256": "6dcdde96e8c5a80b3392fd22b41d255a87f7293d8b1f79a817712730c33413ef"
+    },
+    {
+      "path": "src/integration/tau_runner.py",
+      "sha256": "d2aeba75d26f5b28e7aa01890da4ab2c54678fc8a891c6bdac231a4b7bed3298"
+    },
+    {
+      "path": "experiments/tau_adt_rows_v1/execution.py",
+      "sha256": "c9bd254baaa258a0eecaa5d8600e3202d84a5b4360707b0a45236cd1373ab7ec"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/tau/test_tau_economic_reference_v1.py::test_fixed_vectors_cover_complete_outputs_with_an_independent_integer_oracle",
+        "tests/tau/test_tau_economic_reference_v1.py::test_exhaustive_zusd_binary_truth_partition_is_frozen_and_independently_checked",
+        "tests/tau/test_tau_economic_reference_v1.py::test_closed_registry_and_tuple_shapes_keep_the_corpus_deterministic",
+        "tests/tau/test_tau_economic_reference_v1.py::test_uint32_and_sbf_boundary_validation_rejects_booleans_and_out_of_domain_values",
+        "tests/tau/test_tau_economic_reference_v1.py::test_sbf_positions_in_every_fixed_row_are_closed_to_zero_or_one",
+        "tests/tau/test_tau_economic_reference_v1.py::test_immutable_records_do_not_allow_row_or_history_alias_mutation",
+        "tests/tau/test_tau_economic_reference_v1.py::test_modular_transfer_vectors_preserve_each_source_output_independently",
+        "tests/tau/test_tau_economic_reference_v1.py::test_transfer_direction_delta_and_hook_partitions_cover_every_output_class",
+        "tests/tau/test_tau_economic_reference_v1.py::test_nonce_wrap_and_gap_edges_are_exact_unsigned_vectors",
+        "tests/tau/test_tau_economic_reference_v1.py::test_stale_caller_state_is_only_a_pointwise_observation",
+        "tests/tau/test_tau_economic_reference_v1.py::test_pause_then_unpause_rows_are_contiguous_independent_inputs",
+        "tests/tau/test_tau_economic_reference_v1.py::test_nonce_histories_advance_external_caller_state_only_after_acceptance"
+      ],
+      "path": "tests/tau/test_tau_economic_reference_v1.py",
+      "sha256": "f95ba53857dca7edcb719bf473e16cdc5c26f69ed90f3646511d900fb9c0d2f0"
+    },
+    {
+      "node_ids": [
+        "tests/tau/test_tau_economic_runner_v1.py::test_full_output_vector_and_independent_steps_are_retained",
+        "tests/tau/test_tau_economic_runner_v1.py::test_missing_reordered_noncanonical_or_diagnostic_output_rejects",
+        "tests/tau/test_tau_economic_runner_v1.py::test_complete_output_does_not_hide_process_failure",
+        "tests/tau/test_tau_economic_runner_v1.py::test_source_drift_and_wrong_variant_cannot_be_qualified",
+        "tests/tau/test_tau_economic_runner_v1.py::test_exact_banners_and_raw_newlines_are_required",
+        "tests/tau/test_tau_economic_runner_v1.py::test_input_encoding_rejects_shape_type_and_width_drift",
+        "tests/tau/test_tau_economic_runner_v1.py::test_inputs_are_separate_sealed_streams_and_close_after_failure"
+      ],
+      "path": "tests/tau/test_tau_economic_runner_v1.py",
+      "sha256": "50a32e29b5b535ed530b1d066a317e7353c3ae08c41d6dcb60bc68ba86b8f772"
+    },
+    {
+      "node_ids": [
+        "tests/tau/test_tau_economic_qualification_v1.py::test_selected_gate_match_cannot_hide_an_incorrect_standalone_output",
+        "tests/tau/test_tau_economic_qualification_v1.py::test_wrong_fixed_vector_is_detected_before_engine_execution",
+        "tests/tau/test_tau_economic_qualification_v1.py::test_failed_rerun_overwrites_old_pass_report",
+        "tests/tau/test_tau_economic_qualification_v1.py::test_changed_normalizer_cannot_reach_execution",
+        "tests/tau/test_tau_economic_qualification_v1.py::test_foreign_binary_is_rejected_without_execution",
+        "tests/tau/test_tau_economic_qualification_v1.py::test_output_write_failure_returns_failure_even_after_success",
+        "tests/tau/test_tau_economic_qualification_v1.py::test_final_report_failure_leaves_incomplete_marker_instead_of_old_pass",
+        "tests/tau/test_tau_economic_qualification_v1.py::test_failed_initial_invalidation_never_executes_or_claims_old_report_removed"
+      ],
+      "path": "tests/tau/test_tau_economic_qualification_v1.py",
+      "sha256": "f5ba0df4cede7c12adcef735501b82ae64700efd284b1d0496f025813553b417"
+    },
+    {
+      "node_ids": [
+        "tests/tau/test_tau_transfer_conservation_equivalence_v1.py::test_full_bv32_output_relation_equivalence_with_nonvacuity_and_mutant_controls",
+        "tests/tau/test_tau_transfer_conservation_equivalence_v1.py::test_source_drift_cannot_reuse_the_manual_translation",
+        "tests/tau/test_tau_transfer_conservation_equivalence_v1.py::test_unproved_miter_cannot_be_promoted",
+        "tests/tau/test_tau_transfer_conservation_equivalence_v1.py::test_elision_retains_all_output_biconditionals_and_other_source_lines"
+      ],
+      "path": "tests/tau/test_tau_transfer_conservation_equivalence_v1.py",
+      "sha256": "7e9ef07ed2f6228d6f14b3c0067499b5c8556142d7c5dbaa67bcf253b359ec81"
+    }
+  ]
+}
