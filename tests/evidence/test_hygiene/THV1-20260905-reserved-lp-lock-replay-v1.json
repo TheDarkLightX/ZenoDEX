@@ -73,7 +73,7 @@
     },
     {
       "path": "experiments/v3_completion_followup_v1/render_evidence.py",
-      "sha256": "1d386d92f79e1b8ba129963c4da729e84b5dc6cd10333dd8b06bf2e60f65bda1"
+      "sha256": "9e26a32bf0cc5ac75dc8c92d7661e841de5e8202ddccd0b8cb532fb57b287791"
     }
   ],
   "test_pins": [

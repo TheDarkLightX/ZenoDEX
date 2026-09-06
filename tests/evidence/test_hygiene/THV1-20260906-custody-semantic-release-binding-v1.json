@@ -1,0 +1,245 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-CUSTODY-SEMANTIC-FAMILY-EXACT-BINDING",
+      "points": [
+        "canonical 3333-byte specification with independently derived domain-separated root",
+        "raw file SHA excluded from semantic selection",
+        "custody zero, one and seven; matching and mixed root families",
+        "module-only, coordinator-only and route-only mismatches with coherently rebuilt identities",
+        "ACTIVE and occurrence/profile admission deferred to structural binding in both languages",
+        "Python exact aggregate snapshot and typed-subclass/duck rejection",
+        "single Python custody recomputation and unchanged legacy recomputation",
+        "shared canonical Python-produced nonzero-custody vector decoded and bound by Rust"
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "Separate Python/Rust custody binders require the reviewed module/coordinator/single-ASSET route semantic roots, preserve structural policy/context/release checks and confirm exact custody recomputation. The result remains a structural witness.",
+  "created_date": "2026-09-06",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "differential"
+  ],
+  "evidence_id": "THV1-20260906-custody-semantic-release-binding-v1",
+  "failure_modes": [
+    "canonical 3333-byte specification with independently derived domain-separated root",
+    "raw file SHA excluded from semantic selection",
+    "custody zero, one and seven; matching and mixed root families",
+    "module-only, coordinator-only and route-only mismatches with coherently rebuilt identities",
+    "ACTIVE and occurrence/profile admission deferred to structural binding in both languages",
+    "Python exact aggregate snapshot and typed-subclass/duck rejection",
+    "single Python custody recomputation and unchanged legacy recomputation",
+    "shared canonical Python-produced nonzero-custody vector decoded and bound by Rust"
+  ],
+  "invariant_ids": [
+    "V3-CUSTODY-SEMANTIC-FAMILY-EXACT-BINDING"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "Synthetic active/evidence metadata qualifies no release, image, receipt or profile.",
+    "Ordinary semantic selection and structural witnesses grant no publication authority.",
+    "Native Rust one-call evidence is source inspection plus mismatch controls, not dynamic call-count instrumentation.",
+    "Module-level coordinator selection is profile-bound; native route coordinator_context remains separate.",
+    "Custody receipt/native-route integration, genuine successor proofs, deployment and migration remain open.",
+    "Three inherited Python readonly-context protocol MyPy findings remain baseline-equal."
+  ],
+  "reject_is_noop": {
+    "reason": "Coherently rebuilt root mismatches reject before recomputation. Python instrumentation observes exact recomputation counts and unchanged complete candidates; retained legacy and tampered-total controls distinguish structural acceptance from recomputed acceptance.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/core/asset_transfer_custody_semantics_v1.py",
+      "sha256": "9fd563c0ca06d565cce33226b534c09ac63efde6dd6f37ac6a81cf514c57d4a9"
+    },
+    {
+      "path": "src/core/lane_module_release_route_binding_v1.py",
+      "sha256": "a0c5d312332344ee9ec18e4ece6e4345bbc4f33a71b3aeb85fda245173c07c83"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_custody_v1.py",
+      "sha256": "0d2118f275f6aa5bd308125b83b7c4528dbfc086749c8cb744bacea15983b45e"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_v1.py",
+      "sha256": "7c043b222d4e8aa3d54477ad7508ff65afd716f1b720f76f63995afc4daa7c1a"
+    },
+    {
+      "path": "src/core/asset_transfer_policy_registry_v1.py",
+      "sha256": "3078bb86c1225a9035d1603654a901973092ef9d430959ba4c18f83d97863a0d"
+    },
+    {
+      "path": "src/core/global_economic_profile_snapshot_v1.py",
+      "sha256": "6878f42b94b07ecb2ce48196d39eeaa75115c8f8c66765dbc81de92288f537f7"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_custody_semantics.rs",
+      "sha256": "dd0d6cbf0290d7fe823daf170bfacad81b68b2909ca1019da4b659a56f1ff14b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs",
+      "sha256": "20a8612eb465f0ff221f7f94585d514f9d677c269861bd69012fa7d164bb6cc9"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "f2951a2ea65cabe071f3c39792f1a7c21c6451d0268761df6fff316a5f88fc9b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_lane_module_custody.rs",
+      "sha256": "28f1e2847ec28f07ed95f7c2c9e0dbcafdf781bafc446bd1d550ebae1b8c422b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/release.rs",
+      "sha256": "c4be87437f2adb08711f1bdb94011a32a8c6f0beff70858ad7bca9136acc0754"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/asset_transfer_custody_release_route_binding.rs",
+      "sha256": "415c2fed828ee9be66db4918bf0ce3242458cf1c8c98774839b25f3e3eb091e2"
+    },
+    {
+      "path": "docs/specifications/asset-transfer-custody-semantic-bundle-v1.json",
+      "sha256": "4b16964671cd4e4f4585437ad632eb5aa13fee17a5f49c65a96b59335b43ba72"
+    },
+    {
+      "path": "experiments/v3_custody_successor_v1/render_vectors.py",
+      "sha256": "79af4906fa7e7c443edace1d99ad1fd546514eb928802e69f3686ac1d22f6eed"
+    },
+    {
+      "path": "tests/data/asset_transfer_custody_release_binding_v1_golden.json",
+      "sha256": "014e97e7c1f3a1f458bc051052d7bf91db7c1f83206aa9cc15b92a693301d9be"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "9e26a32bf0cc5ac75dc8c92d7661e841de5e8202ddccd0b8cb532fb57b287791"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_specification_root_literal_is_derived_from_committed_canonical_bundle_bytes",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_bundle_selection_text_matches_the_selector_one_lane_contract",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_runtime_module_carries_the_literal_without_file_io_or_callbacks",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_matching_roots_select_regardless_of_metadata_and_leave_inputs_unchanged",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_unknown_or_mixed_root_families_reject_with_the_first_nonmatching_role",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_metadata_spoof_with_nonmatching_specification_root_rejects",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_route_status_and_accepts_new_objects_boundary_rejects_at_governed_lookup",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_command_kind_route_claim_and_missing_route_controls_reject",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_route_lane_shape_must_be_exactly_the_single_asset_transfer_lane",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_empty_route_lanes_are_unrepresentable_at_the_type",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_route_module_release_membership_is_checked_before_roots",
+        "tests/core/test_asset_transfer_custody_semantics_v1.py::test_exact_type_requirements_reject_subclasses_and_duck_types"
+      ],
+      "path": "tests/core/test_asset_transfer_custody_semantics_v1.py",
+      "sha256": "c20571e5d50a40eb083e217814e0d709f294291fdb432ff2cd1650e42d8271f3"
+    },
+    {
+      "node_ids": [
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_custody_binder_accepts_exact_custody_recomputation_once_for_matching_roots",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_zero_custody_equalizes_outputs_but_each_binder_still_recomputes_its_own_way",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_one_atom_custody_separates_the_binders_after_structural_binding",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_caller_supplied_totals_cannot_replace_the_custody_recomputation",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_semantic_root_mismatch_rejects_before_recomputation_for_each_role",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_metadata_spoof_cannot_select_and_does_not_block_selection",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_boundary_controls_reject_before_recomputation_and_leave_the_candidate_unchanged",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_structural_helper_selects_semantics_before_the_reused_structural_binding",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_retained_command_subclass_rejects_at_the_single_snapshot",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_duck_typed_candidate_with_genuine_fields_rejects_at_the_single_snapshot",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_legacy_binder_observables_are_unchanged_for_accepted_and_rejected_vectors",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_legacy_binder_remains_root_agnostic_under_a_custody_profile",
+        "tests/core/test_asset_transfer_custody_release_route_binding_v1.py::test_custody_binder_adds_no_authority_surface_constructor_or_callback"
+      ],
+      "path": "tests/core/test_asset_transfer_custody_release_route_binding_v1.py",
+      "sha256": "3bd1ce64479201c0a13717eb23458396a026fe6562d336f8391fe6e2b1ada36c"
+    },
+    {
+      "node_ids": [
+        "tests/core/test_asset_transfer_custody_binding_vector_v1.py::test_custody_binding_vector_matches_the_actual_python_binding"
+      ],
+      "path": "tests/core/test_asset_transfer_custody_binding_vector_v1.py",
+      "sha256": "63f773136d7a75592f224a2db603fbe3baadc67333c56a6c13da0fcd8a63f06e"
+    },
+    {
+      "node_ids": [
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_asset_output_gets_opaque_active_profile_release_route_binding",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_authenticated_command_body_hashes_match_rust_golden_vectors",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_same_kind_transfer_body_substitution_rejects_before_receipt_binding",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_hostile_transfer_command_subclass_cannot_forge_body_hash",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_hostile_managed_command_subclass_cannot_forge_body_hash",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_same_kind_managed_body_substitution_rejects_before_receipt_binding",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_issue_and_burn_bind_to_their_exact_governed_routes",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_caller_selected_route_and_inactive_profile_fail_closed",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_command_substitution_and_unregistered_module_release_fail_closed",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_occurrence_subject_and_cross_domain_substitution_fail_closed",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_release_route_bound_witness_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_module_receipt_verification_uses_release_image_and_exact_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_module_receipts_gain_only_release_image_bound_authority",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_module_receipt_rejects_empty_nonsuccinct_and_verifier_failure",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_module_receipt_byte_ceiling_matches_rust_and_precedes_verifier_dispatch",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_structural_binding_cannot_authorize_a_mutated_module_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_transfer_accepted_output_cannot_be_rerooted_to_another_command",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_accepted_output_cannot_be_rerooted_to_another_command",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_receipt_structural_binding_rejects_coherent_foreign_output_first",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_receipt_recomputation_rejects_structurally_bound_foreign_output",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_receipt_recomputes_the_transition_exactly_once",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_transfer_candidate_revalidates_retained_accepted_output_before_verifier",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_candidate_revalidates_retained_accepted_output_before_verifier",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_transfer_receipt_rejects_retained_command_subclass_before_verifier",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_receipt_rejects_retained_command_subclass_before_verifier",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_module_witness_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_raw_occurrence_cannot_enter_module_receipt_authority",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_duck_typed_candidate_cannot_inject_authentication_root_at_verification",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_mutated_candidate_cannot_inject_authentication_root_at_verification",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_candidate_cannot_inject_authentication_root_at_verification",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_module_receipt_backs_only_exact_structural_lane_composition",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_structural_composition_rejects_caller_selected_coordinator_release",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_uses_selected_image_and_exact_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_rejects_empty_nonsuccinct_and_verifier_failure",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_rejects_wrong_journal_without_verifier_bypass",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_lane_composition_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_valid_module_receipt_cannot_back_a_different_lane_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_receipt_backed_lane_composition_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_receipt_uses_selected_image_and_exact_lane_witness",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_rejects_structural_duplicate_and_journal_substitution",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_valid_lane_witness_cannot_back_a_different_route_lane_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_receipt_rejects_empty_wrong_kind_and_verifier_failure",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_route_composition_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_semantically_identical_route_rebuild_preserves_verified_binding_root"
+      ],
+      "path": "tests/core/test_lane_module_release_route_binding_v1.py",
+      "sha256": "9dd798ff3dd805f3c89b5c843617628a078c253fedfca5d5547145b192f31d99"
+    },
+    {
+      "node_ids": [
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_successor_completes_exact_physical_totals_and_coordinator_accepts",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_fee_owner_aliases_preserve_leaf_movements_and_complete_custody",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_leaf_rejections_remain_exact_no_ops",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_overflowing_complete_total_is_rejected_at_owned_boundary",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_every_custody_row_contributes_without_changing_identity",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_custody_ceiling_and_duplicate_keys_reject_before_partial_result",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_foreign_asset_custody_is_not_added_to_transferred_asset_total",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_recomputation_refuses_legacy_and_coherent_foreign_outputs",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_retained_mutable_input_alias_cannot_change_owned_result",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_balances_only_mutant_is_refused_by_existing_coordinator",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_omitted_port_root_rebind_is_rejected_by_owned_accepted_constructor",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_python_coordinator_accepts_high_absolute_account_and_small_delta",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_successor_golden_matches_current_sources"
+      ],
+      "path": "tests/core/test_asset_transfer_lane_module_custody_v1.py",
+      "sha256": "15700d24078987cdf70376b4f9b8cefcf6cbcbb6aba96b9f6102c3006652e808"
+    }
+  ]
+}

@@ -1,9 +1,11 @@
 use serde::Serialize;
 
+use crate::asset_transfer_custody_semantics::require_asset_transfer_custody_semantics_v1;
 use crate::asset_transfer_lane_module::{
     recompute_asset_transfer_lane_module_from_validated_accepted_v1,
     AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
 };
+use crate::asset_transfer_lane_module_custody::recompute_asset_transfer_lane_module_custody_v1;
 use crate::asset_transfer_policy_registry::{
     require_asset_transfer_policy_membership_v1,
     require_governed_asset_transfer_policy_registry_v1, AssetTransferPolicyRegistryV1,
@@ -350,6 +352,35 @@ pub(crate) fn bind_asset_transfer_lane_output_structural_v1(
             module_journal: &accepted.module_journal,
         },
     )
+}
+
+/// Bind one custody-complete transfer output to its governed active route.
+///
+/// The reviewed semantic bundle root must be the specification root of the
+/// selected module, coordinator, and single-lane route before the retained
+/// structural binder runs, and exactly one custody-complete recomputation then
+/// confirms the supplied acceptance. The legacy binder above is unchanged and
+/// keeps its own recomputation. The returned witness verifies no receipt and
+/// carries no settlement or publication authority.
+pub fn bind_asset_transfer_lane_output_to_custody_release_route_v1(
+    candidate: AssetTransferReleaseRouteBindingCandidateV1<'_>,
+) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
+    let bound = bind_asset_transfer_custody_output_structural_v1(&candidate)?;
+    recompute_asset_transfer_lane_module_custody_v1(candidate.module_input, candidate.accepted)?;
+    Ok(bound)
+}
+
+pub(crate) fn bind_asset_transfer_custody_output_structural_v1(
+    candidate: &AssetTransferReleaseRouteBindingCandidateV1<'_>,
+) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
+    require_asset_transfer_custody_semantics_v1(
+        candidate.profile,
+        candidate.lanes,
+        candidate.coordinators,
+        candidate.routes,
+        candidate.occurrence,
+    )?;
+    bind_asset_transfer_lane_output_structural_v1(candidate)
 }
 
 /// Exact inputs for one governed ordinary-token issue or burn binding.

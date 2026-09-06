@@ -7,6 +7,7 @@
 mod asset_lane_coordinator;
 mod asset_lane_projection;
 mod asset_transfer;
+mod asset_transfer_custody_semantics;
 mod asset_transfer_global_allocation;
 mod asset_transfer_lane_module;
 mod asset_transfer_lane_module_custody;
@@ -101,6 +102,7 @@ mod zdex_tokenomics_lane_types;
 pub use asset_lane_coordinator::*;
 pub use asset_lane_projection::*;
 pub use asset_transfer::*;
+pub use asset_transfer_custody_semantics::*;
 pub use asset_transfer_global_allocation::*;
 pub use asset_transfer_lane_module::*;
 pub use asset_transfer_lane_module_custody::*;

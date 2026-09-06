@@ -10,6 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final, Protocol
 
+from .asset_transfer_custody_semantics_v1 import require_asset_transfer_custody_semantics_v1
+from .asset_transfer_lane_module_custody_v1 import (
+    recompute_asset_transfer_lane_module_custody_v1,
+)
 from .asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleAcceptedV1,
     AssetTransferLaneModuleInputV1,
@@ -421,6 +425,44 @@ def bind_asset_transfer_lane_output_to_release_route_v1(
     return bound
 
 
+def _bind_asset_transfer_custody_output_structural_v1(
+    owned: AssetTransferReleaseRouteBindingCandidateV1,
+) -> ReleaseRouteBoundLaneTransitionV1:
+    """Select custody semantics, then reuse the transfer structural binding.
+
+    The governed route, ``ASSET_TRANSFER`` module release, and coordinator
+    release must carry the reviewed custody specification root before any
+    policy, context, or journal binding runs; unknown or mixed roots reject
+    here, ahead of recomputation. The existing policy/context/journal binding
+    is then reused unchanged on the already-owned candidate.
+    """
+
+    require_asset_transfer_custody_semantics_v1(owned.profile, owned.occurrence)
+    return _bind_asset_transfer_lane_output_structural_v1(owned)
+
+
+def bind_asset_transfer_lane_output_to_custody_release_route_v1(
+    candidate: AssetTransferReleaseRouteBindingCandidateV1,
+) -> ReleaseRouteBoundLaneTransitionV1:
+    """Bind one custody-complete transfer output to its governed active route.
+
+    One owned snapshot is taken first and used throughout. Semantic selection
+    and the reused structural binding both complete before exactly one
+    custody-complete recomputation confirms the supplied acceptance. The result
+    is the same opaque structural witness the legacy binder returns; it carries
+    no receipt, activation, or publication authority, and the legacy binder's
+    behavior is untouched.
+    """
+
+    owned = _snapshot_asset_transfer_route_binding_candidate_v1(candidate)
+    bound = _bind_asset_transfer_custody_output_structural_v1(owned)
+    recompute_asset_transfer_lane_module_custody_v1(
+        owned.module_input,
+        owned.accepted,
+    )
+    return bound
+
+
 @dataclass(frozen=True, slots=True)
 class ManagedAssetLifecycleReleaseRouteBindingCandidateV1:
     """Exact typed inputs for one governed ordinary-token issue or burn binding."""
@@ -735,6 +777,7 @@ __all__ = [
     "ManagedAssetLifecycleReleaseRouteBindingCandidateV1",
     "PerpsMarginReleaseRouteBindingCandidateV1",
     "bind_asset_transfer_lane_output_to_release_route_v1",
+    "bind_asset_transfer_lane_output_to_custody_release_route_v1",
     "bind_managed_asset_lifecycle_lane_output_to_release_route_v1",
     "bind_perps_margin_lane_output_to_release_route_v1",
 ]
