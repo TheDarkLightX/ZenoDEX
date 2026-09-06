@@ -1,0 +1,325 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-CONSTRUCTED-CUSTODY-TRANSFER-GLOBAL-SUCCESSOR",
+      "points": [
+        "Fresh Std-only Lean 4.27 source closure, thirty independently consumed public theorems plus acceptedWitness, exact import registration and permitted theorem axioms only.",
+        "Eighteen input admission clauses and the unchanged nineteen-field Verified record; no desired output relation is a premise.",
+        "Actual custody-complete economic output, one bounded height increment, one replay mapping and one enabled lane-root update construct the successor.",
+        "One nonempty witness has two assets, custody 10, backed liability 6, a prior replay row and an existing oracle observation.",
+        "Actual Python custody transition, public coordinator, global projector and restricted allocation checker are compared with the Lean construction under synthetic adjacent metadata.",
+        "All modeled metadata and tables are observed, with finite present/absent registry queries and empty terminal/outbox lists; roots are explicit opaque inputs in Lean.",
+        "Exact rejection, stale context, replay-key reuse, wrong height, wrong pre lane root, fee-owner-sender refusal and one malformed occurrence type preserve observed inputs.",
+        "The u64 maximum height neighbor accepts; overflow constructors refuse and the model heightFits clause fails.",
+        "Two source mutants execute bad metadata observations and fail within the exact replay theorem, excluding missing-identifier and syntax artifacts."
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "An input-admitted accepted custody transfer constructs the existing nineteen-field global Verified witness from actual economic output, explicit commitments, one-step height advancement and exact replay insertion; leaf rejection is the exact global no-op.",
+  "created_date": "2026-09-06",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "formal",
+    "differential",
+    "mutation"
+  ],
+  "evidence_id": "THV1-20260906-transfer-global-successor-v1",
+  "failure_modes": [
+    "Fresh Std-only Lean 4.27 source closure, thirty independently consumed public theorems plus acceptedWitness, exact import registration and permitted theorem axioms only.",
+    "Eighteen input admission clauses and the unchanged nineteen-field Verified record; no desired output relation is a premise.",
+    "Actual custody-complete economic output, one bounded height increment, one replay mapping and one enabled lane-root update construct the successor.",
+    "One nonempty witness has two assets, custody 10, backed liability 6, a prior replay row and an existing oracle observation.",
+    "Actual Python custody transition, public coordinator, global projector and restricted allocation checker are compared with the Lean construction under synthetic adjacent metadata.",
+    "All modeled metadata and tables are observed, with finite present/absent registry queries and empty terminal/outbox lists; roots are explicit opaque inputs in Lean.",
+    "Exact rejection, stale context, replay-key reuse, wrong height, wrong pre lane root, fee-owner-sender refusal and one malformed occurrence type preserve observed inputs.",
+    "The u64 maximum height neighbor accepts; overflow constructors refuse and the model heightFits clause fails.",
+    "Two source mutants execute bad metadata observations and fail within the exact replay theorem, excluding missing-identifier and syntax artifacts."
+  ],
+  "invariant_ids": [
+    "V3-CONSTRUCTED-CUSTODY-TRANSFER-GLOBAL-SUCCESSOR"
+  ],
+  "mutations": [
+    {
+      "description": "Tier 1: omit the actual successor replay insertion; a definitions-only probe returns NONE and the full proof fails within successor_replay.",
+      "killed_by": "tests/formal/test_lean_asset_transfer_global_successor_v1.py::test_paired_constructor_mutants_are_killed_by_the_replay_relation",
+      "mutant": {
+        "needle_lines": [
+          "    replayState := insertReplay (pre input).replayState input.occurrence }"
+        ],
+        "path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean",
+        "replacement_lines": [
+          "    replayState := (pre input).replayState }"
+        ]
+      }
+    },
+    {
+      "description": "Tier 1: omit the actual successor height increment; a definitions-only probe returns 7 and the full proof fails within successor_replay.",
+      "killed_by": "tests/formal/test_lean_asset_transfer_global_successor_v1.py::test_paired_constructor_mutants_are_killed_by_the_replay_relation",
+      "mutant": {
+        "needle_lines": [
+          "    height := (pre input).height + 1"
+        ],
+        "path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean",
+        "replacement_lines": [
+          "    height := (pre input).height"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "Admitted is a mathematical predicate; the raw modeled step does not execute admission and acceptedWitness requires proved input premises.",
+    "Post lane and global roots are supplied opaque commitments, not computed or authenticated by Lean; no hashing or byte-encoding theorem is provided.",
+    "The runtime occurrence-ID alias control reaches earlier context rejection; independent runtime occurrence-ID guard coverage remains open. The Lean dual-freshness control is model evidence only.",
+    "The release, terminalEmpty and outboxEmpty premises retain runtime scope but are unused by the mathematical proof, which frames those fields.",
+    "Finite comparisons do not establish universal Python/Rust/compiler refinement, complete registry or collection bounds, general terminal mapping, or full lane lifecycles.",
+    "No cryptographic receipt, authenticated snapshot, current store head, writer authority, publisher/durability qualification, design optimality, production promotion or whole-program completion.",
+    "No runtime economics, wire formats, policy constants, release images or live authority change."
+  ],
+  "reject_is_noop": {
+    "reason": "The theorem returns the exact initial global state, empty plan and no occurrence for actual leaf rejection. Runtime refusals check exact classes/messages and unchanged canonical inputs; constructor failure is a separate outcome class.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "experiments/v3_transfer_policy_selection_v1/render_evidence.py",
+      "sha256": "eb53ce65652ad81491866b7fa4907a043ca86b7889afe0fb712118af034c88fd"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_POLICY_SELECTION_20260906.md",
+      "sha256": "65be43e0542c2a6d9b009d446d1aee4a2439eabc84568905af4e89b230a3996c"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "dd5ad84525f2ee4d21b185d854477f40badf0e715e58b1e801bdf739b5c0da3a"
+    },
+    {
+      "path": "lean-mathlib/lean-toolchain",
+      "sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+    },
+    {
+      "path": "src/core/asset_transfer_module_v1.py",
+      "sha256": "754d75a37ad70868bf20263fc189fc9e4f5a77cb864d8a1c7973afc253c938d7"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "5757c8b692820613e1eac30b7103e857a73b42efebbdda62d0a4469511f41277"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_state_admission_v1.py",
+      "sha256": "7aa8186b3f24343b36feb10a4c3f19ec35424d17e557d76dd7c7f74af333767c"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_supply_v1.py",
+      "sha256": "e8adadca735bcd24b7729760f0a3b4718f01789ce197407468fc1c9ba0320197"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_tables_v1.py",
+      "sha256": "76fce0078560e812d10c07c66983430ea3a3eb32b20b2e8692a583322fbc621b"
+    },
+    {
+      "path": "tests/formal/test_lean_checked_epoch_economic_tables_v1.py",
+      "sha256": "efd3cb46a8a4c952c994d74f3084971a36c61ef6bdbaf99305e723a373d05566"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
+      "sha256": "b72155a1f32f01a5c96df725358d7fbc55d5014ee0d9894e6743516d37b04e4b"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean",
+      "sha256": "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
+      "sha256": "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEpochEconomicTablesV1.lean",
+      "sha256": "ee6ebc40358879e168cbc245be1641a06e084a39642d5da2736caacfa60897cd"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CanonicalEpochEconomicRowsV1.lean",
+      "sha256": "5ff80f22fde38729468dc237dd5b40a28bacc57302a483bf42b3e9f90122fe64"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferRefinementV1.lean",
+      "sha256": "2d9ed7beb6feb47b67afa63a40d1203bcca9004b49ba978b9927edded6a04932"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyCompletionV1.lean",
+      "sha256": "fc6869b223a427ef22d040e71276d57c1f7b5bca9b95b471d4059ae771a1f8dc"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedSignedDeltaRefinementV1.lean",
+      "sha256": "3a0b3e18a069b14c8fec4e705178a73cb1b3356d9813195e5e7c35b09cf74a4d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyCompositionV1.lean",
+      "sha256": "37375e914576993767eae7484e620e54be300798785b2a57a9953e86be2f34d2"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseTablesV1.lean",
+      "sha256": "5d303c709501cfe0604c3e845a3b2814b8c5ebe4f0fcfd4090bda2d697f077c0"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseTraceV1.lean",
+      "sha256": "5a77ac04b4e214ab7d0dc6cb4b77e2369e16a7914d02cffb5df1d0b88f119b83"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseSupplyV1.lean",
+      "sha256": "e2c056cba91173f6c454f4b60c1adc228d9ffd7df58a9cebcdbbc0e9b46a683d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseStateAdmissionV1.lean",
+      "sha256": "82f54f4d5a5ba5e28a2ed2a96cd6b4155e70458c05d104b31eea0717aaae8649"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseAuthorizationV1.lean",
+      "sha256": "91d41486e814f80a876746a1d8a542daeda77599415792b0915f4a2fccc495fa"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferPolicySelectionV1.lean",
+      "sha256": "6c330fb920885223089d774eaf6110a3007bd2790a3c69dc947f80255edff321"
+    },
+    {
+      "path": "experiments/v3_transfer_effect_plan_v1/render_evidence.py",
+      "sha256": "5483f2e5a3b05421f1fade78da2a92331246462b5ddc2dc9707f9b25898d723b"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_EFFECT_PLAN_20260906.md",
+      "sha256": "beb053eb92f351fa4907f9d86b4476374a398c79fceae28e68af3de5bf7bb910"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_policy_selection_v1.py",
+      "sha256": "0c4a81c33797c398407871ee0fc1fee65ddfb0d2551617d9f0131b65cd263a51"
+    },
+    {
+      "path": "src/core/global_economic_state_delta_v1.py",
+      "sha256": "5b06120b14176985a2889b81cc784145339b7f72720d7b161c74b296cb4e5634"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferEffectPlanV1.lean",
+      "sha256": "14cea53d90e1fdc6f068e581dcc8e737526475b323100c5d6c27b9354f769de9"
+    },
+    {
+      "path": "experiments/v3_transfer_annotation_mirrors_v1/render_evidence.py",
+      "sha256": "4964f75e6e47cb3b0a0c646bb80e47199cd946da8ab0e08a12c01634571d55ae"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_ANNOTATION_MIRRORS_20260906.md",
+      "sha256": "27d1565784b2b826dab9d09a4b4f3107bae41e0e680bdb7d28b2824b8741cbe0"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_effect_plan_v1.py",
+      "sha256": "6b3c5603c2724097751c6ce7df74893ffd5767cc499b57c4fd7c1fc9eacd7f35"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferFeeMirrorEligibilityV1.lean",
+      "sha256": "03ae7a9c1db3b8355fb2cd3f09206565cee524c3c735855a0af6c5287ecc5a10"
+    },
+    {
+      "path": "tools/scan_lean_proof_placeholders_v1.py",
+      "sha256": "44a7c67142955ad3b7a803ab599d31ca8754d0f9cdd795588ea9745f58239fc4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferAnnotationMirrorsV1.lean",
+      "sha256": "81e0fae0addd597b509f7890e4fa8cb1206f6b650414a5db948fcb75633afc30"
+    },
+    {
+      "path": "experiments/v3_transfer_custody_effect_plan_v1/render_evidence.py",
+      "sha256": "4efa8e3bb7d2d0fa1387fcb303283c1f0d2f37e56da0be23214e07b5fff1cc81"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_CUSTODY_EFFECT_PLAN_20260906.md",
+      "sha256": "3993fa9c306a182c5cfd01fea2cbd5cf35f764bc6c92fac0d80e92fdb1dfade2"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_annotation_mirrors_v1.py",
+      "sha256": "c0f6e3ec00d3705dbdb069e4b173bd54bb891f38a5fecf17fdfba03ebb245edc"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_custody_v1.py",
+      "sha256": "0d2118f275f6aa5bd308125b83b7c4528dbfc086749c8cb744bacea15983b45e"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_v1.py",
+      "sha256": "7c043b222d4e8aa3d54477ad7508ff65afd716f1b720f76f63995afc4daa7c1a"
+    },
+    {
+      "path": "src/core/asset_lane_projection_v1.py",
+      "sha256": "5420112e2dd321ce7f74604e66c13933ca714fc93467150f5cb6358f403b6839"
+    },
+    {
+      "path": "src/core/asset_transfer_global_allocation_v1.py",
+      "sha256": "a4099cb3e53c26ef981e384e92cbdc5c04b80d5bdf7c14cd3b2d296a8830f028"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyEffectPlanV1.lean",
+      "sha256": "77364c36dbd2f8730ec9683167915b914e2ad9a4aa5a7d9c726e69bf89f8fa23"
+    },
+    {
+      "path": "experiments/v3_transfer_global_successor_v1/render_evidence.py",
+      "sha256": "84068579a44bd26323a651884a7b89b5c2ba3b0cb30258aabe259cecb017b6c6"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_GLOBAL_SUCCESSOR_20260906.md",
+      "sha256": "80e08a75ffaf1e61f68b2bc1fe883e4d5faa5504d43ec76bee6db6d8004b2b74"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_custody_effect_plan_v1.py",
+      "sha256": "ddf825d6c9d890988988f0ceb5ba696b4921d57c2268a39d4d991d3e3abc3469"
+    },
+    {
+      "path": "src/core/asset_lane_coordinator_v1.py",
+      "sha256": "6047468214d835ff9d6d9823d845df4ef0c4a1cd6d94f098911377daaf4996ae"
+    },
+    {
+      "path": "src/core/global_economic_effect_projector_v1.py",
+      "sha256": "35793c70229dd872a5d85d5823b49c3e753384ef5d1200aa3765b50fe132d848"
+    },
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "f9ff27f3d346c2099ab3678ae87961cbc09653b6c641650ea0db0bf3bac23a50"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean",
+      "sha256": "8375d3cbd6bf4bd4c911527a03de5d12b7bb21df0b0135cd1dd0d1951e60dc56"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_asset_transfer_global_successor_v1.py::test_contract_axioms_placeholders_admission_shape_and_source_pins",
+        "tests/formal/test_lean_asset_transfer_global_successor_v1.py::test_runtime_custody_transfer_projects_to_the_verified_lean_successor",
+        "tests/formal/test_lean_asset_transfer_global_successor_v1.py::test_leaf_rejection_is_the_exact_global_noop",
+        "tests/formal/test_lean_asset_transfer_global_successor_v1.py::test_independent_guard_failures_refuse_and_fail_the_matching_admission_clause",
+        "tests/formal/test_lean_asset_transfer_global_successor_v1.py::test_malformed_occurrence_is_refused_without_changing_state_or_effects",
+        "tests/formal/test_lean_asset_transfer_global_successor_v1.py::test_height_maximum_neighbour_accepts_and_overflow_input_is_refused",
+        "tests/formal/test_lean_asset_transfer_global_successor_v1.py::test_paired_constructor_mutants_are_killed_by_the_replay_relation"
+      ],
+      "path": "tests/formal/test_lean_asset_transfer_global_successor_v1.py",
+      "sha256": "7d75ff4c65e8369093c481831249990332a221665193333daec198500cc332b8"
+    }
+  ]
+}
