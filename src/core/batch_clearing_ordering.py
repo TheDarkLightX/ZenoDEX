@@ -27,6 +27,7 @@ from .batch_clearing_mci_ordering import (
     order_swaps_mci_ab_with_factories,
     refine_ab_ordering_global_with_eval,
     refine_b_ordering_with_eval,
+    refine_b_ordering_with_simulator,
 )
 from .neutral_tiebreak import tiebreak_token
 
@@ -169,6 +170,11 @@ def _eval_ordering_ab(
             total_b += b
             current_reserves = new_r
     return total_a, total_b
+
+
+# Identity of the canonical evaluator. `_refine_b_ordering` may use the simulation cache only
+# while the module evaluator is still this exact fold of `_simulate_swap_reserves`.
+_CANONICAL_EVAL_ORDERING_AB = _eval_ordering_ab
 
 
 def _ab_ordering_key(
@@ -381,24 +387,37 @@ def _refine_b_ordering(
     pool_state: PoolState,
     reserves: Tuple[Amount, Amount],
 ) -> List[Intent]:
-    """B-refinement pass: improve surplus (B) without decreasing volume (A).
+    """Refine an ordering with strict lexicographic ``(A, B)`` adjacent swaps.
 
-    Takes a greedy-AB ordering and performs repeated adjacent-swap passes.
-    For each pair of adjacent intents (i, i+1), if swapping them improves B
-    while keeping A equal, the swap is applied. Repeats until a full pass
-    produces no improvement (bubble-sort style).
+    Starting from the supplied ordering, repeated left-to-right passes evaluate each adjacent
+    swap and apply it exactly when the resulting ``(A, B)`` pair is strictly greater than the
+    current pair. Thus a swap may increase ``A`` or may keep ``A`` equal while increasing ``B``;
+    a decrease in ``A`` is rejected. The result is a fresh list containing the original intent
+    objects, and the pass scan and tie handling match ``refine_b_ordering_with_eval``.
 
-    Complexity: O(n^2) per pass, at most O(n) passes, so O(n^3) worst case.
-    In practice converges in 1-2 passes for typical batch sizes.
+    Under the deterministic pure simulator premise, termination follows from strict improvement
+    over the finite set of permutations. The cached implementation has a worst-case ``O(n^2)``
+    simulator-call count per pass, and its pass count is unchanged from the generic refiner.
 
-    This addresses the B-suboptimality of greedy ordering (H-BC-001):
-    greedy_ab is A-optimal but B-suboptimal in 39-94% of cases.
+    Evaluation path: this wrapper is the only production binding of the cached refiner
+    (`refine_b_ordering_with_simulator`) to the real reserve simulator. The cache is an exact
+    implementation of `refine_b_ordering_with_eval(eval_ordering_ab_fn=_eval_ordering_ab)` only
+    while `_eval_ordering_ab` is the canonical simulator fold defined in this module. If that
+    name has been rebound (test seams inject evaluator stubs through it), the generic refiner
+    runs with the rebound evaluator so the injected semantics are honoured unchanged.
     """
-    return refine_b_ordering_with_eval(
+    if _eval_ordering_ab is not _CANONICAL_EVAL_ORDERING_AB:
+        return refine_b_ordering_with_eval(
+            ordering,
+            pool_state=pool_state,
+            reserves=reserves,
+            eval_ordering_ab_fn=_eval_ordering_ab,
+        )
+    return refine_b_ordering_with_simulator(
         ordering,
         pool_state=pool_state,
         reserves=reserves,
-        eval_ordering_ab_fn=_eval_ordering_ab,
+        simulate_swap_fn=_simulate_swap_reserves,
     )
 
 

@@ -1,0 +1,183 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-ADJACENT-SWAP-SUFFIX-CACHE-PARITY",
+      "points": [
+        "fixed intent/pool inputs with ordinary integer contributions and exact (int, int) reserve tuples",
+        "pure deterministic partial simulator with input-dependent exception parity and no real-simulator totality claim",
+        "finite hand-built catalogue plus 120 seeded random batches and all catalogue permutations",
+        "exact post-pair reserve equality for reuse and unequal-reserve full suffix resimulation",
+        "accepted-swap cache update compared with a fresh rebuild",
+        "left-to-right adjacent scan, strict lexicographic (A, B) improvement, and unchanged tie/order handling",
+        "hand-computed stale-suffix mutant that changes the refined ordering",
+        "complete recursive Settlement object, serialization, metadata, event, fill-reason, and commitment parity",
+        "worst-case O(n^2) simulator calls per pass with unchanged pass count",
+        "nested intent mutation oracle separates caller preservation from the simulator premise"
+      ]
+    }
+  ],
+  "change_kind": "refactor",
+  "claim_scope": "Under a fixed pure deterministic integer simulator premise, the adjacent-swap cache returns the same intent objects and strict (A, B) scan result as the unchanged generic evaluator. Exact post-pair reserve equality permits suffix reuse; unequal reserves trigger full suffix resimulation, and accepted swaps update the cache coherently. The result is finite source-bound evidence.",
+  "created_date": "2026-09-06",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "differential",
+    "property",
+    "stateful"
+  ],
+  "evidence_id": "THV1-20260906-adjacent-swap-cache-v1",
+  "failure_modes": [
+    "fixed intent/pool inputs with ordinary integer contributions and exact (int, int) reserve tuples",
+    "pure deterministic partial simulator with input-dependent exception parity and no real-simulator totality claim",
+    "finite hand-built catalogue plus 120 seeded random batches and all catalogue permutations",
+    "exact post-pair reserve equality for reuse and unequal-reserve full suffix resimulation",
+    "accepted-swap cache update compared with a fresh rebuild",
+    "left-to-right adjacent scan, strict lexicographic (A, B) improvement, and unchanged tie/order handling",
+    "hand-computed stale-suffix mutant that changes the refined ordering",
+    "complete recursive Settlement object, serialization, metadata, event, fill-reason, and commitment parity",
+    "worst-case O(n^2) simulator calls per pass with unchanged pass count",
+    "nested intent mutation oracle separates caller preservation from the simulator premise"
+  ],
+  "invariant_ids": [
+    "V3-ADJACENT-SWAP-SUFFIX-CACHE-PARITY"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "The finite tests do not prove an O(n) pass bound, universal near-linear behavior, optimality, or production throughput/latency.",
+    "Generic evaluator callbacks remain on the generic path; no callback semantics are cached.",
+    "No default, cap, rounding, wire, policy, settlement, or tie-break behavior is changed by this candidate.",
+    "No Lean theorem or universal Python/Rust/compiler refinement is supplied for the cache.",
+    "The worker reported 140 passes for its broader focused command, while the local final rerun here is 55 passed; root's prior 50-new plus 16-old result and any broader root gate are separate evidence.",
+    "The source-level production candidate remains closed for release qualification; native builds, deployment, and live throughput are outside this packet."
+  ],
+  "reject_is_noop": {
+    "reason": "The refiner returns a fresh list while preserving intent object identity and caller inputs. Pure simulator exceptions retain exact type, arguments and message in both paths. The cache is a local ordering computation with no economic write port.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/core/batch_clearing_mci_ordering.py",
+      "sha256": "2de09a6b3cf879e2783f2b35cfdfe63d8f69b93836704e4d046d14323fda239d"
+    },
+    {
+      "path": "src/core/batch_clearing_ordering.py",
+      "sha256": "f62fc19d5fe1d7adec43f32dd3b70103a21f5eae563732d2e7b84c0f9837d4b0"
+    },
+    {
+      "path": "src/core/batch_clearing_ab_order.py",
+      "sha256": "aa65949a844bc5640091c74657da2dfc13b9ca0813099054f658a7e308babb24"
+    },
+    {
+      "path": "src/kernels/python/settlement_swap_runtime_v1.py",
+      "sha256": "dbb6cad959e0995cdbdf5cd3281a07f68074f049e554d929ce40bbe6dc10f468"
+    },
+    {
+      "path": "src/core/amm_dispatch.py",
+      "sha256": "be50ee96522333ecc62bf792fdad8469aa722429dabba00dd4adfe4a6a2d263c"
+    },
+    {
+      "path": "src/core/batch_clearing.py",
+      "sha256": "f8cd53efa45d4b27a42e8398eb17c780743f5c1061720ceeaed0d6acc93021e2"
+    },
+    {
+      "path": "src/core/batch_clearing_compute.py",
+      "sha256": "0469f24adfb87e6790ed3612b54cfd282d6a1e159360aa94a1ba90bd5092314d"
+    },
+    {
+      "path": "src/core/batch_clearing_single_pool.py",
+      "sha256": "2080bed775dcbe6f979709ac124253b4ce71939c468d8c3535c03428d1c7e011"
+    },
+    {
+      "path": "src/core/settlement.py",
+      "sha256": "9bfc6d653cb4ff6811716881b5afe17a193ca4bbef975864a405503c5545e9ed"
+    },
+    {
+      "path": "src/integration/dex_engine.py",
+      "sha256": "0fa79bbc8bd9d301448a2fd694461cd005486886b6557ca6f45fd5a7adb1dcf3"
+    },
+    {
+      "path": "src/integration/operations.py",
+      "sha256": "6fe520e23113ca2dc632bcf75be386cabd7d8639e0c997ab9c32f459cfb2ffe8"
+    },
+    {
+      "path": "src/state/canonical.py",
+      "sha256": "3e1be2d2233b04d1e0e241e6f4c012ec458a2b1c66646597de410dd079b2e611"
+    },
+    {
+      "path": "src/state/intents.py",
+      "sha256": "7cf7e76edfb1e6c1a51d237c12923a770521d34e6e180f18a35134387d20f3cc"
+    },
+    {
+      "path": "src/state/pools.py",
+      "sha256": "ef39554b3c4b2f877a336f47dda0b21cefce84fc49f6d7f8db7c9e4c7289f768"
+    },
+    {
+      "path": "src/state/balances.py",
+      "sha256": "1afc25328fa4f909ea3ecac62f4aff3614e320172170ecc25d918fd6a8677169"
+    },
+    {
+      "path": "tests/core/test_batch_clearing.py",
+      "sha256": "4d7959c539863bbfacf116ec352b6cd3a7ee84979e31981cbd5e9922eb14a11a"
+    },
+    {
+      "path": "tests/core/test_batch_clearing_b_refinement.py",
+      "sha256": "95a15dea80e8bf8a7604979b1408dc026d6cac3785c03567809fd4fea0764059"
+    },
+    {
+      "path": "tests/core/test_batch_clearing_properties.py",
+      "sha256": "40b8fab4c94a41b6422895512c779f4d98c6771d8c7eda8c396f3b2808f6c9fe"
+    },
+    {
+      "path": "tests/core/test_batch_clearing_global_refinement.py",
+      "sha256": "8ea08d7b3ffa00791e7c34825fd3c3038ca76f5576e80b71c167267401ba46ca"
+    },
+    {
+      "path": "docs/research/ZENODEX_ADJACENT_SWAP_CACHE_20260906.md",
+      "sha256": "3903523ad490476251021d14135b15dac5da06c8e4b7645e5e6f6271de7d08e0"
+    },
+    {
+      "path": "experiments/v3_adjacent_swap_cache_v1/render_evidence.py",
+      "sha256": "4f7d09c58502dc2e99d304f712aa0560a01656792bdc1013b1e3380113fad898"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_input_snapshot_oracle_detects_nested_intent_mutation",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_pure_simulator_exception_parity_in_initial_prefix_fold",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_pure_simulator_exception_parity_in_swapped_pair",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_pure_simulator_exception_parity_in_recomputed_suffix",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_zero_and_one_intent_return_fresh_copies_without_simulation",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_cached_refiner_matches_reference_on_every_permutation",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_production_wrapper_runs_cached_helper_and_matches_reference",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_all_ties_leave_every_permutation_unchanged",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_seeded_corpus_matches_reference_and_exercises_reuse_resimulation_and_acceptance",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_simulator_call_count_never_exceeds_reference",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_full_resimulation_counterexample_when_post_pair_reserves_differ",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_mutant_unconditional_suffix_reuse_changes_the_refined_ordering",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_accepted_swap_fixture_invalidates_cache_and_matches_reference",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_prefix_cache_after_accepted_swap_equals_fresh_rebuild",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_fold_step_ignores_nonpositive_contributions_exactly_like_eval_ordering_ab",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_synthetic_pure_simulator_parity_including_nonpositive_contributions",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_generic_evaluator_semantics_and_seam_rebinding_are_preserved",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_full_settlement_serialization_preserves_order_metadata_events_and_reasons",
+        "tests/core/test_batch_clearing_refinement_cache_v1.py::test_compute_settlement_greedy_ab_refined_serialized_parity_with_reference_path"
+      ],
+      "path": "tests/core/test_batch_clearing_refinement_cache_v1.py",
+      "sha256": "0690c9d8d75491e8caabc419f7082c19f4ec0af2988497a11351815747a387f1"
+    }
+  ]
+}
