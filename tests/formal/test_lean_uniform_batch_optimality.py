@@ -1,25 +1,20 @@
 from __future__ import annotations
 
 import re
-import shutil
-import subprocess
 from pathlib import Path
 
-import pytest
+from tests.formal.lean_stdlib_gate_v1 import (
+    TheoremReference,
+    check_lean_stdlib_source,
+)
 
 
-def test_lean_uniform_batch_optimality_typechecks_without_placeholders() -> None:
-    lake = shutil.which("lake")
-    if not lake:
-        return
-
+def test_lean_uniform_batch_optimality_typechecks_without_placeholders(
+    tmp_path: Path,
+) -> None:
     root = Path(__file__).resolve().parents[2]
-    lean_dir = root / "lean-mathlib"
     target = "Proofs/UniformBatchOptimality.lean"
-    if not (root / "external" / "mathlib4").exists():
-        pytest.skip("mathlib4 checkout missing")
-
-    source = (lean_dir / target).read_text(encoding="utf-8")
+    source = (root / "lean-mathlib" / target).read_text(encoding="utf-8")
     for required in (
         "theorem exact_upper_bound_certificate_implies_global_weak_optimal",
         "theorem upba_v3_exact_out_exact_grid_upper_bound_certificate_implies_global_weak_optimal",
@@ -60,17 +55,19 @@ def test_lean_uniform_batch_optimality_typechecks_without_placeholders() -> None
         assert required in source
     forbidden = re.compile(r"\b(sorry|admit|axiom|unsafe|sorryAx)\b")
     assert forbidden.search(source) is None
-
-    try:
-        proc = subprocess.run(
-            [lake, "env", "lean", target],
-            cwd=lean_dir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=120,
-        )
-    except subprocess.TimeoutExpired as exc:
-        pytest.skip(f"lake env lean timed out after {exc.timeout}s for {target}")
-
-    assert proc.returncode == 0, proc.stdout + proc.stderr
+    check_lean_stdlib_source(
+        target,
+        (
+            TheoremReference(
+                "UniformBatchOptimality.aggregate_uniform_volume_upper_bound",
+                """
+                ∀ {caps : UniformBatchOptimality.SideCaps}
+                  {candidate : UniformBatchOptimality.AggregateUniformCandidate},
+                  UniformBatchOptimality.AggregateFeasible caps candidate →
+                    UniformBatchOptimality.matchedVolume candidate ≤
+                      UniformBatchOptimality.clearQuantity caps
+                """,
+            ),
+        ),
+        tmp_path,
+    )

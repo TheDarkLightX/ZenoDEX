@@ -1,33 +1,26 @@
 from __future__ import annotations
 
-import shutil
-import subprocess
 from pathlib import Path
 
-import pytest
+from tests.formal.lean_stdlib_gate_v1 import (
+    TheoremReference,
+    check_lean_stdlib_source,
+)
 
 
-def test_lean_exact_in_route_certificate_file_typechecks() -> None:
-    lake = shutil.which("lake")
-    if not lake:
-        return
-
-    root = Path(__file__).resolve().parents[2]
-    lean_dir = root / "lean-mathlib"
-    target = "Proofs/ZenoDEXExactInRouteCertificate.lean"
-    if not (root / "external" / "mathlib4").exists():
-        pytest.skip("mathlib4 checkout missing")
-
-    try:
-        proc = subprocess.run(
-            [lake, "env", "lean", target],
-            cwd=lean_dir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=120,
-        )
-    except subprocess.TimeoutExpired as exc:
-        pytest.skip(f"lake env lean timed out after {exc.timeout}s for {target}")
-
-    assert proc.returncode == 0, proc.stdout + proc.stderr
+def test_lean_exact_in_route_certificate_file_typechecks(tmp_path: Path) -> None:
+    check_lean_stdlib_source(
+        "Proofs/ZenoDEXExactInRouteCertificate.lean",
+        (
+            TheoremReference(
+                "TauSwap.Routing.ExactInRouteCertificate.keyLe_trans",
+                """
+                ∀ {a b c : TauSwap.Routing.ExactInRouteCertificate.Candidate},
+                  TauSwap.Routing.ExactInRouteCertificate.keyLe a b →
+                  TauSwap.Routing.ExactInRouteCertificate.keyLe b c →
+                  TauSwap.Routing.ExactInRouteCertificate.keyLe a c
+                """,
+            ),
+        ),
+        tmp_path,
+    )

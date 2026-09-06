@@ -1,0 +1,197 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-STDLIB-LEAN-SOURCE-AND-CONSUMER-GATE",
+      "points": [
+        "nine unchanged proof subjects whose captured import closure is standard-library-only at the base commit; the Mathlib-dependent true-key-winner subject is excluded",
+        "installed Lean 4.27.0 resolved from the local Elan toolchain directory and checked against lean-toolchain: toolchain or version drift fails and an absent executable is an explicit skip",
+        "fresh temporary source tree and .olean per test with inherited LEAN_PATH and LEAN_SRC_PATH removed",
+        "one independent consumer per subject through a setup manifest naming only the fresh artifact: one explicit theorem type and one #print axioms line",
+        "forbidden source tokens sorry, admit, axiom, unsafe, native_decide, sorryAx and ofReduceBool",
+        "warnings as errors, nonzero exit, non-silent source compile, consumer stderr and the 120-second compiler timeout",
+        "exactly one axiom report per theorem, limited to propext, Classical.choice and Quot.sound",
+        "real pinned-compiler wrong-type consumer refusal on the unchanged binary decision subject",
+        "mocked missing, duplicate and nonstandard axiom report parsing and mocked nonzero and timeout shell refusals",
+        "retained UniformBatchOptimality declaration inventory and placeholder scan"
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "Each of nine standard-library-only Lean proof subjects compiles from a fresh capture under the pinned Lean 4.27.0 with warnings as errors, and one independently typed named theorem per subject is consumed through a setup manifest with transitive axioms limited to propext, Classical.choice and Quot.sound.",
+  "created_date": "2026-09-06",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "formal"
+  ],
+  "evidence_id": "THV1-20260906-stdlib-lean-gate-repair-v1",
+  "failure_modes": [
+    "nine unchanged proof subjects whose captured import closure is standard-library-only at the base commit; the Mathlib-dependent true-key-winner subject is excluded",
+    "installed Lean 4.27.0 resolved from the local Elan toolchain directory and checked against lean-toolchain: toolchain or version drift fails and an absent executable is an explicit skip",
+    "fresh temporary source tree and .olean per test with inherited LEAN_PATH and LEAN_SRC_PATH removed",
+    "one independent consumer per subject through a setup manifest naming only the fresh artifact: one explicit theorem type and one #print axioms line",
+    "forbidden source tokens sorry, admit, axiom, unsafe, native_decide, sorryAx and ofReduceBool",
+    "warnings as errors, nonzero exit, non-silent source compile, consumer stderr and the 120-second compiler timeout",
+    "exactly one axiom report per theorem, limited to propext, Classical.choice and Quot.sound",
+    "real pinned-compiler wrong-type consumer refusal on the unchanged binary decision subject",
+    "mocked missing, duplicate and nonstandard axiom report parsing and mocked nonzero and timeout shell refusals",
+    "retained UniformBatchOptimality declaration inventory and placeholder scan"
+  ],
+  "invariant_ids": [
+    "V3-STDLIB-LEAN-SOURCE-AND-CONSUMER-GATE"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "An absent installed pinned compiler is an explicit pytest skip; a skipped run supplies no evidence and is never positive evidence.",
+    "The installed Lean compiler, core and standard-library bytes remain trusted; no compiler or library image hash is qualified.",
+    "Mocked subprocess and parser controls cover shell and report handling only; they do not qualify Lean execution.",
+    "No Lean theorem, toolchain, runtime, dependency, deployment or production source is changed; the repair replaces stale test skip guards only.",
+    "The excluded true-key-winner test and its Mathlib closure remain unchanged and unclaimed.",
+    "One named theorem per subject is consumed; the gate does not establish runtime refinement, Mathlib-wide closure, the complete formal core or whole-program completeness.",
+    "Execution logs are retained review material outside the repository; this packet records declared sources and carries no run outcome."
+  ],
+  "reject_is_noop": {
+    "reason": "The gate is test-only and has no ledger write port. An absent installed pinned compiler is an explicit pytest skip. A nonzero exit, warning, timeout, forbidden source token, non-silent compile, consumer stderr, missing or duplicate axiom report or unapproved axiom fails the test and yields no receipt.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "experiments/v3_stdlib_lean_gate_repair_v1/render_evidence.py",
+      "sha256": "6ebe81f5a0c77d76b7cffac20ee6701226d7e70e7887019c00a846b1f8878274"
+    },
+    {
+      "path": "docs/research/ZENODEX_STDLIB_LEAN_GATE_REPAIR_20260906.md",
+      "sha256": "9d6d5780980e7ee723ef7522bd56bc2eb038611c1f1228df77391c1b1b899ded"
+    },
+    {
+      "path": "tests/formal/lean_stdlib_gate_v1.py",
+      "sha256": "09ad16acbe682dab10742550d5d4ca460d1b55e9487d3796c2ae8d6b28493142"
+    },
+    {
+      "path": "lean-mathlib/lean-toolchain",
+      "sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZenoDEXAutoTraderBinaryDecision.lean",
+      "sha256": "29e20be23a6559e1fe31bffffedb9a6621ea9c8a3cb45e02564d5e45740c540e"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZenoDEXAutoTraderDecisionBinding.lean",
+      "sha256": "0ae7a4ec971d6dc1377bd92ceb82263d326806d6d620bdc18c981b75f2f75f2b"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZenoDEXAutoTraderLiveReleaseCertificate.lean",
+      "sha256": "a3468d35198cd5d956dfa561f01390fee9549497de07790c3e3d2ad5730b005e"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZenoDEXAutoTraderStageCertificate.lean",
+      "sha256": "45057db1b7fdb306ae9c92d99df626bd4eef54f72f6d452b1b49fb291de00d5a"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZenoDEXExactInRouteCertificate.lean",
+      "sha256": "91f1b3cc46133d02af7c57a1db020bff31bf3b1f94e0a488d02e81bcac121fb6"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZenoDEXExactOutRouteCertificate.lean",
+      "sha256": "f7b8b6980cfb3f3a1c0a3c26d903aee489b21319883d223acfa3b67850fdde7b"
+    },
+    {
+      "path": "lean-mathlib/Proofs/ZenoDEXSettlementPriceHistoryCertificate.lean",
+      "sha256": "5989d6a08bad5a502a0533610556546b3599b8d7e60519454e2262e7cc90d992"
+    },
+    {
+      "path": "lean-mathlib/Proofs/SplitRoutingStaircase.lean",
+      "sha256": "d31631fe0f4e146c03259c1091a87af7bfd3cd1481c34ac5fb8a491c828aba32"
+    },
+    {
+      "path": "lean-mathlib/Proofs/UniformBatchOptimality.lean",
+      "sha256": "675e169e4ec5addc3eddd8a772a762ce43744c887099a80e51184b706d84aca1"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_autotrader_binary_decision.py::test_lean_autotrader_binary_decision_file_typechecks"
+      ],
+      "path": "tests/formal/test_lean_autotrader_binary_decision.py",
+      "sha256": "bbf8e10ff7a30ff08b6900ca66886f4c96b8d84daf3947185384ee5036e69dd5"
+    },
+    {
+      "node_ids": [
+        "tests/formal/test_lean_autotrader_decision_binding.py::test_lean_autotrader_decision_binding_file_typechecks"
+      ],
+      "path": "tests/formal/test_lean_autotrader_decision_binding.py",
+      "sha256": "d8ded24db99f4ee38b1c535926c34f3264d39e77d92cbf4920bae8a8c360e70f"
+    },
+    {
+      "node_ids": [
+        "tests/formal/test_lean_autotrader_live_release_certificate.py::test_lean_autotrader_live_release_certificate_file_typechecks"
+      ],
+      "path": "tests/formal/test_lean_autotrader_live_release_certificate.py",
+      "sha256": "2f575ecb228862ae6f6765118d72168f053b771bd138aef92ac56f279d4eecb4"
+    },
+    {
+      "node_ids": [
+        "tests/formal/test_lean_autotrader_stage_certificate.py::test_lean_autotrader_stage_certificate_file_typechecks"
+      ],
+      "path": "tests/formal/test_lean_autotrader_stage_certificate.py",
+      "sha256": "797f18c59082c0c106bf44d1c0957de62ceeecc7cf6c0f4eed2bb1e26a6f393b"
+    },
+    {
+      "node_ids": [
+        "tests/formal/test_lean_exact_in_route_certificate.py::test_lean_exact_in_route_certificate_file_typechecks"
+      ],
+      "path": "tests/formal/test_lean_exact_in_route_certificate.py",
+      "sha256": "19b91b4ae9e2cd559ebfd94e2066e537488f9d96015266c99a62a5bba9476cc7"
+    },
+    {
+      "node_ids": [
+        "tests/formal/test_lean_exact_out_route_certificate.py::test_lean_exact_out_route_certificate_file_typechecks"
+      ],
+      "path": "tests/formal/test_lean_exact_out_route_certificate.py",
+      "sha256": "74da0282b85bcbb71902870f854db1afe1e7605d19b4bcd8f757d6619bf3e50c"
+    },
+    {
+      "node_ids": [
+        "tests/formal/test_lean_settlement_price_history_certificate.py::test_lean_settlement_price_history_certificate_file_typechecks"
+      ],
+      "path": "tests/formal/test_lean_settlement_price_history_certificate.py",
+      "sha256": "bc9f29046eb7f3dde1049e71257763b58f08dbd69054970025cd2b1eb6000544"
+    },
+    {
+      "node_ids": [
+        "tests/formal/test_lean_split_routing_staircase.py::test_split_routing_staircase_file_typechecks"
+      ],
+      "path": "tests/formal/test_lean_split_routing_staircase.py",
+      "sha256": "3b15eabf07d4d1cd15c6ba1656906d6785dac1b9e876d1701ee2860cad1cb8f0"
+    },
+    {
+      "node_ids": [
+        "tests/formal/test_lean_uniform_batch_optimality.py::test_lean_uniform_batch_optimality_typechecks_without_placeholders"
+      ],
+      "path": "tests/formal/test_lean_uniform_batch_optimality.py",
+      "sha256": "cd924d986f00fb2cc5996dcccb501d47b9741664bd2dc18f21a25981f1d0e642"
+    },
+    {
+      "node_ids": [
+        "tests/formal/test_lean_stdlib_gate_v1.py::test_wrong_independent_consumer_type_fails_pinned_lean",
+        "tests/formal/test_lean_stdlib_gate_v1.py::test_axiom_report_anomalies_fail_closed",
+        "tests/formal/test_lean_stdlib_gate_v1.py::test_compiler_shell_failures_fail_closed"
+      ],
+      "path": "tests/formal/test_lean_stdlib_gate_v1.py",
+      "sha256": "fd1c0d79836b0ee03c2e5da149936772460fb3774b43cd27af0d231a836bf4a2"
+    }
+  ]
+}
