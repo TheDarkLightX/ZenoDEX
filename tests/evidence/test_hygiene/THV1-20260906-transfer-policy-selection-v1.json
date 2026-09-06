@@ -1,0 +1,202 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-PRESTATE-POLICY-SELECTION-AND-CONSTRUCTOR-PREMISES",
+      "points": [
+        "Independently restated public theorem signatures; fresh Lean 4.27 source closure; only propext, Classical.choice and Quot.sound allowed as transitive axioms.",
+        "First-match pre-state policy lookup, unique matching member, and release-before-command-before-unknown-asset rejection precedence.",
+        "All-asset coverage is equivalent to registered balance assets plus per-supply coverage under positive balances, unique supply keys and u128 supplies; zero local supply remains permitted.",
+        "Selected balances, supply and fee widths derive from admitted pre-state rows; initial admission is preserved through a rejected request and transfers of two distinct assets.",
+        "Public Python transition comparisons cover different fees and owners, absent and disabled assets, combined guard failures, fee limits, role aliases and signed-delta width neighbors.",
+        "Stateful endpoint accounting is independently computed from submitted commands and initial policies.",
+        "A source-copy mutant selects the first row regardless of asset; a well-typed positive observation exposes the wrong row before the unchanged lookup proof rejects it."
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "The constructed sparse transfer selects a matching policy from its pre-state, derives selected-state widths from admitted tables, and preserves quantitative local admission across multi-asset histories. Accepted-decrease authorization also uses command constructor bounds.",
+  "created_date": "2026-09-06",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "formal",
+    "differential",
+    "stateful",
+    "mutation"
+  ],
+  "evidence_id": "THV1-20260906-transfer-policy-selection-v1",
+  "failure_modes": [
+    "Independently restated public theorem signatures; fresh Lean 4.27 source closure; only propext, Classical.choice and Quot.sound allowed as transitive axioms.",
+    "First-match pre-state policy lookup, unique matching member, and release-before-command-before-unknown-asset rejection precedence.",
+    "All-asset coverage is equivalent to registered balance assets plus per-supply coverage under positive balances, unique supply keys and u128 supplies; zero local supply remains permitted.",
+    "Selected balances, supply and fee widths derive from admitted pre-state rows; initial admission is preserved through a rejected request and transfers of two distinct assets.",
+    "Public Python transition comparisons cover different fees and owners, absent and disabled assets, combined guard failures, fee limits, role aliases and signed-delta width neighbors.",
+    "Stateful endpoint accounting is independently computed from submitted commands and initial policies.",
+    "A source-copy mutant selects the first row regardless of asset; a well-typed positive observation exposes the wrong row before the unchanged lookup proof rejects it."
+  ],
+  "invariant_ids": [
+    "V3-PRESTATE-POLICY-SELECTION-AND-CONSTRUCTOR-PREMISES"
+  ],
+  "mutations": [
+    {
+      "description": "Tier 1: first-row selection ignores the requested asset and returns an unrelated policy's fee and owner.",
+      "killed_by": "tests/formal/test_lean_asset_transfer_policy_selection_v1.py::test_first_row_lookup_mutant_is_well_typed_then_killed_by_lookup_theorem",
+      "mutant": {
+        "needle_lines": [
+          "  policies.find? fun policy => policy.asset == asset"
+        ],
+        "path": "lean-mathlib/Proofs/AssetTransferPolicySelectionV1.lean",
+        "replacement_lines": [
+          "  policies.find? fun policy => (policy.asset == asset || true)"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "Quantitative constructor premises do not cover exact runtime classes, token/root syntax, malformed-input exception outcomes or canonical byte encoding.",
+    "Local policy membership is separate from governed registry/profile membership, signature authenticity, grants and current-store authority.",
+    "Module release and policies are static across the modeled history; full effects, journals, occurrence consumption, metadata advancement and Verified construction remain separate.",
+    "Finite comparisons and source pins do not establish universal Python, Rust or compiler refinement, genuine receipt composition, deployment qualification or whole-program completion.",
+    "The model has no publication port. No runtime economic code, wire format, policy value or live authority is changed."
+  ],
+  "reject_is_noop": {
+    "reason": "The constructed front door returns the exact pre-state and empty plan on rejection; its history excludes rejected plans. Runtime finite cases check equal rejection roots, empty effects and unchanged owned input bytes.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "experiments/v3_transfer_policy_selection_v1/render_evidence.py",
+      "sha256": "eb53ce65652ad81491866b7fa4907a043ca86b7889afe0fb712118af034c88fd"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_POLICY_SELECTION_20260906.md",
+      "sha256": "65be43e0542c2a6d9b009d446d1aee4a2439eabc84568905af4e89b230a3996c"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "63f288862991c617b898b4028cc72790c6442d08b1c51b5aceec78a91d94944a"
+    },
+    {
+      "path": "lean-mathlib/lean-toolchain",
+      "sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+    },
+    {
+      "path": "src/core/asset_transfer_module_v1.py",
+      "sha256": "754d75a37ad70868bf20263fc189fc9e4f5a77cb864d8a1c7973afc253c938d7"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "5757c8b692820613e1eac30b7103e857a73b42efebbdda62d0a4469511f41277"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_state_admission_v1.py",
+      "sha256": "7aa8186b3f24343b36feb10a4c3f19ec35424d17e557d76dd7c7f74af333767c"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_supply_v1.py",
+      "sha256": "e8adadca735bcd24b7729760f0a3b4718f01789ce197407468fc1c9ba0320197"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_tables_v1.py",
+      "sha256": "76fce0078560e812d10c07c66983430ea3a3eb32b20b2e8692a583322fbc621b"
+    },
+    {
+      "path": "tests/formal/test_lean_checked_epoch_economic_tables_v1.py",
+      "sha256": "efd3cb46a8a4c952c994d74f3084971a36c61ef6bdbaf99305e723a373d05566"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
+      "sha256": "b72155a1f32f01a5c96df725358d7fbc55d5014ee0d9894e6743516d37b04e4b"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean",
+      "sha256": "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
+      "sha256": "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEpochEconomicTablesV1.lean",
+      "sha256": "ee6ebc40358879e168cbc245be1641a06e084a39642d5da2736caacfa60897cd"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CanonicalEpochEconomicRowsV1.lean",
+      "sha256": "5ff80f22fde38729468dc237dd5b40a28bacc57302a483bf42b3e9f90122fe64"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferRefinementV1.lean",
+      "sha256": "2d9ed7beb6feb47b67afa63a40d1203bcca9004b49ba978b9927edded6a04932"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyCompletionV1.lean",
+      "sha256": "fc6869b223a427ef22d040e71276d57c1f7b5bca9b95b471d4059ae771a1f8dc"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedSignedDeltaRefinementV1.lean",
+      "sha256": "3a0b3e18a069b14c8fec4e705178a73cb1b3356d9813195e5e7c35b09cf74a4d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyCompositionV1.lean",
+      "sha256": "37375e914576993767eae7484e620e54be300798785b2a57a9953e86be2f34d2"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseTablesV1.lean",
+      "sha256": "5d303c709501cfe0604c3e845a3b2814b8c5ebe4f0fcfd4090bda2d697f077c0"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseTraceV1.lean",
+      "sha256": "5a77ac04b4e214ab7d0dc6cb4b77e2369e16a7914d02cffb5df1d0b88f119b83"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseSupplyV1.lean",
+      "sha256": "e2c056cba91173f6c454f4b60c1adc228d9ffd7df58a9cebcdbbc0e9b46a683d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseStateAdmissionV1.lean",
+      "sha256": "82f54f4d5a5ba5e28a2ed2a96cd6b4155e70458c05d104b31eea0717aaae8649"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseAuthorizationV1.lean",
+      "sha256": "91d41486e814f80a876746a1d8a542daeda77599415792b0915f4a2fccc495fa"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferPolicySelectionV1.lean",
+      "sha256": "6c330fb920885223089d774eaf6110a3007bd2790a3c69dc947f80255edff321"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_asset_transfer_policy_selection_v1.py::test_independent_contract_axioms_placeholders_and_source_pins",
+        "tests/formal/test_lean_asset_transfer_policy_selection_v1.py::test_public_transition_multi_asset_corpus_matches_complete_modeled_rows",
+        "tests/formal/test_lean_asset_transfer_policy_selection_v1.py::test_nonempty_two_asset_witness_uses_admission_and_preservation_theorems",
+        "tests/formal/test_lean_asset_transfer_policy_selection_v1.py::test_stateful_policy_lookup_history_has_independent_endpoint_sums",
+        "tests/formal/test_lean_asset_transfer_policy_selection_v1.py::test_zero_supply_row_is_admitted_and_duplicate_supply_sum_is_rejected",
+        "tests/formal/test_lean_asset_transfer_policy_selection_v1.py::test_first_row_lookup_mutant_is_well_typed_then_killed_by_lookup_theorem"
+      ],
+      "path": "tests/formal/test_lean_asset_transfer_policy_selection_v1.py",
+      "sha256": "0c4a81c33797c398407871ee0fc1fee65ddfb0d2551617d9f0131b65cd263a51"
+    }
+  ]
+}
