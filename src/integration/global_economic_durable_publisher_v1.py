@@ -85,7 +85,7 @@ from .global_economic_epoch_journal_v1 import (
     DurableEconomicEpochCommitOutcomeV1,
     DurableEconomicEpochCommitStatusV1,
     DurableEconomicEpochWriteCapabilityV1,
-    DurableEconomicWriterAuthorityPrecommitIdentityChangedV1,
+    DurableEconomicWriterPrecommitIdentityChangedV1,
     GlobalEconomicEpochJournalV1,
     _CommittedEconomicSourceV1,
     _create_epoch_journal_for_verified_publisher_v1,
@@ -1084,7 +1084,7 @@ class VerifiedDurableEconomicPublisherV1:
                 cas_token,
                 self.__write_capability,
             )
-        except DurableEconomicWriterAuthorityPrecommitIdentityChangedV1:
+        except DurableEconomicWriterPrecommitIdentityChangedV1:
             # The journal constructs this subtype only while its empty commit
             # transaction can still prove no economic write.
             raise

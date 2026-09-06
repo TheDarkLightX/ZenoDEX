@@ -30,6 +30,8 @@ import Proofs.ArbitrageCertificate
 import Proofs.AssetTransferRefinementV1
 import Proofs.AssetTransferRefinementV1Challenge
 import Proofs.AssetTransferRefinementV2
+import Proofs.AssetTransferSparseTablesV1
+import Proofs.AssetTransferSparseTraceV1
 import Proofs.AsynchronousIntentSettlement
 import Proofs.AtomicCrossMarginHealth
 import Proofs.AutotraderControllerPolicyClosure

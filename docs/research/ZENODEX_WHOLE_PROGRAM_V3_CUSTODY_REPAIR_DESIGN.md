@@ -146,3 +146,37 @@ For a new mathematical obligation, lift existing account conservation through id
 | `tools/check_asset_transfer_refinement_v1.py` | `6d219b570287a223105671db363d510a67390dbc51e3784045a2cd7abe33162d` |
 
 Read commands used targeted `rg`, `sed`, `git rev-parse HEAD`, and SHA-256 calculation. No implementation, regression, arithmetic-proof or RISC0 command was executed as part of this read-only review. Previously retained passing tests are cited only as existing bounded evidence. The proposed repair remains unimplemented at this packet.
+
+## September 6 follow-up: specification subject selection
+
+The original review above remains historical. At integration subject
+`5bc940e04a4f3cf29ea923fd8214cb8db9d3801a`, the pure custody wrapper and native
+module/coordinator preparation exist, as recorded in
+`ZENODEX_WHOLE_PROGRAM_V3_CUSTODY_WRAPPER_EVIDENCE.md` and the READMEs under
+`zk/asset_transfer_custody_module_risc0` and
+`zk/asset_lane_custody_coordinator_risc0`. They remain unmounted.
+
+A follow-up source trace found no independent canonical specification subject
+for selecting this successor in the inspected release definitions and custody
+generators. `LaneModuleReleaseV1` and the Rust release type content-commit an
+opaque `specification_root`. The Python/Rust release-route binders and receipt
+verifiers still select legacy recomputation directly. The ordinal roots from
+`tools/render_global_settlement_abi_v1_golden.py` are synthetic. Likewise,
+`zk/asset_transfer_route_composer_risc0/build_isolated_fixture.py` labels its
+release evidence as assumptions and reports `publication_qualified=false`.
+Those fixture values cannot supply normative release selection.
+
+The next implementation must define the independent specification bytes and
+their canonical root derivation, then bind a closed combination of module,
+coordinator and route semantic subjects to the corresponding execution family.
+The fixed custody contract above supplies the account-plus-custody equation,
+unchanged V1 wires, immutable custody and restricted empty-reserve condition.
+The historical subject and its scope also need an explicit definition.
+Unknown or mixed subjects must reject before recomputation or receipt work.
+Semantic-version text, source hashes, synthetic fixture roots and caller
+callbacks cannot select the family. Defining and reviewing these subjects is
+remaining implementation work; no active release or live migration is created
+by this source trace.
+
+This follow-up is read-only evidence about the selection gap. It runs no
+cryptographic qualification and makes no new safety or completeness claim.

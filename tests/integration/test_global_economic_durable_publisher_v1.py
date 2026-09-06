@@ -45,6 +45,7 @@ from src.integration.global_economic_authority_journal_v1 import (
 )
 from src.integration.global_economic_commit_v1 import EconomicEpochBodyAndStateV1
 from src.integration.global_economic_durable_epoch_v1 import (
+    DurableEconomicEpochBundleV1,
     decode_durable_economic_epoch_bundle_v1,
 )
 from src.integration.global_economic_durable_publisher_v1 import (
@@ -59,6 +60,8 @@ from src.integration.global_economic_epoch_journal_v1 import (
     DurableEconomicEpochWriteCapabilityV1,
     DurableEconomicWriterAuthorityIdentityChangedV1,
     DurableEconomicWriterAuthorityPrecommitIdentityChangedV1,
+    DurableEconomicWriterEpochIdentityChangedV1,
+    DurableEconomicWriterEpochPrecommitIdentityChangedV1,
     GlobalEconomicEpochJournalV1,
     _DurableEconomicEpochCommitFaultV1,
     _SimulatedDurableEconomicEpochCrashV1,
@@ -111,8 +114,17 @@ def _logical_epoch_store_v1(
     path: Path,
 ) -> tuple[tuple[tuple[object, ...], ...], ...]:
     with sqlite3.connect(path) as connection:
-        connection.execute("BEGIN")
-        return tuple(
+        return _logical_epoch_store_on_connection_v1(connection)
+
+
+def _logical_epoch_store_on_connection_v1(
+    connection: sqlite3.Connection,
+) -> tuple[tuple[tuple[object, ...], ...], ...]:
+    if connection.in_transaction:
+        raise AssertionError("test epoch snapshot requires an idle connection")
+    connection.execute("BEGIN")
+    try:
+        rows = tuple(
             tuple(connection.execute(query).fetchall())
             for query in (
                 "SELECT * FROM metadata ORDER BY singleton",
@@ -120,6 +132,19 @@ def _logical_epoch_store_v1(
                 "SELECT * FROM economic_epochs ORDER BY publication_id",
             )
         )
+        connection.execute("COMMIT")
+        return rows
+    except BaseException:
+        connection.execute("ROLLBACK")
+        raise
+
+
+def _retained_publisher_epoch_store_v1(
+    publisher: VerifiedDurableEconomicPublisherV1,
+) -> tuple[tuple[tuple[object, ...], ...], ...]:
+    journal = cast(Any, publisher)._VerifiedDurableEconomicPublisherV1__journal
+    connection = cast(sqlite3.Connection, journal._connection)
+    return _logical_epoch_store_on_connection_v1(connection)
 
 
 def _prepare_revoked_authority_replacement_v1(
@@ -145,6 +170,22 @@ def _prepare_revoked_authority_replacement_v1(
     if revoked.status is not GlobalEconomicAuthorityCommitStatusV1.COMMITTED:
         raise AssertionError("revoked authority replacement was not committed")
     return authority_path, replacement_path
+
+
+def _prepare_sequence_zero_epoch_replacement_v1(
+    epoch_path: Path,
+    replacement_dir: Path,
+) -> Path:
+    with GlobalEconomicEpochJournalV1.open(epoch_path) as current:
+        activation = current.activation_bundle
+    replacement_dir.mkdir()
+    replacement_path = replacement_dir / "epoch.sqlite"
+    replacement = GlobalEconomicEpochJournalV1.create(
+        replacement_path,
+        activation,
+    )
+    replacement.close()
+    return replacement_path
 
 
 def _receipt_verifier_manifest_v1() -> EconomicReceiptVerifierEvidenceManifestV1:
@@ -2259,6 +2300,329 @@ def test_replaced_authority_inode_rejects_before_proof_and_economic_write(
     publisher.close()
 
 
+def test_replaced_epoch_inode_rejects_detached_publisher_head(
+    tmp_path: Path,
+) -> None:
+    # Arrange: one committed publisher and a valid sequence-zero replacement
+    # have different inodes but the same activation.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"epoch-inode-detached-head"
+    )
+    path = tmp_path / "epoch-inode-detached-head.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    source = publisher.head
+    committed = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
+        body_and_state=body,
+    )
+    replacement_path = _prepare_sequence_zero_epoch_replacement_v1(
+        path,
+        tmp_path / "epoch-head-replacement",
+    )
+    original_identity = path.stat().st_dev, path.stat().st_ino
+    replacement_identity = (
+        replacement_path.stat().st_dev,
+        replacement_path.stat().st_ino,
+    )
+    assert replacement_identity != original_identity
+
+    # Act: the live pathname moves to the independently valid replacement.
+    os.replace(replacement_path, path)
+
+    # Assert: a fresh observer sees sequence zero, while the detached writer
+    # must not report the committed head from its old SQLite handle.
+    assert committed.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    with GlobalEconomicEpochJournalV1.open(path) as observer:
+        assert observer.head == source
+    with pytest.raises(
+        DurableEconomicWriterEpochIdentityChangedV1,
+        match="writer epoch path identity changed",
+    ):
+        _ = publisher.head
+    publisher.close()
+
+
+def test_replaced_epoch_inode_rejects_before_proof_and_economic_write(
+    tmp_path: Path,
+) -> None:
+    # Arrange: one writer retains the original epoch inode while a separate,
+    # valid sequence-zero store is ready at a different inode.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"epoch-inode-replacement-before-proof"
+    )
+    path = tmp_path / "epoch-inode-replacement-before-proof.sqlite"
+    receipt_scope, receipt_backend = _bound_receipt_verifier_v1(candidate)
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        receipt_scope,
+    )
+    source = publisher.head
+    replacement_path = _prepare_sequence_zero_epoch_replacement_v1(
+        path,
+        tmp_path / "epoch-before-proof-replacement",
+    )
+    replacement_rows = _logical_epoch_store_v1(replacement_path)
+    retained_rows_before = _retained_publisher_epoch_store_v1(publisher)
+    calls_before = tuple(receipt_backend.calls)
+
+    # Act: replace the live epoch pathname before publication starts.
+    os.replace(replacement_path, path)
+    with pytest.raises(
+        DurableEconomicWriterEpochIdentityChangedV1,
+        match="writer epoch path identity changed",
+    ):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            raw_evidence=publisher_raw_evidence_v1(candidate),
+            body_and_state=body,
+        )
+
+    # Assert: source acquisition rejects before proof work or an economic write.
+    assert tuple(receipt_backend.calls) == calls_before
+    assert _retained_publisher_epoch_store_v1(publisher) == retained_rows_before
+    assert _logical_epoch_store_v1(path) == replacement_rows
+    with GlobalEconomicEpochJournalV1.open(path) as observer:
+        assert observer.head == source
+    with pytest.raises(DurableEconomicWriterEpochIdentityChangedV1):
+        _ = publisher.head
+    publisher.close()
+
+
+def test_epoch_inode_replacement_at_source_exit_rejects_before_proof(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: pause source decoding inside the writer's coherent read while a
+    # valid sequence-zero replacement waits at another inode.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"epoch-inode-replacement-at-source-exit"
+    )
+    path = tmp_path / "epoch-inode-replacement-at-source-exit.sqlite"
+    receipt_scope, receipt_backend = _bound_receipt_verifier_v1(candidate)
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        receipt_scope,
+    )
+    source = publisher.head
+    replacement_path = _prepare_sequence_zero_epoch_replacement_v1(
+        path,
+        tmp_path / "epoch-source-exit-replacement",
+    )
+    replacement_rows = _logical_epoch_store_v1(replacement_path)
+    retained_rows_before = _retained_publisher_epoch_store_v1(publisher)
+    calls_before = tuple(receipt_backend.calls)
+    entered = Event()
+    release = Event()
+    original_decode = GlobalEconomicEpochJournalV1._decode_source_state_v1
+    outcomes: list[VerifiedDurableEconomicPublishOutcomeV1] = []
+    errors: list[BaseException] = []
+
+    def decode_then_block(source_bundle: Any) -> Any:
+        decoded = original_decode(source_bundle)
+        entered.set()
+        if not release.wait(timeout=10):
+            raise RuntimeError("test source-exit release timed out")
+        return decoded
+
+    def publish_inflight() -> None:
+        try:
+            outcomes.append(
+                publisher.publish_economic_epoch(
+                    expected_source=source,
+                    candidate=candidate,
+                    raw_evidence=publisher_raw_evidence_v1(candidate),
+                    body_and_state=body,
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    monkeypatch.setattr(
+        GlobalEconomicEpochJournalV1,
+        "_decode_source_state_v1",
+        staticmethod(decode_then_block),
+    )
+    thread = Thread(target=publish_inflight)
+    thread.start()
+    try:
+        assert entered.wait(timeout=10)
+        os.replace(replacement_path, path)
+    finally:
+        release.set()
+    thread.join(timeout=10)
+
+    # Assert: the read exit gate refuses the detached source before verification.
+    assert not thread.is_alive()
+    assert outcomes == []
+    assert len(errors) == 1
+    assert type(errors[0]) is DurableEconomicWriterEpochIdentityChangedV1
+    assert tuple(receipt_backend.calls) == calls_before
+    assert _retained_publisher_epoch_store_v1(publisher) == retained_rows_before
+    assert _logical_epoch_store_v1(path) == replacement_rows
+    with GlobalEconomicEpochJournalV1.open(path) as observer:
+        assert observer.head == source
+    with pytest.raises(DurableEconomicWriterEpochIdentityChangedV1):
+        _ = publisher.head
+    publisher.close()
+
+
+def test_epoch_inode_replacement_during_verification_rejects_before_commit(
+    tmp_path: Path,
+) -> None:
+    # Arrange: verification pauses after source acquisition, before the lower
+    # journal begins its commit transaction.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"epoch-inode-replacement-during-verification"
+    )
+    entered = Event()
+    release = Event()
+    receipt_backend = _BlockingReceiptBackendV1(
+        candidate.receipt_bytes,
+        entered,
+        release,
+        armed=True,
+    )
+    path = tmp_path / "epoch-inode-replacement-during-verification.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate, receipt_backend)[0],
+    )
+    source = publisher.head
+    replacement_path = _prepare_sequence_zero_epoch_replacement_v1(
+        path,
+        tmp_path / "epoch-verification-replacement",
+    )
+    replacement_rows = _logical_epoch_store_v1(replacement_path)
+    retained_rows_before = _retained_publisher_epoch_store_v1(publisher)
+    receipt_calls_before = tuple(receipt_backend.calls)
+    outcomes: list[VerifiedDurableEconomicPublishOutcomeV1] = []
+    errors: list[BaseException] = []
+
+    def publish_inflight() -> None:
+        try:
+            outcomes.append(
+                publisher.publish_economic_epoch(
+                    expected_source=source,
+                    candidate=candidate,
+                    raw_evidence=publisher_raw_evidence_v1(candidate),
+                    body_and_state=body,
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    thread = Thread(target=publish_inflight)
+    thread.start()
+    try:
+        assert entered.wait(timeout=10)
+        os.replace(replacement_path, path)
+    finally:
+        release.set()
+    thread.join(timeout=10)
+
+    # Assert: the empty lower transaction proves this attempt wrote no epoch.
+    assert not thread.is_alive()
+    assert outcomes == []
+    assert len(errors) == 1
+    assert type(errors[0]) is DurableEconomicWriterEpochPrecommitIdentityChangedV1
+    assert len(receipt_backend.calls) == len(receipt_calls_before) + 1
+    assert _retained_publisher_epoch_store_v1(publisher) == retained_rows_before
+    assert _logical_epoch_store_v1(path) == replacement_rows
+    with GlobalEconomicEpochJournalV1.open(path) as observer:
+        assert observer.head == source
+    with pytest.raises(DurableEconomicWriterEpochIdentityChangedV1):
+        _ = publisher.head
+    publisher.close()
+
+
+def test_replaced_epoch_inode_cannot_report_exact_committed_retry(
+    tmp_path: Path,
+) -> None:
+    # Arrange: commit once, then pause the exact retry during proof verification.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"replaced-epoch-cannot-report-retry"
+    )
+    entered = Event()
+    release = Event()
+    receipt_backend = _BlockingReceiptBackendV1(
+        candidate.receipt_bytes,
+        entered,
+        release,
+        armed=False,
+    )
+    path = tmp_path / "replaced-epoch-cannot-report-retry.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate, receipt_backend)[0],
+    )
+    source = publisher.head
+    committed = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        raw_evidence=publisher_raw_evidence_v1(candidate),
+        body_and_state=body,
+    )
+    replacement_path = _prepare_sequence_zero_epoch_replacement_v1(
+        path,
+        tmp_path / "epoch-exact-retry-replacement",
+    )
+    replacement_rows = _logical_epoch_store_v1(replacement_path)
+    retained_rows_before = _retained_publisher_epoch_store_v1(publisher)
+    receipt_calls_before = tuple(receipt_backend.calls)
+    outcomes: list[VerifiedDurableEconomicPublishOutcomeV1] = []
+    errors: list[BaseException] = []
+
+    def retry_inflight() -> None:
+        try:
+            outcomes.append(
+                publisher.publish_economic_epoch(
+                    expected_source=source,
+                    candidate=candidate,
+                    raw_evidence=publisher_raw_evidence_v1(candidate),
+                    body_and_state=body,
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    receipt_backend.armed = True
+    thread = Thread(target=retry_inflight)
+    thread.start()
+    try:
+        assert entered.wait(timeout=10)
+        os.replace(replacement_path, path)
+    finally:
+        release.set()
+    thread.join(timeout=10)
+
+    # Assert: the detached history cannot report ALREADY_COMMITTED; the new live
+    # store remains at the exact sequence-zero replacement.
+    assert not thread.is_alive()
+    assert committed.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert outcomes == []
+    assert len(errors) == 1
+    assert type(errors[0]) is DurableEconomicWriterEpochPrecommitIdentityChangedV1
+    assert len(receipt_backend.calls) == len(receipt_calls_before) + 1
+    assert _retained_publisher_epoch_store_v1(publisher) == retained_rows_before
+    assert _logical_epoch_store_v1(path) == replacement_rows
+    with GlobalEconomicEpochJournalV1.open(path) as observer:
+        assert observer.head == source
+    with pytest.raises(DurableEconomicWriterEpochIdentityChangedV1):
+        _ = publisher.head
+    publisher.close()
+
+
 def test_replaced_authority_inode_cannot_report_exact_committed_retry(
     tmp_path: Path,
 ) -> None:
@@ -2463,8 +2827,8 @@ def test_writer_authority_path_drift_rejects_before_proof_and_write(
 def test_writer_authority_identity_descriptor_closes_with_publisher(
     tmp_path: Path,
 ) -> None:
-    # Arrange: the verified writer owns one retained authority identity
-    # descriptor for exactly the lifetime of its journal.
+    # Arrange: the verified writer owns one fixed pair of retained store
+    # identity descriptors for exactly the lifetime of its journal.
     admission, candidate, _ = _publisher_fixture_v1(
         receipt_bytes=b"writer-authority-descriptor-lifecycle"
     )
@@ -2475,18 +2839,64 @@ def test_writer_authority_identity_descriptor_closes_with_publisher(
         _bound_receipt_verifier_v1(candidate)[0],
     )
     journal = cast(Any, publisher)._VerifiedDurableEconomicPublisherV1__journal
-    identity = journal._writer_authority_identity
-    assert identity is not None
-    descriptor = identity.file_descriptor
-    assert os.fstat(descriptor).st_nlink == 1
+    identities = journal._writer_store_identities
+    assert identities is not None
+    descriptors = (
+        identities.epoch.file_descriptor,
+        identities.authority.file_descriptor,
+    )
+    assert all(os.fstat(descriptor).st_nlink == 1 for descriptor in descriptors)
 
     # Act: publisher closure owns descriptor closure and remains idempotent.
     publisher.close()
     publisher.close()
 
-    # Assert: the retained descriptor cannot leak beyond the writer lifetime.
+    # Assert: neither retained descriptor can leak beyond the writer lifetime.
+    for descriptor in descriptors:
+        with pytest.raises(OSError) as closed:
+            os.fstat(descriptor)
+        assert closed.value.errno == errno.EBADF
+
+
+def test_writer_epoch_identity_acquisition_rejects_fifo_without_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: an exact-mode FIFO must be opened only with identity-safe flags.
+    fifo_path = tmp_path / "nonregular-epoch.fifo"
+    os.mkfifo(fifo_path, 0o600)
+    real_open = os.open
+    opened: list[int] = []
+
+    def record_open(
+        selected_path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        assert flags & (
+            os.O_PATH | os.O_NONBLOCK
+        ), "identity acquisition must not block on a FIFO"
+        if dir_fd is None:
+            descriptor = real_open(selected_path, flags, mode)
+        else:
+            descriptor = real_open(selected_path, flags, mode, dir_fd=dir_fd)
+        opened.append(descriptor)
+        return descriptor
+
+    # Act: nonregular epoch metadata rejects immediately after acquisition.
+    monkeypatch.setattr(epoch_journal_module.os, "open", record_open)
+    with pytest.raises(
+        DurableEconomicWriterEpochIdentityChangedV1,
+        match="writer epoch path identity changed",
+    ):
+        epoch_journal_module._acquire_writer_epoch_identity_v1(fifo_path)
+
+    # Assert: rejection closes the identity-only descriptor.
+    assert len(opened) == 1
     with pytest.raises(OSError) as closed:
-        os.fstat(descriptor)
+        os.fstat(opened[0])
     assert closed.value.errno == errno.EBADF
 
 
@@ -2551,6 +2961,7 @@ def test_writer_authority_identity_descriptor_open_failure_is_noop(
     rows_before = _logical_epoch_store_v1(path)
     authority_bytes_before = authority_path.read_bytes()
     real_open = os.open
+    opened_epoch_descriptors: list[int] = []
 
     def fail_authority_descriptor_open(
         selected_path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
@@ -2562,8 +2973,12 @@ def test_writer_authority_identity_descriptor_open_failure_is_noop(
         if os.fsdecode(selected_path) == os.fspath(authority_path):
             raise OSError("simulated retained authority descriptor open failure")
         if dir_fd is None:
-            return real_open(selected_path, flags, mode)
-        return real_open(selected_path, flags, mode, dir_fd=dir_fd)
+            descriptor = real_open(selected_path, flags, mode)
+        else:
+            descriptor = real_open(selected_path, flags, mode, dir_fd=dir_fd)
+        if os.fsdecode(selected_path) == os.fspath(path):
+            opened_epoch_descriptors.append(descriptor)
+        return descriptor
 
     # Act / Assert: the factory fails closed before minting a writer, and neither
     # durable store changes.
@@ -2577,8 +2992,186 @@ def test_writer_authority_identity_descriptor_open_failure_is_noop(
             admission,
             _bound_receipt_verifier_v1(candidate)[0],
         )
+    assert len(opened_epoch_descriptors) == 1
+    with pytest.raises(OSError) as closed:
+        os.fstat(opened_epoch_descriptors[0])
+    assert closed.value.errno == errno.EBADF
     assert _logical_epoch_store_v1(path) == rows_before
     assert authority_path.read_bytes() == authority_bytes_before
+
+
+def test_writer_connection_open_failure_closes_both_identity_descriptors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: an existing valid store reaches paired identity acquisition, then
+    # the writable SQLite connection fails before a writer can be minted.
+    admission, candidate, _ = _publisher_fixture_v1(
+        receipt_bytes=b"writer-connection-open-failure"
+    )
+    path = tmp_path / "writer-connection-open-failure.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    created.close()
+    authority_path = authority_journal_path_for_epoch_v1(path)
+    rows_before = _logical_epoch_store_v1(path)
+    authority_bytes_before = authority_path.read_bytes()
+    real_open = os.open
+    opened_identity_descriptors: list[int] = []
+
+    def record_identity_open(
+        selected_path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if dir_fd is None:
+            descriptor = real_open(selected_path, flags, mode)
+        else:
+            descriptor = real_open(selected_path, flags, mode, dir_fd=dir_fd)
+        if os.fsdecode(selected_path) in {os.fspath(path), os.fspath(authority_path)}:
+            opened_identity_descriptors.append(descriptor)
+        return descriptor
+
+    def fail_connection(*_args: object, **_kwargs: object) -> sqlite3.Connection:
+        raise OSError("simulated writable epoch connection failure")
+
+    monkeypatch.setattr(epoch_journal_module.os, "open", record_identity_open)
+    monkeypatch.setattr(epoch_journal_module, "_connect_v1", fail_connection)
+
+    # Act: writer opening fails after both retained descriptors were acquired.
+    with pytest.raises(OSError, match="simulated writable epoch connection failure"):
+        VerifiedDurableEconomicPublisherV1.open(
+            path,
+            admission,
+            _bound_receipt_verifier_v1(candidate)[0],
+        )
+
+    # Assert: both descriptors close and neither durable store changes.
+    assert len(opened_identity_descriptors) == 2
+    for descriptor in opened_identity_descriptors:
+        with pytest.raises(OSError) as closed:
+            os.fstat(descriptor)
+        assert closed.value.errno == errno.EBADF
+    assert _logical_epoch_store_v1(path) == rows_before
+    assert authority_path.read_bytes() == authority_bytes_before
+
+
+def test_epoch_replacement_after_commit_remains_indeterminate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: pause the first retained-identity check that observes one durable
+    # epoch outside a transaction. That check occurs after the lower COMMIT.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"epoch-replaced-after-economic-commit"
+    )
+    path = tmp_path / "epoch-replaced-after-economic-commit.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    source = publisher.head
+    replacement_path = _prepare_sequence_zero_epoch_replacement_v1(
+        path,
+        tmp_path / "epoch-postcommit-replacement",
+    )
+    replacement_rows = _logical_epoch_store_v1(replacement_path)
+    entered = Event()
+    release = Event()
+    observed_postcommit = False
+    original_check = GlobalEconomicEpochJournalV1._require_writer_store_identities_v1
+    committed_rows_before_replacement: list[
+        tuple[tuple[tuple[object, ...], ...], ...]
+    ] = []
+    committed_bundles_before_replacement: list[DurableEconomicEpochBundleV1] = []
+    outcomes: list[VerifiedDurableEconomicPublishOutcomeV1] = []
+    errors: list[BaseException] = []
+
+    def block_first_postcommit_check(
+        journal: GlobalEconomicEpochJournalV1,
+    ) -> None:
+        nonlocal observed_postcommit
+        if not observed_postcommit and not journal._connection.in_transaction:
+            row = journal._connection.execute(
+                "SELECT COUNT(*) FROM economic_epochs"
+            ).fetchone()
+            if row == (1,):
+                committed_rows = _logical_epoch_store_on_connection_v1(
+                    journal._connection
+                )
+                committed_bytes = committed_rows[2][0][3]
+                if type(committed_bytes) is not bytes:
+                    raise TypeError("committed epoch test row must contain bytes")
+                committed_rows_before_replacement.append(committed_rows)
+                committed_bundles_before_replacement.append(
+                    decode_durable_economic_epoch_bundle_v1(committed_bytes)
+                )
+                observed_postcommit = True
+                entered.set()
+                if not release.wait(timeout=10):
+                    raise RuntimeError("test postcommit identity release timed out")
+        original_check(journal)
+
+    def publish_inflight() -> None:
+        try:
+            outcomes.append(
+                publisher.publish_economic_epoch(
+                    expected_source=source,
+                    candidate=candidate,
+                    raw_evidence=publisher_raw_evidence_v1(candidate),
+                    body_and_state=body,
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    monkeypatch.setattr(
+        GlobalEconomicEpochJournalV1,
+        "_require_writer_store_identities_v1",
+        block_first_postcommit_check,
+    )
+    thread = Thread(target=publish_inflight)
+    thread.start()
+    try:
+        assert entered.wait(timeout=10)
+        os.replace(replacement_path, path)
+    finally:
+        release.set()
+    thread.join(timeout=10)
+
+    # Assert: the observed lower commit prevents a known-rejection result. The
+    # replacement store itself remains sequence zero and the outcome is unknown.
+    assert not thread.is_alive()
+    assert observed_postcommit
+    assert outcomes == []
+    assert len(errors) == 1
+    assert type(errors[0]) is GlobalEconomicPublicationIndeterminateV1
+    assert type(errors[0].__cause__) is DurableEconomicWriterEpochIdentityChangedV1
+    assert len(committed_rows_before_replacement) == 1
+    assert len(committed_bundles_before_replacement) == 1
+    retained = committed_bundles_before_replacement[0]
+    assert retained.receipt_bytes == candidate.receipt_bytes
+    assert retained.record.body_commitment == body.body_commitment
+    assert retained.record.source_publication_id == source.publication_id
+    assert retained.record.sequence == source.sequence + 1
+    assert committed_rows_before_replacement[0][1] == (
+        (1, retained.record.publication_id, str(retained.record.sequence)),
+    )
+    assert _retained_publisher_epoch_store_v1(publisher) == (
+        committed_rows_before_replacement[0]
+    )
+    assert _logical_epoch_store_v1(path) == replacement_rows
+    with GlobalEconomicEpochJournalV1.open(path) as observer:
+        assert observer.head == source
+    with pytest.raises(DurableEconomicWriterEpochIdentityChangedV1):
+        _ = publisher.head
+    publisher.close()
 
 
 def test_postcommit_identity_projection_error_remains_indeterminate(
