@@ -1,0 +1,183 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-CONSTRUCTED-SPARSE-STATE-QUANTITY-ADMISSION",
+      "points": [
+        "Nine declarations checked through independently restated signatures; only propext, Classical.choice and Quot.sound allowed as transitive axioms.",
+        "Nonempty initial balances, custody, liabilities, reserves, open terminal obligation, oracle and replay entries; a rejected request followed by two accepted requests changes Alice's balance from ten atoms to two.",
+        "Initial state admission is constructed in the witness, and no post-admission or Verified premise is supplied to the step or history theorem.",
+        "An accepted leaf with writer epoch 2^64 retains inadmissible global pre/post states; distinct owners of the same asset retain distinct global keys.",
+        "Owner-erasure mutation first exhibits a well-typed key collision, then the unchanged proof rejects the mutated definition in an isolated source copy."
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "The constructed sparse selected-policy transfer and its actual history preserve StateQuantitiesAdmitted from initial canonical balances and admission. Separate theorems preserve physical owned supply and claimant backing from their respective initial predicates.",
+  "created_date": "2026-09-06",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "formal",
+    "stateful",
+    "mutation"
+  ],
+  "evidence_id": "THV1-20260906-sparse-state-admission-v1",
+  "failure_modes": [
+    "Nine declarations checked through independently restated signatures; only propext, Classical.choice and Quot.sound allowed as transitive axioms.",
+    "Nonempty initial balances, custody, liabilities, reserves, open terminal obligation, oracle and replay entries; a rejected request followed by two accepted requests changes Alice's balance from ten atoms to two.",
+    "Initial state admission is constructed in the witness, and no post-admission or Verified premise is supplied to the step or history theorem.",
+    "An accepted leaf with writer epoch 2^64 retains inadmissible global pre/post states; distinct owners of the same asset retain distinct global keys.",
+    "Owner-erasure mutation first exhibits a well-typed key collision, then the unchanged proof rejects the mutated definition in an isolated source copy."
+  ],
+  "invariant_ids": [
+    "V3-CONSTRUCTED-SPARSE-STATE-QUANTITY-ADMISSION"
+  ],
+  "mutations": [
+    {
+      "description": "Tier 1: erase the owner coordinate from the sparse-to-global state key, merging two legitimate owners of the same asset and domain.",
+      "killed_by": "tests/formal/test_lean_asset_transfer_sparse_state_admission_v1.py::test_state_key_owner_erasure_mutant_rejected_by_unchanged_proof",
+      "mutant": {
+        "needle_lines": [
+          "(row.asset, row.owner, row.custodyDomain)"
+        ],
+        "path": "lean-mathlib/Proofs/AssetTransferSparseStateAdmissionV1.lean",
+        "replacement_lines": [
+          "(row.asset, \"\", row.custodyDomain)"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "StateQuantitiesAdmitted is the existing mathematical predicate; this does not establish every runtime constructor, resource ceiling, or command family.",
+    "The selected policy and metadata frame are static; policy membership, signature authenticity, height and replay advancement, canonical hashing and full effect/Verified construction remain separate.",
+    "Lean terminal obligations carry a liability domain absent from V1 runtime terminal rows; the witness supplies no exact runtime ownership-domain projection.",
+    "The source pins and finite witness do not prove universal Python, Rust or compiler refinement, genuine receipt composition, deployment recovery or whole-program completion.",
+    "Mutation execution is confined to private source copies; no production code, wire, policy, balance or publication authority changes."
+  ],
+  "reject_is_noop": {
+    "reason": "The proof's rejected branch uses the actual sparse step's exact state no-op; the constructed history omits rejected plans. The model has no publication or external write port.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "experiments/v3_sparse_state_admission_v1/render_evidence.py",
+      "sha256": "0ad121dedaab1b59e58a43d47598d39021ddef9bd9a14315f3cc39bc8b3a80eb"
+    },
+    {
+      "path": "docs/research/ZENODEX_SPARSE_STATE_ADMISSION_20260906.md",
+      "sha256": "96909f5809916938e58c232043fe581628ef53bd62e07417f7cac27339e5abe0"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "b7d6b54128b30606602e0239a0fc0c226f044575dfa99b5d9f8e9d93f8a48e99"
+    },
+    {
+      "path": "lean-mathlib/lean-toolchain",
+      "sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+    },
+    {
+      "path": "src/core/asset_transfer_module_v1.py",
+      "sha256": "754d75a37ad70868bf20263fc189fc9e4f5a77cb864d8a1c7973afc253c938d7"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "5757c8b692820613e1eac30b7103e857a73b42efebbdda62d0a4469511f41277"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_supply_v1.py",
+      "sha256": "e8adadca735bcd24b7729760f0a3b4718f01789ce197407468fc1c9ba0320197"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_tables_v1.py",
+      "sha256": "76fce0078560e812d10c07c66983430ea3a3eb32b20b2e8692a583322fbc621b"
+    },
+    {
+      "path": "tests/formal/test_lean_checked_epoch_economic_tables_v1.py",
+      "sha256": "efd3cb46a8a4c952c994d74f3084971a36c61ef6bdbaf99305e723a373d05566"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
+      "sha256": "b72155a1f32f01a5c96df725358d7fbc55d5014ee0d9894e6743516d37b04e4b"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean",
+      "sha256": "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
+      "sha256": "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEpochEconomicTablesV1.lean",
+      "sha256": "ee6ebc40358879e168cbc245be1641a06e084a39642d5da2736caacfa60897cd"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CanonicalEpochEconomicRowsV1.lean",
+      "sha256": "5ff80f22fde38729468dc237dd5b40a28bacc57302a483bf42b3e9f90122fe64"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferRefinementV1.lean",
+      "sha256": "2d9ed7beb6feb47b67afa63a40d1203bcca9004b49ba978b9927edded6a04932"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyCompletionV1.lean",
+      "sha256": "fc6869b223a427ef22d040e71276d57c1f7b5bca9b95b471d4059ae771a1f8dc"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedSignedDeltaRefinementV1.lean",
+      "sha256": "3a0b3e18a069b14c8fec4e705178a73cb1b3356d9813195e5e7c35b09cf74a4d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyCompositionV1.lean",
+      "sha256": "37375e914576993767eae7484e620e54be300798785b2a57a9953e86be2f34d2"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseTablesV1.lean",
+      "sha256": "5d303c709501cfe0604c3e845a3b2814b8c5ebe4f0fcfd4090bda2d697f077c0"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseTraceV1.lean",
+      "sha256": "5a77ac04b4e214ab7d0dc6cb4b77e2369e16a7914d02cffb5df1d0b88f119b83"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseSupplyV1.lean",
+      "sha256": "e2c056cba91173f6c454f4b60c1adc228d9ffd7df58a9cebcdbbc0e9b46a683d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseStateAdmissionV1.lean",
+      "sha256": "82f54f4d5a5ba5e28a2ed2a96cd6b4155e70458c05d104b31eea0717aaae8649"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_asset_transfer_sparse_state_admission_v1.py::test_independent_contracts_axioms_and_selected_sources",
+        "tests/formal/test_lean_asset_transfer_sparse_state_admission_v1.py::test_nonempty_witness_consumes_step_and_history_preservation",
+        "tests/formal/test_lean_asset_transfer_sparse_state_admission_v1.py::test_initial_admission_and_key_coordinate_controls",
+        "tests/formal/test_lean_asset_transfer_sparse_state_admission_v1.py::test_state_key_owner_erasure_mutant_rejected_by_unchanged_proof"
+      ],
+      "path": "tests/formal/test_lean_asset_transfer_sparse_state_admission_v1.py",
+      "sha256": "7aa8186b3f24343b36feb10a4c3f19ec35424d17e557d76dd7c7f74af333767c"
+    }
+  ]
+}
