@@ -12,14 +12,17 @@ supply no authority.
 This adapter performs no allocation admission, epoch proof verification, store
 acquisition, replay consumption or publication. Its caller acquires the explicit
 predecessor and must check allocation and epoch admission before atomic commit.
-The current isolated scope has one occurrence; its selected legacy asset module
-remains limited to zero-custody composition. Interpreter and dependency
-integrity remain external premises.
+The current isolated scope has one occurrence. Existing factories retain the
+legacy zero-custody composition. Additive custody factories fix the reviewed
+custody semantic family and its verifier entry; claimant coverage remains the
+caller's mandatory allocation check against acquired predecessor liabilities.
+Interpreter and dependency integrity remain external premises.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from enum import Enum
 from pathlib import Path
 from threading import Lock
 from typing import NoReturn, SupportsIndex
@@ -28,6 +31,10 @@ from weakref import WeakKeyDictionary
 from src.core.asset_lane_projection_v1 import (
     AssetLaneCoordinatorContextV1,
     AssetLaneModuleCompatibilityV1,
+)
+from src.core.asset_transfer_custody_semantics_v1 import require_asset_transfer_custody_semantics_v1
+from src.core.asset_transfer_lane_module_custody_v1 import (
+    transition_asset_transfer_lane_module_custody_v1,
 )
 from src.core.asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleAcceptedV1,
@@ -91,10 +98,12 @@ from src.core.lane_module_receipt_verification_v1 import (
     AssetTransferLaneModuleReceiptCandidateV1,
     LaneModuleReceiptEnvelopeV1,
     VerifiedLaneModuleTransitionV1,
+    verify_asset_transfer_lane_module_custody_receipt_v1,
     verify_asset_transfer_lane_module_receipt_v1,
 )
 from src.core.lane_module_release_route_binding_v1 import (
     AssetTransferReleaseRouteBindingCandidateV1,
+    bind_asset_transfer_lane_output_to_custody_release_route_v1,
     bind_asset_transfer_lane_output_to_release_route_v1,
 )
 from src.core.managed_asset_policy_registry_v1 import snapshot_exact_economic_policy_registry_v1
@@ -145,6 +154,11 @@ class IsolatedAssetReceiptPipelineResultV1:
     ]
 
 
+class _AssetModuleSemanticsV1(Enum):
+    LEGACY = "legacy"
+    CUSTODY = "custody"
+
+
 @dataclass(frozen=True, slots=True)
 class _PipelineAuthorityV1:
     profile: EconomicProfileSnapshotV1
@@ -152,6 +166,7 @@ class _PipelineAuthorityV1:
     deployment_root: str
     signature_verifier: BoundEconomicCommandSignatureVerifierV1
     receipt_ports: IsolatedProfileReceiptPortsV1
+    module_semantics: _AssetModuleSemanticsV1
 
 
 class IsolatedAssetReceiptPipelineV1:
@@ -254,6 +269,7 @@ def bind_isolated_asset_receipt_pipeline_v1(
         deployment_root=deployment_root,
         signature_verifier=signature_verifier,
         receipt_ports=receipt_ports,
+        module_semantics=_AssetModuleSemanticsV1.LEGACY,
     )
 
 
@@ -290,6 +306,79 @@ def bind_isolated_asset_receipt_pipeline_with_sealed_bls_v1(
         deployment_root=deployment_root,
         signature_verifier=signature_verifier,
         receipt_ports=receipt_ports,
+        module_semantics=_AssetModuleSemanticsV1.LEGACY,
+    )
+
+
+def bind_isolated_custody_asset_receipt_pipeline_v1(
+    *,
+    profile: EconomicProfileSnapshotV1,
+    policy_registry: EconomicPolicyRegistryV1,
+    receipt_ports: IsolatedProfileReceiptPortsV1,
+    deployment_root: str,
+    signature_artifact_path: Path,
+    signature_release: EconomicCommandSignatureVerifierReleaseV1,
+    signature_evidence_manifest: EconomicCommandSignatureVerifierEvidenceManifestV1,
+) -> IsolatedAssetReceiptPipelineV1:
+    """Fix custody semantics with Python BLS and factory-minted measured ports."""
+    owned_profile, owned_policy = _prepare_isolated_asset_pipeline_context_v1(
+        profile=profile,
+        policy_registry=policy_registry,
+        receipt_ports=receipt_ports,
+        deployment_root=deployment_root,
+    )
+    signature_verifier = bind_deployed_bls_economic_command_signature_verifier_v1(
+        artifact_path=signature_artifact_path,
+        release=signature_release,
+        evidence_manifest=signature_evidence_manifest,
+        deployment_root=deployment_root,
+        profile_root=owned_profile.profile_id,
+        selection_purpose=EconomicCommandSignatureVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION,
+    )
+    return _mint_isolated_asset_receipt_pipeline_v1(
+        profile=owned_profile,
+        policy_registry=owned_policy,
+        deployment_root=deployment_root,
+        signature_verifier=signature_verifier,
+        receipt_ports=receipt_ports,
+        module_semantics=_AssetModuleSemanticsV1.CUSTODY,
+    )
+
+
+def bind_isolated_custody_asset_receipt_pipeline_with_sealed_bls_v1(
+    *,
+    profile: EconomicProfileSnapshotV1,
+    policy_registry: EconomicPolicyRegistryV1,
+    receipt_ports: IsolatedProfileReceiptPortsV1,
+    deployment_root: str,
+    signature_artifact_path: Path,
+    signature_release: EconomicCommandSignatureVerifierReleaseV1,
+    signature_evidence_manifest: EconomicCommandSignatureVerifierEvidenceManifestV1,
+    signature_timeout_ms: int,
+) -> IsolatedAssetReceiptPipelineV1:
+    """Fix custody semantics and acquire one standalone BLS verifier snapshot."""
+    owned_profile, owned_policy = _prepare_isolated_asset_pipeline_context_v1(
+        profile=profile,
+        policy_registry=policy_registry,
+        receipt_ports=receipt_ports,
+        deployment_root=deployment_root,
+    )
+    signature_verifier = bind_deployed_sealed_bls_command_verifier_v1(
+        artifact_path=signature_artifact_path,
+        release=signature_release,
+        evidence_manifest=signature_evidence_manifest,
+        deployment_root=deployment_root,
+        profile_root=owned_profile.profile_id,
+        timeout_ms=signature_timeout_ms,
+        selection_purpose=EconomicCommandSignatureVerifierSelectionPurposeV1.ISOLATED_QUALIFICATION,
+    )
+    return _mint_isolated_asset_receipt_pipeline_v1(
+        profile=owned_profile,
+        policy_registry=owned_policy,
+        deployment_root=deployment_root,
+        signature_verifier=signature_verifier,
+        receipt_ports=receipt_ports,
+        module_semantics=_AssetModuleSemanticsV1.CUSTODY,
     )
 
 
@@ -322,6 +411,7 @@ def _mint_isolated_asset_receipt_pipeline_v1(
     deployment_root: str,
     signature_verifier: BoundEconomicCommandSignatureVerifierV1,
     receipt_ports: IsolatedProfileReceiptPortsV1,
+    module_semantics: _AssetModuleSemanticsV1,
 ) -> IsolatedAssetReceiptPipelineV1:
     pipeline = object.__new__(IsolatedAssetReceiptPipelineV1)
     with _LOCK:
@@ -331,6 +421,7 @@ def _mint_isolated_asset_receipt_pipeline_v1(
             deployment_root,
             signature_verifier,
             receipt_ports,
+            module_semantics,
         )
     return pipeline
 
@@ -449,12 +540,24 @@ def _verify_module_v1(
         ),
         occurrence,
     )
-    accepted = transition_asset_transfer_lane_module_v1(raw.module_input)
+    match authority.module_semantics:
+        case _AssetModuleSemanticsV1.LEGACY:
+            transition = transition_asset_transfer_lane_module_v1
+            bind_output = bind_asset_transfer_lane_output_to_release_route_v1
+            verify_receipt = verify_asset_transfer_lane_module_receipt_v1
+        case _AssetModuleSemanticsV1.CUSTODY:
+            require_asset_transfer_custody_semantics_v1(authority.profile, occurrence)
+            transition = transition_asset_transfer_lane_module_custody_v1
+            bind_output = bind_asset_transfer_lane_output_to_custody_release_route_v1
+            verify_receipt = verify_asset_transfer_lane_module_custody_receipt_v1
+        case _:
+            raise TypeError("isolated asset pipeline has an unregistered module semantics")
+    accepted = transition(raw.module_input)
     if not isinstance(accepted, AssetTransferLaneModuleAcceptedV1):
         raise ValueError(f"isolated asset module rejected: {accepted.code.value}")
     if type(accepted) is not AssetTransferLaneModuleAcceptedV1:
         raise TypeError("isolated asset module returned an unexpected acceptance type")
-    bound = bind_asset_transfer_lane_output_to_release_route_v1(
+    bound = bind_output(
         AssetTransferReleaseRouteBindingCandidateV1(
             authority.profile,
             authority.policy_registry,
@@ -464,7 +567,7 @@ def _verify_module_v1(
             accepted,
         )
     )
-    module = verify_asset_transfer_lane_module_receipt_v1(
+    module = verify_receipt(
         AssetTransferLaneModuleReceiptCandidateV1(
             authority.profile,
             authority.policy_registry,

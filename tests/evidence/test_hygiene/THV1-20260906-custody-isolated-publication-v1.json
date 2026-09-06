@@ -1,0 +1,147 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-CUSTODY-ISOLATED-PUBLICATION-CLAIMANT-COVERAGE",
+      "points": [
+        "seven pipeline cases and five publisher cases with the real sealed BLS executable explicitly supplied",
+        "one occurrence, one asset-transfer lane",
+        "explicit test-state custody and precommitted claimant liabilities",
+        "exact receipt statements and unchanged source ownership",
+        "invalid signature before receipt calls",
+        "absent and mismatched claimant backing",
+        "complete durable bundle and exact committed retry",
+        "publisher allocation bypass and custody-to-legacy factory substitution mutants killed in disposable processes",
+        "legacy zero-custody factory behavior retained"
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "Fixed custody factories connect authenticated successor receipts to isolated store-derived allocation and atomic publication, preserving explicit predecessor claimant liabilities.",
+  "created_date": "2026-09-06",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "differential"
+  ],
+  "evidence_id": "THV1-20260906-custody-isolated-publication-v1",
+  "failure_modes": [
+    "seven pipeline cases and five publisher cases with the real sealed BLS executable explicitly supplied",
+    "one occurrence, one asset-transfer lane",
+    "explicit test-state custody and precommitted claimant liabilities",
+    "exact receipt statements and unchanged source ownership",
+    "invalid signature before receipt calls",
+    "absent and mismatched claimant backing",
+    "complete durable bundle and exact committed retry",
+    "publisher allocation bypass and custody-to-legacy factory substitution mutants killed in disposable processes",
+    "legacy zero-custody factory behavior retained"
+  ],
+  "invariant_ids": [
+    "V3-CUSTODY-ISOLATED-PUBLICATION-CLAIMANT-COVERAGE"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "RISC0 process replies and release evidence are synthetic; successor test releases retain base guest image IDs, and no genuine guest or image qualification is established.",
+    "Sealed binary execution requires an explicitly configured checksum-qualified artifact; a skipped run supplies no such evidence.",
+    "Each signature factory retains its existing backend and trust premises.",
+    "Declared predecessor liabilities in test state do not approve production claimant or migration policy.",
+    "Existing publisher, allocation, epoch admission and journal sources remain unchanged.",
+    "No live profile activation, migration, production publication or whole-program completeness is established."
+  ],
+  "reject_is_noop": {
+    "reason": "Receipt preparation supplies no writer. The actual publisher loads the predecessor and refuses uncovered custody before epoch verification, leaving logical state, replay, history and durable payload rows unchanged.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "experiments/v3_custody_pipeline_v1/render_evidence.py",
+      "sha256": "e345510b145f266be3589cd0cee9b27565115beb5ebb6ae8845f1deed0b9e762"
+    },
+    {
+      "path": "docs/research/ZENODEX_CUSTODY_PIPELINE_INTEGRATION_20260906.md",
+      "sha256": "e9b3e21a055af32a91cbdda63c065b938155c9876e83f451b800d8a02c525b63"
+    },
+    {
+      "path": "src/integration/isolated_asset_receipt_pipeline_v1.py",
+      "sha256": "509c95afe667b78e56baa2f6a147a0c6e34de23bcab6605be9a746605ed49d9a"
+    },
+    {
+      "path": "src/integration/global_economic_durable_publisher_v1.py",
+      "sha256": "52890237d78f45a0369d16ef013501316a83cfd53fa3f865864f4a0abea23c77"
+    },
+    {
+      "path": "src/integration/global_economic_epoch_journal_v1.py",
+      "sha256": "0bb40e878165bcd3e5b72b2d20d5fc40c2da628585f2ef4a9905d17a436318f0"
+    },
+    {
+      "path": "src/integration/isolated_profile_receipt_ports_v1.py",
+      "sha256": "aee2c8de566727da7d214fd6af08b291af0966428c7fca4b458aa5f1b9aa6843"
+    },
+    {
+      "path": "src/core/asset_transfer_custody_semantics_v1.py",
+      "sha256": "9fd563c0ca06d565cce33226b534c09ac63efde6dd6f37ac6a81cf514c57d4a9"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_custody_v1.py",
+      "sha256": "0d2118f275f6aa5bd308125b83b7c4528dbfc086749c8cb744bacea15983b45e"
+    },
+    {
+      "path": "src/core/lane_module_release_route_binding_v1.py",
+      "sha256": "a0c5d312332344ee9ec18e4ece6e4345bbc4f33a71b3aeb85fda245173c07c83"
+    },
+    {
+      "path": "src/core/lane_module_receipt_verification_v1.py",
+      "sha256": "c6298378e83389d0cd547b2b0ee557747112a25e667c45dce77524e2f085ad8b"
+    },
+    {
+      "path": "src/core/asset_transfer_epoch_allocation_v1.py",
+      "sha256": "34a5012d84f130921ce80c87e367c56bfe92d6e6d7c59ccd6774d8fbc3bcb071"
+    },
+    {
+      "path": "src/core/asset_transfer_receipt_admission_v1.py",
+      "sha256": "2a954812ee4d4cbcb537872ff108c52576c6c5aef7eaca28bab124d27488837f"
+    },
+    {
+      "path": "src/core/global_accounting_lane_producers_v1.py",
+      "sha256": "437973db878e23ba2b37bdd7a6b761f539167a3468f9fbf4059d3cc9a25cf41e"
+    },
+    {
+      "path": "tests/integration/custody_asset_receipt_pipeline_fixtures_v1.py",
+      "sha256": "7c39de23877417fcd00a1010312a75d604c6814d7cfc0a11a185dfda95eb713e"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_nonzero_custody_uses_exact_global_rows_and_feeds_allocation",
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_zero_custody_remains_a_valid_custody_semantics_epoch",
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_missing_or_misattributed_raw_custody_rejects_before_allocation",
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_wrong_semantic_root_is_coherently_bound_but_rejected_before_receipts",
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_invalid_signature_rejects_before_every_receipt_callback",
+        "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py::test_legacy_factory_still_accepts_zero_custody_under_the_legacy_contract"
+      ],
+      "path": "tests/integration/test_isolated_custody_asset_receipt_pipeline_v1.py",
+      "sha256": "0f9180621f2cf08a08a995c15b6ac1c95c3d5409ac5fb1524267d13a4b1b7724"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_custody_pipeline_v1.py::test_backed_custody_commits_complete_bundle_and_exact_retry",
+        "tests/integration/test_global_economic_custody_pipeline_v1.py::test_missing_or_mismatched_claimant_backing_rejects_before_epoch_and_commit"
+      ],
+      "path": "tests/integration/test_global_economic_custody_pipeline_v1.py",
+      "sha256": "ef60621b41fa4da26abaf9a44a68e19c21f3f81bb4d873c6e98c949d72153bae"
+    }
+  ]
+}
