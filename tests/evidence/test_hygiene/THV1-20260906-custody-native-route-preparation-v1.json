@@ -1,0 +1,140 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-CUSTODY-NATIVE-ROUTE-EXACT-STATE-AND-RESOURCE-BOUNDS",
+      "points": [
+        "14 native tests replayed through installed Rust 1.90.0 and locked offline dependencies",
+        "nonzero custody and exact independent component outputs; Python golden governance cross-check",
+        "coherently rebuilt semantic-family mismatches and retained guard precedence",
+        "global custody, account attribution, replay, occurrence and history drift",
+        "selected module journal exact-limit success and one-byte-over refusal across all three entries",
+        "valid 4096-row tables, exactly backed liabilities and 160-byte tokens",
+        "9387855-byte route with 951101-byte module and 952015-byte lane inputs",
+        "both missing guards reproduced as accepted counterexamples before repair",
+        "zero/one/exact 8 MiB/8 MiB plus one byte decode boundaries and canonical spelling failures"
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "Ordinary native custody-route preparation binds the governed semantic family, exact global allocation, projection and refinement, the outer canonical input ceiling, and all three selected release journal ceilings.",
+  "created_date": "2026-09-06",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "differential"
+  ],
+  "evidence_id": "THV1-20260906-custody-native-route-preparation-v1",
+  "failure_modes": [
+    "14 native tests replayed through installed Rust 1.90.0 and locked offline dependencies",
+    "nonzero custody and exact independent component outputs; Python golden governance cross-check",
+    "coherently rebuilt semantic-family mismatches and retained guard precedence",
+    "global custody, account attribution, replay, occurrence and history drift",
+    "selected module journal exact-limit success and one-byte-over refusal across all three entries",
+    "valid 4096-row tables, exactly backed liabilities and 160-byte tokens",
+    "9387855-byte route with 951101-byte module and 952015-byte lane inputs",
+    "both missing guards reproduced as accepted counterexamples before repair",
+    "zero/one/exact 8 MiB/8 MiB plus one byte decode boundaries and canonical spelling failures"
+  ],
+  "invariant_ids": [
+    "V3-CUSTODY-NATIVE-ROUTE-EXACT-STATE-AND-RESOURCE-BOUNDS"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "The pytest gate invokes only the native shared target; unavailable toolchain/dependencies fail and never install or skip.",
+    "Bounded native evidence is not universal runtime/compiler refinement or proof execution.",
+    "Legacy composer source remains unchanged and retains its earlier typed-size and module-journal behavior.",
+    "Typed bounds canonicalize the caller-owned input; process memory exhaustion is not ruled out.",
+    "Images, cycle measurements, real receipts, pre-state authenticity, datastore continuity, release qualification and publication remain open."
+  ],
+  "reject_is_noop": {
+    "reason": "Owned immutable inputs yield a prepared ordinary value or typed rejection; no receipt, economic writer, publication port or activation handle exists. Negative controls exercise typed, canonical and decoded entries.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "experiments/v3_custody_native_route_v1/render_evidence.py",
+      "sha256": "ad4d5952cb0cf24f327463ccf4ebdfa8fe1d673964733445469ec7c4d0e5fcd2"
+    },
+    {
+      "path": "zk/asset_transfer_custody_route_risc0/Cargo.toml",
+      "sha256": "66153801403c18bcfaf623c70cdd7d4348c5b69f6052627dd4ce795668d9808f"
+    },
+    {
+      "path": "zk/asset_transfer_custody_route_risc0/Cargo.lock",
+      "sha256": "73117994466ee43cd1baa406d31c5dcf490d90c6aee94726c87643e7aa5e47c3"
+    },
+    {
+      "path": "zk/asset_transfer_custody_route_risc0/README.md",
+      "sha256": "a77407e0a4de72617f2d4b51e214d679e4e6699bf1147b7497329d57d51173a2"
+    },
+    {
+      "path": "zk/asset_transfer_custody_route_risc0/shared/Cargo.toml",
+      "sha256": "5cb9d7203c18ff99ae60a9784dc959ea9e9449cff4e91ad271c8c2b28b1b16c9"
+    },
+    {
+      "path": "zk/asset_transfer_custody_route_risc0/shared/src/lib.rs",
+      "sha256": "a14817536f17b658fcf42007ce2eee2fc384ef2fa7c81ff733ee64573100f018"
+    },
+    {
+      "path": "zk/asset_transfer_custody_route_risc0/shared/tests/custody_route_preflight.rs",
+      "sha256": "598bd48f4f8b080c2115e96b5cf4b8e0376f6ab3511fb04c694b051537ead83f"
+    },
+    {
+      "path": "zk/asset_transfer_custody_route_risc0/shared/tests/support/mod.rs",
+      "sha256": "87f103b54a74384427f49120cebda6422dd30e481e5ba3a551ceafa3cd0db88b"
+    },
+    {
+      "path": "zk/asset_transfer_custody_route_risc0/shared/tests/support/oversize.rs",
+      "sha256": "78e4f88a64fb3b4ead197cb399074c58dea8211992dd03957bbe1d8b00b2a950"
+    },
+    {
+      "path": "zk/asset_lane_custody_coordinator_risc0/shared/src/lib.rs",
+      "sha256": "06b5d1354ca1d353bdc8b6ffbe83bfe8a5eb3e11add84d0be80b520bce6906c2"
+    },
+    {
+      "path": "zk/asset_transfer_custody_module_risc0/shared/src/lib.rs",
+      "sha256": "ebf224088bfe7447749e05b711a47737f914559b5aaae26cf303879e3f4525d6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_custody_semantics.rs",
+      "sha256": "dd0d6cbf0290d7fe823daf170bfacad81b68b2909ca1019da4b659a56f1ff14b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_global_allocation.rs",
+      "sha256": "3d785828fb676c0c2d112a55714b82ec13f245ee1886d175f122b482cd88c9bd"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/route_global_state_projection.rs",
+      "sha256": "a8e70ae96afd5daa8654031cf2088dba75eb8d29dab90bada08290bb92e2bbbd"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs",
+      "sha256": "e91f27cd2f38db434b1d8c77ef72a34508ec4ab744dff3843261fe263139316f"
+    },
+    {
+      "path": "tests/data/asset_transfer_custody_release_binding_v1_golden.json",
+      "sha256": "014e97e7c1f3a1f458bc051052d7bf91db7c1f83206aa9cc15b92a693301d9be"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/integration/test_asset_transfer_custody_route_native_v1.py::test_native_custody_route_replays_semantics_and_resource_boundaries"
+      ],
+      "path": "tests/integration/test_asset_transfer_custody_route_native_v1.py",
+      "sha256": "fa9353fe786a107b528ca316719135a2ad1da344ae908805cf33e958f87b3dee"
+    }
+  ]
+}
