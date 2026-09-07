@@ -9,7 +9,7 @@ from src.core import asset_transfer_global_allocation_v1 as relation
 from src.core import asset_transfer_receipt_admission_v1 as admission
 from src.core import global_accounting_allocation_certificate_v1 as allocation
 from src.core.asset_transfer_epoch_position_v1 import AssetTransferEpochPositionV1
-from src.core.global_economic_proof_v1 import verify_economic_epoch_v1
+from src.integration.global_economic_epoch_verification_v1 import verify_economic_epoch_v1
 from tests.core.test_asset_transfer_epoch_allocation_v1 import _check, _fixture
 from tests.core.test_global_settlement_abi_v1 import _RecordingReceiptVerifier
 

@@ -62,6 +62,7 @@ import Proofs.BountyAuctionMechanisms
 import Proofs.CALCoreSoundness
 import Proofs.CBCDisasterStateRefactors
 import Proofs.CanonicalEpochEconomicRowsV1
+import Proofs.AssetTransferEpochEconomicTablesV1
 import Proofs.CeilingFeeRounding
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CheckedEconomicAggregationV1

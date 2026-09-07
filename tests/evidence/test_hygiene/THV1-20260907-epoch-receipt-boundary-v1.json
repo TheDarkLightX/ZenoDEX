@@ -1,0 +1,411 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-EPOCH-RECEIPT-PREPARED-EXECUTION-BOUNDARY",
+      "points": [
+        "The six pinned root-epoch/initial-state core and integration files retain the existing canonical journals, receipt digest, commit identity, state/effect refinements, numeric ceilings, and publisher bodies; no wire or economics field is added.",
+        "PreparedEconomicEpochV1 is a consistency snapshot of fully admitted epoch facts and exact execution bytes; its shell copy rechecks those exact fields before I/O. It is distinct from initial-state preparation, which retains the complete owned admission and reruns complete admission validation while making its detached copy.",
+        "The shell owns SuccinctReceiptVerifierV1, the private epoch witness token, lock and weak registry. Its publisher binding requires both the exact publisher token and the exact selected verifier object; raw prepared data supplies no publication authority.",
+        "The eight pinned test files cover the former 305-test bounded regression set: pure preparation, exact three-field backend requests, initial genesis/migration execution, callback mutation, forged/subclass/field-injected subjects, publisher identity, backend exceptions, retry and durable controls.",
+        "The core asset epoch composition boundary remains bounded to one through 64 inputs. The mounted isolated asset path and durable publisher retain their deliberately single-occurrence admission guard.",
+        "The focused no-call mutation is declared narrative-only and executes inside the boundary test; it is not an external mechanical mutation result."
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "The bounded root-epoch path prepares an immutable exact receipt subject in core, then the integration shell snapshots and executes its receipt, image and journal before minting a process-local publisher-bound witness. Genesis and migration retain a complete owned admission through their separate preparation/finish path. The declared corpus observes exact requests, retained publisher token and verifier-object identity, and bounded no-effect refusals.",
+  "created_date": "2026-09-07",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "differential",
+    "mutation"
+  ],
+  "evidence_id": "THV1-20260907-epoch-receipt-boundary-v1",
+  "failure_modes": [
+    "The six pinned root-epoch/initial-state core and integration files retain the existing canonical journals, receipt digest, commit identity, state/effect refinements, numeric ceilings, and publisher bodies; no wire or economics field is added.",
+    "PreparedEconomicEpochV1 is a consistency snapshot of fully admitted epoch facts and exact execution bytes; its shell copy rechecks those exact fields before I/O. It is distinct from initial-state preparation, which retains the complete owned admission and reruns complete admission validation while making its detached copy.",
+    "The shell owns SuccinctReceiptVerifierV1, the private epoch witness token, lock and weak registry. Its publisher binding requires both the exact publisher token and the exact selected verifier object; raw prepared data supplies no publication authority.",
+    "The eight pinned test files cover the former 305-test bounded regression set: pure preparation, exact three-field backend requests, initial genesis/migration execution, callback mutation, forged/subclass/field-injected subjects, publisher identity, backend exceptions, retry and durable controls.",
+    "The core asset epoch composition boundary remains bounded to one through 64 inputs. The mounted isolated asset path and durable publisher retain their deliberately single-occurrence admission guard.",
+    "The focused no-call mutation is declared narrative-only and executes inside the boundary test; it is not an external mechanical mutation result."
+  ],
+  "invariant_ids": [
+    "V3-EPOCH-RECEIPT-PREPARED-EXECUTION-BOUNDARY"
+  ],
+  "mutations": [
+    {
+      "description": "Narrative only: the focused boundary test executes the execute-before-prepare mutation and observes its forbidden backend call against the ordinary no-call law. The external evidence ledger must not count this as a mechanical mutation kill.",
+      "killed_by": "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_execute_before_prepare_mutant_is_killed_by_the_no_call_law",
+      "narrative": true
+    }
+  ],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "Rendering does not execute the declared tests, verifier, receipt, publication, release qualification, or production settlement path.",
+    "Receipts, verifier replies, roots and publisher fixtures in this corpus are synthetic. No cryptographic validity, measured deployment, active-release, store-head, finality, or production authority follows.",
+    "Private tokens, preparation markers, slots, and weak registries assume an intact interpreter, process, operating system, and publisher environment. They do not protect a compromised process.",
+    "The generic shell retains its historical return-value behavior. This packet does not promote it to a measured verifier or manufacture a success-boolean authority path.",
+    "The snapshot distinction between root-epoch field consistency and complete initial-state admission does not establish global completion, universal runtime refinement, a full FCIS closure, or a proof of all caller paths.",
+    "BoundEconomicReceiptVerifierV1 deployment and unrelated tokenomics, fee, buyback, or callback owners remain separate obligations.",
+    "No policy constant, canonical identity, historical evidence packet, native artifact, release image, or mounted one-occurrence policy changes through this renderer."
+  ],
+  "reject_is_noop": {
+    "reason": "Pure structural and prepared-subject refusals occur before the backend call. A backend exception leaves no registered epoch witness or publisher state change; commit admission retains exact publisher-token and verifier object identity checks. The generic shell continues to ignore the backend return value, while the separate measured Bound contract owns its exact None-success rule.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "b7d826ddabc4c140e1803ffa0aebca0642d0a9ecd69b94a00567894829bbf345"
+    },
+    {
+      "path": "src/core/economic_initial_state_publisher_verification_v1.py",
+      "sha256": "802d7bd80e7a3700fcef5017d7674dea93d7348009690cb3802274852579d208"
+    },
+    {
+      "path": "src/integration/global_economic_epoch_verification_v1.py",
+      "sha256": "54ade3d14422cfd6e911d5cb992646c1d16e65e22e342ec8c050690df63947da"
+    },
+    {
+      "path": "src/integration/economic_initial_state_publisher_verification_v1.py",
+      "sha256": "c1cebcfaecc4bc8fcf8662a48f8428d4adf68315252a5432533fe5f343f5ff2e"
+    },
+    {
+      "path": "src/integration/global_economic_commit_v1.py",
+      "sha256": "87055325db123f4ab04aa8dc3fec3c71aadbe9855761b3840d24145312ac45ec"
+    },
+    {
+      "path": "src/integration/global_economic_durable_publisher_v1.py",
+      "sha256": "32e67921b198e4ce1f28ad9780b885430c5756dfd5546f82ee95de111440f4b2"
+    },
+    {
+      "path": "tests/core/lane_module_receipt_fixtures_v1.py",
+      "sha256": "3e02583780d234fdfa9e6693526ef09854c1dd0d2b7645b73dc454b51f818031"
+    },
+    {
+      "path": "tests/core/receipt_composition_fixtures_v1.py",
+      "sha256": "9490aecd9807486bdd6ddc6a3ea07565ed2284edf528a0d0dc75a6671fc01679"
+    },
+    {
+      "path": "tests/core/test_asset_transfer_global_allocation_v1.py",
+      "sha256": "b9d9db04a14fd9332f2a86a20e3480648f63f6a3c03e4da218cadb846d8f7335"
+    },
+    {
+      "path": "tests/core/test_asset_transfer_receipt_admission_v1.py",
+      "sha256": "023c581d3495bd46ae0be6a00a5b1689357a8752495cb18ec8d2bbac0a193564"
+    },
+    {
+      "path": "tests/core/test_economic_receipt_verifier_release_v1.py",
+      "sha256": "23ae079aba968ac4ab64e6c1fe66ac805724d5245f374a0bd11001e2bfa684c7"
+    },
+    {
+      "path": "tests/core/test_global_accounting_allocation_certificate_v1_golden.py",
+      "sha256": "ef9411422c105350c5488e9333e7f66cb1544770a603bf9e9468286e095ec9f9"
+    },
+    {
+      "path": "tests/integration/publisher_receipt_port_fixtures_v1.py",
+      "sha256": "f02f4d65201f9fbc80ca7a2e36049299284ad02b888b4206c637b636c767583a"
+    },
+    {
+      "path": "experiments/v3_epoch_receipt_boundary_v1/render_evidence.py",
+      "sha256": "4d9c10f73ce353505089263d1813d931cc36c5000d67f31bb06889e50e281ce0"
+    },
+    {
+      "path": "docs/research/ZENODEX_RESOURCE_ARCHITECTURE_20260906.md",
+      "sha256": "ec20ed8bb24eb6a0aa16941b7332879b36a7980d58c94c8b8de4549f3dae3b0d"
+    },
+    {
+      "path": "docs/research/GLOBAL_SETTLEMENT_ABI_V1_REFERENCE_20260805.md",
+      "sha256": "442e6723fbeb84a99de4a9a2cbd0b42b6f37aea68126c3cb75a28e264af39777"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_profile_rejects_route_command_absent_from_selected_lane_release",
+        "tests/core/test_global_settlement_abi_v1.py::test_occurrence_identity_binds_exact_command_body_hash",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_unpaired_command_body_hashes_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_closed_lane_registry_and_global_state_require_every_lane",
+        "tests/core/test_global_settlement_abi_v1.py::test_release_ids_bind_content_while_semver_remains_descriptive",
+        "tests/core/test_global_settlement_abi_v1.py::test_coordinator_release_ids_bind_profile_selected_images",
+        "tests/core/test_global_settlement_abi_v1.py::test_route_release_ids_bind_composer_image_and_source_manifests",
+        "tests/core/test_global_settlement_abi_v1.py::test_route_receipt_candidate_rejects_subclassed_envelope_before_verification",
+        "tests/core/test_global_settlement_abi_v1.py::test_lane_receipt_candidate_rejects_subclassed_envelope_before_verification",
+        "tests/core/test_global_settlement_abi_v1.py::test_lane_verifier_owns_all_bindings_across_receipt_callback",
+        "tests/core/test_global_settlement_abi_v1.py::test_route_verifier_rechecks_post_construction_type_substitution",
+        "tests/core/test_global_settlement_abi_v1.py::test_route_verifier_owns_all_bindings_across_receipt_callback",
+        "tests/core/test_global_settlement_abi_v1.py::test_governed_route_rejects_unknown_disabled_and_caller_selected_routes",
+        "tests/core/test_global_settlement_abi_v1.py::test_active_profile_requires_release_backing_or_proved_no_writer",
+        "tests/core/test_global_settlement_abi_v1.py::test_effect_plan_enforces_conservation_fee_projection_and_external_only_outbox",
+        "tests/core/test_global_settlement_abi_v1.py::test_rejected_transition_is_exact_noop_with_empty_effects",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_global_effect_plan_unrelated_to_verified_route_effects",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_route_effect_plan_with_wrong_committed_root",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_state_refinement_kills_replay_and_balance_mutants_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_foreign_checker_witness_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_hostile_refinement_subclass_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_state_projection_rejects_hostile_witness_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_state_disclosures_apply_count_and_intermediate_mutation_bva",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_refinement_rejects_transient_hidden_balance_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_refinement_rejects_transient_hidden_height_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_applies_count_bva",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_disconnected_histories",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_duplicate_and_overflowed_totals",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_outbox_and_terminal_scope_expansion",
+        "tests/core/test_global_settlement_abi_v1.py::test_command_aggregation_journal_uses_canonical_fanout_bva",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_shape_rejects_zero_65_and_route_width_9",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_v1_quarantines_single_object_consumption_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_witness_boundary_counts_are_admitted",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_two_route_state_evidence_has_stable_python_golden_roots",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_candidate_rejects_sixty_five_occurrences_at_typed_ingress",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_certificate_binds_exact_guest_route_assumption_roots",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_noncanonical_command_and_route_witness_order",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_certificate_rejects_skipped_predecessor_and_epoch_jump",
+        "tests/core/test_global_settlement_abi_v1.py::test_atomic_commit_is_idempotent_and_binding_rejects_are_noops",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_owns_certificate_and_effect_snapshots_across_callback",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_owns_profile_snapshot_across_callback",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_rebinds_refinement_against_post_return_certificate_mutation",
+        "tests/core/test_global_settlement_abi_v1.py::test_opaque_handle_blocks_route_disclosure_replacement_before_commit",
+        "tests/core/test_global_settlement_abi_v1.py::test_caller_selected_verifier_witness_cannot_reach_the_publisher",
+        "tests/core/test_global_settlement_abi_v1.py::test_release_selected_witness_is_bound_to_one_exact_publisher",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_owns_published_state_against_retained_body_alias",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_port_owns_initial_state_before_validation_returns",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_port_rejects_plain_or_mismatched_initial_state_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_initial_state_atom_coverage_rejects_omission_before_receipt_verification",
+        "tests/core/test_global_settlement_abi_v1.py::test_initial_state_atom_manifest_substitution_rejects_before_receipt_verification",
+        "tests/core/test_global_settlement_abi_v1.py::test_initial_state_certificate_coverage_root_mismatch_rejects_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_initial_state_callback_cannot_mutate_publisher_owned_state",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_port_constructor_rejects_migration_without_owned_source_head",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_activation_requires_exact_publisher_owned_source_head",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_activation_rechecks_head_and_profile_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_activation_rechecks_source_head_after_receipt_callback",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_activation_hides_partial_publisher_tuple_from_readers",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_initial_state_requires_adjacent_writer_epoch_and_height",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_rejects_target_only_replay_row_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_initial_state_rejects_predecessor_substitution_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_initial_state_rejects_each_outbox_mutation_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_initial_state_rejects_unbound_terminal_continuity_root_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_rejects_each_terminal_mutation_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_port_owns_and_revalidates_active_profile_graph",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_rejects_hostile_expected_root_subclasses_before_lock",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_rejects_chain_and_deployment_drift_before_commit",
+        "tests/core/test_global_settlement_abi_v1.py::test_committed_replay_requires_exact_context_and_binding_tuple",
+        "tests/core/test_global_settlement_abi_v1.py::test_concurrent_roots_have_one_atomic_winner_and_one_stale_noop"
+      ],
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "ca5db0f35243065110c30b4b0127d6e1cbc60ebded2116db940a3b8e21395ac8"
+    },
+    {
+      "node_ids": [
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_single_occurrence_derives_exact_partition_without_mutating_input",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_zero_claimant_identity_is_preserved_even_with_matching_totals",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_conserved_account_reassignment_is_refused_by_full_projection_rows",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_wrong_module_membership_rejects_before_fragment_admission",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_evidence_shape_and_exact_cardinality_refuse",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_two_command_epoch_retains_current_standalone_height_limit",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_module_evidence_cannot_be_reordered_between_occurrences",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_nonzero_custody_retains_module_coordinator_conservation_disagreement",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_unsupported_tables_are_refused_without_partial_acceptance",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_projector_root_mutant_is_killed_by_mandatory_certificate_checker",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_unregistered_checker_outcomes_are_internal_errors_not_success",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_source_and_final_state_are_exact_independent_bindings",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_epoch_command_limits_reject_before_owned_snapshot",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_validation_bypassed_nonexact_state_returns_typed_rejection",
+        "tests/core/test_asset_transfer_epoch_allocation_v1.py::test_retained_input_alias_cannot_change_owned_checker_subject"
+      ],
+      "path": "tests/core/test_asset_transfer_epoch_allocation_v1.py",
+      "sha256": "7caf63a8cf5cb9bf25bfac54502965a4cee4a5e25c3fa5805db988d629a4f9cc"
+    },
+    {
+      "node_ids": [
+        "tests/core/test_asset_transfer_epoch_position_v1.py::test_epoch_position_supports_every_declared_command_boundary",
+        "tests/core/test_asset_transfer_epoch_position_v1.py::test_standalone_adjacency_and_epoch_position_keep_distinct_meanings",
+        "tests/core/test_asset_transfer_epoch_position_v1.py::test_position_index_is_exact_and_bounded",
+        "tests/core/test_asset_transfer_epoch_position_v1.py::test_source_position_binding_refuses_independent_substitutions",
+        "tests/core/test_asset_transfer_epoch_position_v1.py::test_unknown_private_height_mode_never_relaxes_adjacency",
+        "tests/core/test_asset_transfer_epoch_position_v1.py::test_unregistered_same_type_enum_instance_is_not_an_epoch_capability",
+        "tests/core/test_asset_transfer_epoch_position_v1.py::test_first_source_equality_guard_kills_its_omission_mutant",
+        "tests/core/test_asset_transfer_epoch_position_v1.py::test_epoch_position_fixed_vectors_match_current_sources"
+      ],
+      "path": "tests/core/test_asset_transfer_epoch_position_v1.py",
+      "sha256": "d3d8f6f4fa9c3be638e3ad6ab7bbe7ef78cd7818e8297e3b25aeead489b905b5"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_generic_bound_verifier_cannot_create_isolated_writer",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_publisher_subclass_factory_rejects_before_target_store_writes",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_create_publish_reopen_and_exact_retry_are_one_durable_history",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_publisher_v1_quarantines_object_consumption_without_durable_effect",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_exact_create_retry_recovers_committed_activation_after_lost_ack",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_verified_publisher_create_recovers_post_link_bootstrap_crash",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_concurrent_verified_publisher_create_has_one_install_and_typed_busy",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_create_retry_rejects_matching_activation_with_nonzero_history",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_fabricated_source_metadata_is_stale_before_receipt_verification",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_body_binding_rejection_is_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_receipt_replacement_rejects_without_publication",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_selected_verifier_rejection_is_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_backend_method_replacement_cannot_turn_rejection_into_publication",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_generic_caller_selected_verifier_rejects_before_backend_use",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_two_publishers_from_one_source_linearize_one_valid_successor",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_head_change_during_receipt_verification_returns_stale_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_old_store_cannot_reopen_after_shared_authority_revocation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_two_named_epoch_stores_cannot_share_one_authority_head",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_restored_pre_revocation_authority_remains_a_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_monotonic_anchor_rejects_restored_pre_revocation_authority_bytes",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_monotonic_anchor_rejects_epoch_only_rollback_without_mutation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_monotonic_anchor_advances_after_one_durable_epoch_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_anchor_outage_recovers_only_by_exact_epoch_retry",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_stale_anchor_cas_is_typed_indeterminate_and_no_double_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_anchor_lost_ack_reconciles_the_exact_successor_on_retry",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_changed_external_anchor_rejects_unless_it_is_the_exact_local_successor",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_exhausted_anchor_sequence_rejects_before_proof_or_local_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_local_anchor_projection_fault_is_indeterminate_and_retryable",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_concurrent_exact_retry_arms_recovery_before_projection_fault",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_lower_journal_commit_lost_ack_becomes_typed_anchor_recovery",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_external_forward_tip_without_matching_local_history_fails_closed",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_concurrent_forward_tip_with_matching_local_history_is_adopted",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_post_commit_control_flow_interruption_arms_same_process_recovery",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_lower_journal_precommit_fault_preserves_error_and_no_effect",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_authority_inode_rejects_before_proof_and_economic_write",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_epoch_inode_rejects_detached_publisher_head",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_epoch_inode_rejects_before_proof_and_economic_write",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_epoch_inode_replacement_at_source_exit_rejects_before_proof",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_epoch_inode_replacement_during_verification_rejects_before_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_epoch_inode_cannot_report_exact_committed_retry",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_replaced_authority_inode_cannot_report_exact_committed_retry",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_authority_inode_replacement_during_verification_rejects_before_commit",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_path_drift_rejects_before_proof_and_write",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_identity_descriptor_closes_with_publisher",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_epoch_identity_acquisition_rejects_fifo_without_leak",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_identity_acquisition_rejects_fifo_without_leak",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_authority_identity_descriptor_open_failure_is_noop",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_writer_connection_open_failure_closes_both_identity_descriptors",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_epoch_replacement_after_commit_remains_indeterminate",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_postcommit_identity_projection_error_remains_indeterminate",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_postcommit_authority_replacement_blocks_anchor_advance",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_separate_migration_commit_leaves_old_publisher_active_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_old_store_cannot_reopen_after_shared_profile_rotation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_inflight_verification_cannot_publish_after_authority_revocation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_exact_committed_retry_after_revocation_returns_history_without_mutation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_epoch_only_sequence_zero_restore_allows_duplicate_release_blocker",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_open_rejects_a_different_verified_activation",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_expected_source_rejects_boolean_sequence_alias",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_direct_publisher_construction_is_rejected",
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_publication_api_has_no_caller_supplied_authority_objects"
+      ],
+      "path": "tests/integration/test_global_economic_durable_publisher_v1.py",
+      "sha256": "572bb1d977460eef2a9495c152ac56ac81f2cb5bb77f6970c71f686bb7193348"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_complete_epoch_when_encoded_then_roundtrip_preserves_every_body",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_distinct_occurrences_may_repeat_the_same_command_body_hash",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_fully_rehashed_effect_consuming_foreign_occurrence_is_rejected",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_fully_rehashed_foreign_inner_schema_is_rejected",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_journal_byte_declaration_requires_exact_canonical_length",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_cycle_budget_ceiling_accepts_exact_limit_and_rejects_one_over",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_valid_epoch_when_economic_state_field_is_omitted_then_rejects",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_activation_when_epoch_commits_then_bundle_and_head_are_atomic",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_journal_resolves_owned_activation_and_exact_historical_heads",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_concurrent_epoch_bootstrap_has_one_writer_and_one_typed_busy",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_create_never_adopts_preexisting_namespace_entries",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_open_rejects_alias_and_mode_mismatch",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_crash_left_bootstrap_candidate_fails_closed",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_bootstrap_recovers_each_post_link_crash_boundary",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_bootstrap_recovery_rejects_lookalike_or_wrong_activation",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_bootstrap_recovery_rejects_paired_fifos_promptly",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_epoch_linked_recovery_has_explicit_shared_uid_and_platform_ceiling",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_lost_ack_when_exact_epoch_retries_then_no_duplicate_is_created",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_two_epoch_history_when_first_retries_then_tip_remains_second",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_adjacent_epoch_reusing_commit_id_then_replay_is_rejected",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_commit_resnapshots_epoch_after_hostile_frozen_object_mutation",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_two_valid_successors_when_one_wins_then_other_is_stale_no_effect",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_two_open_instances_when_one_commits_then_other_observes_stale",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_crash_boundary_when_reopened_then_store_is_exact_pre_or_post",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_abrupt_exit_when_reopened_then_sqlite_recovers_pre_or_post",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_foreign_cas_token_when_used_then_commit_rejects_without_effect",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_direct_journal_has_no_unfenced_epoch_commit_api",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_private_structural_writer_remains_a_same_process_release_blocker",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_write_capability_is_bound_to_one_journal_instance",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_extra_schema_object_when_opened_then_exact_schema_gate_rejects",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_wal_schema_mutant_when_open_rejects_then_store_is_unchanged",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_crash_left_wal_when_open_rejects_then_file_family_is_unchanged",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_behaviorful_path_subclass_rejects_before_store_access",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_given_zero_remaining_row_capacity_when_committing_then_typed_noop",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_open_accepts_history_at_exact_byte_capacity",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_open_rejects_history_one_byte_over_capacity",
+        "tests/integration/test_global_economic_epoch_journal_v1.py::test_history_byte_bound_rejects_before_bundle_row_fetch"
+      ],
+      "path": "tests/integration/test_global_economic_epoch_journal_v1.py",
+      "sha256": "4b67d736f4adb9f8d5d9a42c649b1648919f31404daf8f0484f9fc6aa8768dd7"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_global_economic_publication_source_v1.py::test_source_snapshot_preserves_historical_state_after_a_competing_commit",
+        "tests/integration/test_global_economic_publication_source_v1.py::test_source_snapshot_requires_capability_of_the_exact_journal_before_io",
+        "tests/integration/test_global_economic_publication_source_v1.py::test_source_snapshot_unknown_source_and_decode_failure_leave_no_effect",
+        "tests/integration/test_global_economic_publication_source_v1.py::test_publisher_passes_the_acquired_committed_state_to_the_pure_verifier"
+      ],
+      "path": "tests/integration/test_global_economic_publication_source_v1.py",
+      "sha256": "2f752ab1c28c661d4ece307224047f9538ea628b4a0efc270f35cb620d505a92"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_global_allocation_shadow_v1.py::test_module_and_coordinator_roots_expose_unresolved_allocation_bridge",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_committed_single_transfer_observation_uses_verified_global_allocation_relation",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_given_committed_empty_activation_when_observed_then_agreement_and_difference_are_isolated",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_given_committed_ordinary_epoch_when_projection_lacks_lane_coverage_then_gap_is_visible",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_given_observation_failure_when_writer_commits_then_read_lock_has_been_released",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_given_corrupt_history_or_unknown_schema_when_observed_then_visible_invalid_source_has_no_effect",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_given_missing_source_when_observed_then_gap_is_visible_and_no_database_is_created",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_read_only_connection_disallows_writes_attach_and_pragma_reconfiguration",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_exact_snapshot_decoder_rejects_unknown_omitted_and_noncanonical_rows",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_snapshot_header_and_predecessor_binding_rejects_each_changed_coordinate",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_diagnostic_ring_capacity_is_bounded",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_history_budget_rejects_before_bundle_decode",
+        "tests/integration/test_global_allocation_shadow_v1.py::test_busy_source_and_projection_exception_leave_following_reads_available"
+      ],
+      "path": "tests/integration/test_global_allocation_shadow_v1.py",
+      "sha256": "53c783d3e6a20e22b8c7680e590f421928694698e775830a1d46dabfd1a09f40"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_prepare_is_repeatable_pure_and_grants_no_authority",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_prepared_subject_is_detached_from_the_caller_candidate_graph",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_structural_rejections_precede_any_backend_call",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_shell_executes_exactly_the_prepared_three_field_request",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_publisher_bound_epoch_and_commit_reproduce_the_pre_extraction_subject",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_genesis_and_migration_prepare_exact_subjects_and_execute_once",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_initial_state_executor_detaches_complete_admission_before_io",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_callback_mutation_of_caller_graphs_cannot_relabel_witness_or_commit",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_callback_mutation_of_unowned_prepared_subject_cannot_relabel_minted_witness",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_epoch_executor_rejects_unconstructed_subclass_and_substituted_subjects_before_io",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_forged_direct_handle_subclass_and_field_injection_are_refused",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_publisher_identity_requires_the_exact_token_and_verifier_objects",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_backend_exception_registers_nothing_and_changes_no_state",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_changed_receipt_body_or_state_cannot_replay_a_committed_epoch",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_durable_publisher_executes_the_exact_prepared_subject_on_its_bound_verifier",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_durable_backend_rejection_registers_no_witness_and_keeps_genesis",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_core_root_epoch_and_initial_state_code_has_no_shell_mechanisms",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_shell_modules_own_execution_registry_lock_and_consumer_imports",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_execute_before_prepare_mutant_is_killed_by_the_no_call_law"
+      ],
+      "path": "tests/integration/test_economic_epoch_verifier_boundary_v1.py",
+      "sha256": "bf7e60014a56ed8ea745d1ff18dd37bbbe483df06d7853e3262a2fd0db4dcc04"
+    }
+  ]
+}

@@ -16,6 +16,7 @@ from src.core.route_composition_receipt_verification_v1 import (
     RouteCompositionReceiptCandidateV1,
     RouteCompositionReceiptEnvelopeV1,
 )
+from src.integration.global_economic_epoch_verification_v1 import verify_economic_epoch_v1
 from tests.core.receipt_composition_fixtures_v1 import verify_route_composition_receipt_v1
 from tests.core.test_asset_transfer_global_allocation_v1 import _global_allocation_fixture
 from tests.core.test_global_settlement_abi_v1 import (
@@ -252,7 +253,7 @@ def test_two_command_epoch_retains_current_standalone_height_limit():
     candidate, evidence = _fixture(count=2)
     # The enclosing epoch accepts this ordinary history. Its intermediate height
     # remains constant; standalone W04 deliberately requires an adjacent height.
-    proof.verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
+    verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
     from src.core.asset_transfer_global_allocation_v1 import (
         AssetTransferGlobalAllocationCandidateV1,
     )

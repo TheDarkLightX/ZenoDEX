@@ -6,6 +6,8 @@ The original design assessment used integration subject
 implementation below builds on `705f4a2f2444e5ee42a3c4a3aa5e1ffbf15948eb`.
 The subsequent coordinator/route extraction and shared-height epoch proof build on
 `2894407d89f29a5ab0f9c6dc632e3847dfd72b72`.
+The root-epoch/initial-state extraction and ordered trace-to-table proof build on
+`05e897256ef373c81a7f5954fd2a75cc7e01848e`.
 These advance the [V3 plan](../ZENODEX_COMPLETION_PLAN.md) without changing
 runtime economics, canonical bytes, policy constants, release images or
 publication authority.
@@ -75,6 +77,57 @@ qualified failover or support for an arbitrary new chain. Each adapter still
 needs evidence for its exact verification rules, finality assumptions, data
 availability, handoff and destination enforcement. Scaling and adapter changes
 must retain those obligations.
+
+## Whole-program map and specification index
+
+This is the target architecture. The implementation assessment below records
+which restricted paths have evidence and which obligations remain open. The
+diagram does not certify that all twelve lane families or finality adapters are
+implemented, mounted or qualified. Every node and arrow describes a required
+responsibility or data flow; solid arrows confer no implementation status.
+
+```mermaid
+flowchart TD
+  U[Clients, governance and agents] --> I[Shell: authenticate commands and external evidence]
+  S[(ZenoLedger committed state and history)] --> A[Shell: authenticate immutable snapshot]
+  I --> C[Pure kernels: twelve required lane families]
+  A --> C
+  C --> P[Pure composition and exact proof request]
+  P --> R[Provers: module, coordinator, route and epoch]
+  P --> V[Independent receipt and context verification]
+  R --> V
+  V --> F[Qualified finality adapter for the admitted proposal]
+  T[Tau finality when selected] --> F
+  Z[ZenoLedger fallback finality when selected] --> F
+  F --> J[Shell: current authority and atomic state, replay, history and outbox publication]
+  J --> S
+  S --> E[Shell: committed-ancestry effect delivery]
+  E --> D[Destinations: enforce acceptance and idempotency]
+  S --> O[Read-only SHADOW diagnostics]
+```
+
+The two finality providers are alternatives selected through an authorized
+handoff over one history. Provers and publishers may propose outputs; the
+acceptance checks and destination enforcement must retain independent authority.
+That requirement still needs deployment qualification. Authenticated state
+availability and historical verification remain necessary for recovery.
+Finality verification and the complete delivery/reconciliation path remain
+unqualified as a deployed system.
+
+The specification is currently distributed across these documents:
+
+| Document | Scope and limit |
+| --- | --- |
+| [Completion plan](../ZENODEX_COMPLETION_PLAN.md) and [V3 work graph](ZENODEX_WHOLE_PROGRAM_PLAN_V3.json) | Whole-program requirements, dependencies and acceptance criteria. Task declarations do not establish completion. |
+| [Global functional-core blueprint](ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md) | A source-pinned bounded model and its formal assumptions. It does not cover every lane lifecycle or prove the runtime. |
+| [Settlement ABI reference](GLOBAL_SETTLEMENT_ABI_V1_REFERENCE_20260805.md) | Typed state, effects, receipt and publication boundaries, with versioned compatibility requirements. |
+| [Authority and effect map](ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md) | Source-specific command, writer, finality and delivery inventories, including unmounted consumers and unresolved deployment coverage. |
+| [Value-movement closure status](ZENODEX_VALUE_MOVEMENT_CLOSURE_STATUS_V1.json) | Subject-specific retained obligations and evidence. Historical observations must be refreshed before assessing a later release. |
+
+A complete architecture specification still requires the remaining lane,
+cross-lane, refinement and operational contracts to close together on one
+release subject. Neither formal functional-core completion nor whole-program
+FCIS completion follows from this map.
 
 ## Intended phase boundaries
 
@@ -158,8 +211,9 @@ independent Daybreak review identified
 `BoundEconomicReceiptVerifierV1._verify_exact_receipt` in
 [verifier deployment binding](../../src/core/economic_receipt_verifier_deployment_v1.py),
 which still executes a backend and uses a core-layer authority registry.
-Epoch and other receipt paths also retain effectful callbacks. The module,
-coordinator and route extractions do not close those separate effect owners.
+The root-epoch and initial-state execution paths are now separated below.
+Tokenomics, fee and buyback receipt paths still retain other effectful callbacks;
+the completed extractions do not close those separate effect owners.
 An independent Terra review checked the new shell source; root reviewed the
 pure-core implementation and the preserved scenario bodies. The attempted
 additional Daybreak review could not start because the agent thread limit was
@@ -291,8 +345,9 @@ This theorem is restricted to one enabled asset lane with empty reserves,
 terminal registry and outbox. Lean treats roots and identities as opaque values.
 The second Python prospective state is an explicit test builder checked by the
 actual epoch relation; finite observation agreement is not universal runtime
-refinement. Epoch-level table aggregation, authorization, authentic source and
-receipt origin, and atomic publication remain open. The proof is registered in
+refinement. The next theorem below connects this state trace to checked table
+aggregation. Aggregate authorization, authentic source and receipt origin, and
+atomic publication remain open. The proof is registered in
 `Proofs.lean`; the complete Mathlib build and native guest proving were not run.
 Render its separate declaration with
 `python3 -B -m experiments.v3_transfer_epoch_state_closure_v1.render_evidence`.
@@ -304,6 +359,83 @@ used to conclude that receipt admission is absent: the isolated pipeline already
 selects it. The native
 [custody preparation crate](../../zk/asset_transfer_custody_module_risc0/README.md)
 explicitly lacks a qualified RISC0 guest, measured image and genuine receipt.
+
+### Ordered transfer traces and economic tables
+
+[AssetTransferEpochEconomicTablesV1](../../lean-mathlib/Proofs/AssetTransferEpochEconomicTablesV1.lean)
+retains the actual input list in an accepted trace and maps those inputs to their
+custody-complete plans in command order. From the certified source and each
+input's existing admission requirements, it derives the adjacent four-table
+relations and their composed `TableChain`. It also derives unique endpoint keys
+from the admitted states. No desired post-state, plan or table equation is an
+input premise of this derivation.
+
+The checked fold succeeds with every endpoint equation exactly when its ordered
+signed prefixes fit. A successful i128 fold then yields canonical balances,
+custody, liability and reserve delta tuples. `PrefixFits` remains explicit;
+representable final balances alone do not imply it. The canonical-row
+corollaries explicitly assume the actual checked fold succeeded.
+
+The [formal tests](../../tests/formal/test_lean_asset_transfer_epoch_economic_tables_v1.py)
+compile a fresh 23-module Std-only Lean 4.27 closure and consume all 19 theorem
+signatures with standard axiom checks. The same concrete two-transfer inputs
+drive the Lean trace, actual Python custody transition and coordinator, the
+epoch-position relation, composer and four-table checker at source heights 7
+and `MAX_U64 - 1`. Plan-order and omission mutants produce different ordered
+observations and fail the ordinary append theorem. The
+[runtime tests](../../tests/core/test_asset_transfer_epoch_economic_tables_v1.py)
+also exercise wrong owner/domain/table rows, disconnected history, actual
+unique-occurrence chains at arities 0, 1, 64 and 65, and four valid leaves whose
+intermediate signed totals overflow despite final cancellation. The last case
+uses an allowed synthetic zero-fee parameter and selects no deployed policy.
+
+```bash
+python3 -B -m pytest -q -p no:cacheprovider tests/core/test_asset_transfer_epoch_economic_tables_v1.py tests/formal/test_lean_asset_transfer_epoch_economic_tables_v1.py
+python3 -B -m experiments.v3_transfer_epoch_economic_tables_v1.render_evidence
+```
+
+The two files passed 10 focused tests in a fresh replay. This is a restricted
+trace-to-table theorem with finite runtime correspondence. It establishes no
+aggregate `Verified` record, authorization, authentic roots, universal
+Python/Rust refinement or publication. The isolated pipeline and durable
+publisher still require one occurrence. Full Mathlib and native guest builds
+were not run.
+
+### Root-epoch and initial-state receipt execution
+
+The [core epoch module](../../src/core/global_economic_proof_v1.py) now prepares
+the complete immutable epoch subject without invoking a receipt verifier. The
+[integration module](../../src/integration/global_economic_epoch_verification_v1.py)
+owns the verifier protocol, callback execution, final handle and process-local
+authority registry. It detaches the prepared fields before I/O and mints the
+handle from the executed copy. Publisher binding still requires the exact
+publisher token and verifier object; a matching string or Boolean supplies no
+such binding.
+
+[Initial-state preparation](../../src/core/economic_initial_state_publisher_verification_v1.py)
+retains the complete owned genesis/migration admission, including the policy
+registry, source manifest and predecessor. Its shell executes the exact receipt,
+image and regenerated journal before returning the existing internal result.
+Preparation markers and exact types prevent ordinary unconstructed or
+substituted values from crossing these boundaries. They assume an intact Python
+process and confer no independent store or publication authority.
+
+The [boundary tests](../../tests/integration/test_economic_epoch_verifier_boundary_v1.py)
+cover exact requests, first rejection before I/O, alias changes, prepared-value
+substitution, publisher identity, verifier exceptions, retries and durable
+publisher observations. The generic reference callback retains its historical
+return-value semantics; the measured Bound verifier separately requires exact
+`None`. The two publisher bodies are preserved apart from imports. Wire values,
+root domains and economic rules are unchanged.
+
+```bash
+python3 -B -m pytest -q -p no:cacheprovider tests/integration/test_economic_epoch_verifier_boundary_v1.py
+python3 -B -m experiments.v3_epoch_receipt_boundary_v1.render_evidence
+```
+
+These tests use synthetic receipts and verifier behavior. They qualify no real
+proof, deployed verifier, finality adapter or production release. Bound-verifier
+deployment and the remaining tokenomics callbacks are separate FCIS obligations.
 
 ## Publisher-host compromise and independent enforcement
 

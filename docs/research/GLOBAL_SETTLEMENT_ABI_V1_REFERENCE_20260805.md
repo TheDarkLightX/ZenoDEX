@@ -355,7 +355,7 @@ aggregation fanout = 8
 aggregation levels <= 2
 ```
 
-`verify_economic_epoch_v1` consumes one immutable
+The integration-shell `verify_economic_epoch_v1` consumes one immutable
 `EconomicEpochReceiptCandidateV1`, matching the Rust candidate aggregate. It
 requires an `ACTIVE` profile, canonical occurrence order, and an exact
 `VerifiedRouteCompositionV1` for every ordered route journal. Each opaque route
@@ -369,9 +369,16 @@ duplicate occurrences, overflow, terminal obligations, external outbox rows,
 and unsupported routes before receipt verification. The boundary then checks
 profile/image, chain/deployment, pre-root, exact ordered occurrence/body-hash
 pairing, body commitment, journal-byte, and receipt-hash
-bindings before it delegates root-receipt acceptance to
-`SuccinctReceiptVerifierV1`. Only that function can
-construct `VerifiedEconomicEpochV1` inside the Python module.
+bindings in pure `prepare_economic_epoch_v1` before the shell delegates
+root-receipt acceptance to `SuccinctReceiptVerifierV1`. The shell owns the
+registered `VerifiedEconomicEpochV1` handle and retains exact publisher-token
+and verifier-object identity. It snapshots the complete prepared subject before
+I/O and mints from that executed copy. The root Protocol and effectful entry
+points live in `src.integration.global_economic_epoch_verification_v1`;
+`src.core.global_economic_proof_v1` exposes preparation. Genesis/migration uses
+the corresponding pure preparation and integration execution modules while
+retaining the complete owned initial admission. This Python API relocation
+changes no journal bytes or wire-committed fields.
 
 Repeated identical command payloads may share a body hash. Their occurrence
 coordinates, authenticated subject, grant, nonce, and replay ID remain distinct.

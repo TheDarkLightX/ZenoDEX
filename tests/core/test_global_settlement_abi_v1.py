@@ -60,9 +60,6 @@ from src.core.economic_command_signature_verifier_registry_v1 import (
     EconomicCommandSignatureVerifierRegistryV1,
     EconomicCommandSignatureVerifierReleaseV1,
 )
-from src.core.economic_initial_state_publisher_verification_v1 import (
-    _verify_economic_migration_for_publisher_v1,
-)
 from src.core.global_settlement_abi_v1 import (
     ALL_LANE_IDS_V1,
     MAX_DELTA_ATOMS_V1,
@@ -117,7 +114,6 @@ from src.core.global_settlement_abi_v1 import (
     StateMigrationCertificateV1,
     TerminalObligationStatusV1,
     TerminalObligationV1,
-    VerifiedEconomicEpochV1,
     canonical_economic_command_body_bytes_v1,
     compose_asset_lane_epoch_effect_plans_v1,
     derive_economic_initial_state_atom_occurrences_v1,
@@ -129,7 +125,6 @@ from src.core.global_settlement_abi_v1 import (
     m6_asset_precision_policy_binding_v1,
     m6_capability_policy_binding_v1,
     validate_global_state_profile_v1,
-    verify_economic_epoch_v1,
 )
 from src.core.lane_composition_receipt_verification_v1 import (
     LaneCompositionReceiptCandidateV1,
@@ -155,10 +150,17 @@ from src.core.route_composition_receipt_verification_v1 import (
     VerifiedRouteCompositionV1,
     derive_route_composition_assumption_root_v1,
 )
+from src.integration.economic_initial_state_publisher_verification_v1 import (
+    _verify_economic_migration_for_publisher_v1,
+)
 from src.integration.global_economic_commit_v1 import (
     CommitOutcomeStatusV1,
     EconomicEpochBodyAndStateV1,
     GlobalEconomicCommitPortV1,
+)
+from src.integration.global_economic_epoch_verification_v1 import (
+    VerifiedEconomicEpochV1,
+    verify_economic_epoch_v1,
 )
 from tests.core.lane_module_receipt_fixtures_v1 import (
     verify_asset_transfer_lane_module_receipt_v1,

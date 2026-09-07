@@ -1,9 +1,13 @@
-"""Proof-journal and verifier boundary for GlobalSettlementABI V1.
+"""Proof-journal data and pure epoch preparation for GlobalSettlementABI V1.
 
-The verifier port is deliberately narrow: callers supply receipt bytes, while
-the selected verifier must validate a succinct receipt against the exact root
-image and canonical epoch journal.  This Python boundary does not implement a
-RISC Zero verifier and therefore remains unmounted reference code.
+Core prepares one exact detached epoch subject: canonical journals and
+certificates, ordered structural admission, route pairing and refinement, the
+receipt digest and the commit identity.  Receipt execution against a selected
+verifier, the verifier port protocol and the publisher-bound opaque witness
+live in ``src.integration.global_economic_epoch_verification_v1``; no core
+epoch or initial-state path takes or calls a verifier.  This Python boundary
+does not implement a RISC Zero verifier and therefore remains unmounted
+reference code.
 """
 
 from __future__ import annotations
@@ -11,9 +15,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from enum import Enum
-from threading import Lock
-from typing import TYPE_CHECKING, Protocol
-from weakref import WeakKeyDictionary
+from typing import TYPE_CHECKING
 
 from .economic_effect_occurrence_v1 import (
     EconomicEffectOccurrenceV1,
@@ -702,18 +704,6 @@ class StateMigrationCertificateV1:
         }
 
 
-class SuccinctReceiptVerifierV1(Protocol):
-    """Port implemented by the release-selected cryptographic verifier."""
-
-    def verify_succinct_receipt(
-        self,
-        receipt_bytes: bytes,
-        *,
-        expected_image_id: str,
-        expected_journal_bytes: bytes,
-    ) -> None: ...
-
-
 @dataclass(frozen=True, slots=True)
 class EconomicEpochRouteStateDisclosureV1:
     """Exact lane journals and full post-state disclosed for one route."""
@@ -920,9 +910,6 @@ def _snapshot_economic_epoch_candidate_v1(
     )
 
 
-_VERIFIED_ECONOMIC_EPOCH_TOKEN = object()
-
-
 def derive_verified_economic_epoch_commit_id_v1(
     *,
     certificate_root: str,
@@ -953,9 +940,25 @@ def derive_verified_economic_epoch_commit_id_v1(
     )
 
 
+def _require_exact_recheck_states_v1(
+    *,
+    pre_state: GlobalEconomicStateV1,
+    post_state: GlobalEconomicStateV1,
+) -> None:
+    if type(pre_state) is not GlobalEconomicStateV1:
+        raise TypeError("verified epoch recheck pre-state must be exact typed state")
+    if type(post_state) is not GlobalEconomicStateV1:
+        raise TypeError("verified epoch recheck post-state must be exact typed state")
+
+
 @dataclass(frozen=True, slots=True)
-class _VerifiedEconomicEpochAuthorityRecordV1:
-    """Verifier-owned immutable source for one process-local opaque handle."""
+class _PreparedEconomicEpochFieldsV1:
+    """Exact-typed field record behind one prepared epoch subject.
+
+    Any caller may construct this record.  Only ``PreparedEconomicEpochV1``
+    built with the core-private token turns it into a prepared subject, and
+    that construction detaches and rechecks every field first.
+    """
 
     certificate: GlobalEconomicEpochCertificateV1
     certificate_root: str
@@ -972,8 +975,292 @@ class _VerifiedEconomicEpochAuthorityRecordV1:
     route_state_projection_roots: tuple[str, ...]
     state_effect_refinement: GlobalEconomicStateEffectRefinementV1
     state_effect_refinement_root: str
-    publisher_binding_token: object | None
-    publisher_verifier_identity: object | None
+    receipt_bytes: bytes
+    expected_image_id: str
+    expected_journal_bytes: bytes
+
+    def __post_init__(self) -> None:
+        from .global_economic_state_effect_refinement_v1 import (
+            GlobalEconomicStateEffectRefinementV1,
+        )
+
+        if type(self.certificate) is not GlobalEconomicEpochCertificateV1:
+            raise TypeError("prepared epoch certificate type is not closed")
+        if type(self.effect_plan) is not GlobalEconomicEffectPlanV1:
+            raise TypeError("prepared epoch effect plan type is not closed")
+        if type(self.profile) is not EconomicProfileSnapshotV1:
+            raise TypeError("prepared epoch profile type is not closed")
+        if type(self.state_effect_refinement) is not GlobalEconomicStateEffectRefinementV1:
+            raise TypeError("verified epoch refinement witness type is not closed")
+        for field_name in (
+            "certificate_root",
+            "effect_plan_root",
+            "receipt_digest",
+            "state_effect_refinement_root",
+            "expected_image_id",
+        ):
+            if type(getattr(self, field_name)) is not str:
+                raise TypeError(f"prepared epoch {field_name} must be exact str")
+        for field_name in ("receipt_bytes", "expected_journal_bytes"):
+            if type(getattr(self, field_name)) is not bytes:
+                raise TypeError(f"prepared epoch {field_name} must be exact bytes")
+        for field_name in (
+            "command_occurrences",
+            "ordered_route_binding_roots",
+            "route_effect_plans",
+            "route_journals",
+            "route_state_disclosures",
+            "route_state_effect_refinement_roots",
+            "route_state_projection_roots",
+        ):
+            if type(getattr(self, field_name)) is not tuple:
+                raise TypeError(f"prepared epoch {field_name} must be exact tuple")
+
+
+_PREPARED_ECONOMIC_EPOCH_TOKEN = object()
+
+
+class PreparedEconomicEpochV1:
+    """Exact detached data subject of one structurally admitted epoch.
+
+    ``prepare_economic_epoch_v1`` is the only producer.  Construction requires
+    the core-private token and preparer marker, exact-type consumers refuse
+    subclasses and forged instances, and every field is detached and rechecked
+    for self-consistency before the subject can reach I/O.  The subject carries the exact receipt
+    bytes, expected image and canonical journal that a selected verifier must
+    execute, plus every pure fact a publisher witness exposes.  Holding one
+    grants no execution or publication authority: the integration shell mints
+    its opaque witness only after executing exactly this subject.  The private
+    token and marker assume an intact interpreter and process.
+    """
+
+    __slots__ = ("_fields", "_preparation_marker")
+    _fields: _PreparedEconomicEpochFieldsV1
+
+    def __init__(self, token: object, fields: _PreparedEconomicEpochFieldsV1) -> None:
+        if token is not _PREPARED_ECONOMIC_EPOCH_TOKEN:
+            raise TypeError("PreparedEconomicEpochV1 is preparer-constructed")
+        owned_fields = _snapshot_prepared_economic_epoch_fields_v1(fields)
+        object.__setattr__(self, "_fields", owned_fields)
+        object.__setattr__(
+            self,
+            "_preparation_marker",
+            _PREPARED_ECONOMIC_EPOCH_TOKEN,
+        )
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("PreparedEconomicEpochV1 is immutable")
+
+    @property
+    def certificate(self) -> GlobalEconomicEpochCertificateV1:
+        from .global_economic_refinement_snapshot_v1 import _snapshot_epoch_certificate_v1
+
+        return _snapshot_epoch_certificate_v1(self._fields.certificate)
+
+    @property
+    def certificate_root(self) -> str:
+        return self._fields.certificate_root
+
+    @property
+    def command_occurrences(self) -> tuple[EconomicCommandOccurrenceV1, ...]:
+        from .global_economic_refinement_snapshot_v1 import _snapshot_occurrence_v1
+
+        return tuple(_snapshot_occurrence_v1(item) for item in self._fields.command_occurrences)
+
+    @property
+    def effect_plan(self) -> GlobalEconomicEffectPlanV1:
+        from .global_economic_refinement_snapshot_v1 import _snapshot_effect_plan_v1
+
+        return _snapshot_effect_plan_v1(self._fields.effect_plan)
+
+    @property
+    def effect_plan_root(self) -> str:
+        return self._fields.effect_plan_root
+
+    @property
+    def ordered_route_binding_roots(self) -> tuple[str, ...]:
+        return self._fields.ordered_route_binding_roots
+
+    @property
+    def profile(self) -> EconomicProfileSnapshotV1:
+        from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
+
+        return snapshot_economic_profile_v1(self._fields.profile)
+
+    @property
+    def receipt_digest(self) -> str:
+        return self._fields.receipt_digest
+
+    @property
+    def route_effect_plans(self) -> tuple[GlobalEconomicEffectPlanV1, ...]:
+        from .global_economic_refinement_snapshot_v1 import _snapshot_effect_plan_v1
+
+        return tuple(_snapshot_effect_plan_v1(item) for item in self._fields.route_effect_plans)
+
+    @property
+    def route_journals(self) -> tuple[RouteCompositionJournalV1, ...]:
+        from .global_economic_refinement_snapshot_v1 import _snapshot_route_journal_v1
+
+        return tuple(_snapshot_route_journal_v1(item) for item in self._fields.route_journals)
+
+    @property
+    def route_state_disclosures(self) -> tuple[EconomicEpochRouteStateDisclosureV1, ...]:
+        return tuple(
+            _snapshot_epoch_route_state_disclosure_v1(
+                item,
+                name="prepared epoch route state disclosure",
+            )
+            for item in self._fields.route_state_disclosures
+        )
+
+    @property
+    def route_state_effect_refinement_roots(self) -> tuple[str, ...]:
+        return self._fields.route_state_effect_refinement_roots
+
+    @property
+    def route_state_projection_roots(self) -> tuple[str, ...]:
+        return self._fields.route_state_projection_roots
+
+    @property
+    def state_effect_refinement(self) -> GlobalEconomicStateEffectRefinementV1:
+        from .global_economic_state_effect_refinement_v1 import (
+            _snapshot_global_economic_state_effect_refinement_v1,
+        )
+
+        return _snapshot_global_economic_state_effect_refinement_v1(
+            self._fields.state_effect_refinement
+        )
+
+    @property
+    def state_effect_refinement_root(self) -> str:
+        return self._fields.state_effect_refinement_root
+
+    @property
+    def receipt_bytes(self) -> bytes:
+        return self._fields.receipt_bytes
+
+    @property
+    def expected_image_id(self) -> str:
+        return self._fields.expected_image_id
+
+    @property
+    def expected_journal_bytes(self) -> bytes:
+        return self._fields.expected_journal_bytes
+
+    @property
+    def effect_occurrences(self) -> tuple[EconomicEffectOccurrenceV1, ...]:
+        """Return the retained route effects with injective occurrence IDs."""
+
+        fields = self._fields
+        occurrences = tuple(
+            item
+            for command, plan in zip(
+                fields.command_occurrences,
+                fields.route_effect_plans,
+                strict=True,
+            )
+            for item in derive_route_effect_occurrences_v1(
+                command_occurrence_id=command.occurrence_id,
+                route_release_id=command.route_release_id,
+                effect_plan=plan,
+            )
+        )
+        identities = tuple(item.effect_occurrence_id for item in occurrences)
+        if len(identities) != len(set(identities)):
+            raise ValueError("verified epoch effect occurrence identities are not unique")
+        return occurrences
+
+    @property
+    def ordered_command_body_hashes(self) -> tuple[str, ...]:
+        return tuple(
+            occurrence.command_body_hash for occurrence in self._fields.command_occurrences
+        )
+
+    @property
+    def commit_id(self) -> str:
+        fields = self._fields
+        return derive_verified_economic_epoch_commit_id_v1(
+            certificate_root=fields.certificate_root,
+            ordered_route_binding_roots=fields.ordered_route_binding_roots,
+            receipt_digest=fields.receipt_digest,
+        )
+
+    def recheck_state_effect_refinement(
+        self,
+        *,
+        pre_state: GlobalEconomicStateV1,
+        post_state: GlobalEconomicStateV1,
+    ) -> GlobalEconomicStateEffectRefinementV1:
+        """Recompute the full refinement from the retained disclosures."""
+
+        from .global_economic_state_effect_refinement_v1 import (
+            GlobalEconomicStateEffectRefinementCandidateV1,
+            refine_global_economic_state_effects_v1,
+        )
+
+        _require_exact_recheck_states_v1(pre_state=pre_state, post_state=post_state)
+        fields = self._fields
+        return refine_global_economic_state_effects_v1(
+            GlobalEconomicStateEffectRefinementCandidateV1(
+                pre_state=pre_state,
+                post_state=post_state,
+                effect_plan=fields.effect_plan,
+                consumed_occurrences=fields.command_occurrences,
+                route_journals=fields.route_journals,
+            )
+        )
+
+    def recheck_route_state_projections(
+        self,
+        *,
+        pre_state: GlobalEconomicStateV1,
+        post_state: GlobalEconomicStateV1,
+    ) -> tuple[str, ...]:
+        """Recompute every route/full-state projection from retained disclosures."""
+
+        projection_roots, _ = self.recheck_route_state_evidence(
+            pre_state=pre_state,
+            post_state=post_state,
+        )
+        return projection_roots
+
+    def recheck_route_state_evidence(
+        self,
+        *,
+        pre_state: GlobalEconomicStateV1,
+        post_state: GlobalEconomicStateV1,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Recompute per-route projection and exact state/effect refinements."""
+
+        fields = self._fields
+        return _derive_route_state_evidence_roots_v1(
+            profile=fields.profile,
+            pre_state=pre_state,
+            post_state=post_state,
+            command_occurrences=fields.command_occurrences,
+            route_journals=fields.route_journals,
+            route_state_disclosures=fields.route_state_disclosures,
+            route_effect_plans=fields.route_effect_plans,
+        )
+
+
+def _require_prepared_economic_epoch_v1(
+    prepared: PreparedEconomicEpochV1,
+) -> _PreparedEconomicEpochFieldsV1:
+    """Admit only an exact, preparer-constructed subject and return its fields."""
+
+    if type(prepared) is not PreparedEconomicEpochV1:
+        raise TypeError("prepared economic epoch type is not closed")
+    try:
+        marker = object.__getattribute__(prepared, "_preparation_marker")
+        fields = object.__getattribute__(prepared, "_fields")
+    except AttributeError:
+        raise TypeError("prepared economic epoch is not preparer-constructed") from None
+    if marker is not _PREPARED_ECONOMIC_EPOCH_TOKEN:
+        raise TypeError("prepared economic epoch is not preparer-constructed")
+    if type(fields) is not _PreparedEconomicEpochFieldsV1:
+        raise TypeError("prepared economic epoch fields type is not closed")
+    return fields
 
 
 @dataclass(frozen=True, slots=True)
@@ -1008,7 +1295,7 @@ def _snapshot_verified_epoch_root_tuple_v1(
 
 
 def _snapshot_verified_epoch_route_evidence_v1(
-    authority: _VerifiedEconomicEpochAuthorityRecordV1,
+    fields: _PreparedEconomicEpochFieldsV1,
 ) -> _VerifiedEconomicEpochRouteEvidenceV1:
     from .global_economic_refinement_snapshot_v1 import (
         _require_exact_tuple_items,
@@ -1020,7 +1307,7 @@ def _snapshot_verified_epoch_route_evidence_v1(
     occurrences = tuple(
         _snapshot_occurrence_v1(item)
         for item in _require_exact_tuple_items(
-            authority.command_occurrences,
+            fields.command_occurrences,
             EconomicCommandOccurrenceV1,
             "verified epoch command occurrences",
         )
@@ -1028,7 +1315,7 @@ def _snapshot_verified_epoch_route_evidence_v1(
     journals = tuple(
         _snapshot_route_journal_v1(item)
         for item in _require_exact_tuple_items(
-            authority.route_journals,
+            fields.route_journals,
             RouteCompositionJournalV1,
             "verified epoch route journals",
         )
@@ -1036,7 +1323,7 @@ def _snapshot_verified_epoch_route_evidence_v1(
     effect_plans = tuple(
         _snapshot_effect_plan_v1(item)
         for item in _require_exact_tuple_items(
-            authority.route_effect_plans,
+            fields.route_effect_plans,
             GlobalEconomicEffectPlanV1,
             "verified epoch route effect plans",
         )
@@ -1047,7 +1334,7 @@ def _snapshot_verified_epoch_route_evidence_v1(
             name="verified epoch route state disclosure",
         )
         for item in _require_exact_tuple_items(
-            authority.route_state_disclosures,
+            fields.route_state_disclosures,
             EconomicEpochRouteStateDisclosureV1,
             "verified epoch route state disclosures",
         )
@@ -1060,7 +1347,7 @@ def _snapshot_verified_epoch_route_evidence_v1(
     return _VerifiedEconomicEpochRouteEvidenceV1(
         command_occurrences=occurrences,
         ordered_route_binding_roots=_snapshot_verified_epoch_root_tuple_v1(
-            authority.ordered_route_binding_roots,
+            fields.ordered_route_binding_roots,
             name="verified epoch route binding roots",
             expected_count=count,
         ),
@@ -1068,21 +1355,30 @@ def _snapshot_verified_epoch_route_evidence_v1(
         route_journals=journals,
         route_state_disclosures=disclosures,
         route_state_effect_refinement_roots=_snapshot_verified_epoch_root_tuple_v1(
-            authority.route_state_effect_refinement_roots,
+            fields.route_state_effect_refinement_roots,
             name="verified epoch route state/effect refinement roots",
             expected_count=count,
         ),
         route_state_projection_roots=_snapshot_verified_epoch_root_tuple_v1(
-            authority.route_state_projection_roots,
+            fields.route_state_projection_roots,
             name="verified epoch route state projection roots",
             expected_count=count,
         ),
     )
 
 
-def _snapshot_verified_economic_epoch_authority_record_v1(
-    authority: _VerifiedEconomicEpochAuthorityRecordV1,
-) -> _VerifiedEconomicEpochAuthorityRecordV1:
+def _snapshot_prepared_economic_epoch_fields_v1(
+    fields: _PreparedEconomicEpochFieldsV1,
+) -> _PreparedEconomicEpochFieldsV1:
+    """Return a detached field record whose roots and execution subject recompute.
+
+    Every retained root is re-derived from the copied values, and the retained
+    image, canonical journal and receipt digest must equal the values derived
+    from the copied profile, certificate and receipt bytes.  Caller-constructed
+    data that disagrees with itself is rejected here; structural admission is
+    not repeated, so this is a consistency snapshot, not a second admission.
+    """
+
     from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
     from .global_economic_refinement_snapshot_v1 import (
         _snapshot_effect_plan_v1,
@@ -1093,20 +1389,20 @@ def _snapshot_verified_economic_epoch_authority_record_v1(
         _snapshot_global_economic_state_effect_refinement_v1,
     )
 
-    if type(authority) is not _VerifiedEconomicEpochAuthorityRecordV1:
-        raise TypeError("verified epoch authority record type is not closed")
-    if type(authority.state_effect_refinement) is not GlobalEconomicStateEffectRefinementV1:
+    if type(fields) is not _PreparedEconomicEpochFieldsV1:
+        raise TypeError("prepared economic epoch fields type is not closed")
+    if type(fields.state_effect_refinement) is not GlobalEconomicStateEffectRefinementV1:
         raise TypeError("verified epoch refinement witness type is not closed")
-    certificate = _snapshot_epoch_certificate_v1(authority.certificate)
-    effect_plan = _snapshot_effect_plan_v1(authority.effect_plan)
+    certificate = _snapshot_epoch_certificate_v1(fields.certificate)
+    effect_plan = _snapshot_effect_plan_v1(fields.effect_plan)
     refinement = _snapshot_global_economic_state_effect_refinement_v1(
-        authority.state_effect_refinement
+        fields.state_effect_refinement
     )
-    route_evidence = _snapshot_verified_epoch_route_evidence_v1(authority)
-    if type(authority.receipt_digest) is not str:
+    route_evidence = _snapshot_verified_epoch_route_evidence_v1(fields)
+    if type(fields.receipt_digest) is not str:
         raise TypeError("verified epoch receipt digest must be exact str")
     receipt_digest = _require_root(
-        authority.receipt_digest,
+        fields.receipt_digest,
         name="verified epoch receipt digest",
     )
     computed_roots = (
@@ -1115,22 +1411,41 @@ def _snapshot_verified_economic_epoch_authority_record_v1(
         refinement.refinement_root,
     )
     retained_roots = (
-        authority.certificate_root,
-        authority.effect_plan_root,
-        authority.state_effect_refinement_root,
+        fields.certificate_root,
+        fields.effect_plan_root,
+        fields.state_effect_refinement_root,
     )
     if any(type(root) is not str for root in retained_roots):
         raise TypeError("verified epoch authority baseline roots must be exact str")
     if computed_roots != retained_roots:
         raise ValueError("verified epoch authority baseline root mismatch")
-    return _VerifiedEconomicEpochAuthorityRecordV1(
+    profile = snapshot_economic_profile_v1(fields.profile)
+    if type(fields.receipt_bytes) is not bytes:
+        raise TypeError("prepared epoch receipt bytes must be exact bytes")
+    if type(fields.expected_image_id) is not str:
+        raise TypeError("prepared epoch expected image id must be exact str")
+    if type(fields.expected_journal_bytes) is not bytes:
+        raise TypeError("prepared epoch expected journal bytes must be exact bytes")
+    computed_execution = (
+        profile.root_image_id,
+        certificate.canonical_journal_bytes,
+        "0x" + hashlib.sha256(fields.receipt_bytes).hexdigest(),
+    )
+    retained_execution = (
+        fields.expected_image_id,
+        fields.expected_journal_bytes,
+        receipt_digest,
+    )
+    if computed_execution != retained_execution:
+        raise ValueError("prepared epoch execution subject mismatch")
+    return _PreparedEconomicEpochFieldsV1(
         certificate=certificate,
         certificate_root=computed_roots[0],
         command_occurrences=route_evidence.command_occurrences,
         effect_plan=effect_plan,
         effect_plan_root=computed_roots[1],
         ordered_route_binding_roots=route_evidence.ordered_route_binding_roots,
-        profile=snapshot_economic_profile_v1(authority.profile),
+        profile=profile,
         receipt_digest=receipt_digest,
         route_effect_plans=route_evidence.route_effect_plans,
         route_journals=route_evidence.route_journals,
@@ -1141,355 +1456,85 @@ def _snapshot_verified_economic_epoch_authority_record_v1(
         route_state_projection_roots=route_evidence.route_state_projection_roots,
         state_effect_refinement=refinement,
         state_effect_refinement_root=computed_roots[2],
-        publisher_binding_token=authority.publisher_binding_token,
-        publisher_verifier_identity=authority.publisher_verifier_identity,
+        receipt_bytes=fields.receipt_bytes,
+        expected_image_id=computed_execution[0],
+        expected_journal_bytes=computed_execution[1],
     )
 
 
-class VerifiedEconomicEpochV1:
-    """Opaque epoch witness constructible only through the verifier function."""
+def _snapshot_prepared_economic_epoch_v1(
+    prepared: PreparedEconomicEpochV1,
+) -> PreparedEconomicEpochV1:
+    """Return a fresh preparer-constructed subject from an exact retained one."""
 
-    __slots__ = ("__weakref__",)
-
-    def __init__(
-        self,
-        token: object,
-        authority: _VerifiedEconomicEpochAuthorityRecordV1,
-    ) -> None:
-        if token is not _VERIFIED_ECONOMIC_EPOCH_TOKEN:
-            raise TypeError("VerifiedEconomicEpochV1 is verifier-constructed")
-        _register_verified_economic_epoch_authority_v1(
-            self,
-            _snapshot_verified_economic_epoch_authority_record_v1(authority),
-        )
-
-    def __setattr__(self, name: str, value: object) -> None:
-        raise AttributeError("VerifiedEconomicEpochV1 is immutable")
-
-    @property
-    def certificate(self) -> GlobalEconomicEpochCertificateV1:
-        from .global_economic_refinement_snapshot_v1 import (
-            _snapshot_epoch_certificate_v1,
-        )
-
-        authority = _verified_economic_epoch_authority_v1(self)
-        return _snapshot_epoch_certificate_v1(authority.certificate)
-
-    @property
-    def effect_plan(self) -> GlobalEconomicEffectPlanV1:
-        from .global_economic_refinement_snapshot_v1 import _snapshot_effect_plan_v1
-
-        authority = _verified_economic_epoch_authority_v1(self)
-        return _snapshot_effect_plan_v1(authority.effect_plan)
-
-    @property
-    def effect_occurrences(self) -> tuple[EconomicEffectOccurrenceV1, ...]:
-        """Return verifier-owned route effects with injective occurrence IDs."""
-
-        authority = _verified_economic_epoch_authority_v1(self)
-        occurrences = tuple(
-            item
-            for command, plan in zip(
-                authority.command_occurrences,
-                authority.route_effect_plans,
-                strict=True,
-            )
-            for item in derive_route_effect_occurrences_v1(
-                command_occurrence_id=command.occurrence_id,
-                route_release_id=command.route_release_id,
-                effect_plan=plan,
-            )
-        )
-        identities = tuple(item.effect_occurrence_id for item in occurrences)
-        if len(identities) != len(set(identities)):
-            raise ValueError("verified epoch effect occurrence identities are not unique")
-        return occurrences
-
-    @property
-    def ordered_route_binding_roots(self) -> tuple[str, ...]:
-        return _verified_economic_epoch_authority_v1(
-            self
-        ).ordered_route_binding_roots
-
-    @property
-    def ordered_command_body_hashes(self) -> tuple[str, ...]:
-        authority = _verified_economic_epoch_authority_v1(self)
-        return tuple(
-            occurrence.command_body_hash
-            for occurrence in authority.command_occurrences
-        )
-
-    @property
-    def receipt_digest(self) -> str:
-        return _verified_economic_epoch_authority_v1(self).receipt_digest
-
-    @property
-    def verified_certificate_root(self) -> str:
-        return _verified_economic_epoch_authority_v1(self).certificate_root
-
-    @property
-    def verified_effect_plan_root(self) -> str:
-        return _verified_economic_epoch_authority_v1(self).effect_plan_root
-
-    @property
-    def verified_state_effect_refinement_root(self) -> str:
-        return _verified_economic_epoch_authority_v1(
-            self
-        ).state_effect_refinement_root
-
-    @property
-    def route_state_projection_roots(self) -> tuple[str, ...]:
-        return _verified_economic_epoch_authority_v1(
-            self
-        ).route_state_projection_roots
-
-    @property
-    def route_state_effect_refinement_roots(self) -> tuple[str, ...]:
-        return _verified_economic_epoch_authority_v1(
-            self
-        ).route_state_effect_refinement_roots
-
-    @property
-    def state_effect_refinement(self) -> GlobalEconomicStateEffectRefinementV1:
-        from .global_economic_state_effect_refinement_v1 import (
-            _snapshot_global_economic_state_effect_refinement_v1,
-        )
-
-        authority = _verified_economic_epoch_authority_v1(self)
-        return _snapshot_global_economic_state_effect_refinement_v1(
-            authority.state_effect_refinement
-        )
-
-    def recheck_state_effect_refinement(
-        self,
-        *,
-        pre_state: GlobalEconomicStateV1,
-        post_state: GlobalEconomicStateV1,
-    ) -> GlobalEconomicStateEffectRefinementV1:
-        """Recompute the full refinement from verifier-owned disclosures."""
-
-        from .global_economic_state_effect_refinement_v1 import (
-            GlobalEconomicStateEffectRefinementCandidateV1,
-            refine_global_economic_state_effects_v1,
-        )
-
-        if type(pre_state) is not GlobalEconomicStateV1:
-            raise TypeError("verified epoch recheck pre-state must be exact typed state")
-        if type(post_state) is not GlobalEconomicStateV1:
-            raise TypeError("verified epoch recheck post-state must be exact typed state")
-        authority = _verified_economic_epoch_authority_v1(self)
-        return refine_global_economic_state_effects_v1(
-            GlobalEconomicStateEffectRefinementCandidateV1(
-                pre_state=pre_state,
-                post_state=post_state,
-                effect_plan=authority.effect_plan,
-                consumed_occurrences=authority.command_occurrences,
-                route_journals=authority.route_journals,
-            )
-        )
-
-    def recheck_route_state_projections(
-        self,
-        *,
-        pre_state: GlobalEconomicStateV1,
-        post_state: GlobalEconomicStateV1,
-    ) -> tuple[str, ...]:
-        """Recompute every route/full-state projection from owned disclosures."""
-
-        projection_roots, _ = self.recheck_route_state_evidence(
-            pre_state=pre_state,
-            post_state=post_state,
-        )
-        return projection_roots
-
-    def recheck_route_state_evidence(
-        self,
-        *,
-        pre_state: GlobalEconomicStateV1,
-        post_state: GlobalEconomicStateV1,
-    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        """Recompute per-route projection and exact state/effect refinements."""
-
-        authority = _verified_economic_epoch_authority_v1(self)
-        return _derive_route_state_evidence_roots_v1(
-            profile=authority.profile,
-            pre_state=pre_state,
-            post_state=post_state,
-            command_occurrences=authority.command_occurrences,
-            route_journals=authority.route_journals,
-            route_state_disclosures=authority.route_state_disclosures,
-            route_effect_plans=authority.route_effect_plans,
-        )
-
-    @property
-    def commit_id(self) -> str:
-        authority = _verified_economic_epoch_authority_v1(self)
-        return derive_verified_economic_epoch_commit_id_v1(
-            certificate_root=authority.certificate_root,
-            ordered_route_binding_roots=authority.ordered_route_binding_roots,
-            receipt_digest=authority.receipt_digest,
-        )
-
-
-_VERIFIED_ECONOMIC_EPOCH_AUTHORITY_LOCK = Lock()
-_VERIFIED_ECONOMIC_EPOCH_AUTHORITIES: WeakKeyDictionary[
-    VerifiedEconomicEpochV1,
-    _VerifiedEconomicEpochAuthorityRecordV1,
-] = WeakKeyDictionary()
-
-
-def _register_verified_economic_epoch_authority_v1(
-    witness: VerifiedEconomicEpochV1,
-    authority: _VerifiedEconomicEpochAuthorityRecordV1,
-) -> None:
-    """Bind one exact handle identity to its verifier-owned immutable record."""
-
-    with _VERIFIED_ECONOMIC_EPOCH_AUTHORITY_LOCK:
-        if witness in _VERIFIED_ECONOMIC_EPOCH_AUTHORITIES:
-            raise RuntimeError("verified economic epoch handle is already registered")
-        _VERIFIED_ECONOMIC_EPOCH_AUTHORITIES[witness] = authority
-
-
-def _verified_economic_epoch_authority_v1(
-    witness: VerifiedEconomicEpochV1,
-) -> _VerifiedEconomicEpochAuthorityRecordV1:
-    if type(witness) is not VerifiedEconomicEpochV1:
-        raise TypeError("verified economic epoch handle type is not closed")
-    with _VERIFIED_ECONOMIC_EPOCH_AUTHORITY_LOCK:
-        authority = _VERIFIED_ECONOMIC_EPOCH_AUTHORITIES.get(witness)
-    if authority is None:
-        raise TypeError("verified economic epoch handle is not verifier-registered")
-    return authority
-
-
-def _snapshot_verified_economic_epoch_v1(
-    witness: VerifiedEconomicEpochV1,
-) -> VerifiedEconomicEpochV1:
-    """Return a fresh handle derived only from the verifier-owned authority record."""
-
-    authority = _verified_economic_epoch_authority_v1(witness)
-    return VerifiedEconomicEpochV1(
-        _VERIFIED_ECONOMIC_EPOCH_TOKEN,
-        authority,
+    return PreparedEconomicEpochV1(
+        _PREPARED_ECONOMIC_EPOCH_TOKEN,
+        _require_prepared_economic_epoch_v1(prepared),
     )
 
 
-def _verified_economic_epoch_is_bound_to_publisher_v1(
-    witness: VerifiedEconomicEpochV1,
-    publisher_binding_token: object,
-    receipt_verifier: SuccinctReceiptVerifierV1,
-) -> bool:
-    """Return whether a witness was verified by this exact publisher instance."""
-
-    if type(publisher_binding_token) is not object:
-        raise TypeError("publisher binding token must be an exact opaque object")
-    authority = _verified_economic_epoch_authority_v1(witness)
-    return (
-        authority.publisher_binding_token is publisher_binding_token
-        and authority.publisher_verifier_identity is receipt_verifier
-    )
-
-
-def verify_economic_epoch_v1(
+def prepare_economic_epoch_v1(
     candidate: EconomicEpochReceiptCandidateV1,
-    receipt_verifier: SuccinctReceiptVerifierV1,
-) -> VerifiedEconomicEpochV1:
-    """Verify one epoch for research, replay, and differential inspection.
+) -> PreparedEconomicEpochV1:
+    """Admit one epoch structurally and return its exact detached execution subject.
 
-    The caller supplies the cryptographic verifier, so this witness carries no
-    publication binding. A GlobalEconomicCommitPortV1 rejects it. Production
-    admission must use the verifier retained by the publisher instance.
+    Reject precedence is the retained guard order: candidate type, owned
+    snapshot, profile/certificate bindings, route journals, verified routes,
+    route effect plans, full state/effect refinement, per-route state
+    evidence, canonical journal byte count, non-empty receipt, receipt digest.
+    No verifier is called and no witness is minted; the integration shell owns
+    both, so a prepared subject carries no execution or publication authority.
     """
-
-    return _verify_economic_epoch_with_publisher_binding_v1(
-        candidate,
-        receipt_verifier,
-        publisher_binding_token=None,
-        publisher_verifier_identity=None,
-    )
-
-
-def _verify_economic_epoch_for_publisher_v1(
-    candidate: EconomicEpochReceiptCandidateV1,
-    receipt_verifier: SuccinctReceiptVerifierV1,
-    publisher_binding_token: object,
-) -> VerifiedEconomicEpochV1:
-    """Verify one epoch with the backend selected by an exact publisher."""
-
-    if type(publisher_binding_token) is not object:
-        raise TypeError("publisher binding token must be an exact opaque object")
-    return _verify_economic_epoch_with_publisher_binding_v1(
-        candidate,
-        receipt_verifier,
-        publisher_binding_token=publisher_binding_token,
-        publisher_verifier_identity=receipt_verifier,
-    )
-
-
-def _verify_economic_epoch_with_publisher_binding_v1(
-    candidate: EconomicEpochReceiptCandidateV1,
-    receipt_verifier: SuccinctReceiptVerifierV1,
-    *,
-    publisher_binding_token: object | None,
-    publisher_verifier_identity: object | None,
-) -> VerifiedEconomicEpochV1:
-    """Own structural verification and optional publisher-instance binding."""
 
     if type(candidate) is not EconomicEpochReceiptCandidateV1:
         raise TypeError("economic epoch candidate type is not closed")
-    candidate = _snapshot_economic_epoch_candidate_v1(candidate)
-    _validate_profile_and_certificate_bindings(candidate)
-    _validate_route_journals(candidate)
-    ordered_route_binding_roots = _validate_verified_routes(candidate)
-    _validate_route_effect_plans(candidate)
-    state_effect_refinement = _validate_state_effect_refinement(candidate)
+    owned = _snapshot_economic_epoch_candidate_v1(candidate)
+    _validate_profile_and_certificate_bindings(owned)
+    _validate_route_journals(owned)
+    ordered_route_binding_roots = _validate_verified_routes(owned)
+    _validate_route_effect_plans(owned)
+    state_effect_refinement = _validate_state_effect_refinement(owned)
     (
         route_state_projection_roots,
         route_state_effect_refinement_roots,
     ) = _derive_route_state_evidence_roots_v1(
-        profile=candidate.profile,
-        pre_state=candidate.pre_state,
-        post_state=candidate.post_state,
-        command_occurrences=candidate.command_occurrences,
-        route_journals=candidate.route_journals,
-        route_state_disclosures=candidate.route_state_disclosures,
-        route_effect_plans=candidate.route_effect_plans,
+        profile=owned.profile,
+        pre_state=owned.pre_state,
+        post_state=owned.post_state,
+        command_occurrences=owned.command_occurrences,
+        route_journals=owned.route_journals,
+        route_state_disclosures=owned.route_state_disclosures,
+        route_effect_plans=owned.route_effect_plans,
     )
-    journal_bytes = candidate.certificate.canonical_journal_bytes
-    if candidate.certificate.journal_bytes != len(journal_bytes):
+    journal_bytes = owned.certificate.canonical_journal_bytes
+    if owned.certificate.journal_bytes != len(journal_bytes):
         raise ValueError("economic epoch canonical journal byte count mismatch")
-    if not isinstance(candidate.receipt_bytes, bytes) or not candidate.receipt_bytes:
+    if not isinstance(owned.receipt_bytes, bytes) or not owned.receipt_bytes:
         raise ValueError("economic epoch receipt bytes must be non-empty")
-    receipt_digest = "0x" + hashlib.sha256(candidate.receipt_bytes).hexdigest()
-    if receipt_digest != candidate.certificate.receipt_root:
+    receipt_digest = "0x" + hashlib.sha256(owned.receipt_bytes).hexdigest()
+    if receipt_digest != owned.certificate.receipt_root:
         raise ValueError("economic epoch receipt root mismatch")
-    receipt_verifier.verify_succinct_receipt(
-        candidate.receipt_bytes,
-        expected_image_id=candidate.profile.root_image_id,
-        expected_journal_bytes=journal_bytes,
-    )
-    return VerifiedEconomicEpochV1(
-        _VERIFIED_ECONOMIC_EPOCH_TOKEN,
-        _VerifiedEconomicEpochAuthorityRecordV1(
-            certificate=candidate.certificate,
-            certificate_root=candidate.certificate.certificate_root,
-            command_occurrences=candidate.command_occurrences,
-            effect_plan=candidate.effect_plan,
-            effect_plan_root=candidate.effect_plan.effect_plan_root,
+    return PreparedEconomicEpochV1(
+        _PREPARED_ECONOMIC_EPOCH_TOKEN,
+        _PreparedEconomicEpochFieldsV1(
+            certificate=owned.certificate,
+            certificate_root=owned.certificate.certificate_root,
+            command_occurrences=owned.command_occurrences,
+            effect_plan=owned.effect_plan,
+            effect_plan_root=owned.effect_plan.effect_plan_root,
             ordered_route_binding_roots=ordered_route_binding_roots,
-            profile=candidate.profile,
+            profile=owned.profile,
             receipt_digest=receipt_digest,
-            route_effect_plans=candidate.route_effect_plans,
-            route_journals=candidate.route_journals,
-            route_state_disclosures=candidate.route_state_disclosures,
-            route_state_effect_refinement_roots=(
-                route_state_effect_refinement_roots
-            ),
+            route_effect_plans=owned.route_effect_plans,
+            route_journals=owned.route_journals,
+            route_state_disclosures=owned.route_state_disclosures,
+            route_state_effect_refinement_roots=route_state_effect_refinement_roots,
             route_state_projection_roots=route_state_projection_roots,
             state_effect_refinement=state_effect_refinement,
             state_effect_refinement_root=state_effect_refinement.refinement_root,
-            publisher_binding_token=publisher_binding_token,
-            publisher_verifier_identity=publisher_verifier_identity,
+            receipt_bytes=owned.receipt_bytes,
+            expected_image_id=owned.profile.root_image_id,
+            expected_journal_bytes=journal_bytes,
         ),
     )
 
@@ -1895,10 +1940,9 @@ __all__ = [
     "MigrationObjectClassV1",
     "MigrationObjectRowV1",
     "StateMigrationCertificateV1",
-    "SuccinctReceiptVerifierV1",
     "EconomicEpochRouteStateDisclosureV1",
     "EconomicEpochReceiptCandidateV1",
-    "VerifiedEconomicEpochV1",
+    "PreparedEconomicEpochV1",
     "derive_verified_economic_epoch_commit_id_v1",
-    "verify_economic_epoch_v1",
+    "prepare_economic_epoch_v1",
 ]
