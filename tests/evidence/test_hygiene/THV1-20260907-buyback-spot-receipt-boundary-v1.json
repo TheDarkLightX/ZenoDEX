@@ -1,0 +1,358 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-BUYBACK-SPOT-SHADOW-OWNED-EXECUTION-SUBJECT",
+      "points": [
+        "One public verification API moves to integration. Exact envelope, candidate, journal and marker types remain in core; both preparation phases take data and invoke no verifier.",
+        "All fourteen final marker fields and eight nested fee-ingress fields retain their existing domains and canonical values for the baseline positive subject.",
+        "The former ordering remains candidate ownership, governed selection, head/Bound admission, deployment binding, policy, occurrence, state/Oracle, Succinct/nonempty receipt, minimum route/Spot journal ceiling, one callback and fee-ingress derivation.",
+        "The exact Bound verifier alone is accepted; normal non-None backend returns and exceptions retain RECEIPT_VERIFICATION_FAILED with fixed detail. Bound authority-source revalidation remains active.",
+        "Both journal ceilings have independent equality and one-byte-over controls, including a receipt longer than the journal ceiling and empty-receipt precedence.",
+        "The prepared execution copy owns the complete twelve-coordinate authority head, profile, journal, fee state, policies and both nested price witnesses. Retained callback aliases cannot relabel the returned marker or cause a post-callback ownership rejection.",
+        "Prepared request and marker sources are rebound to the exact journal. An independent one-field authority-root substitution or verifier-root substitution rejects before callback and fee-ingress derivation.",
+        "The authority root binds the retained owned head; the verifier root binds the executing Bound identity read by the shell. Coherent replacement of the whole head plus its root is outside this private prepared-executor contract.",
+        "Owning a malformed exact head with a valid Bound now rejects before I/O. The malformed-head plus invalid-Bound type precedence remains unchanged; this is a named strengthening over the baseline.",
+        "The private completion factory derives fee ingress only when the shell calls it after successful verification. Preparation, detachment and a failed callback derive no fee-ingress witness.",
+        "Five mechanical source mutations below name ordinary runtime laws for exact request bytes, exactly one callback, the minimum ceiling, head ownership and post-callback fee-ingress order. Explicit mutation-constructor tests remain separate evidence."
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "Two pure preparation phases bind the complete governed SHADOW Spot receipt subject; integration executes its exact request once and constructs the existing marker from the detached executed copy. Finite controls observe baseline compatibility and authority, price-witness and fee-ingress ownership and sequencing.",
+  "created_date": "2026-09-07",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "differential",
+    "stateful",
+    "mutation"
+  ],
+  "evidence_id": "THV1-20260907-buyback-spot-receipt-boundary-v1",
+  "failure_modes": [
+    "One public verification API moves to integration. Exact envelope, candidate, journal and marker types remain in core; both preparation phases take data and invoke no verifier.",
+    "All fourteen final marker fields and eight nested fee-ingress fields retain their existing domains and canonical values for the baseline positive subject.",
+    "The former ordering remains candidate ownership, governed selection, head/Bound admission, deployment binding, policy, occurrence, state/Oracle, Succinct/nonempty receipt, minimum route/Spot journal ceiling, one callback and fee-ingress derivation.",
+    "The exact Bound verifier alone is accepted; normal non-None backend returns and exceptions retain RECEIPT_VERIFICATION_FAILED with fixed detail. Bound authority-source revalidation remains active.",
+    "Both journal ceilings have independent equality and one-byte-over controls, including a receipt longer than the journal ceiling and empty-receipt precedence.",
+    "The prepared execution copy owns the complete twelve-coordinate authority head, profile, journal, fee state, policies and both nested price witnesses. Retained callback aliases cannot relabel the returned marker or cause a post-callback ownership rejection.",
+    "Prepared request and marker sources are rebound to the exact journal. An independent one-field authority-root substitution or verifier-root substitution rejects before callback and fee-ingress derivation.",
+    "The authority root binds the retained owned head; the verifier root binds the executing Bound identity read by the shell. Coherent replacement of the whole head plus its root is outside this private prepared-executor contract.",
+    "Owning a malformed exact head with a valid Bound now rejects before I/O. The malformed-head plus invalid-Bound type precedence remains unchanged; this is a named strengthening over the baseline.",
+    "The private completion factory derives fee ingress only when the shell calls it after successful verification. Preparation, detachment and a failed callback derive no fee-ingress witness.",
+    "Five mechanical source mutations below name ordinary runtime laws for exact request bytes, exactly one callback, the minimum ceiling, head ownership and post-callback fee-ingress order. Explicit mutation-constructor tests remain separate evidence."
+  ],
+  "invariant_ids": [
+    "V3-BUYBACK-SPOT-SHADOW-OWNED-EXECUTION-SUBJECT"
+  ],
+  "mutations": [
+    {
+      "description": "Tier 1: send journal bytes as receipt bytes; the ordinary positive law observes a different recorder request.",
+      "killed_by": "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_shell_executes_exactly_the_prepared_request_once_and_mints_the_pinned_marker",
+      "mutant": {
+        "needle_lines": [
+          "            owned.receipt_bytes,"
+        ],
+        "path": "src/integration/zdex_buyback_spot_safety_receipt_v1.py",
+        "replacement_lines": [
+          "            owned.expected_journal_bytes,"
+        ]
+      }
+    },
+    {
+      "description": "Tier 1: execute the same Bound callback twice; the ordinary positive law observes two requests instead of one.",
+      "killed_by": "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_shell_executes_exactly_the_prepared_request_once_and_mints_the_pinned_marker",
+      "mutant": {
+        "needle_lines": [
+          "        receipt_verifier.verify_profile_lane_receipt(",
+          "            owned.receipt_bytes,",
+          "            profile=owned.profile,",
+          "            lane_id=LaneIdV1.SPOT_LIQUIDITY,",
+          "            expected_module_release_id=owned.expected_module_release_id,",
+          "            expected_image_id=owned.expected_image_id,",
+          "            expected_journal_bytes=owned.expected_journal_bytes,",
+          "        )"
+        ],
+        "path": "src/integration/zdex_buyback_spot_safety_receipt_v1.py",
+        "replacement_lines": [
+          "        receipt_verifier.verify_profile_lane_receipt(",
+          "            owned.receipt_bytes,",
+          "            profile=owned.profile,",
+          "            lane_id=LaneIdV1.SPOT_LIQUIDITY,",
+          "            expected_module_release_id=owned.expected_module_release_id,",
+          "            expected_image_id=owned.expected_image_id,",
+          "            expected_journal_bytes=owned.expected_journal_bytes,",
+          "        )",
+          "        receipt_verifier.verify_profile_lane_receipt(",
+          "            owned.receipt_bytes,",
+          "            profile=owned.profile,",
+          "            lane_id=LaneIdV1.SPOT_LIQUIDITY,",
+          "            expected_module_release_id=owned.expected_module_release_id,",
+          "            expected_image_id=owned.expected_image_id,",
+          "            expected_journal_bytes=owned.expected_journal_bytes,",
+          "        )"
+        ]
+      }
+    },
+    {
+      "description": "Tier 1: use the larger journal ceiling; the ordinary boundary law observes missing JOURNAL_TOO_LARGE rejection in pure preparation.",
+      "killed_by": "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_journal_ceiling_is_the_route_spot_minimum_with_equality_admitted",
+      "mutant": {
+        "needle_lines": [
+          "    if len(journal_bytes) > min(route.max_journal_bytes, spot_release.max_journal_bytes):"
+        ],
+        "path": "src/core/zdex_buyback_spot_safety_receipt_preparation_v1.py",
+        "replacement_lines": [
+          "    if len(journal_bytes) > max(route.max_journal_bytes, spot_release.max_journal_bytes):"
+        ]
+      }
+    },
+    {
+      "description": "Tier 1: retain the input head alias in prepared data; the ordinary ownership law observes a typed authority-root rejection after caller mutation where a detached snapshot must succeed.",
+      "killed_by": "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_prepared_subject_is_detached_from_candidate_head_and_selection_graphs",
+      "mutant": {
+        "needle_lines": [
+          "        authority_head=head,"
+        ],
+        "path": "src/core/zdex_buyback_spot_safety_receipt_preparation_v1.py",
+        "replacement_lines": [
+          "        authority_head=authority_head,"
+        ]
+      }
+    },
+    {
+      "description": "Tier 1: derive fee ingress before the callback; the ordinary lifecycle law observes derivation before any backend call.",
+      "killed_by": "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_fee_ingress_witness_is_derived_only_after_callback_success",
+      "mutant": {
+        "needle_lines": [
+          "    try:",
+          "        receipt_verifier.verify_profile_lane_receipt("
+        ],
+        "path": "src/integration/zdex_buyback_spot_safety_receipt_v1.py",
+        "replacement_lines": [
+          "    try:",
+          "        _build_verified_zdex_buyback_spot_safety_purchase_v2(owned)",
+          "        receipt_verifier.verify_profile_lane_receipt("
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "Synthetic SHADOW receipts and recorder backends do not qualify a real cryptographic receipt, measured guest, deployed verifier or release.",
+    "Prepared records and private data factories are not verification witnesses or publication gates. The completed marker remains a reference SHADOW value with no settlement authority.",
+    "Complete owned-head data does not authenticate the current authority store. Current-head revalidation, durable publication and destination enforcement remain separate obligations.",
+    "The shared purchase/burn authority helper, three atomic-buyback callback rows and the Bound registry/backend row remain open. Direct AST checks do not establish transitive whole-core FCIS.",
+    "The tests assume an intact Python process and operating system; arbitrary private imports, process compromise and cloud/operator compromise are outside these ownership laws.",
+    "SHADOW_PROFILE_REQUIRED and GOVERNED_SPOT_RELEASE_MISMATCH retain their implementation but lack reachable positive-fixture negative controls in this suite.",
+    "No economic policy, rounding, journal or wire field, hash domain, Rust guest, existing Lean theorem or live authority changes.",
+    "ESSO, Kani, randomized property campaigns, full Rust/Lean/RISC0 builds, production gates and real proof generation are not executed by this declaration. Whole V3, formal-core completeness and production value safety remain open."
+  ],
+  "reject_is_noop": {
+    "reason": "Invalid admission rejects before the callback with no marker or fee-ingress derivation. Callback failure derives no fee ingress; a later successful verification derives it exactly once after the backend. No economic state write or publication is modeled.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/core/zdex_buyback_spot_safety_receipt_v1.py",
+      "sha256": "5278975c4149f9f75b71ab9c6c2a2dd1a1feb460e5951c017c343e53ede030cc"
+    },
+    {
+      "path": "src/core/zdex_buyback_spot_safety_receipt_preparation_v1.py",
+      "sha256": "4d38f66244fb824f755d3c8a8f69e1ec349bdbacd84522b7ae78c0ceb125b8f8"
+    },
+    {
+      "path": "src/integration/zdex_buyback_spot_safety_receipt_v1.py",
+      "sha256": "401c3c8f3817713c0f7f376b7c8fba971f8663ac38306afb0cc2996c4f9c9712"
+    },
+    {
+      "path": "src/core/global_economic_authority_head_v1.py",
+      "sha256": "77d4f33f4fd353260154a146e5b7c270a2ca4eae46a13f0ce67da6b5b384896c"
+    },
+    {
+      "path": "src/core/global_economic_profile_snapshot_v1.py",
+      "sha256": "6878f42b94b07ecb2ce48196d39eeaa75115c8f8c66765dbc81de92288f537f7"
+    },
+    {
+      "path": "src/core/global_economic_refinement_snapshot_v1.py",
+      "sha256": "0ab017a4fd6eee81e85bfeda3a829b34c78edb2b9af95d0959f1059be0469bb7"
+    },
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "b7d826ddabc4c140e1803ffa0aebca0642d0a9ecd69b94a00567894829bbf345"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/economic_receipt_verifier_deployment_v1.py",
+      "sha256": "eb36d6a631e875777c565c77ff3f9c9955e1e89e599a7c2cd820dae6fd990fff"
+    },
+    {
+      "path": "src/core/economic_receipt_verifier_registry_v1.py",
+      "sha256": "e9889722b3887cc27ba3524cd87fcf4311e8d33d2030c4af21d561d170c06fda"
+    },
+    {
+      "path": "src/core/zdex_atomic_buyback_state_v1.py",
+      "sha256": "ce935b89a474d2bcfec45e7d3860d3f9dfdc776f3fe7896ba0e95a7271a369ee"
+    },
+    {
+      "path": "src/core/zdex_atomic_buyback_v1.py",
+      "sha256": "b25ab86b1d4558a1b407bfd9cc952d0475966fd542874a5f10f01fde9f01b5c8"
+    },
+    {
+      "path": "src/core/zdex_buyback_price_authority_v1.py",
+      "sha256": "88ea582172df5debf3c1c9cf584ef34d86cad649189787b1419fe9014856344a"
+    },
+    {
+      "path": "src/core/zdex_buyback_price_safety_v1.py",
+      "sha256": "0fcd5c30c2718921dd917a6ed5561677d34b8f21a87a4e7111a4417e7a924fe5"
+    },
+    {
+      "path": "src/core/zdex_buyback_spend_v1.py",
+      "sha256": "135f4f0c7b5dfd9e3d2f55b605da267a528d69368983f7271dad54e3db9e6f66"
+    },
+    {
+      "path": "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+      "sha256": "f530a191cae0d640fc4ac6d339cc99af67706107287cb31d79b3596cbff189a7"
+    },
+    {
+      "path": "src/core/zdex_fee_allocation_types_v1.py",
+      "sha256": "b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df"
+    },
+    {
+      "path": "src/core/zdex_purchase_burn_route_types_v1.py",
+      "sha256": "d680d7d73631076a11f67fd84546b457b1294367dc62188d0545c2bcc51d39c1"
+    },
+    {
+      "path": "src/core/zdex_verified_buyback_spend_v1.py",
+      "sha256": "17886bf4df5e56c924417f313641a8f04c0ca67919db7f7a53d130760ba8cf9a"
+    },
+    {
+      "path": "src/core/zdex_verified_fee_ingress_slice_v1.py",
+      "sha256": "40760e8fd8f97c9c3bded310736ef831c0f28acfe83c8c3fce6b128e8ed7862b"
+    },
+    {
+      "path": "experiments/v3_buyback_spot_receipt_boundary_v1/render_evidence.py",
+      "sha256": "60161fd04a82527a5764c5e76a49ec3c52578685f3242f1887489dcf1905e2b1"
+    },
+    {
+      "path": "docs/research/ZENODEX_RESOURCE_ARCHITECTURE_20260906.md",
+      "sha256": "82e182690aa3d1e4bc143b2b887e21556130f1cec03990e8976e1f02e8f6aa4c"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_core_and_preparation_modules_have_no_callback_parameter_call_or_shell_import",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_shell_owns_the_single_bound_callback_and_reads_no_caller_alias_after_io",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_selection_phase_owns_the_candidate_and_selects_releases_with_no_verifier",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_receipt_phase_is_deterministic_complete_and_reproduces_the_pinned_marker",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_prepared_subject_is_detached_from_candidate_head_and_selection_graphs",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_prepared_record_requires_exact_types_and_request_to_marker_binding",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_pure_authority_predicates_keep_the_former_code_detail_and_order",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_shell_executes_exactly_the_prepared_request_once_and_mints_the_pinned_marker",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_every_guard_rejects_before_the_callback_with_no_marker",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_only_succinct_receipts_are_admissible",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_bound_exact_none_contract_rejects_every_non_none_reply_after_one_call",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_backend_exception_rejects_after_one_call_without_leaking_backend_detail",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_bound_authority_source_mutation_during_callback_still_fails_its_own_recheck",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_journal_ceiling_is_the_route_spot_minimum_with_equality_admitted",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_callback_mutation_of_candidate_and_head_aliases_cannot_relabel_marker",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_callback_mutation_of_the_caller_held_prepared_alias_cannot_relabel_marker",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_callback_mutation_of_retained_price_witness_aliases_cannot_relabel_or_reject",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_snapshot_owns_both_price_witnesses_and_refuses_non_exact_witness_data",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_coherent_field_substitution_rejects_before_bound_with_no_call",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_prepared_root_substitutions_reject_before_callback_and_fee_ingress_derivation",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_fee_ingress_witness_is_derived_only_after_callback_success",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_callback_before_guard_mutant_is_killed_by_the_no_call_law",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_wrong_request_image_mutant_is_killed_by_the_bound_image_law",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_post_io_caller_head_relabel_mutant_is_killed_by_the_head_mutation_observation",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_aliased_price_authority_mutant_is_killed_by_the_post_callback_completion_law",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_missed_digest_check_mutant_is_killed_by_the_digest_observation",
+        "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py::test_pre_callback_fee_ingress_mutant_is_killed_by_the_lifecycle_observation"
+      ],
+      "path": "tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py",
+      "sha256": "66f284ecbe4a0a9a9dcd5ceb2353219196b9383dfa353a97a1e0b6f46e982831"
+    },
+    {
+      "node_ids": [
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_fee_ingress_amount_is_derived_from_committed_tokenomics_state",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_caller_selected_fee_budget_rejects_before_receipt_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_price_authority_binds_exact_committed_state_oracle_and_policy",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_price_authority_witness_is_verifier_constructed_and_immutable",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_price_authority_rejects_hostile_scalar_after_candidate_construction",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_price_authority_mutants_reject_before_witness_creation",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_finalized_oracle_is_a_reusable_read_dependency",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_authenticated_journal_uses_exact_release_image_and_canonical_bytes",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_verified_witness_is_opaque_immutable_and_binding_stable",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_canonical_journal_digest_is_fixed",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_fake_conditional_and_non_succinct_receipts_reject_before_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_empty_succinct_receipt_rejects_before_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_callback_failure_creates_no_witness",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_callback_non_none_success_shape_rejects",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_raw_accept_all_callback_cannot_create_authority_witness",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_stale_current_authority_head_rejects_before_receipt_verification",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_caller_substituted_spend_policy_rejects_before_receipt_verification",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_caller_substituted_price_policy_rejects_before_receipt_verification",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_caller_substituted_fee_policy_rejects_before_receipt_verification",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_caller_substituted_cadence_state_rejects_before_receipt_verification",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_quote_spend_above_authenticated_route_limit_rejects_before_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_purchased_output_below_positive_minimum_rejects_before_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_price_envelope_mutations_reject_before_receipt_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_uncommitted_reserve_claim_rejects_before_receipt_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_hostile_coordinate_substitution_rejects_before_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_stale_global_or_spot_pre_root_rejects",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_missing_unfinalized_or_future_oracle_rejects_before_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_enabled_spot_lane_rejects_from_shadow_receipt_boundary",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_stale_post_root_equal_to_pre_root_rejects_before_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_safety_binding_root_mutation_rejects_before_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_nonzero_terminal_obligation_mutation_rejects_before_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_hostile_scalar_subclass_rejects_without_behavior_or_callback",
+        "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py::test_callback_alias_mutation_cannot_rebind_returned_witness"
+      ],
+      "path": "tests/core/test_zdex_buyback_spot_safety_receipt_v1.py",
+      "sha256": "f22a8f9d65af94a7b0116ae9a9c1e5103a953b0c585d1b43114ec07572ac5d93"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_prepare_is_repeatable_pure_and_grants_no_authority",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_prepared_subject_is_detached_from_the_caller_candidate_graph",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_structural_rejections_precede_any_backend_call",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_shell_executes_exactly_the_prepared_three_field_request",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_publisher_bound_epoch_and_commit_reproduce_the_pre_extraction_subject",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_genesis_and_migration_prepare_exact_subjects_and_execute_once",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_initial_state_executor_detaches_complete_admission_before_io",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_callback_mutation_of_caller_graphs_cannot_relabel_witness_or_commit",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_callback_mutation_of_unowned_prepared_subject_cannot_relabel_minted_witness",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_epoch_executor_rejects_unconstructed_subclass_and_substituted_subjects_before_io",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_forged_direct_handle_subclass_and_field_injection_are_refused",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_publisher_identity_requires_the_exact_token_and_verifier_objects",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_backend_exception_registers_nothing_and_changes_no_state",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_changed_receipt_body_or_state_cannot_replay_a_committed_epoch",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_durable_publisher_executes_the_exact_prepared_subject_on_its_bound_verifier",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_durable_backend_rejection_registers_no_witness_and_keeps_genesis",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_core_root_epoch_and_initial_state_code_has_no_shell_mechanisms",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_closed_tokenomics_callback_debt_stays_a_pure_core_boundary",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_closed_fee_leaf_callback_debt_stays_a_pure_core_boundary",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_closed_purchase_burn_callback_debt_stays_a_pure_preparation_boundary",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_closed_buyback_spot_callback_debt_stays_a_pure_two_phase_core_boundary",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_shell_modules_own_execution_registry_lock_and_consumer_imports",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_execute_before_prepare_mutant_is_killed_by_the_no_call_law"
+      ],
+      "path": "tests/integration/test_economic_epoch_verifier_boundary_v1.py",
+      "sha256": "427148b8f9d78d1726319630a37d3d11e77969e1530c3bd6e97de33f545a8de5"
+    }
+  ]
+}

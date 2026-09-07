@@ -81,7 +81,6 @@ from src.core.zdex_buyback_spot_safety_receipt_v1 import (
     ZDEXBuybackSpotReceiptRejectCodeV1,
     ZDEXBuybackSpotReceiptRejectedV1,
     ZDEXBuybackSpotSafetyPurchaseJournalV2,
-    verify_zdex_buyback_spot_safety_receipt_shadow_v2,
 )
 from src.core.zdex_fee_allocation_types_v1 import (
     ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
@@ -111,6 +110,9 @@ from src.core.zdex_purchase_burn_route_types_v1 import (
     zdex_pool_reserve_principal_v1,
 )
 from src.core.zdex_tokenomics_lane_v1 import ZDEXTokenomicsLaneStateV1
+from src.integration.zdex_buyback_spot_safety_receipt_v1 import (
+    verify_zdex_buyback_spot_safety_receipt_shadow_v2,
+)
 
 
 def _root(value: int) -> str:

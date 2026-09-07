@@ -610,10 +610,10 @@ python3 -B -m pytest -q -p no:cacheprovider tests/integration/test_zdex_fee_allo
 python3 -B -m experiments.v3_fee_allocation_receipt_boundary_v1.render_evidence
 ```
 
-The subsequent purchase/burn extraction is recorded below. Remaining core
-receipt owners include the shared current-authority helper, atomic buyback
-module/coordinator/route verification, buyback Spot safety verification, and
-the Bound deployment registry/backend execution boundary. Their source callers
+The subsequent purchase/burn and buyback Spot extractions are recorded below.
+Remaining core receipt owners include the shared current-authority helper,
+atomic buyback module/coordinator/route verification, and the Bound deployment
+registry/backend execution boundary. Their source callers
 and authority dependencies require separate extraction and mounted
 qualification. A direct AST check covers only the inspected declarations and
 known method calls.
@@ -670,6 +670,51 @@ module for its other consumers. Its registry access, other buyback callbacks,
 whole-path FCIS, runtime/formal refinement and production qualification remain
 open. No wire field, economic constant, Rust guest or existing theorem changes
 in this extraction.
+
+### Buyback Spot receipt preparation and execution
+
+The [Spot preparation core](../../src/core/zdex_buyback_spot_safety_receipt_preparation_v1.py)
+owns the candidate and selects the governed releases, then completes policy,
+occurrence, state/Oracle and receipt checks. These two pure phases surround the
+existing deployment-binding check in the
+[integration shell](../../src/integration/zdex_buyback_spot_safety_receipt_v1.py).
+The shell owns the Bound verifier reads and the single profile-lane callback.
+The former public execution API has moved out of core; candidate, journal,
+envelope and marker class identities remain unchanged.
+
+The detached execution subject retains all fourteen marker sources and the
+raw fee-ingress sources. It owns both nested price witnesses and rebinds the
+request and marker fields to the journal. Its authority-head root must match
+the complete owned head; its verifier-binding root must match the Bound
+capability the shell will invoke. These are preparation checks within the
+current process. They do not authenticate a current authority store.
+
+After successful verification, the private data factory derives fee ingress
+and constructs the marker from the executed copy. It is not a verifier or a
+publication gate. Callback-side changes to retained candidate, head, prepared
+record or price-witness aliases cannot relabel that result. The Bound backend
+retains exact `None` success, its own authority-source recheck, and the existing
+fixed callback-error detail. The journal ceiling remains the minimum of route
+and Spot module ceilings, with equality admitted.
+
+The [boundary suite](../../tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py)
+includes exact baseline fields and requests, rejection precedence, both journal
+limits, callback failure/recovery, alias ownership, independent root
+substitutions and post-callback fee-ingress ordering. Existing caller test
+bodies remain intact. A malformed exact head with a valid Bound verifier now
+rejects before I/O; this is an intentional ownership repair.
+
+```bash
+python3 -B -m pytest -q -p no:cacheprovider tests/integration/test_zdex_buyback_spot_safety_verifier_boundary_v1.py tests/core/test_zdex_buyback_spot_safety_receipt_v1.py tests/integration/test_economic_epoch_verifier_boundary_v1.py
+python3 -B -m experiments.v3_buyback_spot_receipt_boundary_v1.render_evidence
+```
+
+This closes one named callback-debt row. The shared authority helper, three
+atomic-buyback callback rows and the Bound registry/backend row remain open.
+The fixtures use reference SHADOW receipts and recorder backends. Real proof
+qualification, store-current authority, whole-path FCIS, runtime/formal
+refinement and production value safety remain separate obligations. No wire,
+economic policy, rounding rule, Rust guest or existing theorem changes here.
 
 ### Registered supply identities and numeric support
 

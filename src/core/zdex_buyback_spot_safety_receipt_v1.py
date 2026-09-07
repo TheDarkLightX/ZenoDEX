@@ -1,28 +1,24 @@
-"""Shadow receipt boundary for a governed ZDEX buyback Spot purchase.
+"""Shadow receipt data and pure bindings for a governed ZDEX buyback Spot purchase.
 
-This module authenticates one minimum-sufficient public journal under the Spot
-image selected by a complete SHADOW economic profile.  It creates no route,
-publishes no state, and grants no value-moving authority.  The callback is the
+This module owns the candidate, journal, envelope, reject and opaque marker
+identities plus the pure ownership, selection, policy, occurrence and
+state/Oracle predicates for one minimum-sufficient public journal under the
+Spot image selected by a complete SHADOW economic profile.  It creates no
+route, publishes no state, grants no value-moving authority and performs no
+verifier call.  ``zdex_buyback_spot_safety_receipt_preparation_v1`` fixes the
+exact execution subject; ``src.integration.zdex_buyback_spot_safety_receipt_v1``
+owns the Bound verifier reads and the single receipt callback, which is the
 cryptographic authority for the exact ``(image_id, canonical_journal_bytes)``
-claim; every host-side input is copied and revalidated before that callback.
+claim.  Every host-side input is copied and revalidated before that callback.
 """
 
 from __future__ import annotations
 
-import hashlib
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Final, NoReturn
 
-from .economic_receipt_verifier_deployment_v1 import BoundEconomicReceiptVerifierV1
-from .economic_receipt_verifier_registry_v1 import (
-    EconomicReceiptVerifierSelectionPurposeV1,
-)
-from .global_economic_authority_head_v1 import (
-    GlobalEconomicAuthorityHeadV1,
-    GlobalEconomicAuthorityStatusV1,
-)
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
 from .global_economic_refinement_snapshot_v1 import (
@@ -45,7 +41,6 @@ from .global_settlement_types_v1 import (
     _require_nonnegative_int,
     _require_root,
     _require_token,
-    canonical_global_bytes_v1,
     hash_global_v1,
 )
 from .zdex_atomic_buyback_state_v1 import ZDEXAtomicBuybackTokenomicsStateV1
@@ -82,10 +77,7 @@ from .zdex_purchase_burn_route_types_v1 import (
     zdex_amm_purchase_port_schema_root_v1,
     zdex_burn_port_schema_root_v1,
 )
-from .zdex_verified_fee_ingress_slice_v1 import (
-    VerifiedZDEXFeeIngressSliceV1,
-    _derive_verified_zdex_fee_ingress_slice_v1,
-)
+from .zdex_verified_fee_ingress_slice_v1 import VerifiedZDEXFeeIngressSliceV1
 
 ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_JOURNAL_SCHEMA_V2: Final = (
     "zenodex/zdex-buyback-spot-safety-purchase-journal/v2"
@@ -843,6 +835,8 @@ def _require_state_and_oracle_bindings_v1(
             ZDEXBuybackSpotReceiptRejectCodeV1.ORACLE_BINDING_MISMATCH,
             str(error),
         )
+
+
 @dataclass(frozen=True, slots=True)
 class _VerifiedZDEXBuybackSpotFieldsV2:
     journal: ZDEXBuybackSpotSafetyPurchaseJournalV2
@@ -978,123 +972,6 @@ class VerifiedZDEXBuybackSpotSafetyPurchaseV2:
         )
 
 
-def verify_zdex_buyback_spot_safety_receipt_shadow_v2(
-    candidate: ZDEXBuybackSpotReceiptCandidateV2,
-    *,
-    authority_head: GlobalEconomicAuthorityHeadV1,
-    receipt_verifier: BoundEconomicReceiptVerifierV1,
-) -> VerifiedZDEXBuybackSpotSafetyPurchaseV2:
-    """Verify exact shadow receipt bindings and return an opaque witness.
-
-    Reject precedence is candidate ownership, governed selection, occurrence,
-    state/Oracle freshness, receipt profile/size, then the external receipt
-    callback.  Any callback exception or non-``None`` result rejects without
-    creating a witness.  This pure function performs no publication or IO.
-    """
-
-    try:
-        owned = _snapshot_candidate_v1(candidate)
-    except (TypeError, ValueError):
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.MALFORMED_CANDIDATE,
-            "candidate ownership or invariant validation failed",
-        )
-    route, release, tokenomics_release = _select_shadow_route_and_release_v1(owned)
-    if (
-        type(authority_head) is not GlobalEconomicAuthorityHeadV1
-        or type(receipt_verifier) is not BoundEconomicReceiptVerifierV1
-        or authority_head.status is not GlobalEconomicAuthorityStatusV1.ACTIVE
-        or authority_head.chain_id != owned.occurrence.chain_id
-        or authority_head.deployment_root != owned.occurrence.deployment_root
-        or authority_head.profile_root != owned.profile.profile_id
-        or authority_head.writer_epoch != owned.profile.authority_epoch
-        or authority_head.verifier_registry_root != owned.profile.verifier_registry_root
-        or authority_head.verifier_release_id != receipt_verifier.release_id
-        or authority_head.verifier_binding_root != receipt_verifier.binding_root
-        or authority_head.root_image_id != owned.profile.root_image_id
-    ):
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.AUTHORITY_BINDING_MISMATCH,
-            "receipt verifier is outside the current authority head",
-        )
-    try:
-        receipt_verifier.require_binding(
-            verifier_registry_root=authority_head.verifier_registry_root,
-            deployment_root=authority_head.deployment_root,
-            profile_root=authority_head.profile_root,
-            root_image_id=authority_head.root_image_id,
-            selection_purpose=EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW,
-        )
-    except (TypeError, ValueError):
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.AUTHORITY_BINDING_MISMATCH,
-            "receipt verifier deployment binding mismatch",
-        )
-    _require_governed_policy_v1(owned, route)
-    _require_occurrence_bindings_v1(owned, route, release, tokenomics_release)
-    price_authority = _require_state_and_oracle_bindings_v1(owned, route)
-    receipt = owned.receipt
-    if receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.UNSUPPORTED_RECEIPT_KIND,
-            "only Succinct receipts are admissible",
-        )
-    if not receipt.receipt_bytes:
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.EMPTY_RECEIPT,
-            "receipt bytes must be nonempty",
-        )
-    journal_bytes = canonical_global_bytes_v1(owned.journal)
-    if len(journal_bytes) > min(route.max_journal_bytes, release.max_journal_bytes):
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.JOURNAL_TOO_LARGE,
-            "canonical journal exceeds the selected release ceiling",
-        )
-    try:
-        receipt_verifier.verify_profile_lane_receipt(
-            receipt.receipt_bytes,
-            profile=owned.profile,
-            lane_id=LaneIdV1.SPOT_LIQUIDITY,
-            expected_module_release_id=release.release_id,
-            expected_image_id=release.guest_image_id,
-            expected_journal_bytes=journal_bytes,
-        )
-    except Exception:
-        _reject(
-            ZDEXBuybackSpotReceiptRejectCodeV1.RECEIPT_VERIFICATION_FAILED,
-            "receipt callback rejected or failed",
-        )
-    fee_state = owned.tokenomics_pre_state.fee_state_for(owned.journal.quote_asset_id)
-    fee_ingress = _derive_verified_zdex_fee_ingress_slice_v1(
-        command_occurrence_id=owned.occurrence.occurrence_id,
-        global_pre_state_root=owned.global_pre_state.state_root,
-        profile_root=owned.profile.profile_id,
-        fee_state=fee_state,
-        authority_head_root=authority_head.authority_root,
-        verifier_binding_root=receipt_verifier.binding_root,
-    )
-    fields = _VerifiedZDEXBuybackSpotFieldsV2(
-        journal=owned.journal,
-        journal_digest="0x" + hashlib.sha256(journal_bytes).hexdigest(),
-        expected_image_id=release.guest_image_id,
-        receipt_digest="0x" + hashlib.sha256(receipt.receipt_bytes).hexdigest(),
-        receipt_kind=receipt.receipt_kind,
-        tokenomics_pre_state=owned.tokenomics_pre_state,
-        spend_policy=owned.spend_policy,
-        fee_policy=owned.fee_policy,
-        fee_context=owned.fee_context,
-        fee_command=ZDEXFeeAllocationCommandV1(fee_ingress.fee_ingress_atoms),
-        fee_ingress=fee_ingress,
-        price_authority=price_authority,
-        authority_head_root=authority_head.authority_root,
-        verifier_binding_root=receipt_verifier.binding_root,
-    )
-    return VerifiedZDEXBuybackSpotSafetyPurchaseV2(
-        _VERIFIED_ZDEX_BUYBACK_SPOT_TOKEN_V2,
-        fields,
-    )
-
-
 __all__ = [
     "VERIFIED_ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_SCHEMA_V2",
     "ZDEX_BUYBACK_SPOT_SAFETY_PURCHASE_JOURNAL_SCHEMA_V2",
@@ -1104,5 +981,4 @@ __all__ = [
     "ZDEXBuybackSpotReceiptRejectCodeV1",
     "ZDEXBuybackSpotReceiptRejectedV1",
     "ZDEXBuybackSpotSafetyPurchaseJournalV2",
-    "verify_zdex_buyback_spot_safety_receipt_shadow_v2",
 ]

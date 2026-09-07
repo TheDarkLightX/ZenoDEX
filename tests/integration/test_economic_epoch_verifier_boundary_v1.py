@@ -18,11 +18,14 @@ import pytest
 
 import src.core.economic_initial_state_publisher_verification_v1 as initial_core
 import src.core.global_economic_proof_v1 as proof
+import src.core.zdex_buyback_spot_safety_receipt_preparation_v1 as buyback_spot_prep
+import src.core.zdex_buyback_spot_safety_receipt_v1 as buyback_spot_core
 import src.core.zdex_fee_allocation_receipt_verification_v1 as fee_leaf_core
 import src.core.zdex_purchase_burn_receipt_preparation_v1 as purchase_burn_prep
 import src.core.zdex_purchase_burn_receipt_verification_v1 as purchase_burn_core
 import src.integration.economic_initial_state_publisher_verification_v1 as initial_shell
 import src.integration.global_economic_epoch_verification_v1 as shell
+import src.integration.zdex_buyback_spot_safety_receipt_v1 as buyback_spot_shell
 import src.integration.zdex_fee_allocation_receipt_verification_v1 as fee_leaf_shell
 from src.core.economic_initial_state_atom_coverage_v1 import EconomicInitialStateKindV1
 from src.core.economic_initial_state_v1 import _VerifiedEconomicInitialStateV1
@@ -197,11 +200,6 @@ _LEGACY_CORE_CALLBACK_DEBT = (
         "atomic buyback route receipt callback",
     ),
     (
-        "src/core/zdex_buyback_spot_safety_receipt_v1.py",
-        "receipt_verifier.verify_profile_lane_receipt(",
-        "buyback Spot safety module receipt callback",
-    ),
-    (
         "src/core/economic_receipt_verifier_deployment_v1.py",
         "_BOUND_RECEIPT_VERIFIER_AUTHORITIES_V1: WeakKeyDictionary[",
         "Bound deployment registry, lock and backend call remain core debt",
@@ -246,6 +244,17 @@ _PURCHASE_BURN_MOVED_NAMES = frozenset(
         "_ProfileLaneReceiptVerifierV1",
     }
 )
+# Core callback debt closed by the buyback Spot safety extraction.  The former row was
+# ("src/core/zdex_buyback_spot_safety_receipt_v1.py",
+#  "receipt_verifier.verify_profile_lane_receipt(",
+#  "buyback Spot safety module receipt callback").  The Bound deployment registry row
+# above stays open; this shell still reads that registry through the Bound handle.
+_CLOSED_BUYBACK_SPOT_CALLBACK_CORE_MODULES = (
+    "src/core/zdex_buyback_spot_safety_receipt_v1.py",
+    "src/core/zdex_buyback_spot_safety_receipt_preparation_v1.py",
+)
+_BUYBACK_SPOT_SHELL_MODULE = "src/integration/zdex_buyback_spot_safety_receipt_v1.py"
+_BUYBACK_SPOT_MOVED_NAME = "verify_zdex_buyback_spot_safety_receipt_shadow_v2"
 
 
 def _digest(data: bytes) -> str:
@@ -1498,6 +1507,42 @@ def test_closed_purchase_burn_callback_debt_stays_a_pure_preparation_boundary() 
             and any(alias.name == "ZDEXLaneSuccinctReceiptVerifierV1" for alias in node.names)
         ]
         assert protocol_imports == [(1, "zdex_purchase_burn_receipt_verification_v1")], relative
+
+
+def test_closed_buyback_spot_callback_debt_stays_a_pure_two_phase_core_boundary() -> None:
+    for relative in _CLOSED_BUYBACK_SPOT_CALLBACK_CORE_MODULES:
+        _assert_closed_callback_core_module(relative)
+        assert "BoundEconomicReceiptVerifierV1" not in (REPO_ROOT / relative).read_text(
+            encoding="utf-8"
+        ), relative
+    shell_calls = _call_names(_parse(_BUYBACK_SPOT_SHELL_MODULE))
+    assert shell_calls.count("verify_profile_lane_receipt") == 1
+    assert shell_calls.count("verify_succinct_receipt") == 0
+    assert shell_calls.count("require_binding") == 1
+    assert not any(
+        name.startswith("..") and not name.startswith("..core")
+        for name in _import_targets(_parse(_BUYBACK_SPOT_SHELL_MODULE))
+    )
+    # Direct regression: the former core entry point is gone, both pure phases take
+    # no verifier, and the shell owns the only public execution API.
+    assert not hasattr(buyback_spot_core, _BUYBACK_SPOT_MOVED_NAME)
+    assert not hasattr(buyback_spot_prep, _BUYBACK_SPOT_MOVED_NAME)
+    assert not any(name.startswith("verify_") for name in buyback_spot_core.__all__)
+    assert not any(name.startswith("verify_") for name in buyback_spot_prep.__all__)
+    assert tuple(
+        inspect.signature(
+            buyback_spot_prep.prepare_zdex_buyback_spot_safety_selection_v2
+        ).parameters
+    ) == ("candidate",)
+    assert tuple(
+        inspect.signature(buyback_spot_prep.prepare_zdex_buyback_spot_safety_receipt_v2).parameters
+    ) == ("selection", "authority_head", "verifier_binding_root")
+    assert tuple(
+        inspect.signature(
+            buyback_spot_shell.verify_zdex_buyback_spot_safety_receipt_shadow_v2
+        ).parameters
+    ) == ("candidate", "authority_head", "receipt_verifier")
+    assert buyback_spot_shell.__all__ == [_BUYBACK_SPOT_MOVED_NAME]
 
 
 def test_shell_modules_own_execution_registry_lock_and_consumer_imports() -> None:
