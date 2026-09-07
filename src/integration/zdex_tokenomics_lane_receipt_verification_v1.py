@@ -14,9 +14,6 @@ marker with no publication, settlement or production authority.
 
 from __future__ import annotations
 
-from ..core.zdex_purchase_burn_receipt_verification_v1 import (
-    ZDEXLaneSuccinctReceiptVerifierV1,
-)
 from ..core.zdex_tokenomics_fee_lane_receipt_verification_v1 import (
     GovernedZDEXFeeAllocationProfileV1,
     ZDEXTokenomicsFeeLaneReceiptCandidateV1,
@@ -32,6 +29,9 @@ from ..core.zdex_tokenomics_lane_receipt_verification_v1 import (
     GovernedZDEXTokenomicsProfileV1,
     ZDEXTokenomicsLaneReceiptCandidateV1,
     prepare_zdex_tokenomics_lane_receipt_v1,
+)
+from .zdex_purchase_burn_receipt_verification_v1 import (
+    ZDEXLaneSuccinctReceiptVerifierV1,
 )
 
 

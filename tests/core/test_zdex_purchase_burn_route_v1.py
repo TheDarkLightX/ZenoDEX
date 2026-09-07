@@ -64,8 +64,6 @@ from src.core.zdex_purchase_burn_receipt_verification_v1 import (
     ZDEXBurnReceiptCandidateV1,
     ZDEXLaneReceiptEnvelopeV1,
     ZDEXPurchaseReceiptCandidateV1,
-    verify_zdex_amm_purchase_receipt_v1,
-    verify_zdex_burn_receipt_v1,
 )
 from src.core.zdex_purchase_burn_route_types_v1 import (
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
@@ -105,6 +103,10 @@ from src.core.zdex_tokenomics_lane_v1 import (
 )
 from src.integration.zdex_fee_allocation_receipt_verification_v1 import (
     verify_zdex_fee_allocation_receipt_v1,
+)
+from src.integration.zdex_purchase_burn_receipt_verification_v1 import (
+    verify_zdex_amm_purchase_receipt_v1,
+    verify_zdex_burn_receipt_v1,
 )
 from src.integration.zdex_tokenomics_lane_receipt_verification_v1 import (
     verify_zdex_tokenomics_fee_lane_receipt_v1,

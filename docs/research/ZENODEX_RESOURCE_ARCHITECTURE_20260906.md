@@ -610,12 +610,13 @@ python3 -B -m pytest -q -p no:cacheprovider tests/integration/test_zdex_fee_allo
 python3 -B -m experiments.v3_fee_allocation_receipt_boundary_v1.render_evidence
 ```
 
-The remaining core receipt owners include the three legacy purchase/burn
-callbacks and their governed wrappers, atomic buyback module/coordinator/route
-verification, buyback Spot safety verification, and the Bound deployment
-registry/backend execution boundary. Their source callers and authority
-dependencies require separate extraction and mounted qualification. A direct
-AST check covers only the inspected declarations and known method calls.
+The subsequent purchase/burn extraction is recorded below. Remaining core
+receipt owners include the shared current-authority helper, atomic buyback
+module/coordinator/route verification, buyback Spot safety verification, and
+the Bound deployment registry/backend execution boundary. Their source callers
+and authority dependencies require separate extraction and mounted
+qualification. A direct AST check covers only the inspected declarations and
+known method calls.
 
 This leaf extraction preserves reference SHADOW behavior and grants no
 publication authority. Recorder callbacks qualify no real proof or measured
@@ -623,6 +624,52 @@ deployment. No Rust implementation, Lean theorem, guest image, wire field,
 policy constant or live release changes here. Finite runtime tables, canonical
 bytes and replay encoding still need refinement to the existing Lean state
 model; callback extraction alone does not discharge that obligation.
+
+### Purchase/burn receipt preparation and owned authority
+
+The [purchase/burn preparation core](../../src/core/zdex_purchase_burn_receipt_preparation_v1.py)
+owns the complete receipt subject for purchase V1, purchase V2 and burn V1.
+It retains all fifteen marker fields, receipt bytes, canonical journal bytes,
+release and occurrence checks, effect recomputation, and V2 price-authority
+checks. The expected image comes from the module release. The existing module
+journal ceiling, including acceptance at equality, remains unchanged.
+
+The [integration shell](../../src/integration/zdex_purchase_burn_receipt_verification_v1.py)
+owns the three plain and three governed verification entry points, the generic
+callback Protocol and the profile-lane adapter. It detaches the prepared
+subject before executing the exact request and constructs the marker from the
+executed copy. The original envelope, candidate and marker class identities
+stay in core. Governed purchase V2 retains its existing outer authority record
+and a leaf whose authority-head and verifier-binding fields remain zero.
+
+Governed calls now own all twelve authority-head coordinates before checked
+use and retain the checked verifier binding root before receipt execution.
+A callback that changes the caller's head therefore cannot relabel the returned
+marker. Exact candidate, head and Bound-verifier type checks retain their
+previous order. Reconstructing a malformed exact head with a valid Bound
+verifier now rejects before the callback; that earlier typed rejection is an
+intentional ownership repair. Generic callbacks still ignore normal return
+values, while Bound verification retains its separate exact-`None` contract
+and its post-callback authority recheck.
+
+The [boundary tests](../../tests/integration/test_zdex_purchase_burn_verifier_boundary_v1.py)
+observe complete fields and roots, exact requests, paired rejection causes,
+journal boundaries, retained aliases and semantic mutations. The four existing
+route/coordinator caller tests retain their bodies and import the shell API.
+The epoch inventory records the remaining shared authority helper explicitly.
+
+```bash
+python3 -B -m pytest -q -p no:cacheprovider tests/integration/test_zdex_purchase_burn_verifier_boundary_v1.py tests/integration/test_economic_epoch_verifier_boundary_v1.py tests/core/test_zdex_purchase_burn_route_v1.py tests/core/test_zdex_purchase_burn_route_v2.py tests/core/test_zdex_atomic_buyback_v1.py tests/core/test_zdex_tokenomics_lane_coordinator_v1.py
+python3 -B -m experiments.v3_purchase_burn_receipt_boundary_v1.render_evidence
+```
+
+This boundary uses reference SHADOW receipts and grants no publication or
+cryptographic authority. Private factories construct data and do not establish
+that a verifier ran. The shared Bound-authority helper remains in the old core
+module for its other consumers. Its registry access, other buyback callbacks,
+whole-path FCIS, runtime/formal refinement and production qualification remain
+open. No wire field, economic constant, Rust guest or existing theorem changes
+in this extraction.
 
 ## Publisher-host compromise and independent enforcement
 

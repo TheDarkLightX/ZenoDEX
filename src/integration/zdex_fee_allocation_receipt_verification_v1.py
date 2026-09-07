@@ -23,7 +23,7 @@ from ..core.zdex_fee_allocation_receipt_verification_v1 import (
     prepare_zdex_fee_allocation_receipt_v1,
     snapshot_prepared_zdex_fee_allocation_receipt_v1,
 )
-from ..core.zdex_purchase_burn_receipt_verification_v1 import (
+from .zdex_purchase_burn_receipt_verification_v1 import (
     ZDEXLaneSuccinctReceiptVerifierV1,
 )
 

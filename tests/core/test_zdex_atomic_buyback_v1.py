@@ -53,9 +53,6 @@ from src.core.zdex_purchase_burn_receipt_verification_v1 import (
     ZDEXLaneReceiptEnvelopeV1,
     ZDEXPurchaseReceiptCandidateV1,
     ZDEXPurchaseReceiptCandidateV2,
-    verify_governed_zdex_amm_purchase_receipt_shadow_v2,
-    verify_governed_zdex_burn_receipt_shadow_v1,
-    verify_zdex_amm_purchase_receipt_v2,
 )
 from src.core.zdex_purchase_burn_route_types_v1 import (
     AMM_POOL_CUSTODY_DOMAIN_V1,
@@ -67,6 +64,11 @@ from src.core.zdex_purchase_burn_route_types_v1 import (
 from src.core.zdex_verified_buyback_spend_v1 import (
     VerifiedZDEXBuybackSpendV1,
     transition_verified_zdex_buyback_spend_shadow_v1,
+)
+from src.integration.zdex_purchase_burn_receipt_verification_v1 import (
+    verify_governed_zdex_amm_purchase_receipt_shadow_v2,
+    verify_governed_zdex_burn_receipt_shadow_v1,
+    verify_zdex_amm_purchase_receipt_v2,
 )
 from tests.core.test_zdex_buyback_spot_safety_receipt_v1 import (
     _Fixture,
@@ -747,7 +749,7 @@ def test_nonempty_consumed_objects_reject_as_exact_noop() -> None:
 
 
 def test_legacy_caller_selected_purchase_witness_cannot_enter_atomic_route() -> None:
-    from src.core.zdex_purchase_burn_receipt_verification_v1 import (
+    from src.integration.zdex_purchase_burn_receipt_verification_v1 import (
         verify_zdex_amm_purchase_receipt_v1,
     )
 
@@ -817,7 +819,7 @@ def test_wrong_burn_witness_rejects_without_exposing_post_state() -> None:
 
 
 def test_legacy_caller_selected_burn_witness_cannot_close_obligation() -> None:
-    from src.core.zdex_purchase_burn_receipt_verification_v1 import (
+    from src.integration.zdex_purchase_burn_receipt_verification_v1 import (
         verify_zdex_burn_receipt_v1,
     )
 

@@ -19,6 +19,8 @@ import pytest
 import src.core.economic_initial_state_publisher_verification_v1 as initial_core
 import src.core.global_economic_proof_v1 as proof
 import src.core.zdex_fee_allocation_receipt_verification_v1 as fee_leaf_core
+import src.core.zdex_purchase_burn_receipt_preparation_v1 as purchase_burn_prep
+import src.core.zdex_purchase_burn_receipt_verification_v1 as purchase_burn_core
 import src.integration.economic_initial_state_publisher_verification_v1 as initial_shell
 import src.integration.global_economic_epoch_verification_v1 as shell
 import src.integration.zdex_fee_allocation_receipt_verification_v1 as fee_leaf_shell
@@ -176,8 +178,8 @@ _PUBLISHER_OBJECT_FIELD_NAMES = frozenset(
 _LEGACY_CORE_CALLBACK_DEBT = (
     (
         "src/core/zdex_purchase_burn_receipt_verification_v1.py",
-        "receipt_verifier.verify_succinct_receipt(",
-        "purchase V1/V2 and burn V1 callbacks plus governed wrapper paths",
+        "receipt_verifier.require_binding(",
+        "shared _require_current_shadow_authority_v1 reads the Bound verifier registry",
     ),
     (
         "src/core/zdex_atomic_buyback_receipt_verification_v2.py",
@@ -222,6 +224,28 @@ _CLOSED_FEE_LEAF_CALLBACK_CORE_MODULES = (
     "src/core/zdex_fee_allocation_receipt_verification_v1.py",
 )
 _FEE_LEAF_SHELL_MODULE = "src/integration/zdex_fee_allocation_receipt_verification_v1.py"
+# Core callback debt closed by the purchase V1/V2 and burn V1 extraction.  The former
+# row was ("src/core/zdex_purchase_burn_receipt_verification_v1.py",
+#  "receipt_verifier.verify_succinct_receipt(",
+#  "purchase V1/V2 and burn V1 callbacks plus governed wrapper paths").  The old module
+# keeps only the shared Bound-authority helper, which stays an open row above.
+_CLOSED_PURCHASE_BURN_PREPARATION_CORE_MODULES = (
+    "src/core/zdex_purchase_burn_receipt_preparation_v1.py",
+)
+_PURCHASE_BURN_LEGACY_CORE_MODULE = "src/core/zdex_purchase_burn_receipt_verification_v1.py"
+_PURCHASE_BURN_SHELL_MODULE = "src/integration/zdex_purchase_burn_receipt_verification_v1.py"
+_PURCHASE_BURN_MOVED_NAMES = frozenset(
+    {
+        "verify_zdex_amm_purchase_receipt_v1",
+        "verify_zdex_amm_purchase_receipt_v2",
+        "verify_zdex_burn_receipt_v1",
+        "verify_governed_zdex_amm_purchase_receipt_shadow_v1",
+        "verify_governed_zdex_amm_purchase_receipt_shadow_v2",
+        "verify_governed_zdex_burn_receipt_shadow_v1",
+        "ZDEXLaneSuccinctReceiptVerifierV1",
+        "_ProfileLaneReceiptVerifierV1",
+    }
+)
 
 
 def _digest(data: bytes) -> str:
@@ -1441,6 +1465,39 @@ def test_closed_fee_leaf_callback_debt_stays_a_pure_core_boundary() -> None:
     assert prepared.expected_image_id == governed._fields.module_release.guest_image_id
     assert prepared.receipt_bytes == candidate.receipt.receipt_bytes
     assert prepared.expected_journal_bytes == canonical_global_bytes_v1(candidate.journal)
+
+
+def test_closed_purchase_burn_callback_debt_stays_a_pure_preparation_boundary() -> None:
+    for relative in _CLOSED_PURCHASE_BURN_PREPARATION_CORE_MODULES:
+        _assert_closed_callback_core_module(relative)
+    shell_calls = _call_names(_parse(_PURCHASE_BURN_SHELL_MODULE))
+    assert shell_calls.count("verify_succinct_receipt") == 1
+    assert shell_calls.count("verify_profile_lane_receipt") == 1
+    assert not any(
+        name.startswith("..") and not name.startswith("..core")
+        for name in _import_targets(_parse(_PURCHASE_BURN_SHELL_MODULE))
+    )
+    # The old core module no longer owns any receipt callback; its remaining Bound
+    # registry read is the open debt row named above, not a closed one.
+    legacy_text = (REPO_ROOT / _PURCHASE_BURN_LEGACY_CORE_MODULE).read_text(encoding="utf-8")
+    assert "receipt_verifier.verify_succinct_receipt(" not in legacy_text
+    assert "ZDEXLaneSuccinctReceiptVerifierV1" not in legacy_text
+    assert not (set(_call_names(_parse(_PURCHASE_BURN_LEGACY_CORE_MODULE))) & _VERIFIER_CALL_NAMES)
+    assert "receipt_verifier.require_binding(" in legacy_text
+    assert not any(hasattr(purchase_burn_core, name) for name in _PURCHASE_BURN_MOVED_NAMES)
+    assert not any(name.startswith("verify_") for name in purchase_burn_core.__all__)
+    assert not any(name.startswith("verify_") for name in purchase_burn_prep.__all__)
+    assert tuple(
+        inspect.signature(purchase_burn_prep.prepare_zdex_amm_purchase_receipt_v1).parameters
+    ) == ("candidate",)
+    for relative in (_FEE_LEAF_SHELL_MODULE, _TOKENOMICS_SHELL_MODULE):
+        protocol_imports = [
+            (node.level, node.module)
+            for node in ast.walk(_parse(relative))
+            if isinstance(node, ast.ImportFrom)
+            and any(alias.name == "ZDEXLaneSuccinctReceiptVerifierV1" for alias in node.names)
+        ]
+        assert protocol_imports == [(1, "zdex_purchase_burn_receipt_verification_v1")], relative
 
 
 def test_shell_modules_own_execution_registry_lock_and_consumer_imports() -> None:

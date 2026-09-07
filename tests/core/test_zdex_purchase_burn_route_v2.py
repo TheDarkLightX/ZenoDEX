@@ -53,8 +53,6 @@ from src.core.zdex_purchase_burn_receipt_verification_v1 import (
     ZDEXBurnReceiptCandidateV1,
     ZDEXLaneReceiptEnvelopeV1,
     ZDEXPurchaseReceiptCandidateV2,
-    verify_governed_zdex_amm_purchase_receipt_shadow_v2,
-    verify_governed_zdex_burn_receipt_shadow_v1,
 )
 from src.core.zdex_purchase_burn_route_types_v1 import (
     AMM_POOL_CUSTODY_DOMAIN_V1,
@@ -67,6 +65,10 @@ from src.core.zdex_purchase_burn_route_types_v1 import (
 )
 from src.core.zdex_purchase_burn_route_v1 import ZDEXPurchaseBurnRouteRejectedV1
 from src.core.zdex_purchase_burn_route_v2 import compose_zdex_purchase_burn_route_v2
+from src.integration.zdex_purchase_burn_receipt_verification_v1 import (
+    verify_governed_zdex_amm_purchase_receipt_shadow_v2,
+    verify_governed_zdex_burn_receipt_shadow_v1,
+)
 from tests.core.test_zdex_buyback_spot_safety_receipt_v1 import (
     _VERIFIER_ARTIFACT,
     _VERIFIER_EVIDENCE,

@@ -1,10 +1,23 @@
-"""Receipt admission for the two leaf outputs of ZDEX purchase-to-burn."""
+"""Candidates, markers and pure checks for the two leaf outputs of ZDEX purchase-to-burn.
+
+Receipt execution lives in
+``src.integration.zdex_purchase_burn_receipt_verification_v1``; pure
+preparation of the exact execution subject lives in
+``zdex_purchase_burn_receipt_preparation_v1``.  This module keeps the
+candidate, envelope, marker and marker-field identities plus the pure
+validation and snapshot helpers.
+
+``_require_current_shadow_authority_v1`` remains here as explicit open core
+debt: it reads the Bound verifier registry and is shared with the atomic
+buyback receipt paths.  No purity claim is made for this module or for the
+transitive core.
+"""
 
 from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, replace
-from typing import Final, Protocol
+from typing import Final
 
 from .economic_receipt_verifier_deployment_v1 import BoundEconomicReceiptVerifierV1
 from .economic_receipt_verifier_registry_v1 import (
@@ -13,9 +26,6 @@ from .economic_receipt_verifier_registry_v1 import (
 from .global_economic_authority_head_v1 import (
     GlobalEconomicAuthorityHeadV1,
     GlobalEconomicAuthorityStatusV1,
-)
-from .global_economic_capability_profile_binding_v1 import (
-    snapshot_economic_policy_registry_v1,
 )
 from .global_economic_profile_snapshot_v1 import (
     _snapshot_lane_release_v1,
@@ -31,7 +41,6 @@ from .global_economic_refinement_snapshot_v1 import (
 )
 from .global_settlement_types_v1 import (
     ZERO_ROOT_V1,
-    EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
     GlobalEconomicEffectPlanV1,
     GlobalEconomicStateV1,
@@ -44,34 +53,20 @@ from .global_settlement_types_v1 import (
     canonical_global_bytes_v1,
     hash_global_v1,
 )
-from .zdex_buyback_price_authority_v1 import (
-    ZDEXBuybackPriceAuthorityCandidateV1,
-    verify_zdex_buyback_price_authority_v1,
-)
 from .zdex_buyback_price_safety_v1 import (
-    ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
     ZDEXBuybackOraclePriceOccurrenceV1,
     ZDEXBuybackPriceSafetyPolicyV1,
-)
-from .zdex_fee_allocation_types_v1 import FEE_BUYBACK_PRINCIPAL_V1
-from .zdex_purchase_burn_effects_v1 import (
-    burn_effects_v1,
-    purchase_effects_v1,
-    purchase_effects_v2,
 )
 from .zdex_purchase_burn_route_types_v1 import (
     AMM_PURCHASE_OUTPUT_ROLE_V1,
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
     ZDEX_BURN_INPUT_ROLE_V1,
-    ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
     ZDEXAMMPurchaseJournalV1,
     ZDEXAMMPurchaseJournalV2,
     ZDEXBurnJournalV1,
     ZDEXBuybackExecutionPolicyV1,
     zdex_amm_purchase_port_schema_root_v1,
     zdex_burn_port_schema_root_v1,
-    zdex_occurrence_burn_port_v1,
-    zdex_pool_reserve_principal_v1,
 )
 
 VERIFIED_ZDEX_AMM_PURCHASE_SCHEMA_V1: Final = "zenodex/verified-zdex-amm-purchase/v1"
@@ -84,16 +79,6 @@ _VERIFIED_PURCHASE_TOKEN = object()
 _VERIFIED_PURCHASE_V2_TOKEN = object()
 _GOVERNED_VERIFIED_PURCHASE_V2_TOKEN = object()
 _VERIFIED_BURN_TOKEN = object()
-
-
-class ZDEXLaneSuccinctReceiptVerifierV1(Protocol):
-    def verify_succinct_receipt(
-        self,
-        receipt_bytes: bytes,
-        *,
-        expected_image_id: str,
-        expected_journal_bytes: bytes,
-    ) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -657,287 +642,6 @@ def _receipt_digests(
     )
 
 
-def verify_zdex_amm_purchase_receipt_v1(
-    candidate: ZDEXPurchaseReceiptCandidateV1,
-    receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1,
-) -> VerifiedZDEXAMMPurchaseV1:
-    """Authenticate exact AMM output under its release-selected shadow image."""
-
-    owned = _snapshot_purchase_candidate_v1(candidate)
-    _require_release_and_occurrence(
-        owned.route_release,
-        owned.module_release,
-        owned.occurrence,
-        lane_id=LaneIdV1.SPOT_LIQUIDITY,
-        route_index=0,
-    )
-    journal = owned.journal
-    occurrence = owned.occurrence
-    bindings = (
-        (journal.chain_id, occurrence.chain_id, "chain"),
-        (journal.deployment_root, occurrence.deployment_root, "deployment"),
-        (journal.profile_root, occurrence.profile_root, "profile"),
-        (journal.route_release_id, owned.route_release.route_release_id, "route"),
-        (journal.command_occurrence_id, occurrence.occurrence_id, "occurrence"),
-        (journal.spot_module_release_id, owned.module_release.release_id, "module release"),
-        (
-            journal.issue_burn_policy_root,
-            owned.route_release.issue_burn_policy_root,
-            "issue/burn policy",
-        ),
-        (journal.effect_plan_root, owned.effects.effect_plan_root, "effect plan"),
-    )
-    for actual, expected, label in bindings:
-        if actual != expected:
-            raise ValueError(f"ZDEX purchase {label} mismatch")
-    if owned.effects != purchase_effects_v1(journal):
-        raise ValueError("ZDEX purchase effect rows or conservation mismatch")
-    journal_bytes, journal_digest, receipt_digest = _receipt_digests(
-        journal,
-        owned.receipt,
-    )
-    if len(journal_bytes) > owned.module_release.max_journal_bytes:
-        raise ValueError("ZDEX purchase journal exceeds release byte ceiling")
-    receipt_verifier.verify_succinct_receipt(
-        owned.receipt.receipt_bytes,
-        expected_image_id=owned.module_release.guest_image_id,
-        expected_journal_bytes=journal_bytes,
-    )
-    return VerifiedZDEXAMMPurchaseV1(
-        _VERIFIED_PURCHASE_TOKEN,
-        _VerifiedZDEXLaneFieldsV1(
-            owned.route_release.route_release_id,
-            owned.module_release.release_id,
-            occurrence.occurrence_id,
-            occurrence.profile_root,
-            journal.writer_epoch,
-            journal.journal_root,
-            journal_digest,
-            owned.effects.effect_plan_root,
-            owned.module_release.guest_image_id,
-            receipt_digest,
-            owned.receipt.receipt_kind,
-            ZERO_ROOT_V1,
-            ZERO_ROOT_V1,
-        ),
-    )
-
-
-def verify_zdex_amm_purchase_receipt_v2(
-    candidate: ZDEXPurchaseReceiptCandidateV2,
-    receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1,
-) -> VerifiedZDEXAMMPurchaseV2:
-    """Authenticate a purchase whose price inputs have committed authority."""
-
-    owned = _snapshot_purchase_candidate_v2(candidate)
-    _require_release_and_occurrence(
-        owned.route_release,
-        owned.module_release,
-        owned.occurrence,
-        lane_id=LaneIdV1.SPOT_LIQUIDITY,
-        route_index=0,
-    )
-    journal = owned.journal
-    occurrence = owned.occurrence
-    execution_policy_root = owned.execution_policy.policy_root
-    price_policy_root = owned.price_policy.policy_root
-    price_occurrence_root = owned.price_occurrence.occurrence_root
-    expected_quote_pool = zdex_pool_reserve_principal_v1(
-        pool_id=owned.execution_policy.pool_id,
-        asset_id=owned.execution_policy.quote_asset_id,
-    )
-    expected_zdex_pool = zdex_pool_reserve_principal_v1(
-        pool_id=owned.execution_policy.pool_id,
-        asset_id=owned.execution_policy.zdex_asset_id,
-    )
-    expected_burn_bucket = zdex_occurrence_burn_port_v1(
-        profile_root=occurrence.profile_root,
-        route_release_id=owned.route_release.route_release_id,
-        command_occurrence_id=occurrence.occurrence_id,
-    )
-    if any(
-        (
-            journal.chain_id != occurrence.chain_id,
-            journal.deployment_root != occurrence.deployment_root,
-            journal.profile_root != occurrence.profile_root,
-            journal.route_release_id != owned.route_release.route_release_id,
-            journal.command_occurrence_id != occurrence.occurrence_id,
-            journal.spot_module_release_id != owned.module_release.release_id,
-            journal.issue_burn_policy_root
-            != owned.route_release.issue_burn_policy_root,
-            journal.buyback_execution_policy_root != execution_policy_root,
-            journal.price_safety_policy_root != price_policy_root,
-            journal.oracle_occurrence_root != price_occurrence_root,
-            journal.oracle_observed_height
-            != owned.price_occurrence.observed_height,
-            journal.oracle_quote_numerator_atoms
-            != owned.price_occurrence.quote_numerator_atoms,
-            journal.oracle_zdex_denominator_atoms
-            != owned.price_occurrence.zdex_denominator_atoms,
-            journal.quote_asset_id != owned.execution_policy.quote_asset_id,
-            journal.zdex_asset_id != owned.execution_policy.zdex_asset_id,
-            journal.quote_source_bucket_id != FEE_BUYBACK_PRINCIPAL_V1,
-            journal.quote_pool_bucket_id != expected_quote_pool,
-            journal.zdex_pool_bucket_id != expected_zdex_pool,
-            journal.burn_bucket_id != expected_burn_bucket,
-            journal.effect_plan_root != owned.effects.effect_plan_root,
-            owned.effects != purchase_effects_v2(journal),
-        )
-    ):
-        raise ValueError("ZDEX purchase V2 journal or effects mismatch")
-    price_authority = verify_zdex_buyback_price_authority_v1(
-        ZDEXBuybackPriceAuthorityCandidateV1(
-            pre_state=owned.pre_state,
-            route=owned.route_release,
-            occurrence=occurrence,
-            execution_policy=owned.execution_policy,
-            price_policy=owned.price_policy,
-            price_occurrence=owned.price_occurrence,
-            route_safe_quote_limit_atoms=journal.route_safe_quote_limit_atoms,
-            minimum_output_atoms=journal.minimum_output_atoms,
-            expected_quote_reserve_atoms=journal.quote_pool_pre_atoms,
-            expected_zdex_reserve_atoms=journal.zdex_pool_pre_atoms,
-            quote_amount_in_atoms=journal.quote_amount_in_atoms,
-            purchased_zdex_atoms=journal.purchased_zdex_atoms,
-        )
-    )
-    journal_bytes, journal_digest, receipt_digest = _receipt_digests(
-        journal,
-        owned.receipt,
-    )
-    if len(journal_bytes) > owned.module_release.max_journal_bytes:
-        raise ValueError("ZDEX purchase V2 journal exceeds release byte ceiling")
-    receipt_verifier.verify_succinct_receipt(
-        owned.receipt.receipt_bytes,
-        expected_image_id=owned.module_release.guest_image_id,
-        expected_journal_bytes=journal_bytes,
-    )
-    return VerifiedZDEXAMMPurchaseV2(
-        _VERIFIED_PURCHASE_V2_TOKEN,
-        _VerifiedZDEXLaneFieldsV1(
-            route_release_id=owned.route_release.route_release_id,
-            module_release_id=owned.module_release.release_id,
-            command_occurrence_id=occurrence.occurrence_id,
-            profile_root=occurrence.profile_root,
-            writer_epoch=journal.writer_epoch,
-            journal_root=journal.journal_root,
-            journal_digest=journal_digest,
-            effect_plan_root=owned.effects.effect_plan_root,
-            expected_image_id=owned.module_release.guest_image_id,
-            receipt_digest=receipt_digest,
-            receipt_kind=owned.receipt.receipt_kind,
-            authority_head_root=ZERO_ROOT_V1,
-            verifier_binding_root=ZERO_ROOT_V1,
-            price_authority_root=price_authority.authority_root,
-            price_safety_policy_root=price_policy_root,
-        ),
-    )
-
-
-def verify_zdex_burn_receipt_v1(
-    candidate: ZDEXBurnReceiptCandidateV1,
-    receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1,
-) -> VerifiedZDEXBurnV1:
-    """Authenticate exact burn output under its release-selected shadow image."""
-
-    owned = _snapshot_burn_candidate_v1(candidate)
-    _require_release_and_occurrence(
-        owned.route_release,
-        owned.module_release,
-        owned.occurrence,
-        lane_id=LaneIdV1.ZDEX_TOKENOMICS,
-        route_index=1,
-    )
-    journal = owned.journal
-    occurrence = owned.occurrence
-    bindings = (
-        (journal.chain_id, occurrence.chain_id, "chain"),
-        (journal.deployment_root, occurrence.deployment_root, "deployment"),
-        (journal.profile_root, occurrence.profile_root, "profile"),
-        (journal.route_release_id, owned.route_release.route_release_id, "route"),
-        (journal.command_occurrence_id, occurrence.occurrence_id, "occurrence"),
-        (
-            journal.tokenomics_module_release_id,
-            owned.module_release.release_id,
-            "module release",
-        ),
-        (
-            journal.issue_burn_policy_root,
-            owned.route_release.issue_burn_policy_root,
-            "issue/burn policy",
-        ),
-        (journal.effect_plan_root, owned.effects.effect_plan_root, "effect plan"),
-    )
-    for actual, expected, label in bindings:
-        if actual != expected:
-            raise ValueError(f"ZDEX burn {label} mismatch")
-    if owned.effects != burn_effects_v1(journal):
-        raise ValueError("ZDEX burn effect rows or conservation mismatch")
-    journal_bytes, journal_digest, receipt_digest = _receipt_digests(
-        journal,
-        owned.receipt,
-    )
-    if len(journal_bytes) > owned.module_release.max_journal_bytes:
-        raise ValueError("ZDEX burn journal exceeds release byte ceiling")
-    receipt_verifier.verify_succinct_receipt(
-        owned.receipt.receipt_bytes,
-        expected_image_id=owned.module_release.guest_image_id,
-        expected_journal_bytes=journal_bytes,
-    )
-    return VerifiedZDEXBurnV1(
-        _VERIFIED_BURN_TOKEN,
-        _VerifiedZDEXLaneFieldsV1(
-            owned.route_release.route_release_id,
-            owned.module_release.release_id,
-            occurrence.occurrence_id,
-            occurrence.profile_root,
-            journal.writer_epoch,
-            journal.journal_root,
-            journal_digest,
-            owned.effects.effect_plan_root,
-            owned.module_release.guest_image_id,
-            receipt_digest,
-            owned.receipt.receipt_kind,
-            ZERO_ROOT_V1,
-            ZERO_ROOT_V1,
-        ),
-    )
-
-
-class _ProfileLaneReceiptVerifierV1:
-    """Narrow adapter that removes caller-selected lane image authority."""
-
-    __slots__ = ("_bound", "_profile", "_lane_id", "_module_release_id")
-
-    def __init__(
-        self,
-        bound: BoundEconomicReceiptVerifierV1,
-        profile: EconomicProfileSnapshotV1,
-        lane_id: LaneIdV1,
-        module_release_id: str,
-    ) -> None:
-        self._bound = bound
-        self._profile = profile
-        self._lane_id = lane_id
-        self._module_release_id = module_release_id
-
-    def verify_succinct_receipt(
-        self,
-        receipt_bytes: bytes,
-        *,
-        expected_image_id: str,
-        expected_journal_bytes: bytes,
-    ) -> None:
-        self._bound.verify_profile_lane_receipt(
-            receipt_bytes,
-            profile=self._profile,
-            lane_id=self._lane_id,
-            expected_module_release_id=self._module_release_id,
-            expected_image_id=expected_image_id,
-            expected_journal_bytes=expected_journal_bytes,
-        )
-
-
 def _require_current_shadow_authority_v1(
     *,
     profile: EconomicProfileSnapshotV1,
@@ -986,168 +690,6 @@ def _require_current_shadow_authority_v1(
     return owned_profile
 
 
-def verify_governed_zdex_amm_purchase_receipt_shadow_v1(
-    candidate: ZDEXPurchaseReceiptCandidateV1,
-    *,
-    profile: EconomicProfileSnapshotV1,
-    authority_head: GlobalEconomicAuthorityHeadV1,
-    receipt_verifier: BoundEconomicReceiptVerifierV1,
-) -> VerifiedZDEXAMMPurchaseV1:
-    """Verify a purchase under the current profile-selected Spot image."""
-
-    owned = _snapshot_purchase_candidate_v1(candidate)
-    owned_profile = _require_current_shadow_authority_v1(
-        profile=profile,
-        route=owned.route_release,
-        release=owned.module_release,
-        occurrence=owned.occurrence,
-        lane_id=LaneIdV1.SPOT_LIQUIDITY,
-        authority_head=authority_head,
-        receipt_verifier=receipt_verifier,
-    )
-    if owned.journal.writer_epoch != owned_profile.authority_epoch:
-        raise ValueError("ZDEX purchase receipt writer epoch is outside the profile")
-    verified = verify_zdex_amm_purchase_receipt_v1(
-        ZDEXPurchaseReceiptCandidateV1(
-            owned.route_release,
-            owned.module_release,
-            owned.occurrence,
-            owned.journal,
-            owned.effects,
-            owned.receipt,
-        ),
-        _ProfileLaneReceiptVerifierV1(
-            receipt_verifier,
-            owned_profile,
-            LaneIdV1.SPOT_LIQUIDITY,
-            owned.module_release.release_id,
-        ),
-    )
-    return VerifiedZDEXAMMPurchaseV1(
-        _VERIFIED_PURCHASE_TOKEN,
-        replace(
-            verified._fields,
-            authority_head_root=authority_head.authority_root,
-            verifier_binding_root=receipt_verifier.binding_root,
-        ),
-    )
-
-
-def verify_governed_zdex_amm_purchase_receipt_shadow_v2(
-    candidate: ZDEXPurchaseReceiptCandidateV2,
-    *,
-    profile: EconomicProfileSnapshotV1,
-    policy_registry: EconomicPolicyRegistryV1,
-    authority_head: GlobalEconomicAuthorityHeadV1,
-    receipt_verifier: BoundEconomicReceiptVerifierV1,
-) -> GovernedVerifiedZDEXAMMPurchaseV2:
-    """Verify an authority-bound purchase under the selected Spot image."""
-
-    owned = _snapshot_purchase_candidate_v2(candidate)
-    owned_profile = _require_current_shadow_authority_v1(
-        profile=profile,
-        route=owned.route_release,
-        release=owned.module_release,
-        occurrence=owned.occurrence,
-        lane_id=LaneIdV1.SPOT_LIQUIDITY,
-        authority_head=authority_head,
-        receipt_verifier=receipt_verifier,
-    )
-    owned_policy_registry = snapshot_economic_policy_registry_v1(policy_registry)
-    if owned_policy_registry.registry_root != owned_profile.policy_registry_root:
-        raise ValueError("ZDEX purchase V2 economic policy registry mismatch")
-    execution_binding = owned_policy_registry.require_binding(
-        policy_kind=ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
-        command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
-    )
-    price_binding = owned_policy_registry.require_binding(
-        policy_kind=ZDEX_BUYBACK_PRICE_SAFETY_POLICY_KIND_V1,
-        command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
-    )
-    if execution_binding.policy_root != owned.execution_policy.policy_root:
-        raise ValueError("ZDEX purchase V2 execution policy binding mismatch")
-    if price_binding.policy_root != owned.price_policy.policy_root:
-        raise ValueError("ZDEX purchase V2 price policy binding mismatch")
-    if owned.journal.writer_epoch != owned_profile.authority_epoch:
-        raise ValueError("ZDEX purchase V2 receipt writer epoch is outside the profile")
-    verified = verify_zdex_amm_purchase_receipt_v2(
-        ZDEXPurchaseReceiptCandidateV2(
-            route_release=owned.route_release,
-            module_release=owned.module_release,
-            occurrence=owned.occurrence,
-            pre_state=owned.pre_state,
-            execution_policy=owned.execution_policy,
-            price_policy=owned.price_policy,
-            price_occurrence=owned.price_occurrence,
-            journal=owned.journal,
-            effects=owned.effects,
-            receipt=owned.receipt,
-        ),
-        _ProfileLaneReceiptVerifierV1(
-            receipt_verifier,
-            owned_profile,
-            LaneIdV1.SPOT_LIQUIDITY,
-            owned.module_release.release_id,
-        ),
-    )
-    return GovernedVerifiedZDEXAMMPurchaseV2(
-        _GOVERNED_VERIFIED_PURCHASE_V2_TOKEN,
-        _GovernedVerifiedZDEXAMMPurchaseFieldsV2(
-            verified_leaf=verified,
-            authority_head_root=authority_head.authority_root,
-            verifier_binding_root=receipt_verifier.binding_root,
-            policy_registry_root=owned_policy_registry.registry_root,
-        ),
-    )
-
-
-def verify_governed_zdex_burn_receipt_shadow_v1(
-    candidate: ZDEXBurnReceiptCandidateV1,
-    *,
-    profile: EconomicProfileSnapshotV1,
-    authority_head: GlobalEconomicAuthorityHeadV1,
-    receipt_verifier: BoundEconomicReceiptVerifierV1,
-) -> VerifiedZDEXBurnV1:
-    """Verify a burn under the current profile-selected tokenomics image."""
-
-    owned = _snapshot_burn_candidate_v1(candidate)
-    owned_profile = _require_current_shadow_authority_v1(
-        profile=profile,
-        route=owned.route_release,
-        release=owned.module_release,
-        occurrence=owned.occurrence,
-        lane_id=LaneIdV1.ZDEX_TOKENOMICS,
-        authority_head=authority_head,
-        receipt_verifier=receipt_verifier,
-    )
-    if owned.journal.writer_epoch != owned_profile.authority_epoch:
-        raise ValueError("ZDEX burn receipt writer epoch is outside the profile")
-    verified = verify_zdex_burn_receipt_v1(
-        ZDEXBurnReceiptCandidateV1(
-            owned.route_release,
-            owned.module_release,
-            owned.occurrence,
-            owned.journal,
-            owned.effects,
-            owned.receipt,
-        ),
-        _ProfileLaneReceiptVerifierV1(
-            receipt_verifier,
-            owned_profile,
-            LaneIdV1.ZDEX_TOKENOMICS,
-            owned.module_release.release_id,
-        ),
-    )
-    return VerifiedZDEXBurnV1(
-        _VERIFIED_BURN_TOKEN,
-        replace(
-            verified._fields,
-            authority_head_root=authority_head.authority_root,
-            verifier_binding_root=receipt_verifier.binding_root,
-        ),
-    )
-
-
 __all__ = [
     "GOVERNED_VERIFIED_ZDEX_AMM_PURCHASE_SCHEMA_V2",
     "VERIFIED_ZDEX_AMM_PURCHASE_SCHEMA_V1",
@@ -1159,13 +701,6 @@ __all__ = [
     "VerifiedZDEXBurnV1",
     "ZDEXBurnReceiptCandidateV1",
     "ZDEXLaneReceiptEnvelopeV1",
-    "ZDEXLaneSuccinctReceiptVerifierV1",
     "ZDEXPurchaseReceiptCandidateV1",
     "ZDEXPurchaseReceiptCandidateV2",
-    "verify_zdex_amm_purchase_receipt_v1",
-    "verify_zdex_amm_purchase_receipt_v2",
-    "verify_zdex_burn_receipt_v1",
-    "verify_governed_zdex_amm_purchase_receipt_shadow_v1",
-    "verify_governed_zdex_amm_purchase_receipt_shadow_v2",
-    "verify_governed_zdex_burn_receipt_shadow_v1",
 ]
