@@ -1,18 +1,23 @@
-"""Release-selected receipt admission for one governed command route.
+"""Prepare release-selected receipt requests for one governed command route.
 
 The pure boundary consumes the exact ordered lane journals and opaque
-coordinator-verified lane witnesses selected by the active route. It delegates
-cryptographic verification of the canonical route journal to a verifier port.
+coordinator-verified lane witnesses selected by the active route and prepares
+the exact canonical route request that one measured integration port executes.
+Only :func:`bind_verified_route_composition_receipt_v1` can mint the final
+:class:`VerifiedRouteCompositionV1`, and only from exact execution evidence
+over the complete prepared subject.
 
-The resulting witness is only an input to epoch recursion. It grants no epoch,
-commit, settlement, migration, publication, or production authority.
+This module does not select or authenticate a verifier implementation or
+execute the guest verifier. The resulting witness is only an input to epoch
+recursion. It grants no epoch, commit, settlement, migration, publication, or
+production authority.
 """
 
 from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import Final, Protocol
+from typing import Final
 
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import (
@@ -22,15 +27,19 @@ from .global_economic_proof_v1 import (
     RouteCompositionJournalV1,
 )
 from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
     _snapshot_lane_journal_v1,
     _snapshot_occurrence_v1,
     _snapshot_route_journal_v1,
 )
 from .global_settlement_types_v1 import (
+    MAX_ROUTE_MODULES_V1,
+    MAX_U64_V1,
     EconomicProfileSnapshotV1,
     LaneIdV1,
     ProfileStatusV1,
     RouteReleaseV1,
+    _require_root,
     canonical_global_bytes_v1,
     hash_global_v1,
 )
@@ -42,18 +51,8 @@ from .lane_composition_receipt_verification_v1 import (
 VERIFIED_ROUTE_COMPOSITION_SCHEMA_V1: Final = "zenodex/verified-route-composition/v1"
 ROUTE_COMPOSITION_ASSUMPTION_SCHEMA_V1: Final = "zenodex/route-composition-assumption/v1"
 _VERIFIED_ROUTE_COMPOSITION_TOKEN = object()
-
-
-class RouteCompositionSuccinctReceiptVerifierV1(Protocol):
-    """Port implemented by the route-release-selected verifier."""
-
-    def verify_succinct_receipt(
-        self,
-        receipt_bytes: bytes,
-        *,
-        expected_image_id: str,
-        expected_journal_bytes: bytes,
-    ) -> None: ...
+_PREPARED_ROUTE_COMPOSITION_RECEIPT_TOKEN_V1 = object()
+_VERIFIED_ROUTE_COMPOSITION_RECEIPT_EXECUTION_TOKEN_V1 = object()
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,7 +325,7 @@ def _snapshot_verified_lane_v1(
 def _snapshot_route_composition_candidate_v1(
     candidate: RouteCompositionReceiptCandidateV1,
 ) -> _RouteCompositionReceiptSnapshotV1:
-    """Own and revalidate every value read across the verifier callback."""
+    """Own and revalidate every value read before the prepared subject is fixed."""
 
     if type(candidate) is not RouteCompositionReceiptCandidateV1:
         raise TypeError("route composition receipt candidate must be exact typed data")
@@ -493,11 +492,327 @@ def _require_exact_route_composition_binding_v1(
     return route
 
 
-def verify_route_composition_receipt_v1(
-    candidate: RouteCompositionReceiptCandidateV1,
-    receipt_verifier: RouteCompositionSuccinctReceiptVerifierV1,
+@dataclass(frozen=True, slots=True)
+class _PreparedRouteCompositionReceiptFieldsV1:
+    """The complete prepared subject: exact final witness fields plus request bytes.
+
+    The port-facing coordinates are the witness fields themselves, so no
+    duplicated request coordinate can disagree with the minted witness.
+    """
+
+    route_fields: _VerifiedRouteCompositionFieldsV1
+    receipt_bytes: bytes
+    expected_journal_bytes: bytes
+
+
+# Old entry-point domains, each fixed by an actual upstream validator on the path the
+# entry point already walked (hash provenance establishes nothing; hash_global_v1 and
+# sha256 outputs are canonical 32-byte values that may be zero):
+# - profile_id: EconomicProfileSnapshotV1.__post_init__ "economic profile id" (nonzero).
+# - route_release_id: RouteReleaseV1.__post_init__ "route release id" (nonzero).
+# - command_occurrence_id: exact bindings to route_journal.command_occurrence_id
+#   (RouteCompositionJournalV1.__post_init__, nonzero; its only allow_zero field is
+#   terminal_obligations_root) and to every consumed lane witness
+#   (_VerifiedLaneCompositionSnapshotV1.__post_init__, nonzero).
+# - expected_image_id: RouteReleaseV1.__post_init__ "route guest_image_id" (nonzero).
+# - ordered_lane_journal_roots (checked per lane below): exact bindings to
+#   route_journal.ordered_lane_journal_roots (RouteCompositionJournalV1.__post_init__,
+#   each "route composition lane journal[i]" nonzero) and to each lane witness
+#   lane_journal_root (_VerifiedLaneCompositionSnapshotV1.__post_init__, nonzero).
+_PREPARED_ROUTE_COMPOSITION_NONZERO_ROOT_FIELDS_V1: Final = (
+    "profile_id",
+    "route_release_id",
+    "command_occurrence_id",
+    "expected_image_id",
+)
+# No pre-existing admission check constrains these, so the prepared guard permits zero
+# exactly as the old entry point did: route_journal_root
+# (RouteCompositionJournalV1.journal_root), route_journal_digest, receipt_digest, and per
+# lane the ordered_lane_binding_roots (_VerifiedLaneCompositionSnapshotV1.binding_root).
+# The assumption root and epoch consumers keep their own unchanged nonzero rules.
+_PREPARED_ROUTE_COMPOSITION_ZERO_PERMITTED_ROOT_FIELDS_V1: Final = (
+    "route_journal_root",
+    "route_journal_digest",
+    "receipt_digest",
+)
+_PREPARED_ROUTE_COMPOSITION_TUPLE_FIELDS_V1: Final = frozenset(
+    {"ordered_lane_ids", "ordered_lane_binding_roots", "ordered_lane_journal_roots"}
+)
+
+
+def _copy_verified_route_composition_fields_v1(
+    fields: _VerifiedRouteCompositionFieldsV1,
+) -> _VerifiedRouteCompositionFieldsV1:
+    return _VerifiedRouteCompositionFieldsV1(
+        fields.profile_id,
+        fields.route_release_id,
+        fields.command_occurrence_id,
+        fields.writer_epoch,
+        tuple(fields.ordered_lane_ids),
+        tuple(fields.ordered_lane_binding_roots),
+        tuple(fields.ordered_lane_journal_roots),
+        fields.route_journal_root,
+        fields.route_journal_digest,
+        fields.expected_image_id,
+        fields.receipt_digest,
+        fields.receipt_kind,
+    )
+
+
+def _require_prepared_route_lane_vectors_v1(
+    fields: _VerifiedRouteCompositionFieldsV1,
+) -> None:
+    # The route release admits one to MAX_ROUTE_MODULES_V1 distinct lanes; the
+    # three ordered vectors must pair every lane in that same closed shape.
+    lane_count = len(fields.ordered_lane_ids)
+    if not 1 <= lane_count <= MAX_ROUTE_MODULES_V1:
+        raise ValueError("prepared route composition lane count is outside the route scope")
+    if any(type(item) is not LaneIdV1 for item in fields.ordered_lane_ids):
+        raise TypeError("prepared route composition lane ids are not closed")
+    if len(set(fields.ordered_lane_ids)) != lane_count:
+        raise ValueError("prepared route composition lane ids must be unique")
+    if (
+        len(fields.ordered_lane_binding_roots) != lane_count
+        or len(fields.ordered_lane_journal_roots) != lane_count
+    ):
+        raise ValueError("prepared route composition lane vectors must pair every lane")
+    for index in range(lane_count):
+        _require_root(
+            fields.ordered_lane_binding_roots[index],
+            name=f"prepared route composition lane {index} binding root",
+            allow_zero=True,
+        )
+        _require_nonzero_root_v1(
+            fields.ordered_lane_journal_roots[index],
+            name=f"prepared route composition lane {index} journal root",
+        )
+
+
+def _require_prepared_route_composition_fields_v1(
+    fields: object,
+) -> _VerifiedRouteCompositionFieldsV1:
+    if type(fields) is not _VerifiedRouteCompositionFieldsV1:
+        raise TypeError("prepared route composition fields must be exact typed data")
+    _require_exact_dataclass_scalars_v1(
+        fields,
+        name="prepared route composition",
+        tuple_fields=_PREPARED_ROUTE_COMPOSITION_TUPLE_FIELDS_V1,
+    )
+    for name in _PREPARED_ROUTE_COMPOSITION_NONZERO_ROOT_FIELDS_V1:
+        _require_nonzero_root_v1(getattr(fields, name), name=f"prepared route composition {name}")
+    for name in _PREPARED_ROUTE_COMPOSITION_ZERO_PERMITTED_ROOT_FIELDS_V1:
+        _require_root(
+            getattr(fields, name),
+            name=f"prepared route composition {name}",
+            allow_zero=True,
+        )
+    if type(fields.writer_epoch) is not int or not 0 <= fields.writer_epoch <= MAX_U64_V1:
+        raise ValueError("prepared route composition writer epoch must fit unsigned 64-bit")
+    _require_prepared_route_lane_vectors_v1(fields)
+    if type(fields.receipt_kind) is not ReceiptKindV1:
+        raise TypeError("prepared route composition receipt kind is not closed")
+    if fields.receipt_kind is not ReceiptKindV1.SUCCINCT:
+        raise ValueError("prepared route composition receipt kind must be succinct")
+    return fields
+
+
+def _require_prepared_route_composition_receipt_fields_v1(
+    fields: object,
+) -> _PreparedRouteCompositionReceiptFieldsV1:
+    if type(fields) is not _PreparedRouteCompositionReceiptFieldsV1:
+        raise TypeError("prepared route composition receipt fields must be exact typed data")
+    _require_prepared_route_composition_fields_v1(fields.route_fields)
+    if type(fields.receipt_bytes) is not bytes or not fields.receipt_bytes:
+        raise TypeError("prepared route composition receipt bytes must be non-empty exact bytes")
+    if type(fields.expected_journal_bytes) is not bytes or not fields.expected_journal_bytes:
+        raise TypeError("prepared route composition journal bytes must be non-empty exact bytes")
+    return fields
+
+
+def _validate_prepared_route_composition_receipt_content_digests_v1(
+    fields: _PreparedRouteCompositionReceiptFieldsV1,
+) -> None:
+    route_fields = fields.route_fields
+    if route_fields.receipt_digest != _sha256_root_v1(fields.receipt_bytes):
+        raise ValueError("prepared route composition receipt digest mismatch")
+    if route_fields.route_journal_digest != _sha256_root_v1(fields.expected_journal_bytes):
+        raise ValueError("prepared route composition journal digest mismatch")
+
+
+def _snapshot_prepared_route_composition_receipt_fields_v1(
+    fields: object,
+) -> _PreparedRouteCompositionReceiptFieldsV1:
+    prepared = _require_prepared_route_composition_receipt_fields_v1(fields)
+    return _PreparedRouteCompositionReceiptFieldsV1(
+        _copy_verified_route_composition_fields_v1(prepared.route_fields),
+        prepared.receipt_bytes,
+        prepared.expected_journal_bytes,
+    )
+
+
+class PreparedRouteCompositionReceiptV1:
+    """Opaque, immutable exact request for a measured route verifier port."""
+
+    _fields: _PreparedRouteCompositionReceiptFieldsV1
+    __slots__ = ("_fields",)
+
+    def __init__(
+        self,
+        token: object,
+        fields: _PreparedRouteCompositionReceiptFieldsV1,
+    ) -> None:
+        if token is not _PREPARED_ROUTE_COMPOSITION_RECEIPT_TOKEN_V1:
+            raise TypeError("PreparedRouteCompositionReceiptV1 is core-constructed")
+        object.__setattr__(
+            self,
+            "_fields",
+            _snapshot_prepared_route_composition_receipt_fields_v1(fields),
+        )
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("PreparedRouteCompositionReceiptV1 is immutable")
+
+    @property
+    def profile_root(self) -> str:
+        return self._fields.route_fields.profile_id
+
+    @property
+    def route_release_id(self) -> str:
+        return self._fields.route_fields.route_release_id
+
+    @property
+    def expected_image_id(self) -> str:
+        return self._fields.route_fields.expected_image_id
+
+    @property
+    def receipt_bytes(self) -> bytes:
+        return self._fields.receipt_bytes
+
+    @property
+    def expected_journal_bytes(self) -> bytes:
+        return self._fields.expected_journal_bytes
+
+
+def _prepared_route_composition_receipt_fields_v1(
+    prepared: object,
+) -> _PreparedRouteCompositionReceiptFieldsV1:
+    if type(prepared) is not PreparedRouteCompositionReceiptV1:
+        raise TypeError("prepared route composition receipt must be the exact typed value")
+    fields = object.__getattribute__(prepared, "_fields")
+    return _require_prepared_route_composition_receipt_fields_v1(fields)
+
+
+def snapshot_prepared_route_composition_receipt_v1(
+    prepared: PreparedRouteCompositionReceiptV1,
+) -> PreparedRouteCompositionReceiptV1:
+    """Return a validated detached request snapshot for measured verifier I/O."""
+
+    fields = _prepared_route_composition_receipt_fields_v1(prepared)
+    return PreparedRouteCompositionReceiptV1(
+        _PREPARED_ROUTE_COMPOSITION_RECEIPT_TOKEN_V1,
+        fields,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _VerifiedRouteCompositionReceiptExecutionFieldsV1:
+    prepared_fields: _PreparedRouteCompositionReceiptFieldsV1
+    verifier_binding_root: str
+
+
+class VerifiedRouteCompositionReceiptExecutionV1:
+    """Opaque evidence that a measured route port executed one exact request.
+
+    The private token disciplines ordinary Python construction. It does not
+    establish protection against a compromised interpreter or process.
+    """
+
+    _fields: _VerifiedRouteCompositionReceiptExecutionFieldsV1
+    __slots__ = ("_fields",)
+
+    def __init__(
+        self,
+        token: object,
+        prepared: PreparedRouteCompositionReceiptV1,
+        verifier_binding_root: str,
+    ) -> None:
+        if token is not _VERIFIED_ROUTE_COMPOSITION_RECEIPT_EXECUTION_TOKEN_V1:
+            raise TypeError("VerifiedRouteCompositionReceiptExecutionV1 is port-constructed")
+        prepared_fields = _prepared_route_composition_receipt_fields_v1(prepared)
+        # New phase input with no old entry-point domain: the measured port's
+        # BoundEconomicReceiptVerifierV1.binding_root. No upstream validator constrains
+        # it; nonzero here is the same rule the module port evidence in
+        # isolated_profile_receipt_ports_v1 applies to this exact value.
+        _require_nonzero_root_v1(
+            verifier_binding_root,
+            name="route composition receipt verifier binding root",
+        )
+        object.__setattr__(
+            self,
+            "_fields",
+            _VerifiedRouteCompositionReceiptExecutionFieldsV1(
+                _snapshot_prepared_route_composition_receipt_fields_v1(prepared_fields),
+                verifier_binding_root,
+            ),
+        )
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("VerifiedRouteCompositionReceiptExecutionV1 is immutable")
+
+    @property
+    def verifier_binding_root(self) -> str:
+        return self._fields.verifier_binding_root
+
+
+def _verified_route_composition_receipt_execution_fields_v1(
+    execution: object,
+) -> _VerifiedRouteCompositionReceiptExecutionFieldsV1:
+    if type(execution) is not VerifiedRouteCompositionReceiptExecutionV1:
+        raise TypeError("route composition receipt execution must be the exact typed value")
+    fields = object.__getattribute__(execution, "_fields")
+    if type(fields) is not _VerifiedRouteCompositionReceiptExecutionFieldsV1:
+        raise TypeError("route composition receipt execution fields must be exact typed data")
+    _require_prepared_route_composition_receipt_fields_v1(fields.prepared_fields)
+    _require_nonzero_root_v1(
+        fields.verifier_binding_root,
+        name="route composition receipt execution verifier binding root",
+    )
+    return fields
+
+
+def bind_verified_route_composition_receipt_v1(
+    prepared: PreparedRouteCompositionReceiptV1,
+    execution: VerifiedRouteCompositionReceiptExecutionV1,
+    *,
+    expected_verifier_binding_root: str,
 ) -> VerifiedRouteCompositionV1:
-    """Verify one route receipt against its profile-selected composer image."""
+    """Mint the existing route witness from exact measured execution evidence."""
+
+    prepared_fields = _prepared_route_composition_receipt_fields_v1(prepared)
+    execution_fields = _verified_route_composition_receipt_execution_fields_v1(execution)
+    _require_nonzero_root_v1(
+        expected_verifier_binding_root,
+        name="expected route composition receipt verifier binding root",
+    )
+    if execution_fields.prepared_fields != prepared_fields:
+        raise ValueError("route composition receipt execution subject mismatch")
+    if execution_fields.verifier_binding_root != expected_verifier_binding_root:
+        raise ValueError("route composition receipt verifier binding mismatch")
+    _validate_prepared_route_composition_receipt_content_digests_v1(prepared_fields)
+    return VerifiedRouteCompositionV1(
+        _VERIFIED_ROUTE_COMPOSITION_TOKEN,
+        _copy_verified_route_composition_fields_v1(prepared_fields.route_fields),
+    )
+
+
+def prepare_route_composition_receipt_v1(
+    candidate: RouteCompositionReceiptCandidateV1,
+) -> PreparedRouteCompositionReceiptV1:
+    """Prepare one route receipt request against its profile-selected composer image.
+
+    The owned snapshot, exact route shape and binding checks, receipt shape,
+    canonical journal ceiling and digests are fixed here, before any verifier I/O.
+    """
 
     owned = _snapshot_route_composition_candidate_v1(candidate)
     route = _require_exact_route_composition_binding_v1(owned)
@@ -511,38 +826,39 @@ def verify_route_composition_receipt_v1(
         raise ValueError("route composition canonical journal exceeds its release byte ceiling")
     route_journal_digest = _sha256_root_v1(route_journal_bytes)
     receipt_digest = _sha256_root_v1(owned.receipt.receipt_bytes)
-    receipt_verifier.verify_succinct_receipt(
-        owned.receipt.receipt_bytes,
-        expected_image_id=route.guest_image_id,
-        expected_journal_bytes=route_journal_bytes,
-    )
-
-    return VerifiedRouteCompositionV1(
-        _VERIFIED_ROUTE_COMPOSITION_TOKEN,
-        _VerifiedRouteCompositionFieldsV1(
-            owned.profile.profile_id,
-            route.route_release_id,
-            owned.occurrence.occurrence_id,
-            owned.profile.authority_epoch,
-            route.ordered_lanes,
-            tuple(item.binding_root for item in owned.verified_lanes),
-            tuple(item.journal_root for item in owned.lane_journals),
-            owned.route_journal.journal_root,
-            route_journal_digest,
-            route.guest_image_id,
-            receipt_digest,
-            owned.receipt.receipt_kind,
+    return PreparedRouteCompositionReceiptV1(
+        _PREPARED_ROUTE_COMPOSITION_RECEIPT_TOKEN_V1,
+        _PreparedRouteCompositionReceiptFieldsV1(
+            _VerifiedRouteCompositionFieldsV1(
+                owned.profile.profile_id,
+                route.route_release_id,
+                owned.occurrence.occurrence_id,
+                owned.profile.authority_epoch,
+                route.ordered_lanes,
+                tuple(item.binding_root for item in owned.verified_lanes),
+                tuple(item.journal_root for item in owned.lane_journals),
+                owned.route_journal.journal_root,
+                route_journal_digest,
+                route.guest_image_id,
+                receipt_digest,
+                owned.receipt.receipt_kind,
+            ),
+            owned.receipt.receipt_bytes,
+            route_journal_bytes,
         ),
     )
 
 
 __all__ = [
     "ROUTE_COMPOSITION_ASSUMPTION_SCHEMA_V1",
+    "PreparedRouteCompositionReceiptV1",
     "RouteCompositionReceiptCandidateV1",
     "RouteCompositionReceiptEnvelopeV1",
-    "RouteCompositionSuccinctReceiptVerifierV1",
     "VERIFIED_ROUTE_COMPOSITION_SCHEMA_V1",
+    "VerifiedRouteCompositionReceiptExecutionV1",
     "VerifiedRouteCompositionV1",
+    "bind_verified_route_composition_receipt_v1",
     "derive_route_composition_assumption_root_v1",
-    "verify_route_composition_receipt_v1",
+    "prepare_route_composition_receipt_v1",
+    "snapshot_prepared_route_composition_receipt_v1",
 ]

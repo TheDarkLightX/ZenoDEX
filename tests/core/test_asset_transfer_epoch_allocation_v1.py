@@ -15,8 +15,8 @@ from src.core.epoch_effect_composition_v1 import compose_asset_lane_epoch_effect
 from src.core.route_composition_receipt_verification_v1 import (
     RouteCompositionReceiptCandidateV1,
     RouteCompositionReceiptEnvelopeV1,
-    verify_route_composition_receipt_v1,
 )
+from tests.core.receipt_composition_fixtures_v1 import verify_route_composition_receipt_v1
 from tests.core.test_asset_transfer_global_allocation_v1 import _global_allocation_fixture
 from tests.core.test_global_settlement_abi_v1 import (
     _asset_lane_context,

@@ -1,0 +1,354 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-CUSTODY-TRANSFER-EPOCH-SHARED-HEIGHT-CONTINUATION",
+      "points": [
+        "Fresh Std-only Lean 4.27 closure consumes 27 public theorem signatures; all theorem axioms remain within {propext, Classical.choice, Quot.sound}; source registration is root-owned.",
+        "EpochRequirements are input-only facts: source and position, index < 64, H+1 FitsU64, the appropriate predecessor height, H+1 occurrence, freshness, roots, command bounds and FeeEligible.",
+        "An accepted custody-complete attempt derives the actual completed economic tables with four metadata changes, the shared target height, exact replay insertion and other-key frame, and nine inherited StateInvariant obligations.",
+        "A rejected leaf returns the exact carried state, an empty effect plan and no occurrence.",
+        "The first position equals the standalone successor and existing Verified; later positions use distinct SharedHeightVerified.",
+        "EpochPrefix proves length 0..64, a static frame and context, the replay fold, and an explicit nonempty 1..64 shared-height corollary.",
+        "Lane A uses the actual custody transition, public coordinator and epoch-position relation over a nonempty custody, backed-liability, replay and oracle witness at height 7 and the u64 maximum; the standalone projector's second shared-height refusal is retained.",
+        "Lane B is a supplementary aggregate-checker control using the legacy composition fixture with a mock receipt verifier and empty custody; its scope is separate from Lane A.",
+        "The actual checker rejects double-increment and replay-omission disclosures with exact codes and unchanged inputs.",
+        "Two constructor mutant observations are narrative-only rows executed inside the focused test."
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "A fresh Std-only Lean consumer closure with 27 theorem signatures establishes bounded shared-height state continuation for the restricted custody transfer: accepted attempts preserve the nine inherited state obligations and exact completed tables, rejected attempts are exact carried-state no-ops, index zero reuses the existing standalone Verified result, later positions use distinct SharedHeightVerified, and admitted prefixes are bounded at 0..64 with an explicit nonempty 1..64 corollary. Focused runtime observations compare the nonempty per-pair relation with actual custody/coordinator disclosures and separately exercise the legacy empty-custody aggregate checker.",
+  "created_date": "2026-09-07",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "formal",
+    "differential",
+    "stateful",
+    "mutation"
+  ],
+  "evidence_id": "THV1-20260907-transfer-epoch-state-closure-v1",
+  "failure_modes": [
+    "Fresh Std-only Lean 4.27 closure consumes 27 public theorem signatures; all theorem axioms remain within {propext, Classical.choice, Quot.sound}; source registration is root-owned.",
+    "EpochRequirements are input-only facts: source and position, index < 64, H+1 FitsU64, the appropriate predecessor height, H+1 occurrence, freshness, roots, command bounds and FeeEligible.",
+    "An accepted custody-complete attempt derives the actual completed economic tables with four metadata changes, the shared target height, exact replay insertion and other-key frame, and nine inherited StateInvariant obligations.",
+    "A rejected leaf returns the exact carried state, an empty effect plan and no occurrence.",
+    "The first position equals the standalone successor and existing Verified; later positions use distinct SharedHeightVerified.",
+    "EpochPrefix proves length 0..64, a static frame and context, the replay fold, and an explicit nonempty 1..64 shared-height corollary.",
+    "Lane A uses the actual custody transition, public coordinator and epoch-position relation over a nonempty custody, backed-liability, replay and oracle witness at height 7 and the u64 maximum; the standalone projector's second shared-height refusal is retained.",
+    "Lane B is a supplementary aggregate-checker control using the legacy composition fixture with a mock receipt verifier and empty custody; its scope is separate from Lane A.",
+    "The actual checker rejects double-increment and replay-omission disclosures with exact codes and unchanged inputs.",
+    "Two constructor mutant observations are narrative-only rows executed inside the focused test."
+  ],
+  "invariant_ids": [
+    "V3-CUSTODY-TRANSFER-EPOCH-SHARED-HEIGHT-CONTINUATION"
+  ],
+  "mutations": [
+    {
+      "description": "Narrative only: definitions-only good/bad observations and the localized full-proof failure for the height-double-increment constructor mutant are executed within the focused test; the external ledger must not count this as a mechanical kill.",
+      "killed_by": "tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py::test_constructor_mutants_are_killed_by_the_shared_height_law",
+      "narrative": true
+    },
+    {
+      "description": "Narrative only: definitions-only good/bad observations and the localized full-proof failure for the replay-omission constructor mutant are executed within the focused test; the external ledger must not count this as a mechanical kill.",
+      "killed_by": "tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py::test_constructor_mutants_are_killed_by_the_shared_height_law",
+      "narrative": true
+    }
+  ],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "EpochRequirements and StateInvariant are premises, not runtime authentication or output assumptions.",
+    "The restricted model has one enabled asset lane, empty reserves, an empty terminal registry and an empty outbox; it is not a complete lane lifecycle.",
+    "Roots and identities are opaque; authenticity, hashing, canonical encoding and decoding remain external.",
+    "Verified is established only at the first position; later positions deliberately use SharedHeightVerified, and no epoch-level Verified record is claimed.",
+    "Lane A per-pair relation evidence and Lane B aggregate-checker evidence are distinct. Lane B uses the legacy empty-custody fixture and does not qualify nonempty custody.",
+    "No aggregate authorization, atomic runtime fold, whole-epoch publication, certificate, receipt, snapshot authenticity, store-head, writer or publication/recovery authority is established.",
+    "No CheckedEpochEconomicTablesV1 telescoping or universal Python/Rust/compiler refinement is established.",
+    "The focused test's synthetic receipts and mock verifier grant no cryptographic, measured-deployment or production authority.",
+    "The two controlled constructor observations execute inside the focused test; this packet claims no external mechanical mutation kill.",
+    "No wire format, policy constant, release image, live authority or runtime production qualification changes."
+  ],
+  "reject_is_noop": {
+    "reason": "The mathematical rejected continuation returns the exact carried state, empty effects and no occurrence. Runtime controls observe unchanged inputs and reject overflow, wrong shared-height and replay disclosures with the existing relation/checker codes; no epoch publication is modeled.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "experiments/v3_transfer_policy_selection_v1/render_evidence.py",
+      "sha256": "eb53ce65652ad81491866b7fa4907a043ca86b7889afe0fb712118af034c88fd"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_POLICY_SELECTION_20260906.md",
+      "sha256": "65be43e0542c2a6d9b009d446d1aee4a2439eabc84568905af4e89b230a3996c"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "202ee7c74f1079f0582586d85097f4f713d0f064548a24e4f25991a65cd02b59"
+    },
+    {
+      "path": "lean-mathlib/lean-toolchain",
+      "sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+    },
+    {
+      "path": "src/core/asset_transfer_module_v1.py",
+      "sha256": "754d75a37ad70868bf20263fc189fc9e4f5a77cb864d8a1c7973afc253c938d7"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "5757c8b692820613e1eac30b7103e857a73b42efebbdda62d0a4469511f41277"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v1.py",
+      "sha256": "abf60faacdcd45def5163e618494a2202c9c1ab7e11bde1f44b7b29cd0057697"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_state_admission_v1.py",
+      "sha256": "7aa8186b3f24343b36feb10a4c3f19ec35424d17e557d76dd7c7f74af333767c"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_supply_v1.py",
+      "sha256": "e8adadca735bcd24b7729760f0a3b4718f01789ce197407468fc1c9ba0320197"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_sparse_tables_v1.py",
+      "sha256": "76fce0078560e812d10c07c66983430ea3a3eb32b20b2e8692a583322fbc621b"
+    },
+    {
+      "path": "tests/formal/test_lean_checked_epoch_economic_tables_v1.py",
+      "sha256": "efd3cb46a8a4c952c994d74f3084971a36c61ef6bdbaf99305e723a373d05566"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
+      "sha256": "b72155a1f32f01a5c96df725358d7fbc55d5014ee0d9894e6743516d37b04e4b"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean",
+      "sha256": "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
+      "sha256": "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedEpochEconomicTablesV1.lean",
+      "sha256": "ee6ebc40358879e168cbc245be1641a06e084a39642d5da2736caacfa60897cd"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CanonicalEpochEconomicRowsV1.lean",
+      "sha256": "5ff80f22fde38729468dc237dd5b40a28bacc57302a483bf42b3e9f90122fe64"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferRefinementV1.lean",
+      "sha256": "2d9ed7beb6feb47b67afa63a40d1203bcca9004b49ba978b9927edded6a04932"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyCompletionV1.lean",
+      "sha256": "fc6869b223a427ef22d040e71276d57c1f7b5bca9b95b471d4059ae771a1f8dc"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CheckedSignedDeltaRefinementV1.lean",
+      "sha256": "3a0b3e18a069b14c8fec4e705178a73cb1b3356d9813195e5e7c35b09cf74a4d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyCompositionV1.lean",
+      "sha256": "37375e914576993767eae7484e620e54be300798785b2a57a9953e86be2f34d2"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseTablesV1.lean",
+      "sha256": "5d303c709501cfe0604c3e845a3b2814b8c5ebe4f0fcfd4090bda2d697f077c0"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseTraceV1.lean",
+      "sha256": "5a77ac04b4e214ab7d0dc6cb4b77e2369e16a7914d02cffb5df1d0b88f119b83"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseSupplyV1.lean",
+      "sha256": "e2c056cba91173f6c454f4b60c1adc228d9ffd7df58a9cebcdbbc0e9b46a683d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseStateAdmissionV1.lean",
+      "sha256": "82f54f4d5a5ba5e28a2ed2a96cd6b4155e70458c05d104b31eea0717aaae8649"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferSparseAuthorizationV1.lean",
+      "sha256": "91d41486e814f80a876746a1d8a542daeda77599415792b0915f4a2fccc495fa"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferPolicySelectionV1.lean",
+      "sha256": "6c330fb920885223089d774eaf6110a3007bd2790a3c69dc947f80255edff321"
+    },
+    {
+      "path": "experiments/v3_transfer_effect_plan_v1/render_evidence.py",
+      "sha256": "5483f2e5a3b05421f1fade78da2a92331246462b5ddc2dc9707f9b25898d723b"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_EFFECT_PLAN_20260906.md",
+      "sha256": "beb053eb92f351fa4907f9d86b4476374a398c79fceae28e68af3de5bf7bb910"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_policy_selection_v1.py",
+      "sha256": "0c4a81c33797c398407871ee0fc1fee65ddfb0d2551617d9f0131b65cd263a51"
+    },
+    {
+      "path": "src/core/global_economic_state_delta_v1.py",
+      "sha256": "5b06120b14176985a2889b81cc784145339b7f72720d7b161c74b296cb4e5634"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferEffectPlanV1.lean",
+      "sha256": "14cea53d90e1fdc6f068e581dcc8e737526475b323100c5d6c27b9354f769de9"
+    },
+    {
+      "path": "experiments/v3_transfer_annotation_mirrors_v1/render_evidence.py",
+      "sha256": "4964f75e6e47cb3b0a0c646bb80e47199cd946da8ab0e08a12c01634571d55ae"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_ANNOTATION_MIRRORS_20260906.md",
+      "sha256": "27d1565784b2b826dab9d09a4b4f3107bae41e0e680bdb7d28b2824b8741cbe0"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_effect_plan_v1.py",
+      "sha256": "6b3c5603c2724097751c6ce7df74893ffd5767cc499b57c4fd7c1fc9eacd7f35"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferFeeMirrorEligibilityV1.lean",
+      "sha256": "03ae7a9c1db3b8355fb2cd3f09206565cee524c3c735855a0af6c5287ecc5a10"
+    },
+    {
+      "path": "tools/scan_lean_proof_placeholders_v1.py",
+      "sha256": "44a7c67142955ad3b7a803ab599d31ca8754d0f9cdd795588ea9745f58239fc4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferAnnotationMirrorsV1.lean",
+      "sha256": "81e0fae0addd597b509f7890e4fa8cb1206f6b650414a5db948fcb75633afc30"
+    },
+    {
+      "path": "experiments/v3_transfer_custody_effect_plan_v1/render_evidence.py",
+      "sha256": "4efa8e3bb7d2d0fa1387fcb303283c1f0d2f37e56da0be23214e07b5fff1cc81"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_CUSTODY_EFFECT_PLAN_20260906.md",
+      "sha256": "3993fa9c306a182c5cfd01fea2cbd5cf35f764bc6c92fac0d80e92fdb1dfade2"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_annotation_mirrors_v1.py",
+      "sha256": "c0f6e3ec00d3705dbdb069e4b173bd54bb891f38a5fecf17fdfba03ebb245edc"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_custody_v1.py",
+      "sha256": "0d2118f275f6aa5bd308125b83b7c4528dbfc086749c8cb744bacea15983b45e"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_v1.py",
+      "sha256": "7c043b222d4e8aa3d54477ad7508ff65afd716f1b720f76f63995afc4daa7c1a"
+    },
+    {
+      "path": "src/core/asset_lane_projection_v1.py",
+      "sha256": "5420112e2dd321ce7f74604e66c13933ca714fc93467150f5cb6358f403b6839"
+    },
+    {
+      "path": "src/core/asset_transfer_global_allocation_v1.py",
+      "sha256": "a4099cb3e53c26ef981e384e92cbdc5c04b80d5bdf7c14cd3b2d296a8830f028"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferCustodyEffectPlanV1.lean",
+      "sha256": "77364c36dbd2f8730ec9683167915b914e2ad9a4aa5a7d9c726e69bf89f8fa23"
+    },
+    {
+      "path": "experiments/v3_transfer_global_successor_v1/render_evidence.py",
+      "sha256": "84068579a44bd26323a651884a7b89b5c2ba3b0cb30258aabe259cecb017b6c6"
+    },
+    {
+      "path": "docs/research/ZENODEX_TRANSFER_GLOBAL_SUCCESSOR_20260906.md",
+      "sha256": "80e08a75ffaf1e61f68b2bc1fe883e4d5faa5504d43ec76bee6db6d8004b2b74"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_custody_effect_plan_v1.py",
+      "sha256": "ddf825d6c9d890988988f0ceb5ba696b4921d57c2268a39d4d991d3e3abc3469"
+    },
+    {
+      "path": "src/core/asset_lane_coordinator_v1.py",
+      "sha256": "6047468214d835ff9d6d9823d845df4ef0c4a1cd6d94f098911377daaf4996ae"
+    },
+    {
+      "path": "src/core/global_economic_effect_projector_v1.py",
+      "sha256": "35793c70229dd872a5d85d5823b49c3e753384ef5d1200aa3765b50fe132d848"
+    },
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "f9ff27f3d346c2099ab3678ae87961cbc09653b6c641650ea0db0bf3bac23a50"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean",
+      "sha256": "8375d3cbd6bf4bd4c911527a03de5d12b7bb21df0b0135cd1dd0d1951e60dc56"
+    },
+    {
+      "path": "experiments/v3_transfer_global_state_closure_v1/render_evidence.py",
+      "sha256": "17f6e04c8bf80c6065a8b9707948e7b255be9e162740a277bf0c7308a340993b"
+    },
+    {
+      "path": "docs/research/ZENODEX_RESOURCE_ARCHITECTURE_20260906.md",
+      "sha256": "0382fddcd1fd52c9b91f7da6d21f8e4e8606aff6d207383e202dca7816a903ec"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_global_successor_v1.py",
+      "sha256": "7d75ff4c65e8369093c481831249990332a221665193333daec198500cc332b8"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferGlobalStateClosureV1.lean",
+      "sha256": "4569ef906325cf08a0f02cca8932f07735a7dc94a5250f6e612c54e1ef7e0ddb"
+    },
+    {
+      "path": "src/core/asset_transfer_epoch_position_v1.py",
+      "sha256": "87e04c3ea4bf0fc8889b978a691f3d644110dbf7406001d47e015b39da39bf78"
+    },
+    {
+      "path": "src/core/asset_transfer_epoch_allocation_v1.py",
+      "sha256": "34a5012d84f130921ce80c87e367c56bfe92d6e6d7c59ccd6774d8fbc3bcb071"
+    },
+    {
+      "path": "src/core/asset_transfer_receipt_admission_v1.py",
+      "sha256": "3b94dbd2105aa6247e1423d80638a5c0fb7cce7017a504616021d4db5447a633"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_global_state_closure_v1.py",
+      "sha256": "740c164ffb72587c6aa2f1995e529f1bd4655cf14bfdb784493fca05ffb9a06f"
+    },
+    {
+      "path": "experiments/v3_transfer_epoch_state_closure_v1/render_evidence.py",
+      "sha256": "f273c1b97070c1420e35b3a8e888b8ce690c045452413c952a372c558f88451a"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferEpochStateClosureV1.lean",
+      "sha256": "1f1a3b68fc0f16755ea9abdcb07e4bff6d44492ef60ffa5d2710c7b22d617533"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py::test_contract_placeholders_fields_signatures_axioms_and_source_pins",
+        "tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py::test_two_actual_transfers_share_the_epoch_height_and_close_the_state",
+        "tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py::test_rejected_second_transfer_has_exact_no_effect_on_the_carried_state",
+        "tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py::test_maximum_target_height_admits_the_shared_second_transfer_and_refuses_overflow",
+        "tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py::test_actual_epoch_checker_accepts_two_shared_height_commands_and_rejects_mutants",
+        "tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py::test_constructor_mutants_are_killed_by_the_shared_height_law"
+      ],
+      "path": "tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py",
+      "sha256": "16d1e40a1ae4f8011dd8b43af3fa1b64585afc7563721b34157cd611205f1f8b"
+    }
+  ]
+}

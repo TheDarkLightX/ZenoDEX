@@ -11,7 +11,6 @@ from src.core.global_settlement_types_v1 import LaneIdV1, canonical_global_bytes
 from src.core.lane_composition_receipt_verification_v1 import (
     LaneCompositionReceiptCandidateV1,
     LaneCompositionReceiptEnvelopeV1,
-    verify_perps_margin_lane_composition_receipt_v1,
 )
 from src.core.lane_module_receipt_verification_v1 import (
     LaneModuleReceiptEnvelopeV1,
@@ -31,6 +30,9 @@ from src.core.receipt_backed_perps_margin_lane_composition_v1 import (
 )
 from tests.core.lane_module_receipt_fixtures_v1 import (
     verify_perps_margin_lane_module_receipt_v1,
+)
+from tests.core.receipt_composition_fixtures_v1 import (
+    verify_perps_margin_lane_composition_receipt_v1,
 )
 from tests.core.test_perps_margin_lane_coordinator_v1 import _projection_pair
 from tests.core.test_perps_margin_release_receipt_binding_v1 import (

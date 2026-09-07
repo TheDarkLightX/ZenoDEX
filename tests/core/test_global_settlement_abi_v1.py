@@ -135,7 +135,6 @@ from src.core.lane_composition_receipt_verification_v1 import (
     LaneCompositionReceiptCandidateV1,
     LaneCompositionReceiptEnvelopeV1,
     VerifiedLaneCompositionV1,
-    verify_asset_lane_composition_receipt_v1,
 )
 from src.core.lane_module_receipt_verification_v1 import (
     AssetTransferLaneModuleReceiptCandidateV1,
@@ -155,7 +154,6 @@ from src.core.route_composition_receipt_verification_v1 import (
     RouteCompositionReceiptEnvelopeV1,
     VerifiedRouteCompositionV1,
     derive_route_composition_assumption_root_v1,
-    verify_route_composition_receipt_v1,
 )
 from src.integration.global_economic_commit_v1 import (
     CommitOutcomeStatusV1,
@@ -164,6 +162,10 @@ from src.integration.global_economic_commit_v1 import (
 )
 from tests.core.lane_module_receipt_fixtures_v1 import (
     verify_asset_transfer_lane_module_receipt_v1,
+)
+from tests.core.receipt_composition_fixtures_v1 import (
+    verify_asset_lane_composition_receipt_v1,
+    verify_route_composition_receipt_v1,
 )
 
 

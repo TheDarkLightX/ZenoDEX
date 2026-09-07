@@ -427,8 +427,8 @@ module input and coordinator context, re-executes both deterministic cores,
 and calls `env::verify` with the source-pinned module image and exact module
 journal before committing the exact lane journal. Its host verifies the child
 as `Succinct`, installs it with `add_assumption`, proves a `Succinct` parent,
-and verifies the exact parent image and journal. The pinned adapter implements
-`LaneCompositionSuccinctReceiptVerifierV1`.
+and verifies the exact parent image and journal. The pinned Rust adapter implements
+the Rust `LaneCompositionSuccinctReceiptVerifierV1` trait.
 
 One ignored local replay generated the child and recursively verified it under
 coordinator image root
@@ -453,6 +453,19 @@ Clippy, formatting, and structural checks pass. The real replay was interrupted
 with exit code 130 for workstation thermal safety, so no successful
 release-aware witness construction is claimed. Synthetic active evidence labels
 and the placeholder route image in that fixture are not deployment governance.
+
+The current Python boundary separates coordinator and route preparation from
+receipt execution. Core `prepare_*` functions return an owned request; the
+measured isolated role port executes its exact image and journal, and a pure
+binder requires matching execution evidence before constructing the existing
+witness. The effectful Python `verify_asset_lane_composition_receipt_v1`,
+`verify_perps_margin_lane_composition_receipt_v1` and
+`verify_route_composition_receipt_v1` entry points live in `src.integration`
+and require factory-controlled ports. The former core callback protocols are
+removed from Python. The Rust traits, historical journals and witness formats
+are unchanged. The [boundary tests](../../tests/integration/test_receipt_composition_boundary_v1.py)
+use explicitly simulated verifier replies and supply no new genuine-receipt
+or release qualification.
 
 `GlobalEconomicCommitPortV1` rechecks the current profile and state under one
 lock. It atomically installs the complete post-state and publication record,

@@ -4,6 +4,8 @@ The original design assessment used integration subject
 `f68171a9922fcaac06dde2bfe22a37e3e94810ae` and the separately checked
 `AssetTransferGlobalStateClosureV1` increment. The module receipt boundary
 implementation below builds on `705f4a2f2444e5ee42a3c4a3aa5e1ffbf15948eb`.
+The subsequent coordinator/route extraction and shared-height epoch proof build on
+`2894407d89f29a5ab0f9c6dc632e3847dfd72b72`.
 These advance the [V3 plan](../ZENODEX_COMPLETION_PLAN.md) without changing
 runtime economics, canonical bytes, policy constants, release images or
 publication authority.
@@ -156,8 +158,8 @@ independent Daybreak review identified
 `BoundEconomicReceiptVerifierV1._verify_exact_receipt` in
 [verifier deployment binding](../../src/core/economic_receipt_verifier_deployment_v1.py),
 which still executes a backend and uses a core-layer authority registry.
-Coordinator, route, epoch and other receipt paths also retain effectful
-callbacks. The module extraction does not close those separate effect owners.
+Epoch and other receipt paths also retain effectful callbacks. The module,
+coordinator and route extractions do not close those separate effect owners.
 An independent Terra review checked the new shell source; root reviewed the
 pure-core implementation and the preserved scenario bodies. The attempted
 additional Daybreak review could not start because the agent thread limit was
@@ -210,6 +212,90 @@ The epoch-position golden uses
 same metadata-only change. The 19-file run had 553 passing tests and this one
 stale-pin failure; the full epoch-position file and the allocation golden check
 passed after regeneration. No runtime or test source changed after that run.
+
+### Coordinator and route receipt phases
+
+The [coordinator core](../../src/core/lane_composition_receipt_verification_v1.py)
+and [route core](../../src/core/route_composition_receipt_verification_v1.py)
+use the same preparation, measured execution and pure binding boundary. Asset
+and perps-margin coordinator preparation retain the old candidate checks;
+route preparation retains exact ordered lane pairing and the existing 1–8 lane
+bound. Each prepared subject owns all twelve final witness fields and the exact
+receipt and journal bytes. Role-port coordinates derive from those fields.
+The existing witness identities and canonical encodings remain unchanged.
+
+The shell admits the corresponding factory-controlled coordinator or route
+port, detaches the preparation before I/O, and retains its callable, profile,
+role, release, lane and measured verifier identity across the call. Changed
+authority or a backend return other than exact `None` prevents execution
+evidence. The pure binder checks the complete subject, verifier identity and
+content digests before minting the final witness. Existing module port methods
+are unchanged; the isolated pipeline's migration changes its imports.
+
+The [composition boundary tests](../../tests/integration/test_receipt_composition_boundary_v1.py)
+cover successful asset, perps-margin and route binding; wrong role or context
+before I/O; substitution of each final field and both byte fields; consistent
+changed bytes and digests; changed aliases and retained authority; backend
+failure; and exact deterministic re-binding. Snapshot-omission mutants execute
+the altered method and show the ordinary alias law rejecting its behavior.
+These tests use explicitly simulated RISC0 process replies. Test-only callback
+helpers serve the existing unit scenarios and grant no production authority.
+
+The extraction preserves the domains of computed hashes as well as their
+ordinary values. A SHA-256 output does not establish a nonzero value. A new
+preparation guard may require nonzero only when the earlier admission already
+establishes it; stricter later-consumer rules retain their original location.
+Synthetic hash-function substitution checks this boundary without claiming a
+hash preimage or a genuine receipt.
+
+The new [composition packet](../../tests/evidence/test_hygiene/THV1-20260907-composition-receipt-boundary-v1.json)
+declares the exact affected subject. Render it with
+`python3 -B -m experiments.v3_composition_receipt_boundary_v1.render_evidence`.
+Rendering executes no tests and grants no authority. The earlier module packet
+keeps its historical source pins. Whole-path FCIS, genuine recursive receipt
+qualification and deployment mediation remain separate open obligations.
+
+### Shared-height epoch state continuation
+
+[AssetTransferEpochStateClosureV1](../../lean-mathlib/Proofs/AssetTransferEpochStateClosureV1.lean)
+proves the restricted custody transfer's continuation within an epoch. The first
+command advances source height `H` to `H + 1`; later commands retain that shared
+height while carrying forward their actual economic result and replay insertion.
+The construction changes the existing four metadata fields and derives the nine
+inherited state obligations. Rejection retains the exact carried state, an empty
+plan and no occurrence. Its admitted prefix derives the carried state, context
+and replay fold, with length `0..64` and a separate nonempty `1..64` corollary.
+
+The proof leaves the standalone `Verified` relation intact. Its adjacent-height
+rule applies at the first position. Later positions use an explicit
+`SharedHeightVerified` bundle retaining the accounting, backing, effect, terminal
+and quantity obligations with the shared-height replay rule. The direct height
+proof also covers two commands whose target is the maximum u64 height.
+It requires input admission and the initial state invariant; no desired output
+invariant or preservation oracle is assumed.
+
+The [focused formal test](../../tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py)
+freshly compiles the Std-only Lean 4.27 closure, consumes all 27 theorem
+signatures, checks permitted axioms and source pins, compares two transfers over
+nonempty custody/backed liabilities with the actual epoch-position relation,
+and checks rejection and maximum-height cases. Separate aggregate-checker
+controls use the legacy empty-custody fixture. Two controlled constructor mutants
+produce incorrect height/replay observations and fail the corresponding proof
+obligations. The full focused file passed independently after review:
+
+```bash
+python3 -B -m pytest -q -p no:cacheprovider tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py
+```
+
+This theorem is restricted to one enabled asset lane with empty reserves,
+terminal registry and outbox. Lean treats roots and identities as opaque values.
+The second Python prospective state is an explicit test builder checked by the
+actual epoch relation; finite observation agreement is not universal runtime
+refinement. Epoch-level table aggregation, authorization, authentic source and
+receipt origin, and atomic publication remain open. The proof is registered in
+`Proofs.lean`; the complete Mathlib build and native guest proving were not run.
+Render its separate declaration with
+`python3 -B -m experiments.v3_transfer_epoch_state_closure_v1.render_evidence`.
 
 The lack of a qualified custody guest, universal runtime refinement and
 deployment evidence are separate assurance gaps. They do not by themselves

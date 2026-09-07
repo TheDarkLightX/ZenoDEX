@@ -92,7 +92,6 @@ from src.core.global_settlement_types_v1 import (
 from src.core.lane_composition_receipt_verification_v1 import (
     LaneCompositionReceiptCandidateV1,
     LaneCompositionReceiptEnvelopeV1,
-    verify_asset_lane_composition_receipt_v1,
 )
 from src.core.lane_module_receipt_verification_v1 import (
     AssetTransferLaneModuleReceiptCandidateV1,
@@ -113,7 +112,6 @@ from src.core.route_composition_receipt_verification_v1 import (
     RouteCompositionReceiptCandidateV1,
     RouteCompositionReceiptEnvelopeV1,
     VerifiedRouteCompositionV1,
-    verify_route_composition_receipt_v1,
 )
 from src.integration.economic_command_bls_signature_verifier_v1 import (
     bind_deployed_bls_economic_command_signature_verifier_v1,
@@ -122,9 +120,15 @@ from src.integration.isolated_profile_receipt_ports_v1 import (
     IsolatedProfileReceiptPortsV1,
     _bound_isolated_profile_receipt_verifier_v1,
 )
+from src.integration.lane_composition_receipt_verification_v1 import (
+    verify_asset_lane_composition_receipt_v1,
+)
 from src.integration.lane_module_receipt_verification_v1 import (
     verify_asset_transfer_lane_module_custody_receipt_v1,
     verify_asset_transfer_lane_module_receipt_v1,
+)
+from src.integration.route_composition_receipt_verification_v1 import (
+    verify_route_composition_receipt_v1,
 )
 from src.integration.sealed_bls_command_verifier_deployment_v1 import (
     bind_deployed_sealed_bls_command_verifier_v1,

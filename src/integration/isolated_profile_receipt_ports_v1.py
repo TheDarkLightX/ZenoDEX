@@ -33,11 +33,23 @@ from ..core.global_settlement_types_v1 import (
     RouteReleaseV1,
     _require_root,
 )
+from ..core.lane_composition_receipt_verification_v1 import (
+    _VERIFIED_LANE_COMPOSITION_RECEIPT_EXECUTION_TOKEN_V1,
+    PreparedLaneCompositionReceiptV1,
+    VerifiedLaneCompositionReceiptExecutionV1,
+    snapshot_prepared_lane_composition_receipt_v1,
+)
 from ..core.lane_module_receipt_verification_v1 import (
     _VERIFIED_LANE_MODULE_RECEIPT_EXECUTION_TOKEN_V1,
     PreparedLaneModuleReceiptV1,
     VerifiedLaneModuleReceiptExecutionV1,
     snapshot_prepared_lane_module_receipt_v1,
+)
+from ..core.route_composition_receipt_verification_v1 import (
+    _VERIFIED_ROUTE_COMPOSITION_RECEIPT_EXECUTION_TOKEN_V1,
+    PreparedRouteCompositionReceiptV1,
+    VerifiedRouteCompositionReceiptExecutionV1,
+    snapshot_prepared_route_composition_receipt_v1,
 )
 from .isolated_economic_verifier_set_v1 import (
     IsolatedVerifierArtifactV1,
@@ -137,6 +149,56 @@ class IsolatedReceiptPortV1(_OpaqueHandleV1):
             raise ValueError("isolated module receipt backend violated success contract")
         return VerifiedLaneModuleReceiptExecutionV1(
             _VERIFIED_LANE_MODULE_RECEIPT_EXECUTION_TOKEN_V1, owned, binding_root
+        )
+
+    def verify_prepared_coordinator_receipt_v1(
+        self, prepared: PreparedLaneCompositionReceiptV1
+    ) -> VerifiedLaneCompositionReceiptExecutionV1:
+        """Execute an exact coordinator request under the retained measured role.
+
+        Evidence is issued after successful execution and unchanged port and
+        verifier identity. The result grants no route, epoch or finality right.
+        """
+        if type(prepared) is not PreparedLaneCompositionReceiptV1:
+            raise TypeError("isolated coordinator receipt request must be exactly prepared")
+        owned = snapshot_prepared_lane_composition_receipt_v1(prepared)
+        authority = _port_authority(self)
+        _require_coordinator_subject(authority, owned)
+        binding_root = _execute_retained_request_v1(
+            self,
+            authority,
+            receipt_bytes=owned.receipt_bytes,
+            expected_image_id=owned.expected_image_id,
+            expected_journal_bytes=owned.expected_journal_bytes,
+            label="coordinator",
+        )
+        return VerifiedLaneCompositionReceiptExecutionV1(
+            _VERIFIED_LANE_COMPOSITION_RECEIPT_EXECUTION_TOKEN_V1, owned, binding_root
+        )
+
+    def verify_prepared_route_receipt_v1(
+        self, prepared: PreparedRouteCompositionReceiptV1
+    ) -> VerifiedRouteCompositionReceiptExecutionV1:
+        """Execute an exact route request under the retained measured role.
+
+        Evidence is issued after successful execution and unchanged port and
+        verifier identity. The result grants no epoch, commit or finality right.
+        """
+        if type(prepared) is not PreparedRouteCompositionReceiptV1:
+            raise TypeError("isolated route receipt request must be exactly prepared")
+        owned = snapshot_prepared_route_composition_receipt_v1(prepared)
+        authority = _port_authority(self)
+        _require_route_subject(authority, owned)
+        binding_root = _execute_retained_request_v1(
+            self,
+            authority,
+            receipt_bytes=owned.receipt_bytes,
+            expected_image_id=owned.expected_image_id,
+            expected_journal_bytes=owned.expected_journal_bytes,
+            label="route",
+        )
+        return VerifiedRouteCompositionReceiptExecutionV1(
+            _VERIFIED_ROUTE_COMPOSITION_RECEIPT_EXECUTION_TOKEN_V1, owned, binding_root
         )
 
 
@@ -245,6 +307,65 @@ def _require_module_subject(
         or authority.release_id != prepared.module_release_id
     ):
         raise ValueError("isolated module receipt subject is outside the port")
+
+
+def _require_coordinator_subject(
+    authority: _ReceiptPortAuthorityV1, prepared: PreparedLaneCompositionReceiptV1
+) -> None:
+    if (
+        authority.role is not _ReceiptRoleV1.COORDINATOR
+        or authority.profile.profile.profile_id != prepared.profile_root
+        or authority.lane_id is not prepared.lane_id
+        or authority.release_id != prepared.coordinator_release_id
+    ):
+        raise ValueError("isolated coordinator receipt subject is outside the port")
+
+
+def _require_route_subject(
+    authority: _ReceiptPortAuthorityV1, prepared: PreparedRouteCompositionReceiptV1
+) -> None:
+    if (
+        authority.role is not _ReceiptRoleV1.ROUTE
+        or authority.profile.profile.profile_id != prepared.profile_root
+        or authority.lane_id is not None
+        or authority.release_id != prepared.route_release_id
+    ):
+        raise ValueError("isolated route receipt subject is outside the port")
+
+
+def _execute_retained_request_v1(
+    port: IsolatedReceiptPortV1,
+    authority: _ReceiptPortAuthorityV1,
+    *,
+    receipt_bytes: bytes,
+    expected_image_id: str,
+    expected_journal_bytes: bytes,
+    label: str,
+) -> str:
+    """Run one owned request and return the verifier binding root retained across I/O.
+
+    The callable, role, release, lane, profile and verifier identity observed
+    before the call must be the ones observed after it, and the backend must
+    honor its exact None success contract, or no execution evidence is issued.
+    """
+    binding_root = authority.profile.verifier.binding_root
+    baseline = _port_identity(authority)
+    call = authority.call
+    result = call(
+        receipt_bytes,
+        expected_image_id=expected_image_id,
+        expected_journal_bytes=expected_journal_bytes,
+    )
+    retained = _port_authority(port)
+    if (
+        retained.call is not call
+        or _port_identity(retained) != baseline
+        or retained.profile.verifier.binding_root != binding_root
+    ):
+        raise ValueError(f"isolated {label} receipt authority changed during verification")
+    if result is not None:
+        raise ValueError(f"isolated {label} receipt backend violated success contract")
+    return binding_root
 
 
 def _mint_port(authority: _ReceiptPortAuthorityV1) -> IsolatedReceiptPortV1:
