@@ -434,10 +434,11 @@ Construction has a narrower error contract than public operation admission.
 Duplicate replay or occurrence identities and an exhausted replay table fail
 structural construction with Python `ValueError` or Rust `AbiErrorV1` before a
 candidate reaches the allocation relation. Malformed typed inputs also reject
-at construction. Before mounting this constructor on public ingress, the caller
-must establish the required preconditions or translate exact construction
-failures into deterministic typed operation rejection, with end-to-end
-no-publication evidence. This obligation remains open.
+at construction. A consuming operation must establish the required preconditions
+or translate exact construction failures into deterministic typed operation
+rejection. The epoch admission integration below establishes those preconditions
+through its existing complete allocation relation; other consumers retain this
+obligation.
 
 ```bash
 python3 -B -m pytest -q -p no:cacheprovider tests/core/test_asset_transfer_epoch_projection_v1.py tests/formal/test_lean_asset_transfer_epoch_economic_tables_v1.py
@@ -450,6 +451,56 @@ They do not establish authenticated source acquisition, universal Python/Rust
 refinement, aggregate receipt acceptance, a custody guest, a mounted multi-command
 epoch, or production value safety. The exactly-one isolated publication policy
 is unchanged. Historical evidence packets retain their original subjects.
+
+### Consumed projection at epoch admission
+
+Building on `8b4554dd05bf3f1259473270d35b96d3893283a9`, the
+[Python receipt admission](../../src/core/asset_transfer_receipt_admission_v1.py)
+and [Rust counterpart](../../zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs)
+now run the existing complete epoch allocation relation, construct the owned
+runtime projection, require its entire post-state to equal the submitted
+current state, and pass the derived values to fragment admission. The existing
+rejection family and order remain unchanged.
+
+Successful replay continuity requires two fresh identities and exactly one
+canonical row added to the predecessor. The submitted post-state already obeys
+the 4096-row schema limit, so successful continuity establishes room for that
+insertion. Failed continuity rejects before the constructor runs. The complete
+post-state comparison additionally protects the admission boundary against
+projection implementation drift. This is a reviewed guard implication with
+bounded runtime evidence; no new universal implementation theorem is claimed.
+
+The [core controls](../../tests/core/test_asset_transfer_epoch_projection_admission_v1.py)
+cover first and second positions, ownership, full-table rejection and a changed
+derived history root. The
+[isolated publication history](../../tests/integration/test_asset_transfer_epoch_projection_publication_v1.py)
+commits a custody-backed transfer, reopens the ledger, rejects its reused nonce,
+and commits a subsequent fresh command through the same pipeline. Rejection
+preserves the logical ledger and head. Exact retries reverify the submission
+while retaining the original committed record. The 4096-row capacity control
+is core evidence; this publisher history does not execute 4096 committed epochs.
+
+Module, coordinator and route receipt verification precede allocation admission.
+The no-effect observation covers fragment minting, later root receipt
+verification and economic publication after the allocation rejection. It does
+not imply zero verifier work or unchanged physical database files. Signatures
+use real BLS; receipt processes and release coordinates remain synthetic.
+
+The successor [evidence declaration](../../tests/evidence/test_hygiene/THV1-20260907-transfer-epoch-projection-admission-v1.json)
+pins this consumer and the unchanged Lean theorem signatures. Its renderer only
+records the subject; Python/Lean and native Rust replay run separately:
+
+```bash
+python3 -B -m experiments.v3_transfer_epoch_projection_admission_v1.render_evidence
+python3 -B -m pytest -q tests/core/test_asset_transfer_epoch_projection_admission_v1.py tests/integration/test_asset_transfer_epoch_projection_publication_v1.py
+cargo test --offline --locked --manifest-path zk/global_settlement_abi_v1/Cargo.toml --test asset_transfer_epoch_projection_admission --test asset_transfer_epoch_projection --test asset_transfer_epoch_position
+```
+
+The generic constructor retains its structural-error contract. The isolated
+mount still supports one occurrence. No publisher implementation, wire field,
+policy, guest image ID or live authority changes. Selected Rust consumers still
+require rebuild and release-specific qualification; these tests do not provide
+a real custody proof or remove runtime, process and host assumptions.
 
 ### Root-epoch and initial-state receipt execution
 

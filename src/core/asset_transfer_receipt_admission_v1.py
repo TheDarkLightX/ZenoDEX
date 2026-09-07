@@ -79,8 +79,10 @@ from .asset_transfer_epoch_position_v1 import (
     AssetTransferEpochPositionV1,
     _snapshot_epoch_position_v1,
 )
+from .asset_transfer_epoch_projection_v1 import project_asset_transfer_epoch_position_v1
 from .asset_transfer_global_allocation_v1 import (
     AssetTransferGlobalAllocationCandidateV1,
+    GlobalAllocationBindingRejectCodeV1,
     GlobalAllocationBindingRejectedV1,
     _derived_global_entitlements_v1,
     _epoch_allocation_binding_reject_v1,
@@ -378,13 +380,31 @@ def verify_asset_transfer_epoch_fragment_receipt_v1(
     The shell authenticates the initial source; the consuming epoch fold pairs
     each later predecessor with the previous checked post-state. Position data
     alone supplies no such authority. Standalone admission retains adjacent heights.
+    After the existing relation accepts, the exact owned inputs are rebuilt through
+    the runtime projection and its complete post-state must equal the advertised
+    current state before fragment admission can mint a witness.
     """
     owned_position = _snapshot_epoch_position_v1(position)
     owned = _snapshot_global_allocation_candidate_v1(candidate)
     rejected = _epoch_allocation_binding_reject_v1(owned, owned_position)
     if rejected is not None:
         return rejected
-    return _admit_global_fragment_v1(witness, owned.accepted, owned.predecessor, owned.current)
+    projection = project_asset_transfer_epoch_position_v1(
+        position=owned_position,
+        predecessor=owned.predecessor,
+        occurrence=owned.occurrence,
+        accepted=owned.accepted,
+    )
+    if projection.post_state != owned.current:
+        return GlobalAllocationBindingRejectedV1(
+            GlobalAllocationBindingRejectCodeV1.GLOBAL_PROJECTION_ROWS_DRIFT
+        )
+    return _admit_global_fragment_v1(
+        witness,
+        projection.accepted,
+        projection.predecessor,
+        projection.post_state,
+    )
 
 
 def _admit_global_fragment_v1(

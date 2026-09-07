@@ -7643,7 +7643,7 @@
     "src/core/asset_transfer_lane_module_custody_v1.py": "0d2118f275f6aa5bd308125b83b7c4528dbfc086749c8cb744bacea15983b45e",
     "src/core/global_economic_refinement_snapshot_v1.py": "0ab017a4fd6eee81e85bfeda3a829b34c78edb2b9af95d0959f1059be0469bb7",
     "src/core/global_settlement_types_v1.py": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4",
-    "tests/formal/test_lean_asset_transfer_epoch_economic_tables_v1.py": "35e5bfc941f7341b431f99721a466fffce1d3b4eb15b5377c48fd5353bbcb661",
+    "tests/formal/test_lean_asset_transfer_epoch_economic_tables_v1.py": "56c505e94e6ce85601489ba158da77cc497c62672ab422a9637aee0cb354c805",
     "tests/formal/test_lean_asset_transfer_epoch_state_closure_v1.py": "16d1e40a1ae4f8011dd8b43af3fa1b64585afc7563721b34157cd611205f1f8b",
     "tools/render_asset_transfer_epoch_projection_v1_golden.py": "3678d353f972e565191f65dcf356f5eb3d19d136eff7e329642cab1a428b7209",
     "tools/render_asset_transfer_global_allocation_v1_golden.py": "3a387231feb22b2e40e66a4be895ada2a5c042c1706e687a44960c17120713c6",

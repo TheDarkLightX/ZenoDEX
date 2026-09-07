@@ -149,6 +149,9 @@ THEOREM_TYPES = {
 RUNTIME_PINS = {
     "src/core/asset_transfer_epoch_projection_v1.py":
         "460a8f9ee6bf08a5c4755fef57ebfbc9c05ba7ecd699cf834bde6b901f1e269a",
+    # The current epoch admission consumes the owned runtime projection.
+    "src/core/asset_transfer_receipt_admission_v1.py":
+        "543b36c2a2d52f0b436da41d16f0eade4632e3ee05cd549fa8d0c2bdbe3de772",
     # This continuation consumes the reviewed pure epoch-preparation subject.
     # The predecessor tests retain their own historical source declarations.
     "src/core/global_economic_proof_v1.py":

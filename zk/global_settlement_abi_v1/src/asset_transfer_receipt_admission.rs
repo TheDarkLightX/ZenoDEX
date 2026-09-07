@@ -44,6 +44,7 @@
 //! succinct-receipt check is inherited from `lane_module_receipt_verification`; this module
 //! adds no cryptographic claim of its own. Research-only evidence; authority NONE.
 
+use crate::asset_transfer_epoch_projection::project_asset_transfer_epoch_position_v1;
 use crate::asset_transfer_global_allocation::{
     check_asset_transfer_epoch_allocation_v1, check_asset_transfer_global_allocation_v1,
     AssetTransferEpochPositionV1, AssetTransferGlobalAllocationCandidateV1,
@@ -346,6 +347,10 @@ pub fn verify_asset_transfer_epoch_fragment_receipt_v1(
         predecessor,
         current,
     } = candidate;
+    let AssetTransferEpochPositionV1 {
+        epoch_source,
+        occurrence_index,
+    } = position;
     if let Some(code) = check_asset_transfer_epoch_allocation_v1(
         AssetTransferGlobalAllocationCandidateV1 {
             accepted,
@@ -353,13 +358,37 @@ pub fn verify_asset_transfer_epoch_fragment_receipt_v1(
             predecessor,
             current,
         },
-        position,
+        AssetTransferEpochPositionV1 {
+            epoch_source,
+            occurrence_index,
+        },
     )? {
         return Ok(Err(
             GlobalAssetTransferFragmentAdmissionRejectedV1::Binding(code),
         ));
     }
-    admit_global_fragment_v1(witness, accepted, predecessor, current)
+    let projection = project_asset_transfer_epoch_position_v1(
+        AssetTransferEpochPositionV1 {
+            epoch_source,
+            occurrence_index,
+        },
+        predecessor,
+        occurrence,
+        accepted,
+    )?;
+    if projection.post_state() != current {
+        return Ok(Err(
+            GlobalAssetTransferFragmentAdmissionRejectedV1::Binding(
+                GlobalAllocationBindingRejectCodeV1::GLOBAL_PROJECTION_ROWS_DRIFT,
+            ),
+        ));
+    }
+    admit_global_fragment_v1(
+        witness,
+        projection.accepted(),
+        projection.predecessor(),
+        projection.post_state(),
+    )
 }
 
 fn admit_global_fragment_v1(
