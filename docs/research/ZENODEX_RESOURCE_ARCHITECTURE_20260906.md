@@ -671,6 +671,49 @@ whole-path FCIS, runtime/formal refinement and production qualification remain
 open. No wire field, economic constant, Rust guest or existing theorem changes
 in this extraction.
 
+### Registered supply identities and numeric support
+
+V1 managed-asset state retains a registered asset row when its supply reaches
+zero. Issuing from that state and burning the complete supply are existing
+behaviors. The V2 sparse numeric supply predicate requires nonzero rows, so
+passing the raw V1 rows to that predicate is not a general refinement rule.
+
+The additive [registered-supply bridge](../../lean-mathlib/Proofs/RegisteredSupplySupportV1.lean)
+keeps the complete ordered asset-key list beside nonzero numeric supply rows.
+For unique source keys, decoding this pair reconstructs the exact source rows,
+including zero amounts and their original order. Filtering preserves every
+asset's numeric supply lookup and produces a sublist of the source keys;
+any pairwise ordering relation on those keys therefore carries over.
+U128-bounded source amounts imply the existing sparse numeric supply predicate
+for the encoded support.
+
+The checked countermodels explain the required information. A registered zero
+row and no registration have the same numeric lookup. The duplicate-key
+countermodel aggregates two amounts and fails exact reconstruction. The
+complete key list and the uniqueness premise close these representation
+ambiguities. The key list itself
+confers no registration or policy authority.
+
+The [formal acceptance tests](../../tests/formal/test_lean_registered_supply_support_v1.py)
+compile a fresh three-module Std-only closure under pinned Lean 4.27.0,
+independently consume all 24 theorem signatures and inspect their axioms.
+Concrete controls cover empty, zero, mixed, unsorted, maximum, negative and
+overflow amounts, duplicate keys, missing zero keys and filtered order. Two
+finite runtime comparisons observe issue-from-zero and full-burn rows from
+the existing managed-asset implementation.
+
+```bash
+python3 -B -m pytest -q -p no:cacheprovider tests/formal/test_lean_registered_supply_support_v1.py
+python3 -B -m experiments.v3_registered_supply_support_v1.render_evidence
+```
+
+This proof adds a lossless supply representation under stated premises.
+It changes no V1 runtime row, canonical byte, root, policy or publication path.
+The representation must still be connected to whole-state accounting and
+admission, the actual runtime decoder and complete command lifecycles. The
+finite Python comparisons do not establish universal runtime/compiler
+refinement, and no production or whole-core completion follows here.
+
 ## Publisher-host compromise and independent enforcement
 
 The current isolated publisher assumes a trusted interpreter and operating

@@ -1,0 +1,120 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-REGISTERED-SUPPLY-SUPPORT-IDENTITY-AND-ORDER",
+      "points": [
+        "Twenty-four independently consumed theorem signatures cover exact registered-key preservation, unique-key decode/encode roundtrip, numeric lookup, filtered support, u128 admission, numeric-key Sublist, and generic Pairwise order transfer.",
+        "Explicit zero rows remain in the ordered registered-key view while absent from numeric support; a separated two-positive-row fixture checks that filtering retains support order across the zero row.",
+        "Duplicate source keys and a removed registered zero key provide concrete identity-loss controls: numeric lookup can agree while uniqueness, decoded rows, or key lists differ.",
+        "Empty, all-zero, mixed, unsorted, maximum-u128, negative, and maxU128-plus-one controls exercise the finite representation and support-admission boundary without introducing new policy constants.",
+        "The Python observations use the existing managed-asset issue-from-zero and exact full-burn fixtures, preserving the explicit zero supply row/key and comparing complete raw rows with filtered numeric rows.",
+        "The Lean subject is copied into a fresh three-module source/library closure and checked under the repository's pinned Lean 4.27.0 toolchain; the formal test independently scans theorem declarations and transitive axioms."
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "An additive Std-only Lean bridge provides 24 checked theorem signatures covering general registered-supply support, unique-key roundtrip and filtered numeric-order laws, plus concrete identity countermodels; finite Python observations compare actual managed-asset issue-from-zero and full-burn rows with its raw and numeric views.",
+  "created_date": "2026-09-07",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "formal",
+    "differential"
+  ],
+  "evidence_id": "THV1-20260907-registered-supply-support-v1",
+  "failure_modes": [
+    "Twenty-four independently consumed theorem signatures cover exact registered-key preservation, unique-key decode/encode roundtrip, numeric lookup, filtered support, u128 admission, numeric-key Sublist, and generic Pairwise order transfer.",
+    "Explicit zero rows remain in the ordered registered-key view while absent from numeric support; a separated two-positive-row fixture checks that filtering retains support order across the zero row.",
+    "Duplicate source keys and a removed registered zero key provide concrete identity-loss controls: numeric lookup can agree while uniqueness, decoded rows, or key lists differ.",
+    "Empty, all-zero, mixed, unsorted, maximum-u128, negative, and maxU128-plus-one controls exercise the finite representation and support-admission boundary without introducing new policy constants.",
+    "The Python observations use the existing managed-asset issue-from-zero and exact full-burn fixtures, preserving the explicit zero supply row/key and comparing complete raw rows with filtered numeric rows.",
+    "The Lean subject is copied into a fresh three-module source/library closure and checked under the repository's pinned Lean 4.27.0 toolchain; the formal test independently scans theorem declarations and transitive axioms."
+  ],
+  "invariant_ids": [
+    "V3-REGISTERED-SUPPLY-SUPPORT-IDENTITY-AND-ORDER"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "registeredAssetKeys are representation data only and confer no registration, policy, authorization, custody, issuance, or other authority.",
+    "The bridge does not change V1 wire fields, canonical bytes, state roots, hash domains, resource policy, or managed-asset lifecycle behavior.",
+    "Finite Python observations do not establish V1 runtime-to-V2 admission, canonical-byte/root refinement, universal Python/Lean/compiler refinement, or a complete runtime lifecycle.",
+    "No receipt, cryptographic proof, measured deployment, verifier image, publication, finality, migration, release, settlement, or production authority is created or qualified.",
+    "The existing managed-asset fixtures establish finite row/key correspondence for issue-from-zero and full-burn paths; they do not prove reissue, registry admission, policy equivalence, or every zero-supply lifecycle.",
+    "Source pins and independent theorem consumers are evidence of this bounded subject only. They do not promote formal-core completion, whole-program completeness, or product readiness.",
+    "Rendering executes no test or proof and writes no historical packet; any generated packet is a new declaration for this subject only."
+  ],
+  "reject_is_noop": {
+    "reason": "Lean negative controls establish propositions for negative and u128-overflow source/support rows and identity-loss countermodels; the existing Python issue and burn transitions preserve their complete pre-state snapshots. No publication or external write is modeled by this subject.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/RegisteredSupplySupportV1.lean",
+      "sha256": "cbd01b5eef5d932843ded7d3060611c846ad0dbc4c164bd5f15cbbbfa4e14f6e"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean",
+      "sha256": "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
+      "sha256": "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1"
+    },
+    {
+      "path": "lean-mathlib/lean-toolchain",
+      "sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "63c3ce41660357b882565f32459409f0b7d9031485d2af32f12e6bb830baa2fc"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_module_v1.py",
+      "sha256": "3a279bf3c5fa97d942c79f9c25025c0a24cbe7f24cfb91df5de43da38e831e36"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_types_v1.py",
+      "sha256": "f85ffc59628b673258ad6d72a9b6f8151f9def09e9e508aa2ec060251d75f315"
+    },
+    {
+      "path": "tests/core/test_managed_asset_lifecycle_boundaries_v1.py",
+      "sha256": "c4eeff55153df89a17e20c8b37756cc7938f725fca03b4420924dff65c2aad41"
+    },
+    {
+      "path": "experiments/v3_registered_supply_support_v1/render_evidence.py",
+      "sha256": "203a633aa53b8419b35c0b94a734fa6ddb2de7778d21aa43bbd41c375c4a764c"
+    },
+    {
+      "path": "docs/research/ZENODEX_RESOURCE_ARCHITECTURE_20260906.md",
+      "sha256": "efe3f1cc52f976e24ce829989966706b25028f694e3ca6cf084d5ffe3bb2cb62"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_registered_supply_support_v1.py::test_public_theorems_have_independent_consumers_and_no_forbidden_axioms",
+        "tests/formal/test_lean_registered_supply_support_v1.py::test_zero_mixed_unsorted_max_and_identity_loss_controls",
+        "tests/formal/test_lean_registered_supply_support_v1.py::test_runtime_issue_from_zero_preserves_key_and_model_rows",
+        "tests/formal/test_lean_registered_supply_support_v1.py::test_runtime_full_burn_preserves_zero_supply_row_and_key"
+      ],
+      "path": "tests/formal/test_lean_registered_supply_support_v1.py",
+      "sha256": "b30e1e01ed44b9ee64a18fc7463d2e77a97b35d895aaea652bb3abbd82d31e2f"
+    }
+  ]
+}

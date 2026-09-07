@@ -127,6 +127,7 @@ import Proofs.GeneralizedSettlementCertificates
 import Proofs.GlobalSettlementCoreV1
 import Proofs.GlobalSettlementCoreV2
 import Proofs.GlobalEconomicStateRefinementV2
+import Proofs.RegisteredSupplySupportV1
 import Proofs.GlobalClaimantCustodyRelationV1
 import Proofs.GlobalAccountingAllocationCertificateV1
 import Proofs.ExternalCustodyDisabledLaneV1
