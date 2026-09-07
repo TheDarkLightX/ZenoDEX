@@ -94,8 +94,6 @@ from src.core.lane_module_receipt_verification_v1 import (
     LaneModuleReceiptEnvelopeV1,
     ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
     VerifiedLaneModuleTransitionV1,
-    verify_asset_transfer_lane_module_receipt_v1,
-    verify_managed_asset_lifecycle_lane_module_receipt_v1,
 )
 from src.core.lane_module_release_route_binding_v1 import (
     AssetTransferReleaseRouteBindingCandidateV1,
@@ -135,6 +133,10 @@ from src.core.route_composition_receipt_verification_v1 import (
     RouteCompositionReceiptEnvelopeV1,
     VerifiedRouteCompositionV1,
     verify_route_composition_receipt_v1,
+)
+from tests.core.lane_module_receipt_fixtures_v1 import (
+    verify_asset_transfer_lane_module_receipt_v1,
+    verify_managed_asset_lifecycle_lane_module_receipt_v1,
 )
 
 

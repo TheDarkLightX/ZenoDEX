@@ -16,7 +16,6 @@ from src.core.lane_composition_receipt_verification_v1 import (
 from src.core.lane_module_receipt_verification_v1 import (
     LaneModuleReceiptEnvelopeV1,
     PerpsMarginLaneModuleReceiptCandidateV1,
-    verify_perps_margin_lane_module_receipt_v1,
 )
 from src.core.lane_module_release_route_binding_v1 import (
     bind_perps_margin_lane_output_to_release_route_v1,
@@ -29,6 +28,9 @@ from src.core.perps_margin_lane_coordinator_v1 import (
 from src.core.receipt_backed_perps_margin_lane_composition_v1 import (
     ReceiptBackedPerpsMarginLaneCompositionCandidateV1,
     compose_receipt_backed_perps_margin_lane_single_v1,
+)
+from tests.core.lane_module_receipt_fixtures_v1 import (
+    verify_perps_margin_lane_module_receipt_v1,
 )
 from tests.core.test_perps_margin_lane_coordinator_v1 import _projection_pair
 from tests.core.test_perps_margin_release_receipt_binding_v1 import (

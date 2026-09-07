@@ -32,8 +32,7 @@ from src.core.lane_module_receipt_verification_v1 import (
     MAX_LANE_MODULE_RECEIPT_BYTES_V1,
     AssetTransferLaneModuleReceiptCandidateV1,
     LaneModuleReceiptEnvelopeV1,
-    verify_asset_transfer_lane_module_custody_receipt_v1,
-    verify_asset_transfer_lane_module_receipt_v1,
+    prepare_asset_transfer_lane_module_custody_receipt_v1,
 )
 from src.core.lane_module_release_route_binding_v1 import (
     AssetTransferReleaseRouteBindingCandidateV1,
@@ -41,7 +40,14 @@ from src.core.lane_module_release_route_binding_v1 import (
     bind_asset_transfer_lane_output_to_custody_release_route_v1,
     bind_asset_transfer_lane_output_to_release_route_v1,
 )
+from src.integration.lane_module_receipt_verification_v1 import (
+    verify_asset_transfer_lane_module_custody_receipt_v1 as verify_custody_receipt_integration_v1,
+)
 from tests.core import test_asset_transfer_custody_semantics_v1 as semantic_fixtures
+from tests.core.lane_module_receipt_fixtures_v1 import (
+    verify_asset_transfer_lane_module_custody_receipt_v1,
+    verify_asset_transfer_lane_module_receipt_v1,
+)
 from tests.core.test_asset_transfer_custody_release_route_binding_v1 import (
     _honest_candidate,
 )
@@ -566,9 +572,16 @@ def test_legacy_receipt_verifier_remains_available_for_zero_custody_vector(
     ).guest_image_id
 
 
-def test_custody_receipt_entry_uses_the_existing_candidate_and_receipt_port_only() -> None:
-    assert list(inspect.signature(verify_asset_transfer_lane_module_custody_receipt_v1).parameters) == [
+def test_core_prepares_and_shell_preserves_the_legacy_custody_receipt_api() -> None:
+    assert list(
+        inspect.signature(prepare_asset_transfer_lane_module_custody_receipt_v1).parameters
+    ) == ["candidate"]
+    assert (
+        "prepare_asset_transfer_lane_module_custody_receipt_v1"
+        in receipt_verification.__all__
+    )
+    assert "verify_asset_transfer_lane_module_custody_receipt_v1" not in receipt_verification.__all__
+    assert list(inspect.signature(verify_custody_receipt_integration_v1).parameters) == [
         "candidate",
         "receipt_verifier",
     ]
-    assert "verify_asset_transfer_lane_module_custody_receipt_v1" in receipt_verification.__all__

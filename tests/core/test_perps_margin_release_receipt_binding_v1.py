@@ -62,7 +62,6 @@ from src.core.global_settlement_types_v1 import (
 from src.core.lane_module_receipt_verification_v1 import (
     LaneModuleReceiptEnvelopeV1,
     PerpsMarginLaneModuleReceiptCandidateV1,
-    verify_perps_margin_lane_module_receipt_v1,
 )
 from src.core.lane_module_release_route_binding_v1 import (
     PerpsMarginReleaseRouteBindingCandidateV1,
@@ -87,6 +86,9 @@ from src.core.perps_market_policy_v1 import (
     PerpsMarketPolicyV1,
 )
 from tests.core import test_lane_module_release_route_binding_v1 as support
+from tests.core.lane_module_receipt_fixtures_v1 import (
+    verify_perps_margin_lane_module_receipt_v1,
+)
 
 ORACLE_ID = "zenodex.oracle.perps-index-price.v1"
 MARKET_ID = "BTC-ZUSD-PERP"

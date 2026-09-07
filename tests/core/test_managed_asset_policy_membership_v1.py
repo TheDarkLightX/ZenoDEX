@@ -25,7 +25,6 @@ from src.core.global_settlement_types_v1 import (
 from src.core.lane_module_receipt_verification_v1 import (
     LaneModuleReceiptEnvelopeV1,
     ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
-    verify_managed_asset_lifecycle_lane_module_receipt_v1,
 )
 from src.core.lane_module_release_route_binding_v1 import (
     ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
@@ -53,6 +52,9 @@ from src.core.managed_asset_policy_registry_v1 import (
     snapshot_managed_asset_policy_registry_v1,
 )
 from tests.core import test_lane_module_release_route_binding_v1 as support
+from tests.core.lane_module_receipt_fixtures_v1 import (
+    verify_managed_asset_lifecycle_lane_module_receipt_v1,
+)
 
 _ISSUE = MANAGED_ASSET_ISSUE_COMMAND_KIND_V1
 _BURN = MANAGED_ASSET_BURN_COMMAND_KIND_V1

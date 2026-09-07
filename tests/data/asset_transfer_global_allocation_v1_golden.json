@@ -6138,7 +6138,7 @@
   "schema": "zenodex/asset-transfer-global-allocation-relation-golden/v1",
   "source_sha256": {
     "src/core/asset_transfer_global_allocation_v1.py": "a4099cb3e53c26ef981e384e92cbdc5c04b80d5bdf7c14cd3b2d296a8830f028",
-    "src/core/asset_transfer_receipt_admission_v1.py": "2a954812ee4d4cbcb537872ff108c52576c6c5aef7eaca28bab124d27488837f",
+    "src/core/asset_transfer_receipt_admission_v1.py": "3b94dbd2105aa6247e1423d80638a5c0fb7cce7017a504616021d4db5447a633",
     "zk/global_settlement_abi_v1/src/asset_transfer_global_allocation.rs": "3d785828fb676c0c2d112a55714b82ec13f245ee1886d175f122b482cd88c9bd",
     "zk/global_settlement_abi_v1/src/asset_transfer_receipt_admission.rs": "3edf5982fd2c3642da198968d28f14fd084c42a93207a1f8ef7c91d3c349a76d"
   }

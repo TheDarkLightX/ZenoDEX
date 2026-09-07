@@ -2,9 +2,10 @@
 
 ``verify_asset_transfer_fragment_receipt_v1`` takes the receipt-verified
 module witness (``VerifiedLaneModuleTransitionV1``, mintable only by
-``verify_asset_transfer_lane_module_receipt_v1`` after a succinct-receipt
-check against the recomputed module journal under an ACTIVE_NEW release
-image), rebuilds the caller's accepted value through the exact-typed
+``bind_verified_lane_module_receipt_v1`` after a matching execution evidence
+object from the measured integration port and a succinct-receipt check against
+the recomputed module journal under an ACTIVE_NEW release image), rebuilds the
+caller's accepted value through the exact-typed
 snapshot, binds the rebuilt value to the witness at the journal root,
 re-runs the wave-B fragment producer on the rebuilt value, and mints the
 opaque ``VerifiedLaneAllocationFragmentV1`` witness (defined in the
@@ -207,7 +208,14 @@ def _rebuild_prior_fragment_v1(prior: LaneAllocationFragmentV1) -> LaneAllocatio
         name: _snapshot_dataclass_tuple_v1(getattr(prior, name), row_type, f"prior fragment {name}")
         for name, row_type in families.items()
     }
-    return replace(prior, **rebuilt)
+    return replace(
+        prior,
+        controlled_locations=rebuilt["controlled_locations"],
+        claimant_entitlements=rebuilt["claimant_entitlements"],
+        unencumbered_reserves=rebuilt["unencumbered_reserves"],
+        pending_external_obligations=rebuilt["pending_external_obligations"],
+        terminal_bindings=rebuilt["terminal_bindings"],
+    )
 
 
 def verify_asset_transfer_fragment_receipt_v1(
@@ -406,8 +414,12 @@ def _admit_global_fragment_v1(
     module_fragment = verify_asset_transfer_fragment_receipt_v1(
         witness, owned, module_lane, module_prior, _derived_global_entitlements_v1(prior)
     )
-    if not isinstance(module_fragment, VerifiedLaneAllocationFragmentV1):
+    if type(module_fragment) is ReceiptWitnessRejectedV1:
         return module_fragment
+    if type(module_fragment) is ReceiptBackedProducerRejectedV1:
+        return module_fragment
+    if type(module_fragment) is not VerifiedLaneAllocationFragmentV1:
+        raise TypeError("fragment admission returned an unexpected exact typed result")
     # Receipt binding plus the checked projection relation permits this lift.
     # There is deliberately no public constructor accepting arbitrary roots.
     fragment = replace(

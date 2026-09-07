@@ -16,6 +16,7 @@ from src.core.asset_transfer_global_allocation_v1 import (
     GlobalAllocationBindingRejectCodeV1 as Code,
 )
 from src.core.global_accounting_allocation_projection_v1 import project_allocation_certificate_v1
+from src.core.global_accounting_lane_producers_v1 import ReceiptBackedProducerRejectCodeV1
 from tests.core.test_global_settlement_abi_v1 import (
     _POLICY_REGISTRY_BY_PROFILE_ID_V1,
     _asset_module_input_for_occurrence,
@@ -328,6 +329,75 @@ def test_foreign_receipt_witness_and_malformed_snapshot_refuse():
         _admit((*fixture[:-1], object()))
     with pytest.raises(ValueError, match="unsigned 64-bit"):
         _admit((*fixture[:-1], replace(fixture[-1], height=1 << 64)))
+
+
+def test_positive_fragment_subclass_rejects_before_property_reads(monkeypatch):
+    """A non-exact inner result cannot expose rows through the global lift."""
+    fixture = _global_allocation_fixture(controlled_atoms=100)
+    _, _, occurrence, accepted, _, predecessor, current = fixture
+    before = types.canonical_global_bytes_v1(
+        (predecessor, current, occurrence, accepted.module_journal, accepted.private_port)
+    )
+    reads = []
+
+    class _PositiveResultSubclass(cert.VerifiedLaneAllocationFragmentV1):
+        @property
+        def fragment(self):
+            reads.append("fragment")
+            raise AssertionError("subclass fragment must not be read")
+
+    spoofed = object.__new__(_PositiveResultSubclass)
+    monkeypatch.setattr(
+        admission,
+        "verify_asset_transfer_fragment_receipt_v1",
+        lambda *_args: spoofed,
+    )
+    with pytest.raises(TypeError, match="unexpected exact typed result"):
+        _admit(fixture)
+    assert reads == []
+    assert types.canonical_global_bytes_v1(
+        (predecessor, current, occurrence, accepted.module_journal, accepted.private_port)
+    ) == before
+
+
+@pytest.mark.parametrize("result_kind", ["unexpected", "witness_rejection", "producer_rejection"])
+def test_inner_result_gate_rejects_unexpected_and_preserves_exact_rejections(
+    monkeypatch, result_kind
+):
+    fixture = _global_allocation_fixture(controlled_atoms=100)
+    _, _, occurrence, accepted, _, predecessor, current = fixture
+    before = types.canonical_global_bytes_v1(
+        (predecessor, current, occurrence, accepted.module_journal, accepted.private_port)
+    )
+    if result_kind == "unexpected":
+        supplied = object()
+    elif result_kind == "witness_rejection":
+        supplied = admission.ReceiptWitnessRejectedV1(
+            admission.ReceiptWitnessRejectCodeV1.WITNESS_JOURNAL_ROOT_DRIFT,
+            types.LaneIdV1.ASSET_TRANSFER,
+            types.ZERO_ROOT_V1,
+            "journal root",
+        )
+    else:
+        supplied = admission.ReceiptBackedProducerRejectedV1(
+            ReceiptBackedProducerRejectCodeV1.FRAGMENT_INVALID,
+            types.LaneIdV1.ASSET_TRANSFER,
+            types.ZERO_ROOT_V1,
+            "fragment invalid",
+        )
+    monkeypatch.setattr(
+        admission,
+        "verify_asset_transfer_fragment_receipt_v1",
+        lambda *_args: supplied,
+    )
+    if result_kind == "unexpected":
+        with pytest.raises(TypeError, match="unexpected exact typed result"):
+            _admit(fixture)
+    else:
+        assert _admit(fixture) is supplied
+    assert types.canonical_global_bytes_v1(
+        (predecessor, current, occurrence, accepted.module_journal, accepted.private_port)
+    ) == before
 
 
 def test_binding_reject_registry_matches_rust():

@@ -1,0 +1,82 @@
+"""Measured module receipt execution between pure preparation and binding.
+
+The isolated factory owns verifier selection. These adapters accept its exact
+role ports and preserve core rejection precedence by preparing before execution.
+They issue no writer, finality, release-activation or external-effect authority.
+"""
+
+from __future__ import annotations
+
+from ..core.lane_module_receipt_verification_v1 import (
+    AssetTransferLaneModuleReceiptCandidateV1,
+    ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
+    PerpsMarginLaneModuleReceiptCandidateV1,
+    PreparedLaneModuleReceiptV1,
+    VerifiedLaneModuleTransitionV1,
+    bind_verified_lane_module_receipt_v1,
+    prepare_asset_transfer_lane_module_custody_receipt_v1,
+    prepare_asset_transfer_lane_module_receipt_v1,
+    prepare_managed_asset_lifecycle_lane_module_receipt_v1,
+    prepare_perps_margin_lane_module_receipt_v1,
+)
+from .isolated_profile_receipt_ports_v1 import IsolatedReceiptPortV1
+
+
+def _execute_and_bind_module_receipt_v1(
+    prepared: PreparedLaneModuleReceiptV1, receipt_verifier: IsolatedReceiptPortV1
+) -> VerifiedLaneModuleTransitionV1:
+    if type(receipt_verifier) is not IsolatedReceiptPortV1:
+        raise TypeError("lane module verification requires a measured isolated receipt port")
+    binding_root = receipt_verifier.verifier_binding_root
+    execution = receipt_verifier.verify_prepared_module_receipt_v1(prepared)
+    return bind_verified_lane_module_receipt_v1(
+        prepared, execution, expected_verifier_binding_root=binding_root
+    )
+
+
+def verify_asset_transfer_lane_module_receipt_v1(
+    candidate: AssetTransferLaneModuleReceiptCandidateV1,
+    receipt_verifier: IsolatedReceiptPortV1,
+) -> VerifiedLaneModuleTransitionV1:
+    """Prepare, execute and bind the existing transfer receipt statement."""
+    return _execute_and_bind_module_receipt_v1(
+        prepare_asset_transfer_lane_module_receipt_v1(candidate), receipt_verifier
+    )
+
+
+def verify_asset_transfer_lane_module_custody_receipt_v1(
+    candidate: AssetTransferLaneModuleReceiptCandidateV1,
+    receipt_verifier: IsolatedReceiptPortV1,
+) -> VerifiedLaneModuleTransitionV1:
+    """Prepare and verify the custody-complete successor without activation."""
+    return _execute_and_bind_module_receipt_v1(
+        prepare_asset_transfer_lane_module_custody_receipt_v1(candidate), receipt_verifier
+    )
+
+
+def verify_managed_asset_lifecycle_lane_module_receipt_v1(
+    candidate: ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
+    receipt_verifier: IsolatedReceiptPortV1,
+) -> VerifiedLaneModuleTransitionV1:
+    """Prepare and verify the governed ordinary-token issue or burn receipt."""
+    return _execute_and_bind_module_receipt_v1(
+        prepare_managed_asset_lifecycle_lane_module_receipt_v1(candidate), receipt_verifier
+    )
+
+
+def verify_perps_margin_lane_module_receipt_v1(
+    candidate: PerpsMarginLaneModuleReceiptCandidateV1,
+    receipt_verifier: IsolatedReceiptPortV1,
+) -> VerifiedLaneModuleTransitionV1:
+    """Prepare and verify the command- and Oracle-bound perps receipt."""
+    return _execute_and_bind_module_receipt_v1(
+        prepare_perps_margin_lane_module_receipt_v1(candidate), receipt_verifier
+    )
+
+
+__all__ = [
+    "verify_asset_transfer_lane_module_receipt_v1",
+    "verify_asset_transfer_lane_module_custody_receipt_v1",
+    "verify_managed_asset_lifecycle_lane_module_receipt_v1",
+    "verify_perps_margin_lane_module_receipt_v1",
+]

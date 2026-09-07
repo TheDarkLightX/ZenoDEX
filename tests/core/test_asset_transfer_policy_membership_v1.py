@@ -85,7 +85,6 @@ from src.core.global_settlement_types_v1 import (
 from src.core.lane_module_receipt_verification_v1 import (
     AssetTransferLaneModuleReceiptCandidateV1,
     LaneModuleReceiptEnvelopeV1,
-    verify_asset_transfer_lane_module_receipt_v1,
 )
 from src.core.lane_module_release_route_binding_v1 import (
     AssetTransferReleaseRouteBindingCandidateV1,
@@ -96,6 +95,9 @@ from src.core.managed_asset_policy_registry_v1 import (
     snapshot_exact_economic_policy_registry_v1,
 )
 from tests.core import test_lane_module_release_route_binding_v1 as support
+from tests.core.lane_module_receipt_fixtures_v1 import (
+    verify_asset_transfer_lane_module_receipt_v1,
+)
 
 _TRANSFER = ASSET_TRANSFER_COMMAND_KIND_V1
 _TRANSFER_POLICY_KINDS = (

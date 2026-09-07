@@ -10,6 +10,7 @@ separate obligations; these ports provide cryptographic verification only.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from functools import partial
 from threading import Lock
 from typing import NoReturn, Protocol, SupportsIndex
@@ -32,6 +33,12 @@ from ..core.global_settlement_types_v1 import (
     RouteReleaseV1,
     _require_root,
 )
+from ..core.lane_module_receipt_verification_v1 import (
+    _VERIFIED_LANE_MODULE_RECEIPT_EXECUTION_TOKEN_V1,
+    PreparedLaneModuleReceiptV1,
+    VerifiedLaneModuleReceiptExecutionV1,
+    snapshot_prepared_lane_module_receipt_v1,
+)
 from .isolated_economic_verifier_set_v1 import (
     IsolatedVerifierArtifactV1,
     bind_isolated_economic_verifier_set_v1,
@@ -41,13 +48,29 @@ from .isolated_economic_verifier_set_v1 import (
 class _ReceiptCallV1(Protocol):
     def __call__(
         self, receipt_bytes: bytes, *, expected_image_id: str, expected_journal_bytes: bytes
-    ) -> None: ...
+    ) -> object: ...
 
 
 @dataclass(frozen=True, slots=True)
 class _ProfileAuthorityV1:
     profile: EconomicProfileSnapshotV1
     verifier: BoundEconomicReceiptVerifierV1
+
+
+class _ReceiptRoleV1(Enum):
+    ROOT = "root"
+    MODULE = "module"
+    COORDINATOR = "coordinator"
+    ROUTE = "route"
+
+
+@dataclass(frozen=True, slots=True)
+class _ReceiptPortAuthorityV1:
+    call: _ReceiptCallV1
+    profile: _ProfileAuthorityV1
+    role: _ReceiptRoleV1
+    release_id: str
+    lane_id: LaneIdV1 | None
 
 
 class _OpaqueHandleV1:
@@ -71,16 +94,49 @@ class IsolatedReceiptPortV1(_OpaqueHandleV1):
     def verify_succinct_receipt(
         self, receipt_bytes: bytes, *, expected_image_id: str, expected_journal_bytes: bytes
     ) -> None:
-        if type(self) is not IsolatedReceiptPortV1:
-            raise TypeError("isolated receipt port must be the exact factory type")
-        with _LOCK:
-            call = _CALLS.get(self)
-        if call is None:
-            raise ValueError("isolated receipt port was not factory-minted")
-        call(
+        authority = _port_authority(self)
+        authority.call(
             receipt_bytes,
             expected_image_id=expected_image_id,
             expected_journal_bytes=expected_journal_bytes,
+        )
+
+    @property
+    def verifier_binding_root(self) -> str:
+        return _port_authority(self).profile.verifier.binding_root
+
+    def verify_prepared_module_receipt_v1(
+        self, prepared: PreparedLaneModuleReceiptV1
+    ) -> VerifiedLaneModuleReceiptExecutionV1:
+        """Execute an exact module request under the retained measured role.
+
+        Evidence is issued after successful execution and unchanged port and
+        verifier identity. The result grants no publication or finality right.
+        """
+        if type(prepared) is not PreparedLaneModuleReceiptV1:
+            raise TypeError("isolated module receipt request must be exactly prepared")
+        owned = snapshot_prepared_lane_module_receipt_v1(prepared)
+        authority = _port_authority(self)
+        _require_module_subject(authority, owned)
+        binding_root = authority.profile.verifier.binding_root
+        baseline = _port_identity(authority)
+        call = authority.call
+        result = call(
+            owned.receipt_bytes,
+            expected_image_id=owned.expected_image_id,
+            expected_journal_bytes=owned.expected_journal_bytes,
+        )
+        retained = _port_authority(self)
+        if (
+            retained.call is not call
+            or _port_identity(retained) != baseline
+            or retained.profile.verifier.binding_root != binding_root
+        ):
+            raise ValueError("isolated module receipt authority changed during verification")
+        if result is not None:
+            raise ValueError("isolated module receipt backend violated success contract")
+        return VerifiedLaneModuleReceiptExecutionV1(
+            _VERIFIED_LANE_MODULE_RECEIPT_EXECUTION_TOKEN_V1, owned, binding_root
         )
 
 
@@ -90,35 +146,41 @@ class IsolatedProfileReceiptPortsV1(_OpaqueHandleV1):
     __slots__ = ()
 
     def root_port(self) -> IsolatedReceiptPortV1:
-        return _mint_port(_authority(self).verifier.verify_succinct_receipt)
+        authority = _authority(self)
+        return _mint_port(_ReceiptPortAuthorityV1(
+            authority.verifier.verify_succinct_receipt, authority,
+            _ReceiptRoleV1.ROOT, authority.profile.root_image_id, None,
+        ))
 
     def module_port(self, lane_id: LaneIdV1) -> IsolatedReceiptPortV1:
         authority = _authority(self)
         _require_lane(lane_id)
         release = authority.profile.lane_registry.release_for(lane_id)
         _require_accepting_release(release)
-        return _mint_port(
+        return _mint_port(_ReceiptPortAuthorityV1(
             partial(
                 authority.verifier.verify_profile_lane_receipt,
                 profile=authority.profile,
                 lane_id=lane_id,
                 expected_module_release_id=release.release_id,
-            )
-        )
+            ),
+            authority, _ReceiptRoleV1.MODULE, release.release_id, lane_id,
+        ))
 
     def coordinator_port(self, lane_id: LaneIdV1) -> IsolatedReceiptPortV1:
         authority = _authority(self)
         _require_lane(lane_id)
         release = authority.profile.lane_coordinator_registry.release_for(lane_id)
         _require_accepting_release(release)
-        return _mint_port(
+        return _mint_port(_ReceiptPortAuthorityV1(
             partial(
                 authority.verifier.verify_profile_lane_coordinator_receipt,
                 profile=authority.profile,
                 lane_id=lane_id,
                 expected_coordinator_release_id=release.coordinator_release_id,
-            )
-        )
+            ),
+            authority, _ReceiptRoleV1.COORDINATOR, release.coordinator_release_id, lane_id,
+        ))
 
     def route_port(self, route_release_id: str) -> IsolatedReceiptPortV1:
         authority = _authority(self)
@@ -128,13 +190,14 @@ class IsolatedProfileReceiptPortsV1(_OpaqueHandleV1):
         for release in authority.profile.route_registry.routes:
             if release.route_release_id == route_release_id:
                 _require_accepting_release(release)
-                return _mint_port(
+                return _mint_port(_ReceiptPortAuthorityV1(
                     partial(
                         authority.verifier.verify_profile_route_receipt,
                         profile=authority.profile,
                         expected_route_release_id=release.route_release_id,
-                    )
-                )
+                    ),
+                    authority, _ReceiptRoleV1.ROUTE, release.route_release_id, None,
+                ))
         raise ValueError("isolated route release is outside the profile")
 
 
@@ -142,7 +205,7 @@ _LOCK = Lock()
 _AUTHORITIES: WeakKeyDictionary[IsolatedProfileReceiptPortsV1, _ProfileAuthorityV1] = (
     WeakKeyDictionary()
 )
-_CALLS: WeakKeyDictionary[IsolatedReceiptPortV1, _ReceiptCallV1] = WeakKeyDictionary()
+_CALLS: WeakKeyDictionary[IsolatedReceiptPortV1, _ReceiptPortAuthorityV1] = WeakKeyDictionary()
 
 
 def _authority(ports: IsolatedProfileReceiptPortsV1) -> _ProfileAuthorityV1:
@@ -155,10 +218,39 @@ def _authority(ports: IsolatedProfileReceiptPortsV1) -> _ProfileAuthorityV1:
     return authority
 
 
-def _mint_port(call: _ReceiptCallV1) -> IsolatedReceiptPortV1:
+def _port_authority(port: IsolatedReceiptPortV1) -> _ReceiptPortAuthorityV1:
+    if type(port) is not IsolatedReceiptPortV1:
+        raise TypeError("isolated receipt port must be the exact factory type")
+    with _LOCK:
+        authority = _CALLS.get(port)
+    if authority is None:
+        raise ValueError("isolated receipt port was not factory-minted")
+    return authority
+
+
+def _port_identity(authority: _ReceiptPortAuthorityV1) -> tuple[object, ...]:
+    return (
+        authority.profile.verifier, authority.profile.profile.profile_id,
+        authority.role, authority.release_id, authority.lane_id,
+    )
+
+
+def _require_module_subject(
+    authority: _ReceiptPortAuthorityV1, prepared: PreparedLaneModuleReceiptV1
+) -> None:
+    if (
+        authority.role is not _ReceiptRoleV1.MODULE
+        or authority.profile.profile.profile_id != prepared.profile_root
+        or authority.lane_id is not prepared.lane_id
+        or authority.release_id != prepared.module_release_id
+    ):
+        raise ValueError("isolated module receipt subject is outside the port")
+
+
+def _mint_port(authority: _ReceiptPortAuthorityV1) -> IsolatedReceiptPortV1:
     port = object.__new__(IsolatedReceiptPortV1)
     with _LOCK:
-        _CALLS[port] = call
+        _CALLS[port] = authority
     return port
 
 

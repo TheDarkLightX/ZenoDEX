@@ -348,6 +348,7 @@ _ADMISSION_PATH_MODULES = (
     "src/core/asset_transfer_receipt_admission_v1.py",
     "src/core/global_accounting_lane_producers_v1.py",
     "src/core/asset_transfer_lane_module_v1.py",
+    "src/core/asset_transfer_lane_module_custody_v1.py",
     "src/core/asset_transfer_module_v1.py",
     "src/core/asset_lane_projection_v1.py",
     "src/core/asset_transfer_types_v1.py",
@@ -365,6 +366,8 @@ _ADMISSION_PATH_MODULES = (
 _ADMISSION_PATH_ISINSTANCE_INVENTORY = {
     ("src/core/asset_transfer_lane_module_v1.py", "_transition_owned_asset_transfer_lane_module_v1", "AssetTransferRejectedV1"):
         "result discrimination on the inner transition's closed RejectedV1 return",
+    ("src/core/asset_transfer_lane_module_custody_v1.py", "transition_asset_transfer_lane_module_custody_v1", "AssetTransferRejectedV1"):
+        "result discrimination on the custody successor's closed RejectedV1 return",
     ("src/core/asset_transfer_receipt_admission_v1.py", "verify_asset_transfer_fragment_receipt_v1", "ReceiptBackedProducerRejectedV1"):
         "result discrimination on the producer's closed RejectedV1 return",
     ("src/core/asset_transfer_module_v1.py", "_prepare_transfer", "AssetTransferRejectCodeV1"):
@@ -400,7 +403,7 @@ def _isinstance_sites(path: Path) -> list[tuple[str, str, str, bool]]:
 
 def test_admission_path_isinstance_inventory_is_pinned() -> None:
     """Opus P28 F1 audit: an ordinary subclass admitted by isinstance reported a
-    genuine root over foreign rows. Rule, pinned mechanically: on the seven
+    genuine root over foreign rows. Rule, pinned mechanically: on the scanned
     modules of the receipt-admission path, isinstance may survive only as
     result discrimination on a closed *RejectedV1 return, never as an input
     gate (input gates are exact: type(x) is not T). Adding any isinstance to the
@@ -655,6 +658,10 @@ _ADMISSION_PATH_EXACT_TYPE_GATES = frozenset({
     ('src/core/asset_transfer_receipt_admission_v1.py', '_rebuild_prior_fragment_v1', 'value', 'str'),
     ('src/core/asset_transfer_receipt_admission_v1.py', 'verify_asset_transfer_fragment_receipt_v1', 'lane_root', 'LaneStateRootV1'),
     ('src/core/asset_transfer_receipt_admission_v1.py', 'verify_asset_transfer_fragment_receipt_v1', 'witness', 'VerifiedLaneModuleTransitionV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_snapshot_global_allocation_candidate_v1', 'candidate', 'AssetTransferGlobalAllocationCandidateV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_admit_global_fragment_v1', 'module_fragment', 'ReceiptBackedProducerRejectedV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_admit_global_fragment_v1', 'module_fragment', 'ReceiptWitnessRejectedV1'),
+    ('src/core/asset_transfer_receipt_admission_v1.py', '_admit_global_fragment_v1', 'module_fragment', 'VerifiedLaneAllocationFragmentV1'),
     ('src/core/asset_transfer_types_v1.py', 'AssetTransferAcceptedV1.__post_init__', 'self.effects', 'GlobalEconomicEffectPlanV1'),
     ('src/core/asset_transfer_types_v1.py', 'AssetTransferAcceptedV1.__post_init__', 'self.module_journal', 'LaneModuleTransitionJournalV1'),
     ('src/core/asset_transfer_types_v1.py', 'AssetTransferAcceptedV1.__post_init__', 'self.post_state', 'AssetTransferStateV1'),
@@ -699,6 +706,16 @@ _ADMISSION_PATH_EXACT_TYPE_GATES = frozenset({
     ('src/core/lane_module_receipt_verification_v1.py', 'require_verified_lane_module_transition_scalars_v1', 'fields', '_VerifiedLaneModuleTransitionFieldsV1'),
     ('src/core/lane_module_receipt_verification_v1.py', 'require_verified_lane_module_transition_scalars_v1', 'fields.receipt_kind', 'ReceiptKindV1'),
     ('src/core/lane_module_receipt_verification_v1.py', 'require_verified_lane_module_transition_scalars_v1', 'witness', 'VerifiedLaneModuleTransitionV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_require_prepared_lane_module_receipt_request_v1', 'request', '_PreparedLaneModuleReceiptRequestV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_require_prepared_lane_module_receipt_request_v1', 'request.lane_id', 'LaneIdV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_require_prepared_lane_module_receipt_request_v1', 'request.receipt_bytes', 'bytes'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_require_prepared_lane_module_receipt_request_v1', 'request.expected_journal_bytes', 'bytes'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_require_prepared_lane_module_transition_fields_v1', 'fields', '_VerifiedLaneModuleTransitionFieldsV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_require_prepared_lane_module_transition_fields_v1', 'fields.receipt_kind', 'ReceiptKindV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_require_prepared_lane_module_receipt_fields_v1', 'fields', '_PreparedLaneModuleReceiptFieldsV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_prepared_lane_module_receipt_fields_v1', 'prepared', 'PreparedLaneModuleReceiptV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_verified_lane_module_receipt_execution_fields_v1', 'execution', 'VerifiedLaneModuleReceiptExecutionV1'),
+    ('src/core/lane_module_receipt_verification_v1.py', '_verified_lane_module_receipt_execution_fields_v1', 'fields', '_VerifiedLaneModuleReceiptExecutionFieldsV1'),
     ('src/core/lane_module_release_route_binding_v1.py', 'AssetTransferReleaseRouteBindingCandidateV1.__post_init__', 'value', 'expected'),
     ('src/core/lane_module_release_route_binding_v1.py', 'ManagedAssetLifecycleReleaseRouteBindingCandidateV1.__post_init__', 'value', 'expected'),
     ('src/core/lane_module_release_route_binding_v1.py', 'PerpsMarginReleaseRouteBindingCandidateV1.__post_init__', 'self.verified_price', 'VerifiedGlobalOraclePriceV1'),
@@ -711,6 +728,7 @@ _ADMISSION_PATH_EXACT_TYPE_GATES = frozenset({
     ('src/core/receipt_backed_asset_lane_composition_v1.py', 'ReceiptBackedAssetLaneCompositionCandidateV1.__post_init__', 'value', 'expected_type'),
     ('src/core/receipt_backed_asset_lane_composition_v1.py', 'compose_receipt_backed_asset_lane_single_v1', 'candidate', 'ReceiptBackedAssetLaneCompositionCandidateV1'),
     ('src/core/receipt_backed_asset_lane_composition_v1.py', 'compose_receipt_backed_asset_lane_single_v1', 'result', 'AssetLaneCompositionAcceptedV1'),
+    ('src/core/asset_transfer_lane_module_custody_v1.py', 'recompute_asset_transfer_lane_module_custody_v1', 'expected', 'AssetTransferLaneModuleAcceptedV1'),
 })
 
 # The scanned set is bound to the transitive src.core import closure of the admission entry module:
@@ -718,9 +736,17 @@ _ADMISSION_PATH_EXACT_TYPE_GATES = frozenset({
 # module joining the closure, or a new isinstance on a listed module, fails the binding until an
 # inventory decision is recorded. Listed modules are lanes and services the admission never reads
 # rows from, plus the shared helpers whose isinstance(..., Enum) checks are against the abstract base.
+# The four newly listed helpers own custody selection, epoch positions, the global snapshot relation,
+# and BLS wire requests. Their exact checks remain outside this legacy-fragment hotspot inventory;
+# the import closure still pins their zero isinstance counts. A zero count is a drift observation,
+# not a safety claim about their semantics or complete guard coverage.
 _ADMISSION_CLOSURE_OUT_OF_SCOPE_ISINSTANCE_COUNTS = {
     'asset_lane_coordinator_v1': 4,
+    'asset_transfer_custody_semantics_v1': 0,
+    'asset_transfer_epoch_position_v1': 0,
+    'asset_transfer_global_allocation_v1': 0,
     'asset_transfer_policy_registry_v1': 0,
+    'bls_command_verifier_protocol_v1': 0,
     'economic_command_authentication_snapshot_v1': 0,
     'economic_command_authentication_types_v1': 0,
     'economic_command_authentication_v1': 0,

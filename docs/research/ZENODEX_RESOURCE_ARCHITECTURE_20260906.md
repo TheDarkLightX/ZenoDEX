@@ -1,10 +1,12 @@
 # Resource roles and functional-core boundaries
 
-This design assessment uses integration subject
+The original design assessment used integration subject
 `f68171a9922fcaac06dde2bfe22a37e3e94810ae` and the separately checked
-`AssetTransferGlobalStateClosureV1` increment. It advances W02/W09 of the
-[V3 plan](../ZENODEX_COMPLETION_PLAN.md). It changes no runtime economics,
-canonical bytes, policy constants, release images or publication authority.
+`AssetTransferGlobalStateClosureV1` increment. The module receipt boundary
+implementation below builds on `705f4a2f2444e5ee42a3c4a3aa5e1ffbf15948eb`.
+These advance the [V3 plan](../ZENODEX_COMPLETION_PLAN.md) without changing
+runtime economics, canonical bytes, policy constants, release images or
+publication authority.
 
 ## Architecture decision
 
@@ -30,6 +32,47 @@ A 6-atom claim backed by that custody is an entitlement to part of those 15.
 Adding the claim to holdings would double-count the backing tokens. The custody
 transfer's physical view counts balances plus custody; the global owned view
 also counts reserves. These are derived views with different contracts.
+
+## Economics, recursive proofs and finality
+
+The accepted architecture separates three responsibilities:
+
+- The functional core defines authorized economic transitions. ZenoLedger owns
+  their canonical economic state, ordering and atomic publication.
+- ZRPF, also called ZKRPF in the design discussion, scales verification through
+  recursive execution proofs. It must preserve the exact economic statement and
+  context. Proof checks required by the selected release remain mandatory.
+- A qualified finality adapter establishes which admitted history is final.
+  Tau is preferred when compatible and available; independent ZenoLedger
+  finality supplies the fallback. Another chain may supply a qualified adapter
+  without becoming an independent economic writer.
+
+Fund and value-movement safety is the acceptance requirement across these
+choices: each effective movement must follow the pinned authorization and
+accounting rules, preserve backing and terminal obligations, consume replay
+state exactly once, and retain committed ancestry. A finality certificate
+cannot authorize an economically invalid transition. An execution proof cannot
+choose between competing histories. Neither alone permits an external effect.
+
+Provider changes must preserve one continuous economic history. Fallback
+authorization must remain usable without Tau permission when Tau is unavailable
+or changes incompatibly. Rejoin requires compatible rules and authenticated
+catch-up to the current checkpoint, with old writer authority excluded. Local
+timeout observations alone do not establish a safe handoff. Progress still
+depends on the fallback's declared network, participant and data-availability
+assumptions. Finalizing ZenoLedger state does not release assets locked on an
+unavailable external chain.
+
+The current [M6 transition](../../src/core/m6_safe_mount_transition_v1.py) already
+models `FALLBACK_ACTIVATE` and `TAU_REJOIN` with checkpoint and authority-epoch
+binding. Its closed finality modes currently cover Tau and fallback only. The
+[finality port](../../src/integration/m6_commit_port_v1.py) requires independent
+verification bound to the exact proposal and rejects publication without its
+verifier. These interfaces do not establish a deployed finality protocol,
+qualified failover or support for an arbitrary new chain. Each adapter still
+needs evidence for its exact verification rules, finality assumptions, data
+availability, handoff and destination enforcement. Scaling and adapter changes
+must retain those obligations.
 
 ## Intended phase boundaries
 
@@ -83,40 +126,90 @@ allocation, receipt admission and publication components:
   Its bundle construction is publication binding; this inspection found no
   independent fee calculation there.
 
-This decomposition is useful, but strict FCIS is not established. In particular,
-`_verify_rebound_module_receipt_v1` in
-[lane module verification](../../src/core/lane_module_receipt_verification_v1.py)
-performs pure structural/release/journal checks and then calls
-`receipt_verifier.verify_succinct_receipt`. The configured port can execute a
-subprocess through the
-[integration verifier](../../src/integration/global_receipt_verifier_v1.py).
-The function therefore mixes deterministic preparation and effectful execution
-despite living in `src/core`. Similar composition-verifier surfaces require the
-same caller-aware review. Moving files alone would not separate those phases.
+[Lane module verification](../../src/core/lane_module_receipt_verification_v1.py)
+now separates four pure `prepare_*` entry points from final binding. Preparation
+retains the existing snapshots, ordered guards and transition recomputations.
+Its owned request includes profile, lane, module release, image and exact
+receipt/journal bytes, alongside the unchanged nine final witness fields.
 
-An independent Daybreak review confirmed this distinction and traced a further
-backend call in `BoundEconomicReceiptVerifierV1._verify_exact_receipt` in
-[verifier deployment binding](../../src/core/economic_receipt_verifier_deployment_v1.py).
-That core-layer function also executes a retained backend. Both effect owners
-must be separated before a strict purity claim about this dependency path.
+The [integration wrappers](../../src/integration/lane_module_receipt_verification_v1.py)
+accept the exact factory-controlled
+[isolated role port](../../src/integration/isolated_profile_receipt_ports_v1.py).
+That port snapshots the preparation before verifier I/O, checks its module
+role and profile/lane/release, executes the retained verifier, and checks its
+authority and exact `None` success outcome before issuing internal execution
+evidence. The pure binder requires complete subject equality, matching verifier
+identity and matching content digests before its sole final witness mint.
+Copying the preparation before I/O prevents a retained caller alias from
+relabeling the subject whose bytes were verified.
 
-The smallest next runtime refactor should extract exact request preparation,
-effectful verification, and subject-bound result construction while retaining
-guard precedence, snapshots, receipt limits and all existing witness bindings.
-It must preserve historical imports deliberately and avoid introducing a
-core-to-shell dependency cycle or a second unchecked witness constructor.
-This report specifies that refactor; it does not claim it is implemented.
+The four effectful Python `verify_*` APIs moved from `src.core` to the new
+integration module. Their candidate and final witness formats remain unchanged;
+the shell requires a measured isolated port. There is no core-to-shell import or
+effectful compatibility wrapper. Existing unit callback scenarios explicitly
+use a [synthetic evidence helper](../../tests/core/lane_module_receipt_fixtures_v1.py)
+that supplies no cryptographic or deployment evidence. This is a deliberate
+Python API migration, with historical wire decoding preserved.
 
-The existing receipt APIs return `None` on success; no reusable typed execution
-attestation was found in the inspected path. A narrow new execution-evidence
-value is justified if it binds the complete immutable request and the selected
-verifier identity. Only the integration-owned verified role port may construct
-production evidence, after successful execution and unchanged identity checks.
-The pure final binder must compare the evidence's exact subject with the
-prepared request. A generic no-op callback cannot mint that production evidence.
-The new attestation should remain internal so the existing nine final witness
-fields and wire commitments retain their meanings. Effectful compatibility
-wrappers left in `src/core` would preserve the strict FCIS gap.
+Strict FCIS for the complete dependency path is still open. The earlier
+independent Daybreak review identified
+`BoundEconomicReceiptVerifierV1._verify_exact_receipt` in
+[verifier deployment binding](../../src/core/economic_receipt_verifier_deployment_v1.py),
+which still executes a backend and uses a core-layer authority registry.
+Coordinator, route, epoch and other receipt paths also retain effectful
+callbacks. The module extraction does not close those separate effect owners.
+An independent Terra review checked the new shell source; root reviewed the
+pure-core implementation and the preserved scenario bodies. The attempted
+additional Daybreak review could not start because the agent thread limit was
+reached; it supplied no new verdict.
+
+The new [module boundary cases](../../tests/integration/test_lane_module_receipt_boundary_v1.py)
+exercise factory role and context rejection, exact subject and verifier
+substitution, byte/digest pairing, retained alias changes, backend failure,
+deterministic binding and a snapshot-omission mutant. Their process replies are
+explicitly synthetic. They qualify neither genuine RISC0 receipts nor a
+deployment. The existing candidate/final-witness owner remains together in one
+module; the extracted phases use small functions without introducing another
+wire schema or publication authority.
+
+The admission inventory also exposed an earlier permissive result check in
+[`_admit_global_fragment_v1`](../../src/core/asset_transfer_receipt_admission_v1.py).
+The lift now consumes an exact allocation witness, propagates its two exact
+closed rejection types, and raises `TypeError` for other results before reading
+fragment data. A retained regression observes that refusal and unchanged
+economic inputs. The reviewed custody module joins the scanned inventory;
+existing guard pins are retained, and newly introduced exact-type guards are
+listed explicitly. These checks detect source drift and internal contract
+violations under the trusted-interpreter premise.
+
+The current implementation evidence is declared separately in
+[the module receipt packet](../../tests/evidence/test_hygiene/THV1-20260907-module-receipt-boundary-v1.json).
+Its source-pinned test files cover the four receipt families, measured role
+ports, global allocation admission and isolated publication outcomes. Replay
+that declared file set with:
+
+```bash
+python3 -B - <<'PY'
+import subprocess
+import sys
+from experiments.v3_module_receipt_boundary_v1.render_evidence import TESTS
+subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", *TESTS], check=True)
+PY
+```
+
+Render the declaration with
+`python3 -B -m experiments.v3_module_receipt_boundary_v1.render_evidence`.
+Rendering does not execute the tests. Earlier proof packets retain their
+historical source pins; no Lean, Rust or guest source changes in this increment.
+The allocation golden is regenerated with
+`python3 -B tools/render_asset_transfer_global_allocation_v1_golden.py`;
+comparison with the retained fixture found only the reviewed Python admission
+source hash changed, with every economic vector unchanged.
+The epoch-position golden uses
+`python3 -B tools/render_asset_transfer_epoch_position_v1_golden.py` and has the
+same metadata-only change. The 19-file run had 553 passing tests and this one
+stale-pin failure; the full epoch-position file and the allocation golden check
+passed after regeneration. No runtime or test source changed after that run.
 
 The lack of a qualified custody guest, universal runtime refinement and
 deployment evidence are separate assurance gaps. They do not by themselves
@@ -164,7 +257,7 @@ The target boundary for publisher-host compromise resistance is:
 ```text
 Untrusted proposal and proof generation
   -> independent exact-state, authorization and receipt validation
-  -> qualified ZenoLedger ordering and finality
+  -> one ZenoLedger economic history with qualified adapter finality
   -> destination-enforced finality, ancestry and idempotency
 ```
 
