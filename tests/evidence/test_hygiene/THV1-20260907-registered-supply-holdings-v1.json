@@ -1,0 +1,158 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-REGISTERED-SUPPLY-HOLDINGS-RELATION",
+      "points": [
+        "The primitive theorem takes StateAdmitted and OwnedMatchesSupply separately and retains explicit zero supply rows without assuming global nonzero quantity admission.",
+        "The relation includes complete source-key order even when every numeric row is filtered, unique-key roundtrip, exact policy keys, numeric Sublist/order and per-asset lookup.",
+        "A two-asset zero/positive witness, removed or duplicate keys and reversed complete keys distinguish registered identity from equal numeric totals.",
+        "Balances plus custody 9 and supply 10 fail full ownership with empty reserves; reserve 1 restores full ownedFor equality and does not satisfy the reserve-empty corollary premise.",
+        "Existing accepted and rejected continuation subjects consume continuedState_invariant and the actual transition result, without a desired post-state or support relation as a premise.",
+        "Independent public theorem consumers inspect permitted transitive axioms in a fresh source-pinned 23-module Std-only Lean 4.27.0 closure.",
+        "Existing managed-asset V1 issue-from-zero and full-burn transitions retain exact source supply keys through the actual asset-lane projection; finite runtime controls compare complete rows and physical holdings."
+      ]
+    }
+  ],
+  "change_kind": "assurance_infrastructure",
+  "claim_scope": "Seven Lean theorems connect actual V1 policy-selection supply rows to complete registered keys, sparse numeric support and per-asset owned quantities, with explicit reserve-empty physical and actual global continuation corollaries. Runtime observations remain finite.",
+  "created_date": "2026-09-07",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "formal",
+    "differential",
+    "stateful"
+  ],
+  "evidence_id": "THV1-20260907-registered-supply-holdings-v1",
+  "failure_modes": [
+    "The primitive theorem takes StateAdmitted and OwnedMatchesSupply separately and retains explicit zero supply rows without assuming global nonzero quantity admission.",
+    "The relation includes complete source-key order even when every numeric row is filtered, unique-key roundtrip, exact policy keys, numeric Sublist/order and per-asset lookup.",
+    "A two-asset zero/positive witness, removed or duplicate keys and reversed complete keys distinguish registered identity from equal numeric totals.",
+    "Balances plus custody 9 and supply 10 fail full ownership with empty reserves; reserve 1 restores full ownedFor equality and does not satisfy the reserve-empty corollary premise.",
+    "Existing accepted and rejected continuation subjects consume continuedState_invariant and the actual transition result, without a desired post-state or support relation as a premise.",
+    "Independent public theorem consumers inspect permitted transitive axioms in a fresh source-pinned 23-module Std-only Lean 4.27.0 closure.",
+    "Existing managed-asset V1 issue-from-zero and full-burn transitions retain exact source supply keys through the actual asset-lane projection; finite runtime controls compare complete rows and physical holdings."
+  ],
+  "invariant_ids": [
+    "V3-REGISTERED-SUPPLY-HOLDINGS-RELATION"
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "The primitive relation does not establish full StateQuantitiesAdmitted or custody/reserve quantity validity; the stronger global invariant supplies those premises independently.",
+    "The primitive zero-supply domain is separate from the positive sparse global invariant and continuation domain.",
+    "Registered keys and prepared representations confer no policy, registry, issuance, custody or publication authority.",
+    "No V1 wire field, canonical encoding, hash domain, runtime policy, rounding rule or economic transition changes.",
+    "Finite Python observations do not prove universal Python/Rust/Lean/compiler correspondence, canonical decoding, authenticated state roots or complete lane lifecycles.",
+    "ESSO, Kani, Rust/RISC0, real receipt proving and production qualification are separate evidence lanes; this renderer executes none of them.",
+    "No formal-core completion, whole-program value-safety, product completion, finality, deployment or release promotion follows from this subject."
+  ],
+  "reject_is_noop": {
+    "reason": "The formal rejected continuation consumes the actual zero-amount leaf verdict and returns the exact predecessor. Finite runtime controls retain complete source snapshots and inspect typed constructor or transition rejections. No publication is modeled.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/RegisteredSupplyHoldingsV1.lean",
+      "sha256": "11bf6dbeb35305d8321cb24dfecec14226d0277ac4f09c531f5ae588f141ba46"
+    },
+    {
+      "path": "lean-mathlib/Proofs/RegisteredSupplySupportV1.lean",
+      "sha256": "cbd01b5eef5d932843ded7d3060611c846ad0dbc4c164bd5f15cbbbfa4e14f6e"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferPolicySelectionV1.lean",
+      "sha256": "6c330fb920885223089d774eaf6110a3007bd2790a3c69dc947f80255edff321"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
+      "sha256": "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean",
+      "sha256": "8375d3cbd6bf4bd4c911527a03de5d12b7bb21df0b0135cd1dd0d1951e60dc56"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetTransferGlobalStateClosureV1.lean",
+      "sha256": "4569ef906325cf08a0f02cca8932f07735a7dc94a5250f6e612c54e1ef7e0ddb"
+    },
+    {
+      "path": "lean-mathlib/lean-toolchain",
+      "sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "bcf1d2887add5ddc5a7bc528c82f6591ffd9f8bf9c9404c2b833721bc62b37c9"
+    },
+    {
+      "path": "src/core/asset_lane_projection_v1.py",
+      "sha256": "5420112e2dd321ce7f74604e66c13933ca714fc93467150f5cb6358f403b6839"
+    },
+    {
+      "path": "src/core/asset_lane_coordinator_v1.py",
+      "sha256": "6047468214d835ff9d6d9823d845df4ef0c4a1cd6d94f098911377daaf4996ae"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "5757c8b692820613e1eac30b7103e857a73b42efebbdda62d0a4469511f41277"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_module_v1.py",
+      "sha256": "3a279bf3c5fa97d942c79f9c25025c0a24cbe7f24cfb91df5de43da38e831e36"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_types_v1.py",
+      "sha256": "f85ffc59628b673258ad6d72a9b6f8151f9def09e9e508aa2ec060251d75f315"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "tests/core/test_managed_asset_lifecycle_boundaries_v1.py",
+      "sha256": "c4eeff55153df89a17e20c8b37756cc7938f725fca03b4420924dff65c2aad41"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_global_state_closure_v1.py",
+      "sha256": "740c164ffb72587c6aa2f1995e529f1bd4655cf14bfdb784493fca05ffb9a06f"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_transfer_global_successor_v1.py",
+      "sha256": "7d75ff4c65e8369093c481831249990332a221665193333daec198500cc332b8"
+    },
+    {
+      "path": "experiments/v3_registered_supply_holdings_v1/render_evidence.py",
+      "sha256": "5c098b918d94731bd9f29160ce47ed32321f42ecec76f67648f9933030f0abc7"
+    },
+    {
+      "path": "docs/research/ZENODEX_RESOURCE_ARCHITECTURE_20260906.md",
+      "sha256": "9f6a001550232dafc215432aa929b2fe116470c69c7db8ca451242e533862bd6"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/formal/test_lean_registered_supply_holdings_v1.py::test_public_holdings_contract_has_independent_consumers_and_no_forbidden_axioms",
+        "tests/formal/test_lean_registered_supply_holdings_v1.py::test_zero_supply_identity_physical_lookup_and_reserve_countermodel",
+        "tests/formal/test_lean_registered_supply_holdings_v1.py::test_positive_global_continuation_consumes_holdings_relation",
+        "tests/formal/test_lean_registered_supply_holdings_v1.py::test_rejected_global_continuation_consumes_holdings_relation_as_exact_noop",
+        "tests/formal/test_lean_registered_supply_holdings_v1.py::test_runtime_registered_zero_and_positive_projection_matches_lean_view",
+        "tests/formal/test_lean_registered_supply_holdings_v1.py::test_runtime_managed_issue_from_zero_and_full_burn_keep_zero_row_identity",
+        "tests/formal/test_lean_registered_supply_holdings_v1.py::test_runtime_complete_source_and_rejection_controls_preserve_inputs"
+      ],
+      "path": "tests/formal/test_lean_registered_supply_holdings_v1.py",
+      "sha256": "14e1f0db0a2e639316dec62c231bdffff31e4ea80edb78e35f5e127d787b1e79"
+    }
+  ]
+}

@@ -714,6 +714,49 @@ admission, the actual runtime decoder and complete command lifecycles. The
 finite Python comparisons do not establish universal runtime/compiler
 refinement, and no production or whole-core completion follows here.
 
+### Connecting supply identity to holdings
+
+[RegisteredSupplyHoldingsV1](../../lean-mathlib/Proofs/RegisteredSupplyHoldingsV1.lean)
+connects the actual supply rows of the existing policy-selection state to this
+representation. Its primitive theorem takes local state admission and
+`OwnedMatchesSupply` separately. It retains unique complete keys, their order,
+raw round-trip, exact policy-key agreement and admitted numeric support, and
+proves each numeric lookup equals `ownedFor`. Complete-key order is explicit
+even when every supply is zero and the numeric key list is empty.
+
+The physical corollary requires an explicit empty reserve table:
+
+```text
+numeric supply(asset) = balances(asset) + custody(asset)
+```
+
+Without that premise, `ownedFor` also includes reserves. A reserve of one can
+make balances plus custody of nine match a supply of ten. The primitive
+relation does not derive custody/reserve quantity admission or the complete
+global invariant. Its zero-capable V1 domain stays separate from the stronger
+positive sparse global domain.
+
+The invariant and continuation corollaries use the existing
+`continuedState_invariant` on the actual accepted or rejected transition. They
+introduce no desired post-state or verification witness as a premise. Rejection
+retains the exact predecessor. The
+[independent acceptance suite](../../tests/formal/test_lean_registered_supply_holdings_v1.py)
+checks seven theorem signatures and their axioms in a fresh 23-module Std-only
+Lean closure, with zero-key, complete-order, reserve and continuation controls.
+Finite runtime observations use the existing managed-asset transitions and
+asset-lane projection.
+
+```bash
+python3 -B -m pytest -q -p no:cacheprovider tests/formal/test_lean_registered_supply_holdings_v1.py
+python3 -B -m experiments.v3_registered_supply_holdings_v1.render_evidence
+```
+
+The evidence renderer only declares source pins and scope. This connector
+changes no economic transition, policy, wire format or root. Universal runtime
+and Rust refinement, canonical decoding, authenticated predecessor binding,
+complete lifecycles and publication qualification remain open. It does not
+complete the formal functional core or the V3 plan.
+
 ## Publisher-host compromise and independent enforcement
 
 The current isolated publisher assumes a trusted interpreter and operating
