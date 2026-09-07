@@ -2,8 +2,9 @@
 
 Lean evidence compiles a fresh Std-only closure, checks every public theorem's
 type and axioms, and applies the trace-to-table theorems to the same concrete
-two-transfer inputs used by the actual custody module, coordinator and epoch
-position checker. The Python composer and four-table delta checker supply a
+two-transfer inputs used by the actual custody module, coordinator, runtime
+epoch projector and position checker. The second transfer consumes the first
+runtime projection. The Python composer and four-table delta checker supply a
 separate finite correspondence lane. Ordered rows and signed-prefix rejection
 are observed directly; equality of final sums cannot establish either property.
 
@@ -24,6 +25,8 @@ from pathlib import Path
 
 import pytest
 
+from src.core.asset_transfer_epoch_position_v1 import AssetTransferEpochPositionV1
+from src.core.asset_transfer_epoch_projection_v1 import project_asset_transfer_epoch_position_v1
 from src.core.epoch_effect_composition_v1 import compose_asset_lane_epoch_effect_plans_v1
 from src.core.global_economic_state_delta_v1 import _require_amount_table_refinement_v1
 from src.core.global_settlement_types_v1 import MAX_U64_V1
@@ -31,6 +34,9 @@ from tests.formal.test_lean_asset_transfer_epoch_state_closure_v1 import (
     LEAN_OPENS,
     SharedHeightPair,
     _assert_shared_height_runtime,
+    _next_witness,
+    _run_custody_module,
+    _runtime_witness,
     _shared_height_body,
 )
 from tests.formal.test_lean_asset_transfer_epoch_state_closure_v1 import (
@@ -141,6 +147,8 @@ THEOREM_TYPES = {
 }
 
 RUNTIME_PINS = {
+    "src/core/asset_transfer_epoch_projection_v1.py":
+        "460a8f9ee6bf08a5c4755fef57ebfbc9c05ba7ecd699cf834bde6b901f1e269a",
     # This continuation consumes the reviewed pure epoch-preparation subject.
     # The predecessor tests retain their own historical source declarations.
     "src/core/global_economic_proof_v1.py":
@@ -246,9 +254,38 @@ def _decode_observations(output: str) -> list[object]:
     return [None if value == "ERR" else json.loads(value.removeprefix("OK:")) for value in values]
 
 
+class RuntimeProjectedPair(SharedHeightPair):
+    """Reuse the pair view while deriving both states through the runtime API."""
+
+    def __init__(self, *, height: int) -> None:
+        self.first = _runtime_witness(fee_owner="bob", height=height, amount=4)
+        self.source = self.first.pre_global
+        self.first_accepted = _run_custody_module(self.first)
+        first_projection = project_asset_transfer_epoch_position_v1(
+            position=AssetTransferEpochPositionV1(self.source, 0),
+            predecessor=self.source,
+            occurrence=self.first.occurrence,
+            accepted=self.first_accepted,
+        )
+        self.first_post = first_projection.post_state
+        self.second = _next_witness(
+            self.first, self.first_accepted, self.first_post,
+            height=self.first_post.height, amount=2, nonce=6, op_index=1,
+        )
+        self.second_accepted = _run_custody_module(self.second)
+        self.second_effects = _normalise(self.second, self.second_accepted)
+        second_projection = project_asset_transfer_epoch_position_v1(
+            position=AssetTransferEpochPositionV1(self.source, 1),
+            predecessor=self.first_post,
+            occurrence=self.second.occurrence,
+            accepted=self.second_accepted,
+        )
+        self.second_post = second_projection.post_state
+
+
 @pytest.mark.parametrize("height", [7, MAX_U64_V1 - 1])
 def test_same_input_trace_derives_checked_rows_and_all_endpoint_tables(lean: LeanSubject, height: int) -> None:
-    pair = SharedHeightPair(height=height)
+    pair = RuntimeProjectedPair(height=height)
     _assert_shared_height_runtime(pair)
     first = _normalise(pair.first, pair.first_accepted)
     second = pair.second_effects
@@ -438,7 +475,7 @@ def test_input_plan_order_and_omission_mutants_change_observations_and_fail_theo
     lean: LeanSubject,
 ) -> None:
     """Observe defective definitions before requiring their ordinary law to fail."""
-    pair = SharedHeightPair(height=7)
+    pair = RuntimeProjectedPair(height=7)
     fixture = lean.source / "MutationTransferPair.lean"
     fixture.write_text(f"import {NAMESPACE}\n{OPENS}\n" + _shared_height_body(pair) + OBSERVERS)
     built = _compile(lean, fixture, lean.library / "MutationTransferPair.olean")

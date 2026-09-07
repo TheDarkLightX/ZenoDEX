@@ -401,6 +401,56 @@ Python/Rust refinement or publication. The isolated pipeline and durable
 publisher still require one occurrence. Full Mathlib and native guest builds
 were not run.
 
+### Pure runtime construction for a transfer epoch
+
+The [Python epoch projector](../../src/core/asset_transfer_epoch_projection_v1.py)
+and its [Rust ABI counterpart](../../zk/global_settlement_abi_v1/src/asset_transfer_epoch_projection.rs)
+construct ordinary prospective state from four explicit inputs: epoch source
+and position, predecessor, command occurrence, and accepted custody-module
+output. They perform no receipt verification, store access or publication.
+Each result owns its inputs and derives its post-state during construction;
+callers cannot supply a separate post-state to that constructor.
+
+Both implementations set the occurrence height, replace the asset lane root,
+copy the private post balances and supplies, and insert the canonical replay
+row. They preserve every other predecessor field, including physical custody,
+claimant liabilities, reserves, oracle rows, terminal obligations, history and
+outbox. Subsequent transfers retain the epoch height and consume the preceding
+result. The existing epoch allocation relation separately checks the source,
+position, occurrence, private projection and complete-state continuity.
+
+The [formal runtime fixture](../../tests/formal/test_lean_asset_transfer_epoch_economic_tables_v1.py)
+now uses this Python constructor for both transfers, including construction of
+the second command from the first result. The Lean theorem statements remain
+unchanged. A new [reproducible corpus](../../tools/render_asset_transfer_epoch_projection_v1_golden.py)
+compares complete states against the independently constructed predecessor test
+fixture, then supplies canonical bytes, roots and fixed allocation outcomes to
+the [Rust tests](../../zk/global_settlement_abi_v1/tests/asset_transfer_epoch_projection.rs).
+It includes four accepted examples and seven rejected examples. A populated
+reserve/terminal/outbox case checks frame preservation; its unchanged command
+root intentionally prevents admission.
+
+Construction has a narrower error contract than public operation admission.
+Duplicate replay or occurrence identities and an exhausted replay table fail
+structural construction with Python `ValueError` or Rust `AbiErrorV1` before a
+candidate reaches the allocation relation. Malformed typed inputs also reject
+at construction. Before mounting this constructor on public ingress, the caller
+must establish the required preconditions or translate exact construction
+failures into deterministic typed operation rejection, with end-to-end
+no-publication evidence. This obligation remains open.
+
+```bash
+python3 -B -m pytest -q -p no:cacheprovider tests/core/test_asset_transfer_epoch_projection_v1.py tests/formal/test_lean_asset_transfer_epoch_economic_tables_v1.py
+python3 -B tools/render_asset_transfer_epoch_projection_v1_golden.py --check
+cargo test --offline --locked --manifest-path zk/global_settlement_abi_v1/Cargo.toml --test asset_transfer_epoch_projection --test asset_transfer_epoch_position
+```
+
+These are internal proposal constructors and bounded correspondence checks.
+They do not establish authenticated source acquisition, universal Python/Rust
+refinement, aggregate receipt acceptance, a custody guest, a mounted multi-command
+epoch, or production value safety. The exactly-one isolated publication policy
+is unchanged. Historical evidence packets retain their original subjects.
+
 ### Root-epoch and initial-state receipt execution
 
 The [core epoch module](../../src/core/global_economic_proof_v1.py) now prepares
