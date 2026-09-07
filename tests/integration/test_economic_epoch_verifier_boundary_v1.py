@@ -182,26 +182,21 @@ _LEGACY_CORE_CALLBACK_DEBT = (
         "fee allocation receipt callback",
     ),
     (
-        "src/core/zdex_tokenomics_lane_receipt_common_v1.py",
-        "receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1",
-        "tokenomics lane receipt callback",
-    ),
-    (
-        "src/core/zdex_tokenomics_lane_receipt_verification_v1.py",
-        "receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1",
-        "tokenomics lane receipt callback",
-    ),
-    (
-        "src/core/zdex_tokenomics_fee_lane_receipt_verification_v1.py",
-        "receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1",
-        "tokenomics fee lane receipt callback",
-    ),
-    (
         "src/core/economic_receipt_verifier_deployment_v1.py",
         "_BOUND_RECEIPT_VERIFIER_AUTHORITIES_V1: WeakKeyDictionary[",
         "Bound deployment registry, lock and backend call remain core debt",
     ),
 )
+# Core callback debt closed by the tokenomics burn-lane / fee-lane extraction.
+# The former marker for each row was "receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1".
+# Each module is re-checked to stay a pure preparation boundary so the closure
+# cannot silently regress; the shell below is the only callback owner.
+_CLOSED_TOKENOMICS_CALLBACK_CORE_MODULES = (
+    "src/core/zdex_tokenomics_lane_receipt_common_v1.py",
+    "src/core/zdex_tokenomics_lane_receipt_verification_v1.py",
+    "src/core/zdex_tokenomics_fee_lane_receipt_verification_v1.py",
+)
+_TOKENOMICS_SHELL_MODULE = "src/integration/zdex_tokenomics_lane_receipt_verification_v1.py"
 
 
 def _digest(data: bytes) -> str:
@@ -1362,6 +1357,34 @@ def test_core_root_epoch_and_initial_state_code_has_no_shell_mechanisms() -> Non
     assert not any(hasattr(facade, name) for name in _MOVED_NAMES)
     for relative, marker, _reason in _LEGACY_CORE_CALLBACK_DEBT:
         assert marker in (REPO_ROOT / relative).read_text(encoding="utf-8"), (relative, marker)
+
+
+def test_closed_tokenomics_callback_debt_stays_a_pure_core_boundary() -> None:
+    for relative in _CLOSED_TOKENOMICS_CALLBACK_CORE_MODULES:
+        tree = _parse(relative)
+        text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+        assert "receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1" not in text, relative
+        assert "ZDEXLaneSuccinctReceiptVerifierV1" not in text, relative
+        assert not (set(_call_names(tree)) & _VERIFIER_CALL_NAMES), relative
+        assert not (set(_call_names(tree)) & _SHELL_MECHANISM_NAMES), relative
+        imports = _import_targets(tree)
+        assert not any(name.split(".")[0] in {"threading", "weakref"} for name in imports), relative
+        assert not any(
+            "integration" in name.split(".") or name.startswith("..") for name in imports
+        ), relative
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                parameters = [
+                    *node.args.posonlyargs,
+                    *node.args.args,
+                    *node.args.kwonlyargs,
+                ]
+                assert "receipt_verifier" not in {parameter.arg for parameter in parameters}, (
+                    relative,
+                    getattr(node, "name", "<lambda>"),
+                )
+    shell_calls = _call_names(_parse(_TOKENOMICS_SHELL_MODULE))
+    assert shell_calls.count("verify_succinct_receipt") == 1
 
 
 def test_shell_modules_own_execution_registry_lock_and_consumer_imports() -> None:

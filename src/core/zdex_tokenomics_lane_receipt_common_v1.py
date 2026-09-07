@@ -1,4 +1,15 @@
-"""Common immutable marker and receipt checks for ZDEX tokenomics lanes."""
+"""Common immutable marker, prepared subject and receipt checks for ZDEX tokenomics lanes.
+
+The deterministic core fixes the complete execution subject for one tokenomics
+coordinator receipt: the exact final marker fields plus the exact request bytes
+(receipt, expected image, canonical lane journal).  It performs no verifier
+call.  ``src.integration.zdex_tokenomics_lane_receipt_verification_v1``
+executes the prepared subject on the caller-supplied reference verifier and
+mints :class:`VerifiedZDEXTokenomicsLaneV1` from the executed subject only.
+
+The marker remains a non-authoritative process-local shadow marker.  Nothing
+here grants publication, settlement or production authority.
+"""
 
 from __future__ import annotations
 
@@ -22,10 +33,7 @@ from .global_settlement_types_v1 import (
     canonical_global_bytes_v1,
     hash_global_v1,
 )
-from .zdex_purchase_burn_receipt_verification_v1 import (
-    ZDEXLaneReceiptEnvelopeV1,
-    ZDEXLaneSuccinctReceiptVerifierV1,
-)
+from .zdex_purchase_burn_receipt_verification_v1 import ZDEXLaneReceiptEnvelopeV1
 
 VERIFIED_ZDEX_TOKENOMICS_LANE_SCHEMA_V1: Final = (
     "zenodex/verified-zdex-tokenomics-lane/v1"
@@ -178,13 +186,131 @@ class _ZDEXTokenomicsLaneBindingV1:
     module_image_id: str
 
 
-def _verify_and_build_zdex_tokenomics_lane_v1(
+@dataclass(frozen=True, slots=True)
+class PreparedZDEXTokenomicsLaneReceiptV1:
+    """Complete pure execution subject: exact final marker fields plus request bytes.
+
+    Data only.  Holding this record is not evidence that any verifier ran; the
+    shell executes it and mints the marker from its own detached snapshot.  The
+    request coordinates are the marker fields themselves, so no duplicated
+    request field can disagree with the minted marker.
+    """
+
+    verified_fields: _VerifiedZDEXTokenomicsLaneFieldsV1
+    receipt_bytes: bytes
+    expected_journal_bytes: bytes
+
+    def __post_init__(self) -> None:
+        if type(self.verified_fields) is not _VerifiedZDEXTokenomicsLaneFieldsV1:
+            raise TypeError("prepared ZDEX tokenomics lane fields must be exact typed data")
+        if type(self.receipt_bytes) is not bytes:
+            raise TypeError("prepared ZDEX tokenomics lane receipt bytes must be exact bytes")
+        if type(self.expected_journal_bytes) is not bytes:
+            raise TypeError("prepared ZDEX tokenomics lane journal bytes must be exact bytes")
+
+    @property
+    def expected_image_id(self) -> str:
+        return self.verified_fields.expected_image_id
+
+
+def _sha256_root_v1(value: bytes) -> str:
+    return "0x" + hashlib.sha256(value).hexdigest()
+
+
+def _copy_verified_zdex_tokenomics_lane_fields_v1(
+    fields: _VerifiedZDEXTokenomicsLaneFieldsV1,
+) -> _VerifiedZDEXTokenomicsLaneFieldsV1:
+    return _VerifiedZDEXTokenomicsLaneFieldsV1(
+        fields.profile_root,
+        fields.route_release_id,
+        fields.module_release_id,
+        fields.coordinator_release_id,
+        fields.command_occurrence_id,
+        fields.writer_epoch,
+        fields.module_journal_root,
+        fields.lane_journal_root,
+        fields.lane_journal_digest,
+        fields.pre_lane_root,
+        fields.post_lane_root,
+        fields.effect_plan_root,
+        fields.module_image_id,
+        fields.expected_image_id,
+        fields.receipt_digest,
+        fields.receipt_kind,
+    )
+
+
+def _require_prepared_zdex_tokenomics_lane_digests_v1(
+    prepared: PreparedZDEXTokenomicsLaneReceiptV1,
+) -> None:
+    """Bind the digest fields to the exact request bytes that will be executed."""
+
+    fields = prepared.verified_fields
+    if fields.receipt_digest != _sha256_root_v1(prepared.receipt_bytes):
+        raise ValueError("prepared ZDEX tokenomics lane receipt digest mismatch")
+    if fields.lane_journal_digest != _sha256_root_v1(prepared.expected_journal_bytes):
+        raise ValueError("prepared ZDEX tokenomics lane journal digest mismatch")
+
+
+def snapshot_prepared_zdex_tokenomics_lane_receipt_v1(
+    prepared: PreparedZDEXTokenomicsLaneReceiptV1,
+) -> PreparedZDEXTokenomicsLaneReceiptV1:
+    """Return a validated detached copy of one prepared subject.
+
+    Exact types, exact scalar fields and digest-to-bytes binding are rechecked.
+    No zero-root rule is added: the entry points' own upstream validators fix
+    the acceptance domain, exactly as before the extraction.
+    """
+
+    if type(prepared) is not PreparedZDEXTokenomicsLaneReceiptV1:
+        raise TypeError("prepared ZDEX tokenomics lane receipt must be exact typed data")
+    fields = prepared.verified_fields
+    if type(fields) is not _VerifiedZDEXTokenomicsLaneFieldsV1:
+        raise TypeError("prepared ZDEX tokenomics lane fields must be exact typed data")
+    _require_exact_dataclass_scalars_v1(fields, name="prepared ZDEX tokenomics lane")
+    if type(fields.receipt_kind) is not ReceiptKindV1:
+        raise TypeError("prepared ZDEX tokenomics lane receipt kind is not closed")
+    if type(prepared.receipt_bytes) is not bytes:
+        raise TypeError("prepared ZDEX tokenomics lane receipt bytes must be exact bytes")
+    if type(prepared.expected_journal_bytes) is not bytes:
+        raise TypeError("prepared ZDEX tokenomics lane journal bytes must be exact bytes")
+    _require_prepared_zdex_tokenomics_lane_digests_v1(prepared)
+    return PreparedZDEXTokenomicsLaneReceiptV1(
+        _copy_verified_zdex_tokenomics_lane_fields_v1(fields),
+        prepared.receipt_bytes,
+        prepared.expected_journal_bytes,
+    )
+
+
+def _build_verified_zdex_tokenomics_lane_v1(
+    prepared: PreparedZDEXTokenomicsLaneReceiptV1,
+) -> VerifiedZDEXTokenomicsLaneV1:
+    """Mint the existing marker from one validated prepared subject.
+
+    Post-verification construction belongs to the shell, which calls this only
+    with the detached snapshot it executed.  The marker carries no authority.
+    """
+
+    owned = snapshot_prepared_zdex_tokenomics_lane_receipt_v1(prepared)
+    return VerifiedZDEXTokenomicsLaneV1(
+        _VERIFIED_TOKENOMICS_LANE_TOKEN,
+        owned.verified_fields,
+    )
+
+
+def _prepare_zdex_tokenomics_lane_receipt_v1(
     receipt: ZDEXLaneReceiptEnvelopeV1,
     journal: LaneCompositionJournalV1,
     expectation: _ZDEXTokenomicsCoordinatorReceiptExpectationV1,
     binding: _ZDEXTokenomicsLaneBindingV1,
-    receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1,
-) -> VerifiedZDEXTokenomicsLaneV1:
+) -> PreparedZDEXTokenomicsLaneReceiptV1:
+    """Fix the exact request and marker fields with no verifier call.
+
+    Reject precedence is unchanged from the former effectful path: exact
+    types, exact binding scalars, verified-lane binding, succinct receipt
+    kind, nonempty receipt bytes, then the release journal byte ceiling.
+    """
+
     if type(receipt) is not ZDEXLaneReceiptEnvelopeV1:
         raise TypeError("ZDEX tokenomics lane receipt must be exact typed data")
     if type(journal) is not LaneCompositionJournalV1:
@@ -247,27 +373,25 @@ def _verify_and_build_zdex_tokenomics_lane_v1(
         owned_binding.writer_epoch,
         owned_binding.module_journal_root,
         owned_journal.journal_root,
-        "0x" + hashlib.sha256(journal_bytes).hexdigest(),
+        _sha256_root_v1(journal_bytes),
         owned_journal.pre_lane_root,
         owned_journal.post_lane_root,
         owned_journal.effect_plan_root,
         owned_binding.module_image_id,
         owned_expectation.coordinator_release.guest_image_id,
-        "0x" + hashlib.sha256(owned_receipt.receipt_bytes).hexdigest(),
+        _sha256_root_v1(owned_receipt.receipt_bytes),
         owned_receipt.receipt_kind,
     )
-    receipt_verifier.verify_succinct_receipt(
-        owned_receipt.receipt_bytes,
-        expected_image_id=owned_expectation.coordinator_release.guest_image_id,
-        expected_journal_bytes=journal_bytes,
-    )
-    return VerifiedZDEXTokenomicsLaneV1(
-        _VERIFIED_TOKENOMICS_LANE_TOKEN,
+    return PreparedZDEXTokenomicsLaneReceiptV1(
         verified_fields,
+        owned_receipt.receipt_bytes,
+        journal_bytes,
     )
 
 
 __all__ = [
+    "PreparedZDEXTokenomicsLaneReceiptV1",
     "VERIFIED_ZDEX_TOKENOMICS_LANE_SCHEMA_V1",
     "VerifiedZDEXTokenomicsLaneV1",
+    "snapshot_prepared_zdex_tokenomics_lane_receipt_v1",
 ]

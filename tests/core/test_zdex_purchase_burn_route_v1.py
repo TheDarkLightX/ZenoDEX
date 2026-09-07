@@ -94,7 +94,6 @@ from src.core.zdex_tokenomics_fee_lane_coordinator_v1 import (
 )
 from src.core.zdex_tokenomics_fee_lane_receipt_verification_v1 import (
     ZDEXTokenomicsFeeLaneReceiptCandidateV1,
-    verify_zdex_tokenomics_fee_lane_receipt_v1,
 )
 from src.core.zdex_tokenomics_fee_lane_v1 import (
     ZDEXTokenomicsFeeAllocationCoordinatorContextV1,
@@ -104,6 +103,9 @@ from src.core.zdex_tokenomics_fee_lane_v1 import (
 from src.core.zdex_tokenomics_lane_v1 import (
     ZDEXTokenomicsLaneCompositionAcceptedV1,
     ZDEXTokenomicsLaneStateV1,
+)
+from src.integration.zdex_tokenomics_lane_receipt_verification_v1 import (
+    verify_zdex_tokenomics_fee_lane_receipt_v1,
 )
 
 

@@ -68,7 +68,6 @@ from src.core.zdex_tokenomics_lane_receipt_verification_v1 import (
     VerifiedZDEXTokenomicsLaneV1,
     ZDEXTokenomicsLaneReceiptCandidateV1,
     bind_zdex_tokenomics_shadow_profile_v1,
-    verify_zdex_tokenomics_lane_receipt_v1,
 )
 from src.core.zdex_tokenomics_lane_v1 import (
     MAX_ZDEX_TOKENOMICS_FEE_ASSETS_V1,
@@ -79,6 +78,9 @@ from src.core.zdex_tokenomics_lane_v1 import (
     ZDEXTokenomicsLaneStateV1,
     build_zdex_tokenomics_burn_module_journal_v1,
     build_zdex_tokenomics_burn_private_port_v1,
+)
+from src.integration.zdex_tokenomics_lane_receipt_verification_v1 import (
+    verify_zdex_tokenomics_lane_receipt_v1,
 )
 
 

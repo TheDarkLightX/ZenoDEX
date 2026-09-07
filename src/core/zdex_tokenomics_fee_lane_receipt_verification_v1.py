@@ -1,4 +1,9 @@
-"""SHADOW receipt admission for one complete ZDEX fee-allocation lane."""
+"""SHADOW receipt preparation for one complete ZDEX fee-allocation lane.
+
+The pure core fixes the exact coordinator receipt request; the integration
+shell executes it and mints the process-local marker.  No verifier is called
+here and no authority is granted.
+"""
 
 from __future__ import annotations
 
@@ -20,18 +25,15 @@ from .zdex_fee_allocation_receipt_verification_v1 import (
     _VerifiedZDEXFeeAllocationFieldsV1,
 )
 from .zdex_fee_allocation_types_v1 import PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1
-from .zdex_purchase_burn_receipt_verification_v1 import (
-    ZDEXLaneReceiptEnvelopeV1,
-    ZDEXLaneSuccinctReceiptVerifierV1,
-)
+from .zdex_purchase_burn_receipt_verification_v1 import ZDEXLaneReceiptEnvelopeV1
 from .zdex_tokenomics_fee_lane_coordinator_v1 import (
     ZDEXTokenomicsFeeAllocationLaneCandidateV1,
     _snapshot_zdex_tokenomics_fee_lane_candidate_v1,
     compose_zdex_tokenomics_fee_allocation_lane_v1,
 )
 from .zdex_tokenomics_lane_receipt_common_v1 import (
-    VerifiedZDEXTokenomicsLaneV1,
-    _verify_and_build_zdex_tokenomics_lane_v1,
+    PreparedZDEXTokenomicsLaneReceiptV1,
+    _prepare_zdex_tokenomics_lane_receipt_v1,
     _ZDEXTokenomicsCoordinatorReceiptExpectationV1,
     _ZDEXTokenomicsLaneBindingV1,
 )
@@ -125,12 +127,14 @@ def _require_candidate_bindings(
         raise ValueError("ZDEX tokenomics governed fee-lane candidate mismatch")
 
 
-def verify_zdex_tokenomics_fee_lane_receipt_v1(
+def prepare_zdex_tokenomics_fee_lane_receipt_v1(
     candidate: ZDEXTokenomicsFeeLaneReceiptCandidateV1,
     governed: GovernedZDEXFeeAllocationProfileV1,
-    receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1,
-) -> VerifiedZDEXTokenomicsLaneV1:
-    """Verify one policy-selected leaf and its exact complete-lane receipt."""
+) -> PreparedZDEXTokenomicsLaneReceiptV1:
+    """Fix one policy-selected leaf's exact complete-lane receipt request.
+
+    No verifier is called.  Reject precedence matches the former entry point.
+    """
 
     if type(candidate) is not ZDEXTokenomicsFeeLaneReceiptCandidateV1:
         raise TypeError("ZDEX tokenomics fee-lane receipt candidate must be exact")
@@ -160,7 +164,7 @@ def verify_zdex_tokenomics_fee_lane_receipt_v1(
         raise ValueError("ZDEX tokenomics fee-lane composition rejected")
     fields = owned_governed._fields
     journal = recomputed.lane_journal
-    return _verify_and_build_zdex_tokenomics_lane_v1(
+    return _prepare_zdex_tokenomics_lane_receipt_v1(
         owned_candidate.receipt,
         journal,
         _ZDEXTokenomicsCoordinatorReceiptExpectationV1(
@@ -176,11 +180,10 @@ def verify_zdex_tokenomics_fee_lane_receipt_v1(
             owned_candidate.lane_candidate.module_journal.journal_root,
             fields.module_release.guest_image_id,
         ),
-        receipt_verifier,
     )
 
 
 __all__ = [
     "ZDEXTokenomicsFeeLaneReceiptCandidateV1",
-    "verify_zdex_tokenomics_fee_lane_receipt_v1",
+    "prepare_zdex_tokenomics_fee_lane_receipt_v1",
 ]

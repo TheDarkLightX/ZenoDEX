@@ -11,14 +11,14 @@ from src.core.zdex_fee_allocation_profile_binding_v1 import (
 from src.core.zdex_tokenomics_fee_lane_coordinator_v1 import (
     compose_zdex_tokenomics_fee_allocation_lane_v1,
 )
-from src.core.zdex_tokenomics_fee_lane_receipt_verification_v1 import (
-    verify_zdex_tokenomics_fee_lane_receipt_v1,
-)
 from src.core.zdex_tokenomics_lane_coordinator_v1 import (
     compose_zdex_tokenomics_burn_lane_v1,
 )
 from src.core.zdex_tokenomics_lane_receipt_verification_v1 import (
     bind_zdex_tokenomics_shadow_profile_v1,
+)
+from src.integration.zdex_tokenomics_lane_receipt_verification_v1 import (
+    verify_zdex_tokenomics_fee_lane_receipt_v1,
     verify_zdex_tokenomics_lane_receipt_v1,
 )
 from tests.core.test_zdex_purchase_burn_route_v1 import _fee_lane_receipt_fixture

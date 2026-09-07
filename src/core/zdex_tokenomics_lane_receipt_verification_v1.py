@@ -1,9 +1,11 @@
-"""Shadow receipt admission for the complete ZDEX tokenomics burn lane.
+"""Shadow receipt preparation for the complete ZDEX tokenomics burn lane.
 
 This boundary selects the coordinator image from an exact governed profile,
-recomputes the deterministic lane composition, and verifies the exact public
-journal before producing an opaque process-local witness. It has no settlement
-or publication authority and does not close the purchase-and-burn route.
+recomputes the deterministic lane composition, and fixes the exact public
+journal request as a prepared subject.  It performs no verifier call; the
+integration shell executes the prepared subject and mints the process-local
+marker.  It has no settlement or publication authority and does not close the
+purchase-and-burn route.
 """
 
 from __future__ import annotations
@@ -35,7 +37,6 @@ from .global_settlement_types_v1 import (
 from .zdex_purchase_burn_receipt_verification_v1 import (
     VerifiedZDEXBurnV1,
     ZDEXLaneReceiptEnvelopeV1,
-    ZDEXLaneSuccinctReceiptVerifierV1,
     _VerifiedZDEXLaneFieldsV1,
 )
 from .zdex_purchase_burn_route_types_v1 import (
@@ -52,8 +53,9 @@ from .zdex_tokenomics_lane_coordinator_v1 import (
 )
 from .zdex_tokenomics_lane_receipt_common_v1 import (
     VERIFIED_ZDEX_TOKENOMICS_LANE_SCHEMA_V1,
+    PreparedZDEXTokenomicsLaneReceiptV1,
     VerifiedZDEXTokenomicsLaneV1,
-    _verify_and_build_zdex_tokenomics_lane_v1,
+    _prepare_zdex_tokenomics_lane_receipt_v1,
     _ZDEXTokenomicsCoordinatorReceiptExpectationV1,
     _ZDEXTokenomicsLaneBindingV1,
 )
@@ -318,12 +320,16 @@ def _require_candidate_bindings(
         raise ValueError("ZDEX tokenomics governed candidate binding mismatch")
 
 
-def verify_zdex_tokenomics_lane_receipt_v1(
+def prepare_zdex_tokenomics_lane_receipt_v1(
     candidate: ZDEXTokenomicsLaneReceiptCandidateV1,
     governed: GovernedZDEXTokenomicsProfileV1,
-    receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1,
-) -> VerifiedZDEXTokenomicsLaneV1:
-    """Reference admission through a supplied verifier; output has no authority."""
+) -> PreparedZDEXTokenomicsLaneReceiptV1:
+    """Fix the exact burn-lane coordinator receipt request with no verifier call.
+
+    The governed snapshot, witness scalars, candidate bindings, recomputed lane
+    composition, receipt shape, canonical journal ceiling and digests are fixed
+    here, in the former entry point's order, before any verifier I/O.
+    """
 
     if type(candidate) is not ZDEXTokenomicsLaneReceiptCandidateV1:
         raise TypeError("ZDEX tokenomics lane receipt candidate must be exact")
@@ -350,7 +356,7 @@ def verify_zdex_tokenomics_lane_receipt_v1(
         raise ValueError("ZDEX tokenomics lane composition rejected")
     receipt = owned_candidate.receipt
     journal = recomputed.lane_journal
-    return _verify_and_build_zdex_tokenomics_lane_v1(
+    return _prepare_zdex_tokenomics_lane_receipt_v1(
         receipt,
         journal,
         _ZDEXTokenomicsCoordinatorReceiptExpectationV1(
@@ -366,15 +372,15 @@ def verify_zdex_tokenomics_lane_receipt_v1(
             owned_candidate.lane_candidate.module_journal.journal_root,
             fields.module_release.guest_image_id,
         ),
-        receipt_verifier,
     )
 
 
 __all__ = [
     "GovernedZDEXTokenomicsProfileV1",
+    "PreparedZDEXTokenomicsLaneReceiptV1",
     "VERIFIED_ZDEX_TOKENOMICS_LANE_SCHEMA_V1",
     "VerifiedZDEXTokenomicsLaneV1",
     "ZDEXTokenomicsLaneReceiptCandidateV1",
     "bind_zdex_tokenomics_shadow_profile_v1",
-    "verify_zdex_tokenomics_lane_receipt_v1",
+    "prepare_zdex_tokenomics_lane_receipt_v1",
 ]

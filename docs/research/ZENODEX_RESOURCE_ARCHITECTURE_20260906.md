@@ -211,9 +211,10 @@ independent Daybreak review identified
 `BoundEconomicReceiptVerifierV1._verify_exact_receipt` in
 [verifier deployment binding](../../src/core/economic_receipt_verifier_deployment_v1.py),
 which still executes a backend and uses a core-layer authority registry.
-The root-epoch and initial-state execution paths are now separated below.
-Tokenomics, fee and buyback receipt paths still retain other effectful callbacks;
-the completed extractions do not close those separate effect owners.
+The root-epoch, initial-state and tokenomics lane execution paths are now
+separated below. The leaf fee-allocation callback and Bound-verifier deployment
+remain open effect owners; the retained purchase-and-burn verifier Protocol
+placement is tracked separately.
 An independent Terra review checked the new shell source; root reviewed the
 pure-core implementation and the preserved scenario bodies. The attempted
 additional Daybreak review could not start because the agent thread limit was
@@ -536,7 +537,46 @@ python3 -B -m experiments.v3_epoch_receipt_boundary_v1.render_evidence
 
 These tests use synthetic receipts and verifier behavior. They qualify no real
 proof, deployed verifier, finality adapter or production release. Bound-verifier
-deployment and the remaining tokenomics callbacks are separate FCIS obligations.
+deployment and the leaf fee-allocation callback are separate FCIS obligations.
+
+### Tokenomics burn-lane and fee-lane receipt preparation
+
+The [burn-lane preparer](../../src/core/zdex_tokenomics_lane_receipt_verification_v1.py)
+and [fee-lane preparer](../../src/core/zdex_tokenomics_fee_lane_receipt_verification_v1.py)
+now return an explicit immutable subject containing the exact receipt and
+canonical journal bytes plus all sixteen existing marker fields. Preparation
+retains profile and candidate validation, recomputed composition, receipt kind,
+nonempty bytes and journal ceiling in their existing rejection order.
+
+The [tokenomics integration module](../../src/integration/zdex_tokenomics_lane_receipt_verification_v1.py)
+owns both former `verify_*` entry points. It detaches the prepared subject,
+executes the exact coordinator-image request and then invokes the deterministic
+[core marker factory](../../src/core/zdex_tokenomics_lane_receipt_common_v1.py)
+with that executed snapshot. The core factory performs no I/O and owns no
+verification decision. The sixteen marker fields and `binding_root` remain
+unchanged. The module image and coordinator image remain distinct coordinates.
+The reference callback's historical ignored return value is preserved; the
+Bound verifier's exact `None` contract remains a separate boundary.
+
+The [boundary cases](../../tests/integration/test_zdex_tokenomics_lane_verifier_boundary_v1.py)
+cover exact requests and fields, rejection before callback, verifier failure,
+alias changes during execution and four executed semantic mutation families.
+Existing burn, fee and hostile-input scenario bodies retain their assertions
+and use the relocated shell APIs. The epoch inventory replaces the three
+closed callback rows with a regression check and retains the open debt rows.
+
+```bash
+python3 -B -m pytest -q -p no:cacheprovider tests/integration/test_zdex_tokenomics_lane_verifier_boundary_v1.py
+python3 -B -m experiments.v3_tokenomics_lane_receipt_boundary_v1.render_evidence
+```
+
+This extraction preserves reference SHADOW markers. A prepared record or a
+direct call to the private factory supplies no cryptographic, publication or
+finality authority. Tests use recorder callbacks, and direct AST checks are
+structural regressions rather than a transitive purity proof. No Rust runtime,
+guest image, wire value, policy, formal theorem or live release changes here.
+The leaf fee-allocation callback, Bound-verifier deployment, whole-path FCIS
+and production value-safety qualification remain open.
 
 ## Publisher-host compromise and independent enforcement
 
