@@ -1,8 +1,16 @@
-"""Receipt admission for one governed ZDEX fee-allocation output.
+"""Receipt preparation for one governed ZDEX fee-allocation output.
 
-The verifier recomputes the deterministic allocation before it creates the
-opaque witness consumed by the purchase-and-burn route. This module remains a
-shadow boundary because no production RISC0 image is mounted here.
+The pure core snapshots the candidate and governed profile, checks every
+binding, recomputes the deterministic allocation and fixes the exact module
+receipt request (receipt bytes, module image, canonical journal) plus the
+exact marker fields as one prepared subject.  It performs no verifier call.
+``src.integration.zdex_fee_allocation_receipt_verification_v1`` executes the
+prepared subject on the caller-supplied reference verifier and mints
+:class:`VerifiedZDEXFeeAllocationV1` from the executed copy only.
+
+This module remains a shadow boundary because no production RISC0 image is
+mounted here.  Neither the prepared subject nor the marker carries publication
+or settlement authority.
 """
 
 from __future__ import annotations
@@ -43,10 +51,7 @@ from .zdex_fee_allocation_types_v1 import (
     candidate_zdex_fee_allocation_policy_v1,
 )
 from .zdex_fee_allocation_v1 import transition_zdex_fee_allocation_v1
-from .zdex_purchase_burn_receipt_verification_v1 import (
-    ZDEXLaneReceiptEnvelopeV1,
-    ZDEXLaneSuccinctReceiptVerifierV1,
-)
+from .zdex_purchase_burn_receipt_verification_v1 import ZDEXLaneReceiptEnvelopeV1
 
 VERIFIED_ZDEX_FEE_ALLOCATION_SCHEMA_V1: Final = (
     "zenodex/verified-zdex-fee-allocation/v1"
@@ -217,7 +222,7 @@ class _VerifiedZDEXFeeAllocationFieldsV1:
 
 
 class VerifiedZDEXFeeAllocationV1:
-    """Immutable marker for the verifier factory's shadow admission result.
+    """Immutable marker for the shell's shadow admission result.
 
     Python module internals are inspectable, so this value never carries
     publication authority. Consumers must independently recompute semantics.
@@ -416,12 +421,136 @@ def _recompute(
         raise ValueError("ZDEX fee-allocation journal or effects mismatch")
 
 
-def verify_zdex_fee_allocation_receipt_v1(
+@dataclass(frozen=True, slots=True)
+class PreparedZDEXFeeAllocationReceiptV1:
+    """Complete pure execution subject: exact marker fields plus request bytes.
+
+    Data only.  Holding this record is not evidence that any verifier ran; the
+    shell executes it and mints the marker from its own detached snapshot.  The
+    expected image is the marker's own ``expected_image_id`` (the module
+    release image), so no duplicated request field can disagree with the
+    minted marker.
+    """
+
+    verified_fields: _VerifiedZDEXFeeAllocationFieldsV1
+    receipt_bytes: bytes
+    expected_journal_bytes: bytes
+
+    def __post_init__(self) -> None:
+        if type(self.verified_fields) is not _VerifiedZDEXFeeAllocationFieldsV1:
+            raise TypeError("prepared ZDEX fee-allocation fields must be exact typed data")
+        if type(self.receipt_bytes) is not bytes:
+            raise TypeError("prepared ZDEX fee-allocation receipt bytes must be exact bytes")
+        if type(self.expected_journal_bytes) is not bytes:
+            raise TypeError("prepared ZDEX fee-allocation journal bytes must be exact bytes")
+
+    @property
+    def expected_image_id(self) -> str:
+        return self.verified_fields.expected_image_id
+
+
+def _sha256_root_v1(value: bytes) -> str:
+    return "0x" + hashlib.sha256(value).hexdigest()
+
+
+def _copy_verified_zdex_fee_allocation_fields_v1(
+    fields: _VerifiedZDEXFeeAllocationFieldsV1,
+) -> _VerifiedZDEXFeeAllocationFieldsV1:
+    return _VerifiedZDEXFeeAllocationFieldsV1(
+        fields.allocation_route_release_id,
+        fields.authorized_buyback_route_release_id,
+        fields.module_release_id,
+        fields.command_occurrence_id,
+        fields.profile_root,
+        fields.writer_epoch,
+        fields.journal_root,
+        fields.journal_digest,
+        fields.effect_plan_root,
+        fields.expected_image_id,
+        fields.receipt_digest,
+        fields.receipt_kind,
+        fields.policy_root,
+        fields.fee_asset_id,
+        fields.fee_ingress_atoms,
+        fields.buyback_quote_atoms,
+        fields.pre_lane_root,
+        fields.post_lane_root,
+    )
+
+
+def _require_prepared_zdex_fee_allocation_digests_v1(
+    prepared: PreparedZDEXFeeAllocationReceiptV1,
+) -> None:
+    """Bind the digest fields to the exact request bytes that will be executed."""
+
+    fields = prepared.verified_fields
+    if fields.receipt_digest != _sha256_root_v1(prepared.receipt_bytes):
+        raise ValueError("prepared ZDEX fee-allocation receipt digest mismatch")
+    if fields.journal_digest != _sha256_root_v1(prepared.expected_journal_bytes):
+        raise ValueError("prepared ZDEX fee-allocation journal digest mismatch")
+
+
+def snapshot_prepared_zdex_fee_allocation_receipt_v1(
+    prepared: PreparedZDEXFeeAllocationReceiptV1,
+) -> PreparedZDEXFeeAllocationReceiptV1:
+    """Return a validated detached copy of one prepared subject.
+
+    Exact record, scalar and byte types plus digest-to-bytes binding are
+    rechecked.  No further release restriction is added: the preparation
+    entry point's own upstream validators fix the acceptance domain, exactly
+    as before the extraction.
+    """
+
+    if type(prepared) is not PreparedZDEXFeeAllocationReceiptV1:
+        raise TypeError("prepared ZDEX fee-allocation receipt must be exact typed data")
+    fields = prepared.verified_fields
+    if type(fields) is not _VerifiedZDEXFeeAllocationFieldsV1:
+        raise TypeError("prepared ZDEX fee-allocation fields must be exact typed data")
+    _require_exact_dataclass_scalars_v1(fields, name="prepared ZDEX fee-allocation")
+    if type(fields.receipt_kind) is not ReceiptKindV1:
+        raise TypeError("prepared ZDEX fee-allocation receipt kind is not closed")
+    if type(prepared.receipt_bytes) is not bytes:
+        raise TypeError("prepared ZDEX fee-allocation receipt bytes must be exact bytes")
+    if type(prepared.expected_journal_bytes) is not bytes:
+        raise TypeError("prepared ZDEX fee-allocation journal bytes must be exact bytes")
+    _require_prepared_zdex_fee_allocation_digests_v1(prepared)
+    return PreparedZDEXFeeAllocationReceiptV1(
+        _copy_verified_zdex_fee_allocation_fields_v1(fields),
+        prepared.receipt_bytes,
+        prepared.expected_journal_bytes,
+    )
+
+
+def _build_verified_zdex_fee_allocation_v1(
+    prepared: PreparedZDEXFeeAllocationReceiptV1,
+) -> VerifiedZDEXFeeAllocationV1:
+    """Mint the existing marker from one validated prepared subject.
+
+    Deterministic data construction only.  Post-callback sequencing belongs to
+    the shell, which calls this with the detached snapshot it executed.  The
+    marker carries no authority and this factory is not a verifier.
+    """
+
+    owned = snapshot_prepared_zdex_fee_allocation_receipt_v1(prepared)
+    return VerifiedZDEXFeeAllocationV1(
+        _VERIFIED_FEE_ALLOCATION_TOKEN,
+        owned.verified_fields,
+    )
+
+
+def prepare_zdex_fee_allocation_receipt_v1(
     candidate: ZDEXFeeAllocationReceiptCandidateV1,
     governed: GovernedZDEXFeeAllocationProfileV1,
-    receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1,
-) -> VerifiedZDEXFeeAllocationV1:
-    """Authenticate one exact allocation under its release-selected image."""
+) -> PreparedZDEXFeeAllocationReceiptV1:
+    """Fix one exact allocation's module receipt request with no verifier call.
+
+    Reject precedence is unchanged from the former effectful entry point:
+    candidate snapshot, governed snapshot, profile binding, release and
+    occurrence checks, exact transition recomputation, succinct receipt kind,
+    nonempty receipt bytes, then the canonical journal byte ceiling
+    ``min(module_release.max_journal_bytes, allocation_route.max_journal_bytes)``.
+    The expected image is the module release image, never the coordinator.
+    """
 
     owned_candidate = _snapshot_fee_receipt_candidate_v1(candidate)
     owned_governed = _snapshot_governed_fee_profile_v1(governed)
@@ -440,8 +569,6 @@ def verify_zdex_fee_allocation_receipt_v1(
         fields.allocation_route.max_journal_bytes,
     ):
         raise ValueError("ZDEX fee-allocation journal exceeds release byte ceiling")
-    journal_digest = "0x" + hashlib.sha256(journal_bytes).hexdigest()
-    receipt_digest = "0x" + hashlib.sha256(receipt.receipt_bytes).hexdigest()
     journal = owned_candidate.journal
     verified_fields = _VerifiedZDEXFeeAllocationFieldsV1(
         fields.allocation_route.route_release_id,
@@ -451,10 +578,10 @@ def verify_zdex_fee_allocation_receipt_v1(
         owned_candidate.occurrence.profile_root,
         journal.writer_epoch,
         journal.occurrence_root,
-        journal_digest,
+        _sha256_root_v1(journal_bytes),
         owned_candidate.effects.effect_plan_root,
         fields.module_release.guest_image_id,
-        receipt_digest,
+        _sha256_root_v1(receipt.receipt_bytes),
         receipt.receipt_kind,
         owned_candidate.policy.policy_root,
         journal.fee_asset_id,
@@ -463,22 +590,20 @@ def verify_zdex_fee_allocation_receipt_v1(
         journal.pre_lane_root,
         journal.post_lane_root,
     )
-    receipt_verifier.verify_succinct_receipt(
-        receipt.receipt_bytes,
-        expected_image_id=fields.module_release.guest_image_id,
-        expected_journal_bytes=journal_bytes,
-    )
-    return VerifiedZDEXFeeAllocationV1(
-        _VERIFIED_FEE_ALLOCATION_TOKEN,
+    return PreparedZDEXFeeAllocationReceiptV1(
         verified_fields,
+        receipt.receipt_bytes,
+        journal_bytes,
     )
 
 
 __all__ = [
     "GovernedZDEXFeeAllocationProfileV1",
+    "PreparedZDEXFeeAllocationReceiptV1",
     "VERIFIED_ZDEX_FEE_ALLOCATION_SCHEMA_V1",
     "VerifiedZDEXFeeAllocationV1",
     "ZDEXFeeAllocationReceiptCandidateV1",
     "bind_zdex_fee_allocation_shadow_profile_v1",
-    "verify_zdex_fee_allocation_receipt_v1",
+    "prepare_zdex_fee_allocation_receipt_v1",
+    "snapshot_prepared_zdex_fee_allocation_receipt_v1",
 ]

@@ -1,0 +1,309 @@
+{
+  "aaa": {
+    "reason": "Explicit fixture, one transition or observation, and independent exact output assertions.",
+    "status": "applied"
+  },
+  "boundary_dimensions": [
+    {
+      "name": "V3-FEE-ALLOCATION-SHADOW-RECEIPT-OWNED-EXECUTION-SUBJECT",
+      "points": [
+        "The core preparation keeps the existing candidate and governed-profile APIs, all 18 fields, binding-root domain, canonical allocation journal, receipt bytes, and first-error order.",
+        "PreparedZDEXFeeAllocationReceiptV1 carries the complete 18-field marker subject plus receipt bytes and canonical journal bytes; expected_image_id is the selected module release image.",
+        "Fee ingress is read from the owned predecessor fee state and buyback_quote_atoms from the recomputed allocation journal.  The journal ceiling remains min(module_release.max_journal_bytes, allocation_route.max_journal_bytes).",
+        "The integration shell owns the former verification entry point, detaches the prepared subject before I/O, makes exactly one callback request with receipt bytes, module image, and journal bytes, and constructs the marker from the executed copy.",
+        "Invalid candidate/profile/occurrence/allocation, receipt-kind, empty-byte, and below-ceiling cases preserve their prior exception classes/messages and make zero callback calls; paired empty-receipt and ceiling failures retain the earlier rejection. The new prepared-subject boundary also rejects unsupported types and unbound digests before callback execution.",
+        "The reference recorder tests include callback rejection and True/object/bytes/zero return values, preserving the historical ignored-result behavior without promoting it to measured verifier evidence.",
+        "The detached subject prevents callback-side mutation of the candidate, governed release graph, or caller-held prepared alias from relabeling any marker field or binding root.",
+        "The three pinned test files cover the new focused boundary, relocated route call sites, and the epoch inventory that records the closed fee leaf together with remaining core callback owners.",
+        "The four mechanical mutation rows below use structure-preserving substitutions and retained ordinary no-call, alias, exact-request, and digest-binding laws; they do not rely on mutant-generator test names.",
+        "AST and source pins establish direct declaration and call placement only.  They do not establish transitive core purity, cryptographic validity, runtime qualification, or whole-program completion."
+      ]
+    }
+  ],
+  "change_kind": "behavior_change",
+  "claim_scope": "The governed ZDEX fee-allocation leaf prepares an exact detached SHADOW receipt subject in core, then the integration shell executes the supplied reference callback once and mints the existing marker from the detached executed copy.  The bounded corpus observes all 18 marker fields and the binding root, the exact receipt/module-image/canonical-journal request, pre-state fee ingress, buyback journal amount, callback compatibility, rejection order, and alias safety.",
+  "created_date": "2026-09-07",
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "mutation"
+  ],
+  "evidence_id": "THV1-20260907-fee-allocation-receipt-boundary-v1",
+  "failure_modes": [
+    "The core preparation keeps the existing candidate and governed-profile APIs, all 18 fields, binding-root domain, canonical allocation journal, receipt bytes, and first-error order.",
+    "PreparedZDEXFeeAllocationReceiptV1 carries the complete 18-field marker subject plus receipt bytes and canonical journal bytes; expected_image_id is the selected module release image.",
+    "Fee ingress is read from the owned predecessor fee state and buyback_quote_atoms from the recomputed allocation journal.  The journal ceiling remains min(module_release.max_journal_bytes, allocation_route.max_journal_bytes).",
+    "The integration shell owns the former verification entry point, detaches the prepared subject before I/O, makes exactly one callback request with receipt bytes, module image, and journal bytes, and constructs the marker from the executed copy.",
+    "Invalid candidate/profile/occurrence/allocation, receipt-kind, empty-byte, and below-ceiling cases preserve their prior exception classes/messages and make zero callback calls; paired empty-receipt and ceiling failures retain the earlier rejection. The new prepared-subject boundary also rejects unsupported types and unbound digests before callback execution.",
+    "The reference recorder tests include callback rejection and True/object/bytes/zero return values, preserving the historical ignored-result behavior without promoting it to measured verifier evidence.",
+    "The detached subject prevents callback-side mutation of the candidate, governed release graph, or caller-held prepared alias from relabeling any marker field or binding root.",
+    "The three pinned test files cover the new focused boundary, relocated route call sites, and the epoch inventory that records the closed fee leaf together with remaining core callback owners.",
+    "The four mechanical mutation rows below use structure-preserving substitutions and retained ordinary no-call, alias, exact-request, and digest-binding laws; they do not rely on mutant-generator test names.",
+    "AST and source pins establish direct declaration and call placement only.  They do not establish transitive core purity, cryptographic validity, runtime qualification, or whole-program completion."
+  ],
+  "invariant_ids": [
+    "V3-FEE-ALLOCATION-SHADOW-RECEIPT-OWNED-EXECUTION-SUBJECT"
+  ],
+  "mutations": [
+    {
+      "description": "Tier 1: invoke the callback before core preparation; the ordinary reference-order no-call law observes a callback on a conditional receipt before the expected rejection.",
+      "killed_by": "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_invalid_input_rejects_before_callback_in_the_reference_order",
+      "mutant": {
+        "needle_lines": [
+          "    prepared = prepare_zdex_fee_allocation_receipt_v1(candidate, governed)"
+        ],
+        "path": "src/integration/zdex_fee_allocation_receipt_verification_v1.py",
+        "replacement_lines": [
+          "    receipt_verifier.verify_succinct_receipt(",
+          "        candidate.receipt.receipt_bytes,",
+          "        expected_image_id=governed._fields.module_release.guest_image_id,",
+          "        expected_journal_bytes=b'',",
+          "    )",
+          "    prepared = prepare_zdex_fee_allocation_receipt_v1(candidate, governed)"
+        ]
+      }
+    },
+    {
+      "description": "Tier 1: mint from the caller-held prepared alias after callback I/O; the ordinary alias law observes the forged module-release field.",
+      "killed_by": "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_candidate_and_prepared_alias_mutation_during_callback_cannot_relabel_marker",
+      "mutant": {
+        "needle_lines": [
+          "    return _build_verified_zdex_fee_allocation_v1(owned)"
+        ],
+        "path": "src/integration/zdex_fee_allocation_receipt_verification_v1.py",
+        "replacement_lines": [
+          "    return _build_verified_zdex_fee_allocation_v1(prepared)"
+        ]
+      }
+    },
+    {
+      "description": "Tier 1: bind the coordinator image instead of the selected module image; the ordinary exact-request law observes the changed image and marker binding root.",
+      "killed_by": "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_shell_executes_exactly_the_prepared_receipt_image_and_journal",
+      "mutant": {
+        "needle_lines": [
+          "        fields.module_release.guest_image_id,"
+        ],
+        "path": "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+        "replacement_lines": [
+          "        fields.coordinator_release.guest_image_id,"
+        ]
+      }
+    },
+    {
+      "description": "Tier 1: omit the prepared digest-to-request check; the ordinary prepared-record law observes receipt bytes whose digest is not bound before callback execution.",
+      "killed_by": "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_prepared_record_requires_exact_types_and_field_to_request_binding",
+      "mutant": {
+        "needle_lines": [
+          "    _require_prepared_zdex_fee_allocation_digests_v1(prepared)"
+        ],
+        "path": "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Packet rendering does not execute tests or establish completeness or production authority.",
+    "The marker and prepared subject remain process-local SHADOW/reference data with no publication, settlement, finality, migration, withdrawal, or production authority.",
+    "Recorder callbacks and fixed roots qualify no real receipt, cryptographic proof, measured deployment, guest image, release capability, or Rust/Lean parity.",
+    "The remaining purchase/burn callbacks and governed wrappers, atomic buyback module/coordinator/route receipt callbacks, buyback Spot safety verification, and the Bound deployment registry/backend execution boundary remain separate FCIS obligations.",
+    "This leaf extraction does not establish full FCIS closure, universal runtime/compiler refinement, complete caller migration, or production value safety.  The fee callback's surrounding coordinator and publication path remain separate surfaces.",
+    "The generic callback retains its historical ignored return value; the separate Bound verifier's exact-None rule is unchanged and outside this boundary.",
+    "Private marker construction and callback ports assume an intact interpreter, process, operating system, and publisher environment and do not protect a compromised host.",
+    "Rendering writes this new evidence declaration only; it changes no wire field, policy constant, release value, historical packet, or production artifact, and it does not execute tests or evidence."
+  ],
+  "reject_is_noop": {
+    "reason": "Candidate, governed-profile, binding, transition, receipt-kind, nonempty-byte, digest, and journal-ceiling failures occur before callback I/O.  Callback exceptions propagate without a marker.  The shell snapshots the prepared subject before I/O and mints only from that detached copy; the generic callback's non-None return value remains ignored, while the separate Bound contract keeps its own exact-None success rule.",
+    "status": "applied"
+  },
+  "removed_paths": [],
+  "risk_class": "critical",
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "source_pins": [
+    {
+      "path": "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+      "sha256": "f530a191cae0d640fc4ac6d339cc99af67706107287cb31d79b3596cbff189a7"
+    },
+    {
+      "path": "src/integration/zdex_fee_allocation_receipt_verification_v1.py",
+      "sha256": "574a6c13b05eb7678e390a39f100b0c2ed42acbd32d9837bab6d7b6d3004e1a1"
+    },
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "b7d826ddabc4c140e1803ffa0aebca0642d0a9ecd69b94a00567894829bbf345"
+    },
+    {
+      "path": "src/core/global_economic_refinement_snapshot_v1.py",
+      "sha256": "0ab017a4fd6eee81e85bfeda3a829b34c78edb2b9af95d0959f1059be0469bb7"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/zdex_fee_allocation_profile_binding_v1.py",
+      "sha256": "eff98cf56f5067cfc6c474bbef2b49ee0b99c5ea6c3ec2586c98f895584a7d23"
+    },
+    {
+      "path": "src/core/zdex_fee_allocation_types_v1.py",
+      "sha256": "b29490205c099e5f38812a71555c65d20b5de1c333425c22ed2d4fbe392d50df"
+    },
+    {
+      "path": "src/core/zdex_fee_allocation_v1.py",
+      "sha256": "8f976781349e31ae9fd3c48b8534ae4fbfe74e8ce33e6b62c6a627c8109bad84"
+    },
+    {
+      "path": "src/core/zdex_purchase_burn_receipt_verification_v1.py",
+      "sha256": "7ad42e80770f71fc7fbc90c52bea240218d3dd10ec4793d42e6dc1c4345138b8"
+    },
+    {
+      "path": "src/core/zdex_purchase_burn_route_types_v1.py",
+      "sha256": "d680d7d73631076a11f67fd84546b457b1294367dc62188d0545c2bcc51d39c1"
+    },
+    {
+      "path": "experiments/v3_fee_allocation_receipt_boundary_v1/render_evidence.py",
+      "sha256": "a92699fe579372e5b0ab3315082419628d6cb894f87c226f989088a36897fee7"
+    },
+    {
+      "path": "docs/research/ZENODEX_RESOURCE_ARCHITECTURE_20260906.md",
+      "sha256": "db6febcee30894fc150ab9d3e4d47d7733effe86eb3fea7308d1463781e93930"
+    },
+    {
+      "path": "experiments/v3_completion_followup_v1/render_evidence.py",
+      "sha256": "33318641f87f6e06637eb90371de267692fc00eab434db91dff8ff606a5e0f04"
+    }
+  ],
+  "test_pins": [
+    {
+      "node_ids": [
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_core_fee_leaf_module_has_no_callback_parameter_call_or_shell_import",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_shell_owns_exactly_one_callback_invocation_and_the_public_verify_signature",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_prepare_is_deterministic_and_preserves_all_18_fields_and_binding_root",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_prepared_subject_is_detached_from_candidate_and_governed_graph",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_prepared_record_requires_exact_types_and_field_to_request_binding",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_prepared_constructor_refuses_non_exact_field_and_byte_types",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_invalid_input_rejects_before_callback_in_the_reference_order",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_journal_ceiling_accepts_at_bound_and_rejects_one_below_on_either_release",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_shell_executes_exactly_the_prepared_receipt_image_and_journal",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_callback_exception_propagates_and_no_marker_is_returned",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_reference_callback_non_none_return_is_still_ignored",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_candidate_and_prepared_alias_mutation_during_callback_cannot_relabel_marker",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_execute_before_prepare_mutant_is_killed_by_the_no_call_law",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_mint_from_caller_alias_mutant_is_killed_by_the_alias_mutation_observation",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_coordinator_image_mutant_is_killed_by_the_module_image_observation",
+        "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py::test_missing_field_to_request_binding_mutant_is_killed_by_the_digest_observation"
+      ],
+      "path": "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py",
+      "sha256": "ceed45d26ba730eb60c72d8be0ec3dbc11175dce6053a4325b9546974177c315"
+    },
+    {
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_purchase_journal_v2_binds_price_authority_inputs",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_purchase_journal_v2_rejects_zero_price_authority_bounds",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_governed_purchase_burn_route_cannot_be_constructed_by_a_caller",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_self_consistent_alternative_buyback_profile_rejects_trusted_anchor",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_alternative_governed_route_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_retained_route_anchor_rejects_generation_swap_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_governed_route_epoch_rejects_boolean_alias",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_governed_route_owns_profile_and_selected_release_graph",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_hostile_governed_profile_is_rejected_before_attribute_access",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_verified_leaves_compose_shadow_effects_with_open_coordinator_obligation",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_caller_substituted_pool_buckets_reject_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_same_pair_alternate_pool_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_mixed_pool_reserve_keys_reject_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_occurrence_scoped_burn_ports_are_distinct_and_deterministic",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_every_governed_buyback_resource_substitution_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_unregistered_buyback_execution_policy_rejects_profile_binding",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_unbound_buyback_budget_occurrence_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_buyback_budget_cannot_be_redirected_to_another_source",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_budget_and_buyback_command_cannot_alias_replay_identity",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_command_must_consume_exact_authenticated_budget_object",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_buyback_budget_must_consume_exact_verified_fee_ingress",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_allocation_witness_cannot_be_constructed_by_a_caller",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_governed_fee_profile_cannot_be_constructed_by_a_caller",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_self_consistent_alternative_profile_rejects_trusted_profile_anchor",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_retained_fee_anchor_rejects_generation_swap_before_callback",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_profile_status_substitution_rejects_with_same_profile_id",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_wrong_expected_authority_epoch_rejects_trusted_profile_anchor",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_policy_registry_substitution_rejects_before_receipt_verification",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_profile_coordinate_substitution_rejects_before_receipt_verification",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_callback_cannot_rebind_verified_bytes",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_callback_cannot_mutate_owned_witness_bindings",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_rejects_hostile_scalar_before_callback",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_rejects_hostile_governed_fields_before_attribute_access",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_policy_registry_root_matches_rust_golden_vector",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_buyback_execution_policy_root_matches_rust_golden_vector",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_buyback_execution_policy_rejects_unknown_fields_and_resource_aliases",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_buyback_execution_policy_rejects_hostile_string_subclasses",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_policy_registry_rejects_duplicate_and_unsorted_binding_keys",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_policy_registry_rejects_wrong_command_lookup",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_policy_registry_accepts_256_and_rejects_257_bindings",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_imported_python_token_cannot_authorize_shifted_allocation",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_shifted_fee_allocation_rejects_before_receipt_verification",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_allocation_requires_nonempty_succinct_receipt_before_verifier",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_receipt_verifier_sees_exact_release_image_and_canonical_journal",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_purchase_receipt_callback_cannot_redirect_authenticated_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_burn_receipt_callback_cannot_mutate_owned_witness_bindings",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_burn_receipt_rejects_hostile_route_scalar_before_callback",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_verifier_rejection_produces_no_authenticated_purchase_witness",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_non_authoritative_receipt_shapes_reject_before_verifier",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_active_release_cannot_cross_the_shadow_only_admission_boundary",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_quote_debit_mutant_rejects_before_receipt_verification",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_port_substitution_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_wrong_dependency_role_shape_cannot_authenticate_purchase",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_verified_leaf_for_another_journal_cannot_be_substituted",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_mutated_verified_leaf_release_binding_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_foreign_module_release_record_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_hostile_release_binding_scalar_rejects_before_composition",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_route_release_snapshot_rejects_hostile_image_scalar",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_cross_layer_binding_mutants_reject_with_no_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_bva_positive_amounts_preserve_route_conservation",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_route_rejects_owned_supply_baseline_neighbor_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_python_rust_golden_composition_root_is_stable",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_composition_journal_v2_rejects_unknown_fields_and_wrong_cardinality",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_effect_width_overflow_is_unrepresentable",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_purchase_cannot_mix_preexisting_inventory_into_burn",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_burn_must_drain_the_purchased_output_exactly_once",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_quote_source_cannot_spend_more_than_its_committed_balance",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_profile_selected_fee_leaf_and_coordinator_bind_complete_lane",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_retained_fee_lane_anchor_rejects_generation_swap_before_callback",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_coordinator_callback_cannot_mutate_owned_witness_bindings",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_coordinator_rejects_hostile_release_scalar_before_callback",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_unrelated_lane_root_substitution_requires_a_new_exact_receipt",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_lane_context_and_receipt_shape_reject_before_verifier",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_mutated_governed_fee_profile_rejects_before_lane_verifier"
+      ],
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "916a3011f630749fa28d329c312c34087571777e58df4d22da9dbd38bd1a2e62"
+    },
+    {
+      "node_ids": [
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_prepare_is_repeatable_pure_and_grants_no_authority",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_prepared_subject_is_detached_from_the_caller_candidate_graph",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_structural_rejections_precede_any_backend_call",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_shell_executes_exactly_the_prepared_three_field_request",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_publisher_bound_epoch_and_commit_reproduce_the_pre_extraction_subject",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_genesis_and_migration_prepare_exact_subjects_and_execute_once",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_initial_state_executor_detaches_complete_admission_before_io",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_callback_mutation_of_caller_graphs_cannot_relabel_witness_or_commit",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_callback_mutation_of_unowned_prepared_subject_cannot_relabel_minted_witness",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_epoch_executor_rejects_unconstructed_subclass_and_substituted_subjects_before_io",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_forged_direct_handle_subclass_and_field_injection_are_refused",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_publisher_identity_requires_the_exact_token_and_verifier_objects",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_backend_exception_registers_nothing_and_changes_no_state",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_changed_receipt_body_or_state_cannot_replay_a_committed_epoch",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_durable_publisher_executes_the_exact_prepared_subject_on_its_bound_verifier",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_durable_backend_rejection_registers_no_witness_and_keeps_genesis",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_core_root_epoch_and_initial_state_code_has_no_shell_mechanisms",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_closed_tokenomics_callback_debt_stays_a_pure_core_boundary",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_closed_fee_leaf_callback_debt_stays_a_pure_core_boundary",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_shell_modules_own_execution_registry_lock_and_consumer_imports",
+        "tests/integration/test_economic_epoch_verifier_boundary_v1.py::test_execute_before_prepare_mutant_is_killed_by_the_no_call_law"
+      ],
+      "path": "tests/integration/test_economic_epoch_verifier_boundary_v1.py",
+      "sha256": "d9a6067f52289beaf01121702615c058bcd08dd2f17cdbb0485a1553733ef91a"
+    }
+  ]
+}

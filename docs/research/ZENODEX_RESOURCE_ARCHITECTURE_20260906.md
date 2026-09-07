@@ -536,8 +536,8 @@ python3 -B -m experiments.v3_epoch_receipt_boundary_v1.render_evidence
 ```
 
 These tests use synthetic receipts and verifier behavior. They qualify no real
-proof, deployed verifier, finality adapter or production release. Bound-verifier
-deployment and the leaf fee-allocation callback are separate FCIS obligations.
+proof, deployed verifier, finality adapter or production release. Further
+receipt boundaries and the remaining FCIS obligations are recorded below.
 
 ### Tokenomics burn-lane and fee-lane receipt preparation
 
@@ -575,8 +575,54 @@ direct call to the private factory supplies no cryptographic, publication or
 finality authority. Tests use recorder callbacks, and direct AST checks are
 structural regressions rather than a transitive purity proof. No Rust runtime,
 guest image, wire value, policy, formal theorem or live release changes here.
-The leaf fee-allocation callback, Bound-verifier deployment, whole-path FCIS
-and production value-safety qualification remain open.
+The subsequent leaf fee-allocation extraction is recorded below. Bound-verifier
+deployment, the remaining buyback receipt paths, whole-path FCIS and production
+value-safety qualification remain open.
+
+### Fee-allocation leaf receipt preparation
+
+The [fee-allocation core](../../src/core/zdex_fee_allocation_receipt_verification_v1.py)
+now prepares the complete immutable leaf receipt subject. It preserves all
+eighteen existing marker fields, the canonical journal and receipt bytes,
+deterministic allocation recomputation, and the previous rejection order.
+The expected image comes from the selected module release. Fee ingress comes
+from the predecessor fee state; the buyback amount comes from the matched
+allocation journal. The minimum module/route byte ceiling applies to the journal.
+
+The [fee-allocation shell](../../src/integration/zdex_fee_allocation_receipt_verification_v1.py)
+owns the former verification entry point. It detaches the prepared subject,
+executes its exact receipt/image/journal request once, and constructs the
+existing marker from the executed copy. The core factory remains deterministic
+data construction. Marker fields, hash domain and binding root are unchanged.
+The generic callback retains its historical ignored return value; the Bound
+verifier retains its separate exact `None` success contract.
+
+The [boundary tests](../../tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py)
+observe all fields, the exact request, errors before callback execution,
+verifier exceptions, retained aliases, both journal ceilings and semantic
+mutants. The route scenarios keep their bodies and use the relocated API.
+The epoch inventory checks the closed leaf directly and records the remaining
+receipt callback owners, including the executable paths behind their Protocol
+declarations.
+
+```bash
+python3 -B -m pytest -q -p no:cacheprovider tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py tests/integration/test_economic_epoch_verifier_boundary_v1.py tests/core/test_zdex_purchase_burn_route_v1.py
+python3 -B -m experiments.v3_fee_allocation_receipt_boundary_v1.render_evidence
+```
+
+The remaining core receipt owners include the three legacy purchase/burn
+callbacks and their governed wrappers, atomic buyback module/coordinator/route
+verification, buyback Spot safety verification, and the Bound deployment
+registry/backend execution boundary. Their source callers and authority
+dependencies require separate extraction and mounted qualification. A direct
+AST check covers only the inspected declarations and known method calls.
+
+This leaf extraction preserves reference SHADOW behavior and grants no
+publication authority. Recorder callbacks qualify no real proof or measured
+deployment. No Rust implementation, Lean theorem, guest image, wire field,
+policy constant or live release changes here. Finite runtime tables, canonical
+bytes and replay encoding still need refinement to the existing Lean state
+model; callback extraction alone does not discharge that obligation.
 
 ## Publisher-host compromise and independent enforcement
 

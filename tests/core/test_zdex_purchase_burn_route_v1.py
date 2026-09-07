@@ -37,7 +37,6 @@ from src.core.zdex_fee_allocation_receipt_verification_v1 import (
     VerifiedZDEXFeeAllocationV1,
     ZDEXFeeAllocationReceiptCandidateV1,
     bind_zdex_fee_allocation_shadow_profile_v1,
-    verify_zdex_fee_allocation_receipt_v1,
 )
 from src.core.zdex_fee_allocation_types_v1 import (
     FEE_ALLOCATION_OUTPUT_ROLE_V1,
@@ -103,6 +102,9 @@ from src.core.zdex_tokenomics_fee_lane_v1 import (
 from src.core.zdex_tokenomics_lane_v1 import (
     ZDEXTokenomicsLaneCompositionAcceptedV1,
     ZDEXTokenomicsLaneStateV1,
+)
+from src.integration.zdex_fee_allocation_receipt_verification_v1 import (
+    verify_zdex_fee_allocation_receipt_v1,
 )
 from src.integration.zdex_tokenomics_lane_receipt_verification_v1 import (
     verify_zdex_tokenomics_fee_lane_receipt_v1,
