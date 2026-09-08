@@ -147,6 +147,20 @@ unknown value writers; and SHADOW failures with unchanged economic behavior.
 
 ## Execution and reporting
 
+Each work item must name its enclosing V3 obligation, the runtime caller or
+consumer it connects, the decisive acceptance check and a stopping condition.
+Finish and integrate reviewed work before opening adjacent proof or research
+branches. A blocked check calls for a repair or an explicit dependency decision;
+it does not justify expanding the task indefinitely.
+
+Compare the direct implementation with existing helpers before adding another
+abstraction. Simplify duplicated decisions or state when retained evidence shows
+the smaller version preserves the contract. Keep independent oracles, negative
+controls and authority checks. Rerun completed checks or reopen a review only
+for changed subjects, failures or unresolved concerns. Report which obligation
+closed and which enclosing milestone remains open; activity counts do not
+measure progress toward completion.
+
 Reuse existing specifications before requesting policy decisions. Qualify an
 isolated ledger first. This integration authorizes no live balance migration,
 profile activation or production promotion. Unknown policy values remain disabled
@@ -228,3 +242,12 @@ and trace-prefix preservation are proved under explicit input assumptions.
 Independent retained replay checks the theorem surface and 37 runtime cases.
 Complete transfer and cross-lane outcomes, actual effect/journal constructor
 correspondence and universal runtime refinement remain open.
+
+The [finite transfer outcome](research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md)
+and [checked forward loop](research/ZENODEX_TRANSFER_FORWARD_LOOP_20260908.md)
+checkpoints connect finite tables, ordered arithmetic failures and final resource
+checks to the operational update order, with retained runtime comparisons.
+The managed parity gates now include the finite resource rejection while keeping
+the original economic-prefix controls. These close scoped W07/W09 dependencies;
+they do not close a whole lane or a V3 milestone. Concrete effect/journal
+construction, combined lane gates and universal runtime refinement remain open.
