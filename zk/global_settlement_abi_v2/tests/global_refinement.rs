@@ -3,12 +3,13 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 use serde_json::Value;
 use zenodex_global_settlement_abi_v2::{
-    decode_canonical_v2, refine_global_economic_state_effects_v2, AssetConservationRowV2,
-    AssetSupplyV2, EconomicAmountV2, EconomicCommandOccurrenceV2, EconomicEffectKindV2,
-    EconomicEffectRowV2, ExternalOutboxEnqueueV2, FeeConservationRowV2, GlobalEconomicEffectPlanV2,
-    GlobalEconomicStateEffectRefinementCandidateV2, GlobalEconomicStateV2,
-    GlobalOracleOccurrencePlanV2, GlobalTerminalObligationPlanV2, LaneIdV2, LaneWriteV2, RootV2,
-    ValidateCanonicalV2, ALL_LANE_IDS_V2, FEE_RESIDUE_CONTROL_DOMAIN_V2, FEE_RESIDUE_PRINCIPAL_V2,
+    decode_canonical_v2, refine_global_economic_state_effects_v2, AbiErrorV2,
+    AssetConservationRowV2, AssetSupplyV2, EconomicAmountV2, EconomicCommandOccurrenceV2,
+    EconomicEffectKindV2, EconomicEffectRowV2, ExternalOutboxEnqueueV2, FeeConservationRowV2,
+    GlobalEconomicEffectPlanV2, GlobalEconomicStateEffectRefinementCandidateV2,
+    GlobalEconomicStateV2, GlobalOracleOccurrencePlanV2, GlobalTerminalObligationPlanV2, LaneIdV2,
+    LaneWriteV2, RootV2, ValidateCanonicalV2, ALL_LANE_IDS_V2, FEE_RESIDUE_CONTROL_DOMAIN_V2,
+    FEE_RESIDUE_PRINCIPAL_V2,
 };
 
 const GOLDEN: &str =
@@ -214,7 +215,7 @@ fn common_global_relation_reconciles_each_declared_lane() {
             candidate
                 .effect_plan
                 .lane_writes
-                .sort_by_key(|row| row.lane_id);
+                .sort_by_key(|row| row.lane_id.as_str());
         }
         candidate.occurrences[0].pre_state_root = candidate
             .pre_state
@@ -230,12 +231,39 @@ fn common_global_relation_reconciles_each_declared_lane() {
             "{}",
             lane.as_str()
         );
-        assert!(
-            refine_global_economic_state_effects_v2(&candidate.candidate()).is_ok(),
-            "{}",
-            lane.as_str()
-        );
+        let observed = refine_global_economic_state_effects_v2(&candidate.candidate());
+        assert!(observed.is_ok(), "{}: {:?}", lane.as_str(), observed);
     }
+}
+
+#[test]
+fn lane_write_wire_order_rejects_rust_declaration_order() {
+    let mut candidate = scenario();
+    let farm = candidate
+        .pre_state
+        .lane_roots
+        .iter()
+        .find(|row| row.lane_id == LaneIdV2::FARM_INCENTIVES)
+        .expect("farm lane");
+    candidate.effect_plan.lane_writes.push(LaneWriteV2 {
+        lane_id: farm.lane_id,
+        pre_root: farm.state_root.clone(),
+        post_root: RootV2::parse(format!("0x{:064x}", 1202), "farm post root", false)
+            .expect("root"),
+    });
+    candidate
+        .effect_plan
+        .lane_writes
+        .sort_by_key(|row| row.lane_id);
+    assert_eq!(
+        candidate.effect_plan.validate(),
+        Err(AbiErrorV2::InvalidOrder("lane writes"))
+    );
+    candidate
+        .effect_plan
+        .lane_writes
+        .sort_by_key(|row| row.lane_id.as_str());
+    assert_eq!(candidate.effect_plan.validate(), Ok(()));
 }
 
 #[test]
