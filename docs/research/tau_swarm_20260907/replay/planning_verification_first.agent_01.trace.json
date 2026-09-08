@@ -1,0 +1,60 @@
+{
+  "input_order": [
+    "allow_breaking",
+    "upgrade",
+    "shim"
+  ],
+  "inputs": [
+    {
+      "allow_breaking": false,
+      "shim": false,
+      "upgrade": false
+    },
+    {
+      "allow_breaking": false,
+      "shim": true,
+      "upgrade": false
+    },
+    {
+      "allow_breaking": false,
+      "shim": false,
+      "upgrade": true
+    },
+    {
+      "allow_breaking": false,
+      "shim": true,
+      "upgrade": true
+    },
+    {
+      "allow_breaking": true,
+      "shim": false,
+      "upgrade": false
+    },
+    {
+      "allow_breaking": true,
+      "shim": true,
+      "upgrade": false
+    },
+    {
+      "allow_breaking": true,
+      "shim": false,
+      "upgrade": true
+    },
+    {
+      "allow_breaking": true,
+      "shim": true,
+      "upgrade": true
+    }
+  ],
+  "observed_permits": [
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    false
+  ],
+  "source_sha256": "8cb872e89734dcee9d9a11d98e285938fe3632ccf15a0190a3e29d290464e63a"
+}

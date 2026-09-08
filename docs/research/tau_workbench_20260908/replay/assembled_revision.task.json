@@ -1,0 +1,183 @@
+{
+  "anchor": [
+    "encoder_v1_xor",
+    "adapter_strip_tags_xor",
+    "decoder_computed_xor_mask"
+  ],
+  "bits": 8,
+  "expected": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63
+  ],
+  "inputs": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63
+  ],
+  "name": "message_roundtrip",
+  "schema": "tau-workbench/task-v1",
+  "stages": [
+    {
+      "name": "encoder",
+      "programs": [
+        {
+          "name": "encoder_v1_xor",
+          "source": "def transform(x):\n    return (x & 63) ^ 64\n"
+        },
+        {
+          "name": "encoder_force_both_tags",
+          "source": "def transform(x):\n    return x | 192\n"
+        }
+      ]
+    },
+    {
+      "name": "adapter",
+      "programs": [
+        {
+          "name": "adapter_strip_tags_xor",
+          "source": "def transform(x):\n    return x ^ (x & 192)\n"
+        },
+        {
+          "name": "adapter_shift_v2_to_v1",
+          "source": "def transform(x):\n    return ((x >> 1) & 64) | (x & 63)\n"
+        }
+      ]
+    },
+    {
+      "name": "decoder",
+      "programs": [
+        {
+          "name": "decoder_computed_xor_mask",
+          "source": "def transform(x):\n    return x & (255 ^ 192)\n"
+        },
+        {
+          "name": "decoder_computed_shift_mask",
+          "source": "def transform(x):\n    return x & (127 >> 1)\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "acceptance": "Parent source review, native Tau checks, independent CPython replay, Lean and targeted tests; model output alone does not establish acceptance.",
+  "authority": "NONE",
+  "excluded": "Raw provider events, thinking, private scratch, local CLI/MCP configuration and unrelated repository material.",
+  "local_agents": [
+    {
+      "effort": "max",
+      "model": "gpt-5.6-luna",
+      "parent_reviewed": true,
+      "role": "bounded profile and CLI implementation"
+    },
+    {
+      "authority": "NONE",
+      "candidate_count": 7,
+      "candidate_file": "agent_candidates.json",
+      "family": "Codex",
+      "packet_sha256": "3b5b086923f44305f77426be6bf5dc6de8a13e69ff61c57ce0a6e10a7c61aeed",
+      "role": "architecture critique and source candidate author"
+    },
+    {
+      "family": "Codex",
+      "parent_single_file_check": "PASS",
+      "role": "Lean quotient proof construction"
+    },
+    {
+      "edits": false,
+      "executed_native_or_tests": false,
+      "family": "Codex",
+      "final_result": "No remaining blocker in reviewed scope",
+      "reviewed_tool_sha256": {
+        "tests/test_tau_workbench_benchmark.py": "66efcca9e7415d29fa6a7d40b916583520cfa35de9be3db1e1049a8f18a72e23",
+        "tests/test_tau_workbench_cli.py": "fe3a9c99803b17334ecb5a7aa209a5c7b4054a499b04226342cd8edc04940c64",
+        "tools/benchmark_tau_workbench.py": "ec325fbbad96e56354e801af82fafea9f2836e84ff1919dccf4808acc8131315",
+        "tools/tau_workbench.py": "04b6de3e46248762c8b7f1fb0df83902b862c7bfc93124d87f1f2acf76d245a3"
+      },
+      "role": "independent critical source and tool review"
+    }
+  ],
+  "opus_attempt": {
+    "actual_model_acknowledgment": false,
+    "effort": "max",
+    "elapsed_seconds": 183.38147854385898,
+    "model_requested": "claude-opus-5",
+    "packet_bytes": 2062,
+    "packet_sha256": "65cdd681787e78da61b6283da5df6076145182057497004739a84ca98b99a750",
+    "repository_source_files_sent": 0,
+    "returncode": 1,
+    "status": "request_timed_out",
+    "usable_code_returned": false
+  },
+  "schema": "tau-workbench/delegations-v1"
+}

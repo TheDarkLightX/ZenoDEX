@@ -1,0 +1,1202 @@
+{
+  "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+  "cases": [
+    {
+      "anchor": {
+        "x": "0",
+        "y": "0"
+      },
+      "blocks": [
+        [
+          "x"
+        ],
+        [
+          "y"
+        ]
+      ],
+      "domains": [
+        "0",
+        "(((y&p))')'"
+      ],
+      "environment": [
+        "p"
+      ],
+      "global_residual": "(p&x&y)",
+      "label": "coefficient_conflict",
+      "native_queries": 8,
+      "order": [
+        0,
+        1
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              },
+              {
+                "x": true
+              }
+            ],
+            [
+              {
+                "y": false
+              },
+              {
+                "y": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": false
+          },
+          "global_solution_count": 4,
+          "product_volume": 4
+        },
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              },
+              {
+                "x": true
+              }
+            ],
+            [
+              {
+                "y": false
+              }
+            ]
+          ],
+          "environment": {
+            "p": true
+          },
+          "global_solution_count": 3,
+          "product_volume": 2
+        }
+      ],
+      "steps": [
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf ((((v2:sbf^0) = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+          "output": "T",
+          "query": "all v2:sbf ((((v2:sbf^0) = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf)))",
+          "residual": "0"
+        },
+        {
+          "block": 1,
+          "equivalence": "all v0:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) <-> (all v1:sbf (((0 = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+          "output": "v2 v0 = 0",
+          "query": "all v1:sbf (((0 = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf)))",
+          "residual": "(((y&p))')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "x": "p",
+        "y": "0"
+      },
+      "blocks": [
+        [
+          "x"
+        ],
+        [
+          "y"
+        ]
+      ],
+      "domains": [
+        "0",
+        "((y)')'"
+      ],
+      "environment": [
+        "p"
+      ],
+      "global_residual": "((x^p)&y)",
+      "label": "environment_anchor",
+      "native_queries": 8,
+      "order": [
+        0,
+        1
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              },
+              {
+                "x": true
+              }
+            ],
+            [
+              {
+                "y": false
+              }
+            ]
+          ],
+          "environment": {
+            "p": false
+          },
+          "global_solution_count": 3,
+          "product_volume": 2
+        },
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              },
+              {
+                "x": true
+              }
+            ],
+            [
+              {
+                "y": false
+              }
+            ]
+          ],
+          "environment": {
+            "p": true
+          },
+          "global_solution_count": 3,
+          "product_volume": 2
+        }
+      ],
+      "steps": [
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf ((((v2:sbf^0) = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+          "output": "T",
+          "query": "all v2:sbf ((((v2:sbf^0) = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf)))",
+          "residual": "0"
+        },
+        {
+          "block": 1,
+          "equivalence": "all v0:sbf, v2:sbf (((((v2:sbf)')' = 0:sbf) <-> (all v1:sbf (((0 = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+          "output": "v2 = 0",
+          "query": "all v1:sbf (((0 = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf)))",
+          "residual": "((y)')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "a": "0",
+        "b": "0",
+        "c": "0"
+      },
+      "blocks": [
+        [
+          "a"
+        ],
+        [
+          "b",
+          "c"
+        ]
+      ],
+      "domains": [
+        "0",
+        "(((c|b))')'"
+      ],
+      "environment": [],
+      "global_residual": "((a&(b|c))|(b&c))",
+      "label": "nonmaximum_volume",
+      "native_queries": 8,
+      "order": [
+        0,
+        1
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "a": false
+              },
+              {
+                "a": true
+              }
+            ],
+            [
+              {
+                "b": false,
+                "c": false
+              }
+            ]
+          ],
+          "environment": {},
+          "global_solution_count": 4,
+          "product_volume": 2
+        }
+      ],
+      "steps": [
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf (((0 = 0:sbf) <-> (all v1:sbf, v2:sbf (((((v1:sbf^0)|(v2:sbf^0)) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+          "output": "T",
+          "query": "all v1:sbf, v2:sbf (((((v1:sbf^0)|(v2:sbf^0)) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+          "residual": "0"
+        },
+        {
+          "block": 1,
+          "equivalence": "all v1:sbf, v2:sbf ((((((v2:sbf|v1:sbf))')' = 0:sbf) <-> (all v0:sbf (((0 = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+          "output": "v2|v1 = 0",
+          "query": "all v0:sbf (((0 = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+          "residual": "(((c|b))')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "x": "0",
+        "y": "0"
+      },
+      "blocks": [
+        [
+          "x"
+        ],
+        [
+          "y"
+        ]
+      ],
+      "domains": [
+        "(((p&x))')'",
+        "0"
+      ],
+      "environment": [
+        "p"
+      ],
+      "global_residual": "(p&x&y)",
+      "label": "coefficient_conflict",
+      "native_queries": 8,
+      "order": [
+        1,
+        0
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              },
+              {
+                "x": true
+              }
+            ],
+            [
+              {
+                "y": false
+              },
+              {
+                "y": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": false
+          },
+          "global_solution_count": 4,
+          "product_volume": 4
+        },
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              }
+            ],
+            [
+              {
+                "y": false
+              },
+              {
+                "y": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": true
+          },
+          "global_solution_count": 3,
+          "product_volume": 2
+        }
+      ],
+      "steps": [
+        {
+          "block": 1,
+          "equivalence": "all v0:sbf, v2:sbf (((0 = 0:sbf) <-> (all v1:sbf ((((v1:sbf^0) = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+          "output": "T",
+          "query": "all v1:sbf ((((v1:sbf^0) = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf)))",
+          "residual": "0"
+        },
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) <-> (all v2:sbf (((0 = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+          "output": "v0 v1 = 0",
+          "query": "all v2:sbf (((0 = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf)))",
+          "residual": "(((p&x))')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "x": "p",
+        "y": "0"
+      },
+      "blocks": [
+        [
+          "x"
+        ],
+        [
+          "y"
+        ]
+      ],
+      "domains": [
+        "(((((p)'&x)|(p&(x)')))')'",
+        "0"
+      ],
+      "environment": [
+        "p"
+      ],
+      "global_residual": "((x^p)&y)",
+      "label": "environment_anchor",
+      "native_queries": 8,
+      "order": [
+        1,
+        0
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              }
+            ],
+            [
+              {
+                "y": false
+              },
+              {
+                "y": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": false
+          },
+          "global_solution_count": 3,
+          "product_volume": 2
+        },
+        {
+          "domains": [
+            [
+              {
+                "x": true
+              }
+            ],
+            [
+              {
+                "y": false
+              },
+              {
+                "y": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": true
+          },
+          "global_solution_count": 3,
+          "product_volume": 2
+        }
+      ],
+      "steps": [
+        {
+          "block": 1,
+          "equivalence": "all v0:sbf, v2:sbf (((0 = 0:sbf) <-> (all v1:sbf ((((v1:sbf^v0:sbf) = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+          "output": "T",
+          "query": "all v1:sbf ((((v1:sbf^v0:sbf) = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf)))",
+          "residual": "0"
+        },
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf ((((((((v0:sbf)'&v1:sbf)|(v0:sbf&(v1:sbf)')))')' = 0:sbf) <-> (all v2:sbf (((0 = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+          "output": "v0'v1|v0 v1' = 0",
+          "query": "all v2:sbf (((0 = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf)))",
+          "residual": "(((((p)'&x)|(p&(x)')))')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "a": "0",
+        "b": "0",
+        "c": "0"
+      },
+      "blocks": [
+        [
+          "a"
+        ],
+        [
+          "b",
+          "c"
+        ]
+      ],
+      "domains": [
+        "((a)')'",
+        "(((c&b))')'"
+      ],
+      "environment": [],
+      "global_residual": "((a&(b|c))|(b&c))",
+      "label": "nonmaximum_volume",
+      "native_queries": 8,
+      "order": [
+        1,
+        0
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "a": false
+              }
+            ],
+            [
+              {
+                "b": false,
+                "c": false
+              },
+              {
+                "b": false,
+                "c": true
+              },
+              {
+                "b": true,
+                "c": false
+              }
+            ]
+          ],
+          "environment": {},
+          "global_solution_count": 4,
+          "product_volume": 3
+        }
+      ],
+      "steps": [
+        {
+          "block": 1,
+          "equivalence": "all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) <-> (all v0:sbf ((((v0:sbf^0) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+          "output": "v2 v1 = 0",
+          "query": "all v0:sbf ((((v0:sbf^0) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+          "residual": "(((c&b))')'"
+        },
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf (((((v0:sbf)')' = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+          "output": "v0 = 0",
+          "query": "all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+          "residual": "((a)')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "x": "0",
+        "y": "0",
+        "z": "0"
+      },
+      "blocks": [
+        [
+          "x"
+        ],
+        [
+          "y"
+        ],
+        [
+          "z"
+        ]
+      ],
+      "domains": [
+        "0",
+        "(((y&p))')'",
+        "(((z&p))')'"
+      ],
+      "environment": [
+        "p"
+      ],
+      "global_residual": "(p&((x&y)|(x&z)))",
+      "label": "three_block_coefficient",
+      "native_queries": 11,
+      "order": [
+        0,
+        1,
+        2
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              },
+              {
+                "x": true
+              }
+            ],
+            [
+              {
+                "y": false
+              },
+              {
+                "y": true
+              }
+            ],
+            [
+              {
+                "z": false
+              },
+              {
+                "z": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": false
+          },
+          "global_solution_count": 8,
+          "product_volume": 8
+        },
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              },
+              {
+                "x": true
+              }
+            ],
+            [
+              {
+                "y": false
+              }
+            ],
+            [
+              {
+                "z": false
+              }
+            ]
+          ],
+          "environment": {
+            "p": true
+          },
+          "global_solution_count": 5,
+          "product_volume": 2
+        }
+      ],
+      "steps": [
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf, v3:sbf (((((v2:sbf^0)|(v3:sbf^0)) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+          "output": "T",
+          "query": "all v2:sbf, v3:sbf (((((v2:sbf^0)|(v3:sbf^0)) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+          "residual": "0"
+        },
+        {
+          "block": 1,
+          "equivalence": "all v0:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) <-> (all v1:sbf, v3:sbf ((((v3:sbf^0) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+          "output": "v2 v0 = 0",
+          "query": "all v1:sbf, v3:sbf ((((v3:sbf^0) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+          "residual": "(((y&p))')'"
+        },
+        {
+          "block": 2,
+          "equivalence": "all v0:sbf, v3:sbf ((((((v3:sbf&v0:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+          "output": "v3 v0 = 0",
+          "query": "all v1:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+          "residual": "(((z&p))')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "x": "0",
+        "y": "0",
+        "z": "0"
+      },
+      "blocks": [
+        [
+          "x"
+        ],
+        [
+          "y"
+        ],
+        [
+          "z"
+        ]
+      ],
+      "domains": [
+        "(((p&x))')'",
+        "0",
+        "0"
+      ],
+      "environment": [
+        "p"
+      ],
+      "global_residual": "(p&((x&y)|(x&z)))",
+      "label": "three_block_coefficient",
+      "native_queries": 11,
+      "order": [
+        2,
+        1,
+        0
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              },
+              {
+                "x": true
+              }
+            ],
+            [
+              {
+                "y": false
+              },
+              {
+                "y": true
+              }
+            ],
+            [
+              {
+                "z": false
+              },
+              {
+                "z": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": false
+          },
+          "global_solution_count": 8,
+          "product_volume": 8
+        },
+        {
+          "domains": [
+            [
+              {
+                "x": false
+              }
+            ],
+            [
+              {
+                "y": false
+              },
+              {
+                "y": true
+              }
+            ],
+            [
+              {
+                "z": false
+              },
+              {
+                "z": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": true
+          },
+          "global_solution_count": 5,
+          "product_volume": 4
+        }
+      ],
+      "steps": [
+        {
+          "block": 2,
+          "equivalence": "all v0:sbf, v3:sbf (((0 = 0:sbf) <-> (all v1:sbf, v2:sbf (((((v1:sbf^0)|(v2:sbf^0)) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+          "output": "T",
+          "query": "all v1:sbf, v2:sbf (((((v1:sbf^0)|(v2:sbf^0)) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+          "residual": "0"
+        },
+        {
+          "block": 1,
+          "equivalence": "all v0:sbf, v2:sbf (((0 = 0:sbf) <-> (all v1:sbf, v3:sbf ((((v1:sbf^0) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+          "output": "T",
+          "query": "all v1:sbf, v3:sbf ((((v1:sbf^0) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+          "residual": "0"
+        },
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) <-> (all v2:sbf, v3:sbf (((0 = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+          "output": "v0 v1 = 0",
+          "query": "all v2:sbf, v3:sbf (((0 = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+          "residual": "(((p&x))')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "additive": "0",
+        "breaking": "0",
+        "migration": "1",
+        "regression": "1",
+        "shim": "0",
+        "upgrade": "1"
+      },
+      "blocks": [
+        [
+          "breaking",
+          "additive"
+        ],
+        [
+          "upgrade",
+          "shim"
+        ],
+        [
+          "regression",
+          "migration"
+        ]
+      ],
+      "domains": [
+        "(((((p)'&breaking)|(additive&breaking)))')'",
+        "((((upgrade&shim)|(p&((upgrade)'|shim))))')'",
+        "((((regression)'|(p&(migration)')))')'"
+      ],
+      "environment": [
+        "p"
+      ],
+      "global_residual": "((breaking&additive)|(upgrade&shim)|(breaking&(upgrade)')|(breaking&(migration)')|(additive&(regression)')|(shim&(regression)')|(breaking&shim)|(upgrade&(regression)')|((p)'&breaking))",
+      "label": "api_change_planning",
+      "native_queries": 11,
+      "order": [
+        0,
+        1,
+        2
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "additive": false,
+                "breaking": false
+              },
+              {
+                "additive": true,
+                "breaking": false
+              }
+            ],
+            [
+              {
+                "shim": false,
+                "upgrade": false
+              },
+              {
+                "shim": true,
+                "upgrade": false
+              },
+              {
+                "shim": false,
+                "upgrade": true
+              }
+            ],
+            [
+              {
+                "migration": false,
+                "regression": true
+              },
+              {
+                "migration": true,
+                "regression": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": false
+          },
+          "global_solution_count": 14,
+          "product_volume": 12
+        },
+        {
+          "domains": [
+            [
+              {
+                "additive": false,
+                "breaking": false
+              },
+              {
+                "additive": true,
+                "breaking": false
+              },
+              {
+                "additive": false,
+                "breaking": true
+              }
+            ],
+            [
+              {
+                "shim": false,
+                "upgrade": true
+              }
+            ],
+            [
+              {
+                "migration": true,
+                "regression": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": true
+          },
+          "global_solution_count": 15,
+          "product_volume": 3
+        }
+      ],
+      "steps": [
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf, v2:sbf ((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((v3:sbf^1)|(v4:sbf^0))|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+          "output": "v0'v1|v2 v1 = 0",
+          "query": "all v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((v3:sbf^1)|(v4:sbf^0))|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+          "residual": "(((((p)'&breaking)|(additive&breaking)))')'"
+        },
+        {
+          "block": 1,
+          "equivalence": "all v0:sbf, v3:sbf, v4:sbf (((((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+          "output": "v3 v4|v0 (v3'|v4) = 0",
+          "query": "all v1:sbf, v2:sbf, v5:sbf, v6:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+          "residual": "((((upgrade&shim)|(p&((upgrade)'|shim))))')'"
+        },
+        {
+          "block": 2,
+          "equivalence": "all v0:sbf, v5:sbf, v6:sbf (((((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+          "output": "v5'|v0 v6' = 0",
+          "query": "all v1:sbf, v2:sbf, v3:sbf, v4:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+          "residual": "((((regression)'|(p&(migration)')))')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "additive": "0",
+        "breaking": "0",
+        "migration": "1",
+        "regression": "1",
+        "shim": "0",
+        "upgrade": "1"
+      },
+      "blocks": [
+        [
+          "breaking",
+          "additive"
+        ],
+        [
+          "upgrade",
+          "shim"
+        ],
+        [
+          "regression",
+          "migration"
+        ]
+      ],
+      "domains": [
+        "((breaking)')'",
+        "(((upgrade&shim))')'",
+        "(((regression)')')'"
+      ],
+      "environment": [
+        "p"
+      ],
+      "global_residual": "((breaking&additive)|(upgrade&shim)|(breaking&(upgrade)')|(breaking&(migration)')|(additive&(regression)')|(shim&(regression)')|(breaking&shim)|(upgrade&(regression)')|((p)'&breaking))",
+      "label": "api_change_planning",
+      "native_queries": 11,
+      "order": [
+        2,
+        1,
+        0
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "additive": false,
+                "breaking": false
+              },
+              {
+                "additive": true,
+                "breaking": false
+              }
+            ],
+            [
+              {
+                "shim": false,
+                "upgrade": false
+              },
+              {
+                "shim": true,
+                "upgrade": false
+              },
+              {
+                "shim": false,
+                "upgrade": true
+              }
+            ],
+            [
+              {
+                "migration": false,
+                "regression": true
+              },
+              {
+                "migration": true,
+                "regression": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": false
+          },
+          "global_solution_count": 14,
+          "product_volume": 12
+        },
+        {
+          "domains": [
+            [
+              {
+                "additive": false,
+                "breaking": false
+              },
+              {
+                "additive": true,
+                "breaking": false
+              }
+            ],
+            [
+              {
+                "shim": false,
+                "upgrade": false
+              },
+              {
+                "shim": true,
+                "upgrade": false
+              },
+              {
+                "shim": false,
+                "upgrade": true
+              }
+            ],
+            [
+              {
+                "migration": false,
+                "regression": true
+              },
+              {
+                "migration": true,
+                "regression": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": true
+          },
+          "global_solution_count": 15,
+          "product_volume": 12
+        }
+      ],
+      "steps": [
+        {
+          "block": 2,
+          "equivalence": "all v0:sbf, v5:sbf, v6:sbf ((((((v5:sbf)')')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf^0)|(v2:sbf^0))|((v3:sbf^1)|(v4:sbf^0))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+          "output": "v5' = 0",
+          "query": "all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf^0)|(v2:sbf^0))|((v3:sbf^1)|(v4:sbf^0))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+          "residual": "(((regression)')')'"
+        },
+        {
+          "block": 1,
+          "equivalence": "all v0:sbf, v3:sbf, v4:sbf ((((((v3:sbf&v4:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf^0)|(v2:sbf^0))|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+          "output": "v3 v4 = 0",
+          "query": "all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf^0)|(v2:sbf^0))|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+          "residual": "(((upgrade&shim))')'"
+        },
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf, v2:sbf (((((v1:sbf)')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+          "output": "v1 = 0",
+          "query": "all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+          "residual": "((breaking)')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "additive": "0",
+        "breaking": "0",
+        "migration": "1",
+        "regression": "1",
+        "shim": "0",
+        "upgrade": "1"
+      },
+      "blocks": [
+        [
+          "breaking",
+          "additive"
+        ],
+        [
+          "upgrade",
+          "shim"
+        ],
+        [
+          "regression",
+          "migration"
+        ]
+      ],
+      "domains": [
+        "((breaking)')'",
+        "(((upgrade&shim))')'",
+        "(((regression)')')'"
+      ],
+      "environment": [
+        "p"
+      ],
+      "global_residual": "((breaking&additive)|(upgrade&shim)|(breaking&(upgrade)')|(breaking&(migration)')|(additive&(regression)')|(shim&(regression)')|(breaking&shim)|(upgrade&(regression)')|((p)'&breaking))",
+      "label": "api_change_planning",
+      "native_queries": 11,
+      "order": [
+        1,
+        0,
+        2
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "additive": false,
+                "breaking": false
+              },
+              {
+                "additive": true,
+                "breaking": false
+              }
+            ],
+            [
+              {
+                "shim": false,
+                "upgrade": false
+              },
+              {
+                "shim": true,
+                "upgrade": false
+              },
+              {
+                "shim": false,
+                "upgrade": true
+              }
+            ],
+            [
+              {
+                "migration": false,
+                "regression": true
+              },
+              {
+                "migration": true,
+                "regression": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": false
+          },
+          "global_solution_count": 14,
+          "product_volume": 12
+        },
+        {
+          "domains": [
+            [
+              {
+                "additive": false,
+                "breaking": false
+              },
+              {
+                "additive": true,
+                "breaking": false
+              }
+            ],
+            [
+              {
+                "shim": false,
+                "upgrade": false
+              },
+              {
+                "shim": true,
+                "upgrade": false
+              },
+              {
+                "shim": false,
+                "upgrade": true
+              }
+            ],
+            [
+              {
+                "migration": false,
+                "regression": true
+              },
+              {
+                "migration": true,
+                "regression": true
+              }
+            ]
+          ],
+          "environment": {
+            "p": true
+          },
+          "global_solution_count": 15,
+          "product_volume": 12
+        }
+      ],
+      "steps": [
+        {
+          "block": 1,
+          "equivalence": "all v0:sbf, v3:sbf, v4:sbf ((((((v3:sbf&v4:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf^0)|(v2:sbf^0))|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+          "output": "v3 v4 = 0",
+          "query": "all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf^0)|(v2:sbf^0))|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+          "residual": "(((upgrade&shim))')'"
+        },
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf, v2:sbf (((((v1:sbf)')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+          "output": "v1 = 0",
+          "query": "all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+          "residual": "((breaking)')'"
+        },
+        {
+          "block": 2,
+          "equivalence": "all v0:sbf, v5:sbf, v6:sbf ((((((v5:sbf)')')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf)')'|(((v3:sbf&v4:sbf))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+          "output": "v5' = 0",
+          "query": "all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf)')'|(((v3:sbf&v4:sbf))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+          "residual": "(((regression)')')'"
+        }
+      ]
+    }
+  ],
+  "native_query_count": 103,
+  "oracle": {
+    "safe_anchor_order_sweeps": 6144,
+    "safe_and_coordinate_exact": true,
+    "three_bit_relations": 256
+  }
+}

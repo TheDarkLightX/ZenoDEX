@@ -1,0 +1,58 @@
+{
+  "controls": [
+    "regression",
+    "migration"
+  ],
+  "environment": [
+    "allow_breaking"
+  ],
+  "name": "domain2",
+  "requirements": [
+    {
+      "name": "zero",
+      "residual": {
+        "kind": "negate",
+        "operands": [
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "join",
+                "operands": [
+                  {
+                    "kind": "negate",
+                    "operands": [
+                      {
+                        "kind": "variable",
+                        "value": "regression"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "meet",
+                    "operands": [
+                      {
+                        "kind": "variable",
+                        "value": "allow_breaking"
+                      },
+                      {
+                        "kind": "negate",
+                        "operands": [
+                          {
+                            "kind": "variable",
+                            "value": "migration"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

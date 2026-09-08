@@ -1,0 +1,101 @@
+{
+  "controls": [
+    "left",
+    "right"
+  ],
+  "environment": [
+    "mode"
+  ],
+  "name": "conditional_cycle",
+  "requirements": [
+    {
+      "name": "first",
+      "residual": {
+        "kind": "join",
+        "operands": [
+          {
+            "kind": "meet",
+            "operands": [
+              {
+                "kind": "negate",
+                "operands": [
+                  {
+                    "kind": "variable",
+                    "value": "mode"
+                  }
+                ]
+              },
+              {
+                "kind": "variable",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "kind": "meet",
+            "operands": [
+              {
+                "kind": "variable",
+                "value": "mode"
+              },
+              {
+                "kind": "negate",
+                "operands": [
+                  {
+                    "kind": "variable",
+                    "value": "right"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "second",
+      "residual": {
+        "kind": "join",
+        "operands": [
+          {
+            "kind": "meet",
+            "operands": [
+              {
+                "kind": "variable",
+                "value": "mode"
+              },
+              {
+                "kind": "variable",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "kind": "meet",
+            "operands": [
+              {
+                "kind": "negate",
+                "operands": [
+                  {
+                    "kind": "variable",
+                    "value": "mode"
+                  }
+                ]
+              },
+              {
+                "kind": "negate",
+                "operands": [
+                  {
+                    "kind": "variable",
+                    "value": "right"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

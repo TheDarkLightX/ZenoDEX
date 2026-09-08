@@ -1,0 +1,17 @@
+{
+  "controls": [
+    "a"
+  ],
+  "environment": [],
+  "name": "domain0",
+  "requirements": [
+    {
+      "name": "zero",
+      "residual": {
+        "kind": "constant",
+        "value": false
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

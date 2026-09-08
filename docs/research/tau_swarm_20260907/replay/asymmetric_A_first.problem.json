@@ -1,0 +1,87 @@
+{
+  "anchor": {
+    "a": {
+      "kind": "constant",
+      "value": false
+    },
+    "b": {
+      "kind": "constant",
+      "value": false
+    },
+    "c": {
+      "kind": "constant",
+      "value": false
+    }
+  },
+  "blocks": [
+    {
+      "controls": [
+        "a"
+      ],
+      "name": "A"
+    },
+    {
+      "controls": [
+        "b",
+        "c"
+      ],
+      "name": "B"
+    }
+  ],
+  "contract": {
+    "controls": [
+      "a",
+      "b",
+      "c"
+    ],
+    "environment": [],
+    "name": "asymmetric_choices",
+    "requirements": [
+      {
+        "name": "global",
+        "residual": {
+          "kind": "join",
+          "operands": [
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "variable",
+                  "value": "a"
+                },
+                {
+                  "kind": "join",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "b"
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "c"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "variable",
+                  "value": "b"
+                },
+                {
+                  "kind": "variable",
+                  "value": "c"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "schema": "tau-composition/contract-v1"
+  },
+  "schema": "tau-swarm/problem-v1"
+}

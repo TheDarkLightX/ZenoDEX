@@ -1,0 +1,10 @@
+[
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.025120045989751816,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.059 ms\n",
+    "stdout": "%1: T"
+  }
+]

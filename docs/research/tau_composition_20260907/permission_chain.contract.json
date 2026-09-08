@@ -1,0 +1,98 @@
+{
+  "controls": [
+    "action000",
+    "action001",
+    "action002",
+    "action003",
+    "action004"
+  ],
+  "environment": [],
+  "name": "permission_chain",
+  "requirements": [
+    {
+      "name": "requires000",
+      "residual": {
+        "kind": "meet",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "action000"
+          },
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "variable",
+                "value": "action001"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "requires001",
+      "residual": {
+        "kind": "meet",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "action001"
+          },
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "variable",
+                "value": "action002"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "requires002",
+      "residual": {
+        "kind": "meet",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "action002"
+          },
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "variable",
+                "value": "action003"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "requires003",
+      "residual": {
+        "kind": "meet",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "action003"
+          },
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "variable",
+                "value": "action004"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

@@ -1,0 +1,10 @@
+{
+  "authority": "NONE",
+  "base_commit": "e1838293c839d4f830f1f1501205b55bc88c8975",
+  "baseline_rows_reexecuted": 128,
+  "dependency_scope": "original module with current unchanged pinned constructor guard; not an isolated historical whole repository",
+  "old_reader_rejects_valid_v2_objects": 14,
+  "old_reader_v2_error": "external signal source_kind must be a string",
+  "source_sha256": "61929623f037e3359eac18f49e8b891e1dd93251bff0949bafe0c695ee489d8c",
+  "status": "PASS"
+}

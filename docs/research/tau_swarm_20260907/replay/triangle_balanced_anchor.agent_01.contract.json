@@ -1,0 +1,28 @@
+{
+  "controls": [
+    "right_low",
+    "right_high"
+  ],
+  "environment": [],
+  "name": "domain1",
+  "requirements": [
+    {
+      "name": "zero",
+      "residual": {
+        "kind": "negate",
+        "operands": [
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "variable",
+                "value": "right_high"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

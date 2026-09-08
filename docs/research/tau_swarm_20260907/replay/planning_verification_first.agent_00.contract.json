@@ -1,0 +1,30 @@
+{
+  "controls": [
+    "breaking",
+    "additive"
+  ],
+  "environment": [
+    "allow_breaking"
+  ],
+  "name": "domain0",
+  "requirements": [
+    {
+      "name": "zero",
+      "residual": {
+        "kind": "negate",
+        "operands": [
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "variable",
+                "value": "breaking"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

@@ -1,0 +1,175 @@
+{
+  "artifact_validation": {
+    "all_saved_json_parse": "PASS",
+    "candidate_input_sha256": "3b5b086923f44305f77426be6bf5dc6de8a13e69ff61c57ce0a6e10a7c61aeed",
+    "compiled_manifest_and_all_source_gate_hashes": "PASS",
+    "exact_candidate_input_bytes": "PASS",
+    "local_doc_links_and_markdown_fences": "PASS"
+  },
+  "authority": "NONE",
+  "base_commit": "17a3bfce09886ce4386f0a52d0b2c6ae6115ef91",
+  "checks": [
+    {
+      "command": "TAU_COMPOSITION_BIN=/path/to/tau python3 -m pytest -q tests/test_tau_composition*.py tests/test_tau_common_anchor.py tests/test_tau_anchor_export.py tests/test_tau_swarm*.py tests/test_tau_workbench*.py",
+      "exit_code": 0,
+      "result": "299 passed in 50.29s; native enabled; no skips"
+    },
+    {
+      "command": "python3 -m ruff check src/tau_workbench tools/tau_workbench.py tools/benchmark_tau_workbench.py tests/test_tau_workbench*.py",
+      "exit_code": 0,
+      "result": "All checks passed"
+    },
+    {
+      "command": "python3 -m mypy src/tau_workbench tools/tau_workbench.py tools/benchmark_tau_workbench.py --follow-imports=silent",
+      "exit_code": 0,
+      "result": "No issues in 11 source files"
+    },
+    {
+      "command": "lake env lean Proofs/TauArtifactQuotient.lean",
+      "cwd": "lean-mathlib",
+      "exit_code": 0,
+      "result": "Single-file check passed"
+    },
+    {
+      "command": "python3 tools/check_tau_supported_runtime_subset.py",
+      "exit_code": 0,
+      "result": "Three active ingress guards passed"
+    },
+    {
+      "command": "python3 -m pytest -q tests/tau/test_tau_spec_assurance.py",
+      "exit_code": 0,
+      "result": "1 passed in 1.99s"
+    },
+    {
+      "command": "python3 tools/check_claims_registry.py",
+      "exit_code": 0,
+      "result": "ok"
+    },
+    {
+      "command": "python3 .claude/skills/zenodex-security-analysis/scripts/redflags.py src/tau_workbench tools/tau_workbench.py tools/benchmark_tau_workbench.py",
+      "exit_code": 0,
+      "result": "11 files, zero findings; triage only"
+    },
+    {
+      "command": "python3 tools/benchmark_tau_workbench.py --tau /path/to/tau --candidates docs/research/tau_workbench_20260908/agent_candidates.json --out docs/research/tau_workbench_20260908/replay --pairs 2",
+      "exit_code": 0,
+      "result": "PASS; 113 native records; 36 native gate rows; 12 CPython batches"
+    },
+    {
+      "command": "python3 tools/tau_workbench.py compile --tau /path/to/tau --out docs/research/tau_workbench_20260908/compiled",
+      "exit_code": 0,
+      "result": "compiled_native_checked; 18 exact candidate files; 3 Tau gates; 12 queries"
+    }
+  ],
+  "commands_not_run": [
+    "Full repository pytest",
+    "Unscoped project MyPy",
+    "Full lake build",
+    "TLA model execution and summary regeneration",
+    "Critical production gate and production promotion checks",
+    "RISC0 cargo tests and clippy",
+    "Tau Net node/deployment/admission tests",
+    "General Python interpreter refinement proof"
+  ],
+  "cpython": {
+    "batches": 12,
+    "bundle_executions_including_repeated_contexts": 1224,
+    "component_input_evaluations": 50432,
+    "pipeline_input_evaluations": 69384
+  },
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "native_binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+  "native_binary_version": "0.7.0-alpha (d80aa50c)",
+  "nonclaims": [
+    "Finite original message-code pilot; no real ZenoDEX runtime change.",
+    "No general Python sandbox, program merge, or interpreter refinement proof.",
+    "No new Boolean decision procedure or established patent freedom to operate.",
+    "No human-time or general agent productivity measurement.",
+    "Explicit negative controls are not a natural model error-rate sample.",
+    "Equivalence caching also benefits the centralized quotient baseline.",
+    "Tau domains need not maximize volume; maximum is checked only in this pilot.",
+    "No Tau source-to-binary build correspondence, Tau Net submission or production authority."
+  ],
+  "path_note": "/path/to/tau denotes the separately installed executable with the recorded hash; fresh output directories are mandatory for repeat runs.",
+  "prior_snapshots": {
+    "tau_composition_20260907/report.json": {
+      "all_match": true,
+      "hashes": 24
+    },
+    "tau_swarm_20260907/replay/report.json": {
+      "all_match": true,
+      "hashes": 30
+    }
+  },
+  "python_version": "3.12.3",
+  "report_sha256": "60d1f2b202f0a551432e5e749d551fef6339e4e9f5c5a77975298a5cde365aeb",
+  "reviewed_tool_hashes": {
+    "tests/test_tau_workbench_benchmark.py": "66efcca9e7415d29fa6a7d40b916583520cfa35de9be3db1e1049a8f18a72e23",
+    "tests/test_tau_workbench_cli.py": "fe3a9c99803b17334ecb5a7aa209a5c7b4054a499b04226342cd8edc04940c64",
+    "tools/benchmark_tau_workbench.py": "ec325fbbad96e56354e801af82fafea9f2836e84ff1919dccf4808acc8131315",
+    "tools/tau_workbench.py": "04b6de3e46248762c8b7f1fb0df83902b862c7bfc93124d87f1f2acf76d245a3"
+  },
+  "runtime_mounted": false,
+  "schema": "tau-workbench/validation-v1",
+  "source_hashes_after_replay_match": true,
+  "source_sha256": {
+    "docs/research/tau_workbench_plan_20260908.md": "a2c5173c5fd7c279080852d2d3723540a64ec434fc016dced7caaf150b92f507",
+    "lean-mathlib/Proofs/TauArtifactQuotient.lean": "80d3f69812bc56bc659d518273764133db8a35e307503a402fdc2ef27a7e07e2",
+    "lean-mathlib/Proofs/TauSwarmAutonomy.lean": "e05fca3c31ebbd77ee3733b2155d0c0c3cbe475a10c7194f1b29c8e21d4817bf",
+    "src/integration/tau_runner.py": "d2aeba75d26f5b28e7aa01890da4ab2c54678fc8a891c6bdac231a4b7bed3298",
+    "src/tau_composition/__init__.py": "95be79260d05e693911f5d4a180e69cce597942707dd1de84fdd63921a860f79",
+    "src/tau_composition/anchor.py": "ac192e0e5f954722143878b56740ff45c1943976440b155c464aa24094cb2732",
+    "src/tau_composition/anchor_export.py": "f3b9be0d747c5affaf569a45787f33757b7edda0fffc7ca674ce7e9bf4062640",
+    "src/tau_composition/codec.py": "7e0296ad28cc2de2106bec6ba3029536ca045a27b64edd87d31606b587b1042b",
+    "src/tau_composition/compiler.py": "b938b4c3739eb2bf20e6fac8409e5a56fb670d53052095ca46782220f25e0e71",
+    "src/tau_composition/examples.py": "19d899193dc4f7b60da4f61a1c6c4e27257506be095b976b3c95ca6b864a6e04",
+    "src/tau_composition/models.py": "bfb2633124a6d8ed96aca62c6157321098967583074bd92d9fd438e7591f387c",
+    "src/tau_composition/replay.py": "b5d7baf5dac368f463896fa08c45de50d51138c709daccbac510ab5e1649eca2",
+    "src/tau_composition/resources.py": "58e06a5e3a0f7719bec689e7d3d3d13444944e57cf1d6d38faa4b91acdd0b2af",
+    "src/tau_composition/runtime.py": "4e316682e9b22292fdd7e29f1956d5066c144d90ae1e93943302258e5a5d6ebe",
+    "src/tau_composition/scheduling.py": "acec7c4db7fc930c17da95d329b31aa3ad630b3e05b2e5b2aa00219f50cf3a50",
+    "src/tau_composition/terms.py": "7b0d4e9539ce1d40c6e53b64f2cd3373ca3d427a3bb7e854fee4403d41fc428f",
+    "src/tau_swarm/__init__.py": "a439b03b33f60f86d656f88576478d6d91c3176aa54debd16409c6a294d7355c",
+    "src/tau_swarm/codec.py": "b4f976d01d0e359423083b2e091159cbb88575b1afa6c7361648d655d942c59a",
+    "src/tau_swarm/compiler.py": "fb56c81ac5b4c728307faf688dcbccd3bf372e81266e0b435c54da36e6c358d1",
+    "src/tau_swarm/examples.py": "144e6813c48d9c7d338f380baa31a408e9d432e7105b8c4c503b7cfef0810509",
+    "src/tau_swarm/exports.py": "a9434516d4f2b27bb198f459ee01fad1a5170b8ac521123abe64ded659c26130",
+    "src/tau_swarm/inspection.py": "34fb872c26bbab709f2c726b170051e94fa705c31d856bb9be0fde5ba58908b8",
+    "src/tau_swarm/models.py": "43fb3edece2f505d63b70169f7b6087540321a30cdcf81e18eb60130c3f36d20",
+    "src/tau_workbench/__init__.py": "35e2638fc49f3b44316b2fe99fbebc683aa4c3bf5375b43d563e66924f339b18",
+    "src/tau_workbench/catalog.py": "d97e738e5bc0e9a8839d32ff9ba68e37502d3aeeb37c5aeb66df486dcc6e5e67",
+    "src/tau_workbench/codec.py": "fdf95d97448e29e3f3c4f33c63b413f97bc232ddd7dff91648839eff0779cbe0",
+    "src/tau_workbench/compiler.py": "ee297e6fca1eb49926ea618cfa6943b77009f1364d656e3ab5cf38ada8e5618f",
+    "src/tau_workbench/examples.py": "3dd8a4f757205ddbbff565e67078a94a23b4de12562f2f3efc9bf4cb9d8a06b3",
+    "src/tau_workbench/models.py": "cb8596a862e44a7b6ead5fb5928f1487f2ecaf461a6772f56df8a4516fe04bc5",
+    "src/tau_workbench/native.py": "dd4fd1f783382f97e3f2114e8730b7f37ef82653196e9a4dbdbf71d91969e401",
+    "src/tau_workbench/programs.py": "1b5a7345d549624534bba973cb4cfc2c8c20ae7ef2bb996c8954fea0a0ee4b9c",
+    "src/tau_workbench/relation.py": "2dd22efc949e8c20610054e265844371ca35719a91a498565673eda691c9a109",
+    "tests/test_tau_swarm.py": "bb2f84b4ad43b15441446d2083e6c7c4e2d5b433806399711eae28e4daf448b1",
+    "tests/test_tau_swarm_cli.py": "a0d216b2e75da59236f2f75c82d3bfc84eb0def64af69204f8995cdd620bd5d2",
+    "tests/test_tau_swarm_codec.py": "3152598622b002c3dfd9f0c0d359e4cb6b0afb3c74071fa8efa2fe17c44de777",
+    "tests/test_tau_swarm_exports.py": "cbcd272d7bf39365abcf6649d21273420a72d77ccf0f5167f30b9606285a10e7",
+    "tests/test_tau_swarm_inspection.py": "60163a0c1e1e2b49bf24245fd0324e9a8ac12f7c031fb9ecf9591e94626829a4",
+    "tests/test_tau_swarm_models.py": "c08d757c198940cf7f83870ca98be93f5ac2dd9d59784bdd6b553b2797debe72",
+    "tests/test_tau_swarm_replay.py": "4d451d76134ec829f36761abddc4638ded09ee11cb8ebbe56bfb81354000ac83",
+    "tests/test_tau_workbench.py": "d78577ca1fcd76396c5f81786270231023fb10014a98429ff6e525db48044bcd",
+    "tests/test_tau_workbench_benchmark.py": "66efcca9e7415d29fa6a7d40b916583520cfa35de9be3db1e1049a8f18a72e23",
+    "tests/test_tau_workbench_cli.py": "fe3a9c99803b17334ecb5a7aa209a5c7b4054a499b04226342cd8edc04940c64",
+    "tests/test_tau_workbench_codec.py": "c2768b2fb4f3ec1bdaa6efd118ff949aa13d085049ff6f66cb0dee4fdc445a7a",
+    "tests/test_tau_workbench_programs.py": "d8664d4323f720923ed4d1f8cf732c4999d2ca260b93ada2ea04751c6e7f53fd",
+    "tests/test_tau_workbench_relation.py": "85281297a1cd4c9e90f6895b6aaeaecd08c3a474410565dfd54701ce24f99af0",
+    "tools/benchmark_tau_swarm.py": "a0e9e097cd0e841e4ebfbd46e85ed57627293a047005abd566db546f7de3962b",
+    "tools/benchmark_tau_workbench.py": "ec325fbbad96e56354e801af82fafea9f2836e84ff1919dccf4808acc8131315",
+    "tools/tau_swarm.py": "d333d196a87694be138fc5c21b500852c25c29d15fc6c9ab998a760c4ab097f7",
+    "tools/tau_workbench.py": "04b6de3e46248762c8b7f1fb0df83902b862c7bfc93124d87f1f2acf76d245a3"
+  },
+  "status": "PASS",
+  "unrun_reason": "New advisory finite research modules; no mounted core, value, TLA, ZK or release path changed. Focused native tests and the new Lean file cover the claimed slice. Disk availability also argues against broad builds.",
+  "workspace_preservation": {
+    "base_HEAD_unchanged": true,
+    "index_empty_before_staging": true,
+    "outside_scope_status_sets_equal": true,
+    "unrelated_status_entries_after": 2516,
+    "unrelated_status_entries_before": 2516
+  }
+}

@@ -1,0 +1,12 @@
+# Original common-anchor proposal controller; authority NONE.
+# Exact Boolean observations and proposed flags enter as data.
+# Every valid proposal is retained; other proposals use a checked anchor.
+# Generic local streams; this is not a Tau Net rule-offer payload.
+# i1: x (sbf)
+# i2: y (sbf)
+# i3: z (sbf)
+residual(v0):sbf := v0.
+# o1: proposed x (sbf)
+# o2: proposed y (sbf)
+# o3: proposed z (sbf)
+always (ex r:sbf ((r:sbf = residual(i1[t]:sbf)) && (o1[t]:sbf = ((i1[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o2[t]:sbf = ((i2[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o3[t]:sbf = ((i3[t]:sbf & (r:sbf)') | (0 & r:sbf))))).

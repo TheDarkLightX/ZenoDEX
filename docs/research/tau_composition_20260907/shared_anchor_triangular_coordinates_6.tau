@@ -1,0 +1,18 @@
+# Original common-anchor proposal controller; authority NONE.
+# Exact Boolean observations and proposed flags enter as data.
+# Every valid proposal is retained; other proposals use a checked anchor.
+# Generic local streams; this is not a Tau Net rule-offer payload.
+# i1: x000 (sbf)
+# i2: x001 (sbf)
+# i3: x002 (sbf)
+# i4: x003 (sbf)
+# i5: x004 (sbf)
+# i6: x005 (sbf)
+residual(v0, v1, v2, v3, v4, v5):sbf := (((v0|v1)&(v2)')|((v1|v2)&(v3)')|((v2|v3)&(v4)')|((v3|v4)&(v5)')).
+# o1: proposed x000 (sbf)
+# o2: proposed x001 (sbf)
+# o3: proposed x002 (sbf)
+# o4: proposed x003 (sbf)
+# o5: proposed x004 (sbf)
+# o6: proposed x005 (sbf)
+always (ex r:sbf ((r:sbf = residual(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o1[t]:sbf = ((i1[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o2[t]:sbf = ((i2[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o3[t]:sbf = ((i3[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o4[t]:sbf = ((i4[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o5[t]:sbf = ((i5[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o6[t]:sbf = ((i6[t]:sbf & (r:sbf)') | (0 & r:sbf))))).

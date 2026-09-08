@@ -1,0 +1,698 @@
+[
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.01771272299811244,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.068 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.10926489811390638,
+    "operation": "qelim",
+    "query": "qelim all v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((v3:sbf^1)|(v4:sbf^0))|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.469 ms\n",
+    "stdout": "%1: v0'v1|v2 v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1322456388734281,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((v3:sbf^1)|(v4:sbf^0))|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.906 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.10860421787947416,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf, v5:sbf, v6:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.373 ms\n",
+    "stdout": "%1: v3 v4|v0 (v3'|v4) = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.14333455497398973,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf, v4:sbf (((((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 6.766 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1230403920635581,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf, v3:sbf, v4:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.655 ms\n",
+    "stdout": "%1: v5'|v0 v6' = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1443175938911736,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v5:sbf, v6:sbf (((((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 7.05 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.14955565286800265,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')'|((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "valid: 4.294 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.03779554506763816,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.12 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.15580209996551275,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')'|((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 7.145 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.16283795703202486,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf, v4:sbf (((((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 6.808 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.15236339112743735,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v5:sbf, v6:sbf (((((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 7.092 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.10622829897329211,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent schema.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: environment allow_breaking (sbf)\n# i2: choice breaking (sbf)\n# i3: choice additive (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1, v2):sbf := ((((((v0)'&v1)|(v2&v1)))')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)).\n\n# Input rows: [{\"additive\": false, \"allow_breaking\": false, \"breaking\": false}, {\"additive\": true, \"allow_breaking\": false, \"breaking\": false}, {\"additive\": false, \"allow_breaking\": false, \"breaking\": true}, {\"additive\": true, \"allow_breaking\": false, \"breaking\": true}, {\"additive\": false, \"allow_breaking\": true, \"breaking\": false}, {\"additive\": true, \"allow_breaking\": true, \"breaking\": false}, {\"additive\": false, \"allow_breaking\": true, \"breaking\": true}, {\"additive\": true, \"allow_breaking\": true, \"breaking\": true}]",
+    "stderr": "run: 85.822 ms\n\treading input: 0.054 ms\n\tget_interpreter: 80.101 ms\n\tstep: 1.382 ms\n\tstep: 0.755 ms\n\tstep: 0.736 ms\n\tstep: 0.487 ms\n\tstep: 0.532 ms\n\tstep: 0.522 ms\n\tstep: 0.522 ms\n\tstep: 0.495 ms\n\tstep: 0.21 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.10473527992144227,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent client.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: environment allow_breaking (sbf)\n# i2: choice upgrade (sbf)\n# i3: choice shim (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1, v2):sbf := (((((v1&v2)|(v0&((v1)'|v2))))')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)).\n\n# Input rows: [{\"allow_breaking\": false, \"shim\": false, \"upgrade\": false}, {\"allow_breaking\": false, \"shim\": true, \"upgrade\": false}, {\"allow_breaking\": false, \"shim\": false, \"upgrade\": true}, {\"allow_breaking\": false, \"shim\": true, \"upgrade\": true}, {\"allow_breaking\": true, \"shim\": false, \"upgrade\": false}, {\"allow_breaking\": true, \"shim\": true, \"upgrade\": false}, {\"allow_breaking\": true, \"shim\": false, \"upgrade\": true}, {\"allow_breaking\": true, \"shim\": true, \"upgrade\": true}]",
+    "stderr": "run: 87.026 ms\n\treading input: 0.046 ms\n\tget_interpreter: 81.713 ms\n\tstep: 1.259 ms\n\tstep: 0.725 ms\n\tstep: 0.538 ms\n\tstep: 0.456 ms\n\tstep: 0.486 ms\n\tstep: 0.465 ms\n\tstep: 0.512 ms\n\tstep: 0.545 ms\n\tstep: 0.255 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.10353101091459394,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent verification.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: environment allow_breaking (sbf)\n# i2: choice regression (sbf)\n# i3: choice migration (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1, v2):sbf := (((((v1)'|(v0&(v2)')))')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)).\n\n# Input rows: [{\"allow_breaking\": false, \"migration\": false, \"regression\": false}, {\"allow_breaking\": false, \"migration\": true, \"regression\": false}, {\"allow_breaking\": false, \"migration\": false, \"regression\": true}, {\"allow_breaking\": false, \"migration\": true, \"regression\": true}, {\"allow_breaking\": true, \"migration\": false, \"regression\": false}, {\"allow_breaking\": true, \"migration\": true, \"regression\": false}, {\"allow_breaking\": true, \"migration\": false, \"regression\": true}, {\"allow_breaking\": true, \"migration\": true, \"regression\": true}]",
+    "stderr": "run: 85.28 ms\n\treading input: 0.045 ms\n\tget_interpreter: 80.874 ms\n\tstep: 1.026 ms\n\tstep: 0.538 ms\n\tstep: 0.478 ms\n\tstep: 0.454 ms\n\tstep: 0.416 ms\n\tstep: 0.403 ms\n\tstep: 0.41 ms\n\tstep: 0.449 ms\n\tstep: 0.163 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.024896270129829645,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.065 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.10523890936747193,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf^0)|(v2:sbf^0))|((v3:sbf^1)|(v4:sbf^0))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.27 ms\n",
+    "stdout": "%1: v5' = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.12431185226887465,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v5:sbf, v6:sbf ((((((v5:sbf)')')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf^0)|(v2:sbf^0))|((v3:sbf^1)|(v4:sbf^0))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.368 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.09520046319812536,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf^0)|(v2:sbf^0))|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.297 ms\n",
+    "stdout": "%1: v3 v4 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.13577230786904693,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf, v4:sbf ((((((v3:sbf&v4:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf^0)|(v2:sbf^0))|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.941 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.10448470991104841,
+    "operation": "qelim",
+    "query": "qelim all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.348 ms\n",
+    "stdout": "%1: v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.11995837418362498,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v1:sbf)')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 6.07 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1126978169195354,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((v1:sbf)')'|(((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "valid: 3.332 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.0323928976431489,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.13 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1254818020388484,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v1:sbf)')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 6.002 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1283543398603797,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf, v4:sbf ((((((v3:sbf&v4:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf)')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.268 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.11874361522495747,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v5:sbf, v6:sbf ((((((v5:sbf)')')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf)')'|(((v3:sbf&v4:sbf))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.435 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.098164192866534,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent schema.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: environment allow_breaking (sbf)\n# i2: choice breaking (sbf)\n# i3: choice additive (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1, v2):sbf := (((v1)')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)).\n\n# Input rows: [{\"additive\": false, \"allow_breaking\": false, \"breaking\": false}, {\"additive\": true, \"allow_breaking\": false, \"breaking\": false}, {\"additive\": false, \"allow_breaking\": false, \"breaking\": true}, {\"additive\": true, \"allow_breaking\": false, \"breaking\": true}, {\"additive\": false, \"allow_breaking\": true, \"breaking\": false}, {\"additive\": true, \"allow_breaking\": true, \"breaking\": false}, {\"additive\": false, \"allow_breaking\": true, \"breaking\": true}, {\"additive\": true, \"allow_breaking\": true, \"breaking\": true}]",
+    "stderr": "run: 78.62 ms\n\treading input: 0.047 ms\n\tget_interpreter: 75.72 ms\n\tstep: 0.958 ms\n\tstep: 0.241 ms\n\tstep: 0.385 ms\n\tstep: 0.183 ms\n\tstep: 0.327 ms\n\tstep: 0.213 ms\n\tstep: 0.273 ms\n\tstep: 0.175 ms\n\tstep: 0.073 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.09831871325150132,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent client.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: environment allow_breaking (sbf)\n# i2: choice upgrade (sbf)\n# i3: choice shim (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1, v2):sbf := ((((v1&v2))')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)).\n\n# Input rows: [{\"allow_breaking\": false, \"shim\": false, \"upgrade\": false}, {\"allow_breaking\": false, \"shim\": true, \"upgrade\": false}, {\"allow_breaking\": false, \"shim\": false, \"upgrade\": true}, {\"allow_breaking\": false, \"shim\": true, \"upgrade\": true}, {\"allow_breaking\": true, \"shim\": false, \"upgrade\": false}, {\"allow_breaking\": true, \"shim\": true, \"upgrade\": false}, {\"allow_breaking\": true, \"shim\": false, \"upgrade\": true}, {\"allow_breaking\": true, \"shim\": true, \"upgrade\": true}]",
+    "stderr": "run: 80.578 ms\n\treading input: 0.044 ms\n\tget_interpreter: 76.869 ms\n\tstep: 0.965 ms\n\tstep: 0.526 ms\n\tstep: 0.344 ms\n\tstep: 0.309 ms\n\tstep: 0.362 ms\n\tstep: 0.331 ms\n\tstep: 0.332 ms\n\tstep: 0.345 ms\n\tstep: 0.127 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.09688412304967642,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent verification.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: environment allow_breaking (sbf)\n# i2: choice regression (sbf)\n# i3: choice migration (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1, v2):sbf := ((((v1)')')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)).\n\n# Input rows: [{\"allow_breaking\": false, \"migration\": false, \"regression\": false}, {\"allow_breaking\": false, \"migration\": true, \"regression\": false}, {\"allow_breaking\": false, \"migration\": false, \"regression\": true}, {\"allow_breaking\": false, \"migration\": true, \"regression\": true}, {\"allow_breaking\": true, \"migration\": false, \"regression\": false}, {\"allow_breaking\": true, \"migration\": true, \"regression\": false}, {\"allow_breaking\": true, \"migration\": false, \"regression\": true}, {\"allow_breaking\": true, \"migration\": true, \"regression\": true}]",
+    "stderr": "run: 78.951 ms\n\treading input: 0.044 ms\n\tget_interpreter: 76.202 ms\n\tstep: 0.802 ms\n\tstep: 0.2 ms\n\tstep: 0.414 ms\n\tstep: 0.212 ms\n\tstep: 0.295 ms\n\tstep: 0.176 ms\n\tstep: 0.305 ms\n\tstep: 0.207 ms\n\tstep: 0.076 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.025995980016887188,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.087 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.0565742077305913,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf (((((v1:sbf^0)|(v2:sbf^0)) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.417 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06961392285302281,
+    "operation": "valid",
+    "query": "valid all v0:sbf (((0 = 0:sbf) <-> (all v1:sbf, v2:sbf (((((v1:sbf^0)|(v2:sbf^0)) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.052 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.043476903811097145,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf (((0 = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.379 ms\n",
+    "stdout": "%1: v2|v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06415307568386197,
+    "operation": "valid",
+    "query": "valid all v1:sbf, v2:sbf ((((((v2:sbf|v1:sbf))')' = 0:sbf) <-> (all v0:sbf (((0 = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.855 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06300741573795676,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((v2:sbf|v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "valid: 1.08 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.021276941988617182,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.079 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07152261305600405,
+    "operation": "valid",
+    "query": "valid all v0:sbf (((0 = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v2:sbf|v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.08 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.08431805670261383,
+    "operation": "valid",
+    "query": "valid all v1:sbf, v2:sbf ((((((v2:sbf|v1:sbf))')' = 0:sbf) <-> (all v0:sbf (((0 = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.882 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06697567412629724,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent A.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice a (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0):sbf := 1.\nalways (o1[t]:sbf = permit(i1[t]:sbf)).\n\n# Input rows: [{\"a\": false}, {\"a\": true}]",
+    "stderr": "run: 49.952 ms\n\treading input: 0.044 ms\n\tget_interpreter: 49.317 ms\n\tstep: 0.582 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06486225500702858,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent A.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice a (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0):sbf := 1.\nalways (o1[t]:sbf = permit(i1[t]:sbf)).\n\n# Input rows: [{\"a\": false}]",
+    "stderr": "run: 50.415 ms\n\treading input: 0.037 ms\n\tget_interpreter: 49.752 ms\n\tstep: 0.616 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.0634759459644556,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent A.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice a (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0):sbf := 1.\nalways (o1[t]:sbf = permit(i1[t]:sbf)).\n\n# Input rows: [{\"a\": true}]",
+    "stderr": "run: 51.476 ms\n\treading input: 0.03 ms\n\tget_interpreter: 50.843 ms\n\tstep: 0.595 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.09431417379528284,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent B.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice b (sbf)\n# i2: choice c (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1):sbf := ((((v1|v0))')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf)).\n\n# Input rows: [{\"b\": false, \"c\": false}, {\"b\": false, \"c\": true}, {\"b\": true, \"c\": false}, {\"b\": true, \"c\": true}]",
+    "stderr": "run: 76.841 ms\n\treading input: 0.038 ms\n\tget_interpreter: 74.694 ms\n\tstep: 0.911 ms\n\tstep: 0.42 ms\n\tstep: 0.339 ms\n\tstep: 0.312 ms\n\tstep: 0.116 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.018232992850244045,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.068 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.04256959306076169,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf ((((v0:sbf^0) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.387 ms\n",
+    "stdout": "%1: v2 v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.08090709894895554,
+    "operation": "valid",
+    "query": "valid all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) <-> (all v0:sbf ((((v0:sbf^0) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 2.088 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.056291558779776096,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.514 ms\n",
+    "stdout": "%1: v0 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.0669584646821022,
+    "operation": "valid",
+    "query": "valid all v0:sbf (((((v0:sbf)')' = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.662 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06031870702281594,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((v0:sbf)')'|(((v2:sbf&v1:sbf))')') = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "valid: 1.098 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.021711681969463825,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.067 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07551421085372567,
+    "operation": "valid",
+    "query": "valid all v0:sbf (((((v0:sbf)')' = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.825 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07361563201993704,
+    "operation": "valid",
+    "query": "valid all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) <-> (all v0:sbf (((((v0:sbf)')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 2.121 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07982960995286703,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent A.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice a (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0):sbf := (((v0)')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf)).\n\n# Input rows: [{\"a\": false}, {\"a\": true}]",
+    "stderr": "run: 59.287 ms\n\treading input: 0.062 ms\n\tget_interpreter: 57.378 ms\n\tstep: 1.327 ms\n\tstep: 0.394 ms\n\tstep: 0.113 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.09043888607993722,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent B.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice b (sbf)\n# i2: choice c (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1):sbf := ((((v1&v0))')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf)).\n\n# Input rows: [{\"b\": false, \"c\": false}, {\"b\": false, \"c\": true}, {\"b\": true, \"c\": false}, {\"b\": true, \"c\": true}]",
+    "stderr": "run: 70.962 ms\n\treading input: 0.059 ms\n\tget_interpreter: 68.403 ms\n\tstep: 1.047 ms\n\tstep: 0.546 ms\n\tstep: 0.395 ms\n\tstep: 0.362 ms\n\tstep: 0.134 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.02405515080317855,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.062 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.17534143291413784,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf, v3:sbf (((((v2:sbf^0)|(v3:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.286 ms\n",
+    "stdout": "%1: v0 v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.19228430604562163,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) <-> (all v2:sbf, v3:sbf (((((v2:sbf^0)|(v3:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 5.941 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.17039735382422805,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.405 ms\n",
+    "stdout": "%1: v2 v3'|v2'v3|v2 v3|v2 v3|v2'v3|v2 v3 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.22792793158441782,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf (((((((v2:sbf&(v3:sbf)')|((v2:sbf)'&v3:sbf)|(v2:sbf&v3:sbf)|(v2:sbf&v3:sbf)|((v2:sbf)'&v3:sbf)|(v2:sbf&v3:sbf)))')' = 0:sbf) <-> (all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 6.935 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.20733771100640297,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf (((((((v0:sbf&v1:sbf))')'|((((v2:sbf&(v3:sbf)')|((v2:sbf)'&v3:sbf)|(v2:sbf&v3:sbf)|(v2:sbf&v3:sbf)|((v2:sbf)'&v3:sbf)|(v2:sbf&v3:sbf)))')') = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "valid: 4.02 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.01858398225158453,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.077 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.2190807261504233,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) <-> (all v2:sbf, v3:sbf (((((((v2:sbf&(v3:sbf)')|((v2:sbf)'&v3:sbf)|(v2:sbf&v3:sbf)|(v2:sbf&v3:sbf)|((v2:sbf)'&v3:sbf)|(v2:sbf&v3:sbf)))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 6.669 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.2212368263863027,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf (((((((v2:sbf&(v3:sbf)')|((v2:sbf)'&v3:sbf)|(v2:sbf&v3:sbf)|(v2:sbf&v3:sbf)|((v2:sbf)'&v3:sbf)|(v2:sbf&v3:sbf)))')' = 0:sbf) <-> (all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 6.759 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.11553932633250952,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent left.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice left_low (sbf)\n# i2: choice left_high (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1):sbf := ((((v0&v1))')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf)).\n\n# Input rows: [{\"left_high\": false, \"left_low\": false}, {\"left_high\": true, \"left_low\": false}, {\"left_high\": false, \"left_low\": true}, {\"left_high\": true, \"left_low\": true}]",
+    "stderr": "run: 91.529 ms\n\treading input: 0.07 ms\n\tget_interpreter: 88.705 ms\n\tstep: 1.196 ms\n\tstep: 0.565 ms\n\tstep: 0.434 ms\n\tstep: 0.407 ms\n\tstep: 0.136 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1089242179878056,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent right.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice right_low (sbf)\n# i2: choice right_high (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1):sbf := (((((v0&(v1)')|((v0)'&v1)|(v0&v1)|(v0&v1)|((v0)'&v1)|(v0&v1)))')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf)).\n\n# Input rows: [{\"right_high\": false, \"right_low\": false}, {\"right_high\": true, \"right_low\": false}, {\"right_high\": false, \"right_low\": true}, {\"right_high\": true, \"right_low\": true}]",
+    "stderr": "run: 88.4 ms\n\treading input: 0.041 ms\n\tget_interpreter: 84.556 ms\n\tstep: 1.808 ms\n\tstep: 0.863 ms\n\tstep: 0.469 ms\n\tstep: 0.509 ms\n\tstep: 0.134 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.025408079847693443,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.078 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.17676016315817833,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf, v1:sbf (((((v0:sbf^0)|(v1:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.399 ms\n",
+    "stdout": "%1: v2 v3 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.2259573028422892,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf ((((((v2:sbf&v3:sbf))')' = 0:sbf) <-> (all v0:sbf, v1:sbf (((((v0:sbf^0)|(v1:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 6.315 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.161594248842448,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf, v3:sbf ((((((v2:sbf&v3:sbf))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.444 ms\n",
+    "stdout": "%1: v0 v1|v0 v1'|v0 v1|v0'v1|v0 v1|v0'v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.24951436510309577,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((((((v0:sbf&v1:sbf)|(v0:sbf&(v1:sbf)')|(v0:sbf&v1:sbf)|((v0:sbf)'&v1:sbf)|(v0:sbf&v1:sbf)|((v0:sbf)'&v1:sbf)))')' = 0:sbf) <-> (all v2:sbf, v3:sbf ((((((v2:sbf&v3:sbf))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 6.729 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.21524510765448213,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf ((((((((v0:sbf&v1:sbf)|(v0:sbf&(v1:sbf)')|(v0:sbf&v1:sbf)|((v0:sbf)'&v1:sbf)|(v0:sbf&v1:sbf)|((v0:sbf)'&v1:sbf)))')'|(((v2:sbf&v3:sbf))')') = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "valid: 3.622 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.029876679182052612,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.069 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.21504443790763617,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((((((v0:sbf&v1:sbf)|(v0:sbf&(v1:sbf)')|(v0:sbf&v1:sbf)|((v0:sbf)'&v1:sbf)|(v0:sbf&v1:sbf)|((v0:sbf)'&v1:sbf)))')' = 0:sbf) <-> (all v2:sbf, v3:sbf ((((((v2:sbf&v3:sbf))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 6.204 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.21572404773905873,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf ((((((v2:sbf&v3:sbf))')' = 0:sbf) <-> (all v0:sbf, v1:sbf (((((((v0:sbf&v1:sbf)|(v0:sbf&(v1:sbf)')|(v0:sbf&v1:sbf)|((v0:sbf)'&v1:sbf)|(v0:sbf&v1:sbf)|((v0:sbf)'&v1:sbf)))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 6.139 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.10858961893245578,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent left.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice left_low (sbf)\n# i2: choice left_high (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1):sbf := (((((v0&v1)|(v0&(v1)')|(v0&v1)|((v0)'&v1)|(v0&v1)|((v0)'&v1)))')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf)).\n\n# Input rows: [{\"left_high\": false, \"left_low\": false}, {\"left_high\": true, \"left_low\": false}, {\"left_high\": false, \"left_low\": true}, {\"left_high\": true, \"left_low\": true}]",
+    "stderr": "run: 88.883 ms\n\treading input: 0.056 ms\n\tget_interpreter: 86.26 ms\n\tstep: 1.218 ms\n\tstep: 0.488 ms\n\tstep: 0.358 ms\n\tstep: 0.356 ms\n\tstep: 0.134 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.0868798871524632,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent right.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice right_low (sbf)\n# i2: choice right_high (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1):sbf := ((((v0&v1))')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf)).\n\n# Input rows: [{\"right_high\": false, \"right_low\": false}, {\"right_high\": true, \"right_low\": false}, {\"right_high\": false, \"right_low\": true}, {\"right_high\": true, \"right_low\": true}]",
+    "stderr": "run: 69.019 ms\n\treading input: 0.04 ms\n\tget_interpreter: 66.617 ms\n\tstep: 0.957 ms\n\tstep: 0.511 ms\n\tstep: 0.404 ms\n\tstep: 0.345 ms\n\tstep: 0.131 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.025495709851384163,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.06 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.16387470811605453,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf, v3:sbf (((((v2:sbf^1)|(v3:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.407 ms\n",
+    "stdout": "%1: v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1928341370075941,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((((v1:sbf)')' = 0:sbf) <-> (all v2:sbf, v3:sbf (((((v2:sbf^1)|(v3:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 6.112 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.16157868830487132,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf, v1:sbf (((((v1:sbf)')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.316 ms\n",
+    "stdout": "%1: v3 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.18573181936517358,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf (((((v3:sbf)')' = 0:sbf) <-> (all v0:sbf, v1:sbf (((((v1:sbf)')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 5.802 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1659242669120431,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf ((((((v1:sbf)')'|((v3:sbf)')') = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "valid: 3.086 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.026267449837177992,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.069 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.18882731767371297,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((((v1:sbf)')' = 0:sbf) <-> (all v2:sbf, v3:sbf (((((v3:sbf)')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 5.773 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.18984208814799786,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf (((((v3:sbf)')' = 0:sbf) <-> (all v0:sbf, v1:sbf (((((v1:sbf)')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)')&(v2:sbf&v3:sbf))|((v0:sbf&(v1:sbf)')&((v2:sbf)'&v3:sbf))|((v0:sbf&(v1:sbf)')&(v2:sbf&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&(v3:sbf)'))|(((v0:sbf)'&v1:sbf)&((v2:sbf)'&v3:sbf))|(((v0:sbf)'&v1:sbf)&(v2:sbf&v3:sbf))|((v0:sbf&v1:sbf)&((v2:sbf)'&(v3:sbf)'))|((v0:sbf&v1:sbf)&(v2:sbf&(v3:sbf)'))|((v0:sbf&v1:sbf)&((v2:sbf)'&v3:sbf))|((v0:sbf&v1:sbf)&(v2:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 5.349 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.08687562681734562,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent left.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice left_low (sbf)\n# i2: choice left_high (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1):sbf := (((v1)')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf)).\n\n# Input rows: [{\"left_high\": false, \"left_low\": false}, {\"left_high\": true, \"left_low\": false}, {\"left_high\": false, \"left_low\": true}, {\"left_high\": true, \"left_low\": true}]",
+    "stderr": "run: 67.378 ms\n\treading input: 0.053 ms\n\tget_interpreter: 65.71 ms\n\tstep: 0.855 ms\n\tstep: 0.245 ms\n\tstep: 0.279 ms\n\tstep: 0.152 ms\n\tstep: 0.07 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.08358128787949681,
+    "operation": "execute_agent_gate",
+    "query": "# Original Tau choice gate for human-directed swarm agent right.\n# Exact host Boolean inputs; o1 = 1 means formal compatibility.\n# authority: NONE. Human and runtime execution checks remain separate.\n# Generic local stream artifact for independently proposed choices.\n# i1: choice right_low (sbf)\n# i2: choice right_high (sbf)\n# o1: local domain compatibility (sbf)\npermit(v0, v1):sbf := (((v1)')')'.\nalways (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf)).\n\n# Input rows: [{\"right_high\": false, \"right_low\": false}, {\"right_high\": true, \"right_low\": false}, {\"right_high\": false, \"right_low\": true}, {\"right_high\": true, \"right_low\": true}]",
+    "stderr": "run: 64.196 ms\n\treading input: 0.052 ms\n\tget_interpreter: 62.346 ms\n\tstep: 0.923 ms\n\tstep: 0.271 ms\n\tstep: 0.318 ms\n\tstep: 0.19 ms\n\tstep: 0.081 ms\n",
+    "stdout": ""
+  }
+]

@@ -1,0 +1,1475 @@
+{
+  "authority": "NONE",
+  "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+  "case_names": [
+    "planning_schema_first",
+    "planning_verification_first",
+    "asymmetric_A_first",
+    "asymmetric_B_first",
+    "triangle_left_first",
+    "triangle_right_first",
+    "triangle_balanced_anchor"
+  ],
+  "cases": [
+    {
+      "compile_native_queries": 12,
+      "compile_seconds": 1.5506235007196665,
+      "envelope_id": "1a38bc47622d9ac4a48c2b93a4039d584fb64312b0ed18991109d2f1ea0c3b50",
+      "name": "planning_schema_first",
+      "native_replay_seconds": 0.34202053816989064,
+      "native_trace_rows": 24,
+      "order": [
+        "schema",
+        "client",
+        "verification"
+      ],
+      "query_interval": [
+        0,
+        15
+      ],
+      "slices": [
+        {
+          "boolean_oracle_rows": 64,
+          "environment": {
+            "allow_breaking": false
+          },
+          "exclusion_witnesses_checked": 5,
+          "globally_feasible": 14,
+          "independent_combinations": 12,
+          "inspection": {
+            "agents": [
+              {
+                "agent": "schema",
+                "choice_count": 2,
+                "choices": [
+                  {
+                    "additive": false,
+                    "breaking": false
+                  },
+                  {
+                    "additive": true,
+                    "breaking": false
+                  }
+                ],
+                "controls": [
+                  "breaking",
+                  "additive"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "additive": false,
+                      "breaking": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": false,
+                      "breaking": true,
+                      "migration": false,
+                      "regression": true,
+                      "shim": false,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "breaking_requires_upgrade",
+                      "breaking_requires_migration",
+                      "human_allows_breaking"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "additive": true,
+                      "breaking": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": true,
+                      "allow_breaking": false,
+                      "breaking": true,
+                      "migration": false,
+                      "regression": true,
+                      "shim": false,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "single_schema_strategy",
+                      "breaking_requires_upgrade",
+                      "breaking_requires_migration",
+                      "human_allows_breaking"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "client",
+                "choice_count": 3,
+                "choices": [
+                  {
+                    "shim": false,
+                    "upgrade": false
+                  },
+                  {
+                    "shim": true,
+                    "upgrade": false
+                  },
+                  {
+                    "shim": false,
+                    "upgrade": true
+                  }
+                ],
+                "controls": [
+                  "upgrade",
+                  "shim"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "shim": true,
+                      "upgrade": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": false,
+                      "breaking": false,
+                      "migration": false,
+                      "regression": true,
+                      "shim": true,
+                      "upgrade": true
+                    },
+                    "violated_requirements": [
+                      "single_client_strategy"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "verification",
+                "choice_count": 2,
+                "choices": [
+                  {
+                    "migration": false,
+                    "regression": true
+                  },
+                  {
+                    "migration": true,
+                    "regression": true
+                  }
+                ],
+                "controls": [
+                  "regression",
+                  "migration"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "migration": false,
+                      "regression": false
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": false,
+                      "breaking": false,
+                      "migration": false,
+                      "regression": false,
+                      "shim": true,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "shim_requires_regression"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "migration": true,
+                      "regression": false
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": false,
+                      "breaking": false,
+                      "migration": true,
+                      "regression": false,
+                      "shim": true,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "shim_requires_regression"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "all_globally_feasible_combinations": 14,
+            "authority": "NONE",
+            "envelope_id": "1a38bc47622d9ac4a48c2b93a4039d584fb64312b0ed18991109d2f1ea0c3b50",
+            "environment": {
+              "allow_breaking": false
+            },
+            "independent_combinations": 12,
+            "schema": "tau-swarm/inspection-v1",
+            "scope": "exact Boolean planning choices; no claim about generated work, authorization or performance"
+          },
+          "maximum_product_in_this_finite_case": 12
+        },
+        {
+          "boolean_oracle_rows": 64,
+          "environment": {
+            "allow_breaking": true
+          },
+          "exclusion_witnesses_checked": 7,
+          "globally_feasible": 15,
+          "independent_combinations": 3,
+          "inspection": {
+            "agents": [
+              {
+                "agent": "schema",
+                "choice_count": 3,
+                "choices": [
+                  {
+                    "additive": false,
+                    "breaking": false
+                  },
+                  {
+                    "additive": true,
+                    "breaking": false
+                  },
+                  {
+                    "additive": false,
+                    "breaking": true
+                  }
+                ],
+                "controls": [
+                  "breaking",
+                  "additive"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "additive": true,
+                      "breaking": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": true,
+                      "allow_breaking": true,
+                      "breaking": true,
+                      "migration": true,
+                      "regression": true,
+                      "shim": false,
+                      "upgrade": true
+                    },
+                    "violated_requirements": [
+                      "single_schema_strategy"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "client",
+                "choice_count": 1,
+                "choices": [
+                  {
+                    "shim": false,
+                    "upgrade": true
+                  }
+                ],
+                "controls": [
+                  "upgrade",
+                  "shim"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "shim": false,
+                      "upgrade": false
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": true,
+                      "breaking": true,
+                      "migration": true,
+                      "regression": true,
+                      "shim": false,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "breaking_requires_upgrade"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "shim": true,
+                      "upgrade": false
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": true,
+                      "breaking": true,
+                      "migration": true,
+                      "regression": true,
+                      "shim": true,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "breaking_requires_upgrade",
+                      "breaking_forbids_shim"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "shim": true,
+                      "upgrade": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": true,
+                      "breaking": false,
+                      "migration": true,
+                      "regression": true,
+                      "shim": true,
+                      "upgrade": true
+                    },
+                    "violated_requirements": [
+                      "single_client_strategy"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "verification",
+                "choice_count": 1,
+                "choices": [
+                  {
+                    "migration": true,
+                    "regression": true
+                  }
+                ],
+                "controls": [
+                  "regression",
+                  "migration"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "migration": false,
+                      "regression": false
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": true,
+                      "breaking": false,
+                      "migration": false,
+                      "regression": false,
+                      "shim": false,
+                      "upgrade": true
+                    },
+                    "violated_requirements": [
+                      "upgrade_requires_regression"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "migration": true,
+                      "regression": false
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": true,
+                      "breaking": false,
+                      "migration": true,
+                      "regression": false,
+                      "shim": false,
+                      "upgrade": true
+                    },
+                    "violated_requirements": [
+                      "upgrade_requires_regression"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "migration": false,
+                      "regression": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": true,
+                      "breaking": true,
+                      "migration": false,
+                      "regression": true,
+                      "shim": false,
+                      "upgrade": true
+                    },
+                    "violated_requirements": [
+                      "breaking_requires_migration"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "all_globally_feasible_combinations": 15,
+            "authority": "NONE",
+            "envelope_id": "1a38bc47622d9ac4a48c2b93a4039d584fb64312b0ed18991109d2f1ea0c3b50",
+            "environment": {
+              "allow_breaking": true
+            },
+            "independent_combinations": 3,
+            "schema": "tau-swarm/inspection-v1",
+            "scope": "exact Boolean planning choices; no claim about generated work, authorization or performance"
+          },
+          "maximum_product_in_this_finite_case": 12
+        }
+      ]
+    },
+    {
+      "compile_native_queries": 12,
+      "compile_seconds": 1.3454069923609495,
+      "envelope_id": "5f22ad8031541324902436925270576f1be3b1f329dc9e7fbf954c17cbce9464",
+      "name": "planning_verification_first",
+      "native_replay_seconds": 0.3166933082975447,
+      "native_trace_rows": 24,
+      "order": [
+        "verification",
+        "client",
+        "schema"
+      ],
+      "query_interval": [
+        15,
+        30
+      ],
+      "slices": [
+        {
+          "boolean_oracle_rows": 64,
+          "environment": {
+            "allow_breaking": false
+          },
+          "exclusion_witnesses_checked": 5,
+          "globally_feasible": 14,
+          "independent_combinations": 12,
+          "inspection": {
+            "agents": [
+              {
+                "agent": "schema",
+                "choice_count": 2,
+                "choices": [
+                  {
+                    "additive": false,
+                    "breaking": false
+                  },
+                  {
+                    "additive": true,
+                    "breaking": false
+                  }
+                ],
+                "controls": [
+                  "breaking",
+                  "additive"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "additive": false,
+                      "breaking": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": false,
+                      "breaking": true,
+                      "migration": false,
+                      "regression": true,
+                      "shim": false,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "breaking_requires_upgrade",
+                      "breaking_requires_migration",
+                      "human_allows_breaking"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "additive": true,
+                      "breaking": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": true,
+                      "allow_breaking": false,
+                      "breaking": true,
+                      "migration": false,
+                      "regression": true,
+                      "shim": false,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "single_schema_strategy",
+                      "breaking_requires_upgrade",
+                      "breaking_requires_migration",
+                      "human_allows_breaking"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "client",
+                "choice_count": 3,
+                "choices": [
+                  {
+                    "shim": false,
+                    "upgrade": false
+                  },
+                  {
+                    "shim": true,
+                    "upgrade": false
+                  },
+                  {
+                    "shim": false,
+                    "upgrade": true
+                  }
+                ],
+                "controls": [
+                  "upgrade",
+                  "shim"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "shim": true,
+                      "upgrade": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": false,
+                      "breaking": false,
+                      "migration": false,
+                      "regression": true,
+                      "shim": true,
+                      "upgrade": true
+                    },
+                    "violated_requirements": [
+                      "single_client_strategy"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "verification",
+                "choice_count": 2,
+                "choices": [
+                  {
+                    "migration": false,
+                    "regression": true
+                  },
+                  {
+                    "migration": true,
+                    "regression": true
+                  }
+                ],
+                "controls": [
+                  "regression",
+                  "migration"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "migration": false,
+                      "regression": false
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": false,
+                      "breaking": false,
+                      "migration": false,
+                      "regression": false,
+                      "shim": true,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "shim_requires_regression"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "migration": true,
+                      "regression": false
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": false,
+                      "breaking": false,
+                      "migration": true,
+                      "regression": false,
+                      "shim": true,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "shim_requires_regression"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "all_globally_feasible_combinations": 14,
+            "authority": "NONE",
+            "envelope_id": "5f22ad8031541324902436925270576f1be3b1f329dc9e7fbf954c17cbce9464",
+            "environment": {
+              "allow_breaking": false
+            },
+            "independent_combinations": 12,
+            "schema": "tau-swarm/inspection-v1",
+            "scope": "exact Boolean planning choices; no claim about generated work, authorization or performance"
+          },
+          "maximum_product_in_this_finite_case": 12
+        },
+        {
+          "boolean_oracle_rows": 64,
+          "environment": {
+            "allow_breaking": true
+          },
+          "exclusion_witnesses_checked": 5,
+          "globally_feasible": 15,
+          "independent_combinations": 12,
+          "inspection": {
+            "agents": [
+              {
+                "agent": "schema",
+                "choice_count": 2,
+                "choices": [
+                  {
+                    "additive": false,
+                    "breaking": false
+                  },
+                  {
+                    "additive": true,
+                    "breaking": false
+                  }
+                ],
+                "controls": [
+                  "breaking",
+                  "additive"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "additive": false,
+                      "breaking": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": true,
+                      "breaking": true,
+                      "migration": false,
+                      "regression": true,
+                      "shim": false,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "breaking_requires_upgrade",
+                      "breaking_requires_migration"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "additive": true,
+                      "breaking": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": true,
+                      "allow_breaking": true,
+                      "breaking": true,
+                      "migration": false,
+                      "regression": true,
+                      "shim": false,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "single_schema_strategy",
+                      "breaking_requires_upgrade",
+                      "breaking_requires_migration"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "client",
+                "choice_count": 3,
+                "choices": [
+                  {
+                    "shim": false,
+                    "upgrade": false
+                  },
+                  {
+                    "shim": true,
+                    "upgrade": false
+                  },
+                  {
+                    "shim": false,
+                    "upgrade": true
+                  }
+                ],
+                "controls": [
+                  "upgrade",
+                  "shim"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "shim": true,
+                      "upgrade": true
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": true,
+                      "breaking": false,
+                      "migration": false,
+                      "regression": true,
+                      "shim": true,
+                      "upgrade": true
+                    },
+                    "violated_requirements": [
+                      "single_client_strategy"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "verification",
+                "choice_count": 2,
+                "choices": [
+                  {
+                    "migration": false,
+                    "regression": true
+                  },
+                  {
+                    "migration": true,
+                    "regression": true
+                  }
+                ],
+                "controls": [
+                  "regression",
+                  "migration"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "migration": false,
+                      "regression": false
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": true,
+                      "breaking": false,
+                      "migration": false,
+                      "regression": false,
+                      "shim": true,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "shim_requires_regression"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "migration": true,
+                      "regression": false
+                    },
+                    "conflicting_joint_choice": {
+                      "additive": false,
+                      "allow_breaking": true,
+                      "breaking": false,
+                      "migration": true,
+                      "regression": false,
+                      "shim": true,
+                      "upgrade": false
+                    },
+                    "violated_requirements": [
+                      "shim_requires_regression"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "all_globally_feasible_combinations": 15,
+            "authority": "NONE",
+            "envelope_id": "5f22ad8031541324902436925270576f1be3b1f329dc9e7fbf954c17cbce9464",
+            "environment": {
+              "allow_breaking": true
+            },
+            "independent_combinations": 12,
+            "schema": "tau-swarm/inspection-v1",
+            "scope": "exact Boolean planning choices; no claim about generated work, authorization or performance"
+          },
+          "maximum_product_in_this_finite_case": 12
+        }
+      ]
+    },
+    {
+      "compile_native_queries": 9,
+      "compile_seconds": 0.5851170453242958,
+      "envelope_id": "93e04f0331cd23b05cd59495ea086045a4217eac0ed7f446bf48a959144f32db",
+      "name": "asymmetric_A_first",
+      "native_replay_seconds": 0.33279368188232183,
+      "native_trace_rows": 6,
+      "order": [
+        "A",
+        "B"
+      ],
+      "query_interval": [
+        30,
+        43
+      ],
+      "slices": [
+        {
+          "boolean_oracle_rows": 8,
+          "environment": {},
+          "exclusion_witnesses_checked": 3,
+          "globally_feasible": 4,
+          "independent_combinations": 2,
+          "inspection": {
+            "agents": [
+              {
+                "agent": "A",
+                "choice_count": 2,
+                "choices": [
+                  {
+                    "a": false
+                  },
+                  {
+                    "a": true
+                  }
+                ],
+                "controls": [
+                  "a"
+                ],
+                "excluded_choices": []
+              },
+              {
+                "agent": "B",
+                "choice_count": 1,
+                "choices": [
+                  {
+                    "b": false,
+                    "c": false
+                  }
+                ],
+                "controls": [
+                  "b",
+                  "c"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "b": false,
+                      "c": true
+                    },
+                    "conflicting_joint_choice": {
+                      "a": true,
+                      "b": false,
+                      "c": true
+                    },
+                    "violated_requirements": [
+                      "global"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "b": true,
+                      "c": false
+                    },
+                    "conflicting_joint_choice": {
+                      "a": true,
+                      "b": true,
+                      "c": false
+                    },
+                    "violated_requirements": [
+                      "global"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "b": true,
+                      "c": true
+                    },
+                    "conflicting_joint_choice": {
+                      "a": false,
+                      "b": true,
+                      "c": true
+                    },
+                    "violated_requirements": [
+                      "global"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "all_globally_feasible_combinations": 4,
+            "authority": "NONE",
+            "envelope_id": "93e04f0331cd23b05cd59495ea086045a4217eac0ed7f446bf48a959144f32db",
+            "environment": {},
+            "independent_combinations": 2,
+            "schema": "tau-swarm/inspection-v1",
+            "scope": "exact Boolean planning choices; no claim about generated work, authorization or performance"
+          },
+          "maximum_product_in_this_finite_case": 3
+        }
+      ]
+    },
+    {
+      "compile_native_queries": 9,
+      "compile_seconds": 0.5690659820102155,
+      "envelope_id": "639506fcaae4e9b8adbcf66ed1dd41b9b9a273801bd8d85f4bb5ecdbf197a673",
+      "name": "asymmetric_B_first",
+      "native_replay_seconds": 0.1958136549219489,
+      "native_trace_rows": 6,
+      "order": [
+        "B",
+        "A"
+      ],
+      "query_interval": [
+        43,
+        54
+      ],
+      "slices": [
+        {
+          "boolean_oracle_rows": 8,
+          "environment": {},
+          "exclusion_witnesses_checked": 2,
+          "globally_feasible": 4,
+          "independent_combinations": 3,
+          "inspection": {
+            "agents": [
+              {
+                "agent": "A",
+                "choice_count": 1,
+                "choices": [
+                  {
+                    "a": false
+                  }
+                ],
+                "controls": [
+                  "a"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "a": true
+                    },
+                    "conflicting_joint_choice": {
+                      "a": true,
+                      "b": false,
+                      "c": true
+                    },
+                    "violated_requirements": [
+                      "global"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "B",
+                "choice_count": 3,
+                "choices": [
+                  {
+                    "b": false,
+                    "c": false
+                  },
+                  {
+                    "b": false,
+                    "c": true
+                  },
+                  {
+                    "b": true,
+                    "c": false
+                  }
+                ],
+                "controls": [
+                  "b",
+                  "c"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "b": true,
+                      "c": true
+                    },
+                    "conflicting_joint_choice": {
+                      "a": false,
+                      "b": true,
+                      "c": true
+                    },
+                    "violated_requirements": [
+                      "global"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "all_globally_feasible_combinations": 4,
+            "authority": "NONE",
+            "envelope_id": "639506fcaae4e9b8adbcf66ed1dd41b9b9a273801bd8d85f4bb5ecdbf197a673",
+            "environment": {},
+            "independent_combinations": 3,
+            "schema": "tau-swarm/inspection-v1",
+            "scope": "exact Boolean planning choices; no claim about generated work, authorization or performance"
+          },
+          "maximum_product_in_this_finite_case": 3
+        }
+      ]
+    },
+    {
+      "compile_native_queries": 9,
+      "compile_seconds": 1.5568013060837984,
+      "envelope_id": "5badc2f737289d8271478cfe46f1c1bd624d7b8c7336b6af24d5c51f88a4e710",
+      "name": "triangle_left_first",
+      "native_replay_seconds": 0.2497040550224483,
+      "native_trace_rows": 8,
+      "order": [
+        "left",
+        "right"
+      ],
+      "query_interval": [
+        54,
+        65
+      ],
+      "slices": [
+        {
+          "boolean_oracle_rows": 16,
+          "environment": {},
+          "exclusion_witnesses_checked": 4,
+          "globally_feasible": 6,
+          "independent_combinations": 3,
+          "inspection": {
+            "agents": [
+              {
+                "agent": "left",
+                "choice_count": 3,
+                "choices": [
+                  {
+                    "left_high": false,
+                    "left_low": false
+                  },
+                  {
+                    "left_high": true,
+                    "left_low": false
+                  },
+                  {
+                    "left_high": false,
+                    "left_low": true
+                  }
+                ],
+                "controls": [
+                  "left_low",
+                  "left_high"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "left_high": true,
+                      "left_low": true
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": true,
+                      "left_low": true,
+                      "right_high": false,
+                      "right_low": false
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "right",
+                "choice_count": 1,
+                "choices": [
+                  {
+                    "right_high": false,
+                    "right_low": false
+                  }
+                ],
+                "controls": [
+                  "right_low",
+                  "right_high"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "right_high": true,
+                      "right_low": false
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": true,
+                      "left_low": false,
+                      "right_high": true,
+                      "right_low": false
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "right_high": false,
+                      "right_low": true
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": true,
+                      "left_low": false,
+                      "right_high": false,
+                      "right_low": true
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "right_high": true,
+                      "right_low": true
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": false,
+                      "left_low": false,
+                      "right_high": true,
+                      "right_low": true
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "all_globally_feasible_combinations": 6,
+            "authority": "NONE",
+            "envelope_id": "5badc2f737289d8271478cfe46f1c1bd624d7b8c7336b6af24d5c51f88a4e710",
+            "environment": {},
+            "independent_combinations": 3,
+            "schema": "tau-swarm/inspection-v1",
+            "scope": "exact Boolean planning choices; no claim about generated work, authorization or performance"
+          },
+          "maximum_product_in_this_finite_case": 4
+        }
+      ]
+    },
+    {
+      "compile_native_queries": 9,
+      "compile_seconds": 1.6150592151097953,
+      "envelope_id": "6fed11565b8fd399e52a4f299f6de31a44af831f6affa1de33c441922ffc9c3a",
+      "name": "triangle_right_first",
+      "native_replay_seconds": 0.22101283492520452,
+      "native_trace_rows": 8,
+      "order": [
+        "right",
+        "left"
+      ],
+      "query_interval": [
+        65,
+        76
+      ],
+      "slices": [
+        {
+          "boolean_oracle_rows": 16,
+          "environment": {},
+          "exclusion_witnesses_checked": 4,
+          "globally_feasible": 6,
+          "independent_combinations": 3,
+          "inspection": {
+            "agents": [
+              {
+                "agent": "left",
+                "choice_count": 1,
+                "choices": [
+                  {
+                    "left_high": false,
+                    "left_low": false
+                  }
+                ],
+                "controls": [
+                  "left_low",
+                  "left_high"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "left_high": true,
+                      "left_low": false
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": true,
+                      "left_low": false,
+                      "right_high": true,
+                      "right_low": false
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "left_high": false,
+                      "left_low": true
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": false,
+                      "left_low": true,
+                      "right_high": true,
+                      "right_low": false
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "left_high": true,
+                      "left_low": true
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": true,
+                      "left_low": true,
+                      "right_high": false,
+                      "right_low": false
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "right",
+                "choice_count": 3,
+                "choices": [
+                  {
+                    "right_high": false,
+                    "right_low": false
+                  },
+                  {
+                    "right_high": true,
+                    "right_low": false
+                  },
+                  {
+                    "right_high": false,
+                    "right_low": true
+                  }
+                ],
+                "controls": [
+                  "right_low",
+                  "right_high"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "right_high": true,
+                      "right_low": true
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": false,
+                      "left_low": false,
+                      "right_high": true,
+                      "right_low": true
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "all_globally_feasible_combinations": 6,
+            "authority": "NONE",
+            "envelope_id": "6fed11565b8fd399e52a4f299f6de31a44af831f6affa1de33c441922ffc9c3a",
+            "environment": {},
+            "independent_combinations": 3,
+            "schema": "tau-swarm/inspection-v1",
+            "scope": "exact Boolean planning choices; no claim about generated work, authorization or performance"
+          },
+          "maximum_product_in_this_finite_case": 4
+        }
+      ]
+    },
+    {
+      "compile_native_queries": 9,
+      "compile_seconds": 1.3986726491712034,
+      "envelope_id": "91c7910181448f4d70bcefca5d0e7f1ca3f1e5ab569e95b884d2ffe4a0c1de51",
+      "name": "triangle_balanced_anchor",
+      "native_replay_seconds": 0.1944663249887526,
+      "native_trace_rows": 8,
+      "order": [
+        "left",
+        "right"
+      ],
+      "query_interval": [
+        76,
+        87
+      ],
+      "slices": [
+        {
+          "boolean_oracle_rows": 16,
+          "environment": {},
+          "exclusion_witnesses_checked": 4,
+          "globally_feasible": 6,
+          "independent_combinations": 4,
+          "inspection": {
+            "agents": [
+              {
+                "agent": "left",
+                "choice_count": 2,
+                "choices": [
+                  {
+                    "left_high": false,
+                    "left_low": false
+                  },
+                  {
+                    "left_high": false,
+                    "left_low": true
+                  }
+                ],
+                "controls": [
+                  "left_low",
+                  "left_high"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "left_high": true,
+                      "left_low": false
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": true,
+                      "left_low": false,
+                      "right_high": false,
+                      "right_low": true
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "left_high": true,
+                      "left_low": true
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": true,
+                      "left_low": true,
+                      "right_high": false,
+                      "right_low": false
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  }
+                ]
+              },
+              {
+                "agent": "right",
+                "choice_count": 2,
+                "choices": [
+                  {
+                    "right_high": false,
+                    "right_low": false
+                  },
+                  {
+                    "right_high": false,
+                    "right_low": true
+                  }
+                ],
+                "controls": [
+                  "right_low",
+                  "right_high"
+                ],
+                "excluded_choices": [
+                  {
+                    "choice": {
+                      "right_high": true,
+                      "right_low": false
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": false,
+                      "left_low": true,
+                      "right_high": true,
+                      "right_low": false
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  },
+                  {
+                    "choice": {
+                      "right_high": true,
+                      "right_low": true
+                    },
+                    "conflicting_joint_choice": {
+                      "left_high": false,
+                      "left_low": false,
+                      "right_high": true,
+                      "right_low": true
+                    },
+                    "violated_requirements": [
+                      "allowed_code_pair"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "all_globally_feasible_combinations": 6,
+            "authority": "NONE",
+            "envelope_id": "91c7910181448f4d70bcefca5d0e7f1ca3f1e5ab569e95b884d2ffe4a0c1de51",
+            "environment": {},
+            "independent_combinations": 4,
+            "schema": "tau-swarm/inspection-v1",
+            "scope": "exact Boolean planning choices; no claim about generated work, authorization or performance"
+          },
+          "maximum_product_in_this_finite_case": 4
+        }
+      ]
+    }
+  ],
+  "native_queries": 87,
+  "nonclaims": [
+    "LLM productivity",
+    "general speedup",
+    "maximum-product compiler",
+    "new foundational theorem",
+    "Python-to-Lean refinement proof",
+    "reproducible Tau build",
+    "Tau Net integration",
+    "legal clearance"
+  ],
+  "python_version": "3.12.3",
+  "runtime_mounted": false,
+  "schema": "tau-swarm/experiment-v1",
+  "source_sha256": {
+    "lean-mathlib/Proofs/TauSwarmAutonomy.lean": "e05fca3c31ebbd77ee3733b2155d0c0c3cbe475a10c7194f1b29c8e21d4817bf",
+    "src/integration/tau_runner.py": "d2aeba75d26f5b28e7aa01890da4ab2c54678fc8a891c6bdac231a4b7bed3298",
+    "src/tau_composition/__init__.py": "95be79260d05e693911f5d4a180e69cce597942707dd1de84fdd63921a860f79",
+    "src/tau_composition/anchor.py": "ac192e0e5f954722143878b56740ff45c1943976440b155c464aa24094cb2732",
+    "src/tau_composition/anchor_export.py": "f3b9be0d747c5affaf569a45787f33757b7edda0fffc7ca674ce7e9bf4062640",
+    "src/tau_composition/codec.py": "7e0296ad28cc2de2106bec6ba3029536ca045a27b64edd87d31606b587b1042b",
+    "src/tau_composition/compiler.py": "b938b4c3739eb2bf20e6fac8409e5a56fb670d53052095ca46782220f25e0e71",
+    "src/tau_composition/examples.py": "19d899193dc4f7b60da4f61a1c6c4e27257506be095b976b3c95ca6b864a6e04",
+    "src/tau_composition/models.py": "bfb2633124a6d8ed96aca62c6157321098967583074bd92d9fd438e7591f387c",
+    "src/tau_composition/replay.py": "b5d7baf5dac368f463896fa08c45de50d51138c709daccbac510ab5e1649eca2",
+    "src/tau_composition/resources.py": "58e06a5e3a0f7719bec689e7d3d3d13444944e57cf1d6d38faa4b91acdd0b2af",
+    "src/tau_composition/runtime.py": "4e316682e9b22292fdd7e29f1956d5066c144d90ae1e93943302258e5a5d6ebe",
+    "src/tau_composition/scheduling.py": "acec7c4db7fc930c17da95d329b31aa3ad630b3e05b2e5b2aa00219f50cf3a50",
+    "src/tau_composition/terms.py": "7b0d4e9539ce1d40c6e53b64f2cd3373ca3d427a3bb7e854fee4403d41fc428f",
+    "src/tau_swarm/__init__.py": "a439b03b33f60f86d656f88576478d6d91c3176aa54debd16409c6a294d7355c",
+    "src/tau_swarm/codec.py": "b4f976d01d0e359423083b2e091159cbb88575b1afa6c7361648d655d942c59a",
+    "src/tau_swarm/compiler.py": "fb56c81ac5b4c728307faf688dcbccd3bf372e81266e0b435c54da36e6c358d1",
+    "src/tau_swarm/examples.py": "144e6813c48d9c7d338f380baa31a408e9d432e7105b8c4c503b7cfef0810509",
+    "src/tau_swarm/exports.py": "a9434516d4f2b27bb198f459ee01fad1a5170b8ac521123abe64ded659c26130",
+    "src/tau_swarm/inspection.py": "34fb872c26bbab709f2c726b170051e94fa705c31d856bb9be0fde5ba58908b8",
+    "src/tau_swarm/models.py": "43fb3edece2f505d63b70169f7b6087540321a30cdcf81e18eb60130c3f36d20",
+    "tests/test_tau_swarm.py": "bb2f84b4ad43b15441446d2083e6c7c4e2d5b433806399711eae28e4daf448b1",
+    "tests/test_tau_swarm_cli.py": "a0d216b2e75da59236f2f75c82d3bfc84eb0def64af69204f8995cdd620bd5d2",
+    "tests/test_tau_swarm_codec.py": "3152598622b002c3dfd9f0c0d359e4cb6b0afb3c74071fa8efa2fe17c44de777",
+    "tests/test_tau_swarm_exports.py": "cbcd272d7bf39365abcf6649d21273420a72d77ccf0f5167f30b9606285a10e7",
+    "tests/test_tau_swarm_inspection.py": "60163a0c1e1e2b49bf24245fd0324e9a8ac12f7c031fb9ecf9591e94626829a4",
+    "tests/test_tau_swarm_models.py": "c08d757c198940cf7f83870ca98be93f5ac2dd9d59784bdd6b553b2797debe72",
+    "tests/test_tau_swarm_replay.py": "4d451d76134ec829f36761abddc4638ded09ee11cb8ebbe56bfb81354000ac83",
+    "tools/benchmark_tau_swarm.py": "a0e9e097cd0e841e4ebfbd46e85ed57627293a047005abd566db546f7de3962b",
+    "tools/tau_swarm.py": "d333d196a87694be138fc5c21b500852c25c29d15fc6c9ab998a760c4ab097f7"
+  },
+  "status": "PASS",
+  "wall_seconds": 10.919623331632465
+}

@@ -1,0 +1,470 @@
+{
+  "anchor": {
+    "stage0_bit0": {
+      "kind": "constant",
+      "value": false
+    },
+    "stage0_bit1": {
+      "kind": "constant",
+      "value": false
+    },
+    "stage1_bit0": {
+      "kind": "constant",
+      "value": false
+    },
+    "stage1_bit1": {
+      "kind": "constant",
+      "value": false
+    },
+    "stage2_bit0": {
+      "kind": "constant",
+      "value": false
+    },
+    "stage2_bit1": {
+      "kind": "constant",
+      "value": true
+    }
+  },
+  "blocks": [
+    {
+      "controls": [
+        "stage0_bit0",
+        "stage0_bit1"
+      ],
+      "name": "encoder"
+    },
+    {
+      "controls": [
+        "stage1_bit0",
+        "stage1_bit1"
+      ],
+      "name": "adapter"
+    },
+    {
+      "controls": [
+        "stage2_bit0",
+        "stage2_bit1"
+      ],
+      "name": "decoder"
+    }
+  ],
+  "contract": {
+    "controls": [
+      "stage0_bit0",
+      "stage0_bit1",
+      "stage1_bit0",
+      "stage1_bit1",
+      "stage2_bit0",
+      "stage2_bit1"
+    ],
+    "environment": [],
+    "name": "message_roundtrip",
+    "requirements": [
+      {
+        "name": "exact_pipeline_behavior",
+        "residual": {
+          "kind": "join",
+          "operands": [
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "negate",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "stage0_bit0"
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "stage0_bit1"
+                    },
+                    {
+                      "kind": "join",
+                      "operands": [
+                        {
+                          "kind": "meet",
+                          "operands": [
+                            {
+                              "kind": "negate",
+                              "operands": [
+                                {
+                                  "kind": "variable",
+                                  "value": "stage1_bit0"
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "meet",
+                              "operands": [
+                                {
+                                  "kind": "negate",
+                                  "operands": [
+                                    {
+                                      "kind": "variable",
+                                      "value": "stage1_bit1"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "kind": "negate",
+                                  "operands": [
+                                    {
+                                      "kind": "variable",
+                                      "value": "stage2_bit1"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "meet",
+                          "operands": [
+                            {
+                              "kind": "variable",
+                              "value": "stage1_bit0"
+                            },
+                            {
+                              "kind": "meet",
+                              "operands": [
+                                {
+                                  "kind": "variable",
+                                  "value": "stage1_bit1"
+                                },
+                                {
+                                  "kind": "join",
+                                  "operands": [
+                                    {
+                                      "kind": "meet",
+                                      "operands": [
+                                        {
+                                          "kind": "negate",
+                                          "operands": [
+                                            {
+                                              "kind": "variable",
+                                              "value": "stage2_bit0"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "negate",
+                                          "operands": [
+                                            {
+                                              "kind": "variable",
+                                              "value": "stage2_bit1"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "meet",
+                                      "operands": [
+                                        {
+                                          "kind": "variable",
+                                          "value": "stage2_bit0"
+                                        },
+                                        {
+                                          "kind": "variable",
+                                          "value": "stage2_bit1"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "variable",
+                  "value": "stage0_bit0"
+                },
+                {
+                  "kind": "join",
+                  "operands": [
+                    {
+                      "kind": "meet",
+                      "operands": [
+                        {
+                          "kind": "negate",
+                          "operands": [
+                            {
+                              "kind": "variable",
+                              "value": "stage0_bit1"
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "meet",
+                          "operands": [
+                            {
+                              "kind": "negate",
+                              "operands": [
+                                {
+                                  "kind": "variable",
+                                  "value": "stage1_bit0"
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "join",
+                              "operands": [
+                                {
+                                  "kind": "meet",
+                                  "operands": [
+                                    {
+                                      "kind": "negate",
+                                      "operands": [
+                                        {
+                                          "kind": "variable",
+                                          "value": "stage2_bit0"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "negate",
+                                      "operands": [
+                                        {
+                                          "kind": "variable",
+                                          "value": "stage2_bit1"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "kind": "meet",
+                                  "operands": [
+                                    {
+                                      "kind": "variable",
+                                      "value": "stage2_bit0"
+                                    },
+                                    {
+                                      "kind": "variable",
+                                      "value": "stage2_bit1"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "meet",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "stage0_bit1"
+                        },
+                        {
+                          "kind": "join",
+                          "operands": [
+                            {
+                              "kind": "meet",
+                              "operands": [
+                                {
+                                  "kind": "negate",
+                                  "operands": [
+                                    {
+                                      "kind": "variable",
+                                      "value": "stage1_bit0"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "kind": "join",
+                                  "operands": [
+                                    {
+                                      "kind": "meet",
+                                      "operands": [
+                                        {
+                                          "kind": "negate",
+                                          "operands": [
+                                            {
+                                              "kind": "variable",
+                                              "value": "stage1_bit1"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "join",
+                                          "operands": [
+                                            {
+                                              "kind": "meet",
+                                              "operands": [
+                                                {
+                                                  "kind": "negate",
+                                                  "operands": [
+                                                    {
+                                                      "kind": "variable",
+                                                      "value": "stage2_bit0"
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "kind": "negate",
+                                                  "operands": [
+                                                    {
+                                                      "kind": "variable",
+                                                      "value": "stage2_bit1"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "variable",
+                                              "value": "stage2_bit0"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "meet",
+                                      "operands": [
+                                        {
+                                          "kind": "variable",
+                                          "value": "stage1_bit1"
+                                        },
+                                        {
+                                          "kind": "join",
+                                          "operands": [
+                                            {
+                                              "kind": "meet",
+                                              "operands": [
+                                                {
+                                                  "kind": "negate",
+                                                  "operands": [
+                                                    {
+                                                      "kind": "variable",
+                                                      "value": "stage2_bit0"
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "kind": "negate",
+                                                  "operands": [
+                                                    {
+                                                      "kind": "variable",
+                                                      "value": "stage2_bit1"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "meet",
+                                              "operands": [
+                                                {
+                                                  "kind": "variable",
+                                                  "value": "stage2_bit0"
+                                                },
+                                                {
+                                                  "kind": "variable",
+                                                  "value": "stage2_bit1"
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "meet",
+                              "operands": [
+                                {
+                                  "kind": "variable",
+                                  "value": "stage1_bit0"
+                                },
+                                {
+                                  "kind": "meet",
+                                  "operands": [
+                                    {
+                                      "kind": "variable",
+                                      "value": "stage1_bit1"
+                                    },
+                                    {
+                                      "kind": "join",
+                                      "operands": [
+                                        {
+                                          "kind": "meet",
+                                          "operands": [
+                                            {
+                                              "kind": "negate",
+                                              "operands": [
+                                                {
+                                                  "kind": "variable",
+                                                  "value": "stage2_bit0"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "negate",
+                                              "operands": [
+                                                {
+                                                  "kind": "variable",
+                                                  "value": "stage2_bit1"
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "meet",
+                                          "operands": [
+                                            {
+                                              "kind": "variable",
+                                              "value": "stage2_bit0"
+                                            },
+                                            {
+                                              "kind": "variable",
+                                              "value": "stage2_bit1"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "schema": "tau-composition/contract-v1"
+  },
+  "schema": "tau-swarm/problem-v1"
+}

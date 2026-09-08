@@ -1,0 +1,826 @@
+[
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.034005194902420044,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.107 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.041211250238120556,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf ((((v2:sbf^0) = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.312 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.052430828101933,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf ((((v2:sbf^0) = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 0.795 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.046548863872885704,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf (((0 = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.28 ms\n",
+    "stdout": "%1: v2 v0 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06728710886090994,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) <-> (all v1:sbf (((0 = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 1.478 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05407985998317599,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf)))",
+    "stderr": "valid: 0.917 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06177444476634264,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 0.966 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07101808162406087,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) <-> (all v1:sbf (((0 = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 1.573 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.02621324872598052,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.118 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05041989590972662,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf ((((v2:sbf^0) = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.311 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.059072953183203936,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf ((((v2:sbf^0) = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 0.774 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.04679430415853858,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf (((0 = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.365 ms\n",
+    "stdout": "%1: v2 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07660170597955585,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf (((((v2:sbf)')' = 0:sbf) <-> (all v1:sbf (((0 = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 1.47 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.04833777481690049,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v2:sbf)')' = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf)))",
+    "stderr": "valid: 0.8 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06356949638575315,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf (((((v2:sbf)')' = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 0.726 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05545117985457182,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf (((((v2:sbf)')' = 0:sbf) <-> (all v1:sbf (((0 = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 1.448 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.02586336899548769,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.068 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.061161554884165525,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf (((((v1:sbf^0)|(v2:sbf^0)) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.469 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07095812121406198,
+    "operation": "valid",
+    "query": "valid all v0:sbf (((0 = 0:sbf) <-> (all v1:sbf, v2:sbf (((((v1:sbf^0)|(v2:sbf^0)) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 0.914 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05284088896587491,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf (((0 = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.515 ms\n",
+    "stdout": "%1: v2|v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06533868797123432,
+    "operation": "valid",
+    "query": "valid all v1:sbf, v2:sbf ((((((v2:sbf|v1:sbf))')' = 0:sbf) <-> (all v0:sbf (((0 = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.857 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.0612492049112916,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((v2:sbf|v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "valid: 1.066 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06752987904474139,
+    "operation": "valid",
+    "query": "valid all v0:sbf (((0 = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v2:sbf|v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.034 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07280089287087321,
+    "operation": "valid",
+    "query": "valid all v1:sbf, v2:sbf ((((((v2:sbf|v1:sbf))')' = 0:sbf) <-> (all v0:sbf (((0 = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.821 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.032946313731372356,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.121 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.04846056457608938,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf ((((v1:sbf^0) = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.302 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06508909817785025,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf (((0 = 0:sbf) <-> (all v1:sbf ((((v1:sbf^0) = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 0.761 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.04397138301283121,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf (((0 = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.266 ms\n",
+    "stdout": "%1: v0 v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.060074463952332735,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) <-> (all v2:sbf (((0 = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 1.1 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05575331021100283,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf)))",
+    "stderr": "valid: 0.934 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06754266936331987,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) <-> (all v2:sbf (((0 = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 1.136 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06736686918884516,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf (((0 = 0:sbf) <-> (all v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) -> ((v0:sbf&v1:sbf&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 0.915 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.023545066826045513,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.108 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05000436678528786,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf ((((v1:sbf^v0:sbf) = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.377 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05596713116392493,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf (((0 = 0:sbf) <-> (all v1:sbf ((((v1:sbf^v0:sbf) = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 0.868 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.04519451316446066,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf (((0 = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.35 ms\n",
+    "stdout": "%1: v0'v1|v0 v1' = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07308529317378998,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((((v0:sbf)'&v1:sbf)|(v0:sbf&(v1:sbf)')))')' = 0:sbf) <-> (all v2:sbf (((0 = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 1.76 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06313384603708982,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((((v0:sbf)'&v1:sbf)|(v0:sbf&(v1:sbf)')))')' = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf)))",
+    "stderr": "valid: 1.015 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07379274442791939,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((((v0:sbf)'&v1:sbf)|(v0:sbf&(v1:sbf)')))')' = 0:sbf) <-> (all v2:sbf (((0 = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 1.844 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.0697891409508884,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf (((0 = 0:sbf) <-> (all v1:sbf ((((((((v0:sbf)'&v1:sbf)|(v0:sbf&(v1:sbf)')))')' = 0:sbf) -> (((v1:sbf^v0:sbf)&v2:sbf) = 0:sbf))))))",
+    "stderr": "valid: 1.025 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.028591621201485395,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.068 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.051979118026793,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf ((((v0:sbf^0) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.398 ms\n",
+    "stdout": "%1: v2 v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07553186500445008,
+    "operation": "valid",
+    "query": "valid all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) <-> (all v0:sbf ((((v0:sbf^0) = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.861 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.057428183034062386,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.516 ms\n",
+    "stdout": "%1: v0 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07490884512662888,
+    "operation": "valid",
+    "query": "valid all v0:sbf (((((v0:sbf)')' = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.634 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06547661917284131,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((v0:sbf)')'|(((v2:sbf&v1:sbf))')') = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf)))",
+    "stderr": "valid: 1.095 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07520942529663444,
+    "operation": "valid",
+    "query": "valid all v0:sbf (((((v0:sbf)')' = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 1.847 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07503234501928091,
+    "operation": "valid",
+    "query": "valid all v1:sbf, v2:sbf ((((((v2:sbf&v1:sbf))')' = 0:sbf) <-> (all v0:sbf (((((v0:sbf)')' = 0:sbf) -> (((v0:sbf&(v1:sbf|v2:sbf))|(v1:sbf&v2:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 2.005 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.03130063274875283,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.122 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05975337326526642,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf, v3:sbf (((((v2:sbf^0)|(v3:sbf^0)) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.512 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07418770529329777,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf, v3:sbf (((((v2:sbf^0)|(v3:sbf^0)) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 1.231 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05251016793772578,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v3:sbf ((((v3:sbf^0) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.58 ms\n",
+    "stdout": "%1: v2 v0 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07572389487177134,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) <-> (all v1:sbf, v3:sbf ((((v3:sbf^0) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 2.16 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.058510943315923214,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.502 ms\n",
+    "stdout": "%1: v3 v0 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07828116696327925,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf ((((((v3:sbf&v0:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 1.956 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06893277121707797,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf (((((((v2:sbf&v0:sbf))')'|(((v3:sbf&v0:sbf))')') = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "valid: 1.344 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07771805673837662,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf, v3:sbf (((((((v2:sbf&v0:sbf))')'|(((v3:sbf&v0:sbf))')') = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 1.364 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.08000045781955123,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) <-> (all v1:sbf, v3:sbf ((((((v3:sbf&v0:sbf))')' = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 2.139 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.08228460978716612,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf ((((((v3:sbf&v0:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v2:sbf&v0:sbf))')' = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 2.196 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.029309330973774195,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.111 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07156528159976006,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf (((((v1:sbf^0)|(v2:sbf^0)) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.448 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.0757356146350503,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf (((0 = 0:sbf) <-> (all v1:sbf, v2:sbf (((((v1:sbf^0)|(v2:sbf^0)) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 1.25 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05692217173054814,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v3:sbf ((((v1:sbf^0) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.415 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06948583060875535,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf (((0 = 0:sbf) <-> (all v1:sbf, v3:sbf ((((v1:sbf^0) = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 1.034 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.05364523967728019,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf, v3:sbf (((0 = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 0.371 ms\n",
+    "stdout": "%1: v0 v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07193658221513033,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) <-> (all v2:sbf, v3:sbf (((0 = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 1.939 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06339413626119494,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf)))",
+    "stderr": "valid: 1.24 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07585463626310229,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) <-> (all v2:sbf, v3:sbf (((0 = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 1.971 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06875937059521675,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v2:sbf (((0 = 0:sbf) <-> (all v1:sbf, v3:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 1.184 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07746423594653606,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf (((0 = 0:sbf) <-> (all v1:sbf, v2:sbf ((((((v0:sbf&v1:sbf))')' = 0:sbf) -> ((v0:sbf&((v1:sbf&v2:sbf)|(v1:sbf&v3:sbf))) = 0:sbf))))))",
+    "stderr": "valid: 1.145 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.03297443501651287,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.118 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.11238280311226845,
+    "operation": "qelim",
+    "query": "qelim all v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((v3:sbf^1)|(v4:sbf^0))|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.416 ms\n",
+    "stdout": "%1: v0'v1|v2 v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1391725721769035,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((v3:sbf^1)|(v4:sbf^0))|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 6.266 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.10875139012932777,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf, v5:sbf, v6:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.613 ms\n",
+    "stdout": "%1: v3 v4|v0 (v3'|v4) = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.14676235802471638,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf, v4:sbf (((((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 6.187 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.12186721013858914,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf, v3:sbf, v4:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.76 ms\n",
+    "stdout": "%1: v5'|v0 v6' = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.16625693161040545,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v5:sbf, v6:sbf (((((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 7.191 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1408124640583992,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')'|((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "valid: 4.038 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.16685172310099006,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')'|((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 7.841 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.15430384315550327,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf, v4:sbf (((((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 7.054 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.16402067011222243,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v5:sbf, v6:sbf (((((((v5:sbf)'|(v0:sbf&(v6:sbf)')))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf (((((((((v0:sbf)'&v1:sbf)|(v2:sbf&v1:sbf)))')'|((((v3:sbf&v4:sbf)|(v0:sbf&((v3:sbf)'|v4:sbf))))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 6.509 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.032339944038540125,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.13 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.10947164008393884,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf^0)|(v2:sbf^0))|((v3:sbf^1)|(v4:sbf^0))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.295 ms\n",
+    "stdout": "%1: v5' = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.12727964390069246,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v5:sbf, v6:sbf ((((((v5:sbf)')')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf^0)|(v2:sbf^0))|((v3:sbf^1)|(v4:sbf^0))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.418 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.09795523202046752,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf^0)|(v2:sbf^0))|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.212 ms\n",
+    "stdout": "%1: v3 v4 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.13692606007680297,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf, v4:sbf ((((((v3:sbf&v4:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf^0)|(v2:sbf^0))|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.61 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.11009724996984005,
+    "operation": "qelim",
+    "query": "qelim all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.332 ms\n",
+    "stdout": "%1: v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.12495634099468589,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v1:sbf)')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.589 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1102226609364152,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((v1:sbf)')'|(((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "valid: 3.384 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.12803224427625537,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v1:sbf)')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 6.108 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1320417271926999,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf, v4:sbf ((((((v3:sbf&v4:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf)')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.67 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.12743264390155673,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v5:sbf, v6:sbf ((((((v5:sbf)')')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf)')'|(((v3:sbf&v4:sbf))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.23 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.03537650592625141,
+    "operation": "valid",
+    "query": "valid all v0:sbf ((0 = 0:sbf))",
+    "stderr": "valid: 0.117 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.11426857393234968,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf^0)|(v2:sbf^0))|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.32 ms\n",
+    "stdout": "%1: v3 v4 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1521250712685287,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf, v4:sbf ((((((v3:sbf&v4:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf^0)|(v2:sbf^0))|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.802 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1147323646582663,
+    "operation": "qelim",
+    "query": "qelim all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.318 ms\n",
+    "stdout": "%1: v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.13327747816219926,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v1:sbf)')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|((v5:sbf^1)|(v6:sbf^1))) = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.76 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1007306738756597,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf)')'|(((v3:sbf&v4:sbf))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.245 ms\n",
+    "stdout": "%1: v5' = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.11951222829520702,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v5:sbf, v6:sbf ((((((v5:sbf)')')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf)')'|(((v3:sbf&v4:sbf))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.388 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.11593920504674315,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf, v6:sbf ((((((v1:sbf)')'|(((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf)))",
+    "stderr": "valid: 3.426 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.12656528316438198,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v1:sbf)')' = 0:sbf) <-> (all v3:sbf, v4:sbf, v5:sbf, v6:sbf (((((((v3:sbf&v4:sbf))')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 6.125 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.14020182332023978,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v3:sbf, v4:sbf ((((((v3:sbf&v4:sbf))')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v5:sbf, v6:sbf ((((((v1:sbf)')'|(((v5:sbf)')')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 7.258 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1343045588582754,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v5:sbf, v6:sbf ((((((v5:sbf)')')' = 0:sbf) <-> (all v1:sbf, v2:sbf, v3:sbf, v4:sbf ((((((v1:sbf)')'|(((v3:sbf&v4:sbf))')') = 0:sbf) -> (((v1:sbf&v2:sbf)|(v3:sbf&v4:sbf)|(v1:sbf&(v3:sbf)')|(v1:sbf&(v6:sbf)')|(v2:sbf&(v5:sbf)')|(v4:sbf&(v5:sbf)')|(v1:sbf&v4:sbf)|(v3:sbf&(v5:sbf)')|((v0:sbf)'&v1:sbf)) = 0:sbf))))))",
+    "stderr": "valid: 5.136 ms\n",
+    "stdout": "%1: T"
+  }
+]

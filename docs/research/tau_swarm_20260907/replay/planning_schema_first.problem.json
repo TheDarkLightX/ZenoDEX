@@ -1,0 +1,243 @@
+{
+  "anchor": {
+    "additive": {
+      "kind": "constant",
+      "value": false
+    },
+    "breaking": {
+      "kind": "constant",
+      "value": false
+    },
+    "migration": {
+      "kind": "constant",
+      "value": true
+    },
+    "regression": {
+      "kind": "constant",
+      "value": true
+    },
+    "shim": {
+      "kind": "constant",
+      "value": false
+    },
+    "upgrade": {
+      "kind": "constant",
+      "value": true
+    }
+  },
+  "blocks": [
+    {
+      "controls": [
+        "breaking",
+        "additive"
+      ],
+      "name": "schema"
+    },
+    {
+      "controls": [
+        "upgrade",
+        "shim"
+      ],
+      "name": "client"
+    },
+    {
+      "controls": [
+        "regression",
+        "migration"
+      ],
+      "name": "verification"
+    }
+  ],
+  "contract": {
+    "controls": [
+      "breaking",
+      "additive",
+      "upgrade",
+      "shim",
+      "regression",
+      "migration"
+    ],
+    "environment": [
+      "allow_breaking"
+    ],
+    "name": "api_change_planning",
+    "requirements": [
+      {
+        "name": "single_schema_strategy",
+        "residual": {
+          "kind": "meet",
+          "operands": [
+            {
+              "kind": "variable",
+              "value": "breaking"
+            },
+            {
+              "kind": "variable",
+              "value": "additive"
+            }
+          ]
+        }
+      },
+      {
+        "name": "single_client_strategy",
+        "residual": {
+          "kind": "meet",
+          "operands": [
+            {
+              "kind": "variable",
+              "value": "upgrade"
+            },
+            {
+              "kind": "variable",
+              "value": "shim"
+            }
+          ]
+        }
+      },
+      {
+        "name": "breaking_requires_upgrade",
+        "residual": {
+          "kind": "meet",
+          "operands": [
+            {
+              "kind": "variable",
+              "value": "breaking"
+            },
+            {
+              "kind": "negate",
+              "operands": [
+                {
+                  "kind": "variable",
+                  "value": "upgrade"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "breaking_requires_migration",
+        "residual": {
+          "kind": "meet",
+          "operands": [
+            {
+              "kind": "variable",
+              "value": "breaking"
+            },
+            {
+              "kind": "negate",
+              "operands": [
+                {
+                  "kind": "variable",
+                  "value": "migration"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "additive_requires_regression",
+        "residual": {
+          "kind": "meet",
+          "operands": [
+            {
+              "kind": "variable",
+              "value": "additive"
+            },
+            {
+              "kind": "negate",
+              "operands": [
+                {
+                  "kind": "variable",
+                  "value": "regression"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "shim_requires_regression",
+        "residual": {
+          "kind": "meet",
+          "operands": [
+            {
+              "kind": "variable",
+              "value": "shim"
+            },
+            {
+              "kind": "negate",
+              "operands": [
+                {
+                  "kind": "variable",
+                  "value": "regression"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "breaking_forbids_shim",
+        "residual": {
+          "kind": "meet",
+          "operands": [
+            {
+              "kind": "variable",
+              "value": "breaking"
+            },
+            {
+              "kind": "variable",
+              "value": "shim"
+            }
+          ]
+        }
+      },
+      {
+        "name": "upgrade_requires_regression",
+        "residual": {
+          "kind": "meet",
+          "operands": [
+            {
+              "kind": "variable",
+              "value": "upgrade"
+            },
+            {
+              "kind": "negate",
+              "operands": [
+                {
+                  "kind": "variable",
+                  "value": "regression"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "human_allows_breaking",
+        "residual": {
+          "kind": "meet",
+          "operands": [
+            {
+              "kind": "negate",
+              "operands": [
+                {
+                  "kind": "variable",
+                  "value": "allow_breaking"
+                }
+              ]
+            },
+            {
+              "kind": "variable",
+              "value": "breaking"
+            }
+          ]
+        }
+      }
+    ],
+    "schema": "tau-composition/contract-v1"
+  },
+  "schema": "tau-swarm/problem-v1"
+}

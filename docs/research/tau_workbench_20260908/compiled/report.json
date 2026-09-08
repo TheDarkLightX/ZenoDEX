@@ -1,0 +1,523 @@
+{
+  "artifacts": [
+    "native_queries.json",
+    "report.json",
+    "stage_00.tau",
+    "stage_00_candidate_00.py",
+    "stage_00_candidate_01.py",
+    "stage_00_candidate_02.py",
+    "stage_00_candidate_03.py",
+    "stage_00_candidate_04.py",
+    "stage_00_candidate_05.py",
+    "stage_00_candidate_06.py",
+    "stage_00_candidate_07.py",
+    "stage_01.tau",
+    "stage_01_candidate_00.py",
+    "stage_01_candidate_01.py",
+    "stage_01_candidate_02.py",
+    "stage_01_candidate_03.py",
+    "stage_01_candidate_04.py",
+    "stage_01_candidate_05.py",
+    "stage_01_candidate_06.py",
+    "stage_01_candidate_07.py",
+    "stage_02.tau",
+    "stage_02_candidate_04.py",
+    "stage_02_candidate_05.py",
+    "task.json"
+  ],
+  "authority": "NONE",
+  "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+  "bits": 8,
+  "domain_size": 256,
+  "expansion_order": [
+    "encoder",
+    "adapter",
+    "decoder"
+  ],
+  "native_queries": 12,
+  "native_queries_artifact": "native_queries.json",
+  "native_query_labels": [
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 0,
+      "operation": "valid",
+      "query_sha256": "9d0450b7b7244db541ab8c66fc7d0b41e343402595fc51b4851b2a414d2faf60"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 1,
+      "operation": "qelim",
+      "query_sha256": "8af62ec8bd67a82525bfba27aa6f702254bceda5c96e6bf91616e7bf06961e7c"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 2,
+      "operation": "valid",
+      "query_sha256": "fcd888ebc9349edeb8edc78219d746063d31c853765a832fbc83fcf5a8d5b4d3"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 3,
+      "operation": "qelim",
+      "query_sha256": "cb3ab2320dbb962a7737a26c898b7d60e30bb63825b00928082e098657f39c1b"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 4,
+      "operation": "valid",
+      "query_sha256": "4d57cefdc3a61d8f37a8a790078e261223f1479e2785c66cf178a81fd9935242"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 5,
+      "operation": "qelim",
+      "query_sha256": "5150d4e47774e9b2083da115ae9e2bab7553a6dd25ecd66b85ff4959327309a0"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 6,
+      "operation": "valid",
+      "query_sha256": "2776bdb192c2df0af8e1d6e78c9820373cc3b300c799a450be5bdcd09cc62763"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 7,
+      "operation": "valid",
+      "query_sha256": "8a32458d8e84da44051c2d331b6ad5c2e2e7ed4117b8d445da705cd9cf6d436f"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 8,
+      "operation": "valid",
+      "query_sha256": "9d0450b7b7244db541ab8c66fc7d0b41e343402595fc51b4851b2a414d2faf60"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 9,
+      "operation": "valid",
+      "query_sha256": "e5195237ce29b3323342893e21d5334a152d852992aa9c84a9879070923f6eb3"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 10,
+      "operation": "valid",
+      "query_sha256": "53d839494baa08bc7d2b9e1adb6f1d79432a2cf71762dca511c45ddd52813c00"
+    },
+    {
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+      "index": 11,
+      "operation": "valid",
+      "query_sha256": "2776bdb192c2df0af8e1d6e78c9820373cc3b300c799a450be5bdcd09cc62763"
+    }
+  ],
+  "nonclaims": [
+    "No CPython candidate-source replay is performed by this CLI.",
+    "No unrestricted Python sandbox or general-purpose program correctness claim.",
+    "No novelty or prior-art determination.",
+    "No maximum-volume, throughput, or scalability claim.",
+    "No Tau Net admission, settlement, release, product, or production authority."
+  ],
+  "runtime_mounted": false,
+  "schema": "tau-workbench/compile-v1",
+  "source_counts": {
+    "admitted_candidate_sources": 18,
+    "candidate_sources": 24,
+    "domain_values_per_source": 256,
+    "source_input_evaluations": 6144
+  },
+  "stages": [
+    {
+      "admitted_candidate_count": 8,
+      "admitted_class_codes": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "admitted_classes": [
+        {
+          "candidate_count": 2,
+          "candidates": [
+            {
+              "candidate_index": 0,
+              "class_code": 0,
+              "file": "stage_00_candidate_00.py",
+              "name": "raw_mask",
+              "sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee",
+              "source_sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee"
+            },
+            {
+              "candidate_index": 1,
+              "class_code": 0,
+              "file": "stage_00_candidate_01.py",
+              "name": "raw_mod",
+              "sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac",
+              "source_sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac"
+            }
+          ],
+          "class_code": 0
+        },
+        {
+          "candidate_count": 2,
+          "candidates": [
+            {
+              "candidate_index": 2,
+              "class_code": 1,
+              "file": "stage_00_candidate_02.py",
+              "name": "tag_v1_or",
+              "sha256": "223705049a4fd43b010ba1e210df71f2f295969b13c65ce4f4506e6a24c05754",
+              "source_sha256": "223705049a4fd43b010ba1e210df71f2f295969b13c65ce4f4506e6a24c05754"
+            },
+            {
+              "candidate_index": 3,
+              "class_code": 1,
+              "file": "stage_00_candidate_03.py",
+              "name": "tag_v1_add",
+              "sha256": "6c2032c30aa383f71816a3ca6722d668e5f5f5d74ab319d48a5776762ffcefed",
+              "source_sha256": "6c2032c30aa383f71816a3ca6722d668e5f5f5d74ab319d48a5776762ffcefed"
+            }
+          ],
+          "class_code": 1
+        },
+        {
+          "candidate_count": 2,
+          "candidates": [
+            {
+              "candidate_index": 4,
+              "class_code": 2,
+              "file": "stage_00_candidate_04.py",
+              "name": "tag_v2_or",
+              "sha256": "590fc4666660e2a7e8e897d915c3ea8367e5a79f193a159015686fd5e2af9423",
+              "source_sha256": "590fc4666660e2a7e8e897d915c3ea8367e5a79f193a159015686fd5e2af9423"
+            },
+            {
+              "candidate_index": 5,
+              "class_code": 2,
+              "file": "stage_00_candidate_05.py",
+              "name": "tag_v2_add",
+              "sha256": "98f1fce9bed5f9806e011fc6cbcbbccc953bab9816d3fbf5d17be28d5160e3b2",
+              "source_sha256": "98f1fce9bed5f9806e011fc6cbcbbccc953bab9816d3fbf5d17be28d5160e3b2"
+            }
+          ],
+          "class_code": 2
+        },
+        {
+          "candidate_count": 2,
+          "candidates": [
+            {
+              "candidate_index": 6,
+              "class_code": 3,
+              "file": "stage_00_candidate_06.py",
+              "name": "tag_both_or",
+              "sha256": "506a0314e371e4d4da89d38940968172babf419c11022f244bbb725d0e8a1250",
+              "source_sha256": "506a0314e371e4d4da89d38940968172babf419c11022f244bbb725d0e8a1250"
+            },
+            {
+              "candidate_index": 7,
+              "class_code": 3,
+              "file": "stage_00_candidate_07.py",
+              "name": "tag_both_add",
+              "sha256": "37714b21a55c56c6ff8e39b8d9773ec5895dcf421707403f866ccac907d76515",
+              "source_sha256": "37714b21a55c56c6ff8e39b8d9773ec5895dcf421707403f866ccac907d76515"
+            }
+          ],
+          "class_code": 3
+        }
+      ],
+      "candidates": [
+        {
+          "candidate_index": 0,
+          "class_code": 0,
+          "file": "stage_00_candidate_00.py",
+          "name": "raw_mask",
+          "sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee",
+          "source_sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee"
+        },
+        {
+          "candidate_index": 1,
+          "class_code": 0,
+          "file": "stage_00_candidate_01.py",
+          "name": "raw_mod",
+          "sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac",
+          "source_sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac"
+        },
+        {
+          "candidate_index": 2,
+          "class_code": 1,
+          "file": "stage_00_candidate_02.py",
+          "name": "tag_v1_or",
+          "sha256": "223705049a4fd43b010ba1e210df71f2f295969b13c65ce4f4506e6a24c05754",
+          "source_sha256": "223705049a4fd43b010ba1e210df71f2f295969b13c65ce4f4506e6a24c05754"
+        },
+        {
+          "candidate_index": 3,
+          "class_code": 1,
+          "file": "stage_00_candidate_03.py",
+          "name": "tag_v1_add",
+          "sha256": "6c2032c30aa383f71816a3ca6722d668e5f5f5d74ab319d48a5776762ffcefed",
+          "source_sha256": "6c2032c30aa383f71816a3ca6722d668e5f5f5d74ab319d48a5776762ffcefed"
+        },
+        {
+          "candidate_index": 4,
+          "class_code": 2,
+          "file": "stage_00_candidate_04.py",
+          "name": "tag_v2_or",
+          "sha256": "590fc4666660e2a7e8e897d915c3ea8367e5a79f193a159015686fd5e2af9423",
+          "source_sha256": "590fc4666660e2a7e8e897d915c3ea8367e5a79f193a159015686fd5e2af9423"
+        },
+        {
+          "candidate_index": 5,
+          "class_code": 2,
+          "file": "stage_00_candidate_05.py",
+          "name": "tag_v2_add",
+          "sha256": "98f1fce9bed5f9806e011fc6cbcbbccc953bab9816d3fbf5d17be28d5160e3b2",
+          "source_sha256": "98f1fce9bed5f9806e011fc6cbcbbccc953bab9816d3fbf5d17be28d5160e3b2"
+        },
+        {
+          "candidate_index": 6,
+          "class_code": 3,
+          "file": "stage_00_candidate_06.py",
+          "name": "tag_both_or",
+          "sha256": "506a0314e371e4d4da89d38940968172babf419c11022f244bbb725d0e8a1250",
+          "source_sha256": "506a0314e371e4d4da89d38940968172babf419c11022f244bbb725d0e8a1250"
+        },
+        {
+          "candidate_index": 7,
+          "class_code": 3,
+          "file": "stage_00_candidate_07.py",
+          "name": "tag_both_add",
+          "sha256": "37714b21a55c56c6ff8e39b8d9773ec5895dcf421707403f866ccac907d76515",
+          "source_sha256": "37714b21a55c56c6ff8e39b8d9773ec5895dcf421707403f866ccac907d76515"
+        }
+      ],
+      "gate_file": "stage_00.tau",
+      "gate_sha256": "88baed5a6db83e5abf1b81abbf6af6a0cb2d9991a6b1319122f13d4ff8bb7c17",
+      "name": "encoder",
+      "stage_index": 0
+    },
+    {
+      "admitted_candidate_count": 8,
+      "admitted_class_codes": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "admitted_classes": [
+        {
+          "candidate_count": 2,
+          "candidates": [
+            {
+              "candidate_index": 0,
+              "class_code": 0,
+              "file": "stage_01_candidate_00.py",
+              "name": "identity",
+              "sha256": "32ef78511ac081a71bd3623daf3f87e22d29293810f407723b61c4410028b42c",
+              "source_sha256": "32ef78511ac081a71bd3623daf3f87e22d29293810f407723b61c4410028b42c"
+            },
+            {
+              "candidate_index": 1,
+              "class_code": 0,
+              "file": "stage_01_candidate_01.py",
+              "name": "identity_xor",
+              "sha256": "17d2a765536e4fd0c7766a9a74a3e0db0bfcc0bb23d401bacc553d9f36036469",
+              "source_sha256": "17d2a765536e4fd0c7766a9a74a3e0db0bfcc0bb23d401bacc553d9f36036469"
+            }
+          ],
+          "class_code": 0
+        },
+        {
+          "candidate_count": 2,
+          "candidates": [
+            {
+              "candidate_index": 2,
+              "class_code": 1,
+              "file": "stage_01_candidate_02.py",
+              "name": "strip_mask",
+              "sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee",
+              "source_sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee"
+            },
+            {
+              "candidate_index": 3,
+              "class_code": 1,
+              "file": "stage_01_candidate_03.py",
+              "name": "strip_mod",
+              "sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac",
+              "source_sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac"
+            }
+          ],
+          "class_code": 1
+        },
+        {
+          "candidate_count": 2,
+          "candidates": [
+            {
+              "candidate_index": 4,
+              "class_code": 2,
+              "file": "stage_01_candidate_04.py",
+              "name": "keep_v1_mask",
+              "sha256": "dec6b65d2f35814e76eade0a45f145196bb2f28ae2cc0db0ad07133bc37a98a1",
+              "source_sha256": "dec6b65d2f35814e76eade0a45f145196bb2f28ae2cc0db0ad07133bc37a98a1"
+            },
+            {
+              "candidate_index": 5,
+              "class_code": 2,
+              "file": "stage_01_candidate_05.py",
+              "name": "keep_v1_mod",
+              "sha256": "d77be8799bccab37f46a66824bb792202587b7280520503bc5708dff8bc256ef",
+              "source_sha256": "d77be8799bccab37f46a66824bb792202587b7280520503bc5708dff8bc256ef"
+            }
+          ],
+          "class_code": 2
+        },
+        {
+          "candidate_count": 2,
+          "candidates": [
+            {
+              "candidate_index": 6,
+              "class_code": 3,
+              "file": "stage_01_candidate_06.py",
+              "name": "v2_to_v1_or",
+              "sha256": "d19c89e8d248c90f03560f210b77d26b497cd19604a5231901896557a6098b2e",
+              "source_sha256": "d19c89e8d248c90f03560f210b77d26b497cd19604a5231901896557a6098b2e"
+            },
+            {
+              "candidate_index": 7,
+              "class_code": 3,
+              "file": "stage_01_candidate_07.py",
+              "name": "v2_to_v1_add",
+              "sha256": "379e995d4714f0f25c9f5362b50ae359c151bd6982528ac011f17b203e41bc87",
+              "source_sha256": "379e995d4714f0f25c9f5362b50ae359c151bd6982528ac011f17b203e41bc87"
+            }
+          ],
+          "class_code": 3
+        }
+      ],
+      "candidates": [
+        {
+          "candidate_index": 0,
+          "class_code": 0,
+          "file": "stage_01_candidate_00.py",
+          "name": "identity",
+          "sha256": "32ef78511ac081a71bd3623daf3f87e22d29293810f407723b61c4410028b42c",
+          "source_sha256": "32ef78511ac081a71bd3623daf3f87e22d29293810f407723b61c4410028b42c"
+        },
+        {
+          "candidate_index": 1,
+          "class_code": 0,
+          "file": "stage_01_candidate_01.py",
+          "name": "identity_xor",
+          "sha256": "17d2a765536e4fd0c7766a9a74a3e0db0bfcc0bb23d401bacc553d9f36036469",
+          "source_sha256": "17d2a765536e4fd0c7766a9a74a3e0db0bfcc0bb23d401bacc553d9f36036469"
+        },
+        {
+          "candidate_index": 2,
+          "class_code": 1,
+          "file": "stage_01_candidate_02.py",
+          "name": "strip_mask",
+          "sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee",
+          "source_sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee"
+        },
+        {
+          "candidate_index": 3,
+          "class_code": 1,
+          "file": "stage_01_candidate_03.py",
+          "name": "strip_mod",
+          "sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac",
+          "source_sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac"
+        },
+        {
+          "candidate_index": 4,
+          "class_code": 2,
+          "file": "stage_01_candidate_04.py",
+          "name": "keep_v1_mask",
+          "sha256": "dec6b65d2f35814e76eade0a45f145196bb2f28ae2cc0db0ad07133bc37a98a1",
+          "source_sha256": "dec6b65d2f35814e76eade0a45f145196bb2f28ae2cc0db0ad07133bc37a98a1"
+        },
+        {
+          "candidate_index": 5,
+          "class_code": 2,
+          "file": "stage_01_candidate_05.py",
+          "name": "keep_v1_mod",
+          "sha256": "d77be8799bccab37f46a66824bb792202587b7280520503bc5708dff8bc256ef",
+          "source_sha256": "d77be8799bccab37f46a66824bb792202587b7280520503bc5708dff8bc256ef"
+        },
+        {
+          "candidate_index": 6,
+          "class_code": 3,
+          "file": "stage_01_candidate_06.py",
+          "name": "v2_to_v1_or",
+          "sha256": "d19c89e8d248c90f03560f210b77d26b497cd19604a5231901896557a6098b2e",
+          "source_sha256": "d19c89e8d248c90f03560f210b77d26b497cd19604a5231901896557a6098b2e"
+        },
+        {
+          "candidate_index": 7,
+          "class_code": 3,
+          "file": "stage_01_candidate_07.py",
+          "name": "v2_to_v1_add",
+          "sha256": "379e995d4714f0f25c9f5362b50ae359c151bd6982528ac011f17b203e41bc87",
+          "source_sha256": "379e995d4714f0f25c9f5362b50ae359c151bd6982528ac011f17b203e41bc87"
+        }
+      ],
+      "gate_file": "stage_01.tau",
+      "gate_sha256": "e5d88b73a5ef525390b82a74a8557a5496f9d4fd4b2bcd3383b3f2ec9809a45a",
+      "name": "adapter",
+      "stage_index": 1
+    },
+    {
+      "admitted_candidate_count": 2,
+      "admitted_class_codes": [
+        2
+      ],
+      "admitted_classes": [
+        {
+          "candidate_count": 2,
+          "candidates": [
+            {
+              "candidate_index": 4,
+              "class_code": 2,
+              "file": "stage_02_candidate_04.py",
+              "name": "tolerant_mask",
+              "sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee",
+              "source_sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee"
+            },
+            {
+              "candidate_index": 5,
+              "class_code": 2,
+              "file": "stage_02_candidate_05.py",
+              "name": "tolerant_mod",
+              "sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac",
+              "source_sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac"
+            }
+          ],
+          "class_code": 2
+        }
+      ],
+      "candidates": [
+        {
+          "candidate_index": 4,
+          "class_code": 2,
+          "file": "stage_02_candidate_04.py",
+          "name": "tolerant_mask",
+          "sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee",
+          "source_sha256": "8f97476fab7b88f87a7e1b9f8dc1cccd865af5f363f4b7ae25f3a32809514fee"
+        },
+        {
+          "candidate_index": 5,
+          "class_code": 2,
+          "file": "stage_02_candidate_05.py",
+          "name": "tolerant_mod",
+          "sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac",
+          "source_sha256": "f41369bd78219c8636a7c9e1655831f6b324e60e8b2cfd8fc1af2c0e85d46fac"
+        }
+      ],
+      "gate_file": "stage_02.tau",
+      "gate_sha256": "1543efb1509d3d0a487820f51bf2b2dcc573e16f1b2aa47a9fc62d213e7d5591",
+      "name": "decoder",
+      "stage_index": 2
+    }
+  ],
+  "status": "compiled_native_checked",
+  "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65",
+  "task_name": "message_roundtrip"
+}

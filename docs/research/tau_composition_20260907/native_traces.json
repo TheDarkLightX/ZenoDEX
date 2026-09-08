@@ -1,0 +1,744 @@
+{
+  "action_permissions": {
+    "inputs": [
+      {
+        "authorized": false,
+        "binding_valid": false,
+        "breaker_clear": false,
+        "cancel": false,
+        "epoch_valid": false,
+        "liquidate": false,
+        "maintenance_breach": false,
+        "oracle_fresh": false,
+        "position_open": false,
+        "proof_valid": false,
+        "recover": false
+      },
+      {
+        "authorized": false,
+        "binding_valid": false,
+        "breaker_clear": false,
+        "cancel": true,
+        "epoch_valid": false,
+        "liquidate": false,
+        "maintenance_breach": false,
+        "oracle_fresh": false,
+        "position_open": false,
+        "proof_valid": false,
+        "recover": false
+      },
+      {
+        "authorized": false,
+        "binding_valid": false,
+        "breaker_clear": false,
+        "cancel": true,
+        "epoch_valid": false,
+        "liquidate": true,
+        "maintenance_breach": false,
+        "oracle_fresh": false,
+        "position_open": false,
+        "proof_valid": false,
+        "recover": true
+      },
+      {
+        "authorized": false,
+        "binding_valid": false,
+        "breaker_clear": false,
+        "cancel": false,
+        "epoch_valid": true,
+        "liquidate": false,
+        "maintenance_breach": false,
+        "oracle_fresh": false,
+        "position_open": false,
+        "proof_valid": false,
+        "recover": false
+      },
+      {
+        "authorized": true,
+        "binding_valid": true,
+        "breaker_clear": true,
+        "cancel": true,
+        "epoch_valid": true,
+        "liquidate": true,
+        "maintenance_breach": true,
+        "oracle_fresh": false,
+        "position_open": true,
+        "proof_valid": true,
+        "recover": true
+      },
+      {
+        "authorized": true,
+        "binding_valid": true,
+        "breaker_clear": true,
+        "cancel": false,
+        "epoch_valid": true,
+        "liquidate": false,
+        "maintenance_breach": true,
+        "oracle_fresh": true,
+        "position_open": true,
+        "proof_valid": true,
+        "recover": false
+      },
+      {
+        "authorized": true,
+        "binding_valid": true,
+        "breaker_clear": true,
+        "cancel": true,
+        "epoch_valid": true,
+        "liquidate": true,
+        "maintenance_breach": true,
+        "oracle_fresh": true,
+        "position_open": true,
+        "proof_valid": true,
+        "recover": true
+      }
+    ],
+    "outputs": [
+      {
+        "cancel": false,
+        "liquidate": false,
+        "recover": false
+      },
+      {
+        "cancel": true,
+        "liquidate": false,
+        "recover": false
+      },
+      {
+        "cancel": true,
+        "liquidate": false,
+        "recover": false
+      },
+      {
+        "cancel": false,
+        "liquidate": false,
+        "recover": false
+      },
+      {
+        "cancel": false,
+        "liquidate": false,
+        "recover": true
+      },
+      {
+        "cancel": false,
+        "liquidate": false,
+        "recover": false
+      },
+      {
+        "cancel": false,
+        "liquidate": false,
+        "recover": true
+      }
+    ]
+  },
+  "conditional_cycle": {
+    "inputs": [
+      {
+        "left": false,
+        "mode": false,
+        "right": false
+      },
+      {
+        "left": false,
+        "mode": false,
+        "right": true
+      },
+      {
+        "left": true,
+        "mode": false,
+        "right": false
+      },
+      {
+        "left": true,
+        "mode": false,
+        "right": true
+      },
+      {
+        "left": false,
+        "mode": true,
+        "right": false
+      },
+      {
+        "left": false,
+        "mode": true,
+        "right": true
+      },
+      {
+        "left": true,
+        "mode": true,
+        "right": false
+      },
+      {
+        "left": true,
+        "mode": true,
+        "right": true
+      }
+    ],
+    "outputs": [
+      {
+        "left": false,
+        "right": true
+      },
+      {
+        "left": false,
+        "right": true
+      },
+      {
+        "left": false,
+        "right": true
+      },
+      {
+        "left": false,
+        "right": true
+      },
+      {
+        "left": false,
+        "right": true
+      },
+      {
+        "left": false,
+        "right": true
+      },
+      {
+        "left": false,
+        "right": true
+      },
+      {
+        "left": false,
+        "right": true
+      }
+    ]
+  },
+  "coupled_recovery": {
+    "inputs": [
+      {
+        "credit": false,
+        "debit": false,
+        "paused": false
+      },
+      {
+        "credit": true,
+        "debit": false,
+        "paused": false
+      },
+      {
+        "credit": false,
+        "debit": true,
+        "paused": false
+      },
+      {
+        "credit": true,
+        "debit": true,
+        "paused": false
+      },
+      {
+        "credit": false,
+        "debit": false,
+        "paused": true
+      },
+      {
+        "credit": true,
+        "debit": false,
+        "paused": true
+      },
+      {
+        "credit": false,
+        "debit": true,
+        "paused": true
+      },
+      {
+        "credit": true,
+        "debit": true,
+        "paused": true
+      }
+    ],
+    "outputs": [
+      {
+        "credit": false,
+        "debit": false
+      },
+      {
+        "credit": true,
+        "debit": true
+      },
+      {
+        "credit": true,
+        "debit": true
+      },
+      {
+        "credit": true,
+        "debit": true
+      },
+      {
+        "credit": false,
+        "debit": false
+      },
+      {
+        "credit": false,
+        "debit": false
+      },
+      {
+        "credit": false,
+        "debit": false
+      },
+      {
+        "credit": false,
+        "debit": false
+      }
+    ]
+  },
+  "permission_chain": {
+    "inputs": [
+      {
+        "action000": false,
+        "action001": false,
+        "action002": false,
+        "action003": false,
+        "action004": false
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": false,
+        "action003": false,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": false,
+        "action003": true,
+        "action004": false
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": false,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": true,
+        "action003": false,
+        "action004": false
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": true,
+        "action003": false,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": true,
+        "action003": true,
+        "action004": false
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": false,
+        "action003": false,
+        "action004": false
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": false,
+        "action003": false,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": false,
+        "action003": true,
+        "action004": false
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": false,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": false,
+        "action004": false
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": false,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": false
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": false,
+        "action002": false,
+        "action003": false,
+        "action004": false
+      },
+      {
+        "action000": true,
+        "action001": false,
+        "action002": false,
+        "action003": false,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": false,
+        "action002": false,
+        "action003": true,
+        "action004": false
+      },
+      {
+        "action000": true,
+        "action001": false,
+        "action002": false,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": false,
+        "action002": true,
+        "action003": false,
+        "action004": false
+      },
+      {
+        "action000": true,
+        "action001": false,
+        "action002": true,
+        "action003": false,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": false,
+        "action002": true,
+        "action003": true,
+        "action004": false
+      },
+      {
+        "action000": true,
+        "action001": false,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": false,
+        "action003": false,
+        "action004": false
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": false,
+        "action003": false,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": false,
+        "action003": true,
+        "action004": false
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": false,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": false,
+        "action004": false
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": false,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": false
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      }
+    ],
+    "outputs": [
+      {
+        "action000": false,
+        "action001": false,
+        "action002": false,
+        "action003": false,
+        "action004": false
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": false,
+        "action003": false,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": false,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": false,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": false,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": false,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      },
+      {
+        "action000": true,
+        "action001": true,
+        "action002": true,
+        "action003": true,
+        "action004": true
+      }
+    ]
+  }
+}

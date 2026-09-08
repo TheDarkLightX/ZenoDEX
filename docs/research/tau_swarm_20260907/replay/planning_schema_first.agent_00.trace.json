@@ -1,0 +1,60 @@
+{
+  "input_order": [
+    "allow_breaking",
+    "breaking",
+    "additive"
+  ],
+  "inputs": [
+    {
+      "additive": false,
+      "allow_breaking": false,
+      "breaking": false
+    },
+    {
+      "additive": true,
+      "allow_breaking": false,
+      "breaking": false
+    },
+    {
+      "additive": false,
+      "allow_breaking": false,
+      "breaking": true
+    },
+    {
+      "additive": true,
+      "allow_breaking": false,
+      "breaking": true
+    },
+    {
+      "additive": false,
+      "allow_breaking": true,
+      "breaking": false
+    },
+    {
+      "additive": true,
+      "allow_breaking": true,
+      "breaking": false
+    },
+    {
+      "additive": false,
+      "allow_breaking": true,
+      "breaking": true
+    },
+    {
+      "additive": true,
+      "allow_breaking": true,
+      "breaking": true
+    }
+  ],
+  "observed_permits": [
+    true,
+    true,
+    false,
+    false,
+    true,
+    true,
+    true,
+    false
+  ],
+  "source_sha256": "7072fe9cede5dbcbba14cdb79e47f68214e8587aecdfa436f1e1971858de6fbf"
+}

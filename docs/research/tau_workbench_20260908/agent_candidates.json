@@ -1,0 +1,53 @@
+{
+  "candidates": [
+    {
+      "stage": "encoder",
+      "name": "encoder_v1_xor",
+      "source": "def transform(x):\n    return (x & 63) ^ 64\n",
+      "intent": "Advisory proposal: preserve the six payload bits and set the v1 tag. Independent acceptance is pending.",
+      "negative_control": false
+    },
+    {
+      "stage": "encoder",
+      "name": "encoder_force_both_tags",
+      "source": "def transform(x):\n    return x | 192\n",
+      "intent": "Advisory proposal: preserve the six payload bits and force both tag bits. Independent acceptance is pending.",
+      "negative_control": false
+    },
+    {
+      "stage": "adapter",
+      "name": "adapter_strip_tags_xor",
+      "source": "def transform(x):\n    return x ^ (x & 192)\n",
+      "intent": "Advisory proposal: remove both tag bits while preserving the payload. Independent acceptance is pending.",
+      "negative_control": false
+    },
+    {
+      "stage": "adapter",
+      "name": "adapter_shift_v2_to_v1",
+      "source": "def transform(x):\n    return ((x >> 1) & 64) | (x & 63)\n",
+      "intent": "Advisory proposal: map input bit 7 to output bit 6 while preserving the six payload bits. Independent acceptance is pending.",
+      "negative_control": false
+    },
+    {
+      "stage": "decoder",
+      "name": "decoder_computed_xor_mask",
+      "source": "def transform(x):\n    return x & (255 ^ 192)\n",
+      "intent": "Advisory proposal: retain the six payload bits using a computed mask for every byte. Independent acceptance is pending.",
+      "negative_control": false
+    },
+    {
+      "stage": "decoder",
+      "name": "decoder_computed_shift_mask",
+      "source": "def transform(x):\n    return x & (127 >> 1)\n",
+      "intent": "Advisory proposal: retain the six payload bits using a shifted mask for every byte. Independent acceptance is pending.",
+      "negative_control": false
+    },
+    {
+      "stage": "decoder",
+      "name": "decoder_tag_leak_negative",
+      "source": "def transform(x):\n    return x & (255 >> 1)\n",
+      "intent": "Advisory negative control: intended to agree on initial payload inputs 0 through 63 while retaining bit 6 from tagged intermediates. Independent rejection is pending.",
+      "negative_control": true
+    }
+  ]
+}

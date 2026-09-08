@@ -1,0 +1,71 @@
+{
+  "controls": [
+    "upgrade",
+    "shim"
+  ],
+  "environment": [
+    "allow_breaking"
+  ],
+  "name": "domain1",
+  "requirements": [
+    {
+      "name": "zero",
+      "residual": {
+        "kind": "negate",
+        "operands": [
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "join",
+                "operands": [
+                  {
+                    "kind": "meet",
+                    "operands": [
+                      {
+                        "kind": "variable",
+                        "value": "upgrade"
+                      },
+                      {
+                        "kind": "variable",
+                        "value": "shim"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "meet",
+                    "operands": [
+                      {
+                        "kind": "variable",
+                        "value": "allow_breaking"
+                      },
+                      {
+                        "kind": "join",
+                        "operands": [
+                          {
+                            "kind": "negate",
+                            "operands": [
+                              {
+                                "kind": "variable",
+                                "value": "upgrade"
+                              }
+                            ]
+                          },
+                          {
+                            "kind": "variable",
+                            "value": "shim"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

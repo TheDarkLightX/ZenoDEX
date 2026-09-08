@@ -16,6 +16,7 @@ from ..kernels.python.strategy_external_signal_contract_v1_adapter import (
     check_strategy_external_signal_contract,
 )
 from ..state.pools import PoolState
+from .autotrader_signal_profile import SignalProfile, decode_profile, encode_profile
 
 if TYPE_CHECKING:
     from .autotrader_signal_registry import ExternalSignalSourceRegistry
@@ -25,7 +26,9 @@ _U32_MAX = 0xFFFFFFFF
 SIGNAL_PACKET_SCHEMA = "zenodex/autotrader-signal-packet/v1"
 OBSERVATION_PACKET_SCHEMA = "zenodex/autotrader-observation-packet/v1"
 EXTERNAL_SIGNAL_SCHEMA = "zenodex/autotrader-external-signal/v1"
+EXTERNAL_SIGNAL_COMPACT_SCHEMA = "zenodex/autotrader-external-signal/v2"
 WALLET_CAPABILITY_SCHEMA = "zenodex/autotrader-wallet-capability/v1"
+_OBSERVATION_PACKET_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError)
 
 
 class SignalSourceKind(Enum):
@@ -40,6 +43,18 @@ class SignalTrustTier(Enum):
     ATTESTED = "attested"
     VERIFIED = "verified"
     PROTOCOL = "protocol"
+
+
+# This transport order is independent of the distinct guard and registry ABIs.
+_PROFILE_SOURCE_KINDS = (
+    SignalSourceKind.ROUTE_QUOTE_RECEIPT, SignalSourceKind.LOCAL_PROTOCOL_STATE,
+    SignalSourceKind.ATTESTED_EXTERNAL, SignalSourceKind.ADVISORY_EXTERNAL,
+)
+_PROFILE_TRUST_TIERS = (
+    SignalTrustTier.ADVISORY, SignalTrustTier.ATTESTED,
+    SignalTrustTier.VERIFIED, SignalTrustTier.PROTOCOL,
+)
+_COMPACT_SIGNAL_FIELDS = frozenset({"schema", "signal_id", "source_id", "profile_code", "tags"})
 
 
 def _external_signal_source_kind_code(value: SignalSourceKind) -> int:
@@ -120,10 +135,41 @@ class ExternalSignalObservation:
             "tags": list(self.tags),
         }
 
+    def to_compact_dict(self) -> dict[str, object]:
+        """Opt in to V2 transport; normalized dictionaries continue to use V1."""
+        profile = SignalProfile(
+            source_index=_PROFILE_SOURCE_KINDS.index(self.source_kind),
+            trust_index=_PROFILE_TRUST_TIERS.index(self.trust_tier),
+            freshness_ok=self.freshness_ok, auth_ok=self.auth_ok,
+            advisory_only=self.advisory_only,
+        )
+        return {
+            "schema": EXTERNAL_SIGNAL_COMPACT_SCHEMA,
+            "signal_id": self.signal_id, "source_id": self.source_id,
+            "profile_code": encode_profile(profile), "tags": list(self.tags),
+        }
+
+
+def _compact_external_signal_observation(data: Mapping[str, Any]) -> ExternalSignalObservation:
+    if set(data) != _COMPACT_SIGNAL_FIELDS:
+        raise ValueError("external signal compact fields")
+    profile = decode_profile(data["profile_code"])
+    # Normalization uses the same constructor and guard as every V1 caller.
+    return external_signal_observation_from_dict({
+        "schema": EXTERNAL_SIGNAL_SCHEMA,
+        "signal_id": data["signal_id"], "source_id": data["source_id"],
+        "source_kind": _PROFILE_SOURCE_KINDS[profile.source_index].value,
+        "trust_tier": _PROFILE_TRUST_TIERS[profile.trust_index].value,
+        "freshness_ok": profile.freshness_ok, "auth_ok": profile.auth_ok,
+        "advisory_only": profile.advisory_only, "tags": data["tags"],
+    })
+
 
 def external_signal_observation_from_dict(data: Mapping[str, Any]) -> ExternalSignalObservation:
     if not isinstance(data, Mapping):
         raise TypeError("external signal entry must be an object")
+    if data.get("schema") == EXTERNAL_SIGNAL_COMPACT_SCHEMA:
+        return _compact_external_signal_observation(data)
     signal_id_raw = data.get("signal_id")
     source_id_raw = data.get("source_id")
     source_kind_raw = data.get("source_kind")
@@ -590,7 +636,7 @@ def verify_autotrader_observation_packet_payload(payload: object) -> tuple[bool,
         return False, "observation packet payload must be an object"
     try:
         packet = autotrader_observation_packet_from_dict(payload)
-    except Exception as exc:
+    except _OBSERVATION_PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if dict(payload) != packet.to_dict():
         return False, "observation packet payload mismatch"

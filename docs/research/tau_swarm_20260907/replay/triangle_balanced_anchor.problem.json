@@ -1,0 +1,438 @@
+{
+  "anchor": {
+    "left_high": {
+      "kind": "constant",
+      "value": false
+    },
+    "left_low": {
+      "kind": "constant",
+      "value": true
+    },
+    "right_high": {
+      "kind": "constant",
+      "value": false
+    },
+    "right_low": {
+      "kind": "constant",
+      "value": true
+    }
+  },
+  "blocks": [
+    {
+      "controls": [
+        "left_low",
+        "left_high"
+      ],
+      "name": "left"
+    },
+    {
+      "controls": [
+        "right_low",
+        "right_high"
+      ],
+      "name": "right"
+    }
+  ],
+  "contract": {
+    "controls": [
+      "left_low",
+      "left_high",
+      "right_low",
+      "right_high"
+    ],
+    "environment": [],
+    "name": "triangle_choices",
+    "requirements": [
+      {
+        "name": "allowed_code_pair",
+        "residual": {
+          "kind": "join",
+          "operands": [
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "left_low"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "left_high"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "right_low"
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "right_high"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "left_low"
+                    },
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "left_high"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "right_low"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "right_high"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "left_low"
+                    },
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "left_high"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "right_low"
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "right_high"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "left_low"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "left_high"
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "right_low"
+                    },
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "right_high"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "left_low"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "left_high"
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "right_low"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "right_high"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "left_low"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "left_high"
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "right_low"
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "right_high"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "left_low"
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "left_high"
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "right_low"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "right_high"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "left_low"
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "left_high"
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "right_low"
+                    },
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "right_high"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "left_low"
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "left_high"
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "negate",
+                      "operands": [
+                        {
+                          "kind": "variable",
+                          "value": "right_low"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "right_high"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "meet",
+              "operands": [
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "left_low"
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "left_high"
+                    }
+                  ]
+                },
+                {
+                  "kind": "meet",
+                  "operands": [
+                    {
+                      "kind": "variable",
+                      "value": "right_low"
+                    },
+                    {
+                      "kind": "variable",
+                      "value": "right_high"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "schema": "tau-composition/contract-v1"
+  },
+  "schema": "tau-swarm/problem-v1"
+}

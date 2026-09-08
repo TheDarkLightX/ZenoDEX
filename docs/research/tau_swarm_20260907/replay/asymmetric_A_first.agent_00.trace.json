@@ -1,0 +1,18 @@
+{
+  "input_order": [
+    "a"
+  ],
+  "inputs": [
+    {
+      "a": false
+    },
+    {
+      "a": true
+    }
+  ],
+  "observed_permits": [
+    true,
+    true
+  ],
+  "source_sha256": "b5f53cbda8ac7d8be0b24a065cb49c8c1256e0446b3d533ca13d5da981e217ae"
+}

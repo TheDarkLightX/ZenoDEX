@@ -1,0 +1,75 @@
+{
+  "bundles": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      1,
+      1
+    ],
+    [
+      1,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      1
+    ],
+    [
+      1,
+      1,
+      0
+    ],
+    [
+      1,
+      1,
+      1
+    ]
+  ],
+  "replay": {
+    "bundle_sha256": "e8456fad52f9a26e10644011e696d6ee00f73124590689124b03c403f95b0f7c",
+    "component_inputs_checked": 1536,
+    "outcomes": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "pipeline_inputs_checked": 512,
+    "runner_sha256": "4353c2cb87db2368f103076337307761d85f6def7d8052060eec12b67434a08e",
+    "source_hashes": [
+      [
+        "1a9307dba7e3923fbe66d42df3e9f5c71c096e48746ba382e1e893e57c1d47d3",
+        "ca9cfa7ed20559f9af9cd290654de59bf456048a7279ebf881c43b4e53e125fa"
+      ],
+      [
+        "7192d6973c663e35b76df1b9bb5b39e7f464237acdf8efaf9fa318ab226774dd",
+        "78aaf794d81ff1fe6414c8ff8aba23acdf196b99ace00fc51848697a9ca4dc75"
+      ],
+      [
+        "2046d8350a41f7aaaf9316736e18173c43745a7f25ef8089a0216d8c1cc0c436",
+        "f852d050900879edab9be306d8cee79bda8f5b7869a0d63955d63a83d65a5c1f"
+      ]
+    ],
+    "task_id": "888718573def53b4d96febb8260ed4856e227501062a27f459f1764f847e6a52"
+  }
+}

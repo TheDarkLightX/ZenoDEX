@@ -1,0 +1,2870 @@
+{
+  "authority": "NONE",
+  "rows": [
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 0
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 1
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 2
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 3
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 4
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 5
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 6
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 7
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 8
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 9
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 10
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 11
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 12
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 13
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 14
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 15
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 16
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 17
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 18
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 19
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 20
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 21
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 22
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 23
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 24
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 25
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 26
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 27
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 28
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 29
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 30
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "route_quote_receipt",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 31
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 32
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 33
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 34
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 35
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 36
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 37
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 38
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 39
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 40
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 41
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 42
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 43
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 44
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 45
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 46
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 47
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 48
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 49
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 50
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 51
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 52
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 53
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 54
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 55
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 56
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 57
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 58
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 59
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 60
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 61
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 62
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "local_protocol_state",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: source_kind_unsupported",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 63
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 64
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 65
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 66
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 67
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 68
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 69
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 70
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 71
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 72
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": false,
+          "freshness_ok": false,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "attested_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "attested"
+        },
+        "normalized_sha256": "fcd6a853d78902b928ab70a701983fd9a96ca1d241efb94fcbd3c7ad57ebd601",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 73
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 74
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": true,
+          "freshness_ok": false,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "attested_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "attested"
+        },
+        "normalized_sha256": "02baca65e812ced4ff45a3dfc3e1c46b21070f18d3788f486033297578bbc533",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 75
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 76
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": false,
+          "freshness_ok": true,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "attested_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "attested"
+        },
+        "normalized_sha256": "c9aecfd9b8c724c998c5e28baa5e7bcdd59b7781d533a95f76f87aad517d6020",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 77
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": false,
+          "auth_ok": true,
+          "freshness_ok": true,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "attested_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "attested"
+        },
+        "normalized_sha256": "502ad1aeb331fe98e3b76fc8796692ff9388be1e0f2b3d6772519d69a742836b",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 78
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": true,
+          "freshness_ok": true,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "attested_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "attested"
+        },
+        "normalized_sha256": "9c61c89fe9b1432e8351211090fdd96be467ae16038c4ec3328f4fbec5438411",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 79
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 80
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": false,
+          "freshness_ok": false,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "attested_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "verified"
+        },
+        "normalized_sha256": "859fcf22ba6678e4b7dde1e77f81d56c8ed0d5c6f7fd0ed86ec8ae78c9b2fa79",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 81
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 82
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": true,
+          "freshness_ok": false,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "attested_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "verified"
+        },
+        "normalized_sha256": "afbf078c553cff71ebfdf4c85611e87505f3c5ae291e8f89531ca540323d1677",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 83
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: attested_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 84
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": false,
+          "freshness_ok": true,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "attested_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "verified"
+        },
+        "normalized_sha256": "95e67fb1f2cd38b3f100f7a224d20304fdb1de8682bf5edb88466235e34565e2",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 85
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": false,
+          "auth_ok": true,
+          "freshness_ok": true,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "attested_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "verified"
+        },
+        "normalized_sha256": "c8e2dd5fecd886b3909dc4c071abd29611213e72a0722f4477b03cc84b2f3f7a",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 86
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": true,
+          "freshness_ok": true,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "attested_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "verified"
+        },
+        "normalized_sha256": "44b4acbb593c234e3cced507e18ed77eb91f0ee8de61c79850b238aed82dcfe7",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 87
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 88
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 89
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 90
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 91
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 92
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 93
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 94
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "attested_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 95
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 96
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": false,
+          "freshness_ok": false,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "advisory_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "advisory"
+        },
+        "normalized_sha256": "9f454f664ef907a0a8b3f8358791365d688c0e09aff9d5ddc479287dcc8501d0",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 97
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 98
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": true,
+          "freshness_ok": false,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "advisory_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "advisory"
+        },
+        "normalized_sha256": "fe4e05504c6a3c64ce5d5a2c32190f6459fc48f94f41de98d9365f7d82b704dc",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 99
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 100
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": false,
+          "freshness_ok": true,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "advisory_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "advisory"
+        },
+        "normalized_sha256": "13a8360e82cb43582d06abcb50a6e1eb992a64ab6c7671f85897a662cf894ecf",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 101
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 102
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "advisory"
+      },
+      "outcome": {
+        "normalized": {
+          "advisory_only": true,
+          "auth_ok": true,
+          "freshness_ok": true,
+          "schema": "zenodex/autotrader-external-signal/v1",
+          "signal_id": "signal.alpha",
+          "source_id": "provider.alpha",
+          "source_kind": "advisory_external",
+          "tags": [
+            "market"
+          ],
+          "trust_tier": "advisory"
+        },
+        "normalized_sha256": "1d88d378bfe466a80c31c9ba1efc1040a6e5a9bb9f09926d6eace439601f4de1",
+        "status": "ACCEPT"
+      },
+      "semantic_word": 103
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 104
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 105
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 106
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 107
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 108
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 109
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 110
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "attested"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 111
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 112
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 113
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 114
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 115
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 116
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 117
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 118
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "verified"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: advisory_external_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 119
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 120
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 121
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 122
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": false,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 123
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 124
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": false,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 125
+    },
+    {
+      "input": {
+        "advisory_only": false,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 126
+    },
+    {
+      "input": {
+        "advisory_only": true,
+        "auth_ok": true,
+        "freshness_ok": true,
+        "schema": "zenodex/autotrader-external-signal/v1",
+        "signal_id": "signal.alpha",
+        "source_id": "provider.alpha",
+        "source_kind": "advisory_external",
+        "tags": [
+          "market"
+        ],
+        "trust_tier": "protocol"
+      },
+      "outcome": {
+        "error": "external signal contract rejected: trust_tier_invalid",
+        "error_type": "ValueError",
+        "status": "REJECT"
+      },
+      "semantic_word": 127
+    }
+  ],
+  "schema": "zenodex/tau-signal-migration-baseline/v1",
+  "sources": {
+    "src/integration/autotrader_signal_registry.py": "a0a68a6659e1673549d57672a54fb4dbdb65ee2e94b231c32756a35070ccb9f2",
+    "src/integration/autotrader_signals.py": "61929623f037e3359eac18f49e8b891e1dd93251bff0949bafe0c695ee489d8c",
+    "src/integration/tau_witness.py": "d95ab4c554f0d93c59d1242e3988b1ff232c100c58c4e9afc95533fd284debd2",
+    "src/kernels/python/strategy_external_signal_contract_v1_adapter.py": "84047b6fb97723ee2a624441dfa1fa8ff5dac98fbc57563775f26fe4fdd65b6b",
+    "src/kernels/python/strategy_external_signal_source_registry_guard_v1_adapter.py": "d0ced56832c9e63f491e483dceaeabcbd822b742bc6fa3bbfe1e336a4dc94e00",
+    "src/kernels/python/strategy_signal_provenance_guard_v1_adapter.py": "ca859b003810056fe6cde03cd950f762a85c1b4a4dff5d8eb2406acd90c80883"
+  }
+}
