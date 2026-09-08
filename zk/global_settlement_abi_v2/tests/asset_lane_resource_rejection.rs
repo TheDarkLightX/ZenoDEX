@@ -688,6 +688,41 @@ fn row_boundary_accepts_4095_to_4096_and_full_row_transfer() {
 }
 
 #[test]
+fn final_capacity_allows_credit_before_full_sender_deletion() {
+    let state = lane_state(MAX_ASSET_LANE_BALANCE_ROWS_V2, 1, &[]);
+    let command = transfer_command("EUR", root(100), "holder0000", "alice", 1);
+    let context = transfer_context(&command, "holder0000", 8, &state);
+    let occurrence_id = context
+        .occurrence
+        .as_ref()
+        .expect("fixture occurrence")
+        .occurrence_id()
+        .expect("occurrence id");
+    let before = canonical_bytes_v2(&state).expect("pre-state bytes");
+    assert_eq!(state.balances.len(), 4096);
+    assert!(command.recipient < command.sender);
+    let result = transition_asset_lane_v2(&context, &state, &AssetLaneCommandV2::Transfer(command))
+        .expect("final state at capacity is valid");
+    let AssetLaneResultV2::Accepted(accepted) = result else {
+        panic!("temporary extra credit row must not reject a final table that fits")
+    };
+    let mut expected = state.balances.clone();
+    assert_eq!(expected[0].owner, "holder0000");
+    expected[0].owner = "alice".to_owned();
+    assert_eq!(accepted.post_state().balances, expected);
+    assert_eq!(accepted.post_state().supplies, state.supplies);
+    assert_eq!(accepted.route(), AssetLaneRouteV2::TRANSFER);
+    assert_eq!(
+        accepted.effects().occurrence_consumptions,
+        vec![occurrence_id]
+    );
+    assert_eq!(
+        canonical_bytes_v2(&state).expect("unchanged pre-state bytes"),
+        before
+    );
+}
+
+#[test]
 fn rejected_issue_then_terminal_burn_frees_a_row_for_retry() {
     let state = lane_state(
         MAX_ASSET_LANE_BALANCE_ROWS_V2 - 1,

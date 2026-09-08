@@ -202,3 +202,17 @@ each role update was killed at the new test's acceptance assertion. Production
 source was unchanged. Ruff and formatting checks pass. This is runtime evidence
 for the placement of one resource guard; full transfer-outcome refinement remains
 open.
+
+The matching Rust `final_capacity_allows_credit_before_full_sender_deletion`
+test requires the same exact replacement of the funded sender row by the new
+recipient row, unchanged supplies and original bytes, and the input occurrence
+once. Its complete `asset_lane_resource_rejection` target passes 11 tests:
+
+```bash
+cargo +1.87.0 test --locked --offline \
+  --manifest-path zk/global_settlement_abi_v2/Cargo.toml \
+  --test asset_lane_resource_rejection
+```
+
+Rust formatting and whitespace checks pass. No full crate, Clippy or guest build
+was rerun for this test-only addition.
