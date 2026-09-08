@@ -178,3 +178,8 @@ within W07, W09 and W13. The
 [`execution addendum`](research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md)
 records reviewed candidates, counterexamples and the qualification needed before
 applying a patch. It leaves the admitted graph and safety milestones intact.
+
+The September 8 [registered supply update checkpoint](research/ZENODEX_REGISTERED_SUPPLY_UPDATE_20260908.md)
+proves complete-row/sparse-row update correspondence and records finite Python
+observations. Arbitrary authenticated-view reconstruction, shared-state
+lifecycle refinement and production qualification remain open in W04/W09.
