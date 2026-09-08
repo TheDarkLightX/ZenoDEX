@@ -2901,9 +2901,12 @@ claims:
         - tests/test_zenoproof_verify.py
 
   - id: py:derivatives_authorization_matrix:gap_gate_v1
-    status: supported
+    status: disputed
     layer: assurance
     statement: >
+      On this integration subject, the following historical matrix assertion is
+      unsubstantiated because its referenced checker, tests, and matrix files
+      are missing.
       The derivative authorization coverage matrix fail-closed checks the
       current covered/open boundary for perps, funding-rate derivatives, IL
       futures, curve selection, and general CFMO/FIRE derivative work. It
@@ -2926,9 +2929,13 @@ claims:
         - docs/derivatives/DERIVATIVES_AUTHORIZATION_COVERAGE_MATRIX.md
 
   - id: py:funding_rate_market:settlement_witness_helper_rejects_forgery_v1
-    status: supported
+    status: disputed
     layer: implementation
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its settlement-witness helper and four named
+      pytest nodes are missing; this does not by itself establish that the
+      whole behavior is absent.
       The funding-rate market runtime exposes a strict v1.1 settlement-witness
       helper that recomputes settlement values from the current state and
       mark/index references before settlement. The helper accepts the derived
@@ -2945,9 +2952,13 @@ claims:
         - tests/core/test_funding_rate_market.py
 
   - id: py:funding_rate_market:authorized_settlement_helper_v1
-    status: supported
+    status: disputed
     layer: implementation
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its authorized-settlement helper and three named
+      pytest nodes are missing; this does not by itself establish that the
+      whole behavior is absent.
       The funding-rate market exposes a production-facing authorized settlement
       helper that requires both an epoch-bound mark/index oracle receipt and the
       recomputed v1.1 settlement witness before settlement. The helper accepts a
@@ -2962,9 +2973,13 @@ claims:
         - tests/core/test_funding_rate_market.py
 
   - id: py:funding_rate_market:production_step_requires_authorized_settlement_v1
-    status: supported
+    status: disputed
     layer: implementation
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its production dispatcher helper and four named
+      pytest nodes are missing; this does not by itself establish that the
+      whole behavior is absent.
       The funding-rate market production dispatcher rejects settlement unless
       both the epoch-bound oracle receipt and recomputed v1.1 settlement witness
       are supplied. Non-settlement actions continue through the deterministic
@@ -2979,9 +2994,13 @@ claims:
         - tests/core/test_funding_rate_market.py
 
   - id: py:curve_selection:revenue_delta_receipt_helper_rejects_forgery_v1
-    status: supported
+    status: disputed
     layer: implementation
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its revenue-receipt helper and three named
+      pytest nodes are missing; this does not by itself establish that the
+      whole behavior is absent.
       The curve-selection runtime exposes a revenue-delta receipt helper that
       derives deltas from pre/post revenue counters, requires the receipt pre
       counters to match market state, and rejects forged delta values or state
@@ -2997,9 +3016,13 @@ claims:
         - tests/core/test_curve_selection.py
 
   - id: py:curve_selection:fee_accumulator_and_winner_receipts_v1
-    status: supported
+    status: disputed
     layer: implementation
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its fee/winner receipt helpers and five named
+      pytest nodes are missing; this does not by itself establish that the
+      whole behavior is absent.
       The curve-selection runtime exposes fee-accumulator receipt helpers that
       require one bounded pool receipt root per curve, reject duplicate or
       forged pre-counter receipts, and derive revenue deltas before advancing an
@@ -3015,9 +3038,13 @@ claims:
         - tests/core/test_curve_selection.py
 
   - id: py:curve_selection:pool_event_replay_receipts_v1
-    status: supported
+    status: disputed
     layer: implementation
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its pool-event replay helper and six named
+      pytest nodes are missing; this does not by itself establish that the
+      whole behavior is absent.
       The curve-selection runtime exposes a bounded pool-event replay helper
       that derives per-curve revenue deltas from ordered, hash-bound pool
       revenue events. It rejects forged fee amounts, unordered event streams,
@@ -3032,9 +3059,13 @@ claims:
         - tests/core/test_curve_selection.py
 
   - id: py:il_futures:reserve_reference_receipt_helpers_v1
-    status: supported
+    status: disputed
     layer: implementation
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its reserve/reference helpers and five named
+      pytest nodes are missing; this does not by itself establish that the
+      whole behavior is absent.
       The IL futures runtime exposes helpers that bind epoch-start snapshot
       reserves and settlement current reserves to bounded pool state-root
       receipts, require an epoch-bound TWAP/reference receipt for strict
@@ -3049,9 +3080,13 @@ claims:
         - tests/core/test_il_futures.py
 
   - id: py:il_futures:settlement_authority_receipt_v1
-    status: supported
+    status: disputed
     layer: implementation
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its settlement-authority helper and three named
+      pytest nodes are missing; this does not by itself establish that the
+      whole behavior is absent.
       The IL futures strict settlement helper emits a verified derivative
       settlement authority receipt for accepted and rejected settlement
       attempts. Accepted receipts bind pre/post state roots, reference root,
@@ -3070,9 +3105,12 @@ claims:
         - tests/core/test_derivative_settlement_receipts.py
 
   - id: py:derivative_settlement_receipts:authority_envelope_v1
-    status: supported
+    status: disputed
     layer: implementation
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its referenced receipt source and test files are
+      missing.
       The derivative settlement receipt envelope binds pre-state root,
       post-state root, reference root, payoff formula hash, witness hash,
       collateral bound, balance-transfer root, and acceptance or rejection
@@ -3091,9 +3129,11 @@ claims:
         - tests/core/test_derivative_settlement_receipts.py
 
   - id: py:fire:stdlib_object_library_and_settlement_packets_v1
-    status: supported
+    status: disputed
     layer: implementation
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its six named FIRE test files are missing.
       The FIRE stdlib manifest pins eight object/interface entries, including
       the current money-moving BurnBoostCall, FeeNote, and LPLossCover object
       families plus their source/interface objects. Focused tests cover the
@@ -3121,9 +3161,11 @@ claims:
         - tests/kernels/test_fire_object_package_v1.py
 
   - id: py:fire:release_assurance_gate_v1
-    status: supported
+    status: disputed
     layer: assurance
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its eight named FIRE gate/test files are missing.
       The FIRE release-assurance gate composes the formal-assurance claims
       manifest check, the acceptance-receipt schema, and the verifier-rule
       catalog. It records that acceptance receipts do not authorize settlement,
@@ -3150,9 +3192,12 @@ claims:
         - tests/kernels/test_cal_fire_logic_package_receipt_binding.py
 
   - id: py:perps:production_integration_evidence_gate_v1
-    status: supported
+    status: disputed
     layer: assurance
     statement: >
+      On this integration subject, the following historical assertion is
+      unsubstantiated because its eight named perps assurance scripts are
+      missing.
       The perps evidence runner composes the current perps pytest suites, ESSO
       kernel inductiveness checks, perps shell assurance gates, Tau ingress
       checks, market version/prefix checks, and Lean proof builds into a single
