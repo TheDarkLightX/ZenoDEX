@@ -429,6 +429,87 @@
         "status": "EXTERNAL_REVIEW_PREMISE_UNACCEPTED"
       },
       "supersedes": null
+    },
+    {
+      "id": "SUPPORT-TRANSFER-EFFECT-PLAN-OWNERSHIP-20260908",
+      "kind": "SUPPORT",
+      "baseline_links": {
+        "capability_ids": [
+          "ASSET_TRANSFER:generic_transfer"
+        ],
+        "route_ids": [],
+        "exclusion_ids": [],
+        "task_ids": [
+          "W09"
+        ]
+      },
+      "support_scope": {
+        "summary": "Finite transfer six-field plan construction, exact per-owner balance-change attribution and bounded complete Python/Lean observations.",
+        "nonclaims": [
+          "No universal effect codec, root or journal validation, command authentication, Rust execution, full lane closure, or production qualification is recorded."
+        ]
+      },
+      "subject": {
+        "before_commit": "ce3c15f8d918f1dbc3baa0ceaa38d722955f8977",
+        "after_commit": "e34d690b0344b68cbe9b3c76661b88f010c6556f",
+        "changed_paths": [
+          {
+            "status": "M",
+            "before_path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+            "after_path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "lean-mathlib/Proofs/AssetTransferFiniteEffectPlanV2.lean"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "tests/formal/test_lean_asset_transfer_finite_effect_plan_v2.py"
+          }
+        ]
+      },
+      "declared_scope_paths": [
+        "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+        "lean-mathlib/Proofs/AssetTransferFiniteEffectPlanV2.lean",
+        "tests/formal/test_lean_asset_transfer_finite_effect_plan_v2.py"
+      ],
+      "acceptance_contract": {
+        "path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+        "sha256": "e79b38c59d13a63527a3ad3bf853fed38f9e5246988b33da99ddb19293938833"
+      },
+      "gate_ids": [],
+      "gate_subject_hashes": [],
+      "gate_scope_aggregate": null,
+      "rationale": {
+        "linked_obligation": "W09: construct the actual transfer plan fields and connect every account movement and fee allocation to its finite authoritative source.",
+        "acceptance_condition": "Compile the frozen theorem closure, replay the independent consumer and axiom audit, retain semantic false controls, and pass all five retained tests covering six accepted cases and one resource rejection.",
+        "simpler_alternative": "Reuse the managed plan carrier and existing build fixtures with transfer-specific construction and ownership lemmas; total conservation alone cannot establish per-owner attribution.",
+        "why_added_structure": "The proof uses the existing six-field EffectPlan and source-only compiler fixtures. Explicit consumers and observations check alias coalescing, exact attribution and complete plan fields without a new abstraction or build framework.",
+        "stop_condition": "Stop after the passing scoped construction, per-owner relation and retained replay. Universal serialization, journals, authentication and complete runtime refinement remain open."
+      },
+      "recorded_evidence": [
+        {
+          "path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+          "sha256": "e79b38c59d13a63527a3ad3bf853fed38f9e5246988b33da99ddb19293938833"
+        },
+        {
+          "path": "lean-mathlib/Proofs/AssetTransferFiniteEffectPlanV2.lean",
+          "sha256": "ff36e13be89431ac338b8df685336584fde6fba929808001a130fba1de49f6d6"
+        },
+        {
+          "path": "tests/formal/test_lean_asset_transfer_finite_effect_plan_v2.py",
+          "sha256": "952fefcff8c435a0508e749ea4473aa27e6e93e4987d29e90176871fdb149904"
+        }
+      ],
+      "review_binding": {
+        "path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+        "sha256": "e79b38c59d13a63527a3ad3bf853fed38f9e5246988b33da99ddb19293938833",
+        "reviewed_subject_commit": "e34d690b0344b68cbe9b3c76661b88f010c6556f",
+        "status": "EXTERNAL_REVIEW_PREMISE_UNACCEPTED"
+      },
+      "supersedes": null
     }
   ]
 }
