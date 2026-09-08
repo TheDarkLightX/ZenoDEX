@@ -155,6 +155,40 @@ scoped deliverable; it does not close the enclosing workstream. No reliable
 weighted completion percentage has been established for V3 or the formal core.
 The older handoff's 35-45% figure was a planning estimate, not a measured baseline.
 
+### Delivery audit at the September 8 checkpoint
+
+The committed checklist at `c159bd59bc05bd857a96f695aba8ea6b849d8bba`
+contains **15 checked rows out of 44**.
+This inventory must not be converted into a completion percentage: a row
+retaining historical evidence and a row completing an entire lane have unequal
+scope, and the retained evidence does not all qualify the current release.
+
+The earlier checkpoint `2f769e7ba2d578b3518f91c882a56430072f7f70`
+had 13 checked rows out of 42. Between those subjects, **29 rows remained open
+and no previously open row was completed**. Two completed rows were added:
+historical claim correction and finite effect-plan construction/encoding.
+The first W09 open row was narrowed as construction work advanced; universal
+runtime refinement and the combined lane gate remained open. Thus the higher
+checklist count must not be reported as a gain in whole-plan completion.
+
+| Acceptance unit | Recorded complete at this checkpoint |
+| --- | --- |
+| V3 workstream exit conditions | 0/14 (0% fully closed) |
+| Complete lane lifecycles | 0/12 (0% fully closed) |
+| Complete required cross-lane routes | 0/4 (0% fully closed) |
+| Release value-movement gates | 0/12 (0% qualified) |
+
+These closure figures coexist with implemented and proved partial work. The
+[transfer outcome evidence](research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md)
+records the exact effect-plan ownership and encoding results, their replay,
+the repaired test failure and remaining constructor/runtime obligations.
+
+Subsequent status reports must compare against this fixed checkpoint: identify
+existing open obligations completed, remaining obligations narrowed, regressions
+and newly discovered obligations separately. Adding a completed support row
+does not count as closing an existing obligation. A claimed closure needs its
+acceptance evidence and exact subject; a percentage alone supplies neither.
+
 The plan checker still records `formal_core_complete=false`,
 `whole_value_movement_safe=false` and zero closed value-movement gates out of
 twelve. That last ratio is release-gate closure, not implementation completion.
