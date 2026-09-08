@@ -1,0 +1,60 @@
+{
+  "input_order": [
+    "allow_breaking",
+    "regression",
+    "migration"
+  ],
+  "inputs": [
+    {
+      "allow_breaking": false,
+      "migration": false,
+      "regression": false
+    },
+    {
+      "allow_breaking": false,
+      "migration": true,
+      "regression": false
+    },
+    {
+      "allow_breaking": false,
+      "migration": false,
+      "regression": true
+    },
+    {
+      "allow_breaking": false,
+      "migration": true,
+      "regression": true
+    },
+    {
+      "allow_breaking": true,
+      "migration": false,
+      "regression": false
+    },
+    {
+      "allow_breaking": true,
+      "migration": true,
+      "regression": false
+    },
+    {
+      "allow_breaking": true,
+      "migration": false,
+      "regression": true
+    },
+    {
+      "allow_breaking": true,
+      "migration": true,
+      "regression": true
+    }
+  ],
+  "observed_permits": [
+    false,
+    false,
+    true,
+    true,
+    false,
+    false,
+    true,
+    true
+  ],
+  "source_sha256": "134c5b38dca5a194fe8c5de0eaa9403c6300946ec00e5b6c317a678b2e57765b"
+}

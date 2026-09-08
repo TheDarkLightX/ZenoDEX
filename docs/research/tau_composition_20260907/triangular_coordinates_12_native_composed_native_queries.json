@@ -1,0 +1,58 @@
+[
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.03439706191420555,
+    "operation": "lgrs",
+    "query": "lgrs (((v0:sbf|v1:sbf)&(v2:sbf)') = 0:sbf)",
+    "stderr": "lgrs: 0.422 ms\n",
+    "stdout": "solution: {\n\tv2 := v0|v1|v2\n\tv0 := v0|v1 v2'\n\tv1 := v1|v0 v2'\n}"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06234039040282369,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v0:sbf|(v1:sbf&(v2:sbf)'))|(v1:sbf|(v0:sbf&(v2:sbf)')))&((v0:sbf|v1:sbf|v2:sbf))') = 0:sbf))",
+    "stderr": "valid: 0.973 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.08283161371946335,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v0:sbf|v1:sbf)&(v2:sbf)') = 0:sbf) -> (((v0:sbf^(v0:sbf|(v1:sbf&(v2:sbf)')))|(v1:sbf^(v1:sbf|(v0:sbf&(v2:sbf)')))|(v2:sbf^(v0:sbf|v1:sbf|v2:sbf))) = 0:sbf)))",
+    "stderr": "valid: 1.543 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06833511404693127,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf (((((v1:sbf|v2:sbf)&(v3:sbf)') = 0:sbf) -> ((((v1:sbf|(v0:sbf&(v2:sbf)'))|(v0:sbf|v1:sbf|v2:sbf))&(v3:sbf)') = 0:sbf)))",
+    "stderr": "valid: 1.445 ms\n",
+    "stdout": "%1: F"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06368274195119739,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf (((((v2:sbf|v3:sbf)&(v4:sbf)') = 0:sbf) -> ((((v0:sbf|v1:sbf|v2:sbf)|v3:sbf)&(v4:sbf)') = 0:sbf)))",
+    "stderr": "valid: 1.364 ms\n",
+    "stdout": "%1: F"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.07071789633482695,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf (((((v0:sbf|v1:sbf)&(v2:sbf)') = 0:sbf) -> (((v0:sbf|(v1:sbf|(v2:sbf&(v3:sbf)')))&((v2:sbf|(v1:sbf&(v3:sbf)')))') = 0:sbf)))",
+    "stderr": "valid: 1.528 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.06554319197311997,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf (((((v0:sbf|v1:sbf)&(v2:sbf)') = 0:sbf) -> (((v0:sbf|v1:sbf)&((v2:sbf|(v3:sbf&(v4:sbf)')))') = 0:sbf)))",
+    "stderr": "valid: 1.5 ms\n",
+    "stdout": "%1: T"
+  }
+]

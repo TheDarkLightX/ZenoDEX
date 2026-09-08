@@ -1,0 +1,35 @@
+{
+  "controls": [
+    "regression",
+    "migration"
+  ],
+  "environment": [
+    "allow_breaking"
+  ],
+  "name": "domain2",
+  "requirements": [
+    {
+      "name": "zero",
+      "residual": {
+        "kind": "negate",
+        "operands": [
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "negate",
+                "operands": [
+                  {
+                    "kind": "variable",
+                    "value": "regression"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

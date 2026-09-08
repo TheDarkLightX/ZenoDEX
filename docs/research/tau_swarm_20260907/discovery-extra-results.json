@@ -1,0 +1,192 @@
+{
+  "coefficient_equivalence": true,
+  "coefficient_queries": [
+    {
+      "query": "all v2:sbf ((v2:sbf = 0:sbf) -> (({a}:sbf & v1:sbf & v2:sbf) = 0:sbf))",
+      "result": "T"
+    },
+    {
+      "query": "all v1:sbf ((0:sbf = 0:sbf) -> (({a}:sbf & v1:sbf & v2:sbf) = 0:sbf))",
+      "result": "v2 { a }:sbf = 0"
+    }
+  ],
+  "larger_safe_product": {
+    "A": [
+      0,
+      1
+    ],
+    "B": [
+      0,
+      1
+    ],
+    "contained": true,
+    "volume": 4
+  },
+  "stale_parallel": {
+    "product_count": 6,
+    "unsafe_rows": [
+      [
+        1,
+        0,
+        1
+      ],
+      [
+        1,
+        1,
+        0
+      ]
+    ]
+  },
+  "unreachable_maximum": [
+    {
+      "anchor": {
+        "a0": "0",
+        "a1": "0",
+        "b0": "0",
+        "b1": "0"
+      },
+      "blocks": [
+        [
+          "a0",
+          "a1"
+        ],
+        [
+          "b0",
+          "b1"
+        ]
+      ],
+      "domains": [
+        "(((((a0)'|a1)&(a0|(a1)')&(a0|a1)))')'",
+        "(((b0|b1))')'"
+      ],
+      "environment": [],
+      "global_residual": "((((a0)'&(a1)'&(b0)'&(b1)')|((a0)'&(a1)'&(b0)'&b1)|((a0)'&(a1)'&b0&(b1)')|((a0)'&a1&(b0)'&(b1)')|((a0)'&a1&(b0)'&b1)|(a0&(a1)'&(b0)'&(b1)')))'",
+      "label": "all_orders_miss_maximum",
+      "native_queries": 8,
+      "order": [
+        0,
+        1
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "a0": false,
+                "a1": false
+              },
+              {
+                "a0": false,
+                "a1": true
+              },
+              {
+                "a0": true,
+                "a1": false
+              }
+            ],
+            [
+              {
+                "b0": false,
+                "b1": false
+              }
+            ]
+          ],
+          "environment": {},
+          "global_solution_count": 6,
+          "product_volume": 3
+        }
+      ],
+      "steps": [
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf ((((((((v0:sbf)'|v1:sbf)&(v0:sbf|(v1:sbf)')&(v0:sbf|v1:sbf)))')' = 0:sbf) <-> (all v2:sbf, v3:sbf (((((v2:sbf^0)|(v3:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+          "output": "(v0'|v1)&(v0|v1')&(v0|v1) = 0",
+          "query": "all v2:sbf, v3:sbf (((((v2:sbf^0)|(v3:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf)))",
+          "residual": "(((((a0)'|a1)&(a0|(a1)')&(a0|a1)))')'"
+        },
+        {
+          "block": 1,
+          "equivalence": "all v2:sbf, v3:sbf ((((((v2:sbf|v3:sbf))')' = 0:sbf) <-> (all v0:sbf, v1:sbf ((((((((v0:sbf)'|v1:sbf)&(v0:sbf|(v1:sbf)')&(v0:sbf|v1:sbf)))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+          "output": "v2|v3 = 0",
+          "query": "all v0:sbf, v1:sbf ((((((((v0:sbf)'|v1:sbf)&(v0:sbf|(v1:sbf)')&(v0:sbf|v1:sbf)))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf)))",
+          "residual": "(((b0|b1))')'"
+        }
+      ]
+    },
+    {
+      "anchor": {
+        "a0": "0",
+        "a1": "0",
+        "b0": "0",
+        "b1": "0"
+      },
+      "blocks": [
+        [
+          "a0",
+          "a1"
+        ],
+        [
+          "b0",
+          "b1"
+        ]
+      ],
+      "domains": [
+        "(((a0|a1))')'",
+        "(((((b0)'|b1)&(b0|b1)&(b0|(b1)')))')'"
+      ],
+      "environment": [],
+      "global_residual": "((((a0)'&(a1)'&(b0)'&(b1)')|((a0)'&(a1)'&(b0)'&b1)|((a0)'&(a1)'&b0&(b1)')|((a0)'&a1&(b0)'&(b1)')|((a0)'&a1&(b0)'&b1)|(a0&(a1)'&(b0)'&(b1)')))'",
+      "label": "all_orders_miss_maximum",
+      "native_queries": 8,
+      "order": [
+        1,
+        0
+      ],
+      "slices": [
+        {
+          "domains": [
+            [
+              {
+                "a0": false,
+                "a1": false
+              }
+            ],
+            [
+              {
+                "b0": false,
+                "b1": false
+              },
+              {
+                "b0": false,
+                "b1": true
+              },
+              {
+                "b0": true,
+                "b1": false
+              }
+            ]
+          ],
+          "environment": {},
+          "global_solution_count": 6,
+          "product_volume": 3
+        }
+      ],
+      "steps": [
+        {
+          "block": 1,
+          "equivalence": "all v2:sbf, v3:sbf ((((((((v2:sbf)'|v3:sbf)&(v2:sbf|v3:sbf)&(v2:sbf|(v3:sbf)')))')' = 0:sbf) <-> (all v0:sbf, v1:sbf (((((v0:sbf^0)|(v1:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+          "output": "(v2'|v3)&(v2|v3)&(v2|v3') = 0",
+          "query": "all v0:sbf, v1:sbf (((((v0:sbf^0)|(v1:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf)))",
+          "residual": "(((((b0)'|b1)&(b0|b1)&(b0|(b1)')))')'"
+        },
+        {
+          "block": 0,
+          "equivalence": "all v0:sbf, v1:sbf ((((((v0:sbf|v1:sbf))')' = 0:sbf) <-> (all v2:sbf, v3:sbf ((((((((v2:sbf)'|v3:sbf)&(v2:sbf|v3:sbf)&(v2:sbf|(v3:sbf)')))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+          "output": "v0|v1 = 0",
+          "query": "all v2:sbf, v3:sbf ((((((((v2:sbf)'|v3:sbf)&(v2:sbf|v3:sbf)&(v2:sbf|(v3:sbf)')))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf)))",
+          "residual": "(((a0|a1))')'"
+        }
+      ]
+    }
+  ]
+}

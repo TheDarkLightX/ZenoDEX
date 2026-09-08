@@ -1,0 +1,144 @@
+{
+  "controls": [
+    "liquidate",
+    "recover",
+    "cancel"
+  ],
+  "environment": [
+    "oracle_fresh",
+    "maintenance_breach",
+    "breaker_clear",
+    "proof_valid",
+    "binding_valid",
+    "authorized",
+    "position_open",
+    "epoch_valid"
+  ],
+  "name": "action_permissions",
+  "requirements": [
+    {
+      "name": "liquidation_eligibility",
+      "residual": {
+        "kind": "meet",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "liquidate"
+          },
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "meet",
+                "operands": [
+                  {
+                    "kind": "variable",
+                    "value": "oracle_fresh"
+                  },
+                  {
+                    "kind": "variable",
+                    "value": "maintenance_breach"
+                  },
+                  {
+                    "kind": "variable",
+                    "value": "breaker_clear"
+                  },
+                  {
+                    "kind": "variable",
+                    "value": "proof_valid"
+                  },
+                  {
+                    "kind": "variable",
+                    "value": "binding_valid"
+                  },
+                  {
+                    "kind": "variable",
+                    "value": "authorized"
+                  },
+                  {
+                    "kind": "variable",
+                    "value": "position_open"
+                  },
+                  {
+                    "kind": "variable",
+                    "value": "epoch_valid"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "recovery_authorization",
+      "residual": {
+        "kind": "meet",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "recover"
+          },
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "variable",
+                "value": "authorized"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "exclusive_liquidation_recovery",
+      "residual": {
+        "kind": "meet",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "liquidate"
+          },
+          {
+            "kind": "variable",
+            "value": "recover"
+          }
+        ]
+      }
+    },
+    {
+      "name": "exclusive_cancel_liquidation",
+      "residual": {
+        "kind": "meet",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "cancel"
+          },
+          {
+            "kind": "variable",
+            "value": "liquidate"
+          }
+        ]
+      }
+    },
+    {
+      "name": "exclusive_cancel_recovery",
+      "residual": {
+        "kind": "meet",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "cancel"
+          },
+          {
+            "kind": "variable",
+            "value": "recover"
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

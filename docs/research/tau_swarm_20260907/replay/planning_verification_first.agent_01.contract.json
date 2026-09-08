@@ -1,0 +1,39 @@
+{
+  "controls": [
+    "upgrade",
+    "shim"
+  ],
+  "environment": [
+    "allow_breaking"
+  ],
+  "name": "domain1",
+  "requirements": [
+    {
+      "name": "zero",
+      "residual": {
+        "kind": "negate",
+        "operands": [
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "meet",
+                "operands": [
+                  {
+                    "kind": "variable",
+                    "value": "upgrade"
+                  },
+                  {
+                    "kind": "variable",
+                    "value": "shim"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

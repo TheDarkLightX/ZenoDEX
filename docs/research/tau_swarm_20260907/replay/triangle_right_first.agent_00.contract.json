@@ -1,0 +1,122 @@
+{
+  "controls": [
+    "left_low",
+    "left_high"
+  ],
+  "environment": [],
+  "name": "domain0",
+  "requirements": [
+    {
+      "name": "zero",
+      "residual": {
+        "kind": "negate",
+        "operands": [
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "join",
+                "operands": [
+                  {
+                    "kind": "meet",
+                    "operands": [
+                      {
+                        "kind": "variable",
+                        "value": "left_low"
+                      },
+                      {
+                        "kind": "variable",
+                        "value": "left_high"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "meet",
+                    "operands": [
+                      {
+                        "kind": "variable",
+                        "value": "left_low"
+                      },
+                      {
+                        "kind": "negate",
+                        "operands": [
+                          {
+                            "kind": "variable",
+                            "value": "left_high"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "meet",
+                    "operands": [
+                      {
+                        "kind": "variable",
+                        "value": "left_low"
+                      },
+                      {
+                        "kind": "variable",
+                        "value": "left_high"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "meet",
+                    "operands": [
+                      {
+                        "kind": "negate",
+                        "operands": [
+                          {
+                            "kind": "variable",
+                            "value": "left_low"
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "variable",
+                        "value": "left_high"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "meet",
+                    "operands": [
+                      {
+                        "kind": "variable",
+                        "value": "left_low"
+                      },
+                      {
+                        "kind": "variable",
+                        "value": "left_high"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "meet",
+                    "operands": [
+                      {
+                        "kind": "negate",
+                        "operands": [
+                          {
+                            "kind": "variable",
+                            "value": "left_low"
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "variable",
+                        "value": "left_high"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

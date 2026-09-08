@@ -1,0 +1,589 @@
+{
+  "authority": "NONE",
+  "measurements": {
+    "comparisons": [
+      {
+        "family": "permission_chain",
+        "median_seconds": {
+          "composed": 0.21315783821046352,
+          "monolithic": 0.21082639740779996
+        },
+        "requirements": 2,
+        "samples": {
+          "composed": [
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 51,
+              "native_queries": 4,
+              "repair_tree_json_bytes": 324,
+              "seconds": 0.21315783821046352,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 51,
+              "native_queries": 4,
+              "repair_tree_json_bytes": 324,
+              "seconds": 0.21654855972155929,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 51,
+              "native_queries": 4,
+              "repair_tree_json_bytes": 324,
+              "seconds": 0.2107362668029964,
+              "status": "PASS"
+            }
+          ],
+          "monolithic": [
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 69,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 464,
+              "seconds": 0.21747214067727327,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 69,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 464,
+              "seconds": 0.20912292459979653,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 69,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 464,
+              "seconds": 0.21082639740779996,
+              "status": "PASS"
+            }
+          ]
+        },
+        "speedup_when_both_complete": 0.9890623735808317
+      },
+      {
+        "family": "permission_chain",
+        "median_seconds": {
+          "composed": 0.23026907909661531,
+          "monolithic": 0.4081617840565741
+        },
+        "requirements": 4,
+        "samples": {
+          "composed": [
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 51,
+              "native_queries": 4,
+              "repair_tree_json_bytes": 885,
+              "seconds": 0.23026907909661531,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 51,
+              "native_queries": 4,
+              "repair_tree_json_bytes": 885,
+              "seconds": 0.23212155001237988,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 51,
+              "native_queries": 4,
+              "repair_tree_json_bytes": 885,
+              "seconds": 0.21050285687670112,
+              "status": "PASS"
+            }
+          ],
+          "monolithic": [
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 155,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 1791,
+              "seconds": 0.4056238327175379,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 155,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 1791,
+              "seconds": 0.4081617840565741,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 155,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 1791,
+              "seconds": 0.4108715462498367,
+              "status": "PASS"
+            }
+          ]
+        },
+        "speedup_when_both_complete": 1.772542738512101
+      },
+      {
+        "family": "permission_chain",
+        "median_seconds": {
+          "composed": 0.22299226513132453,
+          "monolithic": 1.9160585762001574
+        },
+        "requirements": 8,
+        "samples": {
+          "composed": [
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 51,
+              "native_queries": 4,
+              "repair_tree_json_bytes": 2835,
+              "seconds": 0.22109878296032548,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 51,
+              "native_queries": 4,
+              "repair_tree_json_bytes": 2835,
+              "seconds": 0.22299226513132453,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 51,
+              "native_queries": 4,
+              "repair_tree_json_bytes": 2835,
+              "seconds": 0.2363219941034913,
+              "status": "PASS"
+            }
+          ],
+          "monolithic": [
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 661,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 11182,
+              "seconds": 1.9160585762001574,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 661,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 11182,
+              "seconds": 1.923122152686119,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 661,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 11182,
+              "seconds": 1.8861872712150216,
+              "status": "PASS"
+            }
+          ]
+        },
+        "speedup_when_both_complete": 8.592488959524012
+      },
+      {
+        "family": "exclusion_pairs",
+        "median_seconds": {
+          "composed": 0.15525731211528182,
+          "monolithic": 0.2759572113864124
+        },
+        "requirements": 2,
+        "samples": {
+          "composed": [
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 47,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 356,
+              "seconds": 0.14937198674306273,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 47,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 356,
+              "seconds": 0.15525731211528182,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 47,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 356,
+              "seconds": 0.1575731821358204,
+              "status": "PASS"
+            }
+          ],
+          "monolithic": [
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 109,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 1254,
+              "seconds": 0.2759572113864124,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 109,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 1254,
+              "seconds": 0.2824097750708461,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 109,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 1254,
+              "seconds": 0.27293880889192224,
+              "status": "PASS"
+            }
+          ]
+        },
+        "speedup_when_both_complete": 1.7774184521596532
+      },
+      {
+        "family": "exclusion_pairs",
+        "median_seconds": {
+          "composed": 0.15630164230242372,
+          "monolithic": 1.6355086318217218
+        },
+        "requirements": 4,
+        "samples": {
+          "composed": [
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 47,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 712,
+              "seconds": 0.15630164230242372,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 47,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 712,
+              "seconds": 0.1598234148696065,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "composed",
+              "native_output_bytes": 47,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 712,
+              "seconds": 0.14475842379033566,
+              "status": "PASS"
+            }
+          ],
+          "monolithic": [
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 735,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 13788,
+              "seconds": 1.6120694149285555,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 735,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 13788,
+              "seconds": 1.6355086318217218,
+              "status": "PASS"
+            },
+            {
+              "error_code": null,
+              "mode": "monolithic",
+              "native_output_bytes": 735,
+              "native_queries": 3,
+              "repair_tree_json_bytes": 13788,
+              "seconds": 1.7244552420452237,
+              "status": "PASS"
+            }
+          ]
+        },
+        "speedup_when_both_complete": 10.463796846467048
+      }
+    ],
+    "incremental_native_queries": {
+      "cold": 4,
+      "one_edit": 5,
+      "unchanged": 0
+    },
+    "large_chain": {
+      "input_bits": 65,
+      "input_words": 36893488147419103232,
+      "requirements": 64,
+      "result": {
+        "error_code": null,
+        "mode": "composed",
+        "native_output_bytes": 51,
+        "native_queries": 4,
+        "repair_tree_json_bytes": 146055,
+        "seconds": 0.38395911222323775,
+        "status": "PASS"
+      }
+    },
+    "limitations": [
+      "Local wall time includes native parsing/checking and process costs; initial runtime hashing is excluded equally.",
+      "Native term-profile rejection is distinct from solver timeout and proves no native solver incapability.",
+      "Only completed paired runs produce a ratio; selected maps may differ while both preserve the whole solution set.",
+      "Families are synthetic algebra workloads; no production throughput or general asymptotic speedup is established."
+    ],
+    "monolithic_profile_boundaries": [
+      {
+        "error_code": "native_term_unsupported",
+        "mode": "monolithic",
+        "native_output_bytes": 2421,
+        "native_queries": 1,
+        "repair_tree_json_bytes": null,
+        "seconds": 0.17594931600615382,
+        "status": "UNKNOWN"
+      },
+      {
+        "error_code": "native_term_unsupported",
+        "mode": "monolithic",
+        "native_output_bytes": 41631,
+        "native_queries": 1,
+        "repair_tree_json_bytes": null,
+        "seconds": 0.19396913703531027,
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  "production_claim": false,
+  "schema": "tau-composition/experiment-v1",
+  "semantics": {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "factor_required_merged_synthesis": false,
+    "feasible_guard": {
+      "kind": "constant",
+      "value": true
+    },
+    "guard_cover_orders": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ]
+    ],
+    "naive_order_counterexample": {
+      "input": {
+        "credit": true,
+        "debit": false,
+        "paused": true
+      },
+      "output": {
+        "credit": true,
+        "debit": true,
+        "paused": true
+      }
+    },
+    "native_query_count": 72,
+    "native_trace_rows": 55,
+    "oracle_rows": {
+      "actions": 2048,
+      "chain": 32,
+      "factor": 8,
+      "recovery": 8
+    },
+    "safe_guard": {
+      "kind": "negate",
+      "operands": [
+        {
+          "kind": "variable",
+          "value": "paused"
+        }
+      ]
+    },
+    "status": "PASS",
+    "total_oracle_rows": 2096
+  },
+  "shared_anchor": {
+    "anchor_cache_hits": {
+      "initial": 3,
+      "one_edit": 4,
+      "warm": 4
+    },
+    "anchor_native_queries": {
+      "initial": 1,
+      "one_edit": 0,
+      "warm": 0
+    },
+    "anchor_source_bytes": 1073,
+    "anchor_source_file": "shared_anchor_triangular_coordinates_6.tau",
+    "anchor_source_sha256": "f27259205388c33c71884c8579dc2588571130f0ffa22b4ba3a72b05ae6eb096",
+    "clause_count": 4,
+    "coordinate_count": 6,
+    "definition": "C_i = (x[i-2] | x[i-1]) & ~x[i]",
+    "family": "triangular_common_zero_anchor",
+    "limitations": [
+      "The triangular truth oracle covers six coordinates, four clauses and exact host Boolean inputs.",
+      "Source-size comparisons deliberately report no speed ratio.",
+      "A resource-bound or native failure is UNKNOWN, not evidence about solver capability.",
+      "The repair-economy witness shows different outputs on one proposal; it does not rank maps globally."
+    ],
+    "native_query_count": 6,
+    "native_query_log": "shared_anchor_native_queries.json",
+    "native_trace_rows": 4,
+    "oracle_rows": 64,
+    "repair_economy": {
+      "anchor_native_queries": 1,
+      "anchor_output": {
+        "x": false,
+        "y": false,
+        "z": false
+      },
+      "anchor_source_bytes": 620,
+      "anchor_source_file": "repair_economy_anchor.tau",
+      "anchor_source_sha256": "d7cd87f3fc9f60d888a9fdae3c37123e2f4fad0cc8107a2a254c95e8a83b0d1c",
+      "native_output": {
+        "x": false,
+        "y": true,
+        "z": true
+      },
+      "native_repair_queries": 3,
+      "outputs_equal_on_witness": false,
+      "proposal": {
+        "x": true,
+        "y": true,
+        "z": true
+      }
+    },
+    "source_size_comparisons": [
+      {
+        "clause_count": 10,
+        "common_zero_anchor": {
+          "cache_hits": 9,
+          "compile_native_queries": 1,
+          "error_code": null,
+          "native_query_count": 1,
+          "native_query_log": "triangular_coordinates_12_common_zero_anchor_native_queries.json",
+          "source_bytes": 1873,
+          "source_file": "triangular_coordinates_12_common_zero_anchor.tau",
+          "source_sha256": "98a1e53603d358035b2843dbd3938592c1f85bcb831528f812ae7c13ea32723f",
+          "status": "PASS"
+        },
+        "coordinate_count": 12,
+        "native_composed": {
+          "cache_hits": 39,
+          "compile_native_queries": 7,
+          "error_code": null,
+          "native_query_count": 7,
+          "native_query_log": "triangular_coordinates_12_native_composed_native_queries.json",
+          "source_bytes": 45825,
+          "source_file": "triangular_coordinates_12_native_composed.tau",
+          "source_sha256": "10e65fd97780a78ffa8e9ff78fc4ef5fa7ab87a3621a274f0a677f6ca0976720",
+          "status": "PASS"
+        },
+        "source_size_ratio_when_both_complete": 24.466097170315003,
+        "speed_ratio": null,
+        "speed_ratio_reason": "source_size_only"
+      },
+      {
+        "clause_count": 14,
+        "common_zero_anchor": {
+          "cache_hits": 13,
+          "compile_native_queries": 1,
+          "error_code": null,
+          "native_query_count": 1,
+          "native_query_log": "triangular_coordinates_16_common_zero_anchor_native_queries.json",
+          "source_bytes": 2429,
+          "source_file": "triangular_coordinates_16_common_zero_anchor.tau",
+          "source_sha256": "52967d018c592000a7c647d59052d41ad0204f96176db6a53886e15db666cd49",
+          "status": "PASS"
+        },
+        "coordinate_count": 16,
+        "native_composed": {
+          "cache_hits": null,
+          "compile_native_queries": 7,
+          "error_code": "expression_node_bound",
+          "native_query_count": 7,
+          "native_query_log": "triangular_coordinates_16_native_composed_native_queries.json",
+          "source_bytes": null,
+          "source_file": null,
+          "source_sha256": null,
+          "status": "UNKNOWN",
+          "unknown_reason": "expression_budget"
+        },
+        "source_size_ratio_when_both_complete": null,
+        "speed_ratio": null,
+        "speed_ratio_reason": "native_composed_unknown"
+      }
+    ],
+    "status": "PASS",
+    "trace_file": "shared_anchor_native_traces.json"
+  },
+  "source_sha256": {
+    "docs/research/tau_composition_20260907.md": "c2bfb180d2b52e08e5ea2f0d8c72c776329b797b4851eb098995f3f572874542",
+    "lean-mathlib/Proofs/TauCommonAnchor.lean": "eac8d49faa4332002202b75258f0a8d2836009b98bcd5b500b2609615c182c34",
+    "lean-mathlib/Proofs/TauPolynomialRepair.lean": "f51f8b21b8643753aac0c10abe8c81da36ead832d83273d196e46c807eef6452",
+    "lean-mathlib/Proofs/TauReproductiveComposition.lean": "9048eaaca752a3d5886df381c972d92e3881dc8215fdcc578c94e38247d5f138",
+    "src/tau_composition/__init__.py": "95be79260d05e693911f5d4a180e69cce597942707dd1de84fdd63921a860f79",
+    "src/tau_composition/anchor.py": "ac192e0e5f954722143878b56740ff45c1943976440b155c464aa24094cb2732",
+    "src/tau_composition/anchor_export.py": "f3b9be0d747c5affaf569a45787f33757b7edda0fffc7ca674ce7e9bf4062640",
+    "src/tau_composition/codec.py": "7e0296ad28cc2de2106bec6ba3029536ca045a27b64edd87d31606b587b1042b",
+    "src/tau_composition/compiler.py": "b938b4c3739eb2bf20e6fac8409e5a56fb670d53052095ca46782220f25e0e71",
+    "src/tau_composition/examples.py": "19d899193dc4f7b60da4f61a1c6c4e27257506be095b976b3c95ca6b864a6e04",
+    "src/tau_composition/models.py": "bfb2633124a6d8ed96aca62c6157321098967583074bd92d9fd438e7591f387c",
+    "src/tau_composition/replay.py": "b5d7baf5dac368f463896fa08c45de50d51138c709daccbac510ab5e1649eca2",
+    "src/tau_composition/resources.py": "58e06a5e3a0f7719bec689e7d3d3d13444944e57cf1d6d38faa4b91acdd0b2af",
+    "src/tau_composition/runtime.py": "4e316682e9b22292fdd7e29f1956d5066c144d90ae1e93943302258e5a5d6ebe",
+    "src/tau_composition/scheduling.py": "acec7c4db7fc930c17da95d329b31aa3ad630b3e05b2e5b2aa00219f50cf3a50",
+    "src/tau_composition/terms.py": "7b0d4e9539ce1d40c6e53b64f2cd3373ca3d427a3bb7e854fee4403d41fc428f",
+    "tests/test_tau_anchor_export.py": "3163776043d1c549c1382cc51fa6277f4101f70b83292803de49f36c833318c4",
+    "tests/test_tau_common_anchor.py": "f92c6d338d009459db206bb7b384cb264eb02791fee970e00be4be53dd1457dd",
+    "tests/test_tau_composition.py": "52ee66f73031e4a7af6535f104cf8edd1ef51215aa6c82a38e4f31b9d0605897",
+    "tests/test_tau_composition_frontier.py": "624daf817268a6f765c11875280f94e2e710c0765bdf478f957447ed84d4c5a0",
+    "tests/test_tau_composition_limits.py": "5b72f145b3670b89a679221268d3d15024983c0026256de74c783a2b47b7191a",
+    "tests/test_tau_composition_terms.py": "dfd3ddd8fcfe7c4ab42e87e67062699c95865022fb1da9e93b5cdefce9aa51c8",
+    "tools/benchmark_tau_composition.py": "8e73ed4d0d8a64f2da1a357eee2a773c8f11033dfc9177c443e51836e06a74ef",
+    "tools/tau_composition.py": "ebf44867ca738c2ac463b55bebb05f6e18437ea28418a30ca51c9a933e134146"
+  }
+}

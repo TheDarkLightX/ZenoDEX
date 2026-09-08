@@ -1,0 +1,9 @@
+# Original Tau choice gate for human-directed swarm agent encoder.
+# Exact host Boolean inputs; o1 = 1 means formal compatibility.
+# authority: NONE. Human and runtime execution checks remain separate.
+# Generic local stream artifact for independently proposed choices.
+# i1: choice stage0_bit0 (sbf)
+# i2: choice stage0_bit1 (sbf)
+# o1: local domain compatibility (sbf)
+permit(v0, v1):sbf := 1.
+always (o1[t]:sbf = permit(i1[t]:sbf, i2[t]:sbf)).

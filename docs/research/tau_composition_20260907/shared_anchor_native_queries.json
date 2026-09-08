@@ -1,0 +1,50 @@
+[
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.025011866819113493,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.068 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.3069161083549261,
+    "operation": "execute",
+    "query": "# Original common-anchor proposal controller; authority NONE.\n# Exact Boolean observations and proposed flags enter as data.\n# Every valid proposal is retained; other proposals use a checked anchor.\n# Generic local streams; this is not a Tau Net rule-offer payload.\n# i1: x000 (sbf)\n# i2: x001 (sbf)\n# i3: x002 (sbf)\n# i4: x003 (sbf)\n# i5: x004 (sbf)\n# i6: x005 (sbf)\nresidual(v0, v1, v2, v3, v4, v5):sbf := (((v0|v1)&(v2)')|((v1|v2)&(v3)')|((v2|v3)&(v4)')|((v3|v4)&(v5)')).\n# o1: proposed x000 (sbf)\n# o2: proposed x001 (sbf)\n# o3: proposed x002 (sbf)\n# o4: proposed x003 (sbf)\n# o5: proposed x004 (sbf)\n# o6: proposed x005 (sbf)\nalways (ex r:sbf ((r:sbf = residual(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o1[t]:sbf = ((i1[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o2[t]:sbf = ((i2[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o3[t]:sbf = ((i3[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o4[t]:sbf = ((i4[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o5[t]:sbf = ((i5[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o6[t]:sbf = ((i6[t]:sbf & (r:sbf)') | (0 & r:sbf))))).\n\n# Input rows: [{\"x000\": false, \"x001\": false, \"x002\": false, \"x003\": false, \"x004\": false, \"x005\": false}, {\"x000\": true, \"x001\": true, \"x002\": true, \"x003\": true, \"x004\": true, \"x005\": true}, {\"x000\": true, \"x001\": false, \"x002\": false, \"x003\": false, \"x004\": false, \"x005\": false}, {\"x000\": false, \"x001\": false, \"x002\": true, \"x003\": false, \"x004\": false, \"x005\": false}]",
+    "stderr": "run: 281.272 ms\n\treading input: 0.044 ms\n\tget_interpreter: 263.701 ms\n\tstep: 5.718 ms\n\tstep: 3.732 ms\n\tstep: 3.138 ms\n\tstep: 3.119 ms\n\tstep: 1.807 ms\n",
+    "stdout": ""
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.02183541376143694,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.065 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.01921731187030673,
+    "operation": "lgrs",
+    "query": "lgrs (v0:sbf = 0:sbf)",
+    "stderr": "lgrs: 0.066 ms\n",
+    "stdout": "solution: {\n\tv0 := { 0 }:sbf\n}"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.01721060136333108,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.065 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.045292848721146584,
+    "operation": "valid",
+    "query": "valid all v0:sbf (((v0:sbf = 0:sbf) -> ((v0:sbf^0) = 0:sbf)))",
+    "stderr": "valid: 0.116 ms\n",
+    "stdout": "%1: T"
+  }
+]

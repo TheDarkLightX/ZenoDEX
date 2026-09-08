@@ -1,0 +1,37 @@
+{
+  "controls": [
+    "b",
+    "c"
+  ],
+  "environment": [],
+  "name": "domain1",
+  "requirements": [
+    {
+      "name": "zero",
+      "residual": {
+        "kind": "negate",
+        "operands": [
+          {
+            "kind": "negate",
+            "operands": [
+              {
+                "kind": "join",
+                "operands": [
+                  {
+                    "kind": "variable",
+                    "value": "c"
+                  },
+                  {
+                    "kind": "variable",
+                    "value": "b"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}

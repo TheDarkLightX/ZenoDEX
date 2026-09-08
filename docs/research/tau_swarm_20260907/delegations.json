@@ -1,0 +1,97 @@
+{
+  "attempts": [
+    {
+      "authority": "NONE",
+      "duration_ms": 748958,
+      "effort": "max",
+      "observed_models": [
+        "claude-fable-5-1"
+      ],
+      "packet_bytes": 120396,
+      "packet_sha256": "63d3681937736f8ac082f476a0cbd48129173d4ca23209de7ec34995faca18df",
+      "requested_model": "claude-fable-5-1",
+      "response_sha256": "30942eba7b12d79ab3668cee9524156925d2bb6864bc89cd454b95030090d446",
+      "status": "PROVIDER_SESSION_LIMIT",
+      "task": "fable-swarm-completion",
+      "usable_returned_code_or_review": false
+    },
+    {
+      "authority": "NONE",
+      "duration_ms": 281240,
+      "effort": "max",
+      "observed_models": [
+        "claude-fable-5-1"
+      ],
+      "packet_bytes": 19917,
+      "packet_sha256": "8a9010c80ccde9c20124e5d31c9ed2cee5d2d465218b8a3609fef7248fae8690",
+      "requested_model": "claude-fable-5-1",
+      "response_sha256": "a05303f09f94599c9e1d4b86d5c852a6a26368a24efb80af59130b0a807bc278",
+      "status": "PROVIDER_SAFEGUARD_REJECTION",
+      "task": "fable-swarm-codec",
+      "usable_returned_code_or_review": false
+    },
+    {
+      "authority": "NONE",
+      "effort": "max",
+      "packet_bytes": 132463,
+      "packet_sha256": "8bd2945976183a76ba72f491478093a3c28e6391fb4bef24465cd93c9999cc5a",
+      "requested_model": "claude-opus-5",
+      "status": "TIMEOUT",
+      "task": "opus5-swarm-review",
+      "timeout_seconds": 900,
+      "usable_returned_code_or_review": false
+    },
+    {
+      "authority": "NONE",
+      "effort": "max",
+      "packet_bytes": 36175,
+      "packet_sha256": "2cbeff818d0d3758796fa49b5ff5f93b94e1e4e4cb504538e272a89a869e72ef",
+      "requested_model": "claude-opus-5",
+      "status": "TIMEOUT",
+      "task": "opus5-swarm-core",
+      "timeout_seconds": 600,
+      "usable_returned_code_or_review": false
+    },
+    {
+      "authority": "NONE",
+      "effort": "max",
+      "packet_bytes": 123806,
+      "packet_sha256": "588286d9c5163e623dcad522a11d83458b4d8c15bcbc5bbc9e817a49525787ce",
+      "requested_model": "claude-fable-5-1",
+      "status": "TIMEOUT",
+      "task": "fable-swarm-full-rest",
+      "timeout_seconds": 1200,
+      "usable_returned_code_or_review": false
+    },
+    {
+      "authority": "NONE",
+      "duration_seconds": 1152.303,
+      "effort": "max",
+      "integration_review": "integration_review.md",
+      "local_acceptance": "validation.json",
+      "observed_models": [
+        "claude-opus-5"
+      ],
+      "packet_bytes": 84826,
+      "packet_sha256": "f0ba2f11bc20bd8e342e47cd9c0954c6c923c30cc442a7724ba1d40b423b9527",
+      "public_output_reconstruction": "Complete file entries and explicit metadata continuation recovered from saved public-text events. Incomplete draft discarded; raw provider events and thinking excluded.",
+      "requested_model": "claude-opus-5",
+      "returned_file_paths": [
+        "src/tau_swarm/codec.py",
+        "tools/tau_swarm.py",
+        "tools/benchmark_tau_swarm.py",
+        "tests/test_tau_swarm_codec.py",
+        "tests/test_tau_swarm_cli.py",
+        "tests/test_tau_swarm_inspection.py",
+        "docs/research/tau_swarm_autonomy_20260907.md"
+      ],
+      "returned_files": 7,
+      "status": "COMPLETED_REVIEWED_AND_CORRECTED",
+      "task": "opus5-swarm-full-rest",
+      "usable_returned_code_or_review": true
+    }
+  ],
+  "authority": "NONE",
+  "note": "Model attempts do not constitute verification. Raw provider responses remain local and are not included.",
+  "schema": "tau-swarm/delegations-v1"
+}

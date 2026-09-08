@@ -1,0 +1,38 @@
+# Original common-anchor proposal controller; authority NONE.
+# Exact Boolean observations and proposed flags enter as data.
+# Every valid proposal is retained; other proposals use a checked anchor.
+# Generic local streams; this is not a Tau Net rule-offer payload.
+# i1: x000 (sbf)
+# i2: x001 (sbf)
+# i3: x002 (sbf)
+# i4: x003 (sbf)
+# i5: x004 (sbf)
+# i6: x005 (sbf)
+# i7: x006 (sbf)
+# i8: x007 (sbf)
+# i9: x008 (sbf)
+# i10: x009 (sbf)
+# i11: x010 (sbf)
+# i12: x011 (sbf)
+# i13: x012 (sbf)
+# i14: x013 (sbf)
+# i15: x014 (sbf)
+# i16: x015 (sbf)
+residual(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15):sbf := (((v0|v1)&(v2)')|((v1|v2)&(v3)')|((v2|v3)&(v4)')|((v3|v4)&(v5)')|((v4|v5)&(v6)')|((v5|v6)&(v7)')|((v6|v7)&(v8)')|((v7|v8)&(v9)')|((v8|v9)&(v10)')|((v9|v10)&(v11)')|((v10|v11)&(v12)')|((v11|v12)&(v13)')|((v12|v13)&(v14)')|((v13|v14)&(v15)')).
+# o1: proposed x000 (sbf)
+# o2: proposed x001 (sbf)
+# o3: proposed x002 (sbf)
+# o4: proposed x003 (sbf)
+# o5: proposed x004 (sbf)
+# o6: proposed x005 (sbf)
+# o7: proposed x006 (sbf)
+# o8: proposed x007 (sbf)
+# o9: proposed x008 (sbf)
+# o10: proposed x009 (sbf)
+# o11: proposed x010 (sbf)
+# o12: proposed x011 (sbf)
+# o13: proposed x012 (sbf)
+# o14: proposed x013 (sbf)
+# o15: proposed x014 (sbf)
+# o16: proposed x015 (sbf)
+always (ex r:sbf ((r:sbf = residual(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf, i16[t]:sbf)) && (o1[t]:sbf = ((i1[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o2[t]:sbf = ((i2[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o3[t]:sbf = ((i3[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o4[t]:sbf = ((i4[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o5[t]:sbf = ((i5[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o6[t]:sbf = ((i6[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o7[t]:sbf = ((i7[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o8[t]:sbf = ((i8[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o9[t]:sbf = ((i9[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o10[t]:sbf = ((i10[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o11[t]:sbf = ((i11[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o12[t]:sbf = ((i12[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o13[t]:sbf = ((i13[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o14[t]:sbf = ((i14[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o15[t]:sbf = ((i15[t]:sbf & (r:sbf)') | (0 & r:sbf))) && (o16[t]:sbf = ((i16[t]:sbf & (r:sbf)') | (0 & r:sbf))))).

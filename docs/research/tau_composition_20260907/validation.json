@@ -1,0 +1,52 @@
+{
+  "authority": "NONE",
+  "fable": {
+    "context": "public only; no repository inspection; advisory",
+    "effort": "max",
+    "model": "claude-fable-5-1",
+    "substantive_memo_received": true
+  },
+  "limitations": [
+    "Native executable hash does not establish source-to-binary reproducibility",
+    "Standard mathematical results; no novelty or patent clearance",
+    "No authority or network effect",
+    "terms.py retained as a cohesive AST/parser module despite the large-file metric flag"
+  ],
+  "other_checks": [
+    "Ruff passed on changed package, tools and tests",
+    "Scoped MyPy passed",
+    "Existing supported Tau runtime subset check passed",
+    "Existing Tau assurance test passed",
+    "Claims registry check passed",
+    "Independent critical core review: three findings repaired and rechecked"
+  ],
+  "proof_checks": [
+    {
+      "command": "lake env lean Proofs/TauCommonAnchor.lean",
+      "exit_code": 0,
+      "file": "lean-mathlib/Proofs/TauCommonAnchor.lean"
+    },
+    {
+      "command": "lake env lean Proofs/TauPolynomialRepair.lean",
+      "exit_code": 0,
+      "file": "lean-mathlib/Proofs/TauPolynomialRepair.lean"
+    },
+    {
+      "command": "lake env lean Proofs/TauReproductiveComposition.lean",
+      "exit_code": 0,
+      "file": "lean-mathlib/Proofs/TauReproductiveComposition.lean"
+    }
+  ],
+  "replay_command": "python3 tools/benchmark_tau_composition.py --tau /path/to/tau --out docs/research/tau_composition_20260907 --repeats 3",
+  "source_hashes_checked": 24,
+  "status": "PASS",
+  "test_command": "TAU_COMPOSITION_BIN=/path/to/tau python3 -m pytest -q tests/test_tau_composition*.py tests/test_tau_common_anchor.py tests/test_tau_anchor_export.py",
+  "test_result": "68 passed; native tests enabled",
+  "unrun": [
+    "whole-repository tests",
+    "full Lean build",
+    "TLA model fleet",
+    "RISC0 checks",
+    "Tau Net node integration"
+  ]
+}

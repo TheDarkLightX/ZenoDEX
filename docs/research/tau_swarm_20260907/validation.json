@@ -1,0 +1,114 @@
+{
+  "authority": "NONE",
+  "base_head": "b6842cd26aadf32b7ee774f58665570479cacfe6",
+  "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+  "binary_version_observed": "0.7.0-alpha (d80aa50c)",
+  "checks": [
+    {
+      "command": "TAU_COMPOSITION_BIN=/path/to/tau python3 -m pytest -q tests/test_tau_composition.py tests/test_tau_composition_terms.py tests/test_tau_composition_frontier.py tests/test_tau_composition_limits.py tests/test_tau_common_anchor.py tests/test_tau_anchor_export.py tests/test_tau_swarm.py tests/test_tau_swarm_models.py tests/test_tau_swarm_exports.py tests/test_tau_swarm_inspection.py tests/test_tau_swarm_codec.py tests/test_tau_swarm_cli.py tests/test_tau_swarm_replay.py",
+      "exit_code": 0,
+      "result": "190 passed in 33.92s; 68 composition and 122 swarm tests; native tests enabled; no skips"
+    },
+    {
+      "command": "python3 -m ruff check src/tau_swarm tools/tau_swarm.py tools/benchmark_tau_swarm.py tests/test_tau_swarm*.py",
+      "exit_code": 0,
+      "result": "All checks passed"
+    },
+    {
+      "command": "python3 -m mypy src/tau_swarm tools/tau_swarm.py tools/benchmark_tau_swarm.py --follow-imports=silent",
+      "exit_code": 0,
+      "result": "Success; 9 source files"
+    },
+    {
+      "command": "lake env lean Proofs/TauSwarmAutonomy.lean",
+      "cwd": "lean-mathlib",
+      "exit_code": 0,
+      "result": "Parent single-file check passed after resuming; proof source unchanged afterward",
+      "source_sha256": "e05fca3c31ebbd77ee3733b2155d0c0c3cbe475a10c7194f1b29c8e21d4817bf"
+    },
+    {
+      "command": "python3 tools/check_tau_supported_runtime_subset.py",
+      "exit_code": 0,
+      "result": "PASS for the three existing supported runtime profiles"
+    },
+    {
+      "command": "python3 -m pytest -q tests/tau/test_tau_spec_assurance.py",
+      "exit_code": 0,
+      "result": "1 passed in 1.95s"
+    },
+    {
+      "command": "python3 tools/check_claims_registry.py",
+      "exit_code": 0,
+      "result": "ok"
+    },
+    {
+      "command": "python3 .claude/skills/zenodex-security-analysis/scripts/redflags.py src/tau_swarm tools/tau_swarm.py tools/benchmark_tau_swarm.py",
+      "exit_code": 0,
+      "result": "9 files; 0 findings; scanner output is advisory"
+    },
+    {
+      "command": "python3 tools/benchmark_tau_swarm.py --tau /path/to/tau --out docs/research/tau_swarm_20260907/replay",
+      "exit_code": 0,
+      "result": "PASS; output directory was new"
+    }
+  ],
+  "final_curation": {
+    "checks": [
+      "All JSON artifacts parse",
+      "Markdown fences are balanced and relative links resolve",
+      "No private home paths or private-key markers found in curated files",
+      "No trailing whitespace",
+      "24 first-cycle and 30 second-cycle source hashes match",
+      "Existing Tau process adapter matches HEAD"
+    ],
+    "scope": "Curated task files only; provider thinking, private raw events, local packets, scratch and unrelated checkout changes excluded",
+    "status": "PASS",
+    "task_files": 135
+  },
+  "first_cycle_preserved": {
+    "source_hashes_verified": 24,
+    "validation": "../tau_composition_20260907/validation.json"
+  },
+  "model_delegation": "delegations.json",
+  "nonclaims": [
+    "LLM productivity",
+    "general speedup",
+    "maximum-product compiler",
+    "new foundational theorem",
+    "Python-to-Lean refinement proof",
+    "reproducible Tau build",
+    "Tau Net integration",
+    "legal clearance",
+    "authenticated artifact bundle",
+    "production readiness"
+  ],
+  "path_note": "/path/to/tau stands for the separately installed executable with the recorded hash; commands run from the repository root unless stated.",
+  "replay": {
+    "boolean_oracle_rows": 320,
+    "cases": 7,
+    "environment_slices": 9,
+    "exclusion_witnesses_checked": 39,
+    "native_records": 87,
+    "native_trace_rows": 84,
+    "report": "replay/report.json",
+    "report_sha256": "8292f0bf6b49b79f0459e56b9f05a070b82682960877e670a11990206ca21774",
+    "source_hashes_verified": 30,
+    "wall_seconds": 10.919623331632465
+  },
+  "review": [
+    "core_review.md",
+    "integration_review.md"
+  ],
+  "runtime_mounted": false,
+  "schema": "tau-swarm/validation-v1",
+  "status": "PASS_BOUNDED_STUDY",
+  "unrun": [
+    "whole-repository tests and MyPy",
+    "full Lean build",
+    "TLA model fleet and summary regeneration",
+    "RISC0 checks",
+    "release-critical and production-boundary gate suite",
+    "Tau Net node integration",
+    "real developer-and-swarm workload comparison"
+  ]
+}

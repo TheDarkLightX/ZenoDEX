@@ -1,0 +1,76 @@
+{
+  "inputs": [
+    {
+      "x000": false,
+      "x001": false,
+      "x002": false,
+      "x003": false,
+      "x004": false,
+      "x005": false
+    },
+    {
+      "x000": true,
+      "x001": true,
+      "x002": true,
+      "x003": true,
+      "x004": true,
+      "x005": true
+    },
+    {
+      "x000": true,
+      "x001": false,
+      "x002": false,
+      "x003": false,
+      "x004": false,
+      "x005": false
+    },
+    {
+      "x000": false,
+      "x001": false,
+      "x002": true,
+      "x003": false,
+      "x004": false,
+      "x005": false
+    }
+  ],
+  "labels": [
+    "valid_zero",
+    "valid_one",
+    "invalid_early",
+    "invalid_late"
+  ],
+  "outputs": [
+    {
+      "x000": false,
+      "x001": false,
+      "x002": false,
+      "x003": false,
+      "x004": false,
+      "x005": false
+    },
+    {
+      "x000": true,
+      "x001": true,
+      "x002": true,
+      "x003": true,
+      "x004": true,
+      "x005": true
+    },
+    {
+      "x000": false,
+      "x001": false,
+      "x002": false,
+      "x003": false,
+      "x004": false,
+      "x005": false
+    },
+    {
+      "x000": false,
+      "x001": false,
+      "x002": false,
+      "x003": false,
+      "x004": false,
+      "x005": false
+    }
+  ]
+}

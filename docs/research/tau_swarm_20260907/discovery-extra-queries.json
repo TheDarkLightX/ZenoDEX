@@ -1,0 +1,154 @@
+[
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.0452587753534317,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf ((v2:sbf = 0:sbf) -> (({a}:sbf & v1:sbf & v2:sbf) = 0:sbf))",
+    "stderr": "eliminate_quantifiers: 0.275 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.04318708274513483,
+    "operation": "qelim",
+    "query": "qelim all v1:sbf ((0:sbf = 0:sbf) -> (({a}:sbf & v1:sbf & v2:sbf) = 0:sbf))",
+    "stderr": "eliminate_quantifiers: 0.257 ms\n",
+    "stdout": "%1: v2 { a }:sbf = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.0534531120210886,
+    "operation": "valid",
+    "query": "valid all v2:sbf ((({a}:sbf & v2:sbf) = 0:sbf) <-> (all v1:sbf ((0:sbf = 0:sbf) -> (({a}:sbf & v1:sbf & v2:sbf) = 0:sbf))))",
+    "stderr": "valid: 1.141 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.018697904888540506,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.067 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.12038832297548652,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf, v3:sbf (((((v2:sbf^0)|(v3:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.213 ms\n",
+    "stdout": "%1: (v0'|v1)&(v0|v1')&(v0|v1) = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1506943181157112,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((((v0:sbf)'|v1:sbf)&(v0:sbf|(v1:sbf)')&(v0:sbf|v1:sbf)))')' = 0:sbf) <-> (all v2:sbf, v3:sbf (((((v2:sbf^0)|(v3:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+    "stderr": "valid: 5.186 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.13976825820282102,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf, v1:sbf ((((((((v0:sbf)'|v1:sbf)&(v0:sbf|(v1:sbf)')&(v0:sbf|v1:sbf)))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.358 ms\n",
+    "stdout": "%1: v2|v3 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.16781952092424035,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf ((((((v2:sbf|v3:sbf))')' = 0:sbf) <-> (all v0:sbf, v1:sbf ((((((((v0:sbf)'|v1:sbf)&(v0:sbf|(v1:sbf)')&(v0:sbf|v1:sbf)))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+    "stderr": "valid: 4.91 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.15437144972383976,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf (((((((((v0:sbf)'|v1:sbf)&(v0:sbf|(v1:sbf)')&(v0:sbf|v1:sbf)))')'|(((v2:sbf|v3:sbf))')') = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf)))",
+    "stderr": "valid: 3.125 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.17393412487581372,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((((v0:sbf)'|v1:sbf)&(v0:sbf|(v1:sbf)')&(v0:sbf|v1:sbf)))')' = 0:sbf) <-> (all v2:sbf, v3:sbf ((((((v2:sbf|v3:sbf))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+    "stderr": "valid: 5.251 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1905467677861452,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf ((((((v2:sbf|v3:sbf))')' = 0:sbf) <-> (all v0:sbf, v1:sbf ((((((((v0:sbf)'|v1:sbf)&(v0:sbf|(v1:sbf)')&(v0:sbf|v1:sbf)))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+    "stderr": "valid: 5.121 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.025176919996738434,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.087 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.12410645605996251,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf, v1:sbf (((((v0:sbf^0)|(v1:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.196 ms\n",
+    "stdout": "%1: (v2'|v3)&(v2|v3)&(v2|v3') = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.17257900396361947,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf ((((((((v2:sbf)'|v3:sbf)&(v2:sbf|v3:sbf)&(v2:sbf|(v3:sbf)')))')' = 0:sbf) <-> (all v0:sbf, v1:sbf (((((v0:sbf^0)|(v1:sbf^0)) = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+    "stderr": "valid: 5.433 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.13669715588912368,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf, v3:sbf ((((((((v2:sbf)'|v3:sbf)&(v2:sbf|v3:sbf)&(v2:sbf|(v3:sbf)')))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.32 ms\n",
+    "stdout": "%1: v0|v1 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.15880471328273416,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((v0:sbf|v1:sbf))')' = 0:sbf) <-> (all v2:sbf, v3:sbf ((((((((v2:sbf)'|v3:sbf)&(v2:sbf|v3:sbf)&(v2:sbf|(v3:sbf)')))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+    "stderr": "valid: 5.463 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.15237091900780797,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf (((((((v0:sbf|v1:sbf))')'|(((((v2:sbf)'|v3:sbf)&(v2:sbf|v3:sbf)&(v2:sbf|(v3:sbf)')))')') = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf)))",
+    "stderr": "valid: 3.058 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1674964101985097,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((((v0:sbf|v1:sbf))')' = 0:sbf) <-> (all v2:sbf, v3:sbf ((((((((v2:sbf)'|v3:sbf)&(v2:sbf|v3:sbf)&(v2:sbf|(v3:sbf)')))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+    "stderr": "valid: 5.367 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.16828340105712414,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf ((((((((v2:sbf)'|v3:sbf)&(v2:sbf|v3:sbf)&(v2:sbf|(v3:sbf)')))')' = 0:sbf) <-> (all v0:sbf, v1:sbf ((((((v0:sbf|v1:sbf))')' = 0:sbf) -> (((((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&(v1:sbf)'&(v2:sbf)'&v3:sbf)|((v0:sbf)'&(v1:sbf)'&v2:sbf&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&(v3:sbf)')|((v0:sbf)'&v1:sbf&(v2:sbf)'&v3:sbf)|(v0:sbf&(v1:sbf)'&(v2:sbf)'&(v3:sbf)')))' = 0:sbf))))))",
+    "stderr": "valid: 5.347 ms\n",
+    "stdout": "%1: T"
+  }
+]

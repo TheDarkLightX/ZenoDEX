@@ -1,0 +1,27 @@
+{
+  "status": "projection_term_unsupported",
+  "query_count": 2,
+  "queries": [
+    {
+      "operation": "valid",
+      "query": "valid (0 = 0:sbf)",
+      "stdout": "%1: T",
+      "stderr": "valid: 0.063 ms\n",
+      "elapsed_seconds": 0.026537477038800716,
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+    },
+    {
+      "operation": "qelim",
+      "query": "qelim ((0 = 0:sbf) -> (v0:sbf = 0:sbf))",
+      "stdout": "%1: v0 = 0",
+      "stderr": "eliminate_quantifiers: 0.04 ms\n",
+      "elapsed_seconds": 0.03052863059565425,
+      "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+    }
+  ],
+  "source_hashes": {
+    "src/tau_swarm/compiler.py": "7fbab71979618f8689aceb7599b829a0c397b89207afa9ec052de3fa97ea8f8b",
+    "src/tau_swarm/models.py": "43fb3edece2f505d63b70169f7b6087540321a30cdcf81e18eb60130c3f36d20",
+    "src/tau_swarm/examples.py": "144e6813c48d9c7d338f380baa31a408e9d432e7105b8c4c503b7cfef0810509"
+  }
+}

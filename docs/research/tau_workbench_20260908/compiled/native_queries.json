@@ -1,0 +1,98 @@
+[
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.030086481012403965,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.105 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.16963219596073031,
+    "operation": "qelim",
+    "query": "qelim all v2:sbf, v3:sbf, v4:sbf, v5:sbf ((((((v2:sbf^0)|(v3:sbf^0))|((v4:sbf^0)|(v5:sbf^1))) = 0:sbf) -> ((((v0:sbf)'&(v1:sbf&(((v2:sbf)'&((v3:sbf)'&(v5:sbf)'))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))))|(v0:sbf&(((v1:sbf)'&((v2:sbf)'&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))|(v1:sbf&(((v2:sbf)'&(((v3:sbf)'&(((v4:sbf)'&(v5:sbf)')|v4:sbf))|(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))))))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.662 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.19676539488136768,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf, v3:sbf, v4:sbf, v5:sbf ((((((v2:sbf^0)|(v3:sbf^0))|((v4:sbf^0)|(v5:sbf^1))) = 0:sbf) -> ((((v0:sbf)'&(v1:sbf&(((v2:sbf)'&((v3:sbf)'&(v5:sbf)'))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))))|(v0:sbf&(((v1:sbf)'&((v2:sbf)'&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))|(v1:sbf&(((v2:sbf)'&(((v3:sbf)'&(((v4:sbf)'&(v5:sbf)')|v4:sbf))|(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))))))) = 0:sbf))))))",
+    "stderr": "valid: 3.707 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.15482874866575003,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf, v1:sbf, v4:sbf, v5:sbf (((((v4:sbf^0)|(v5:sbf^1)) = 0:sbf) -> ((((v0:sbf)'&(v1:sbf&(((v2:sbf)'&((v3:sbf)'&(v5:sbf)'))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))))|(v0:sbf&(((v1:sbf)'&((v2:sbf)'&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))|(v1:sbf&(((v2:sbf)'&(((v3:sbf)'&(((v4:sbf)'&(v5:sbf)')|v4:sbf))|(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))))))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.467 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.16956392489373684,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf (((0 = 0:sbf) <-> (all v0:sbf, v1:sbf, v4:sbf, v5:sbf (((((v4:sbf^0)|(v5:sbf^1)) = 0:sbf) -> ((((v0:sbf)'&(v1:sbf&(((v2:sbf)'&((v3:sbf)'&(v5:sbf)'))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))))|(v0:sbf&(((v1:sbf)'&((v2:sbf)'&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))|(v1:sbf&(((v2:sbf)'&(((v3:sbf)'&(((v4:sbf)'&(v5:sbf)')|v4:sbf))|(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))))))) = 0:sbf))))))",
+    "stderr": "valid: 3.702 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1745526441372931,
+    "operation": "qelim",
+    "query": "qelim all v0:sbf, v1:sbf, v2:sbf, v3:sbf (((0 = 0:sbf) -> ((((v0:sbf)'&(v1:sbf&(((v2:sbf)'&((v3:sbf)'&(v5:sbf)'))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))))|(v0:sbf&(((v1:sbf)'&((v2:sbf)'&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))|(v1:sbf&(((v2:sbf)'&(((v3:sbf)'&(((v4:sbf)'&(v5:sbf)')|v4:sbf))|(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))))))) = 0:sbf)))",
+    "stderr": "eliminate_quantifiers: 1.535 ms\n",
+    "stdout": "%1: v5'|v4 = 0"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.18578005768358707,
+    "operation": "valid",
+    "query": "valid all v4:sbf, v5:sbf (((((((v5:sbf)'|v4:sbf))')' = 0:sbf) <-> (all v0:sbf, v1:sbf, v2:sbf, v3:sbf (((0 = 0:sbf) -> ((((v0:sbf)'&(v1:sbf&(((v2:sbf)'&((v3:sbf)'&(v5:sbf)'))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))))|(v0:sbf&(((v1:sbf)'&((v2:sbf)'&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))|(v1:sbf&(((v2:sbf)'&(((v3:sbf)'&(((v4:sbf)'&(v5:sbf)')|v4:sbf))|(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))))))) = 0:sbf))))))",
+    "stderr": "valid: 5.749 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1741825151257217,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf (((((((v5:sbf)'|v4:sbf))')' = 0:sbf) -> ((((v0:sbf)'&(v1:sbf&(((v2:sbf)'&((v3:sbf)'&(v5:sbf)'))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))))|(v0:sbf&(((v1:sbf)'&((v2:sbf)'&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))|(v1:sbf&(((v2:sbf)'&(((v3:sbf)'&(((v4:sbf)'&(v5:sbf)')|v4:sbf))|(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))))))) = 0:sbf)))",
+    "stderr": "valid: 3.606 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.020086594857275486,
+    "operation": "valid",
+    "query": "valid (0 = 0:sbf)",
+    "stderr": "valid: 0.076 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.18207174679264426,
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((0 = 0:sbf) <-> (all v2:sbf, v3:sbf, v4:sbf, v5:sbf (((((((v5:sbf)'|v4:sbf))')' = 0:sbf) -> ((((v0:sbf)'&(v1:sbf&(((v2:sbf)'&((v3:sbf)'&(v5:sbf)'))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))))|(v0:sbf&(((v1:sbf)'&((v2:sbf)'&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))|(v1:sbf&(((v2:sbf)'&(((v3:sbf)'&(((v4:sbf)'&(v5:sbf)')|v4:sbf))|(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))))))) = 0:sbf))))))",
+    "stderr": "valid: 3.928 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.1859430279582739,
+    "operation": "valid",
+    "query": "valid all v2:sbf, v3:sbf (((0 = 0:sbf) <-> (all v0:sbf, v1:sbf, v4:sbf, v5:sbf (((((((v5:sbf)'|v4:sbf))')' = 0:sbf) -> ((((v0:sbf)'&(v1:sbf&(((v2:sbf)'&((v3:sbf)'&(v5:sbf)'))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))))|(v0:sbf&(((v1:sbf)'&((v2:sbf)'&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))|(v1:sbf&(((v2:sbf)'&(((v3:sbf)'&(((v4:sbf)'&(v5:sbf)')|v4:sbf))|(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))))))) = 0:sbf))))))",
+    "stderr": "valid: 4.124 ms\n",
+    "stdout": "%1: T"
+  },
+  {
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+    "elapsed_seconds": 0.20176587300375104,
+    "operation": "valid",
+    "query": "valid all v4:sbf, v5:sbf (((((((v5:sbf)'|v4:sbf))')' = 0:sbf) <-> (all v0:sbf, v1:sbf, v2:sbf, v3:sbf (((0 = 0:sbf) -> ((((v0:sbf)'&(v1:sbf&(((v2:sbf)'&((v3:sbf)'&(v5:sbf)'))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))))|(v0:sbf&(((v1:sbf)'&((v2:sbf)'&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))|(v1:sbf&(((v2:sbf)'&(((v3:sbf)'&(((v4:sbf)'&(v5:sbf)')|v4:sbf))|(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf)))))|(v2:sbf&(v3:sbf&(((v4:sbf)'&(v5:sbf)')|(v4:sbf&v5:sbf))))))))) = 0:sbf))))))",
+    "stderr": "valid: 6.178 ms\n",
+    "stdout": "%1: T"
+  }
+]

@@ -1,0 +1,469 @@
+{
+  "accepted_revision_bundles": 8,
+  "authority": "NONE",
+  "baseline": {
+    "accepted_artifact_bundles": 392,
+    "accepted_behavior_bundles": 49,
+    "cached_artifact_checks": 512,
+    "cached_artifact_seconds": 0.0039809527806937695,
+    "quotient_class_checks": 64,
+    "quotient_seconds_including_grouping": 0.0006342390552163124,
+    "same_class_replacement_global_checks": 0,
+    "same_class_replacement_reuse_also_available_without_tau": true,
+    "source_analysis_seconds": 0.011467169038951397,
+    "source_input_evaluations": 6144
+  },
+  "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+  "candidate_input_sha256": "3b5b086923f44305f77426be6bf5dc6de8a13e69ff61c57ce0a6e10a7c61aeed",
+  "cases": {
+    "decoder_first": {
+      "admitted_artifacts_per_stage": [
+        2,
+        8,
+        8
+      ],
+      "anchor": [
+        "raw_mask",
+        "identity",
+        "tolerant_mask"
+      ],
+      "cpython_pipeline_inputs_checked": 8192,
+      "domains": [
+        [
+          0
+        ],
+        [
+          0,
+          1,
+          2,
+          3
+        ],
+        [
+          0,
+          1,
+          2,
+          3
+        ]
+      ],
+      "end_to_end_compile_seconds": 1.9396442701108754,
+      "independent_artifact_bundles": 128,
+      "independent_behavior_bundles": 16,
+      "native_gate_rows": 12,
+      "native_records_including_gate_replay": 23,
+      "order": [
+        "decoder",
+        "adapter",
+        "encoder"
+      ],
+      "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65"
+    },
+    "encoder_first": {
+      "admitted_artifacts_per_stage": [
+        8,
+        8,
+        2
+      ],
+      "anchor": [
+        "raw_mask",
+        "identity",
+        "tolerant_mask"
+      ],
+      "cpython_pipeline_inputs_checked": 8192,
+      "domains": [
+        [
+          0,
+          1,
+          2,
+          3
+        ],
+        [
+          0,
+          1,
+          2,
+          3
+        ],
+        [
+          2
+        ]
+      ],
+      "end_to_end_compile_seconds": 1.8620615489780903,
+      "independent_artifact_bundles": 128,
+      "independent_behavior_bundles": 16,
+      "native_gate_rows": 12,
+      "native_records_including_gate_replay": 23,
+      "order": [
+        "encoder",
+        "adapter",
+        "decoder"
+      ],
+      "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65"
+    },
+    "oracle_anchor": {
+      "admitted_artifacts_per_stage": [
+        8,
+        6,
+        4
+      ],
+      "anchor": [
+        "raw_mask",
+        "strip_mask",
+        "v1_lt"
+      ],
+      "cpython_pipeline_inputs_checked": 12288,
+      "domains": [
+        [
+          0,
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "end_to_end_compile_seconds": 2.042348372284323,
+      "independent_artifact_bundles": 192,
+      "independent_behavior_bundles": 24,
+      "native_gate_rows": 12,
+      "native_records_including_gate_replay": 19,
+      "order": [
+        "encoder",
+        "adapter",
+        "decoder"
+      ],
+      "task_id": "e125225777b36f2a9c53b8056667636424d61984c2b6e419898400c52b5f818f"
+    }
+  },
+  "native_records": 113,
+  "nonclaims": [
+    "Finite original message-code pilot; no real ZenoDEX runtime change.",
+    "No general Python sandbox, program merge, or interpreter refinement proof.",
+    "No new Boolean decision procedure or established patent freedom to operate.",
+    "No human-time or general agent productivity measurement.",
+    "Explicit negative controls are not a natural model error-rate sample.",
+    "Equivalence caching also benefits the centralized quotient baseline.",
+    "Tau domains need not maximize volume; maximum is checked only in this pilot.",
+    "No Tau source-to-binary build correspondence, Tau Net submission or production authority."
+  ],
+  "pilot_maximum_product": {
+    "behavior_bundles": 24,
+    "domains": [
+      [
+        0,
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "oracle_subset_products": 3375
+  },
+  "proposal_events": [
+    {
+      "authority": "NONE",
+      "behavior_class": 1,
+      "central_context_bundles_checked": 16,
+      "central_context_bundles_passed": 16,
+      "first_failure": null,
+      "full_domain_values_checked": 256,
+      "intent_is_unverified_author_metadata": "Advisory proposal: preserve the six payload bits and set the v1 tag. Independent acceptance is pending.",
+      "local_check_seconds": 0.0011427681893110275,
+      "name": "encoder_v1_xor",
+      "native_queries": 0,
+      "negative_control": false,
+      "program_sha256": "1a9307dba7e3923fbe66d42df3e9f5c71c096e48746ba382e1e893e57c1d47d3",
+      "stage": "encoder",
+      "status": "local_equivalent",
+      "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65"
+    },
+    {
+      "authority": "NONE",
+      "behavior_class": 3,
+      "central_context_bundles_checked": 16,
+      "central_context_bundles_passed": 16,
+      "first_failure": null,
+      "full_domain_values_checked": 256,
+      "intent_is_unverified_author_metadata": "Advisory proposal: preserve the six payload bits and force both tag bits. Independent acceptance is pending.",
+      "local_check_seconds": 0.0008389190770685673,
+      "name": "encoder_force_both_tags",
+      "native_queries": 0,
+      "negative_control": false,
+      "program_sha256": "ca9cfa7ed20559f9af9cd290654de59bf456048a7279ebf881c43b4e53e125fa",
+      "stage": "encoder",
+      "status": "local_equivalent",
+      "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65"
+    },
+    {
+      "authority": "NONE",
+      "behavior_class": 1,
+      "central_context_bundles_checked": 16,
+      "central_context_bundles_passed": 16,
+      "first_failure": null,
+      "full_domain_values_checked": 256,
+      "intent_is_unverified_author_metadata": "Advisory proposal: remove both tag bits while preserving the payload. Independent acceptance is pending.",
+      "local_check_seconds": 0.0011257082223892212,
+      "name": "adapter_strip_tags_xor",
+      "native_queries": 0,
+      "negative_control": false,
+      "program_sha256": "7192d6973c663e35b76df1b9bb5b39e7f464237acdf8efaf9fa318ab226774dd",
+      "stage": "adapter",
+      "status": "local_equivalent",
+      "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65"
+    },
+    {
+      "authority": "NONE",
+      "behavior_class": 3,
+      "central_context_bundles_checked": 16,
+      "central_context_bundles_passed": 16,
+      "first_failure": null,
+      "full_domain_values_checked": 256,
+      "intent_is_unverified_author_metadata": "Advisory proposal: map input bit 7 to output bit 6 while preserving the six payload bits. Independent acceptance is pending.",
+      "local_check_seconds": 0.0016375971026718616,
+      "name": "adapter_shift_v2_to_v1",
+      "native_queries": 0,
+      "negative_control": false,
+      "program_sha256": "78aaf794d81ff1fe6414c8ff8aba23acdf196b99ace00fc51848697a9ca4dc75",
+      "stage": "adapter",
+      "status": "local_equivalent",
+      "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65"
+    },
+    {
+      "authority": "NONE",
+      "behavior_class": 2,
+      "central_context_bundles_checked": 64,
+      "central_context_bundles_passed": 64,
+      "first_failure": null,
+      "full_domain_values_checked": 256,
+      "intent_is_unverified_author_metadata": "Advisory proposal: retain the six payload bits using a computed mask for every byte. Independent acceptance is pending.",
+      "local_check_seconds": 0.0014298469759523869,
+      "name": "decoder_computed_xor_mask",
+      "native_queries": 0,
+      "negative_control": false,
+      "program_sha256": "2046d8350a41f7aaaf9316736e18173c43745a7f25ef8089a0216d8c1cc0c436",
+      "stage": "decoder",
+      "status": "local_equivalent",
+      "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65"
+    },
+    {
+      "authority": "NONE",
+      "behavior_class": 2,
+      "central_context_bundles_checked": 64,
+      "central_context_bundles_passed": 64,
+      "first_failure": null,
+      "full_domain_values_checked": 256,
+      "intent_is_unverified_author_metadata": "Advisory proposal: retain the six payload bits using a shifted mask for every byte. Independent acceptance is pending.",
+      "local_check_seconds": 0.0008486686274409294,
+      "name": "decoder_computed_shift_mask",
+      "native_queries": 0,
+      "negative_control": false,
+      "program_sha256": "f852d050900879edab9be306d8cee79bda8f5b7869a0d63955d63a83d65a5c1f",
+      "stage": "decoder",
+      "status": "local_equivalent",
+      "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65"
+    },
+    {
+      "authority": "NONE",
+      "behavior_class": null,
+      "central_context_bundles_checked": 64,
+      "central_context_bundles_passed": 40,
+      "first_failure": {
+        "bundle": [
+          2,
+          0,
+          0
+        ],
+        "expected": 0,
+        "input": 0,
+        "observed": 64
+      },
+      "full_domain_values_checked": 256,
+      "intent_is_unverified_author_metadata": "Advisory negative control: intended to agree on initial payload inputs 0 through 63 while retaining bit 6 from tagged intermediates. Independent rejection is pending.",
+      "local_check_seconds": 0.0006195581518113613,
+      "name": "decoder_tag_leak_negative",
+      "native_queries": 0,
+      "negative_control": true,
+      "program_sha256": "a03bdbca248f1d42f981668013e723ffe6b4aeefe4a7df9b74f6024723f6ce18",
+      "stage": "decoder",
+      "status": "renegotiation_required",
+      "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65"
+    }
+  ],
+  "python_version": "3.12.3",
+  "representations": {
+    "boolean_rows_checked": 64,
+    "median_seconds": {
+      "enumerated": 13.089113152585924,
+      "factored": 2.0250930974725634
+    },
+    "observed_median_ratio": 6.463462429910958,
+    "pairs": 2,
+    "residual_bytes": {
+      "enumerated": 4080,
+      "factored": 541
+    },
+    "runs": [
+      {
+        "domains": [
+          [
+            0,
+            1,
+            2,
+            3
+          ],
+          [
+            0,
+            1,
+            2,
+            3
+          ],
+          [
+            2
+          ]
+        ],
+        "native_queries": 12,
+        "pair": 0,
+        "representation": "enumerated",
+        "seconds": 12.346510752104223
+      },
+      {
+        "domains": [
+          [
+            0,
+            1,
+            2,
+            3
+          ],
+          [
+            0,
+            1,
+            2,
+            3
+          ],
+          [
+            2
+          ]
+        ],
+        "native_queries": 12,
+        "pair": 0,
+        "representation": "factored",
+        "seconds": 1.9959110086783767
+      },
+      {
+        "domains": [
+          [
+            0,
+            1,
+            2,
+            3
+          ],
+          [
+            0,
+            1,
+            2,
+            3
+          ],
+          [
+            2
+          ]
+        ],
+        "native_queries": 12,
+        "pair": 1,
+        "representation": "factored",
+        "seconds": 2.05427518626675
+      },
+      {
+        "domains": [
+          [
+            0,
+            1,
+            2,
+            3
+          ],
+          [
+            0,
+            1,
+            2,
+            3
+          ],
+          [
+            2
+          ]
+        ],
+        "native_queries": 12,
+        "pair": 1,
+        "representation": "enumerated",
+        "seconds": 13.831715553067625
+      }
+    ],
+    "timing_scope": "native compiler only; source analysis and relation construction excluded"
+  },
+  "runtime_mounted": false,
+  "schema": "tau-workbench/replay-v1",
+  "source_sha256": {
+    "docs/research/tau_workbench_plan_20260908.md": "a2c5173c5fd7c279080852d2d3723540a64ec434fc016dced7caaf150b92f507",
+    "lean-mathlib/Proofs/TauArtifactQuotient.lean": "80d3f69812bc56bc659d518273764133db8a35e307503a402fdc2ef27a7e07e2",
+    "lean-mathlib/Proofs/TauSwarmAutonomy.lean": "e05fca3c31ebbd77ee3733b2155d0c0c3cbe475a10c7194f1b29c8e21d4817bf",
+    "src/integration/tau_runner.py": "d2aeba75d26f5b28e7aa01890da4ab2c54678fc8a891c6bdac231a4b7bed3298",
+    "src/tau_composition/__init__.py": "95be79260d05e693911f5d4a180e69cce597942707dd1de84fdd63921a860f79",
+    "src/tau_composition/anchor.py": "ac192e0e5f954722143878b56740ff45c1943976440b155c464aa24094cb2732",
+    "src/tau_composition/anchor_export.py": "f3b9be0d747c5affaf569a45787f33757b7edda0fffc7ca674ce7e9bf4062640",
+    "src/tau_composition/codec.py": "7e0296ad28cc2de2106bec6ba3029536ca045a27b64edd87d31606b587b1042b",
+    "src/tau_composition/compiler.py": "b938b4c3739eb2bf20e6fac8409e5a56fb670d53052095ca46782220f25e0e71",
+    "src/tau_composition/examples.py": "19d899193dc4f7b60da4f61a1c6c4e27257506be095b976b3c95ca6b864a6e04",
+    "src/tau_composition/models.py": "bfb2633124a6d8ed96aca62c6157321098967583074bd92d9fd438e7591f387c",
+    "src/tau_composition/replay.py": "b5d7baf5dac368f463896fa08c45de50d51138c709daccbac510ab5e1649eca2",
+    "src/tau_composition/resources.py": "58e06a5e3a0f7719bec689e7d3d3d13444944e57cf1d6d38faa4b91acdd0b2af",
+    "src/tau_composition/runtime.py": "4e316682e9b22292fdd7e29f1956d5066c144d90ae1e93943302258e5a5d6ebe",
+    "src/tau_composition/scheduling.py": "acec7c4db7fc930c17da95d329b31aa3ad630b3e05b2e5b2aa00219f50cf3a50",
+    "src/tau_composition/terms.py": "7b0d4e9539ce1d40c6e53b64f2cd3373ca3d427a3bb7e854fee4403d41fc428f",
+    "src/tau_swarm/__init__.py": "a439b03b33f60f86d656f88576478d6d91c3176aa54debd16409c6a294d7355c",
+    "src/tau_swarm/codec.py": "b4f976d01d0e359423083b2e091159cbb88575b1afa6c7361648d655d942c59a",
+    "src/tau_swarm/compiler.py": "fb56c81ac5b4c728307faf688dcbccd3bf372e81266e0b435c54da36e6c358d1",
+    "src/tau_swarm/examples.py": "144e6813c48d9c7d338f380baa31a408e9d432e7105b8c4c503b7cfef0810509",
+    "src/tau_swarm/exports.py": "a9434516d4f2b27bb198f459ee01fad1a5170b8ac521123abe64ded659c26130",
+    "src/tau_swarm/inspection.py": "34fb872c26bbab709f2c726b170051e94fa705c31d856bb9be0fde5ba58908b8",
+    "src/tau_swarm/models.py": "43fb3edece2f505d63b70169f7b6087540321a30cdcf81e18eb60130c3f36d20",
+    "src/tau_workbench/__init__.py": "35e2638fc49f3b44316b2fe99fbebc683aa4c3bf5375b43d563e66924f339b18",
+    "src/tau_workbench/catalog.py": "d97e738e5bc0e9a8839d32ff9ba68e37502d3aeeb37c5aeb66df486dcc6e5e67",
+    "src/tau_workbench/codec.py": "fdf95d97448e29e3f3c4f33c63b413f97bc232ddd7dff91648839eff0779cbe0",
+    "src/tau_workbench/compiler.py": "ee297e6fca1eb49926ea618cfa6943b77009f1364d656e3ab5cf38ada8e5618f",
+    "src/tau_workbench/examples.py": "3dd8a4f757205ddbbff565e67078a94a23b4de12562f2f3efc9bf4cb9d8a06b3",
+    "src/tau_workbench/models.py": "cb8596a862e44a7b6ead5fb5928f1487f2ecaf461a6772f56df8a4516fe04bc5",
+    "src/tau_workbench/native.py": "dd4fd1f783382f97e3f2114e8730b7f37ef82653196e9a4dbdbf71d91969e401",
+    "src/tau_workbench/programs.py": "1b5a7345d549624534bba973cb4cfc2c8c20ae7ef2bb996c8954fea0a0ee4b9c",
+    "src/tau_workbench/relation.py": "2dd22efc949e8c20610054e265844371ca35719a91a498565673eda691c9a109",
+    "tests/test_tau_swarm.py": "bb2f84b4ad43b15441446d2083e6c7c4e2d5b433806399711eae28e4daf448b1",
+    "tests/test_tau_swarm_cli.py": "a0d216b2e75da59236f2f75c82d3bfc84eb0def64af69204f8995cdd620bd5d2",
+    "tests/test_tau_swarm_codec.py": "3152598622b002c3dfd9f0c0d359e4cb6b0afb3c74071fa8efa2fe17c44de777",
+    "tests/test_tau_swarm_exports.py": "cbcd272d7bf39365abcf6649d21273420a72d77ccf0f5167f30b9606285a10e7",
+    "tests/test_tau_swarm_inspection.py": "60163a0c1e1e2b49bf24245fd0324e9a8ac12f7c031fb9ecf9591e94626829a4",
+    "tests/test_tau_swarm_models.py": "c08d757c198940cf7f83870ca98be93f5ac2dd9d59784bdd6b553b2797debe72",
+    "tests/test_tau_swarm_replay.py": "4d451d76134ec829f36761abddc4638ded09ee11cb8ebbe56bfb81354000ac83",
+    "tests/test_tau_workbench.py": "d78577ca1fcd76396c5f81786270231023fb10014a98429ff6e525db48044bcd",
+    "tests/test_tau_workbench_benchmark.py": "66efcca9e7415d29fa6a7d40b916583520cfa35de9be3db1e1049a8f18a72e23",
+    "tests/test_tau_workbench_cli.py": "fe3a9c99803b17334ecb5a7aa209a5c7b4054a499b04226342cd8edc04940c64",
+    "tests/test_tau_workbench_codec.py": "c2768b2fb4f3ec1bdaa6efd118ff949aa13d085049ff6f66cb0dee4fdc445a7a",
+    "tests/test_tau_workbench_programs.py": "d8664d4323f720923ed4d1f8cf732c4999d2ca260b93ada2ea04751c6e7f53fd",
+    "tests/test_tau_workbench_relation.py": "85281297a1cd4c9e90f6895b6aaeaecd08c3a474410565dfd54701ce24f99af0",
+    "tools/benchmark_tau_swarm.py": "a0e9e097cd0e841e4ebfbd46e85ed57627293a047005abd566db546f7de3962b",
+    "tools/benchmark_tau_workbench.py": "ec325fbbad96e56354e801af82fafea9f2836e84ff1919dccf4808acc8131315",
+    "tools/tau_swarm.py": "d333d196a87694be138fc5c21b500852c25c29d15fc6c9ab998a760c4ab097f7",
+    "tools/tau_workbench.py": "04b6de3e46248762c8b7f1fb0df83902b862c7bfc93124d87f1f2acf76d245a3"
+  },
+  "status": "PASS",
+  "task_id": "f1d16592e61c930728dd83d86fa64b014d4cf191e6c96581c3264d7820954d65"
+}

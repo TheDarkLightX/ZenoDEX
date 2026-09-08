@@ -1,0 +1,578 @@
+[
+  {
+    "operation": "lgrs",
+    "query": "lgrs (({a}:sbf&v0:sbf) = 0:sbf)",
+    "stdout": "solution: {\n\tv0 := { a' }:sbf v0\n}",
+    "stderr": "lgrs: 0.161 ms\n",
+    "elapsed_seconds": 0.023278414737433195,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((v1:sbf&((v1:sbf)'&v0:sbf)) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.537 ms\n",
+    "elapsed_seconds": 0.03641049284487963,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((v1:sbf&v0:sbf) = 0:sbf) -> ((v0:sbf^((v1:sbf)'&v0:sbf)) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.824 ms\n",
+    "elapsed_seconds": 0.04908915236592293,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "lgrs",
+    "query": "lgrs ((v0:sbf^v1:sbf) = 0:sbf)",
+    "stdout": "solution: {\n\tv0 := v0|v1\n\tv1 := v0|v1\n}",
+    "stderr": "lgrs: 0.238 ms\n",
+    "elapsed_seconds": 0.02304173493757844,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((v0:sbf|v1:sbf)^(v0:sbf|v1:sbf)) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.184 ms\n",
+    "elapsed_seconds": 0.04372467799112201,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((v0:sbf^v1:sbf) = 0:sbf) -> (((v0:sbf^(v0:sbf|v1:sbf))|(v1:sbf^(v0:sbf|v1:sbf))) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.873 ms\n",
+    "elapsed_seconds": 0.0588907478377223,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf ((((v0:sbf&(((v0:sbf)'&v1:sbf)|v2:sbf))|((((v0:sbf)'&v1:sbf)|v2:sbf)^(((v0:sbf)'&v1:sbf)|v2:sbf))) = 0:sbf))",
+    "stdout": "%1: v0 = 0",
+    "stderr": "eliminate_quantifiers: 0.332 ms\n",
+    "elapsed_seconds": 0.058436998166143894,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "qelim",
+    "query": "qelim ex v1:sbf, v2:sbf ((((v0:sbf&v1:sbf)|(v1:sbf^v2:sbf)) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "eliminate_quantifiers: 0.398 ms\n",
+    "elapsed_seconds": 0.06355780968442559,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf ((((v0:sbf)' = 1:sbf) <-> (all v1:sbf, v2:sbf ((((v0:sbf&(((v0:sbf)'&v1:sbf)|v2:sbf))|((((v0:sbf)'&v1:sbf)|v2:sbf)^(((v0:sbf)'&v1:sbf)|v2:sbf))) = 0:sbf)))))",
+    "stdout": "%1: T",
+    "stderr": "valid: 1.474 ms\n",
+    "elapsed_seconds": 0.07320825615897775,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf (((1 = 1:sbf) <-> (ex v1:sbf, v2:sbf ((((v0:sbf&v1:sbf)|(v1:sbf^v2:sbf)) = 0:sbf)))))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.651 ms\n",
+    "elapsed_seconds": 0.05717015592381358,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf ((((v0:sbf)'^1) = 0:sbf))",
+    "stdout": "%1: F",
+    "stderr": "valid: 0.256 ms\n",
+    "elapsed_seconds": 0.03891289513558149,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((v1:sbf^v0:sbf) = 0:sbf) -> ((((v2:sbf)'&v1:sbf)^v0:sbf) = 0:sbf)))",
+    "stdout": "%1: F",
+    "stderr": "valid: 0.937 ms\n",
+    "elapsed_seconds": 0.05215595383197069,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((v2:sbf&v1:sbf) = 0:sbf) -> ((v2:sbf&(v1:sbf|v0:sbf)) = 0:sbf)))",
+    "stdout": "%1: F",
+    "stderr": "valid: 0.921 ms\n",
+    "elapsed_seconds": 0.051494532730430365,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "lgrs",
+    "query": "lgrs ((({a}:sbf&v0:sbf)|(v0:sbf^v1:sbf)) = 0:sbf)",
+    "stdout": "solution: {\n\tv0 := { a' }:sbf v0|{ a' }:sbf v1\n\tv1 := { a' }:sbf v0|{ a' }:sbf v1\n}",
+    "stderr": "lgrs: 0.419 ms\n",
+    "elapsed_seconds": 0.04044191585853696,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((v2:sbf&(((v2:sbf)'&v0:sbf)|((v2:sbf)'&v1:sbf)))|((((v2:sbf)'&v0:sbf)|((v2:sbf)'&v1:sbf))^(((v2:sbf)'&v0:sbf)|((v2:sbf)'&v1:sbf)))) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.657 ms\n",
+    "elapsed_seconds": 0.06140313996002078,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v2:sbf&v0:sbf)|(v0:sbf^v1:sbf)) = 0:sbf) -> (((v0:sbf^(((v2:sbf)'&v0:sbf)|((v2:sbf)'&v1:sbf)))|(v1:sbf^(((v2:sbf)'&v0:sbf)|((v2:sbf)'&v1:sbf)))) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 1.385 ms\n",
+    "elapsed_seconds": 0.08262064214795828,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "lgrs",
+    "query": "lgrs (((({a}:sbf)'&v0:sbf)|({a}:sbf&(v1:sbf)')) = 0:sbf)",
+    "stdout": "solution: {\n\tv0 := { a }:sbf v0|{ a }:sbf v1'\n\tv1 := { a }:sbf v0'v1'|v0|v1\n}",
+    "stderr": "lgrs: 0.362 ms\n",
+    "elapsed_seconds": 0.035125222988426685,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v2:sbf)'&((v2:sbf&v0:sbf)|(v2:sbf&(v1:sbf)')))|(v2:sbf&(((v2:sbf&(v0:sbf)'&(v1:sbf)')|v0:sbf|v1:sbf))')) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 1.12 ms\n",
+    "elapsed_seconds": 0.06115665892139077,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((v2:sbf)'&v0:sbf)|(v2:sbf&(v1:sbf)')) = 0:sbf) -> (((v0:sbf^((v2:sbf&v0:sbf)|(v2:sbf&(v1:sbf)')))|(v1:sbf^((v2:sbf&(v0:sbf)'&(v1:sbf)')|v0:sbf|v1:sbf))) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 1.578 ms\n",
+    "elapsed_seconds": 0.07821547985076904,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "lgrs",
+    "query": "lgrs ((({a}:sbf&v0:sbf)|(({a}:sbf)'&(v1:sbf)')) = 0:sbf)",
+    "stdout": "solution: {\n\tv0 := { a' }:sbf v0|{ a' }:sbf v1'\n\tv1 := { a' }:sbf v0'v1'|v0|v1\n}",
+    "stderr": "lgrs: 0.369 ms\n",
+    "elapsed_seconds": 0.03384480206295848,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((v2:sbf&(((v2:sbf)'&v0:sbf)|((v2:sbf)'&(v1:sbf)')))|((v2:sbf)'&((((v2:sbf)'&(v0:sbf)'&(v1:sbf)')|v0:sbf|v1:sbf))')) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 1.19 ms\n",
+    "elapsed_seconds": 0.08511621411889791,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((v2:sbf&v0:sbf)|((v2:sbf)'&(v1:sbf)')) = 0:sbf) -> (((v0:sbf^(((v2:sbf)'&v0:sbf)|((v2:sbf)'&(v1:sbf)')))|(v1:sbf^(((v2:sbf)'&(v0:sbf)'&(v1:sbf)')|v0:sbf|v1:sbf))) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 1.537 ms\n",
+    "elapsed_seconds": 0.08955629728734493,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf ((((((v0:sbf)'&(((v0:sbf)'&((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)')))|((v0:sbf)'&(((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')))|(v0:sbf&((((v0:sbf)'&(((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)')))'&(((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')|((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)'))|((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf)))'))|((v0:sbf&(((v0:sbf)'&((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)')))|((v0:sbf)'&(((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')))|((v0:sbf)'&((((v0:sbf)'&(((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)')))'&(((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')|((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)'))|((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf)))'))) = 0:sbf))",
+    "stdout": "%1: v0' = 0",
+    "stderr": "eliminate_quantifiers: 1.132 ms\n",
+    "elapsed_seconds": 0.25352843338623643,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "qelim",
+    "query": "qelim ex v1:sbf, v2:sbf ((((((v0:sbf)'&v1:sbf)|(v0:sbf&(v2:sbf)'))|((v0:sbf&v1:sbf)|((v0:sbf)'&(v2:sbf)'))) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "eliminate_quantifiers: 0.339 ms\n",
+    "elapsed_seconds": 0.05761802662163973,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf (((((v0:sbf)')' = 1:sbf) <-> (all v1:sbf, v2:sbf ((((((v0:sbf)'&(((v0:sbf)'&((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)')))|((v0:sbf)'&(((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')))|(v0:sbf&((((v0:sbf)'&(((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)')))'&(((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')|((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)'))|((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf)))'))|((v0:sbf&(((v0:sbf)'&((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)')))|((v0:sbf)'&(((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')))|((v0:sbf)'&((((v0:sbf)'&(((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)')))'&(((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')|((v0:sbf&v1:sbf)|(v0:sbf&(v2:sbf)'))|((v0:sbf&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf)))'))) = 0:sbf)))))",
+    "stdout": "%1: T",
+    "stderr": "valid: 5.117 ms\n",
+    "elapsed_seconds": 0.24178089573979378,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf (((1 = 1:sbf) <-> (ex v1:sbf, v2:sbf ((((((v0:sbf)'&v1:sbf)|(v0:sbf&(v2:sbf)'))|((v0:sbf&v1:sbf)|((v0:sbf)'&(v2:sbf)'))) = 0:sbf)))))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.974 ms\n",
+    "elapsed_seconds": 0.06224422017112374,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf (((((v0:sbf)')'^1) = 0:sbf))",
+    "stdout": "%1: F",
+    "stderr": "valid: 0.296 ms\n",
+    "elapsed_seconds": 0.03839658387005329,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "qelim",
+    "query": "qelim all v1:sbf, v2:sbf ((((((v0:sbf)'&((v0:sbf&(((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)')))|(v0:sbf&((((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')))|(v0:sbf&(((v0:sbf&((((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)')))'&((((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')|(((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)'))|(((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf)))'))|((v0:sbf&((v0:sbf&(((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)')))|(v0:sbf&((((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')))|((v0:sbf)'&(((v0:sbf&((((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)')))'&((((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')|(((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)'))|(((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf)))'))) = 0:sbf))",
+    "stdout": "%1: v0 = 0",
+    "stderr": "eliminate_quantifiers: 1.181 ms\n",
+    "elapsed_seconds": 0.22767616622149944,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "qelim",
+    "query": "qelim ex v1:sbf, v2:sbf ((((((v0:sbf)'&v1:sbf)|(v0:sbf&(v2:sbf)'))|((v0:sbf&v1:sbf)|((v0:sbf)'&(v2:sbf)'))) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "eliminate_quantifiers: 0.376 ms\n",
+    "elapsed_seconds": 0.055974825751036406,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf ((((v0:sbf)' = 1:sbf) <-> (all v1:sbf, v2:sbf ((((((v0:sbf)'&((v0:sbf&(((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)')))|(v0:sbf&((((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')))|(v0:sbf&(((v0:sbf&((((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)')))'&((((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')|(((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)'))|(((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf)))'))|((v0:sbf&((v0:sbf&(((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)')))|(v0:sbf&((((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')))|((v0:sbf)'&(((v0:sbf&((((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)')))'&((((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf))')|(((v0:sbf)'&v1:sbf)|((v0:sbf)'&(v2:sbf)'))|(((v0:sbf)'&(v1:sbf)'&(v2:sbf)')|v1:sbf|v2:sbf)))'))) = 0:sbf)))))",
+    "stdout": "%1: T",
+    "stderr": "valid: 5.964 ms\n",
+    "elapsed_seconds": 0.264354859944433,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf (((1 = 1:sbf) <-> (ex v1:sbf, v2:sbf ((((((v0:sbf)'&v1:sbf)|(v0:sbf&(v2:sbf)'))|((v0:sbf&v1:sbf)|((v0:sbf)'&(v2:sbf)'))) = 0:sbf)))))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.957 ms\n",
+    "elapsed_seconds": 0.06365170096978545,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf ((((v0:sbf)'^1) = 0:sbf))",
+    "stdout": "%1: F",
+    "stderr": "valid: 0.27 ms\n",
+    "elapsed_seconds": 0.02980464929714799,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf ((((((v0:sbf)')')'&((v0:sbf)')') = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.119 ms\n",
+    "elapsed_seconds": 0.04086073720827699,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((((v1:sbf)'&((((v1:sbf)')'&(((v1:sbf)'&((v1:sbf&v0:sbf)|(v1:sbf&(v2:sbf)')))|((v1:sbf)'&(((v1:sbf&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')))|(((((v1:sbf)')')'&(v1:sbf)')&((v1:sbf&(((v1:sbf)'&v0:sbf)|((v1:sbf)'&(v2:sbf)')))|(v1:sbf&((((v1:sbf)'&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')))))|(v1:sbf&(((((v1:sbf)')'&(((v1:sbf)'&(((v1:sbf&v0:sbf)|(v1:sbf&(v2:sbf)')))'&(((v1:sbf&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')|((v1:sbf&v0:sbf)|(v1:sbf&(v2:sbf)'))|((v1:sbf&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf)))|(((((v1:sbf)')')'&(v1:sbf)')&((v1:sbf&((((v1:sbf)'&v0:sbf)|((v1:sbf)'&(v2:sbf)')))'&((((v1:sbf)'&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')|(((v1:sbf)'&v0:sbf)|((v1:sbf)'&(v2:sbf)'))|(((v1:sbf)'&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf)))))'))|((v1:sbf&((((v1:sbf)')'&(((v1:sbf)'&((v1:sbf&v0:sbf)|(v1:sbf&(v2:sbf)')))|((v1:sbf)'&(((v1:sbf&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')))|(((((v1:sbf)')')'&(v1:sbf)')&((v1:sbf&(((v1:sbf)'&v0:sbf)|((v1:sbf)'&(v2:sbf)')))|(v1:sbf&((((v1:sbf)'&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')))))|((v1:sbf)'&(((((v1:sbf)')'&(((v1:sbf)'&(((v1:sbf&v0:sbf)|(v1:sbf&(v2:sbf)')))'&(((v1:sbf&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')|((v1:sbf&v0:sbf)|(v1:sbf&(v2:sbf)'))|((v1:sbf&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf)))|(((((v1:sbf)')')'&(v1:sbf)')&((v1:sbf&((((v1:sbf)'&v0:sbf)|((v1:sbf)'&(v2:sbf)')))'&((((v1:sbf)'&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')|(((v1:sbf)'&v0:sbf)|((v1:sbf)'&(v2:sbf)'))|(((v1:sbf)'&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf)))))'))) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 5.498 ms\n",
+    "elapsed_seconds": 0.5082747559063137,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf (((((((v1:sbf)'&v0:sbf)|(v1:sbf&(v2:sbf)'))|((v1:sbf&v0:sbf)|((v1:sbf)'&(v2:sbf)'))) = 0:sbf) -> (((v0:sbf^((((v1:sbf)')'&(((v1:sbf)'&((v1:sbf&v0:sbf)|(v1:sbf&(v2:sbf)')))|((v1:sbf)'&(((v1:sbf&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')))|(((((v1:sbf)')')'&(v1:sbf)')&((v1:sbf&(((v1:sbf)'&v0:sbf)|((v1:sbf)'&(v2:sbf)')))|(v1:sbf&((((v1:sbf)'&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')))))|(v2:sbf^((((v1:sbf)')'&(((v1:sbf)'&(((v1:sbf&v0:sbf)|(v1:sbf&(v2:sbf)')))'&(((v1:sbf&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')|((v1:sbf&v0:sbf)|(v1:sbf&(v2:sbf)'))|((v1:sbf&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf)))|(((((v1:sbf)')')'&(v1:sbf)')&((v1:sbf&((((v1:sbf)'&v0:sbf)|((v1:sbf)'&(v2:sbf)')))'&((((v1:sbf)'&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf))')|(((v1:sbf)'&v0:sbf)|((v1:sbf)'&(v2:sbf)'))|(((v1:sbf)'&(v0:sbf)'&(v2:sbf)')|v0:sbf|v2:sbf)))))) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 4.379 ms\n",
+    "elapsed_seconds": 0.2856740830466151,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "lgrs",
+    "query": "lgrs ((v0:sbf&(({a}:sbf&{b}:sbf&{c}:sbf&{d}:sbf&{e}:sbf&{f}:sbf&{g}:sbf&{h}:sbf))') = 0:sbf)",
+    "stdout": "solution: {\n\tv0 := { a b c d e f g h }:sbf v0\n}",
+    "stderr": "lgrs: 0.143 ms\n",
+    "elapsed_seconds": 0.038803525269031525,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf, v6:sbf, v7:sbf, v8:sbf (((((v1:sbf&v2:sbf&v3:sbf&v4:sbf&v5:sbf&v6:sbf&v7:sbf&v8:sbf)&v0:sbf)&((v1:sbf&v2:sbf&v3:sbf&v4:sbf&v5:sbf&v6:sbf&v7:sbf&v8:sbf))') = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 2.24 ms\n",
+    "elapsed_seconds": 0.09923198400065303,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf, v6:sbf, v7:sbf, v8:sbf ((((v0:sbf&((v1:sbf&v2:sbf&v3:sbf&v4:sbf&v5:sbf&v6:sbf&v7:sbf&v8:sbf))') = 0:sbf) -> ((v0:sbf^((v1:sbf&v2:sbf&v3:sbf&v4:sbf&v5:sbf&v6:sbf&v7:sbf&v8:sbf)&v0:sbf)) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 3.245 ms\n",
+    "elapsed_seconds": 0.10446399683132768,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "lgrs",
+    "query": "lgrs ((v0:sbf&({a}:sbf)') = 0:sbf)",
+    "stdout": "solution: {\n\tv0 := { a }:sbf v0\n}",
+    "stderr": "lgrs: 0.15 ms\n",
+    "elapsed_seconds": 0.029488978907465935,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((v1:sbf&v0:sbf)&(v1:sbf)') = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.51 ms\n",
+    "elapsed_seconds": 0.04400638910010457,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((v0:sbf&(v1:sbf)') = 0:sbf) -> ((v0:sbf^(v1:sbf&v0:sbf)) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.797 ms\n",
+    "elapsed_seconds": 0.046460079960525036,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "lgrs",
+    "query": "lgrs ((v0:sbf&v1:sbf) = 0:sbf)",
+    "stdout": "solution: {\n\tv0 := v0 v1'\n\tv1 := v1\n}",
+    "stderr": "lgrs: 0.173 ms\n",
+    "elapsed_seconds": 0.02283052494749427,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((v0:sbf&(v1:sbf)')&v1:sbf) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.477 ms\n",
+    "elapsed_seconds": 0.04097785707563162,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((v0:sbf&v1:sbf) = 0:sbf) -> (((v0:sbf^(v0:sbf&(v1:sbf)'))|(v1:sbf^v1:sbf)) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.768 ms\n",
+    "elapsed_seconds": 0.05819505779072642,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "lgrs",
+    "query": "lgrs ((v1:sbf&v0:sbf) = 0:sbf)",
+    "stdout": "solution: {\n\tv0 := v0\n\tv1 := v0'v1\n}",
+    "stderr": "lgrs: 0.167 ms\n",
+    "elapsed_seconds": 0.029845929238945246,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((((v0:sbf)'&v1:sbf)&v0:sbf) = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.503 ms\n",
+    "elapsed_seconds": 0.04315247805789113,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((v1:sbf&v0:sbf) = 0:sbf) -> (((v0:sbf^v0:sbf)|(v1:sbf^((v0:sbf)'&v1:sbf))) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.773 ms\n",
+    "elapsed_seconds": 0.058674576692283154,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf, v6:sbf, v7:sbf, v8:sbf, v9:sbf ((((v4:sbf&v9:sbf) = 0:sbf) -> ((((v6:sbf&v5:sbf&v2:sbf&v8:sbf&v1:sbf&v0:sbf&v7:sbf&v3:sbf)&v4:sbf)&v9:sbf) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 2.882 ms\n",
+    "elapsed_seconds": 0.08396294387057424,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf, v6:sbf, v7:sbf, v8:sbf, v9:sbf ((((v3:sbf&v5:sbf) = 0:sbf) -> ((v3:sbf&((v7:sbf&v6:sbf&v2:sbf&v9:sbf&v1:sbf&v0:sbf&v8:sbf&v4:sbf)&v5:sbf)) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 3.018 ms\n",
+    "elapsed_seconds": 0.07715778984129429,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((v1:sbf&v2:sbf) = 0:sbf) -> ((v1:sbf&(v0:sbf&v2:sbf)) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.907 ms\n",
+    "elapsed_seconds": 0.051846942864358425,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf, v3:sbf, v4:sbf, v5:sbf, v6:sbf, v7:sbf, v8:sbf, v9:sbf ((((v4:sbf&((v6:sbf&v5:sbf&v2:sbf&v8:sbf&v1:sbf&v0:sbf&v7:sbf&v3:sbf))') = 0:sbf) -> (((v4:sbf&(v9:sbf)')&((v6:sbf&v5:sbf&v2:sbf&v8:sbf&v1:sbf&v0:sbf&v7:sbf&v3:sbf))') = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 3.594 ms\n",
+    "elapsed_seconds": 0.1073307590559125,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((v0:sbf&v1:sbf) = 0:sbf) -> ((v0:sbf&(v1:sbf&(v2:sbf)')) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.943 ms\n",
+    "elapsed_seconds": 0.05085284262895584,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((v0:sbf&v2:sbf) = 0:sbf) -> ((((v1:sbf)'&v0:sbf)&v2:sbf) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.942 ms\n",
+    "elapsed_seconds": 0.05394019512459636,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((v0:sbf&v1:sbf) = 0:sbf) -> ((((v2:sbf)'&v0:sbf)&v1:sbf) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.863 ms\n",
+    "elapsed_seconds": 0.046586859971284866,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "lgrs",
+    "query": "lgrs ((v0:sbf&(v1:sbf)') = 0:sbf)",
+    "stdout": "solution: {\n\tv0 := v0\n\tv1 := v0|v1\n}",
+    "stderr": "lgrs: 0.199 ms\n",
+    "elapsed_seconds": 0.030412800144404173,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf (((v0:sbf&((v0:sbf|v1:sbf))') = 0:sbf))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.492 ms\n",
+    "elapsed_seconds": 0.043766957707703114,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf ((((v0:sbf&(v1:sbf)') = 0:sbf) -> (((v0:sbf^v0:sbf)|(v1:sbf^(v0:sbf|v1:sbf))) = 0:sbf)))",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.781 ms\n",
+    "elapsed_seconds": 0.0578995980322361,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all v0:sbf, v1:sbf, v2:sbf ((((v1:sbf&(v2:sbf)') = 0:sbf) -> (((v0:sbf|v1:sbf)&(v2:sbf)') = 0:sbf)))",
+    "stdout": "%1: F",
+    "stderr": "valid: 0.985 ms\n",
+    "elapsed_seconds": 0.0469717001542449,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: paused (sbf)\n# i2: debit (sbf)\n# i3: credit (sbf)\n# o1: proposed debit (sbf)\nrepair0(v0, v1, v2):sbf := (((v0)'&v1)|((v0)'&v2)).\n# o2: proposed credit (sbf)\nrepair1(v0, v1, v2):sbf := (((v0)'&v1)|((v0)'&v2)).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))).\n\n# Input rows: [{\"credit\": false, \"debit\": false, \"paused\": false}, {\"credit\": true, \"debit\": false, \"paused\": false}, {\"credit\": false, \"debit\": true, \"paused\": false}, {\"credit\": true, \"debit\": true, \"paused\": false}, {\"credit\": false, \"debit\": false, \"paused\": true}, {\"credit\": true, \"debit\": false, \"paused\": true}, {\"credit\": false, \"debit\": true, \"paused\": true}, {\"credit\": true, \"debit\": true, \"paused\": true}]",
+    "stdout": "",
+    "stderr": "run: 131.825 ms\n\treading input: 0.044 ms\n\tget_interpreter: 125.082 ms\n\tstep: 1.307 ms\n\tstep: 0.904 ms\n\tstep: 0.759 ms\n\tstep: 0.748 ms\n\tstep: 0.683 ms\n\tstep: 0.647 ms\n\tstep: 0.688 ms\n\tstep: 0.663 ms\n\tstep: 0.281 ms\n",
+    "elapsed_seconds": 0.15162457805126905,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: mode (sbf)\n# i2: left (sbf)\n# i3: right (sbf)\n# o1: proposed left (sbf)\nrepair0(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&((v0&v1)|(v0&(v2)')))|((v0)'&(((v0&(v1)'&(v2)')|v1|v2))')))|(((((v0)')')'&(v0)')&((v0&(((v0)'&v1)|((v0)'&(v2)')))|(v0&((((v0)'&(v1)'&(v2)')|v1|v2))')))).\n# o2: proposed right (sbf)\nrepair1(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&(((v0&v1)|(v0&(v2)')))'&(((v0&(v1)'&(v2)')|v1|v2))')|((v0&v1)|(v0&(v2)'))|((v0&(v1)'&(v2)')|v1|v2)))|(((((v0)')')'&(v0)')&((v0&((((v0)'&v1)|((v0)'&(v2)')))'&((((v0)'&(v1)'&(v2)')|v1|v2))')|(((v0)'&v1)|((v0)'&(v2)'))|(((v0)'&(v1)'&(v2)')|v1|v2)))).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))).\n\n# Input rows: [{\"left\": false, \"mode\": false, \"right\": false}, {\"left\": false, \"mode\": false, \"right\": true}, {\"left\": true, \"mode\": false, \"right\": false}, {\"left\": true, \"mode\": false, \"right\": true}, {\"left\": false, \"mode\": true, \"right\": false}, {\"left\": false, \"mode\": true, \"right\": true}, {\"left\": true, \"mode\": true, \"right\": false}, {\"left\": true, \"mode\": true, \"right\": true}]",
+    "stdout": "",
+    "stderr": "run: 230.785 ms\n\treading input: 0.039 ms\n\tget_interpreter: 229.441 ms\n\tstep: 1.296 ms\n",
+    "elapsed_seconds": 0.25076902098953724,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: mode (sbf)\n# i2: left (sbf)\n# i3: right (sbf)\n# o1: proposed left (sbf)\nrepair0(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&((v0&v1)|(v0&(v2)')))|((v0)'&(((v0&(v1)'&(v2)')|v1|v2))')))|(((((v0)')')'&(v0)')&((v0&(((v0)'&v1)|((v0)'&(v2)')))|(v0&((((v0)'&(v1)'&(v2)')|v1|v2))')))).\n# o2: proposed right (sbf)\nrepair1(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&(((v0&v1)|(v0&(v2)')))'&(((v0&(v1)'&(v2)')|v1|v2))')|((v0&v1)|(v0&(v2)'))|((v0&(v1)'&(v2)')|v1|v2)))|(((((v0)')')'&(v0)')&((v0&((((v0)'&v1)|((v0)'&(v2)')))'&((((v0)'&(v1)'&(v2)')|v1|v2))')|(((v0)'&v1)|((v0)'&(v2)'))|(((v0)'&(v1)'&(v2)')|v1|v2)))).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))).\n\n# Input rows: [{\"left\": false, \"mode\": false, \"right\": false}]",
+    "stdout": "",
+    "stderr": "run: 226.216 ms\n\treading input: 0.047 ms\n\tget_interpreter: 224.867 ms\n\tstep: 1.292 ms\n",
+    "elapsed_seconds": 0.2475364888086915,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: mode (sbf)\n# i2: left (sbf)\n# i3: right (sbf)\n# o1: proposed left (sbf)\nrepair0(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&((v0&v1)|(v0&(v2)')))|((v0)'&(((v0&(v1)'&(v2)')|v1|v2))')))|(((((v0)')')'&(v0)')&((v0&(((v0)'&v1)|((v0)'&(v2)')))|(v0&((((v0)'&(v1)'&(v2)')|v1|v2))')))).\n# o2: proposed right (sbf)\nrepair1(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&(((v0&v1)|(v0&(v2)')))'&(((v0&(v1)'&(v2)')|v1|v2))')|((v0&v1)|(v0&(v2)'))|((v0&(v1)'&(v2)')|v1|v2)))|(((((v0)')')'&(v0)')&((v0&((((v0)'&v1)|((v0)'&(v2)')))'&((((v0)'&(v1)'&(v2)')|v1|v2))')|(((v0)'&v1)|((v0)'&(v2)'))|(((v0)'&(v1)'&(v2)')|v1|v2)))).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))).\n\n# Input rows: [{\"left\": false, \"mode\": false, \"right\": true}]",
+    "stdout": "",
+    "stderr": "run: 220.775 ms\n\treading input: 0.043 ms\n\tget_interpreter: 219.434 ms\n\tstep: 1.29 ms\n",
+    "elapsed_seconds": 0.24200505623593926,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: mode (sbf)\n# i2: left (sbf)\n# i3: right (sbf)\n# o1: proposed left (sbf)\nrepair0(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&((v0&v1)|(v0&(v2)')))|((v0)'&(((v0&(v1)'&(v2)')|v1|v2))')))|(((((v0)')')'&(v0)')&((v0&(((v0)'&v1)|((v0)'&(v2)')))|(v0&((((v0)'&(v1)'&(v2)')|v1|v2))')))).\n# o2: proposed right (sbf)\nrepair1(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&(((v0&v1)|(v0&(v2)')))'&(((v0&(v1)'&(v2)')|v1|v2))')|((v0&v1)|(v0&(v2)'))|((v0&(v1)'&(v2)')|v1|v2)))|(((((v0)')')'&(v0)')&((v0&((((v0)'&v1)|((v0)'&(v2)')))'&((((v0)'&(v1)'&(v2)')|v1|v2))')|(((v0)'&v1)|((v0)'&(v2)'))|(((v0)'&(v1)'&(v2)')|v1|v2)))).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))).\n\n# Input rows: [{\"left\": true, \"mode\": false, \"right\": false}]",
+    "stdout": "",
+    "stderr": "run: 224.203 ms\n\treading input: 0.041 ms\n\tget_interpreter: 222.881 ms\n\tstep: 1.272 ms\n",
+    "elapsed_seconds": 0.24464360810816288,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: mode (sbf)\n# i2: left (sbf)\n# i3: right (sbf)\n# o1: proposed left (sbf)\nrepair0(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&((v0&v1)|(v0&(v2)')))|((v0)'&(((v0&(v1)'&(v2)')|v1|v2))')))|(((((v0)')')'&(v0)')&((v0&(((v0)'&v1)|((v0)'&(v2)')))|(v0&((((v0)'&(v1)'&(v2)')|v1|v2))')))).\n# o2: proposed right (sbf)\nrepair1(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&(((v0&v1)|(v0&(v2)')))'&(((v0&(v1)'&(v2)')|v1|v2))')|((v0&v1)|(v0&(v2)'))|((v0&(v1)'&(v2)')|v1|v2)))|(((((v0)')')'&(v0)')&((v0&((((v0)'&v1)|((v0)'&(v2)')))'&((((v0)'&(v1)'&(v2)')|v1|v2))')|(((v0)'&v1)|((v0)'&(v2)'))|(((v0)'&(v1)'&(v2)')|v1|v2)))).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))).\n\n# Input rows: [{\"left\": true, \"mode\": false, \"right\": true}]",
+    "stdout": "",
+    "stderr": "run: 227.788 ms\n\treading input: 0.048 ms\n\tget_interpreter: 226.442 ms\n\tstep: 1.291 ms\n",
+    "elapsed_seconds": 0.24890330014750361,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: mode (sbf)\n# i2: left (sbf)\n# i3: right (sbf)\n# o1: proposed left (sbf)\nrepair0(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&((v0&v1)|(v0&(v2)')))|((v0)'&(((v0&(v1)'&(v2)')|v1|v2))')))|(((((v0)')')'&(v0)')&((v0&(((v0)'&v1)|((v0)'&(v2)')))|(v0&((((v0)'&(v1)'&(v2)')|v1|v2))')))).\n# o2: proposed right (sbf)\nrepair1(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&(((v0&v1)|(v0&(v2)')))'&(((v0&(v1)'&(v2)')|v1|v2))')|((v0&v1)|(v0&(v2)'))|((v0&(v1)'&(v2)')|v1|v2)))|(((((v0)')')'&(v0)')&((v0&((((v0)'&v1)|((v0)'&(v2)')))'&((((v0)'&(v1)'&(v2)')|v1|v2))')|(((v0)'&v1)|((v0)'&(v2)'))|(((v0)'&(v1)'&(v2)')|v1|v2)))).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))).\n\n# Input rows: [{\"left\": false, \"mode\": true, \"right\": false}]",
+    "stdout": "",
+    "stderr": "run: 224.231 ms\n\treading input: 0.039 ms\n\tget_interpreter: 222.786 ms\n\tstep: 1.398 ms\n",
+    "elapsed_seconds": 0.2454006881453097,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: mode (sbf)\n# i2: left (sbf)\n# i3: right (sbf)\n# o1: proposed left (sbf)\nrepair0(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&((v0&v1)|(v0&(v2)')))|((v0)'&(((v0&(v1)'&(v2)')|v1|v2))')))|(((((v0)')')'&(v0)')&((v0&(((v0)'&v1)|((v0)'&(v2)')))|(v0&((((v0)'&(v1)'&(v2)')|v1|v2))')))).\n# o2: proposed right (sbf)\nrepair1(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&(((v0&v1)|(v0&(v2)')))'&(((v0&(v1)'&(v2)')|v1|v2))')|((v0&v1)|(v0&(v2)'))|((v0&(v1)'&(v2)')|v1|v2)))|(((((v0)')')'&(v0)')&((v0&((((v0)'&v1)|((v0)'&(v2)')))'&((((v0)'&(v1)'&(v2)')|v1|v2))')|(((v0)'&v1)|((v0)'&(v2)'))|(((v0)'&(v1)'&(v2)')|v1|v2)))).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))).\n\n# Input rows: [{\"left\": false, \"mode\": true, \"right\": true}]",
+    "stdout": "",
+    "stderr": "run: 224.631 ms\n\treading input: 0.039 ms\n\tget_interpreter: 223.264 ms\n\tstep: 1.319 ms\n",
+    "elapsed_seconds": 0.2439792873337865,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: mode (sbf)\n# i2: left (sbf)\n# i3: right (sbf)\n# o1: proposed left (sbf)\nrepair0(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&((v0&v1)|(v0&(v2)')))|((v0)'&(((v0&(v1)'&(v2)')|v1|v2))')))|(((((v0)')')'&(v0)')&((v0&(((v0)'&v1)|((v0)'&(v2)')))|(v0&((((v0)'&(v1)'&(v2)')|v1|v2))')))).\n# o2: proposed right (sbf)\nrepair1(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&(((v0&v1)|(v0&(v2)')))'&(((v0&(v1)'&(v2)')|v1|v2))')|((v0&v1)|(v0&(v2)'))|((v0&(v1)'&(v2)')|v1|v2)))|(((((v0)')')'&(v0)')&((v0&((((v0)'&v1)|((v0)'&(v2)')))'&((((v0)'&(v1)'&(v2)')|v1|v2))')|(((v0)'&v1)|((v0)'&(v2)'))|(((v0)'&(v1)'&(v2)')|v1|v2)))).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))).\n\n# Input rows: [{\"left\": true, \"mode\": true, \"right\": false}]",
+    "stdout": "",
+    "stderr": "run: 224.375 ms\n\treading input: 0.043 ms\n\tget_interpreter: 223.084 ms\n\tstep: 1.239 ms\n",
+    "elapsed_seconds": 0.24346111714839935,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: mode (sbf)\n# i2: left (sbf)\n# i3: right (sbf)\n# o1: proposed left (sbf)\nrepair0(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&((v0&v1)|(v0&(v2)')))|((v0)'&(((v0&(v1)'&(v2)')|v1|v2))')))|(((((v0)')')'&(v0)')&((v0&(((v0)'&v1)|((v0)'&(v2)')))|(v0&((((v0)'&(v1)'&(v2)')|v1|v2))')))).\n# o2: proposed right (sbf)\nrepair1(v0, v1, v2):sbf := ((((v0)')'&(((v0)'&(((v0&v1)|(v0&(v2)')))'&(((v0&(v1)'&(v2)')|v1|v2))')|((v0&v1)|(v0&(v2)'))|((v0&(v1)'&(v2)')|v1|v2)))|(((((v0)')')'&(v0)')&((v0&((((v0)'&v1)|((v0)'&(v2)')))'&((((v0)'&(v1)'&(v2)')|v1|v2))')|(((v0)'&v1)|((v0)'&(v2)'))|(((v0)'&(v1)'&(v2)')|v1|v2)))).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))).\n\n# Input rows: [{\"left\": true, \"mode\": true, \"right\": true}]",
+    "stdout": "",
+    "stderr": "run: 226.607 ms\n\treading input: 0.045 ms\n\tget_interpreter: 225.274 ms\n\tstep: 1.279 ms\n",
+    "elapsed_seconds": 0.2470320202410221,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: oracle_fresh (sbf)\n# i2: maintenance_breach (sbf)\n# i3: breaker_clear (sbf)\n# i4: proof_valid (sbf)\n# i5: binding_valid (sbf)\n# i6: authorized (sbf)\n# i7: position_open (sbf)\n# i8: epoch_valid (sbf)\n# i9: liquidate (sbf)\n# i10: recover (sbf)\n# i11: cancel (sbf)\n# o1: proposed liquidate (sbf)\nrepair0(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9):sbf := (((v0&v1&v2&v3&v4&v5&v6&v7)&v8)&((v5&v9))').\n# o2: proposed recover (sbf)\nrepair1(v5, v9):sbf := (v5&v9).\n# o3: proposed cancel (sbf)\nrepair2(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10):sbf := (((v5&v9))'&(((((v0&v1&v2&v3&v4&v5&v6&v7)&v8)&((v5&v9))'))'&v10)).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) && (o2[t]:sbf = repair1(i6[t]:sbf, i10[t]:sbf)) && (o3[t]:sbf = repair2(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf))).\n\n# Input rows: [{\"authorized\": false, \"binding_valid\": false, \"breaker_clear\": false, \"cancel\": false, \"epoch_valid\": false, \"liquidate\": false, \"maintenance_breach\": false, \"oracle_fresh\": false, \"position_open\": false, \"proof_valid\": false, \"recover\": false}, {\"authorized\": false, \"binding_valid\": false, \"breaker_clear\": false, \"cancel\": true, \"epoch_valid\": false, \"liquidate\": false, \"maintenance_breach\": false, \"oracle_fresh\": false, \"position_open\": false, \"proof_valid\": false, \"recover\": false}, {\"authorized\": false, \"binding_valid\": false, \"breaker_clear\": false, \"cancel\": true, \"epoch_valid\": false, \"liquidate\": true, \"maintenance_breach\": false, \"oracle_fresh\": false, \"position_open\": false, \"proof_valid\": false, \"recover\": true}, {\"authorized\": false, \"binding_valid\": false, \"breaker_clear\": false, \"cancel\": false, \"epoch_valid\": true, \"liquidate\": false, \"maintenance_breach\": false, \"oracle_fresh\": false, \"position_open\": false, \"proof_valid\": false, \"recover\": false}, {\"authorized\": true, \"binding_valid\": true, \"breaker_clear\": true, \"cancel\": true, \"epoch_valid\": true, \"liquidate\": true, \"maintenance_breach\": true, \"oracle_fresh\": false, \"position_open\": true, \"proof_valid\": true, \"recover\": true}, {\"authorized\": true, \"binding_valid\": true, \"breaker_clear\": true, \"cancel\": false, \"epoch_valid\": true, \"liquidate\": false, \"maintenance_breach\": true, \"oracle_fresh\": true, \"position_open\": true, \"proof_valid\": true, \"recover\": false}, {\"authorized\": true, \"binding_valid\": true, \"breaker_clear\": true, \"cancel\": true, \"epoch_valid\": true, \"liquidate\": true, \"maintenance_breach\": true, \"oracle_fresh\": true, \"position_open\": true, \"proof_valid\": true, \"recover\": true}]",
+    "stdout": "",
+    "stderr": "run: 313.794 ms\n\treading input: 0.04 ms\n\tget_interpreter: 294.261 ms\n\tstep: 3.424 ms\n\tstep: 2.673 ms\n\tstep: 2.395 ms\n\tstep: 2.366 ms\n\tstep: 2.432 ms\n\tstep: 2.348 ms\n\tstep: 2.381 ms\n\tstep: 1.457 ms\n",
+    "elapsed_seconds": 0.3369723567739129,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "execute",
+    "query": "# Original Tau proposal controller; generated by tools/tau_composition.py.\n# Summary: repair Boolean proposals while retaining every valid proposal.\n# Assumptions: exact Boolean host observations; authority checked separately.\n# Guarantee: output flags satisfy the input contract; no external effects.\n# i1: action000 (sbf)\n# i2: action001 (sbf)\n# i3: action002 (sbf)\n# i4: action003 (sbf)\n# i5: action004 (sbf)\n# o1: proposed action000 (sbf)\nrepair0(v0):sbf := v0.\n# o2: proposed action001 (sbf)\nrepair1(v0, v1):sbf := (v0|v1).\n# o3: proposed action002 (sbf)\nrepair2(v0, v1, v2):sbf := ((v0|v1)|v2).\n# o4: proposed action003 (sbf)\nrepair3(v0, v1, v2, v3):sbf := (((v0|v1)|v2)|v3).\n# o5: proposed action004 (sbf)\nrepair4(v0, v1, v2, v3, v4):sbf := ((((v0|v1)|v2)|v3)|v4).\nalways ((o1[t]:sbf = repair0(i1[t]:sbf)) && (o2[t]:sbf = repair1(i1[t]:sbf, i2[t]:sbf)) && (o3[t]:sbf = repair2(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o4[t]:sbf = repair3(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) && (o5[t]:sbf = repair4(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf))).\n\n# Input rows: [{\"action000\": false, \"action001\": false, \"action002\": false, \"action003\": false, \"action004\": false}, {\"action000\": false, \"action001\": false, \"action002\": false, \"action003\": false, \"action004\": true}, {\"action000\": false, \"action001\": false, \"action002\": false, \"action003\": true, \"action004\": false}, {\"action000\": false, \"action001\": false, \"action002\": false, \"action003\": true, \"action004\": true}, {\"action000\": false, \"action001\": false, \"action002\": true, \"action003\": false, \"action004\": false}, {\"action000\": false, \"action001\": false, \"action002\": true, \"action003\": false, \"action004\": true}, {\"action000\": false, \"action001\": false, \"action002\": true, \"action003\": true, \"action004\": false}, {\"action000\": false, \"action001\": false, \"action002\": true, \"action003\": true, \"action004\": true}, {\"action000\": false, \"action001\": true, \"action002\": false, \"action003\": false, \"action004\": false}, {\"action000\": false, \"action001\": true, \"action002\": false, \"action003\": false, \"action004\": true}, {\"action000\": false, \"action001\": true, \"action002\": false, \"action003\": true, \"action004\": false}, {\"action000\": false, \"action001\": true, \"action002\": false, \"action003\": true, \"action004\": true}, {\"action000\": false, \"action001\": true, \"action002\": true, \"action003\": false, \"action004\": false}, {\"action000\": false, \"action001\": true, \"action002\": true, \"action003\": false, \"action004\": true}, {\"action000\": false, \"action001\": true, \"action002\": true, \"action003\": true, \"action004\": false}, {\"action000\": false, \"action001\": true, \"action002\": true, \"action003\": true, \"action004\": true}, {\"action000\": true, \"action001\": false, \"action002\": false, \"action003\": false, \"action004\": false}, {\"action000\": true, \"action001\": false, \"action002\": false, \"action003\": false, \"action004\": true}, {\"action000\": true, \"action001\": false, \"action002\": false, \"action003\": true, \"action004\": false}, {\"action000\": true, \"action001\": false, \"action002\": false, \"action003\": true, \"action004\": true}, {\"action000\": true, \"action001\": false, \"action002\": true, \"action003\": false, \"action004\": false}, {\"action000\": true, \"action001\": false, \"action002\": true, \"action003\": false, \"action004\": true}, {\"action000\": true, \"action001\": false, \"action002\": true, \"action003\": true, \"action004\": false}, {\"action000\": true, \"action001\": false, \"action002\": true, \"action003\": true, \"action004\": true}, {\"action000\": true, \"action001\": true, \"action002\": false, \"action003\": false, \"action004\": false}, {\"action000\": true, \"action001\": true, \"action002\": false, \"action003\": false, \"action004\": true}, {\"action000\": true, \"action001\": true, \"action002\": false, \"action003\": true, \"action004\": false}, {\"action000\": true, \"action001\": true, \"action002\": false, \"action003\": true, \"action004\": true}, {\"action000\": true, \"action001\": true, \"action002\": true, \"action003\": false, \"action004\": false}, {\"action000\": true, \"action001\": true, \"action002\": true, \"action003\": false, \"action004\": true}, {\"action000\": true, \"action001\": true, \"action002\": true, \"action003\": true, \"action004\": false}, {\"action000\": true, \"action001\": true, \"action002\": true, \"action003\": true, \"action004\": true}]",
+    "stdout": "",
+    "stderr": "run: 311.79 ms\n\treading input: 0.04 ms\n\tget_interpreter: 253.661 ms\n\tstep: 2.719 ms\n\tstep: 1.94 ms\n\tstep: 1.728 ms\n\tstep: 1.698 ms\n\tstep: 1.774 ms\n\tstep: 1.768 ms\n\tstep: 1.706 ms\n\tstep: 1.527 ms\n\tstep: 1.672 ms\n\tstep: 1.776 ms\n\tstep: 1.771 ms\n\tstep: 1.542 ms\n\tstep: 1.533 ms\n\tstep: 1.58 ms\n\tstep: 1.773 ms\n\tstep: 1.768 ms\n\tstep: 1.824 ms\n\tstep: 1.827 ms\n\tstep: 1.831 ms\n\tstep: 1.802 ms\n\tstep: 1.82 ms\n\tstep: 1.814 ms\n\tstep: 1.815 ms\n\tstep: 1.823 ms\n\tstep: 1.834 ms\n\tstep: 1.835 ms\n\tstep: 1.837 ms\n\tstep: 1.704 ms\n\tstep: 1.567 ms\n\tstep: 1.725 ms\n\tstep: 2.195 ms\n\tstep: 1.748 ms\n\tstep: 0.725 ms\n",
+    "elapsed_seconds": 0.33634694712236524,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all p:sbf ((p=0:sbf) || (p=1:sbf))",
+    "stdout": "%1: F",
+    "stderr": "valid: 0.415 ms\n",
+    "elapsed_seconds": 0.03453130228444934,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  {
+    "operation": "valid",
+    "query": "valid all p:sbf ((p | p')=1:sbf)",
+    "stdout": "%1: T",
+    "stderr": "valid: 0.121 ms\n",
+    "elapsed_seconds": 0.034098702017217875,
+    "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "input_order": [
+    "right_low",
+    "right_high"
+  ],
+  "inputs": [
+    {
+      "right_high": false,
+      "right_low": false
+    },
+    {
+      "right_high": true,
+      "right_low": false
+    },
+    {
+      "right_high": false,
+      "right_low": true
+    },
+    {
+      "right_high": true,
+      "right_low": true
+    }
+  ],
+  "observed_permits": [
+    true,
+    false,
+    true,
+    false
+  ],
+  "source_sha256": "9fe9a41787553fd66a98ed15ebd37741e03cc9130a029be0d0f8fd7e82074ffb"
+}

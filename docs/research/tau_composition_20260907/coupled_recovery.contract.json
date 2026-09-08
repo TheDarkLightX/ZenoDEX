@@ -1,0 +1,45 @@
+{
+  "controls": [
+    "debit",
+    "credit"
+  ],
+  "environment": [
+    "paused"
+  ],
+  "name": "coupled_recovery",
+  "requirements": [
+    {
+      "name": "paused_forbids_debit",
+      "residual": {
+        "kind": "meet",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "paused"
+          },
+          {
+            "kind": "variable",
+            "value": "debit"
+          }
+        ]
+      }
+    },
+    {
+      "name": "paired_action_flags",
+      "residual": {
+        "kind": "xor",
+        "operands": [
+          {
+            "kind": "variable",
+            "value": "debit"
+          },
+          {
+            "kind": "variable",
+            "value": "credit"
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "tau-composition/contract-v1"
+}
