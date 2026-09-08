@@ -239,6 +239,279 @@ fn holder_rows(count: usize) -> Vec<(String, u128)> {
         .collect()
 }
 
+const REAL_BYTE_BOUNDARY_OWNER_V2: &str = "ali\"ce\\x";
+const REAL_BYTE_BOUNDARY_ROW_SKELETON_V2: &[u8] =
+    br#"{"amount_atoms":1,"asset":"EUR","custody_domain":"accounts","owner":""}"#;
+// This local chunk controls the sizing search; it is not a protocol bound.
+const REAL_BYTE_BOUNDARY_MAX_EXTRA_PER_ROW_V2: usize = 300;
+
+fn escaped_size_v2(value: &str) -> usize {
+    value.len()
+        + value
+            .bytes()
+            .filter(|byte| matches!(byte, b'"' | b'\\'))
+            .count()
+}
+
+fn real_byte_boundary_state_v2(headroom: usize, funded: bool) -> AssetLaneStateV2 {
+    assert_eq!(MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2, 1_048_576);
+    let usd_rows = if funded {
+        vec![(REAL_BYTE_BOUNDARY_OWNER_V2.to_owned(), 9)]
+    } else {
+        Vec::new()
+    };
+    let empty = lane_state(0, 1, &usd_rows);
+    let base_size = canonical_bytes_v2(&empty)
+        .expect("empty boundary state canonicalizes")
+        .len();
+    let target = MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2
+        .checked_sub(headroom)
+        .expect("boundary headroom fits the limit");
+    let min_row_size = REAL_BYTE_BOUNDARY_ROW_SKELETON_V2.len() + 10;
+    let count =
+        (target - base_size) / (min_row_size + REAL_BYTE_BOUNDARY_MAX_EXTRA_PER_ROW_V2 + 1) + 1;
+    let first_comma_correction = if funded { 0 } else { 1 };
+    let extra = target - base_size - (count.to_string().len() - 1) - count * (min_row_size + 1)
+        + first_comma_correction;
+    assert!(
+        extra <= REAL_BYTE_BOUNDARY_MAX_EXTRA_PER_ROW_V2 * count,
+        "sizing search produced too much owner padding"
+    );
+    assert!(
+        count + usd_rows.len() < MAX_ASSET_LANE_BALANCE_ROWS_V2,
+        "boundary state remains below the row ceiling"
+    );
+
+    let mut balances = Vec::with_capacity(count + usd_rows.len());
+    let mut remaining = extra;
+    for index in 0..count {
+        let contribution = remaining.min(REAL_BYTE_BOUNDARY_MAX_EXTRA_PER_ROW_V2);
+        remaining -= contribution;
+        let mut owner = format!("holder{index:04}");
+        owner.push_str(&"\\".repeat(contribution / 2));
+        if contribution % 2 == 1 {
+            owner.push('x');
+        }
+        balances.push(EconomicAmountV2 {
+            owner,
+            asset: "EUR".to_owned(),
+            custody_domain: "accounts".to_owned(),
+            amount_atoms: 1,
+        });
+    }
+    assert_eq!(remaining, 0);
+    balances.extend(empty.balances.iter().cloned());
+    balances.sort_by(|left, right| {
+        (
+            left.asset.as_str(),
+            left.owner.as_str(),
+            left.custody_domain.as_str(),
+        )
+            .cmp(&(
+                right.asset.as_str(),
+                right.owner.as_str(),
+                right.custody_domain.as_str(),
+            ))
+    });
+
+    let mut state = empty;
+    state.balances = balances;
+    for supply in &mut state.supplies {
+        supply.amount_atoms = match supply.asset.as_str() {
+            "EUR" => count as u128,
+            "USD" => {
+                if funded {
+                    9
+                } else {
+                    0
+                }
+            }
+            _ => supply.amount_atoms,
+        };
+    }
+    state.validate().expect("real boundary state is valid");
+    assert_eq!(
+        canonical_bytes_v2(&state)
+            .expect("real boundary state canonicalizes")
+            .len(),
+        target
+    );
+    state
+}
+
+fn expected_real_byte_boundary_post_state_v2(
+    pre_state: &AssetLaneStateV2,
+    managed_post_state: &zenodex_global_settlement_abi_v2::ManagedAssetLifecycleStateV2,
+) -> AssetLaneStateV2 {
+    let mut post_state = pre_state.clone();
+    post_state.balances.retain(|row| row.asset != "USD");
+    post_state
+        .balances
+        .extend(managed_post_state.balances.iter().cloned());
+    post_state.balances.sort_by(|left, right| {
+        (
+            left.asset.as_str(),
+            left.owner.as_str(),
+            left.custody_domain.as_str(),
+        )
+            .cmp(&(
+                right.asset.as_str(),
+                right.owner.as_str(),
+                right.custody_domain.as_str(),
+            ))
+    });
+    post_state.supplies.retain(|row| row.asset != "USD");
+    post_state
+        .supplies
+        .extend(managed_post_state.supplies.iter().cloned());
+    post_state
+        .supplies
+        .sort_by(|left, right| left.asset.cmp(&right.asset));
+    post_state
+}
+
+fn check_real_byte_boundary_v2(funded: bool, excess: usize) {
+    let added_bytes = if funded {
+        assert_eq!(REAL_BYTE_BOUNDARY_OWNER_V2.len(), 8);
+        assert_eq!(escaped_size_v2(REAL_BYTE_BOUNDARY_OWNER_V2), 10);
+        2
+    } else {
+        REAL_BYTE_BOUNDARY_ROW_SKELETON_V2.len() + escaped_size_v2(REAL_BYTE_BOUNDARY_OWNER_V2) + 1
+    };
+    let headroom = added_bytes - excess;
+    let state = real_byte_boundary_state_v2(headroom, funded);
+    let command = managed_command(
+        "managed_asset_issue",
+        REAL_BYTE_BOUNDARY_OWNER_V2,
+        1,
+        root(5),
+    );
+    let context = managed_context(&command, "issuer", root(5), 20 + excess as u64, &state);
+    let occurrence_id = context
+        .occurrence
+        .as_ref()
+        .expect("boundary context occurrence")
+        .occurrence_id()
+        .expect("boundary occurrence id");
+    let pre_bytes = canonical_bytes_v2(&state).expect("pre-state canonical bytes");
+    let pre_root = state.state_root().expect("pre-state root");
+    assert_eq!(
+        pre_bytes.len(),
+        MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2 - headroom
+    );
+
+    let leaf = transition_managed_asset_lifecycle_v2(
+        &context.managed_context(),
+        &state.managed_leaf_state(),
+        &command,
+    )
+    .expect("managed leaf must remain within its own small state");
+    let ManagedAssetLifecycleResultV2::Accepted(leaf) = leaf else {
+        panic!("managed leaf boundary control unexpectedly rejected")
+    };
+    assert_eq!(
+        leaf.post_state
+            .balance_atoms(REAL_BYTE_BOUNDARY_OWNER_V2, "USD"),
+        if funded { 10 } else { 1 }
+    );
+    assert_eq!(
+        leaf.post_state.supply_atoms("USD").expect("USD supply"),
+        if funded { 10 } else { 1 }
+    );
+
+    let expected_post_state = expected_real_byte_boundary_post_state_v2(&state, &leaf.post_state);
+    let expected_post_bytes =
+        canonical_bytes_v2(&expected_post_state).expect("expected recomposed state canonicalizes");
+    assert_eq!(expected_post_bytes.len(), pre_bytes.len() + added_bytes);
+
+    let result = transition_asset_lane_v2(
+        &context,
+        &state,
+        &AssetLaneCommandV2::ManagedLifecycle(command),
+    )
+    .expect("aggregate byte boundary must be a typed result");
+    if excess == 0 {
+        let AssetLaneResultV2::Accepted(accepted) = result else {
+            panic!("exact byte ceiling positive control rejected")
+        };
+        let post_bytes = canonical_bytes_v2(accepted.post_state())
+            .expect("accepted full boundary state canonicalizes");
+        assert_eq!(post_bytes, expected_post_bytes);
+        assert_eq!(
+            post_bytes.len(),
+            MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2
+        );
+        assert_eq!(
+            accepted.post_state().balances.len(),
+            state.balances.len() + usize::from(!funded)
+        );
+        assert_eq!(accepted.route(), AssetLaneRouteV2::MANAGED_LIFECYCLE);
+        assert_eq!(
+            accepted.effects().occurrence_consumptions,
+            vec![occurrence_id.clone()]
+        );
+        assert_eq!(
+            accepted.module_journal().command_occurrence_id,
+            occurrence_id
+        );
+        assert_eq!(accepted.production_authority(), "NONE");
+        assert_eq!(accepted.profile_authentication(), "SHADOW");
+        assert_eq!(
+            accepted
+                .post_state()
+                .balance_atoms(REAL_BYTE_BOUNDARY_OWNER_V2, "USD")
+                .expect("accepted USD balance"),
+            if funded { 10 } else { 1 }
+        );
+        assert_eq!(
+            accepted
+                .post_state()
+                .supply_atoms("USD")
+                .expect("accepted USD supply"),
+            if funded { 10 } else { 1 }
+        );
+        if funded {
+            assert_eq!(accepted.post_state().balances.len(), state.balances.len());
+        }
+    } else {
+        assert_eq!(excess, 1);
+        assert_eq!(
+            expected_post_bytes.len(),
+            MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2 + 1
+        );
+        assert_lane_noop(
+            result,
+            &state,
+            AssetLaneRouteV2::COORDINATOR,
+            AssetLaneRejectCodeV2::Coordinator(
+                AssetLaneCoordinatorRejectCodeV2::STATE_RESOURCE_LIMIT,
+            ),
+        );
+    }
+    assert_eq!(
+        canonical_bytes_v2(&state).expect("pre-state remains canonical"),
+        pre_bytes
+    );
+    assert_eq!(
+        state.state_root().expect("pre-state root remains stable"),
+        pre_root
+    );
+}
+
+#[test]
+fn real_byte_ceiling_counts_escaped_new_owner_and_array_separator() {
+    for excess in [0, 1] {
+        check_real_byte_boundary_v2(false, excess);
+    }
+}
+
+#[test]
+fn real_byte_ceiling_counts_balance_and_supply_digit_growth_without_new_rows() {
+    for excess in [0, 1] {
+        check_real_byte_boundary_v2(true, excess);
+    }
+}
+
 #[test]
 fn aggregate_row_overflow_is_coordinator_owned_and_replay_is_a_noop() {
     let state = lane_state(MAX_ASSET_LANE_BALANCE_ROWS_V2, 1, &[]);

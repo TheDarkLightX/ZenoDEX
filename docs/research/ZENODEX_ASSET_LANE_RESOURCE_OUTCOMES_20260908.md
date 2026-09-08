@@ -104,6 +104,18 @@ vectors still agree on canonical bytes, roots and results. The new resource
 boundary histories are separately exercised in both languages; they do not
 constitute universal implementation refinement.
 
+The later real-byte controls in
+[`asset_lane_resource_rejection.rs`](../../zk/global_settlement_abi_v2/tests/asset_lane_resource_rejection.rs)
+add two tests, each with exact-limit and one-byte-over subcases. They exercise
+the same escaped-owner insertion and funded 9-to-10 digit growth at the literal
+1,048,576-byte limit. The managed leaf accepts before the aggregate either
+accepts with the complete expected canonical state or returns a coordinator-owned
+no-op rejection. Input occurrence identity and unchanged pre-state bytes/roots
+are checked. The entire changed test target passed all ten tests in root's
+isolated replay. Independent Daybreak source review accepted the scoped tests.
+No Rust production source or fixture changed for this addition; the earlier
+92-test full-crate run remains evidence for the preceding checkpoint.
+
 The Rust implementation uses the distinct `AbiErrorV2::StateResourceLimit`
 variant only for asset-state count, row and byte ceilings. Consumed-object and
 occurrence bounds keep their existing error category. The three POST admission
