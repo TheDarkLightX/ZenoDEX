@@ -1,5 +1,32 @@
 # Asset-lane resource outcomes and rejection ownership
 
+## Combined formal gate migration
+
+The retained combined gate now preserves the original 17/21-code economic
+prefix checks and separately compiles the finite models' full 18/22-code
+registries. It compares every rank with the current Python enum, evaluates
+accepted and rejected finite transitions, and retains the original theorem,
+axiom and negative controls. Source-order checks cover leaf POST resource
+rejection before effect construction and coordinator-owned aggregate rejection
+before projection/rebinding.
+
+The six changed Python source pins were reviewed against `0d57b7634`: each old
+pin equals that repair's parent blob, and each current source equals the
+reviewed repair blob. Resource-limit primitives and canonical serialization
+inputs are now pinned too. These pins detect drift; they do not establish
+universal implementation refinement.
+
+```bash
+python3 -m pytest -q tests/formal/test_lean_asset_lane_refinement_v2.py
+# Independent root replay: 15 passed in 74.99s
+python3 -m ruff check tests/formal/test_lean_asset_lane_refinement_v2.py
+# All checks passed!
+```
+
+This resolves the stale combined-gate expectations after the finite models
+were added. It changes no production source or proof statement. Full codec,
+journal, authentication, runtime and publication obligations remain open.
+
 Date: 2026-09-08
 
 Status: Python and Rust implementations tested on isolated state; independent

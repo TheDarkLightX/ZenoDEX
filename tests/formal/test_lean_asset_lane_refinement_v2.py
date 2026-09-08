@@ -25,6 +25,33 @@ from pathlib import Path
 
 import pytest
 
+from src.core.asset_transfer_types_v2 import AssetTransferRejectCodeV2
+from src.core.managed_asset_lifecycle_result_v2 import ManagedAssetLifecycleRejectCodeV2
+from tests.formal.test_lean_asset_transfer_finite_outcome_v2 import (
+    accounting_lean as accounting_lean,
+)
+from tests.formal.test_lean_asset_transfer_finite_outcome_v2 import (
+    byte_accounting_lean as byte_accounting_lean,
+)
+from tests.formal.test_lean_asset_transfer_finite_outcome_v2 import (
+    composition_lean as composition_lean,
+)
+from tests.formal.test_lean_asset_transfer_finite_outcome_v2 import (
+    finite_recomposition_lean as finite_recomposition_lean,
+)
+from tests.formal.test_lean_asset_transfer_finite_outcome_v2 import lean as lean
+from tests.formal.test_lean_asset_transfer_finite_outcome_v2 import (
+    outcome_lean as outcome_lean,
+)
+from tests.formal.test_lean_asset_transfer_finite_outcome_v2 import (
+    row_growth_lean as row_growth_lean,
+)
+from tests.formal.test_lean_asset_transfer_finite_outcome_v2 import shared_lean as shared_lean
+from tests.formal.test_lean_asset_transfer_finite_outcome_v2 import (
+    transfer_outcome_lean as transfer_outcome_lean,
+)
+from tests.formal.test_lean_registered_supply_support_v1 import LeanSubject, _compile
+
 ROOT = Path(__file__).resolve().parents[2]
 LEAN_DIR = ROOT / "lean-mathlib"
 ASSET_PROOF = LEAN_DIR / "Proofs" / "AssetTransferRefinementV2.lean"
@@ -35,23 +62,31 @@ ASSET_NAMESPACE = "Proofs.AssetTransferRefinementV2"
 MANAGED_NAMESPACE = "Proofs.ManagedAssetLifecycleRefinementV2"
 PINNED_TOOLCHAIN = "leanprover/lean4:v4.27.0"
 
+# Source changes are exactly the reviewed resource repair at 0d57b7634.
+# These pins detect drift; finite model checks below establish their scoped relation.
 PINNED_MODELED_SOURCES = {
     "src/core/asset_transfer_types_v2.py":
-        "ec067739d9da4a409347e8525c16188ecfcaad1e6b75172bfe1ca93e17cec40c",
+        "958a55683e30d9af6030a621d62ba80d04070a51ee378b617151ae297e3ebc48",
     "src/core/asset_transfer_module_v2.py":
-        "df0a25077d508db805afa0b828edbe5c8becdd362401f778fef0ce1f8649d065",
+        "b18030eb4e5631e6315e5d483b4cca3f0f601af4747ac18c2e3b94d8b3f96cf3",
     "src/core/managed_asset_lifecycle_state_v2.py":
         "c89fcf0130f2fec66aa3485beeb7e74cf7a327294b4c1e7116119522a4666590",
     "src/core/managed_asset_lifecycle_result_v2.py":
-        "d5f19e377fe721d3bcd7fd99732128c80e2839bffa5315c76fa07dca9e74e35a",
+        "40ea055822ff08d0729bf1aa94fbc71b253bd774ea7758aaa059d591c1e574b6",
     "src/core/managed_asset_lifecycle_module_v2.py":
-        "a7278af80244a51302670138e9f50876ba72db1246bd8b6f1af90ac65b595a48",
+        "16f68aec399ef620e9e665ccdcd67a3dbd5a5255fde554e420d31213b4abf1eb",
     "src/core/asset_lane_state_v2.py":
         "650dc5ab0a2a6010b9b512bfc59bcb7a33e7d376bbffffdb106bda5abb65f5a2",
     "src/core/asset_lane_coordinator_values_v2.py":
-        "e138c22f4fb85d85ba969e7f45ddc51b304ea5b11fb9ef4b866c282a8956efde",
+        "e8f885483f497a5cc675650128b44e0f5504bf3e07fb0f9a03ea526c23d4a844",
     "src/core/asset_lane_coordinator_v2.py":
-        "be82d0ad5a7bc5ed49305a44711de9ca53a21f4ac7fc69fd1f232b33bc9462f8",
+        "61fde299a03aacc8a453134925602ea439c1bc58c194c5891cc9c9cefc7e795b",
+    "src/core/global_settlement_resource_limits_v2.py":
+        "7989ce33ec7bfb8e60cee7f5f8aba7f9cd1de16ee7444e121bd69ec2b98d8d5e",
+    "src/core/global_settlement_primitives_v2.py":
+        "11a26694357812e91b398bddc2b6bbec0a93063731ccd5b23818de1d0c0ca01e",
+    "src/state/canonical.py":
+        "3e1be2d2233b04d1e0e241e6f4c012ec458a2b1c66646597de410dd079b2e611",
 }
 
 TRANSFER_REJECTS = (
@@ -97,6 +132,12 @@ MANAGED_REJECTS = (
     "BALANCE_OVERFLOW",
     "SUPPLY_OVERFLOW",
 )
+
+# The old source-pinned proof and its 17/21 tuples remain deliberate economic
+# prefixes.  The qualified finite models append the resource outcome and must
+# agree with the live runtime enum at every rank.
+TRANSFER_RUNTIME_REJECTS = TRANSFER_REJECTS + ("STATE_RESOURCE_LIMIT",)
+MANAGED_RUNTIME_REJECTS = MANAGED_REJECTS + ("STATE_RESOURCE_LIMIT",)
 
 # Every declaration in each file is enumerated. This list is also the exact
 # surface checked by Lean's transitive ``#print axioms`` command.
@@ -255,6 +296,116 @@ def _axiom_dependencies(output: str) -> set[str]:
     return dependencies
 
 
+FINITE_GATE_PREAMBLE = """
+import Proofs.ManagedAssetFiniteOutcomeV2
+import Proofs.AssetTransferFiniteOutcomeV2
+set_option warningAsError true
+set_option maxRecDepth 100000
+set_option maxHeartbeats 2000000
+open Proofs
+"""
+
+
+def _finite_gate_consumer(
+    subject: LeanSubject, name: str, body: str
+) -> subprocess.CompletedProcess[str]:
+    path = subject.source / f"{name}.lean"
+    path.write_text(FINITE_GATE_PREAMBLE + body, encoding="utf-8")
+    return _compile(subject, path)
+
+
+FINITE_GATE_CONSUMER = r"""
+def managedCodeRows (rank : Nat) :
+    List Proofs.ManagedAssetFiniteOutcomeV2.RejectCode → List String
+  | [] => []
+  | code :: rest =>
+      ("MANAGED_CODE," ++ toString rank ++ "," ++
+        Proofs.ManagedAssetFiniteOutcomeV2.RejectCode.code code) ::
+        managedCodeRows (rank + 1) rest
+
+def transferCodeRows (rank : Nat) :
+    List Proofs.AssetTransferFiniteOutcomeV2.RejectCode → List String
+  | [] => []
+  | code :: rest =>
+      ("TRANSFER_CODE," ++ toString rank ++ "," ++
+        Proofs.AssetTransferFiniteOutcomeV2.RejectCode.code code) ::
+        transferCodeRows (rank + 1) rest
+
+namespace ManagedCase
+open Proofs.ManagedAssetFiniteOutcomeV2
+
+def policy : M.Policy :=
+  ⟨"USD", .registeredOrdinaryToken, some "origin", 8,
+    some ⟨"issuer", "grant"⟩, some "burn", true⟩
+def pre : State :=
+  ⟨"release", [policy], [⟨"alice", "USD", "accounts", 9⟩], [⟨"USD", 9⟩]⟩
+def command : M.Command :=
+  ⟨"managed_asset_issue", "issue-body", "USD", .registeredOrdinaryToken,
+    some "origin", 8, some "grant", "alice", 1⟩
+def context : M.Context :=
+  ⟨"release", "global", some ⟨"global", [], "managed_asset_issue", "issue-body",
+    "issuer", "grant", "managed-occurrence"⟩⟩
+def missingContext : M.Context := {context with occurrence := none}
+def digest (_ : B.Bytes) : M.Root := "finite-digest"
+
+def verdictName : Verdict → String
+  | .accepted => "ACCEPTED"
+  | .rejected code => code.code
+
+def emit (name : String) (result : Result) : IO Unit := do
+  IO.println (String.intercalate "," [
+    "MANAGED_RESULT", name, verdictName result.verdict,
+    toString (result.post == pre),
+    toString (result.effects == AssetTransferRefinementV2.EffectEnvelope.empty)])
+
+end ManagedCase
+
+namespace TransferCase
+open Proofs.AssetTransferFiniteOutcomeV2
+
+def policy : T.Policy :=
+  ⟨"USD", "collector", 0, true, .registeredOrdinaryToken, some "origin", 8⟩
+def pre : State :=
+  ⟨"release", [policy], [⟨"sender", "USD", "accounts", 5⟩], [⟨"USD", 10⟩]⟩
+def command : T.Command :=
+  ⟨"asset_transfer", "transfer-body", "USD", "sender", "recipient", 5, 0, some "origin"⟩
+def context : T.Context :=
+  ⟨"release", "global", some ⟨"global", [], "asset_transfer", "transfer-body",
+    "sender", "grant", "transfer-occurrence"⟩⟩
+def missingContext : T.Context := {context with occurrence := none}
+def digest (_ : B.Bytes) : T.Root := "finite-digest"
+
+def verdictName : Verdict → String
+  | .accepted => "ACCEPTED"
+  | .rejected code => code.code
+
+def emit (name : String) (result : Result) : IO Unit := do
+  IO.println (String.intercalate "," [
+    "TRANSFER_RESULT", name, verdictName result.verdict,
+    toString (result.post == pre),
+    toString (result.effects == AssetTransferRefinementV2.EffectEnvelope.empty)])
+
+end TransferCase
+
+#eval IO.println (String.intercalate "\n"
+  (managedCodeRows 0 Proofs.ManagedAssetFiniteOutcomeV2.allRejectCodes))
+#eval IO.println (String.intercalate "\n"
+  (transferCodeRows 0 Proofs.AssetTransferFiniteOutcomeV2.allRejectCodes))
+#eval ManagedCase.emit "accepted"
+  (Proofs.ManagedAssetFiniteOutcomeV2.transition ManagedCase.digest ManagedCase.context
+    ManagedCase.pre ManagedCase.command)
+#eval ManagedCase.emit "missing-occurrence"
+  (Proofs.ManagedAssetFiniteOutcomeV2.transition ManagedCase.digest ManagedCase.missingContext
+    ManagedCase.pre ManagedCase.command)
+#eval TransferCase.emit "accepted"
+  (Proofs.AssetTransferFiniteOutcomeV2.transition TransferCase.digest TransferCase.context
+    TransferCase.pre TransferCase.command)
+#eval TransferCase.emit "missing-occurrence"
+  (Proofs.AssetTransferFiniteOutcomeV2.transition TransferCase.digest TransferCase.missingContext
+    TransferCase.pre TransferCase.command)
+"""
+
+
 @pytest.fixture(scope="module")
 def compiled_packet(tmp_path_factory: pytest.TempPathFactory) -> CompiledPacket:
     assert (LEAN_DIR / "lean-toolchain").read_text(encoding="utf-8").strip() == PINNED_TOOLCHAIN
@@ -384,12 +535,74 @@ def test_reject_wire_orders_match_the_source_pinned_python_enums() -> None:
     managed_results = (ROOT / "src/core/managed_asset_lifecycle_result_v2.py").read_text(
         encoding="utf-8"
     )
-    assert _python_enum_values(transfer_types, "AssetTransferRejectCodeV2") == TRANSFER_REJECTS
-    assert _python_enum_values(
-        managed_results, "ManagedAssetLifecycleRejectCodeV2"
-    ) == MANAGED_REJECTS
+    transfer_runtime = _python_enum_values(transfer_types, "AssetTransferRejectCodeV2")
+    managed_runtime = _python_enum_values(managed_results, "ManagedAssetLifecycleRejectCodeV2")
+    assert transfer_runtime[: len(TRANSFER_REJECTS)] == TRANSFER_REJECTS
+    assert managed_runtime[: len(MANAGED_REJECTS)] == MANAGED_REJECTS
+    assert transfer_runtime == TRANSFER_RUNTIME_REJECTS
+    assert managed_runtime == MANAGED_RUNTIME_REJECTS
     assert _lean_wire_values(ASSET_PROOF.read_text(encoding="utf-8")) == TRANSFER_REJECTS
     assert _lean_wire_values(MANAGED_PROOF.read_text(encoding="utf-8")) == MANAGED_REJECTS
+
+
+def test_finite_compiled_registry_and_transition_report_match_runtime_enums(
+    transfer_outcome_lean: LeanSubject,
+) -> None:
+    """The qualified finite models own the appended resource-code rows."""
+    result = _finite_gate_consumer(
+        transfer_outcome_lean,
+        "AssetLaneFiniteRegistryAndTransitionReport",
+        FINITE_GATE_CONSUMER,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stderr == ""
+
+    managed_rows: list[tuple[int, str]] = []
+    transfer_rows: list[tuple[int, str]] = []
+    outcomes: dict[tuple[str, str], tuple[str, bool, bool]] = {}
+    for line in result.stdout.splitlines():
+        if line.startswith(("MANAGED_CODE,", "TRANSFER_CODE,")):
+            fields = line.split(",", 2)
+            assert len(fields) == 3
+            row = (int(fields[1]), fields[2])
+            if fields[0] == "MANAGED_CODE":
+                managed_rows.append(row)
+            else:
+                transfer_rows.append(row)
+        elif line.startswith(("MANAGED_RESULT,", "TRANSFER_RESULT,")):
+            fields = line.split(",")
+            assert len(fields) == 5
+            outcomes[(fields[0], fields[1])] = (
+                fields[2],
+                fields[3] == "true",
+                fields[4] == "true",
+            )
+        elif line.strip():
+            raise AssertionError(f"unexpected finite gate output: {line}")
+
+    assert managed_rows == list(enumerate(MANAGED_RUNTIME_REJECTS))
+    assert transfer_rows == list(enumerate(TRANSFER_RUNTIME_REJECTS))
+    assert [rank for rank, _ in managed_rows] == list(range(22))
+    assert [rank for rank, _ in transfer_rows] == list(range(18))
+    assert tuple(code.value for code in ManagedAssetLifecycleRejectCodeV2) == (
+        MANAGED_RUNTIME_REJECTS
+    )
+    assert tuple(code.value for code in AssetTransferRejectCodeV2) == TRANSFER_RUNTIME_REJECTS
+
+    assert outcomes == {
+        ("MANAGED_RESULT", "accepted"): ("ACCEPTED", False, False),
+        ("MANAGED_RESULT", "missing-occurrence"): (
+            "MISSING_OCCURRENCE",
+            True,
+            True,
+        ),
+        ("TRANSFER_RESULT", "accepted"): ("ACCEPTED", False, False),
+        ("TRANSFER_RESULT", "missing-occurrence"): (
+            "MISSING_OCCURRENCE",
+            True,
+            True,
+        ),
+    }
 
 
 def test_transfer_source_shape_pins_fixed_prefix_and_sorted_balance_scan() -> None:
@@ -451,6 +664,50 @@ def test_coordinator_source_shape_pins_binding_projection_and_rebind() -> None:
     assert "effects.occurrence_consumptions" in rebound
     assert "LaneWriteV2(LaneIdV2.ASSET_TRANSFER" in rebound
     assert "effects.occurrence_consumptions,\n        ()," in rebound
+
+
+def test_resource_rejections_follow_leaf_candidate_construction_before_effects() -> None:
+    transfer_source = (ROOT / "src/core/asset_transfer_module_v2.py").read_text(
+        encoding="utf-8"
+    )
+    transfer_accept = transfer_source.split("def _accept_transfer", 1)[1].split(
+        "def transition_asset_transfer_v2", 1
+    )[0]
+    transfer_candidate = transfer_accept.index("post_state = AssetTransferStateV2(")
+    transfer_resource = transfer_accept.index("StateResourceLimitExceededV2")
+    transfer_resource_code = transfer_accept.index("AssetTransferRejectCodeV2.STATE_RESOURCE_LIMIT")
+    transfer_effects = transfer_accept.index("effects = _effect_plan(")
+    assert transfer_candidate < transfer_resource < transfer_resource_code < transfer_effects
+
+    managed_source = (ROOT / "src/core/managed_asset_lifecycle_module_v2.py").read_text(
+        encoding="utf-8"
+    )
+    managed_accept = managed_source.split("def _accept", 1)[1].split(
+        "def transition_managed_asset_lifecycle_v2", 1
+    )[0]
+    managed_candidate = managed_accept.index("post_state = ManagedAssetLifecycleStateV2(")
+    managed_resource = managed_accept.index("StateResourceLimitExceededV2")
+    managed_resource_code = managed_accept.index(
+        "ManagedAssetLifecycleRejectCodeV2.STATE_RESOURCE_LIMIT"
+    )
+    managed_effects = managed_accept.index("effects = _effect_plan(")
+    assert managed_candidate < managed_resource < managed_resource_code < managed_effects
+
+
+def test_coordinator_routes_aggregate_resource_rejection_before_projection() -> None:
+    source = (ROOT / "src/core/asset_lane_coordinator_v2.py").read_text(encoding="utf-8")
+    transition = source.split("def transition_asset_lane_v2", 1)[1].split("__all__", 1)[0]
+    candidate_binding = transition.index("if not _candidate_binding_holds_v2")
+    aggregate = transition.index("post_state = _aggregate_post_state_v2")
+    resource_exception = transition.index("StateResourceLimitExceededV2")
+    resource_code = transition.index(
+        "AssetLaneCoordinatorRejectCodeV2.STATE_RESOURCE_LIMIT"
+    )
+    projection = transition.index("if not _projection_holds_v2")
+    rebind = transition.index("return _rebind_candidate_v2")
+    assert candidate_binding < aggregate < resource_exception < resource_code < projection < rebind
+    resource_block = transition[resource_exception:projection]
+    assert "AssetLaneRouteV2.COORDINATOR" in resource_block
 
 
 def test_claim_ceiling_and_sender_fee_owner_composition_limit_are_explicit() -> None:

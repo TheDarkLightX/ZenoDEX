@@ -135,6 +135,42 @@ Universal runtime refinement remains open.
 The claims-registry check still fails on the existing missing
 `tools/check_derivatives_authorization_matrix.py` evidence file.
 
+## Finite managed effect-plan construction
+
+[AssetLaneFiniteEffectPlanV2.lean](../../lean-mathlib/Proofs/AssetLaneFiniteEffectPlanV2.lean)
+now constructs the six-field `GlobalSettlementCoreV2.EffectPlan` from the actual
+finite outcome. For accepted issue and burn commands, its 17 theorems establish
+signed row bounds, unsigned conservation quantities, issue/burn and fee
+projections, unique ordered keys, item limits and valid tokens. The plan binds
+the actual finite PRE/POST root observations and accepted occurrence; rejection
+returns six empty fields. Candidate structure is derived from admitted PRE and
+successful guards. No caller-supplied POST admission is assumed.
+
+The [retained harness](../../tests/formal/test_lean_asset_lane_finite_effect_plan_v2.py)
+compiles the source closure, checks all declarations and standard axioms, and
+checks six public theorem signatures. Its independent consumer issues from zero
+supply and fully burns the result. Bounded observations of all six plan fields
+agree with the actual Python constructors. Two semantic false controls reject
+reversed burn signs and omission of the supply-effect row.
+
+```bash
+python3 -m pytest -q tests/formal/test_lean_asset_lane_finite_effect_plan_v2.py
+# Independent root replay: 4 passed in 65.82s
+```
+
+Proof SHA-256:
+`24ac1efe7c06732d3c4d7dd37269d2b6afb64bb8d18a7b4893f9460b47b82fc3`.
+Harness SHA-256:
+`0e4139b07348d3905a78b7ab0abcbac043978862574161ea535391c83d57b5d6`.
+Independent mathematical review also compiled its own consumers and checked
+typed Python issue/full-burn observations. These are scoped construction and
+bounded parity results, not universal implementation refinement.
+
+The retained constant-digest example deliberately demonstrates the boundary:
+numeric plan admission can hold while Python rejects the resulting root syntax.
+Canonical root/occurrence syntax, effect-plan encoding and byte limits, journal
+admission, authentication and universal Python/Rust correspondence remain open.
+
 ## Remaining refinement
 
 Root and namespace syntax are explicit external predicates on immutable
@@ -144,8 +180,8 @@ Command-body hashes and occurrence identities are supplied observations in
 this model, whereas the implementations derive them cryptographically.
 
 Universal Python/Rust serializer, lookup/sort and constructor correspondence
-remains open. The abstract effect envelope does not prove the actual effect-plan
-or journal validators succeed. Independent source analysis bounds the fixed
+remains open. The finite numeric plan theorem above does not establish all actual
+effect-plan or journal validators. Independent source analysis bounds the fixed
 managed effects to five items and conservatively 2,700 bytes under admitted
 runtime field bounds; that calculation is not a validator-refinement theorem.
 
