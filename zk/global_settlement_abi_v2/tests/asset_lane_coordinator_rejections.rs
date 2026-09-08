@@ -160,7 +160,7 @@ fn direct_typed_registry_bounds_precede_invalid_inner_rows() {
     state.origin_registry.assets.push(invalid);
     assert_eq!(
         state.validate(),
-        Err(AbiErrorV2::InvalidBounds(
+        Err(AbiErrorV2::StateResourceLimit(
             "asset lane origin registry assets"
         ))
     );

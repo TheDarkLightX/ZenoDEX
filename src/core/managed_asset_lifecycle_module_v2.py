@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from .asset_transfer_types_v2 import AssetClassV2
 from .global_economic_proof_v2 import LaneModuleTransitionJournalV2
+from .global_settlement_resource_limits_v2 import StateResourceLimitExceededV2
 from .global_settlement_types_v2 import (
     MAX_ATOMS_V2,
     MAX_DELTA_ATOMS_V2,
@@ -257,18 +258,21 @@ def _accept(
     prepared: _PreparedLifecycleV2,
     balances: tuple[EconomicAmountV2, ...],
     supplies: tuple[AssetSupplyV2, ...],
-) -> ManagedAssetLifecycleAcceptedV2:
+) -> ManagedAssetLifecycleResultV2:
     occurrence = prepared.context.occurrence
     if occurrence is None:
         raise RuntimeError("prepared managed asset transition lost occurrence")
     pre_state = prepared.pre_state
     command = prepared.command
-    post_state = ManagedAssetLifecycleStateV2(
-        pre_state.module_release_id,
-        pre_state.policies,
-        balances,
-        supplies,
-    )
+    try:
+        post_state = ManagedAssetLifecycleStateV2(
+            pre_state.module_release_id,
+            pre_state.policies,
+            balances,
+            supplies,
+        )
+    except StateResourceLimitExceededV2:
+        return _reject(ManagedAssetLifecycleRejectCodeV2.STATE_RESOURCE_LIMIT, pre_state)
     effects = _effect_plan(prepared, post_state)
     receipt_root = hash_global_v2(
         "managed-asset-lifecycle-receipt-v2",

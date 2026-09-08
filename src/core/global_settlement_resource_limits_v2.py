@@ -41,6 +41,16 @@ if (
     raise RuntimeError("V2 occurrence ceilings must remain equal")
 
 
+class StateResourceLimitExceededV2(ValueError):
+    """Raised only when a value exceeds a declared row-count or byte ceiling.
+
+    The class stays a ``ValueError`` so every existing construction boundary
+    keeps its established behaviour and messages.  It is narrow on purpose: a
+    transition may catch it around POST-state construction to return a typed
+    resource rejection, and it never names a shape, type, or accounting fault.
+    """
+
+
 def require_raw_tuple_ceiling_v2(
     values: object,
     *,
@@ -52,7 +62,7 @@ def require_raw_tuple_ceiling_v2(
     if type(values) is not tuple:
         raise TypeError(f"{name} must be a tuple")
     if len(values) > ceiling:
-        raise ValueError(f"{name} exceeds its {ceiling}-item ceiling")
+        raise StateResourceLimitExceededV2(f"{name} exceeds its {ceiling}-item ceiling")
     return values
 
 
@@ -66,7 +76,7 @@ def require_rootable_asset_state_bytes_v2(
     if type(canonical_bytes) is not bytes:
         raise TypeError(f"{name} canonical bytes must be exact bytes")
     if len(canonical_bytes) > MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2:
-        raise ValueError(
+        raise StateResourceLimitExceededV2(
             f"{name} exceeds its {MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2}-byte ceiling"
         )
 
@@ -87,6 +97,7 @@ __all__ = [
     "MAX_GLOBAL_SETTLEMENT_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2",
     "MAX_OCCURRENCE_CONSUMED_OBJECT_IDS_V2",
     "MAX_REFINEMENT_CONSUMED_OCCURRENCES_V2",
+    "StateResourceLimitExceededV2",
     "require_raw_tuple_ceiling_v2",
     "require_rootable_asset_state_bytes_v2",
 ]

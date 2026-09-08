@@ -383,7 +383,9 @@ fn asset_origin_registry_bound_precedes_deep_row_validation() {
     state.assets.push(invalid);
     assert_eq!(
         state.validate(),
-        Err(AbiErrorV2::InvalidBounds("asset origin registry assets"))
+        Err(AbiErrorV2::StateResourceLimit(
+            "asset origin registry assets"
+        ))
     );
 }
 

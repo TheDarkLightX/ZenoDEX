@@ -299,7 +299,9 @@ def test_asset_lane_accepted_outbox_mutant_rebinds_effect_root_then_rejects() ->
         ),
         (
             "AssetLaneRejectedWireV2",
-            lambda value: value.__setitem__("route", "MANAGED_LIFECYCLE"),
+            # UNAUTHORIZED_SUBJECT belongs to both leaf routes; COORDINATOR
+            # has no such code, so this mutation violates the closed wire relation.
+            lambda value: value.__setitem__("route", "COORDINATOR"),
         ),
         (
             "GlobalEconomicStateEffectRefinementWireV2",

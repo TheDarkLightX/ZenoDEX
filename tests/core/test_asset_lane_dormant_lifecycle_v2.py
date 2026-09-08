@@ -331,4 +331,4 @@ def test_frozen_managed_aggregate_projection_is_a_named_noop(
         state,
         AssetLaneCoordinatorRejectCodeV2.PROJECTION_MISMATCH,
     )
-    assert rejected.route is AssetLaneRouteV2.MANAGED_LIFECYCLE
+    assert rejected.route is AssetLaneRouteV2.COORDINATOR

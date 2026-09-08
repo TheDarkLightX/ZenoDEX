@@ -73,6 +73,7 @@ pub enum AssetTransferRejectCodeV2 {
     EFFECT_DELTA_OVERFLOW,
     INSUFFICIENT_BALANCE,
     BALANCE_OVERFLOW,
+    STATE_RESOURCE_LIMIT,
 }
 
 impl AssetTransferRejectCodeV2 {
@@ -95,11 +96,12 @@ impl AssetTransferRejectCodeV2 {
             Self::EFFECT_DELTA_OVERFLOW => "EFFECT_DELTA_OVERFLOW",
             Self::INSUFFICIENT_BALANCE => "INSUFFICIENT_BALANCE",
             Self::BALANCE_OVERFLOW => "BALANCE_OVERFLOW",
+            Self::STATE_RESOURCE_LIMIT => "STATE_RESOURCE_LIMIT",
         }
     }
 }
 
-pub const ALL_ASSET_TRANSFER_REJECT_CODES_V2: [AssetTransferRejectCodeV2; 17] = [
+pub const ALL_ASSET_TRANSFER_REJECT_CODES_V2: [AssetTransferRejectCodeV2; 18] = [
     AssetTransferRejectCodeV2::MISSING_OCCURRENCE,
     AssetTransferRejectCodeV2::OCCURRENCE_BINDING_MISMATCH,
     AssetTransferRejectCodeV2::RELEASE_MISMATCH,
@@ -117,6 +119,7 @@ pub const ALL_ASSET_TRANSFER_REJECT_CODES_V2: [AssetTransferRejectCodeV2; 17] = 
     AssetTransferRejectCodeV2::EFFECT_DELTA_OVERFLOW,
     AssetTransferRejectCodeV2::INSUFFICIENT_BALANCE,
     AssetTransferRejectCodeV2::BALANCE_OVERFLOW,
+    AssetTransferRejectCodeV2::STATE_RESOURCE_LIMIT,
 ];
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

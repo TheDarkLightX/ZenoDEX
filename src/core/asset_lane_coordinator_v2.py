@@ -35,6 +35,7 @@ from .asset_transfer_types_v2 import (
     _snapshot_asset_transfer_command_v2,
 )
 from .global_economic_proof_v2 import LaneModuleTransitionJournalV2
+from .global_settlement_resource_limits_v2 import StateResourceLimitExceededV2
 from .global_settlement_types_v2 import (
     ZERO_ROOT_V2,
     GlobalEconomicEffectPlanV2,
@@ -262,14 +263,23 @@ def transition_asset_lane_v2(
     if not _candidate_binding_holds_v2(owned_context, owned_state, candidate):
         return _reject_v2(
             owned_state,
-            route,
+            AssetLaneRouteV2.COORDINATOR,
             AssetLaneCoordinatorRejectCodeV2.CANDIDATE_BINDING_MISMATCH,
         )
-    post_state = _aggregate_post_state_v2(owned_state, candidate)
+    try:
+        post_state = _aggregate_post_state_v2(owned_state, candidate)
+    except StateResourceLimitExceededV2:
+        # A leaf may fit while the rebound aggregate does not; that is a
+        # no-op resource rejection, so no occurrence is consumed.
+        return _reject_v2(
+            owned_state,
+            AssetLaneRouteV2.COORDINATOR,
+            AssetLaneCoordinatorRejectCodeV2.STATE_RESOURCE_LIMIT,
+        )
     if not _projection_holds_v2(route, post_state, candidate):
         return _reject_v2(
             owned_state,
-            route,
+            AssetLaneRouteV2.COORDINATOR,
             AssetLaneCoordinatorRejectCodeV2.PROJECTION_MISMATCH,
         )
     return _rebind_candidate_v2(route, owned_state, post_state, candidate)

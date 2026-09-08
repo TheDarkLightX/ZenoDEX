@@ -55,6 +55,7 @@ class ManagedAssetLifecycleRejectCodeV2(str, Enum):
     INSUFFICIENT_BALANCE = "INSUFFICIENT_BALANCE"
     BALANCE_OVERFLOW = "BALANCE_OVERFLOW"
     SUPPLY_OVERFLOW = "SUPPLY_OVERFLOW"
+    STATE_RESOURCE_LIMIT = "STATE_RESOURCE_LIMIT"
 
 
 @dataclass(frozen=True, slots=True)

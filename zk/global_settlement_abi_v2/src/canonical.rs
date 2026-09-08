@@ -16,6 +16,7 @@ pub enum AbiErrorV2 {
     InvalidRoot(&'static str),
     InvalidOrder(&'static str),
     InvalidBounds(&'static str),
+    StateResourceLimit(&'static str),
     InvalidBinding(&'static str),
     Conservation(&'static str),
 }
@@ -31,6 +32,7 @@ impl fmt::Display for AbiErrorV2 {
             Self::InvalidRoot(field) => write!(formatter, "invalid canonical root: {field}"),
             Self::InvalidOrder(field) => write!(formatter, "invalid canonical order: {field}"),
             Self::InvalidBounds(field) => write!(formatter, "invalid ABI V2 bound: {field}"),
+            Self::StateResourceLimit(field) => write!(formatter, "invalid ABI V2 bound: {field}"),
             Self::InvalidBinding(field) => write!(formatter, "invalid ABI V2 binding: {field}"),
             Self::Conservation(field) => write!(formatter, "conservation failure: {field}"),
         }

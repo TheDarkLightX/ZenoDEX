@@ -46,6 +46,7 @@ class AssetLaneCoordinatorRejectCodeV2(str, Enum):
     REGISTRY_BINDING_MISMATCH = "REGISTRY_BINDING_MISMATCH"
     CANDIDATE_BINDING_MISMATCH = "CANDIDATE_BINDING_MISMATCH"
     PROJECTION_MISMATCH = "PROJECTION_MISMATCH"
+    STATE_RESOURCE_LIMIT = "STATE_RESOURCE_LIMIT"
 
 
 AssetLaneLeafRejectCodeV2: TypeAlias = (
@@ -72,6 +73,20 @@ def _snapshot_effects_v2(
         effects.occurrence_consumptions,
         effects.external_outbox_enqueue,
     )
+
+
+def _reject_code_type_for_route_v2(route: object) -> type[AssetLaneRejectCodeV2]:
+    """Return the one rejection-code enum owned by an exact route."""
+
+    if type(route) is not AssetLaneRouteV2:
+        raise TypeError("asset lane route must be exact")
+    if route is AssetLaneRouteV2.COORDINATOR:
+        return AssetLaneCoordinatorRejectCodeV2
+    if route is AssetLaneRouteV2.TRANSFER:
+        return AssetTransferRejectCodeV2
+    if route is AssetLaneRouteV2.MANAGED_LIFECYCLE:
+        return ManagedAssetLifecycleRejectCodeV2
+    raise TypeError("asset lane route is unknown")
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -185,12 +200,11 @@ class AssetLaneRejectedV2:
         post_state_root: str,
         effects: GlobalEconomicEffectPlanV2,
     ) -> None:
-        allowed_codes = (
-            AssetLaneCoordinatorRejectCodeV2,
-            AssetTransferRejectCodeV2,
-            ManagedAssetLifecycleRejectCodeV2,
-        )
-        if type(route) is not AssetLaneRouteV2 or type(code) not in allowed_codes:
+        try:
+            expected_code_type = _reject_code_type_for_route_v2(route)
+        except TypeError as exc:
+            raise TypeError("asset lane rejection is not closed") from exc
+        if type(code) is not expected_code_type:
             raise TypeError("asset lane rejection is not closed")
         _require_root_v2(pre_state_root, name="asset lane rejected pre root")
         _require_root_v2(post_state_root, name="asset lane rejected post root")

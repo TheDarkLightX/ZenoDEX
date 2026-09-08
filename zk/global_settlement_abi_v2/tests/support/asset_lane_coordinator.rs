@@ -126,6 +126,7 @@ pub fn transfer_reject_codes() -> Vec<String> {
         AssetTransferRejectCodeV2::EFFECT_DELTA_OVERFLOW,
         AssetTransferRejectCodeV2::INSUFFICIENT_BALANCE,
         AssetTransferRejectCodeV2::BALANCE_OVERFLOW,
+        AssetTransferRejectCodeV2::STATE_RESOURCE_LIMIT,
     ]
     .map(|code| AssetLaneRejectCodeV2::Transfer(code).as_str().to_owned())
     .to_vec()

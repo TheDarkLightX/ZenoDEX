@@ -1,10 +1,12 @@
 use serde_json::Value;
 
 use super::*;
-use crate::asset_transfer_types::AssetTransferCommandV2;
+use crate::asset_transfer_types::{AssetTransferCommandV2, AssetTransferRejectCodeV2};
 use crate::canonical::{decode_canonical_v2, AbiErrorV2, ValidateCanonicalV2};
 use crate::effects::ExternalOutboxEnqueueV2;
-use crate::managed_asset_lifecycle_types::ManagedAssetLifecycleCommandV2;
+use crate::managed_asset_lifecycle_types::{
+    ManagedAssetLifecycleCommandV2, ManagedAssetLifecycleRejectCodeV2,
+};
 
 const GOLDEN: &str =
     include_str!("../../../tests/data/global_settlement_abi_v2_asset_lane_coordinator_golden.json");
@@ -116,7 +118,7 @@ fn forged_leaf_external_outbox_is_a_candidate_binding_noop() {
     assert_coordinator_noop(
         result,
         &state,
-        AssetLaneRouteV2::TRANSFER,
+        AssetLaneRouteV2::COORDINATOR,
         AssetLaneCoordinatorRejectCodeV2::CANDIDATE_BINDING_MISMATCH,
     );
 }
@@ -149,7 +151,7 @@ fn forged_leaf_context_binding_is_a_candidate_binding_noop() {
     assert_coordinator_noop(
         result,
         &state,
-        AssetLaneRouteV2::TRANSFER,
+        AssetLaneRouteV2::COORDINATOR,
         AssetLaneCoordinatorRejectCodeV2::CANDIDATE_BINDING_MISMATCH,
     );
 }
@@ -178,9 +180,47 @@ fn route_to_leaf_projection_mismatch_is_a_named_noop() {
     assert_coordinator_noop(
         result,
         &state,
-        AssetLaneRouteV2::TRANSFER,
+        AssetLaneRouteV2::COORDINATOR,
         AssetLaneCoordinatorRejectCodeV2::PROJECTION_MISMATCH,
     );
+}
+
+#[test]
+fn rejection_domain_enforces_route_owned_code_variant() {
+    let (_, state, _) = transfer_subject();
+    let state_root = state.state_root().expect("fixture state root");
+
+    assert_eq!(
+        AssetLaneRejectedV2::new(
+            AssetLaneRouteV2::TRANSFER,
+            AssetLaneRejectCodeV2::Coordinator(
+                AssetLaneCoordinatorRejectCodeV2::STATE_RESOURCE_LIMIT,
+            ),
+            state_root.clone(),
+        ),
+        Err(AbiErrorV2::InvalidBinding("asset lane rejected route code"))
+    );
+    assert!(AssetLaneRejectedV2::new(
+        AssetLaneRouteV2::COORDINATOR,
+        AssetLaneRejectCodeV2::Coordinator(AssetLaneCoordinatorRejectCodeV2::STATE_RESOURCE_LIMIT,),
+        state_root.clone(),
+    )
+    .is_ok());
+
+    for (route, code) in [
+        (
+            AssetLaneRouteV2::TRANSFER,
+            AssetLaneRejectCodeV2::Transfer(AssetTransferRejectCodeV2::STATE_RESOURCE_LIMIT),
+        ),
+        (
+            AssetLaneRouteV2::MANAGED_LIFECYCLE,
+            AssetLaneRejectCodeV2::ManagedLifecycle(
+                ManagedAssetLifecycleRejectCodeV2::STATE_RESOURCE_LIMIT,
+            ),
+        ),
+    ] {
+        assert!(AssetLaneRejectedV2::new(route, code, state_root.clone()).is_ok());
+    }
 }
 
 #[test]

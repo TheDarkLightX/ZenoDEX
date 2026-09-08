@@ -41,6 +41,7 @@ pub enum AssetLaneCoordinatorRejectCodeV2 {
     REGISTRY_BINDING_MISMATCH,
     CANDIDATE_BINDING_MISMATCH,
     PROJECTION_MISMATCH,
+    STATE_RESOURCE_LIMIT,
 }
 
 impl AssetLaneCoordinatorRejectCodeV2 {
@@ -49,14 +50,16 @@ impl AssetLaneCoordinatorRejectCodeV2 {
             Self::REGISTRY_BINDING_MISMATCH => "REGISTRY_BINDING_MISMATCH",
             Self::CANDIDATE_BINDING_MISMATCH => "CANDIDATE_BINDING_MISMATCH",
             Self::PROJECTION_MISMATCH => "PROJECTION_MISMATCH",
+            Self::STATE_RESOURCE_LIMIT => "STATE_RESOURCE_LIMIT",
         }
     }
 }
 
-pub const ALL_ASSET_LANE_COORDINATOR_REJECT_CODES_V2: [AssetLaneCoordinatorRejectCodeV2; 3] = [
+pub const ALL_ASSET_LANE_COORDINATOR_REJECT_CODES_V2: [AssetLaneCoordinatorRejectCodeV2; 4] = [
     AssetLaneCoordinatorRejectCodeV2::REGISTRY_BINDING_MISMATCH,
     AssetLaneCoordinatorRejectCodeV2::CANDIDATE_BINDING_MISMATCH,
     AssetLaneCoordinatorRejectCodeV2::PROJECTION_MISMATCH,
+    AssetLaneCoordinatorRejectCodeV2::STATE_RESOURCE_LIMIT,
 ];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -218,6 +221,9 @@ impl AssetLaneRejectedV2 {
     }
 
     pub fn validate(&self) -> AbiResultV2<()> {
+        if !route_code_holds(self.route, self.code) {
+            return Err(AbiErrorV2::InvalidBinding("asset lane rejected route code"));
+        }
         self.pre_state_root
             .validate("asset lane rejected pre root", false)?;
         self.post_state_root
@@ -258,6 +264,22 @@ impl AssetLaneRejectedV2 {
     pub const fn profile_authentication(&self) -> &'static str {
         ASSET_LANE_PROFILE_AUTHENTICATION_V2
     }
+}
+
+fn route_code_holds(route: AssetLaneRouteV2, code: AssetLaneRejectCodeV2) -> bool {
+    matches!(
+        (route, code),
+        (
+            AssetLaneRouteV2::COORDINATOR,
+            AssetLaneRejectCodeV2::Coordinator(_)
+        ) | (
+            AssetLaneRouteV2::TRANSFER,
+            AssetLaneRejectCodeV2::Transfer(_)
+        ) | (
+            AssetLaneRouteV2::MANAGED_LIFECYCLE,
+            AssetLaneRejectCodeV2::ManagedLifecycle(_)
+        )
+    )
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

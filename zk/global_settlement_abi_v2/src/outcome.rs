@@ -405,7 +405,9 @@ fn known_malformed_candidate_error_v2(error: &AbiErrorV2) -> bool {
                 | "fee projection"
                 | "missing fee conservation row"
         ),
-        AbiErrorV2::CanonicalEncoding(_) => false,
+        // Asset-lane resource failures are not global-refinement candidate
+        // errors; an unexpected cross-boundary occurrence remains contract drift.
+        AbiErrorV2::StateResourceLimit(_) | AbiErrorV2::CanonicalEncoding(_) => false,
     }
 }
 

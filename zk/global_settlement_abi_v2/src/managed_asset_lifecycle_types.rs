@@ -66,6 +66,7 @@ pub enum ManagedAssetLifecycleRejectCodeV2 {
     /// code is currently invariant-unreachable.
     BALANCE_OVERFLOW,
     SUPPLY_OVERFLOW,
+    STATE_RESOURCE_LIMIT,
 }
 
 impl ManagedAssetLifecycleRejectCodeV2 {
@@ -92,11 +93,12 @@ impl ManagedAssetLifecycleRejectCodeV2 {
             Self::INSUFFICIENT_BALANCE => "INSUFFICIENT_BALANCE",
             Self::BALANCE_OVERFLOW => "BALANCE_OVERFLOW",
             Self::SUPPLY_OVERFLOW => "SUPPLY_OVERFLOW",
+            Self::STATE_RESOURCE_LIMIT => "STATE_RESOURCE_LIMIT",
         }
     }
 }
 
-pub const ALL_MANAGED_ASSET_LIFECYCLE_REJECT_CODES_V2: [ManagedAssetLifecycleRejectCodeV2; 21] = [
+pub const ALL_MANAGED_ASSET_LIFECYCLE_REJECT_CODES_V2: [ManagedAssetLifecycleRejectCodeV2; 22] = [
     ManagedAssetLifecycleRejectCodeV2::MISSING_OCCURRENCE,
     ManagedAssetLifecycleRejectCodeV2::OCCURRENCE_BINDING_MISMATCH,
     ManagedAssetLifecycleRejectCodeV2::RELEASE_MISMATCH,
@@ -118,6 +120,7 @@ pub const ALL_MANAGED_ASSET_LIFECYCLE_REJECT_CODES_V2: [ManagedAssetLifecycleRej
     ManagedAssetLifecycleRejectCodeV2::INSUFFICIENT_BALANCE,
     ManagedAssetLifecycleRejectCodeV2::BALANCE_OVERFLOW,
     ManagedAssetLifecycleRejectCodeV2::SUPPLY_OVERFLOW,
+    ManagedAssetLifecycleRejectCodeV2::STATE_RESOURCE_LIMIT,
 ];
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

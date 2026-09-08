@@ -12,21 +12,21 @@ pub const MAX_CONSUMED_OBJECT_IDS_PER_OCCURRENCE_V2: usize = 64;
 pub const MAX_CONSUMED_OCCURRENCES_PER_REFINEMENT_V2: usize = 64;
 
 pub fn validate_asset_state_asset_count_v2(count: usize, field: &'static str) -> AbiResultV2<()> {
-    validate_at_most_v2(count, MAX_ASSETS_PER_ASSET_STATE_V2, field)
+    validate_asset_state_at_most_v2(count, MAX_ASSETS_PER_ASSET_STATE_V2, field)
 }
 
 pub fn validate_asset_state_balance_row_count_v2(
     count: usize,
     field: &'static str,
 ) -> AbiResultV2<()> {
-    validate_at_most_v2(count, MAX_BALANCE_ROWS_PER_ASSET_STATE_V2, field)
+    validate_asset_state_at_most_v2(count, MAX_BALANCE_ROWS_PER_ASSET_STATE_V2, field)
 }
 
 pub fn validate_rootable_asset_state_canonical_bytes_v2(
     byte_count: usize,
     field: &'static str,
 ) -> AbiResultV2<()> {
-    validate_at_most_v2(
+    validate_asset_state_at_most_v2(
         byte_count,
         MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2,
         field,
@@ -44,6 +44,17 @@ pub fn validate_consumed_occurrence_count_v2(count: usize, field: &'static str) 
 fn validate_at_most_v2(count: usize, limit: usize, field: &'static str) -> AbiResultV2<()> {
     if count > limit {
         return Err(AbiErrorV2::InvalidBounds(field));
+    }
+    Ok(())
+}
+
+fn validate_asset_state_at_most_v2(
+    count: usize,
+    limit: usize,
+    field: &'static str,
+) -> AbiResultV2<()> {
+    if count > limit {
+        return Err(AbiErrorV2::StateResourceLimit(field));
     }
     Ok(())
 }

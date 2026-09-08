@@ -13,8 +13,8 @@ from collections.abc import Callable
 from typing import Final, TypeVar
 
 from .asset_lane_coordinator_values_v2 import (
-    AssetLaneCoordinatorRejectCodeV2,
     AssetLaneRouteV2,
+    _reject_code_type_for_route_v2,
 )
 from .asset_lane_state_v2 import AssetLaneStateV2
 from .asset_origin_registry_types_v2 import (
@@ -28,7 +28,6 @@ from .asset_origin_registry_types_v2 import (
 from .asset_transfer_types_v2 import (
     AssetClassV2,
     AssetTransferPolicyV2,
-    AssetTransferRejectCodeV2,
 )
 from .global_economic_proof_v2 import (
     EconomicCommandOccurrenceV2,
@@ -1173,23 +1172,15 @@ def _decode_asset_lane_accepted_v2(value: dict[str, object]) -> AssetLaneAccepte
 
 def _decode_asset_lane_rejected_v2(value: dict[str, object]) -> AssetLaneRejectedWireV2:
     _expect_fields_v2(value, _ASSET_LANE_REJECTED_FIELDS_V2, name="asset lane rejected")
-    code_value = _expect_text_v2(value["code"], name="asset lane reject code")
-    code: object
-    for enum_type in (
-        AssetLaneCoordinatorRejectCodeV2,
-        AssetTransferRejectCodeV2,
-        ManagedAssetLifecycleRejectCodeV2,
-    ):
-        try:
-            code = enum_type(code_value)
-            break
-        except ValueError:
-            continue
-    else:
-        raise GlobalSettlementWireCodecErrorV2("asset lane reject code is unknown")
+    route = _decode_enum_v2(value["route"], AssetLaneRouteV2, name="asset lane route")
+    code = _decode_enum_v2(
+        value["code"],
+        _reject_code_type_for_route_v2(route),
+        name="asset lane reject code",
+    )
     return _construct_v2(
         lambda: AssetLaneRejectedWireV2(
-            _decode_enum_v2(value["route"], AssetLaneRouteV2, name="asset lane route"),
+            route,
             code,
             _expect_text_v2(value["pre_state_root"], name="asset lane pre root"),
             _expect_text_v2(value["post_state_root"], name="asset lane post root"),

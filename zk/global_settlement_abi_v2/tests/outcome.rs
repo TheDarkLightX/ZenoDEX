@@ -331,3 +331,13 @@ fn reject_code_registry_is_closed_unique_and_wire_stable() {
     assert_eq!(wire_codes.first(), Some(&"MALFORMED_CANDIDATE"));
     assert_eq!(wire_codes.last(), Some(&"INTERNAL_CONTRACT_DRIFT"));
 }
+
+#[test]
+fn asset_state_resource_error_cannot_be_reclassified_by_global_field_text() {
+    for field in ["asset lane balances", "global state balances"] {
+        assert_eq!(
+            classify_global_economic_refinement_error_v2(&AbiErrorV2::StateResourceLimit(field)),
+            GlobalEconomicRefinementRejectCodeV2::INTERNAL_CONTRACT_DRIFT,
+        );
+    }
+}

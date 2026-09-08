@@ -363,7 +363,16 @@ fn accept_transfer(
         supplies: prepared.pre_state.supplies.clone(),
     };
     let pre_root = prepared.pre_state.state_root()?;
-    let post_root = post_state.state_root()?;
+    let post_root = match post_state.state_root() {
+        Ok(root) => root,
+        Err(AbiErrorV2::StateResourceLimit(_)) => {
+            return reject(
+                AssetTransferRejectCodeV2::STATE_RESOURCE_LIMIT,
+                prepared.pre_state,
+            )
+        }
+        Err(error) => return Err(error),
+    };
     let effects = effect_plan(&post_state, prepared)?;
     let effect_plan_root = effects.effect_plan_root()?;
     let module_journal = build_module_journal(prepared, pre_root, post_root, effect_plan_root)?;

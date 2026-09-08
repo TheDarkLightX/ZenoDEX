@@ -27,6 +27,7 @@ from .asset_transfer_types_v2 import (
     _snapshot_asset_transfer_state_v2,
 )
 from .global_economic_proof_v2 import LaneModuleTransitionJournalV2
+from .global_settlement_resource_limits_v2 import StateResourceLimitExceededV2
 from .global_settlement_types_v2 import (
     MAX_ATOMS_V2,
     MAX_DELTA_ATOMS_V2,
@@ -274,19 +275,24 @@ def _effect_plan(
 def _accept_transfer(
     prepared: _PreparedTransferV2,
     balances: tuple[EconomicAmountV2, ...],
-) -> AssetTransferAcceptedV2:
+) -> AssetTransferResultV2:
     context = prepared.context
     occurrence = context.occurrence
     if occurrence is None:
         raise RuntimeError("prepared transfer lost its required occurrence")
     pre_state = prepared.pre_state
     command = prepared.command
-    post_state = AssetTransferStateV2(
-        module_release_id=pre_state.module_release_id,
-        policies=pre_state.policies,
-        balances=balances,
-        supplies=pre_state.supplies,
-    )
+    try:
+        post_state = AssetTransferStateV2(
+            module_release_id=pre_state.module_release_id,
+            policies=pre_state.policies,
+            balances=balances,
+            supplies=pre_state.supplies,
+        )
+    except StateResourceLimitExceededV2:
+        # An admitted pre-state whose post-state needs one more row or byte
+        # than the declared ceiling is a resource rejection, not a fault.
+        return _reject(AssetTransferRejectCodeV2.STATE_RESOURCE_LIMIT, pre_state)
     effects = _effect_plan(prepared, post_state)
     receipt_root = hash_global_v2(
         "asset-transfer-receipt-v2",

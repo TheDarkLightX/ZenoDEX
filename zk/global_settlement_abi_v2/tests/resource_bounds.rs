@@ -218,11 +218,13 @@ fn asset_count_bva_is_closed_before_deep_validation() {
     }
     assert_eq!(
         validate_asset_state_asset_count_v2(257, "asset count BVA"),
-        Err(AbiErrorV2::InvalidBounds("asset count BVA"))
+        Err(AbiErrorV2::StateResourceLimit("asset count BVA"))
     );
     assert_eq!(
         origin_registry(257).validate(),
-        Err(AbiErrorV2::InvalidBounds("asset origin registry assets"))
+        Err(AbiErrorV2::StateResourceLimit(
+            "asset origin registry assets"
+        ))
     );
 
     let poisoned_policy = AssetTransferPolicyV2 {
@@ -238,7 +240,7 @@ fn asset_count_bva_is_closed_before_deep_validation() {
     };
     assert_eq!(
         poisoned_transfer.validate(),
-        Err(AbiErrorV2::InvalidBounds("asset transfer policies"))
+        Err(AbiErrorV2::StateResourceLimit("asset transfer policies"))
     );
 
     let poisoned_managed_policy = ManagedAssetLifecyclePolicyV2 {
@@ -254,7 +256,7 @@ fn asset_count_bva_is_closed_before_deep_validation() {
     };
     assert_eq!(
         poisoned_managed.validate(),
-        Err(AbiErrorV2::InvalidBounds("managed asset policies"))
+        Err(AbiErrorV2::StateResourceLimit("managed asset policies"))
     );
 
     let poisoned_lane = AssetLaneStateV2 {
@@ -268,7 +270,7 @@ fn asset_count_bva_is_closed_before_deep_validation() {
     };
     assert_eq!(
         poisoned_lane.validate(),
-        Err(AbiErrorV2::InvalidBounds(
+        Err(AbiErrorV2::StateResourceLimit(
             "asset lane origin registry assets"
         ))
     );
@@ -289,7 +291,7 @@ fn balance_row_bva_is_closed_before_deep_validation() {
     }
     assert_eq!(
         validate_asset_state_balance_row_count_v2(4_097, "balance row BVA"),
-        Err(AbiErrorV2::InvalidBounds("balance row BVA"))
+        Err(AbiErrorV2::StateResourceLimit("balance row BVA"))
     );
     let mut poisoned = single_asset_transfer_state(4_097);
     poisoned.schema = "wrong-schema".to_owned();
@@ -297,7 +299,7 @@ fn balance_row_bva_is_closed_before_deep_validation() {
     poisoned.balances[0].owner = String::new();
     assert_eq!(
         poisoned.validate(),
-        Err(AbiErrorV2::InvalidBounds("asset transfer balances"))
+        Err(AbiErrorV2::StateResourceLimit("asset transfer balances"))
     );
 }
 
@@ -520,7 +522,7 @@ fn rootable_asset_state_byte_ceilings_and_origin_structural_envelope_hold() {
             MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2 + 1,
             "rootable byte BVA"
         ),
-        Err(AbiErrorV2::InvalidBounds("rootable byte BVA"))
+        Err(AbiErrorV2::StateResourceLimit("rootable byte BVA"))
     );
 
     let state = maximal_but_structural_transfer_state();
@@ -530,7 +532,7 @@ fn rootable_asset_state_byte_ceilings_and_origin_structural_envelope_hold() {
     );
     assert_eq!(
         state.validate(),
-        Err(AbiErrorV2::InvalidBounds(
+        Err(AbiErrorV2::StateResourceLimit(
             "asset transfer state canonical encoding bytes"
         ))
     );
@@ -544,7 +546,7 @@ fn rootable_asset_state_byte_ceilings_and_origin_structural_envelope_hold() {
     );
     assert_eq!(
         managed.validate(),
-        Err(AbiErrorV2::InvalidBounds(
+        Err(AbiErrorV2::StateResourceLimit(
             "managed asset lifecycle state canonical encoding bytes"
         ))
     );
@@ -558,7 +560,7 @@ fn rootable_asset_state_byte_ceilings_and_origin_structural_envelope_hold() {
     );
     assert_eq!(
         lane.validate(),
-        Err(AbiErrorV2::InvalidBounds(
+        Err(AbiErrorV2::StateResourceLimit(
             "asset lane state canonical encoding bytes"
         ))
     );

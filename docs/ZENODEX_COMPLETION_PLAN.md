@@ -195,3 +195,9 @@ adds finite transfer materialization and proves that managed and transfer views
 read and update one shared account source. Exact coordinator recomposition and
 complete resource-aware outcome refinement remain open; this does not complete
 the formal core.
+
+The [asset-lane resource outcome repair](research/ZENODEX_ASSET_LANE_RESOURCE_OUTCOMES_20260908.md)
+adds typed no-op rejection for POST-state row or byte excess in Python and Rust,
+and enforces route-owned rejection decoding. Isolated runtime and shared wire
+tests pass. Formal resource-aware traces and the wider qualification gates remain
+open; this repair grants no publication authority.

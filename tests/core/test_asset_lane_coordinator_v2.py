@@ -48,6 +48,11 @@ from src.core.global_settlement_types_v2 import (
     LaneWriteV2,
     hash_global_v2,
 )
+from src.core.global_settlement_wire_codec_v2 import (
+    decode_global_settlement_wire_record_v2,
+    encode_global_settlement_wire_record_v2,
+)
+from src.core.global_settlement_wire_records_v2 import wire_record_from_domain_v2
 from src.core.managed_asset_lifecycle_types_v2 import (
     MANAGED_ASSET_BURN_COMMAND_KIND_V2,
     MANAGED_ASSET_ISSUE_COMMAND_KIND_V2,
@@ -257,6 +262,13 @@ def _assert_noop(
     assert result.effects.is_empty
     assert result.production_authority == ASSET_LANE_PRODUCTION_AUTHORITY_V2
     assert result.profile_authentication == ASSET_LANE_PROFILE_AUTHENTICATION_V2
+    record = wire_record_from_domain_v2(result)
+    encoded = encode_global_settlement_wire_record_v2(record)
+    decoded = decode_global_settlement_wire_record_v2(encoded)
+    assert decoded == record
+    assert type(decoded.code) is type(result.code)
+    assert decoded.code is result.code
+    assert encode_global_settlement_wire_record_v2(decoded) == encoded
     return result
 
 
@@ -471,11 +483,12 @@ def test_projection_mismatch_is_a_named_noop_rejection(
 
     result = transition_asset_lane_v2(_context(command), state, command)
 
-    _assert_noop(
+    rejected = _assert_noop(
         result,
         state,
         AssetLaneCoordinatorRejectCodeV2.PROJECTION_MISMATCH,
     )
+    assert rejected.route is AssetLaneRouteV2.COORDINATOR
 
 
 def test_input_graph_is_transitively_owned() -> None:

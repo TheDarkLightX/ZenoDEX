@@ -14,7 +14,7 @@ use crate::asset_lane_coordinator_types::*;
 use crate::asset_lane_state::{AssetLaneContextV2, AssetLaneStateV2, ASSET_LANE_STATE_SCHEMA_V2};
 use crate::asset_transfer::transition_asset_transfer_v2;
 use crate::asset_transfer_types::{AssetTransferAcceptedV2, AssetTransferResultV2};
-use crate::canonical::{hash_global_v2, AbiResultV2, RootV2, GLOBAL_SETTLEMENT_ABI_V2};
+use crate::canonical::{hash_global_v2, AbiErrorV2, AbiResultV2, RootV2, GLOBAL_SETTLEMENT_ABI_V2};
 use crate::effects::{GlobalEconomicEffectPlanV2, LaneIdV2, LaneWriteV2};
 use crate::managed_asset_lifecycle::transition_managed_asset_lifecycle_v2;
 use crate::managed_asset_lifecycle_types::{
@@ -105,7 +105,7 @@ fn candidate_binding_holds(
 fn aggregate_post_state(
     pre_state: &AssetLaneStateV2,
     candidate: &LeafAcceptedV2,
-) -> AssetLaneStateV2 {
+) -> AbiResultV2<AssetLaneStateV2> {
     let (mut balances, mut supplies) = match candidate {
         LeafAcceptedV2::Transfer(candidate) => (
             candidate.post_state.balances.clone(),
@@ -136,7 +136,7 @@ fn aggregate_post_state(
     };
     balances.sort_by(|left, right| left.key().cmp(&right.key()));
     supplies.sort_by(|left, right| left.asset.cmp(&right.asset));
-    AssetLaneStateV2 {
+    let post_state = AssetLaneStateV2 {
         schema: ASSET_LANE_STATE_SCHEMA_V2.to_owned(),
         module_release_id: pre_state.module_release_id.clone(),
         origin_registry: pre_state.origin_registry.clone(),
@@ -144,7 +144,9 @@ fn aggregate_post_state(
         managed_policies: pre_state.managed_policies.clone(),
         balances,
         supplies,
-    }
+    };
+    post_state.validate()?;
+    Ok(post_state)
 }
 
 fn projection_holds(
@@ -299,17 +301,29 @@ fn compose_candidate(
     if !candidate_binding_holds(context, pre_state, &candidate) {
         return reject(
             pre_state,
-            route,
+            AssetLaneRouteV2::COORDINATOR,
             AssetLaneRejectCodeV2::Coordinator(
                 AssetLaneCoordinatorRejectCodeV2::CANDIDATE_BINDING_MISMATCH,
             ),
         );
     }
-    let post_state = aggregate_post_state(pre_state, &candidate);
+    let post_state = match aggregate_post_state(pre_state, &candidate) {
+        Ok(post_state) => post_state,
+        Err(AbiErrorV2::StateResourceLimit(_)) => {
+            return reject(
+                pre_state,
+                AssetLaneRouteV2::COORDINATOR,
+                AssetLaneRejectCodeV2::Coordinator(
+                    AssetLaneCoordinatorRejectCodeV2::STATE_RESOURCE_LIMIT,
+                ),
+            )
+        }
+        Err(error) => return Err(error),
+    };
     if !projection_holds(route, &post_state, &candidate) {
         return reject(
             pre_state,
-            route,
+            AssetLaneRouteV2::COORDINATOR,
             AssetLaneRejectCodeV2::Coordinator(
                 AssetLaneCoordinatorRejectCodeV2::PROJECTION_MISMATCH,
             ),

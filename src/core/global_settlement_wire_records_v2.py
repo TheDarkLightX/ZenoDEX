@@ -13,10 +13,10 @@ from typing import Final, TypeAlias, cast
 
 from .asset_lane_coordinator_values_v2 import (
     AssetLaneAcceptedV2,
-    AssetLaneCoordinatorRejectCodeV2,
     AssetLaneRejectCodeV2,
     AssetLaneRejectedV2,
     AssetLaneRouteV2,
+    _reject_code_type_for_route_v2,
 )
 from .asset_lane_state_v2 import (
     ASSET_LANE_PROFILE_AUTHENTICATION_V2,
@@ -32,7 +32,6 @@ from .asset_origin_registry_types_v2 import (
     AssetOriginRegistryStateV2,
     _snapshot_registry_state_v2,
 )
-from .asset_transfer_types_v2 import AssetTransferRejectCodeV2
 from .global_economic_proof_v2 import (
     EconomicCommandOccurrenceV2,
     LaneModuleTransitionJournalV2,
@@ -583,14 +582,11 @@ class AssetLaneRejectedWireV2:
     profile_authentication: str
 
     def __post_init__(self) -> None:
-        code_type_by_route = {
-            AssetLaneRouteV2.COORDINATOR: AssetLaneCoordinatorRejectCodeV2,
-            AssetLaneRouteV2.TRANSFER: AssetTransferRejectCodeV2,
-            AssetLaneRouteV2.MANAGED_LIFECYCLE: ManagedAssetLifecycleRejectCodeV2,
-        }
-        if type(self.route) is not AssetLaneRouteV2 or type(
-            self.code
-        ) is not code_type_by_route.get(self.route):
+        try:
+            expected_code_type = _reject_code_type_for_route_v2(self.route)
+        except TypeError as exc:
+            raise TypeError("wire asset lane rejection is not closed") from exc
+        if type(self.code) is not expected_code_type:
             raise TypeError("wire asset lane rejection is not closed")
         effects = _snapshot_effect_plan_v2(self.effects)
         _validate_noop_v2(

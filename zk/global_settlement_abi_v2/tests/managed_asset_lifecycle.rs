@@ -528,6 +528,7 @@ fn reject_registry_is_exact_and_reserved_codes_are_honestly_unreachable() {
         "INSUFFICIENT_BALANCE",
         "BALANCE_OVERFLOW",
         "SUPPLY_OVERFLOW",
+        "STATE_RESOURCE_LIMIT",
     ];
     assert_eq!(
         ALL_MANAGED_ASSET_LIFECYCLE_REJECT_CODES_V2.map(|code| code.as_str()),
