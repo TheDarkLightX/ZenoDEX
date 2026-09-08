@@ -172,3 +172,9 @@ production promotion separately. No review grade, test count or packet count is
 a whole-program completion percentage. Replay the graph with
 `python3 tools/check_whole_program_plan_v3.py`; its success establishes only the
 declared scope, source pins and dependency structure.
+
+The September 7 user directive adds a post-correctness simplification pass
+within W07, W09 and W13. The
+[`execution addendum`](research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md)
+records reviewed candidates, counterexamples and the qualification needed before
+applying a patch. It leaves the admitted graph and safety milestones intact.
