@@ -510,6 +510,171 @@
         "status": "EXTERNAL_REVIEW_PREMISE_UNACCEPTED"
       },
       "supersedes": null
+    },
+    {
+      "id": "SUPPORT-HISTORICAL-CLAIM-RECONCILIATION-20260908",
+      "kind": "SUPPORT",
+      "baseline_links": {
+        "capability_ids": [],
+        "route_ids": [],
+        "exclusion_ids": [],
+        "task_ids": [
+          "W00",
+          "W12"
+        ]
+      },
+      "support_scope": {
+        "summary": "Correct thirteen historical supported records whose current referenced evidence is missing; preserve original claims and requirements.",
+        "nonclaims": [
+          "No missing implementation or evidence is restored; the unchanged claims checker remains failing; no lane, release or whole-core closure follows."
+        ]
+      },
+      "subject": {
+        "before_commit": "6b6d9289586c19d9b35492137af3baf1369c1ff8",
+        "after_commit": "7336536074094eb793629b8d08fa4e72d3263afa",
+        "changed_paths": [
+          {
+            "status": "M",
+            "before_path": "docs/claims_registry.yaml",
+            "after_path": "docs/claims_registry.yaml"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md"
+          }
+        ]
+      },
+      "declared_scope_paths": [
+        "docs/claims_registry.yaml",
+        "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md"
+      ],
+      "acceptance_contract": {
+        "path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md",
+        "sha256": "87e1c8714ae4f4320f2a9f762a369b770855c886a1dd242bc1ad517b7f8750b6"
+      },
+      "gate_ids": [],
+      "gate_subject_hashes": [],
+      "gate_scope_aggregate": null,
+      "rationale": {
+        "linked_obligation": "W00 historical evidence reconciliation and W12 claim accuracy on the exact integration subject.",
+        "acceptance_condition": "Independently preserve every ID, evidence field, historical statement suffix and unaffected record; confirm 28 absent direct paths and 33 named nodes; retain the existing checker failure.",
+        "simpler_alternative": "Change the thirteen statuses without retaining a recovery note.",
+        "why_added_structure": "The note retains missing-evidence identities and candidate provenance so the unsupported all-area matrix is not repeatedly mistaken for runtime coverage. No checker or runtime machinery is added.",
+        "stop_condition": "Commit the supported-to-disputed corrections and evidence map; leave actual semantic repair and exact historical recovery open."
+      },
+      "recorded_evidence": [
+        {
+          "path": "docs/claims_registry.yaml",
+          "sha256": "05b741e2e419e6c39ba6859a09643d799d8967b696fed44c377e083a05fd6f28"
+        },
+        {
+          "path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md",
+          "sha256": "87e1c8714ae4f4320f2a9f762a369b770855c886a1dd242bc1ad517b7f8750b6"
+        }
+      ],
+      "review_binding": {
+        "path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md",
+        "sha256": "87e1c8714ae4f4320f2a9f762a369b770855c886a1dd242bc1ad517b7f8750b6",
+        "reviewed_subject_commit": "7336536074094eb793629b8d08fa4e72d3263afa",
+        "status": "EXTERNAL_REVIEW_PREMISE_UNACCEPTED"
+      },
+      "supersedes": null
+    },
+    {
+      "id": "SUPPORT-ASSET-EFFECT-ENCODING-20260908",
+      "kind": "SUPPORT",
+      "baseline_links": {
+        "capability_ids": [
+          "ASSET_TRANSFER:generic_transfer",
+          "ASSET_TRANSFER:managed_issue",
+          "ASSET_TRANSFER:managed_burn"
+        ],
+        "route_ids": [],
+        "exclusion_ids": [],
+        "task_ids": [
+          "W09"
+        ]
+      },
+      "support_scope": {
+        "summary": "Explicit six-field effect-plan encoding with fixed schema, derived accepted-plan byte bounds and retained complete-byte observations.",
+        "nonclaims": [
+          "No universal Python/Rust codec, constructor or journal refinement, cryptographic authority, lane closure, release qualification or whole-core completion is recorded."
+        ]
+      },
+      "subject": {
+        "before_commit": "7336536074094eb793629b8d08fa4e72d3263afa",
+        "after_commit": "3ac74d86c94a5a75958fb4d30b5bc953115efd44",
+        "changed_paths": [
+          {
+            "status": "M",
+            "before_path": "docs/ZENODEX_COMPLETION_PLAN.md",
+            "after_path": "docs/ZENODEX_COMPLETION_PLAN.md"
+          },
+          {
+            "status": "M",
+            "before_path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+            "after_path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md"
+          },
+          {
+            "status": "M",
+            "before_path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+            "after_path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "lean-mathlib/Proofs/AssetLaneEffectEncodingV2.lean"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "tests/formal/test_lean_asset_lane_effect_encoding_v2.py"
+          }
+        ]
+      },
+      "declared_scope_paths": [
+        "docs/ZENODEX_COMPLETION_PLAN.md",
+        "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+        "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+        "lean-mathlib/Proofs/AssetLaneEffectEncodingV2.lean",
+        "tests/formal/test_lean_asset_lane_effect_encoding_v2.py"
+      ],
+      "acceptance_contract": {
+        "path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+        "sha256": "6b47b5a046dc5b4499706192e9f96cb92b8b05e9437b70f8362bb77f4cd727ba"
+      },
+      "gate_ids": [],
+      "gate_subject_hashes": [],
+      "gate_scope_aggregate": null,
+      "rationale": {
+        "linked_obligation": "W09: derive byte admission for the existing finite managed and transfer plan constructors rather than assuming a successful supplied plan or POST.",
+        "acceptance_condition": "Compile and audit the exact encoder and concrete accepted consumers; derive the 8192-byte bound; retain ten complete typed-plan byte comparisons and intended false controls. Final root evidence covers all seven retained test obligations after the two affected tests pass following a five-line harness repair.",
+        "simpler_alternative": "Retain informal byte estimates or assume that the constructed plan passes a byte-budget check.",
+        "why_added_structure": "One encoder reuses the existing plan carrier and test source closure. Explicit field and byte oracles account for the large retained test file; no runtime abstraction or proof-build framework is added.",
+        "stop_condition": "Commit the scoped encoder, bound and retained comparisons; keep universal serializer, constructor, journal and authentication refinement open."
+      },
+      "recorded_evidence": [
+        {
+          "path": "lean-mathlib/Proofs/AssetLaneEffectEncodingV2.lean",
+          "sha256": "9c4968abd414d2156941fb00ba3ff61ad5f46c8ec994cc35b55e13b24398f924"
+        },
+        {
+          "path": "tests/formal/test_lean_asset_lane_effect_encoding_v2.py",
+          "sha256": "e0df4437f9f511ba444b0d358e87c4735d6bf6eb4f17617222fe8937cc236343"
+        },
+        {
+          "path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+          "sha256": "6b47b5a046dc5b4499706192e9f96cb92b8b05e9437b70f8362bb77f4cd727ba"
+        }
+      ],
+      "review_binding": {
+        "path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+        "sha256": "6b47b5a046dc5b4499706192e9f96cb92b8b05e9437b70f8362bb77f4cd727ba",
+        "reviewed_subject_commit": "3ac74d86c94a5a75958fb4d30b5bc953115efd44",
+        "status": "EXTERNAL_REVIEW_PREMISE_UNACCEPTED"
+      },
+      "supersedes": null
     }
   ]
 }
