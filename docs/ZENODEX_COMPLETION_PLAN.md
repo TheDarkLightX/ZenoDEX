@@ -220,3 +220,11 @@ and combines these with row growth into source-derived capacity criteria.
 Independent Lean review and the retained fresh-build tests pass. Owned metadata
 serializer correspondence, complete resource-aware outcomes and full runtime
 refinement remain open; this checkpoint grants no publication authority.
+
+The [finite managed-outcome checkpoint](research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md)
+then derives accepted and rejected outcomes from owned finite tables, with
+resource checks on the computed candidate. Admission, accounting, supply identity
+and trace-prefix preservation are proved under explicit input assumptions.
+Independent retained replay checks the theorem surface and 37 runtime cases.
+Complete transfer and cross-lane outcomes, actual effect/journal constructor
+correspondence and universal runtime refinement remain open.
