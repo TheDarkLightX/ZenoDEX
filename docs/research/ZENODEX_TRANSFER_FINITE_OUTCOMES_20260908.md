@@ -128,6 +128,83 @@ fixtures. No new plan abstraction or proof-build framework was added. Its exit
 condition is the checked construction and per-owner relation; universal codec,
 journal and authentication refinement remains separate work.
 
+## Exact effect-plan encoding and derived byte bound
+
+[AssetLaneEffectEncodingV2.lean](../../lean-mathlib/Proofs/AssetLaneEffectEncodingV2.lean)
+encodes the existing six-field carrier and fixed ABI schema. It preserves the
+wire key order, array order, enum values, quoted tokens and signed integer
+bytes. `planBytes_length` proves the exact compositional byte cost. The managed
+and transfer endpoints derive a conservative 8,192-byte ceiling for plans
+constructed by accepted finite transitions. They use structural PRE, the
+existing command admission conditions, and explicit canonical-root and
+nonzero-occurrence syntax. They require no supplied POST, plan or successful
+byte-budget witness. The actual runtime limit remains 1,048,576 bytes.
+
+The numeric proof bounds the existing natural decimal printer through
+`Nat.toDigitsCore`. Negative output prepends the minus byte explicitly. Pinned
+Lean 4.27.0 uses an opaque `String.Internal.append` in its negative integer
+printer; equality with that opaque branch is not assumed or proved here.
+Nonnegative correspondence to the earlier model printer is proved. This adds
+one model encoder and changes no runtime serializer, constant or wire value.
+
+Proof SHA-256:
+`9c4968abd414d2156941fb00ba3ff61ad5f46c8ec994cc35b55e13b24398f924`.
+Root independently revalidated all 29 dependency/target source and object
+bindings, recompiled the target and concrete accepted issue, full-burn and
+transfer consumers, and audited 48 target/consumer declarations. All audits
+used only standard Lean axioms. Four false controls rejected a missing minus,
+missing schema, reordered lane-write fields and a zero occurrence. A deliberately
+colliding observer satisfies the syntax premise, making its lack of commitment
+authority explicit. Rejection encodes six empty fields plus schema: 176 bytes,
+with no economic effects.
+
+The [retained encoding harness](../../tests/formal/test_lean_asset_lane_effect_encoding_v2.py)
+compares all bytes from ten actual typed Python plans with a separately written
+field oracle and direct finite Lean plan literals. Cases cover rejection,
+issue from zero, full burn, zero fees, distinct and aliased collectors,
+maximally escaped owner tokens, I128 minimum debit and U128 maximum supply.
+The corpus covers empty external outboxes only. These are encoding observations;
+the preceding finite-plan harness owns the transition-to-plan comparisons.
+
+Retained harness SHA-256:
+`e0df4437f9f511ba444b0d358e87c4735d6bf6eb4f17617222fe8937cc236343`.
+Independent root commands:
+
+```bash
+python3 -m pytest -q tests/formal/test_lean_asset_lane_effect_encoding_v2.py
+python3 -m pytest -q \
+  tests/formal/test_lean_asset_lane_effect_encoding_v2.py::test_frozen_encoding_surface_signatures_and_standard_axioms \
+  tests/formal/test_lean_asset_lane_effect_encoding_v2.py::test_signed_decimal_boundary_observations_are_exact
+python3 -m ruff check tests/formal/test_lean_asset_lane_effect_encoding_v2.py
+python3 -m ruff format --check tests/formal/test_lean_asset_lane_effect_encoding_v2.py
+git diff --check
+```
+
+The initial full run passed six tests and timed out on one exact type check
+in 212.29 seconds. An unqualified `managedPlan` name became an implicit variable
+and caused expensive elaboration; the preliminary agent pass report was wrong.
+The repair qualifies the four plan-constructor references and disables implicit
+undeclared variables in the shared consumer preamble. All 17 expected public
+types remain enforced. Root replay of the two affected tests passed in 114.30
+seconds; the other five passing tests and their inputs are unchanged. No theorem
+premise, runtime behavior, byte vector or negative control was weakened. Lint,
+formatting and diff checks passed. The structural scan flags the test file's
+length; it uses the existing source-closure fixtures and explicit independent
+field/byte oracles, without adding a build framework or runtime abstraction.
+
+A separate private root replay built the existing Rust ABI library with pinned
+Rust 1.87.0, locked dependencies and offline mode. Its actual typed canonical
+decoder and re-encoder reproduced all ten corpus byte arrays. Seven negative
+wire controls rejected reordered keys, missing or duplicate schema, an unknown field,
+noncanonical escaping, U128 overflow and I128 underflow with the expected
+diagnostics. This replay did not execute Rust transitions. It is recorded
+review evidence, not a retained Rust gate or universal serializer theorem.
+
+The stop condition for this slice is the derived model byte bound and retained
+bounded encoding comparison. Journal construction, cryptographic commitments,
+parser/constructor correspondence and universal Python/Rust refinement remain
+separate obligations.
+
 ## Remaining refinement
 
 The finite arithmetic materializer folds owner updates from the tail. The
@@ -143,19 +220,20 @@ digest that the actual runtime lane-write constructor rejects. Therefore valid
 root encoding and cryptographic correspondence must be established before
 claiming runtime constructor equivalence.
 
-The finite plan now represents all six concrete effect fields. Their complete
-wire encoding and journal correspondence remain unproved. An independent
-4,787-byte upper estimate under runtime token, numeric and canonical-root bounds
-does not prove concrete constructor admission; the eight-item bound is proved
-separately. Inspection of the Python/Rust constructors and replay of small Python
-constructor cases found no additional failure under the reviewed typed-input
-assumptions. That review is not a universal constructor theorem or Rust replay.
+The finite plan now represents and explicitly encodes all six concrete effect
+fields. The derived byte bound above supersedes the earlier informal 4,787-byte
+estimate as model evidence; it does not prove concrete constructor admission.
+The eight-item bound is proved separately. Inspection of the Python/Rust
+constructors and replay of small Python constructor cases found no additional
+failure under the reviewed typed-input assumptions. That review is not a
+universal constructor theorem.
 Owned chain, deployment, profile, epoch and occurrence fields, command-body
-hashing, complete effect/journal encoding, dictionary/parser correspondence,
+hashing, effect/journal correspondence, dictionary/parser correspondence,
 aggregate resources, replay and publication remain separate obligations.
 
-No full Lake, Kani, ESSO, Rust execution, guest proving, release promotion or live
-activation is claimed by this checkpoint. Concrete effect/journal constructor
+No full Lake, Kani, ESSO, guest proving, release promotion or live activation is
+claimed by this checkpoint. The Rust execution is limited to the scoped codec
+replay above. Concrete effect/journal constructor
 correspondence remains an integration obligation. The separately retained
 combined asset-lane gate covers its finite outcome registry; it does not close
 these representation and authority obligations.

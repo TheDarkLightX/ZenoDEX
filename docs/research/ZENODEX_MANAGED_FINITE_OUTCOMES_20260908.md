@@ -168,8 +168,12 @@ bounded parity results, not universal implementation refinement.
 
 The retained constant-digest example deliberately demonstrates the boundary:
 numeric plan admission can hold while Python rejects the resulting root syntax.
-Canonical root/occurrence syntax, effect-plan encoding and byte limits, journal
-admission, authentication and universal Python/Rust correspondence remain open.
+The subsequent [exact effect-plan encoder and byte-bound proof](ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md#exact-effect-plan-encoding-and-derived-byte-bound)
+adds explicit canonical-root and nonzero-occurrence syntax premises, encodes the
+six-field plan plus schema, and derives an 8,192-byte bound for actual accepted
+managed plans. It also proves the exact empty rejection encoding. These syntax
+premises authenticate nothing. Journal admission, authentication and universal
+Python/Rust correspondence remain open.
 
 ## Remaining refinement
 
@@ -180,12 +184,15 @@ Command-body hashes and occurrence identities are supplied observations in
 this model, whereas the implementations derive them cryptographically.
 
 Universal Python/Rust serializer, lookup/sort and constructor correspondence
-remains open. The finite numeric plan theorem above does not establish all actual
-effect-plan or journal validators. Independent source analysis bounds the fixed
-managed effects to five items and conservatively 2,700 bytes under admitted
-runtime field bounds; that calculation is not a validator-refinement theorem.
+remains open. The finite numeric plan and explicit encoder theorems do not
+establish all actual effect-plan or journal validators. The derived model byte
+bound supersedes the earlier informal 2,700-byte estimate as checked evidence;
+it is not a validator-refinement theorem. The five-item bound remains separate.
 
 Typed PRE-constructor failures, global replay protection, accumulated effect
 admission, coordinator resources, authenticated snapshots, publication and
-recovery remain separate obligations. No full Lake, Cargo, Kani, ESSO, RISC0
-proving or production promotion was performed for this checkpoint.
+recovery remain separate obligations. No full Lake, Kani, ESSO, RISC0 proving
+or production promotion was performed for this checkpoint. The subsequent
+encoding review built the small Rust ABI library and replayed ten complete
+plan byte arrays through its typed decoder/re-encoder, with seven negative wire
+controls; it did not execute Rust transitions or the full Cargo test suites.

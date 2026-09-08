@@ -147,8 +147,9 @@ unknown value writers; and SHADOW failures with unchanged economic behavior.
 
 ## Consolidated completion checklist
 
-Assessment subject: integration `7a3fc5198`, September 8, 2026. This is a
-closure checklist, not a fresh deployment audit. Linked older evidence retains
+Assessment date: September 8, 2026. Exact integration subjects are recorded in
+the progress ledger and linked evidence below. This is a closure checklist,
+not a fresh deployment audit. Linked older evidence retains
 its exact original subject and bounds. A checked item below denotes the stated
 scoped deliverable; it does not close the enclosing workstream. No reliable
 weighted completion percentage has been established for V3 or the formal core.
@@ -201,6 +202,9 @@ extend this tracker only when a concrete missing check prevents that decision.
   [SEC candidate review](research/ZENODEX_WHOLE_PROGRAM_V3_SEC_CANDIDATE_REVIEW.md).
 - [ ] W00: reconcile all outstanding candidate dispositions against the final
   selected release, including any required selective SEC integration.
+- [x] W00: correct thirteen unsupported historical registry records to disputed;
+  retain the original assertions and missing evidence requirements in the
+  [reconciliation](research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md).
 - [x] W01: retain the cross-language
   [authority and effect map](research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md).
 - [ ] W01: qualify every deployed launcher, writer, administrative path and
@@ -281,7 +285,10 @@ repair checkpoints are linked below this checklist.
   accounting and admission-preserving traces under explicit premises.
 - [x] W09: prove the checked forward transfer algorithm relation and retain
   runtime comparisons, arithmetic-order and capacity/no-op counterexamples.
-- [ ] W09: finish concrete effect/journal construction, codec/parser and
+- [x] W09: construct finite managed/transfer effect plans and prove per-owner
+  transfer attribution; derive their explicit model encoding's 8,192-byte bound
+  and retain [bounded complete-byte comparisons](research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md#exact-effect-plan-encoding-and-derived-byte-bound).
+- [ ] W09: finish concrete constructor/journal correspondence, universal codec/parser and
   Python/Rust execution refinement; close the combined lane gates.
 - [ ] W09: close per-command and composed-trace obligations across all twelve
   lanes and all four routes, including authorization separately from accounting.
