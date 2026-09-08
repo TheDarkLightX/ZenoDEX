@@ -185,3 +185,20 @@ extension. Refreshing source hashes or excluding a reachable code would not
 establish that extension. Resource-aware mixed traces, full runtime refinement
 and publication mediation remain required before formal-core or whole-value-safety
 completion.
+
+## Final transfer capacity control
+
+The retained `test_transfer_checks_final_capacity_after_credit_then_full_sender_deletion`
+adds an admitted 4,096-row transfer where sorted role processing credits a new
+recipient before deleting the fully spent sender. The temporary working map
+has 4,097 entries; the complete result has 4,096. The test requires acceptance,
+exact final rows, unchanged complete supplies, the input occurrence once and
+unchanged original state bytes. This prevents moving the resource guard into
+the intermediate role-update loop.
+
+The updated `tests/core/test_asset_lane_resource_rejection_v2.py` passes all
+12 tests. A process-local semantic mutant inserting a 4,096-entry check after
+each role update was killed at the new test's acceptance assertion. Production
+source was unchanged. Ruff and formatting checks pass. This is runtime evidence
+for the placement of one resource guard; full transfer-outcome refinement remains
+open.

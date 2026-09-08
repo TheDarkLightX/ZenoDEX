@@ -220,6 +220,41 @@ def test_transfer_creating_a_row_at_the_ceiling_rejects_in_the_transfer_leaf() -
     assert state.balance_atoms("alice", "EUR") == 0
 
 
+def test_transfer_checks_final_capacity_after_credit_then_full_sender_deletion() -> None:
+    """A temporary extra credit row must not reject a final table that fits."""
+    state = _lane_state(eur_rows=_ROW_CEILING)
+    sender = _owner(0)
+    command = _eur_transfer(sender, "alice", 1)
+    context = _fixture._context(command)
+    before = canonical_global_bytes_v2(state)
+    policy = state.transfer_policies[0]
+    deltas = transfer_module._transfer_deltas(command, policy)
+    assert isinstance(deltas, tuple)
+    assert deltas[0] == ("alice", 1)
+    assert (sender, -1) in deltas
+    assert state.balance_atoms("alice", "EUR") == 0
+    assert len(state.balances) + 1 == _ROW_CEILING + 1
+
+    result = transition_asset_lane_v2(context, state, command)
+
+    assert isinstance(result, AssetLaneAcceptedV2)
+    expected = tuple(
+        sorted(
+            (
+                *(row for row in state.balances if row.owner != sender),
+                EconomicAmountV2("alice", "EUR", ACCOUNT_CUSTODY_DOMAIN_V2, 1),
+            ),
+            key=lambda row: row.key,
+        )
+    )
+    assert result.post_state.balances == expected
+    assert len(expected) == _ROW_CEILING
+    assert result.post_state.supplies == state.supplies
+    assert context.occurrence is not None
+    assert result.effects.occurrence_consumptions == (context.occurrence.occurrence_id,)
+    assert canonical_global_bytes_v2(state) == before
+
+
 def test_issue_creating_a_row_in_a_full_managed_leaf_is_a_typed_lane_rejection() -> None:
     """Direct managed calls and coordinated calls have the same typed rejection."""
 
