@@ -166,6 +166,32 @@ FORBIDDEN_PROOF_TOKENS = ("sorry", "admit", "native_decide", "axiom ")
 REPORTED_PRINCIPALS = ("alice", "bob", "issuer", "mallory")
 MODELED_ASSET = "ORD"
 
+# This report is intentionally the fixed economic prefix.  The finite outcome
+# model owns the additional resource-limit code and is checked separately.
+MANAGED_ECONOMIC_PREFIX_CODES = (
+    "MISSING_OCCURRENCE",
+    "OCCURRENCE_BINDING_MISMATCH",
+    "RELEASE_MISMATCH",
+    "UNKNOWN_COMMAND",
+    "OCCURRENCE_COMMAND_MISMATCH",
+    "UNKNOWN_ASSET",
+    "DISABLED_ASSET",
+    "ASSET_CLASS_MISMATCH",
+    "ASSET_DECIMALS_MISMATCH",
+    "UNREGISTERED_ASSET",
+    "ASSET_ORIGIN_MISMATCH",
+    "GENERIC_AUTHORITY_FORBIDDEN",
+    "ISSUE_DISABLED",
+    "BURN_DISABLED",
+    "UNAUTHORIZED_SUBJECT",
+    "AUTHORIZATION_ROOT_MISMATCH",
+    "ZERO_AMOUNT",
+    "EFFECT_DELTA_OVERFLOW",
+    "INSUFFICIENT_BALANCE",
+    "BALANCE_OVERFLOW",
+    "SUPPLY_OVERFLOW",
+)
+
 U128_MAX = (1 << 128) - 1
 I128_MAX = (1 << 127) - 1
 I128_MIN = -(1 << 127)
@@ -1119,13 +1145,13 @@ def test_root_token_map_is_injective() -> None:
     assert len(set(TOKEN_ROOTS.values())) == len(TOKEN_ROOTS)
 
 
-def test_report_declares_the_reject_enum_and_width_constants_the_runtime_uses(
+def test_report_declares_the_fixed_economic_prefix_and_width_constants(
     packet: CompiledPacket,
 ) -> None:
     codes = [fields[1] for fields in packet.report["CODE"]]
     ranks = [int(fields[0]) for fields in packet.report["CODE"]]
-    assert ranks == list(range(len(codes)))
-    assert tuple(codes) == tuple(code.value for code in ManagedAssetLifecycleRejectCodeV2)
+    assert ranks == list(range(21))
+    assert tuple(codes) == MANAGED_ECONOMIC_PREFIX_CODES
     (width,) = packet.report["WIDTH"]
     assert width == (str(MAX_ATOMS_V2), str(MIN_DELTA_ATOMS_V2), str(MAX_DELTA_ATOMS_V2))
     (principals,) = packet.report["PRINCIPALS"]
@@ -1245,19 +1271,48 @@ def test_runtime_effect_shape_outside_the_modeled_projection(name: str) -> None:
 def test_every_reachable_reject_code_is_exercised_by_the_live_runtime(
     packet: CompiledPacket,
 ) -> None:
-    observed = set()
+    observed_prefix = set()
     accepted = 0
     for twin in TWINS:
         result = transition_managed_asset_lifecycle_v2(twin.context, twin.state, twin.command)
         if isinstance(result, ManagedAssetLifecycleRejectedV2):
-            observed.add(result.code)
+            observed_prefix.add(result.code.value)
         else:
             accepted += 1
-    unreachable = {
-        ManagedAssetLifecycleRejectCodeV2.ASSET_DECIMALS_MISMATCH,
-        ManagedAssetLifecycleRejectCodeV2.BALANCE_OVERFLOW,
-    }
-    assert observed == set(ManagedAssetLifecycleRejectCodeV2) - unreachable
+    unreachable = {"ASSET_DECIMALS_MISMATCH", "BALANCE_OVERFLOW"}
+    assert observed_prefix == set(MANAGED_ECONOMIC_PREFIX_CODES) - unreachable
+    assert accepted == 10
+
+
+def test_full_runtime_reject_coverage_adds_the_admitted_finite_resource_case(
+    packet: CompiledPacket,
+) -> None:
+    """The finite model supplies the one resource code outside the prefix."""
+    from tests.formal.test_lean_managed_asset_finite_resource_v2 import _dormant_expected
+
+    observed_prefix: set[str] = set()
+    accepted = 0
+    for twin in TWINS:
+        result = transition_managed_asset_lifecycle_v2(twin.context, twin.state, twin.command)
+        if isinstance(result, ManagedAssetLifecycleRejectedV2):
+            observed_prefix.add(result.code.value)
+        else:
+            accepted += 1
+
+    finite_case = _dormant_expected()
+    finite_result = transition_managed_asset_lifecycle_v2(
+        finite_case.context, finite_case.pre, finite_case.command
+    )
+    assert isinstance(finite_result, ManagedAssetLifecycleRejectedV2)
+    assert finite_result.code is ManagedAssetLifecycleRejectCodeV2.STATE_RESOURCE_LIMIT
+    assert (
+        finite_result.pre_state_root == finite_result.post_state_root == finite_case.pre.state_root
+    )
+    assert finite_result.effects.is_empty
+
+    unreachable = {"ASSET_DECIMALS_MISMATCH", "BALANCE_OVERFLOW"}
+    runtime_codes = {code.value for code in ManagedAssetLifecycleRejectCodeV2}
+    assert observed_prefix | {finite_result.code.value} == runtime_codes - unreachable
     assert accepted == 10
 
 

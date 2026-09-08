@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+from src.core.managed_asset_lifecycle_result_v2 import ManagedAssetLifecycleRejectCodeV2
 from src.core.managed_asset_lifecycle_types_v2 import (
     ManagedAssetLifecycleCommandV2,
     ManagedAssetLifecyclePolicyV2,
@@ -46,6 +47,7 @@ from tests.formal.test_lean_asset_lane_finite_byte_accounting_v2 import (
     shared_lean as shared_lean,
 )
 from tests.formal.test_lean_managed_asset_runtime_parity_v2 import (
+    MANAGED_ECONOMIC_PREFIX_CODES,
     TWINS,
     Twin,
 )
@@ -416,6 +418,42 @@ def test_independent_finite_trace_resource_noop_and_literal_controls(
     result = _consumer(outcome_lean, "ManagedFiniteOutcomeConcrete", FINITE_CONSUMER)
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout == result.stderr == ""
+
+
+FINITE_ENUM_CONSUMER = r"""
+def finiteCodeRows (rank : Nat) :
+    List ManagedAssetFiniteOutcomeV2.RejectCode → List String
+  | [] => []
+  | code :: rest =>
+      ("FINITE_CODE," ++ toString rank ++ "," ++
+        ManagedAssetFiniteOutcomeV2.RejectCode.code code) :: finiteCodeRows (rank + 1) rest
+
+#eval IO.println (String.intercalate "\n" (finiteCodeRows 0 allRejectCodes))
+"""
+
+
+def test_finite_report_matches_exact_runtime_reject_enum_and_ranks(
+    outcome_lean: LeanSubject,
+) -> None:
+    result = _consumer(outcome_lean, "ManagedFiniteOutcomeRejectCodes", FINITE_ENUM_CONSUMER)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stderr == ""
+    rows = []
+    for line in result.stdout.splitlines():
+        fields = line.split(",")
+        assert len(fields) == 3 and fields[0] == "FINITE_CODE", line
+        rows.append((int(fields[1]), fields[2]))
+
+    expected = tuple(
+        (rank, code)
+        for rank, code in enumerate(MANAGED_ECONOMIC_PREFIX_CODES + ("STATE_RESOURCE_LIMIT",))
+    )
+    runtime = tuple(
+        (rank, code.value) for rank, code in enumerate(ManagedAssetLifecycleRejectCodeV2)
+    )
+    assert rows == list(expected)
+    assert tuple(rows) == runtime
+    assert [rank for rank, _ in rows] == list(range(22))
 
 
 def _semantic_false_control(

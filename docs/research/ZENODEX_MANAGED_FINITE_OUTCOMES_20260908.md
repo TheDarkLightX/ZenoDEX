@@ -67,7 +67,7 @@ and complete POST-state byte sequence with Python. The negative controls reject
 omitting the resource code, changing context/policy failure priority, consuming
 an occurrence on rejection and deriving state equality from a constant digest.
 
-Independent root replay:
+Initial independent root replay:
 
 ```bash
 python3 -m pytest -q tests/formal/test_lean_managed_asset_finite_outcome_v2.py
@@ -76,11 +76,10 @@ python3 -m ruff check tests/formal/test_lean_managed_asset_finite_outcome_v2.py
 # All checks passed!
 ```
 
-Harness SHA-256:
+Initial harness SHA-256:
 `729e894630c05584de4201e358c08a3e367d596f3b26a38f9f79d1631f353ef7`.
 The retained replay builds the 25-module source closure in its isolated fixture.
-The older scalar parity gates still require resource-aware migration; this
-checkpoint does not make those gates pass. The subsequent retained
+The subsequent retained
 [resource harness](../../tests/formal/test_lean_managed_asset_finite_resource_v2.py)
 evaluates compact actual finite tables at both byte-cap neighbors and the
 4,096-row dormant-owner boundary. It checks every source row against the compact
@@ -102,10 +101,37 @@ python3 -m ruff check tests/formal/test_lean_managed_asset_finite_resource_v2.py
 # All checks passed!
 ```
 
-Resource harness SHA-256:
+Initial resource harness SHA-256:
 `ec292ea6075843bccf12bb5f31d7f25bb8cf16cf3ee0979bf700eb82400ebf1a`.
-These three computed boundary observations extend the retained corpus; the
-combined old-gate migration and universal runtime refinement remain open.
+These three computed boundary observations extend the retained corpus.
+
+The scalar parity report now explicitly checks its fixed 21-code economic
+prefix. The finite harness evaluates the complete 22-code Lean registry and
+compares its order and ranks with the unfiltered runtime enum. Full reachable
+runtime coverage adds the actual dormant-owner resource rejection, requiring
+unchanged roots and empty effects. All 37 original twins, ten acceptances,
+eight history steps and M1/M2/M3 controls remain. Only the two existing
+constructor-unreachable codes remain exempt from runtime coverage.
+
+The implementation agent's combined run of the scalar parity, finite outcome
+and finite resource harnesses passed 180 tests in 297.45 seconds. The migrated
+scalar and finite harness hashes are respectively
+`14f54146edc5152cb57796a01dad1ba9ffb5b04555e25a6e311454fa8f245b0b`
+and `046df765c6752612961c1eae5c82bd7949a8b165255c92cae6813b889e0c4ef2`.
+
+The resource oracle was then simplified to one issue-one-atom operation. It
+derives balance and supply increments from PRE instead of carrying two selector
+modes, two supply updates and hard-coded candidate amounts. All three retained
+candidate byte sequences are identical to the prior oracle, and the one-atom
+regression remains. This removes duplicated test accounting; it changes no
+production transition or formal statement. Its source hash is
+`8d4c4fbe89f92e441b760849a17667023630e59d5e900d152112bcc6706d79c5`.
+Root replay then passed both resource tests, the full runtime coverage test and
+the finite enum/rank test, alongside the transfer finite-vector test: five
+tests passed in 322.54 seconds. Ruff lint and formatting checks passed for the
+changed finite harnesses; the older scalar file retained its existing formatting.
+Universal runtime refinement remains open.
+
 The claims-registry check still fails on the existing missing
 `tools/check_derivatives_authorization_matrix.py` evidence file.
 

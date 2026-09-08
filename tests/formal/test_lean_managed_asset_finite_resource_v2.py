@@ -61,42 +61,28 @@ from tests.formal.test_lean_registered_supply_support_v1 import LeanSubject
 BYTE_CAP = 1_048_576
 
 
-def _candidate_wire_bytes(
-    state: ManagedAssetLifecycleStateV2,
-    *,
-    owner: str | None = None,
-    new_owner: str | None = None,
-) -> bytes:
+def _issue_one_atom_bytes(state: ManagedAssetLifecycleStateV2, owner: str) -> bytes:
     wire = json.loads(canonical_global_bytes_v2(state))
-    if owner is not None:
-        for row in wire["balances"]:
-            if row["owner"] == owner and row["asset"] == "USD":
-                row["amount_atoms"] = 10
-                break
-        else:
-            raise AssertionError("boundary owner absent from pre-state")
-        for row in wire["supplies"]:
-            if row["asset"] == "USD":
-                row["amount_atoms"] = 99_999
-                break
-    elif new_owner is not None:
+    for row in wire["balances"]:
+        if row["owner"] == owner and row["asset"] == "USD":
+            row["amount_atoms"] += 1
+            break
+    else:
         wire["balances"].append(
             {
                 "amount_atoms": 1,
                 "asset": "USD",
                 "custody_domain": "accounts",
-                "owner": new_owner,
+                "owner": owner,
             }
         )
-        wire["balances"].sort(key=lambda row: (row["asset"], row["owner"], row["custody_domain"]))
-        for row in wire["supplies"]:
-            if row["asset"] == "USD":
-                row["amount_atoms"] += 1
-                break
-        else:
-            raise AssertionError("dormant USD supply absent from pre-state")
+    wire["balances"].sort(key=lambda row: (row["asset"], row["owner"], row["custody_domain"]))
+    for row in wire["supplies"]:
+        if row["asset"] == "USD":
+            row["amount_atoms"] += 1
+            break
     else:
-        raise AssertionError("candidate update selector is required")
+        raise AssertionError("USD supply absent from pre-state")
     return json.dumps(wire, sort_keys=True, separators=(",", ":")).encode("ascii")
 
 
@@ -191,7 +177,7 @@ def _boundary_expected() -> tuple[ExpectedCase, ...]:
         command = fixture._managed_command(owner=owner, amount_atoms=1)
         context = fixture._context(command).managed_context()
         before = canonical_global_bytes_v2(pre)
-        candidate = _candidate_wire_bytes(pre, owner=owner)
+        candidate = _issue_one_atom_bytes(pre, owner)
         candidate_wire = json.loads(candidate)
         assert (
             next(row["amount_atoms"] for row in candidate_wire["supplies"] if row["asset"] == "USD")
@@ -252,7 +238,7 @@ def _dormant_expected() -> ExpectedCase:
     command = fixture._managed_command(owner="new-owner", amount_atoms=1)
     context = fixture._context(command).managed_context()
     before = canonical_global_bytes_v2(state)
-    candidate = _candidate_wire_bytes(state, new_owner="new-owner")
+    candidate = _issue_one_atom_bytes(state, "new-owner")
     candidate_wire = json.loads(candidate)
     assert (
         next(row["amount_atoms"] for row in candidate_wire["supplies"] if row["asset"] == "USD")
@@ -458,7 +444,7 @@ def test_python_issue_candidate_updates_balance_and_supply() -> None:
         (EconomicAmountV2("alice", "USD", "accounts", 1),),
         (AssetSupplyV2("USD", 1),),
     )
-    wire = json.loads(_candidate_wire_bytes(state, new_owner="bob"))
+    wire = json.loads(_issue_one_atom_bytes(state, "bob"))
     assert next(row["amount_atoms"] for row in wire["balances"] if row["owner"] == "bob") == 1
     assert next(row["amount_atoms"] for row in wire["supplies"] if row["asset"] == "USD") == 2
     assert len(str(1)) == len(str(2))
