@@ -80,9 +80,33 @@ Harness SHA-256:
 `729e894630c05584de4201e358c08a3e367d596f3b26a38f9f79d1631f353ef7`.
 The retained replay builds the 25-module source closure in its isolated fixture.
 The older scalar parity gates still require resource-aware migration; this
-checkpoint does not make those gates pass. Durable finite-model tests for the
-actual large resource-boundary states remain a follow-up to the reviewed private
-cases. The claims-registry check still fails on the existing missing
+checkpoint does not make those gates pass. The subsequent retained
+[resource harness](../../tests/formal/test_lean_managed_asset_finite_resource_v2.py)
+evaluates compact actual finite tables at both byte-cap neighbors and the
+4,096-row dormant-owner boundary. It checks every source row against the compact
+recipe, verifies shared command/context identity, and compares economic verdict,
+computed candidate admission, PRE/candidate/POST byte counts, table counts,
+supply and account totals, exact model rejection no-op and effect counts.
+Python separately compares the full expected boundary POST bytes.
+
+The first oracle implementation omitted the supply increment when adding a new
+owner. Equal decimal widths concealed the error from byte-length comparisons.
+The corrected oracle increments both balance and supply, observes candidate
+supply values and retains a one-atom same-width regression. This was a test
+oracle defect; no production transition defect is inferred.
+
+```bash
+python3 -m pytest -q tests/formal/test_lean_managed_asset_finite_resource_v2.py
+# Independent root replay: 2 passed in 79.55s
+python3 -m ruff check tests/formal/test_lean_managed_asset_finite_resource_v2.py
+# All checks passed!
+```
+
+Resource harness SHA-256:
+`ec292ea6075843bccf12bb5f31d7f25bb8cf16cf3ee0979bf700eb82400ebf1a`.
+These three computed boundary observations extend the retained corpus; the
+combined old-gate migration and universal runtime refinement remain open.
+The claims-registry check still fails on the existing missing
 `tools/check_derivatives_authorization_matrix.py` evidence file.
 
 ## Remaining refinement
