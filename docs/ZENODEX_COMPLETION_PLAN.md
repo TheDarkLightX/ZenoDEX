@@ -213,3 +213,10 @@ then derives exact aggregate account-row counts and capacity conditions from
 finite updates. It distinguishes new owners, existing owners, full burns and
 reissue. Complete byte admission, mixed outcomes and implementation refinement
 remain open; a row-count theorem does not close the formal core.
+
+The [derived byte-accounting checkpoint](research/ZENODEX_ASSET_LANE_BYTE_ACCOUNTING_20260908.md)
+adds exact escaping, decimal-width, comma and complete-supply byte relations,
+and combines these with row growth into source-derived capacity criteria.
+Independent Lean review and the retained fresh-build tests pass. Owned metadata
+serializer correspondence, complete resource-aware outcomes and full runtime
+refinement remain open; this checkpoint grants no publication authority.
