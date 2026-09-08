@@ -453,31 +453,6 @@ def _sha256_root_v1(value: bytes) -> str:
     return "0x" + hashlib.sha256(value).hexdigest()
 
 
-def _copy_verified_zdex_fee_allocation_fields_v1(
-    fields: _VerifiedZDEXFeeAllocationFieldsV1,
-) -> _VerifiedZDEXFeeAllocationFieldsV1:
-    return _VerifiedZDEXFeeAllocationFieldsV1(
-        fields.allocation_route_release_id,
-        fields.authorized_buyback_route_release_id,
-        fields.module_release_id,
-        fields.command_occurrence_id,
-        fields.profile_root,
-        fields.writer_epoch,
-        fields.journal_root,
-        fields.journal_digest,
-        fields.effect_plan_root,
-        fields.expected_image_id,
-        fields.receipt_digest,
-        fields.receipt_kind,
-        fields.policy_root,
-        fields.fee_asset_id,
-        fields.fee_ingress_atoms,
-        fields.buyback_quote_atoms,
-        fields.pre_lane_root,
-        fields.post_lane_root,
-    )
-
-
 def _require_prepared_zdex_fee_allocation_digests_v1(
     prepared: PreparedZDEXFeeAllocationReceiptV1,
 ) -> None:
@@ -515,7 +490,7 @@ def snapshot_prepared_zdex_fee_allocation_receipt_v1(
         raise TypeError("prepared ZDEX fee-allocation journal bytes must be exact bytes")
     _require_prepared_zdex_fee_allocation_digests_v1(prepared)
     return PreparedZDEXFeeAllocationReceiptV1(
-        _copy_verified_zdex_fee_allocation_fields_v1(fields),
+        replace(fields),
         prepared.receipt_bytes,
         prepared.expected_journal_bytes,
     )

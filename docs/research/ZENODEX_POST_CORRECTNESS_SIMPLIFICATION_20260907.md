@@ -1,9 +1,11 @@
 # Post-correctness simplification in V3
 
-Status: **bounded proposal review complete**, finalized September 8. Five Luna
+Status: **bounded proposal review complete; scalar-copy patch applied**,
+updated September 8. Five Luna
 Max tasks and an independent overlapping Opus review have root dispositions
 below. Each reviewed selected functions and evidence, with explicit scope
-limits. No candidate source patch is qualified by this note.
+limits. The scalar-copy adoption below has focused source and runtime evidence;
+the remaining proposals are not qualified source patches.
 
 This September 7 execution addendum implements the user's request to examine
 simplification after an initial correct implementation. It operates within
@@ -36,13 +38,14 @@ line count establishes the remaining amount of possible simplification.
 
 ### Scalar receipt-field copies
 
-**Queue for a focused patch after the affected boundary's correctness baseline.**
-Replace the two positional reconstruction helpers
+**Applied after the affected boundary's passing correctness baseline.**
+The two positional reconstruction helpers
 `_copy_verified_zdex_lane_fields_v1` in
 `src/core/zdex_purchase_burn_receipt_preparation_v1.py` and
 `_copy_verified_zdex_fee_allocation_fields_v1` in
-`src/core/zdex_fee_allocation_receipt_verification_v1.py` with
-`dataclasses.replace` after their existing exact-type and scalar checks.
+`src/core/zdex_fee_allocation_receipt_verification_v1.py` were removed. Their
+single internal callers now use `dataclasses.replace` after the existing
+exact-type, scalar and digest checks.
 
 These particular records have no custom methods, initialization hooks or
 non-init fields, and carry exact scalar/enum values. The proposed replacement
@@ -55,12 +58,26 @@ Independent root review compared eight scalar vectors, including nondefault
 root fields, and checked that mutation of the original record did not affect
 either copy. An in-memory substitution of the two helpers passed the 164
 purchase/burn and fee-allocation boundary tests. Source-structure tests still
-read the unchanged files during that experiment. The actual source patch,
-its imports and its complete consumer set remain unqualified.
+read the unchanged files during that experiment. That initial in-memory
+experiment did not qualify an applied source patch.
 
-Apply only with unchanged field values, marker/binding roots, exact types,
-detachment, rejection ordering and callback observations. Keep all existing
-negative and mutation tests. Replay at least:
+The subsequent source patch, based on `7a3fc5198`, removes the two helpers and
+33 positional field arguments, a net reduction of 47 production lines. Both
+records are exact frozen/slotted dataclasses with only scalar/enum fields, no
+initialization hooks and no non-init fields. Instances cannot override the
+dataclass metadata. Root checked that the syntax-tree changes are limited to
+deleting the helpers and replacing their two calls; validation order is unchanged.
+
+The retained boundary suites passed all 164 tests before and after the patch,
+including existing negative, detachment and callback-mutation checks. Ruff and
+focused MyPy passed. Existing unrelated formatting was preserved. The exact
+candidate hashes, in the path order above, are
+`a2b28e1a376f1aaa98e017d51e54ede0de1cf983f7cf058af414e71ad4464a70`
+and `dfec6e0134939ee59a24c803671503eef339afbce19d8820f9c026f75bf5d29a`.
+This is a scoped simplification with unchanged field values and snapshot
+ownership. Full critical-quality, global typing-ratchet, guest and release
+qualification gates were not rerun for this patch; no source pin or release
+claim was promoted. Focused replay:
 
 ```bash
 python3 -m pytest -q tests/integration/test_zdex_purchase_burn_verifier_boundary_v1.py tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py

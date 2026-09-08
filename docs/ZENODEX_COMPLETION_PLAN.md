@@ -145,6 +145,126 @@ fail-closed crash recovery; restart without restored writer authority; delivery
 ancestry and destination idempotency; profile revocation and old-writer exclusion;
 unknown value writers; and SHADOW failures with unchanged economic behavior.
 
+## Consolidated completion checklist
+
+Assessment subject: integration `7a3fc5198`, September 8, 2026. This is a
+closure checklist, not a fresh deployment audit. Linked older evidence retains
+its exact original subject and bounds. A checked item below denotes the stated
+scoped deliverable; it does not close the enclosing workstream. No reliable
+weighted completion percentage has been established for V3 or the formal core.
+The older handoff's 35-45% figure was a planning estimate, not a measured baseline.
+
+The plan checker still records `formal_core_complete=false`,
+`whole_value_movement_safe=false` and zero closed value-movement gates out of
+twelve. That last ratio is release-gate closure, not implementation completion.
+The 103-capability floor, four routes and four exclusions remain the denominator
+for scope; each capability needs its own complete evidence chain before counting
+it complete. Counting the unequal checklist items below cannot estimate time or
+effort remaining.
+
+### W00-W06: subject, semantics, verification and publication
+
+- [x] W00: preserve the original scope and isolated integration subject in this
+  plan and its executable graph; retain the
+  [SEC candidate review](research/ZENODEX_WHOLE_PROGRAM_V3_SEC_CANDIDATE_REVIEW.md).
+- [ ] W00: reconcile all outstanding candidate dispositions against the final
+  selected release, including any required selective SEC integration.
+- [x] W01: retain the cross-language
+  [authority and effect map](research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md).
+- [ ] W01: qualify every deployed launcher, writer, administrative path and
+  effect worker together; resolve unknown reachability and alternative writers.
+- [x] W02: define the pure-core/snapshot boundary, distinct publication outcomes
+  and separate release, policy-epoch and publication identities.
+- [ ] W02: recover approved policy choices and close complete semantics,
+  ownership and terminal dispositions for every required command family.
+- [x] W03: retain the measured verifier bridge and
+  [five genuine receipts](research/ZENODEX_WHOLE_PROGRAM_V3_FINAL_RECEIPT_QUALIFICATION.md)
+  for the qualified historical one-command, zero-custody subject.
+- [x] W03: retain real sealed BLS execution and its malformed/subgroup checks in
+  the [completion follow-up](research/ZENODEX_V3_COMPLETION_FOLLOWUP_20260905.md).
+- [ ] W03: qualify genuine receipts and measured backends for the final changed
+  guests, authentication profile and release subject.
+- [x] W04: implement restricted Python/Rust allocation projection and
+  [module/coordinator binding](research/ZENODEX_WHOLE_PROGRAM_V3_ALLOCATION_BINDING_REVIEW.md).
+- [ ] W04: close allocation derivation for all lanes, complete snapshots,
+  shared-asset ownership and authenticated predecessor binding on that subject.
+- [x] W05: retain an isolated read-only SHADOW consumer with bounded diagnostics
+  and [observational isolation tests](research/ZENODEX_WHOLE_PROGRAM_V3_SHADOW_EVIDENCE.md).
+- [ ] W05: qualify the complete intended observation sources and witness
+  provenance; retain missing or unverified observations as gaps.
+- [x] W06: mount the isolated raw-evidence pipeline into the SQLite publisher,
+  including store-derived allocation, BLS verification, CAS and exact retries;
+  retain the [mounted evidence](research/ZENODEX_WHOLE_PROGRAM_V3_MOUNTED_PIPELINE_EVIDENCE.md).
+- [x] W06: implement and test distinct precommit, committed-retry and
+  indeterminate-response outcomes in the
+  [publication follow-up](research/ZENODEX_V3_COMPLETION_FOLLOWUP_20260905.md).
+- [ ] W06: qualify the complete current publication path with genuine matching
+  receipts. The historical real-receipt batch and later synthetic-RISC0 mounted
+  tests are different evidence subjects.
+
+### W07: twelve complete lane lifecycles
+
+Every row requires the applicable enabling, authorized success, rejection,
+cancellation, recovery, terminal and version-transition behavior. These are
+unclosed completion requirements, not assertions that every listed component
+is absent. Existing policy decisions must be recovered before asking for new
+ones. The [lane map](research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md)
+routes requirements to the earlier implementation; newer scoped proof and
+repair checkpoints are linked below this checklist.
+
+- [ ] ASSET_TRANSFER: complete registration, managed issuance/burn, fee policy,
+  transfer authorization and shared-state lifecycle/refinement.
+- [ ] SPOT_LIQUIDITY: complete pool and LP lifecycle, rounding/dust ownership,
+  cancellation, closure and authenticated routes.
+- [ ] FARM_INCENTIVES: complete funding, activation, accrual, claims,
+  cancellation and terminal drain without inventing emission policy.
+- [ ] ZDEX_TOKENOMICS: complete designated fee funding, exact purchase/burn
+  pairing, retained supply and applicable host/staking claims.
+- [ ] ZUSD_MONETARY: complete collateralized issuance/burn, repayment,
+  liquidation, recovery and shared-asset version coexistence.
+- [ ] PERPS_MARKET: complete funding, margin, insurance, ADL/bankruptcy and
+  terminal closeout ownership.
+- [ ] ORACLE_MARKET: complete occurrence/finality authentication, query/bond,
+  reward/dispute/clawback and terminal policy.
+- [ ] SEALED_AUCTION: complete bond/inventory custody, reveal, expiry,
+  cancellation, refund/slash and authorized winner settlement.
+- [ ] STRATEGY_ESCROW: complete authorized trigger, replacement, expiry,
+  recovery and Spot route consumption.
+- [ ] PROOF_REWARDS: complete funding ancestry, eligibility, replay/nullifier
+  scope, payout and task termination.
+- [ ] EXTERNAL_CUSTODY: complete registered origins/destinations, qualified
+  finality, committed delivery ancestry, recovery and destination idempotency.
+- [ ] GOVERNANCE_MIGRATION: complete command-only governance, policy epochs,
+  migration continuity and old-writer exclusion.
+
+### W08-W13: composition, refinement and release completion
+
+- [ ] W08: qualify designated-fee Spot purchase and exact same-occurrence ZDEX burn.
+- [ ] W08: qualify atomic zUSD liquidation across collateral, debt and supply.
+- [ ] W08: qualify ordered perps epoch settlement and terminal ownership.
+- [ ] W08: qualify strategy-triggered Spot execution and escrow recovery.
+- [x] W09: retain scoped proofs of registered supply support, shared accounting,
+  finite recomposition and derived row/byte capacity.
+- [x] W09: prove finite managed/transfer acceptance and rejection outcomes,
+  accounting and admission-preserving traces under explicit premises.
+- [x] W09: prove the checked forward transfer algorithm relation and retain
+  runtime comparisons, arithmetic-order and capacity/no-op counterexamples.
+- [ ] W09: finish concrete effect/journal construction, codec/parser and
+  Python/Rust execution refinement; close the combined lane gates.
+- [ ] W09: close per-command and composed-trace obligations across all twelve
+  lanes and all four routes, including authorization separately from accounting.
+- [ ] W10: qualify actual module/coordinator/route/epoch proofs for the final
+  subject, including required multi-command, custody and context cases within
+  the admitted 1-8 receipt and 1-64 command limits.
+- [x] W11: retain tested logical publication outcomes and the
+  [live writer identity repair](research/ZENODEX_WRITER_AUTHORITY_IDENTITY_20260905.md).
+- [ ] W11: qualify concrete datastore refinement, crash/restart authorization,
+  migration, writer fencing, committed delivery and deployment-wide mediation.
+- [ ] W12: replay all applicable gates against one exact release subject;
+  resolve blocking findings and prepare the independently assessed candidate.
+- [ ] W13: finish required client workflows, operational usability and scaling;
+  requalify changed builds without weakening the established contracts.
+
 ## Execution and reporting
 
 Each work item must name its enclosing V3 obligation, the runtime caller or

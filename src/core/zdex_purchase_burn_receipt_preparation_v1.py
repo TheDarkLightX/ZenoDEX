@@ -208,28 +208,6 @@ def _require_prepared_record_types_v1(
         raise TypeError(f"{name} journal bytes must be exact bytes")
 
 
-def _copy_verified_zdex_lane_fields_v1(
-    fields: _VerifiedZDEXLaneFieldsV1,
-) -> _VerifiedZDEXLaneFieldsV1:
-    return _VerifiedZDEXLaneFieldsV1(
-        fields.route_release_id,
-        fields.module_release_id,
-        fields.command_occurrence_id,
-        fields.profile_root,
-        fields.writer_epoch,
-        fields.journal_root,
-        fields.journal_digest,
-        fields.effect_plan_root,
-        fields.expected_image_id,
-        fields.receipt_digest,
-        fields.receipt_kind,
-        fields.authority_head_root,
-        fields.verifier_binding_root,
-        fields.price_authority_root,
-        fields.price_safety_policy_root,
-    )
-
-
 def _require_prepared_digests_v1(prepared: _PreparedLeafT, *, name: str) -> None:
     """Bind the digest fields to the exact request bytes that will be executed."""
 
@@ -268,7 +246,7 @@ def _snapshot_prepared_leaf_receipt_v1(
         raise TypeError(f"{name} journal bytes must be exact bytes")
     _require_prepared_digests_v1(prepared, name=name)
     return expected_type(
-        _copy_verified_zdex_lane_fields_v1(fields),
+        replace(fields),
         prepared.receipt_bytes,
         prepared.expected_journal_bytes,
     )
