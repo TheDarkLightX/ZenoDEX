@@ -723,6 +723,92 @@ fn final_capacity_allows_credit_before_full_sender_deletion() {
 }
 
 #[test]
+fn transfer_counts_both_new_recipient_and_fee_collector_rows() {
+    assert_eq!(MAX_ASSET_LANE_BALANCE_ROWS_V2, 4096);
+    for pre_count in [4094, 4095] {
+        let mut state = lane_state(pre_count, 9, &[]);
+        let policy = state
+            .transfer_policies
+            .iter_mut()
+            .find(|policy| policy.asset == "EUR")
+            .expect("EUR policy");
+        policy.transfer_fee_atoms = 2;
+        policy.fee_owner = "collector".to_owned();
+        let policy_root = asset_transfer_policy_root_v2(policy).expect("updated fee policy root");
+        state
+            .origin_registry
+            .assets
+            .iter_mut()
+            .find(|record| record.asset == "EUR")
+            .expect("EUR registration")
+            .transfer_policy_root = policy_root;
+        state.validate().expect("two-credit PRE is admitted");
+        let before = canonical_bytes_v2(&state).expect("PRE bytes");
+        let mut command = transfer_command("EUR", root(100), "holder0000", "alice", 3);
+        command.max_fee_atoms = 2;
+        let context = transfer_context(&command, "holder0000", 30, &state);
+        let occurrence_id = context
+            .occurrence
+            .as_ref()
+            .expect("occurrence")
+            .occurrence_id()
+            .expect("occurrence id");
+        let mut expected = state.balances.clone();
+        assert_eq!(expected[0].owner, "holder0000");
+        expected[0].amount_atoms = 4;
+        expected.insert(
+            0,
+            EconomicAmountV2 {
+                owner: "collector".to_owned(),
+                asset: "EUR".to_owned(),
+                custody_domain: "accounts".to_owned(),
+                amount_atoms: 2,
+            },
+        );
+        expected.insert(
+            0,
+            EconomicAmountV2 {
+                owner: "alice".to_owned(),
+                asset: "EUR".to_owned(),
+                custody_domain: "accounts".to_owned(),
+                amount_atoms: 3,
+            },
+        );
+        assert_eq!(expected.len(), pre_count + 2);
+        let result =
+            transition_asset_lane_v2(&context, &state, &AssetLaneCommandV2::Transfer(command))
+                .expect("capacity outcome is typed");
+        if pre_count == 4094 {
+            let AssetLaneResultV2::Accepted(accepted) = result else {
+                panic!("two new credits fit exactly at 4096 rows")
+            };
+            assert_eq!(accepted.post_state().balances, expected);
+            assert_eq!(accepted.post_state().supplies, state.supplies);
+            assert_eq!(
+                accepted.post_state().transfer_policies,
+                state.transfer_policies
+            );
+            assert_eq!(accepted.route(), AssetLaneRouteV2::TRANSFER);
+            assert_eq!(
+                accepted.effects().occurrence_consumptions,
+                vec![occurrence_id]
+            );
+        } else {
+            assert_lane_noop(
+                result,
+                &state,
+                AssetLaneRouteV2::TRANSFER,
+                AssetLaneRejectCodeV2::Transfer(AssetTransferRejectCodeV2::STATE_RESOURCE_LIMIT),
+            );
+        }
+        assert_eq!(
+            canonical_bytes_v2(&state).expect("unchanged PRE bytes"),
+            before
+        );
+    }
+}
+
+#[test]
 fn rejected_issue_then_terminal_burn_frees_a_row_for_retry() {
     let state = lane_state(
         MAX_ASSET_LANE_BALANCE_ROWS_V2 - 1,

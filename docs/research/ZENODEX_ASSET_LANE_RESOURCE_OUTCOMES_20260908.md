@@ -253,3 +253,21 @@ adjacent transfer and resource suites: 42 tests passed. Ruff and formatting
 pass. The independent three-role expected table refutes a one-new-row estimate;
 this is a modeled counterexample, not an executed runtime mutation. No production
 source, Rust implementation or proof claim changed in this test addition.
+
+The Rust test `transfer_counts_both_new_recipient_and_fee_collector_rows` now
+retains the same two boundary outcomes through the actual aggregate transition.
+It independently constructs the expected recipient 3, collector 2 and remaining
+sender 4 rows; it also checks unchanged complete supply and policy tables,
+single occurrence consumption on success and the transfer-owned empty-effects
+rejection on overflow. The fee-policy registration is rebound before PRE
+validation. No production source or wire format changes.
+
+```bash
+cargo +1.87.0 test --locked --offline --manifest-path zk/global_settlement_abi_v2/Cargo.toml --test asset_lane_resource_rejection
+# 12 passed; 0 failed; 0 ignored
+```
+
+The replay used the existing isolated target directory with two build jobs and
+incremental/debug output disabled. Rustfmt and whitespace checks pass. This is
+paired boundary evidence; no universal Python/Rust equivalence or full-crate,
+Clippy, guest-build or proving result is claimed by this addition.
