@@ -237,3 +237,19 @@ after admitted fixture construction. Ruff, formatting and whitespace checks
 pass. No production constant or source was changed. These are runtime witnesses;
 retained finite-model comparison and full constructor refinement remain separate
 obligations.
+
+## Transfer fee-collector row growth
+
+`tests/core/test_asset_transfer_fee_row_capacity_v2.py` covers the separate
+recipient and positive-fee collector when both are absent and the sender remains
+funded. Such a transfer creates two physical rows. The tests admit 4,094 to
+4,096 rows with exact expected balances, unchanged policies and complete supply,
+and one input occurrence consumption. They reject the 4,095 to 4,097 candidate
+with the transfer-owned resource code, all empty effect components and unchanged
+PRE rows, supply and bytes.
+
+Both tests pass in the root replay. The implementation agent also ran the
+adjacent transfer and resource suites: 42 tests passed. Ruff and formatting
+pass. The independent three-role expected table refutes a one-new-row estimate;
+this is a modeled counterexample, not an executed runtime mutation. No production
+source, Rust implementation or proof claim changed in this test addition.
