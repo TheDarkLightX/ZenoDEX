@@ -207,3 +207,9 @@ subsequently proves exact managed balance and complete supply-table recompositio
 including dormant asset identities and the runtime tuple-key shape. Its fresh
 Lean replay closes that arithmetic/table obligation. Derived resource admission,
 complete mixed outcomes and universal runtime refinement remain open.
+
+The [derived row-growth checkpoint](research/ZENODEX_ASSET_LANE_ROW_GROWTH_20260908.md)
+then derives exact aggregate account-row counts and capacity conditions from
+finite updates. It distinguishes new owners, existing owners, full burns and
+reissue. Complete byte admission, mixed outcomes and implementation refinement
+remain open; a row-count theorem does not close the formal core.
