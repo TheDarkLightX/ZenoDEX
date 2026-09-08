@@ -189,3 +189,9 @@ accounting update preserves all-asset physical holdings, including custody and
 reserves, under explicit input assumptions. Authenticated snapshot
 sourcing, complete shared-state refinement and production qualification remain
 open in W04/W07/W09.
+
+The [shared asset lifecycle checkpoint](research/ZENODEX_SHARED_ASSET_LIFECYCLE_20260908.md)
+adds finite transfer materialization and proves that managed and transfer views
+read and update one shared account source. Exact coordinator recomposition and
+complete resource-aware outcome refinement remain open; this does not complete
+the formal core.
