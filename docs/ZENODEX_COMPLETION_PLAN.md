@@ -181,5 +181,11 @@ applying a patch. It leaves the admitted graph and safety milestones intact.
 
 The September 8 [registered supply update checkpoint](research/ZENODEX_REGISTERED_SUPPLY_UPDATE_20260908.md)
 proves complete-row/sparse-row update correspondence and records finite Python
-observations. Arbitrary authenticated-view reconstruction, shared-state
-lifecycle refinement and production qualification remain open in W04/W09.
+observations. The subsequent
+[registered lifecycle accounting checkpoint](research/ZENODEX_REGISTERED_LIFECYCLE_ACCOUNTING_20260908.md)
+closes reconstruction for arbitrary covered canonical supply views and derives
+managed lifecycle account totals from finite balance rows. Their composed
+accounting update preserves all-asset physical holdings, including custody and
+reserves, under explicit input assumptions. Authenticated snapshot
+sourcing, complete shared-state refinement and production qualification remain
+open in W04/W07/W09.
