@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import replace
+from hashlib import sha256 as real_sha256
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,86 @@ def test_v2_hash_domain_is_disjoint_from_v1_for_the_same_payload() -> None:
         payload,
     )
     assert GLOBAL_SETTLEMENT_ABI_V2.endswith("/v2")
+
+
+class _ControlledZeroSha256V2:
+    """Controlled provider fault only; this is not a SHA-256 preimage claim."""
+
+    def update(self, _: bytes) -> None:
+        return None
+
+    def hexdigest(self) -> str:
+        return "00" * 32
+
+
+def test_derived_hashes_match_independent_sha256_vectors() -> None:
+    domain = "derived-root-vector-v2"
+    payload = {"asset": "USD", "amount_atoms": 7}
+    payload_bytes = b'{"amount_atoms":7,"asset":"USD"}'
+    command_body_bytes = (
+        b'{"command":{"amount_atoms":7,"asset":"USD"},"command_kind":"managed_asset_issue"}'
+    )
+
+    assert canonical_global_bytes_v2(payload) == payload_bytes
+    assert hash_global_v2(domain, payload) == (
+        "0x" + real_sha256(b"zenodex:derived-root-vector-v2:v2\0" + payload_bytes).hexdigest()
+    )
+    assert global_settlement_primitives_v2.hash_economic_command_body_bytes_v2(
+        command_body_bytes
+    ) == (
+        "0x"
+        + real_sha256(
+            b"zenodex:authenticated-economic-command-body-v2:v2\0" + command_body_bytes
+        ).hexdigest()
+    )
+
+
+def test_hash_global_rejects_controlled_zero_sha256_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        global_settlement_primitives_v2.hashlib,
+        "sha256",
+        _ControlledZeroSha256V2,
+    )
+
+    with pytest.raises(ValueError, match="derived root must be nonzero"):
+        hash_global_v2("derived-root-zero-fault-v2", {"asset": "USD"})
+
+
+def test_economic_command_hash_rejects_controlled_zero_sha256_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        global_settlement_primitives_v2.hashlib,
+        "sha256",
+        _ControlledZeroSha256V2,
+    )
+
+    with pytest.raises(ValueError, match="economic command body hash must be nonzero"):
+        global_settlement_primitives_v2.hash_economic_command_body_bytes_v2(
+            b'{"command_kind":"managed_asset_issue"}'
+        )
+
+
+def test_derived_hash_input_validation_precedes_controlled_sha256_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def zero_sha256() -> _ControlledZeroSha256V2:
+        nonlocal calls
+        calls += 1
+        return _ControlledZeroSha256V2()
+
+    monkeypatch.setattr(global_settlement_primitives_v2.hashlib, "sha256", zero_sha256)
+
+    with pytest.raises(ValueError, match="hash domain must not be empty"):
+        hash_global_v2("", {"asset": "USD"})
+    with pytest.raises(ValueError, match="economic command body bytes must not be empty"):
+        global_settlement_primitives_v2.hash_economic_command_body_bytes_v2(b"")
+
+    assert calls == 0
 
 
 def test_canonical_encoder_rejects_scalar_and_sequence_subclasses() -> None:

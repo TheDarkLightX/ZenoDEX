@@ -118,7 +118,7 @@ def hash_global_v2(domain: str, value: object) -> str:
     digest = hashlib.sha256()
     digest.update(domain_sep_bytes(domain, version=2))
     digest.update(canonical_global_bytes_v2(value))
-    return "0x" + digest.hexdigest()
+    return _require_root_v2("0x" + digest.hexdigest(), name="derived root")
 
 
 def canonical_economic_command_body_bytes_v2(
@@ -142,7 +142,7 @@ def hash_economic_command_body_bytes_v2(command_body_bytes: bytes) -> str:
     digest = hashlib.sha256()
     digest.update(domain_sep_bytes("authenticated-economic-command-body-v2", version=2))
     digest.update(command_body_bytes)
-    return "0x" + digest.hexdigest()
+    return _require_root_v2("0x" + digest.hexdigest(), name="economic command body hash")
 
 
 def hash_economic_command_body_v2(command_kind: str, command: object) -> str:
