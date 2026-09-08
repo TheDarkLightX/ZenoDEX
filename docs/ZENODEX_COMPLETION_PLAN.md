@@ -162,6 +162,38 @@ for scope; each capability needs its own complete evidence chain before counting
 it complete. Counting the unequal checklist items below cannot estimate time or
 effort remaining.
 
+### Executable progress tracking
+
+The [progress ledger](research/ZENODEX_V3_PROGRESS.json) records scoped support
+work against the unchanged capability, route, exclusion and task inventories.
+The [checker](../tools/check_v3_progress.py) derives changed files and structural
+observations from exact Git subjects. Each entry names its obligation,
+acceptance condition, simpler alternative, rationale and stopping point.
+Documentation or a saved test result cannot close a baseline capability.
+
+```bash
+python3 tools/check_v3_progress.py --json
+python3 tools/check_v3_progress.py --replay --gate receipt_copy_boundaries_v1 --json
+```
+
+The default command reports historical records and source drift. The second
+command freshly runs the one registered receipt-copy gate. Its result applies
+only to that gate's declared source and acceptance scope. The checker keeps
+review acceptance separate from execution and retains the local-tool trust
+assumption. There are no registered whole-capability or whole-core closure
+gates in this initial tracker.
+
+Before changing records, retain the last reviewed commit containing the ledger
+and pass it with `--baseline-commit` to check that existing entries were
+preserved. Corrections append a superseding record. Omitting that option does
+not establish historical preservation. The initial entries cover four recent
+committed changes; earlier work still requires explicit reconciliation.
+
+Structural observations and repeated-work findings guide review. Fewer lines,
+functions or branches do not prove equivalence, minimality or optimality.
+Complete the named acceptance check and review before opening adjacent work;
+extend this tracker only when a concrete missing check prevents that decision.
+
 ### W00-W06: subject, semantics, verification and publication
 
 - [x] W00: preserve the original scope and isolated integration subject in this

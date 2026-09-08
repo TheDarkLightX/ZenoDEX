@@ -1,0 +1,434 @@
+{
+  "schema": "zenodex/v3-progress-ledger/v1",
+  "immutable_inputs": [
+    {
+      "path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V3.json",
+      "sha256": "e1b45e9ef9da7fa2c584567db3ac4605b6eb4ec065933b9e71be5ba82ef31adc"
+    },
+    {
+      "path": "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json",
+      "sha256": "34930be9d4d69c4c46c7c97f57fd492d4c95061f8960f936261a8a3415d5db95"
+    },
+    {
+      "path": "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V1.json",
+      "sha256": "29d67d2c8ebd35d6e0003927c73043f3f282efe16b780b4493504d1d00db390f"
+    }
+  ],
+  "trusted_local_tools": [
+    {
+      "path": "tools/check_v3_progress.py",
+      "sha256": "97cba6453729848415cafb109b7f5edde161df08d43310ef5bc6bfd3f36daf54"
+    }
+  ],
+  "review_premise": {
+    "status": "EXTERNAL_MAINTAINER_OR_CI_PREMISE",
+    "statement": "Independent reviewer identity and review acceptance are maintained outside this ledger; a local record or replay cannot authenticate either premise."
+  },
+  "nonclaims": [
+    "Support records do not close a capability, route, exclusion obligation, formal core, whole value movement, whole product, or production promotion.",
+    "RECORDED_UNREPLAYED records contain historical source-bound observations, not fresh execution authority.",
+    "The one registered receipt-copy gate is a bounded support contract and does not qualify the imported runtime graph."
+  ],
+  "work_records": [
+    {
+      "id": "SUPPORT-MANAGED-FINITE-OUTCOME-20260908",
+      "kind": "SUPPORT",
+      "baseline_links": {
+        "capability_ids": [
+          "ASSET_TRANSFER:managed_issue",
+          "ASSET_TRANSFER:managed_burn"
+        ],
+        "route_ids": [],
+        "exclusion_ids": [],
+        "task_ids": [
+          "W09"
+        ]
+      },
+      "support_scope": {
+        "summary": "Finite managed issue, burn, resource, and runtime-parity observations for a bounded asset-lifecycle proof slice.",
+        "nonclaims": [
+          "No whole managed-asset lifecycle, generic transfer, runtime, or production qualification is recorded."
+        ]
+      },
+      "subject": {
+        "before_commit": "2be16e4de3901caf844c420e008afd02448ca618",
+        "after_commit": "952c497d616f42db6cce36a90ab64a2fdfda67ff",
+        "changed_paths": [
+          {
+            "status": "M",
+            "before_path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+            "after_path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md"
+          },
+          {
+            "status": "M",
+            "before_path": "tests/formal/test_lean_managed_asset_finite_outcome_v2.py",
+            "after_path": "tests/formal/test_lean_managed_asset_finite_outcome_v2.py"
+          },
+          {
+            "status": "M",
+            "before_path": "tests/formal/test_lean_managed_asset_finite_resource_v2.py",
+            "after_path": "tests/formal/test_lean_managed_asset_finite_resource_v2.py"
+          },
+          {
+            "status": "M",
+            "before_path": "tests/formal/test_lean_managed_asset_runtime_parity_v2.py",
+            "after_path": "tests/formal/test_lean_managed_asset_runtime_parity_v2.py"
+          }
+        ]
+      },
+      "declared_scope_paths": [
+        "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+        "tests/formal/test_lean_managed_asset_finite_outcome_v2.py",
+        "tests/formal/test_lean_managed_asset_finite_resource_v2.py",
+        "tests/formal/test_lean_managed_asset_runtime_parity_v2.py"
+      ],
+      "acceptance_contract": {
+        "path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+        "sha256": "c51a19290832b36dfbe18cb72595722409f87158360c4f855f230a9ce26c66f9"
+      },
+      "gate_ids": [],
+      "gate_subject_hashes": [],
+      "gate_scope_aggregate": null,
+      "rationale": {
+        "linked_obligation": "W09 refinement support for finite managed issue and burn outcomes.",
+        "acceptance_condition": "The recorded finite outcome, finite resource, and runtime-parity evidence remains source-bound to the exact historical subject.",
+        "simpler_alternative": "Keep the prior outcome-only observation without resource and runtime parity checks.",
+        "why_added_structure": "The changed formal tests make the bounded cases and their rejection observations independently inspectable.",
+        "stop_condition": "Record the scoped evidence only; leave all capability and whole-core closure obligations OPEN."
+      },
+      "recorded_evidence": [
+        {
+          "path": "tests/formal/test_lean_managed_asset_finite_outcome_v2.py",
+          "sha256": "046df765c6752612961c1eae5c82bd7949a8b165255c92cae6813b889e0c4ef2"
+        },
+        {
+          "path": "tests/formal/test_lean_managed_asset_finite_resource_v2.py",
+          "sha256": "8d4c4fbe89f92e441b760849a17667023630e59d5e900d152112bcc6706d79c5"
+        },
+        {
+          "path": "tests/formal/test_lean_managed_asset_runtime_parity_v2.py",
+          "sha256": "14f54146edc5152cb57796a01dad1ba9ffb5b04555e25a6e311454fa8f245b0b"
+        }
+      ],
+      "review_binding": {
+        "path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+        "sha256": "c51a19290832b36dfbe18cb72595722409f87158360c4f855f230a9ce26c66f9",
+        "reviewed_subject_commit": "952c497d616f42db6cce36a90ab64a2fdfda67ff",
+        "status": "EXTERNAL_REVIEW_PREMISE_UNACCEPTED"
+      },
+      "supersedes": null
+    },
+    {
+      "id": "SUPPORT-TRANSFER-FINITE-LOOP-20260908",
+      "kind": "SUPPORT",
+      "baseline_links": {
+        "capability_ids": [
+          "ASSET_TRANSFER:generic_transfer"
+        ],
+        "route_ids": [],
+        "exclusion_ids": [],
+        "task_ids": [
+          "W09"
+        ]
+      },
+      "support_scope": {
+        "summary": "Finite transfer outcomes and bounded checked forward-loop observations for the generic-transfer proof slice.",
+        "nonclaims": [
+          "No arbitrary transfer constructor, full runtime, route, or product claim is recorded."
+        ]
+      },
+      "subject": {
+        "before_commit": "952c497d616f42db6cce36a90ab64a2fdfda67ff",
+        "after_commit": "7a3fc5198890460689e04c3596292bf732f8d0f9",
+        "changed_paths": [
+          {
+            "status": "M",
+            "before_path": "docs/ZENODEX_COMPLETION_PLAN.md",
+            "after_path": "docs/ZENODEX_COMPLETION_PLAN.md"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "docs/research/ZENODEX_TRANSFER_FORWARD_LOOP_20260908.md"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "lean-mathlib/Proofs/AssetTransferFiniteOutcomeV2.lean"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "lean-mathlib/Proofs/AssetTransferForwardLoopV2.lean"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "tests/formal/test_lean_asset_transfer_forward_loop_v2.py"
+          }
+        ]
+      },
+      "declared_scope_paths": [
+        "docs/ZENODEX_COMPLETION_PLAN.md",
+        "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+        "docs/research/ZENODEX_TRANSFER_FORWARD_LOOP_20260908.md",
+        "lean-mathlib/Proofs/AssetTransferFiniteOutcomeV2.lean",
+        "lean-mathlib/Proofs/AssetTransferForwardLoopV2.lean",
+        "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py",
+        "tests/formal/test_lean_asset_transfer_forward_loop_v2.py"
+      ],
+      "acceptance_contract": {
+        "path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
+        "sha256": "a84a1a656cbf81d00bee36d791ff97c756415ac368c995327e497ce9afc08640"
+      },
+      "gate_ids": [],
+      "gate_subject_hashes": [],
+      "gate_scope_aggregate": null,
+      "rationale": {
+        "linked_obligation": "W09 refinement support for a finite generic-transfer outcome and loop slice.",
+        "acceptance_condition": "The two proof files, retained harnesses, and finite observations remain bound to the exact historical subject.",
+        "simpler_alternative": "Record only a theorem source hash without retained Python/Lean consumer observations.",
+        "why_added_structure": "Separate finite outcome and forward-loop harnesses expose distinct bounded acceptance and rejection facts.",
+        "stop_condition": "Defer all finite proof replay gate registration and keep the generic-transfer capability OPEN."
+      },
+      "recorded_evidence": [
+        {
+          "path": "lean-mathlib/Proofs/AssetTransferFiniteOutcomeV2.lean",
+          "sha256": "97eaaa3f7e7ec8859d6a28b7fc6de49586f8d7ce983f70908144dd92beb1f09c"
+        },
+        {
+          "path": "lean-mathlib/Proofs/AssetTransferForwardLoopV2.lean",
+          "sha256": "f90cf6c80f327f86b9542b0db93dad98cee8a3409b9a579c6120ea1bd349c53d"
+        },
+        {
+          "path": "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py",
+          "sha256": "8aef8c119b152b35545f89dee87b940b7d465a2b3442eea5be252adca2c1f27b"
+        },
+        {
+          "path": "tests/formal/test_lean_asset_transfer_forward_loop_v2.py",
+          "sha256": "7815500198229df1b9327f54fd32b670f57a11a6141e2c5772fdb660642cfc2b"
+        }
+      ],
+      "review_binding": {
+        "path": "docs/research/ZENODEX_TRANSFER_FORWARD_LOOP_20260908.md",
+        "sha256": "30cbe117ab4b7631171a54705e69c5abe88c4c6d37fee78ae25ceb229d4b3685",
+        "reviewed_subject_commit": "7a3fc5198890460689e04c3596292bf732f8d0f9",
+        "status": "EXTERNAL_REVIEW_PREMISE_UNACCEPTED"
+      },
+      "supersedes": null
+    },
+    {
+      "id": "SUPPORT-RECEIPT-COPY-SIMPLIFICATION-20260908",
+      "kind": "SUPPORT",
+      "baseline_links": {
+        "capability_ids": [
+          "ZDEX_TOKENOMICS:atomic_purchase_and_burn"
+        ],
+        "route_ids": [],
+        "exclusion_ids": [],
+        "task_ids": [
+          "W03"
+        ]
+      },
+      "support_scope": {
+        "summary": "Scalar receipt-copy simplification with the reviewed purchase/burn and fee-allocation boundary suites.",
+        "nonclaims": [
+          "The bounded receipt-copy gate does not qualify the full tokenomics route, imported runtime graph, or production shell."
+        ]
+      },
+      "subject": {
+        "before_commit": "7a3fc5198890460689e04c3596292bf732f8d0f9",
+        "after_commit": "2f769e7ba2d578b3518f91c882a56430072f7f70",
+        "changed_paths": [
+          {
+            "status": "M",
+            "before_path": "docs/ZENODEX_COMPLETION_PLAN.md",
+            "after_path": "docs/ZENODEX_COMPLETION_PLAN.md"
+          },
+          {
+            "status": "M",
+            "before_path": "docs/research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md",
+            "after_path": "docs/research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md"
+          },
+          {
+            "status": "M",
+            "before_path": "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+            "after_path": "src/core/zdex_fee_allocation_receipt_verification_v1.py"
+          },
+          {
+            "status": "M",
+            "before_path": "src/core/zdex_purchase_burn_receipt_preparation_v1.py",
+            "after_path": "src/core/zdex_purchase_burn_receipt_preparation_v1.py"
+          }
+        ]
+      },
+      "declared_scope_paths": [
+        "docs/ZENODEX_COMPLETION_PLAN.md",
+        "docs/research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md",
+        "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+        "src/core/zdex_purchase_burn_receipt_preparation_v1.py"
+      ],
+      "acceptance_contract": {
+        "path": "docs/research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md",
+        "sha256": "a6a85aa6089a1ffe7d2b481a27f58ef3e3d1f95a903de78f7909e6db218de1a7"
+      },
+      "gate_ids": [
+        "receipt_copy_boundaries_v1"
+      ],
+      "gate_subject_hashes": [
+        {
+          "path": "src/core/zdex_purchase_burn_receipt_preparation_v1.py",
+          "sha256": "a2b28e1a376f1aaa98e017d51e54ede0de1cf983f7cf058af414e71ad4464a70"
+        },
+        {
+          "path": "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+          "sha256": "dfec6e0134939ee59a24c803671503eef339afbce19d8820f9c026f75bf5d29a"
+        },
+        {
+          "path": "tests/integration/test_zdex_purchase_burn_verifier_boundary_v1.py",
+          "sha256": "36eaca9506577931d0783897ff6e27ced2c7843c1925f0cf5ae73044008a14aa"
+        },
+        {
+          "path": "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py",
+          "sha256": "ceed45d26ba730eb60c72d8be0ec3dbc11175dce6053a4325b9546974177c315"
+        }
+      ],
+      "gate_scope_aggregate": {
+        "scope_id": "receipt_copy_direct_support_v1",
+        "sha256": "48e24bf68ee09b6b17e5018d8f720ca69825e998e2edf5f48a5d3afd8d428277"
+      },
+      "rationale": {
+        "linked_obligation": "W03 bounded support for receipt verification and W03 source-level scalar-copy simplification evidence.",
+        "acceptance_condition": "A fresh code-owned replay requires the exact reviewed contract, core bytes, boundary-suite bytes, 164-test inventory, and no source drift across execution.",
+        "simpler_alternative": "Retain positional scalar reconstruction after exact scalar checks.",
+        "why_added_structure": "No new abstraction was added; dataclasses.replace retains the existing immutable record shape after the original exact-type and scalar checks.",
+        "stop_condition": "Run only the fixed receipt-copy boundary gate and leave all capability, route, formal-core, product, and production obligations OPEN."
+      },
+      "recorded_evidence": [
+        {
+          "path": "src/core/zdex_purchase_burn_receipt_preparation_v1.py",
+          "sha256": "a2b28e1a376f1aaa98e017d51e54ede0de1cf983f7cf058af414e71ad4464a70"
+        },
+        {
+          "path": "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+          "sha256": "dfec6e0134939ee59a24c803671503eef339afbce19d8820f9c026f75bf5d29a"
+        },
+        {
+          "path": "tests/integration/test_zdex_purchase_burn_verifier_boundary_v1.py",
+          "sha256": "36eaca9506577931d0783897ff6e27ced2c7843c1925f0cf5ae73044008a14aa"
+        },
+        {
+          "path": "tests/integration/test_zdex_fee_allocation_verifier_boundary_v1.py",
+          "sha256": "ceed45d26ba730eb60c72d8be0ec3dbc11175dce6053a4325b9546974177c315"
+        }
+      ],
+      "review_binding": {
+        "path": "docs/research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md",
+        "sha256": "a6a85aa6089a1ffe7d2b481a27f58ef3e3d1f95a903de78f7909e6db218de1a7",
+        "reviewed_subject_commit": "2f769e7ba2d578b3518f91c882a56430072f7f70",
+        "status": "EXTERNAL_REVIEW_PREMISE_UNACCEPTED"
+      },
+      "supersedes": null
+    },
+    {
+      "id": "SUPPORT-MANAGED-EFFECT-PLAN-ASSET-GATE-20260908",
+      "kind": "SUPPORT",
+      "baseline_links": {
+        "capability_ids": [
+          "ASSET_TRANSFER:managed_issue",
+          "ASSET_TRANSFER:managed_burn"
+        ],
+        "route_ids": [],
+        "exclusion_ids": [],
+        "task_ids": [
+          "W09"
+        ]
+      },
+      "support_scope": {
+        "summary": "Finite managed effect-plan construction and combined finite asset rejection gate migration.",
+        "nonclaims": [
+          "No complete effect codec, root or journal validation, authentication, universal runtime refinement, lane closure, or production qualification is recorded."
+        ]
+      },
+      "subject": {
+        "before_commit": "2f769e7ba2d578b3518f91c882a56430072f7f70",
+        "after_commit": "81e18329d8a0fe0154b941deb4e1a476b06eafee",
+        "changed_paths": [
+          {
+            "status": "M",
+            "before_path": "docs/research/ZENODEX_ASSET_LANE_RESOURCE_OUTCOMES_20260908.md",
+            "after_path": "docs/research/ZENODEX_ASSET_LANE_RESOURCE_OUTCOMES_20260908.md"
+          },
+          {
+            "status": "M",
+            "before_path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+            "after_path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "lean-mathlib/Proofs/AssetLaneFiniteEffectPlanV2.lean"
+          },
+          {
+            "status": "A",
+            "before_path": null,
+            "after_path": "tests/formal/test_lean_asset_lane_finite_effect_plan_v2.py"
+          },
+          {
+            "status": "M",
+            "before_path": "tests/formal/test_lean_asset_lane_refinement_v2.py",
+            "after_path": "tests/formal/test_lean_asset_lane_refinement_v2.py"
+          }
+        ]
+      },
+      "declared_scope_paths": [
+        "docs/research/ZENODEX_ASSET_LANE_RESOURCE_OUTCOMES_20260908.md",
+        "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+        "lean-mathlib/Proofs/AssetLaneFiniteEffectPlanV2.lean",
+        "tests/formal/test_lean_asset_lane_finite_effect_plan_v2.py",
+        "tests/formal/test_lean_asset_lane_refinement_v2.py"
+      ],
+      "acceptance_contract": {
+        "path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+        "sha256": "bd7a2f768511cf145c1fa566063f279bf1952c59cd343ffb21854d1c14ba2977"
+      },
+      "gate_ids": [],
+      "gate_subject_hashes": [],
+      "gate_scope_aggregate": null,
+      "rationale": {
+        "linked_obligation": "W09: connect finite managed outcomes to actual plan fields and retain complete resource rejection registries.",
+        "acceptance_condition": "Compile the scoped plan theorem and retained consumers; preserve original economic checks and independently replay all 19 effect-plan/combined-gate tests.",
+        "simpler_alternative": "Retain only the abstract effect envelope and old economic registries; that leaves plan construction and reachable resource outcomes outside the gate.",
+        "why_added_structure": "The finite plan uses the existing six-field carrier and existing source-only compiler fixtures; independent consumers and false controls check its precise construction scope.",
+        "stop_condition": "Stop at the passing scoped construction and migrated gate. Encoding, authentication, universal refinement and complete lane lifecycles remain open."
+      },
+      "recorded_evidence": [
+        {
+          "path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+          "sha256": "bd7a2f768511cf145c1fa566063f279bf1952c59cd343ffb21854d1c14ba2977"
+        },
+        {
+          "path": "docs/research/ZENODEX_ASSET_LANE_RESOURCE_OUTCOMES_20260908.md",
+          "sha256": "6fce9cddd6b93bcdb0e5ce627965cd8b5965247a9979cfbf5ea035c80fc9c7cf"
+        }
+      ],
+      "review_binding": {
+        "path": "docs/research/ZENODEX_MANAGED_FINITE_OUTCOMES_20260908.md",
+        "sha256": "bd7a2f768511cf145c1fa566063f279bf1952c59cd343ffb21854d1c14ba2977",
+        "reviewed_subject_commit": "81e18329d8a0fe0154b941deb4e1a476b06eafee",
+        "status": "EXTERNAL_REVIEW_PREMISE_UNACCEPTED"
+      },
+      "supersedes": null
+    }
+  ]
+}
