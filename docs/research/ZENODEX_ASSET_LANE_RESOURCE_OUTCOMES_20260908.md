@@ -63,6 +63,18 @@ controls use the real one-MiB boundary; the aggregate byte-growth control lowers
 the threshold to the exact test pre-state size. It is not a real one-MiB
 aggregate transition test.
 
+The subsequent
+[`test_asset_lane_canonical_byte_boundary_v2.py`](../../tests/core/test_asset_lane_canonical_byte_boundary_v2.py)
+adds four actual aggregate transitions at the unchanged 1,048,576-byte limit.
+An independent row-size calculation includes quote/backslash escaping, array
+separators and decimal digits; the fixture checks its predicted size against
+the canonical encoder before calling the transition. Both a new owner and an
+existing balance/supply changing from 9 to 10 accept at the exact limit and
+reject one byte above it. The latter changes no row count. Each rejected
+aggregate has an accepted managed-leaf candidate, identical pre/post roots and
+no effects. All four tests passed. Raising or lowering the checker limit by one
+byte in isolated mutation runs was detected by both scenario families.
+
 Every route-owned enum value round-trips with exact enum identity and canonical
 bytes. Actual runtime rejections also pass the wire codec, including binding,
 projection and aggregate-size failures. Unknown routes/codes, mixed enums,
@@ -147,6 +159,17 @@ an independent integration blocker.
 
 The [shared-state proof checkpoint](ZENODEX_SHARED_ASSET_LIFECYCLE_20260908.md)
 proves an arithmetic slice. Its selected-state models lack finite row counts,
-canonical-byte lengths and this resource outcome. Exact table recomposition,
-resource-aware mixed traces, full runtime refinement and publication mediation
-remain required before formal-core or whole-value-safety completion.
+canonical-byte lengths and this resource outcome. The later
+[recomposition](ZENODEX_ASSET_LANE_FINITE_RECOMPOSITION_20260908.md) and
+[row-growth](ZENODEX_ASSET_LANE_ROW_GROWTH_20260908.md) checkpoints prove those
+finite table/count relations, while complete resource-aware outcomes remain open.
+
+Replaying `tests/formal/test_lean_managed_asset_runtime_parity_v2.py` against
+the resource repair produced 170 passing tests and two failures: its old scalar
+model omits `STATE_RESOURCE_LIMIT` from the enum and scenario table. The source
+pin and enum checks in `tests/formal/test_lean_asset_lane_refinement_v2.py` also
+fail. These failures remain visible pending a concrete finite-state outcome
+extension. Refreshing source hashes or excluding a reachable code would not
+establish that extension. Resource-aware mixed traces, full runtime refinement
+and publication mediation remain required before formal-core or whole-value-safety
+completion.
