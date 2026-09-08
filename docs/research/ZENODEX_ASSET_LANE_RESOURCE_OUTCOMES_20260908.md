@@ -216,3 +216,24 @@ cargo +1.87.0 test --locked --offline \
 
 Rust formatting and whitespace checks pass. No full crate, Clippy or guest build
 was rerun for this test-only addition.
+
+## Standalone managed-leaf byte neighbors
+
+`tests/core/test_managed_asset_leaf_byte_boundary_v2.py` retains two direct
+managed-leaf cases, separate from the earlier aggregate-only byte checks.
+Both have 4,095 account rows and preserve a dormant complete supply identity.
+An existing balance changes from 9 to 10 while supply changes from 99,998 to
+99,999, so the candidate grows by exactly one byte without adding a row.
+
+A PRE size of 1,048,575 accepts the exact-cap candidate; a PRE size of
+1,048,576 rejects the candidate at 1,048,577 with `STATE_RESOURCE_LIMIT`.
+The positive case compares complete candidate bytes and journal roots; the
+negative compares the complete empty effect plan and unchanged PRE bytes/roots.
+Quoted owner padding changes only encoded size and retains canonical key order.
+
+Both tests pass. Process-local plus-one and minus-one byte-cap mutants are
+killed at the exact transition rejection and acceptance assertions respectively,
+after admitted fixture construction. Ruff, formatting and whitespace checks
+pass. No production constant or source was changed. These are runtime witnesses;
+retained finite-model comparison and full constructor refinement remain separate
+obligations.
