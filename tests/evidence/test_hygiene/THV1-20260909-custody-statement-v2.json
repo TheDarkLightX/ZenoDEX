@@ -1,0 +1,224 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260909-custody-statement-v2",
+  "created_date": "2026-09-09",
+  "claim_scope": "Native V2 custody/global statement preparation and bounded witness framing. Python executes the declared nodes; standalone Rust and native guest transport are separate Cargo gates. No measured zkVM image, guest execution, genuine receipt or publication is established.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-V2-STATEMENT-AFTER-GLOBAL-REFINEMENT",
+    "CUSTODY-V2-EXACT-STATEMENT-PAYLOAD",
+    "CUSTODY-V2-BOUNDED-GUEST-FRAME",
+    "CUSTODY-V2-REJECTION-HAS-NO-STATEMENT"
+  ],
+  "failure_modes": [
+    "An accepted lane command emits statement bytes without the actual global custody, claimant, occurrence and replay checks.",
+    "A rejected command is converted to statement bytes or consumes malformed global relation inputs.",
+    "The statement binds reread caller roots instead of the completed global refiner result.",
+    "Frame route aliases, truncated lengths, oversized components or hidden trailing input are accepted.",
+    "An aggregate size ceiling excludes a set of otherwise individually admitted components.",
+    "A malformed final disclosure is skipped because an earlier economic command would reject.",
+    "Python witness encoding and Rust decoding disagree on exact route, order, framing or statement bytes."
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/asset_lane_custody_statement_v2.py",
+      "sha256": "47f945fddcf2dfb3190eeaace3d2dbe95a53ec30cc6347fe9cd041f5d89a390e"
+    },
+    {
+      "path": "src/core/asset_lane_custody_frame_v2.py",
+      "sha256": "ae821eec52ce0500150f1edc43c8111c9843f856cc6cbc7d7eabb7f3fa2b1bb9"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/asset_lane_custody_statement.rs",
+      "sha256": "10e29982f4d01d555616c5fc8c1506226c4110131d34412fd0d20c59f74d14f8"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/asset_lane_custody_frame.rs",
+      "sha256": "d1ce0eb822e2a6ce26f583a0a9e71e6b56d364709400d54c9a30a14abf6a91bc"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/lib.rs",
+      "sha256": "bcf69ab87e820de0f920fa5bb1df52f2b59dbdbf6e5ecd25c6fad0d0449fe294"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/tests/asset_lane_custody_statement.rs",
+      "sha256": "46b81ed46b7ae62674894947cf3452a494139fd84babf197d31170a0b774bf46"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/tests/asset_lane_custody_frame.rs",
+      "sha256": "1d288917ec1a4b7cf7fabcee71cab8b8eedc902e7c9e9c1c1662af4e5774a238"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/Cargo.toml",
+      "sha256": "5dd4ba6bf2d388469ccb2045b60b8ca15a5e647d1ab4a9d2620806da62a0e668"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/Cargo.lock",
+      "sha256": "c227da7a6d0fea1bcce4e6988ef5a7c1e8d350929cd2a98dd10b0a9c87af5468"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/rust-toolchain.toml",
+      "sha256": "b542e162da076f0e9417ed5cdfd33c0328bbd8a60a5d21cf3d2a626fc271daa6"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/README.md",
+      "sha256": "bb9d56053a7d698927d1a9cbdbad5b696d189dcdaedec28fea19af7887fc0576"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/methods/Cargo.toml",
+      "sha256": "f2bae303b9214aaa86be9d63be7a7457722dc8077d4d02c199af0c3793c08381"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/methods/build.rs",
+      "sha256": "ec2cbe9c7524227383c2c9240d3bfccfefc8c6d3d07dca1a6bc8aabcb7b67fcc"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/methods/guest/Cargo.toml",
+      "sha256": "b70d7dffbbf4aceb11bb16563a9b4258074c93634b2643359dbfcf8cff542b5c"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/methods/guest/src/lib.rs",
+      "sha256": "c2beb87418db779652c8b09c596474a207b600b8d69319896c816091bbe2f921"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/methods/guest/src/main.rs",
+      "sha256": "6f2b086b2916522f4563771b743df86520dda56128c728c52a1134e0296ac43f"
+    },
+    {
+      "path": "tools/render_asset_lane_custody_statement_v2_golden.py",
+      "sha256": "1ab6eabef5d0a4f159ce0b4f5926dc4e25dc6801b58ab905918816e95e599a30"
+    },
+    {
+      "path": "tests/data/asset_lane_custody_statement_v2_golden.json",
+      "sha256": "770f99fe8b97d5c5debe480fcbbb44cb5e400f39667cc409b9c3362585759354"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "832da4cbdb7ae3fe9443c3769a09d2f7fde5d3d14be43e4a36edb0c6f9e5726a"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_asset_lane_custody_statement_v2.py",
+      "sha256": "6ceec2aaf1f7b012e2959ee1560c29cd7faac15b347b37abeaab2adb9eff148d",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_statement_v2.py::test_accepted_custody_cases_emit_the_exact_four_field_global_statement",
+        "tests/core/test_asset_lane_custody_statement_v2.py::test_leaf_rejection_is_returned_verbatim_before_broken_globals_or_refinement",
+        "tests/core/test_asset_lane_custody_statement_v2.py::test_statement_cannot_bypass_global_consumer_substitution_guards",
+        "tests/core/test_asset_lane_custody_statement_v2.py::test_statement_uses_refinement_returned_roots_and_actual_custody_journal",
+        "tests/core/test_asset_lane_custody_statement_v2.py::test_unexpected_accepted_result_without_occurrence_raises_before_refinement",
+        "tests/core/test_asset_lane_custody_statement_v2.py::test_statement_bytes_remain_immutable_after_source_input_mutation"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_frame_v2.py",
+      "sha256": "580f578348e0f513198bea3b9e018dcd230f9a3fa2366140e8e9cd848ebd1a77",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_frame_v2.py::test_five_golden_inputs_have_exact_independent_frame_bytes_and_hashes",
+        "tests/core/test_asset_lane_custody_frame_v2.py::test_leaf_routes_have_the_fixed_single_byte_tags",
+        "tests/core/test_asset_lane_custody_frame_v2.py::test_every_frame_component_rejects_empty_oversize_and_nonexact_bytes",
+        "tests/core/test_asset_lane_custody_frame_v2.py::test_exact_five_component_maximum_forms_the_declared_frame_bound",
+        "tests/core/test_asset_lane_custody_frame_v2.py::test_nonleaf_or_nonexact_route_values_are_rejected"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_statement_parity_v2.py",
+      "sha256": "f4d0c70b3da3c8fc9626ea02940223b4ec4a9114af007a7215d62e5eecbef965",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_statement_parity_v2.py::test_statement_disclosures_and_independent_oracle_are_current",
+        "tests/core/test_asset_lane_custody_statement_parity_v2.py::test_actual_producer_matches_the_full_fixed_statement"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "replay",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each case prepares a complete lawful economic control or a specified substitution, invokes the actual producer/encoder, and observes exact bytes, typed rejection or named refusal."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Typed economic rejection retains identical roots and empty effects and reaches no global refiner. Global refinement failure emits no statement. The pure APIs have no store, history writer or effect sink."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "economic_states",
+      "points": [
+        "accounts 80 plus custody 20",
+        "transfer with fee and claimant",
+        "issue 7 preserving custody",
+        "burn all 80 account atoms preserving custody 20",
+        "zero-supply dormant issue",
+        "burn one atom back to dormancy"
+      ]
+    },
+    {
+      "name": "global_relation",
+      "points": [
+        "claimant owner substitution",
+        "custody owner substitution",
+        "missing replay row",
+        "wrong writer epoch",
+        "coherently substituted stale global predecessor",
+        "leaf rejection before relation",
+        "owned returned roots"
+      ]
+    },
+    {
+      "name": "framing",
+      "points": [
+        "two exact route tags",
+        "254 unsupported Rust route bytes",
+        "five independent zero and over-1MiB lengths",
+        "all 10386 truncation prefixes of one valid frame",
+        "malformed final JSON before leaf rejection",
+        "exact 5242909-byte structural maximum",
+        "internal and outer trailing bytes",
+        "outer little-endian prefix and EOF"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Bypass the actual global refiner and emit caller-provided endpoint roots after the successful custody command. The retained substitution test must then fail because forged claimant, custody and replay states reach statement emission.",
+      "killed_by": "tests/core/test_asset_lane_custody_statement_v2.py::test_statement_cannot_bypass_global_consumer_substitution_guards",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_statement_v2.py",
+        "needle_lines": [
+          "    refinement = refine_asset_lane_custody_global_v2(",
+          "        pre_state,",
+          "        accepted,",
+          "        global_pre,",
+          "        global_post,",
+          "        occurrence,",
+          "    )"
+        ],
+        "replacement_lines": [
+          "    refinement = type(\"UncheckedGlobalRoots\", (), {",
+          "        \"pre_state_root\": global_pre.state_root,",
+          "        \"post_state_root\": global_post.state_root,",
+          "    })()"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Validation is structural and the hygiene runner executes only the declared Python nodes. Rust arithmetic/parser tests and native guest transport checks require their separate Cargo commands.",
+    "The fixture uses a separate integer row oracle for economic outcomes and independently assembles framing/statement bytes, but reuses existing state constructors and hash primitives. Five vectors do not prove universal runtime or parser refinement.",
+    "The mutation ledger separately replays the declared source mutant against an archived subject; packet validation alone does not execute it.",
+    "Native guest library tests exercise the exact stdin transport. Native compilation checks the guest entry, but neither executes zkVM abort/commit branches nor produces a measured guest or genuine receipt.",
+    "The statement is only the inner economic payload. Complete CBC release/profile admission, authenticated subjects and grants, active policy membership, current store authority, durable publication and no-bypass remain open.",
+    "No Lean, Kani, ESSO, heavy local proof build, live migration, activation or full formal-core/V3 completion is claimed."
+  ]
+}

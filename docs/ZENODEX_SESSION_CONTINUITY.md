@@ -78,6 +78,17 @@ Each input retains its independent 1 MiB limit. Unknown commands retain their
 economic no-op outcome, and economic faults are not hidden as parser failures.
 The byte path has exact golden controls and reaches the actual global consumer.
 
+The Python and Rust statement producers now execute the custody coordinator and
+actual global refiner, preserve typed economic rejection, and emit the exact
+module journal plus the refiner's two global roots. The
+[statement contract](specifications/ASSET_LANE_CUSTODY_GLOBAL_STATEMENT_V2.md)
+also defines the bounded five-component input frame. Python encodes it; Rust
+checks its complete structure, decodes all components and prepares the statement.
+Five retained economic vectors agree on frame hashes and exact statement bytes.
+The flat guest in `zk/asset_lane_custody_global_risc0` uses that same Rust entry,
+bounds stdin allocation and requires EOF. Its native binary compiles and its
+transport tests run; the actual zkVM image and receipt remain unqualified.
+
 The Lean `AssetLaneCustodyRefinementV2` lift establishes constructed finite-row
 accounting and custody preservation with selected leaf models, plus concrete
 legal-state acceptance controls. It does not prove every runtime constructor,
@@ -91,22 +102,27 @@ Replay the current bounded implementation before building on it:
 python3 tools/v3_acceptance.py --validate
 python3 tools/v3_acceptance.py --replay custody-successor-v2-python
 python3 tools/render_asset_lane_custody_v2_golden.py --check
+python3 tools/render_asset_lane_custody_statement_v2_golden.py --check
 python3 -m pytest -q tests/core/test_asset_lane_custody*_v2.py tests/tools/test_v3_acceptance.py
 cargo +1.87.0 test --locked --manifest-path zk/global_settlement_abi_v2/Cargo.toml
+cargo +1.90.0 test --locked --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml -p zenodex-asset-lane-custody-global-guest --lib
+cargo +1.90.0 check --locked --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml -p zenodex-asset-lane-custody-global-guest --bin zenodex-asset-lane-custody-global-guest
 ```
 
-The CI workflow executes these Python regressions and the standalone Rust
-crate. Structural acceptance validation rejects changed pins, deleted or
+The CI workflow declares these Python regressions, the standalone Rust crate
+and native guest checks; hosted execution is not claimed here. Structural
+acceptance validation rejects changed pins, deleted or
 duplicated requirements, unsupported evidence reuse, and fabricated claim
 states. A successful replay does not fill unrelated capability mappings.
 
 Next, connect the successor to its selected receipt/verifier and publication
 path; prove and test the resulting source and store-authority bindings. The
 review at `89e817d8` found that existing real module/coordinator/route guests and
-durable publication consume ABI V1. The smallest proposed V2 proof family is a
-flat guest that recomputes the existing custody coordinator and global relation
-and commits their exact V2 statement. This needs a defined semantic subject,
-measured guest/image and real receipt; native preparation cannot substitute.
+durable publication consume ABI V1. The V2 flat guest source now recomputes the
+existing custody coordinator and global relation and commits their exact V2
+statement. Next qualify its actual rebuilt image and genuine receipt, then its
+context admission and publication consumer. Do not restart statement or framing
+design; their defined subject and five-case native evidence are retained.
 Reuse the measured raw-byte receipt verifier transport where applicable, but
 define explicit V2 authentication and durable state admission. Matching an
 occurrence's predecessor root establishes consistency; the publisher must
@@ -142,6 +158,26 @@ The subsequent input-boundary run passed 130 selected Python tests, 125
 standalone Rust tests, the ten golden vectors and the existing hygiene gate's
 64 selected Python cases. Ruff, focused mypy and scoped clippy passed. No new
 Lean, Kani, ESSO, guest build or genuine receipt was run for this decoder patch.
+
+The statement/frame integration passed 145 selected Python tests, 132
+standalone Rust tests and five native guest transport tests. Native guest binary
+checking, Ruff, focused mypy, formatting and changed-surface clippy passed.
+The full standalone `--all-targets` clippy command additionally found the
+pre-existing constant-assertion warning at `tests/resource_bounds.rs:568`; that
+test was preserved. Existing `too_many_arguments` remains allowed only on the
+scoped clippy command line. The statement hygiene packet names a mechanical
+global-refinement-bypass mutant, executable with the existing mutation ledger:
+
+```bash
+python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260909-custody-statement-v2 --rev HEAD
+```
+
+These are native integration results, with independent read-only Astra review.
+No new Lean, ESSO, Kani, actual guest image, genuine receipt, host proof service,
+authentication, durable store admission or production qualification was run for
+this batch. Native transport tests do not execute the guest's zkVM abort/commit
+branches. The guest build reuses pinned RISC0 3.0.6 and refuses placeholder
+method generation; actual proof qualification still needs suitable compute.
 
 Complexity review uses the existing simplification skill and exact outcome
 checks. Radon 6.0.1 found high Python hotspots in snapshot decoding (152), the

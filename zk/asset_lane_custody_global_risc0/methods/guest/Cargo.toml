@@ -1,0 +1,22 @@
+[package]
+name = "zenodex-asset-lane-custody-global-guest"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.6", default-features = false, features = ["std"] }
+zenodex-global-settlement-abi-v2 = { path = "../../../global_settlement_abi_v2" }
+
+[lib]
+doctest = false
+
+[[bin]]
+name = "zenodex-asset-lane-custody-global-guest"
+path = "src/main.rs"
+test = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"
