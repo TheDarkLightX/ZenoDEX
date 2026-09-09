@@ -126,8 +126,18 @@ acceptance validation rejects changed pins, deleted or
 duplicated requirements, unsupported evidence reuse, and fabricated claim
 states. A successful replay does not fill unrelated capability mappings.
 
-Next, qualify the rebuilt receipt path and complete explicit V2 authentication
-and publication admission; prove the resulting store-authority bindings. The
+V2 intent authentication now snapshots the candidate and sequenced occurrence,
+checks profile-governed authorization, builds an explicit V2 signing message and
+verifies it through an internally acquired sealed BLS verifier. It reuses the
+unchanged profile and registry formats with explicitly selected V2 schema
+contents. No caller-supplied backend or verifier handle can provide success.
+The [authentication contract](specifications/ECONOMIC_COMMAND_AUTHENTICATION_V2.md)
+defines the signed fields and the unsigned sequencer coordinates. Checking
+returns no reusable authority and consumes no replay state.
+
+Next, qualify the rebuilt receipt path and combine V2 authentication with exact
+custody/profile admission and current-store publication; prove the resulting
+store-authority bindings. The
 review at `89e817d8` found that existing real module/coordinator/route guests and
 durable publication consume ABI V1. The V2 flat guest source now recomputes the
 existing custody coordinator and global relation and commits their exact V2
@@ -136,18 +146,25 @@ transport, and its fixed Rust verifier source selects the new compiled image.
 Qualify the actual rebuilt image and genuine receipt, then the context
 admission and publication consumer. Do not restart statement or framing
 design; their defined subject and five-case native evidence are retained.
-Define explicit V2 authentication and durable state admission. The existing V1
-authentication module signs a different command-hash domain and binds exact V1
-profile, intent and occurrence types; those cannot authenticate V2 through
-casts. Matching an
+The new V2 authentication path signs the V2 command-hash domain and binds exact
+V2 intent and occurrence types. Its explicit reuse of unchanged profile/registry
+formats does not establish actual guest, state, route or current activation
+admission. It hashes opaque bounded command bytes; the consumer must match the
+actual typed command and enforce its schema/origin requirements. Combine
+verification with use of the same owned inputs before any protected operation.
+Matching an
 occurrence's predecessor root establishes consistency; the publisher must
 acquire and revalidate the committed predecessor to establish its authority.
 Do not cast V2 states or occurrences into V1 types. Do not count the native
 global relation as a mounted publisher. Carry the custody cases through that
 integration. Independently,
-the acceptance index's first mapping gap is Tau-originated asset registration:
-inspect its existing implementation/tests before recording linkage or choosing
-a repair. A missing mapping does not mean an implementation is absent.
+the acceptance index's first mapping gap is Tau-originated asset registration.
+Its V2 core and golden/negative tests exist, with authority `NONE`, but no
+integration caller or durable replay consumer was found. Normative UP-11 is
+`UNRESOLVED_POLICY_NOT_SELECTABLE` pending the stable Tau interface. Existing
+tests can support a bounded component observation; they cannot close finality
+policy or a mounted lifecycle. Do not recreate the existing core to fill a
+mapping gap.
 
 Full BDD/ATDD linkage, all lane lifecycles, runtime refinement and release gates
 remain open. `python3 tools/v3_acceptance.py --check` deliberately exits nonzero
@@ -225,6 +242,26 @@ was killed (one killed, zero survivors or errors). Replay it with
 `python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260909-custody-receipt-v2 --rev c9e1227e23a82596f67f7b25331eae2acde76e57`.
 The temporary mutation copies and 810 MiB native custody build cache were
 removed after the checks; the six unrelated dirty files remain unchanged.
+
+The V2 authentication integration passed 175 combined Python regressions;
+the three artifact-dependent tests skipped in that default run each passed
+in a separate configured run against the measured sealed Rust ELF. Those
+include the new V2 message, existing independent BLS vectors and fresh deployed
+binding. The unchanged native verifier was rebuilt offline from its verified
+locked dependencies with Rust 1.87.0; five native protocol tests passed and the
+release ELF reproduced the retained digest. The new Python test-hygiene packet
+passed 53 cases across six critical paths. Ruff, focused mypy and the scoped
+production-boundary audit passed. Astra and Daybreak reviewed the conditional
+contract; Terra implemented its pure types and message preparation.
+
+The combined run initially found duplicate core/integration test basenames;
+the integration test is now `test_isolated_economic_command_authentication_v2.py`.
+No runtime guard or evidence threshold was weakened. CI declares the Python
+regressions, including an explicitly skipped native test when no measured
+artifact is configured. The authentication packet declares three mechanical
+mutants: ungoverned signer-registry acceptance, foreign message-schema release
+acceptance and ignored cryptographic rejection. Run the existing mutation
+ledger on the implementation commit before crediting their rejection.
 
 Complexity review uses the existing simplification skill and exact outcome
 checks. Radon 6.0.1 found high Python hotspots in snapshot decoding (152), the

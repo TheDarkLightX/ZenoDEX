@@ -37,6 +37,11 @@ jobs:
           python -m pytest -q tests/tools/test_v3_acceptance.py tests/core/test_asset_lane_custody*_v2.py
           python -m pytest -q tests/integration/test_asset_lane_custody_receipt_verification_v2.py
 
+      - name: Check V2 signed intents and isolated signature verification
+        # The sealed ELF test additionally requires the explicitly measured artifact.
+        run: |
+          python -m pytest -q tests/core/test_economic_command_authentication_v1.py tests/core/test_economic_command_authentication_v2.py tests/integration/test_isolated_economic_command_authentication_v2.py
+
       - name: Replay custody and global ABI V2 in Rust
         run: |
           rustup toolchain install 1.87.0 --profile minimal

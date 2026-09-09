@@ -1,0 +1,268 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260909-command-authentication-v2",
+  "created_date": "2026-09-09",
+  "claim_scope": "Isolated V2 signed-intent preparation, governed authorization and same-call sequenced-occurrence verification. The Python gate uses an independent BLS protocol fixture; a separately configured native test executes the exact measured Rust ELF. Neither establishes current profile authority or settlement/publication admission.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "AUTH-V2-GOVERNED-SIGNER",
+    "AUTH-V2-EXACT-MESSAGE-DOMAIN",
+    "AUTH-V2-OWNED-OCCURRENCE",
+    "AUTH-V2-INTERNAL-SEALED-VERIFIER",
+    "AUTH-V2-FAILURE-NO-AUTHORITY"
+  ],
+  "failure_modes": [
+    "Mallory supplies a coherent authorization registry and a cryptographically valid signature without profile-governed signing authority.",
+    "V1 command hashes, signing messages or a foreign message-schema release authenticate V2 intents.",
+    "A caller-supplied always-true verifier handle or ignored verification result replaces actual signature checking.",
+    "Signed coordinates or the signed height interval are changed during occurrence admission.",
+    "Artifact acquisition observes aliases that change the previously checked key, intent, message or occurrence.",
+    "Measurement, manifest, unavailable-artifact or transport failures return success.",
+    "An earlier success is cached across profile revocation or interpreted as publication authority."
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/economic_command_authentication_types_v2.py",
+      "sha256": "168ecb546f3ef084fc90ec622f6db01a55968715efbbd2a40e3b7b339b6466e4"
+    },
+    {
+      "path": "src/core/economic_command_authentication_v2.py",
+      "sha256": "1d96afb386a0ea81161edbaefb895fdfca70f1edf457d898b219e6081195c62c"
+    },
+    {
+      "path": "src/integration/economic_command_authentication_v2.py",
+      "sha256": "680509ad4d11d4af956f6684e7b1be49219fb04634a40c5cef079d6b28e7f8fd"
+    },
+    {
+      "path": "src/core/economic_command_authentication_snapshot_v1.py",
+      "sha256": "f63be0a4a2d4d4bca6383beb6a26534850c46bd5beb78e52b00b431aa99ef48d"
+    },
+    {
+      "path": "src/core/economic_command_authentication_types_v1.py",
+      "sha256": "a90511240e6ad992856d4384caf5ec5073d8630d00b3f545b075a56212b506cb"
+    },
+    {
+      "path": "src/core/economic_command_authorization_registry_v1.py",
+      "sha256": "7c85ae3ae89b8a09729d957643fe21c57ab75950ae54a1ce920b788c995f8791"
+    },
+    {
+      "path": "src/core/economic_command_signature_verifier_registry_v1.py",
+      "sha256": "001302fd7816d130487e5c0efc01bdaffe9340435b1098ad193bd2e47133d7aa"
+    },
+    {
+      "path": "src/core/economic_command_signature_verifier_deployment_v1.py",
+      "sha256": "2d551371b5cb67ba136f5987a129092c5e3e049e3766a53f94ad29e333228fe8"
+    },
+    {
+      "path": "src/core/global_economic_profile_snapshot_v1.py",
+      "sha256": "6878f42b94b07ecb2ce48196d39eeaa75115c8f8c66765dbc81de92288f537f7"
+    },
+    {
+      "path": "src/core/global_settlement_primitives_v2.py",
+      "sha256": "d38783c78c52f4aa21ede117b1652636cf2b8fe7ad5a7467eba63fc7ecba0785"
+    },
+    {
+      "path": "src/core/global_economic_proof_v2.py",
+      "sha256": "1ed46aad640fd1e887d228bbace65fc9f2449f6bbb16428a16537b9d9cc95ae4"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_deployment_v1.py",
+      "sha256": "646a8a6d99508fc854c5baaaa6434b84a9d86114502040242c59a0be874dbf49"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_v1.py",
+      "sha256": "56cb70b822a20cc7cc7b3a3bd10aa8098f2ae145484f532a785d015465a3f08b"
+    },
+    {
+      "path": "tests/core/test_economic_command_authentication_v1.py",
+      "sha256": "aae449eb0d17291f6028c9e60aae3d0b5fca18754f08b1edec6372ba0ff8aa50"
+    },
+    {
+      "path": "tests/core/test_lane_module_release_route_binding_v1.py",
+      "sha256": "2dede0423e0831249f13ddf20b1cf83201dc0ca8117fc8833aaf15578c99530d"
+    },
+    {
+      "path": "tests/integration/test_sealed_bls_command_verifier_deployment_v1.py",
+      "sha256": "44eba5ac7180fb4514cf2b69eea0a2affd8f12ae25453d4842b9b830b89e902e"
+    },
+    {
+      "path": "zk/economic_command_bls_verifier_v1/Cargo.toml",
+      "sha256": "3ba0b5e95656c6fdbf5078dbe25c0993edbd3345dcebce09270022a36c5a4261"
+    },
+    {
+      "path": "zk/economic_command_bls_verifier_v1/Cargo.lock",
+      "sha256": "196c8c9fdfc2b4264728145bcb859e542ca99236bbf083c0580f6d1aa8fa4288"
+    },
+    {
+      "path": "zk/economic_command_bls_verifier_v1/src/main.rs",
+      "sha256": "de4a025c7ffd4dc7e58c5597a62b97e527ced35f2e17ad337f126dbeeed49a41"
+    },
+    {
+      "path": "zk/economic_command_bls_verifier_v1/tests/protocol.rs",
+      "sha256": "dad1bc5e9f8249f205b2a9a19e84ffd927123017d2ebd7eb585868629d585265"
+    },
+    {
+      "path": "zk/economic_command_bls_verifier_v1/README.md",
+      "sha256": "35a960c02c88eeee44537036c169c2f58256aad5ac7864e1906867a6996068db"
+    },
+    {
+      "path": "docs/specifications/ECONOMIC_COMMAND_AUTHENTICATION_V2.md",
+      "sha256": "eb0d2714a1d923b0ee83d008f3683cfb3f5b91505060b3014ba02e62098ad7c7"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "16a39227cb044f467aa153355fe423b9e22f92f27d0a841eede881d63f516f0d"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_economic_command_authentication_v2.py",
+      "sha256": "857aa0d264ca1c90cd0d65c41fc6275574b6a697d0be8376058e32afdb374469",
+      "node_ids": [
+        "tests/core/test_economic_command_authentication_v2.py::test_prepare_constructs_the_fixed_v2_schema_root_and_exact_message",
+        "tests/core/test_economic_command_authentication_v2.py::test_prepare_owns_the_candidate_before_returning_plain_data",
+        "tests/core/test_economic_command_authentication_v2.py::test_prepare_rejects_the_v1_body_domain_and_body_substitution",
+        "tests/core/test_economic_command_authentication_v2.py::test_prepare_requires_active_profile_and_governed_registries",
+        "tests/core/test_economic_command_authentication_v2.py::test_prepare_requires_governed_route_and_exact_authorization_row",
+        "tests/core/test_economic_command_authentication_v2.py::test_prepare_requires_authorization_enablement_key_algorithm_and_intervals",
+        "tests/core/test_economic_command_authentication_v2.py::test_prepare_requires_the_selected_release_to_bind_the_v2_message_schema",
+        "tests/core/test_economic_command_authentication_v2.py::test_occurrence_rejects_every_signed_intent_coordinate",
+        "tests/core/test_economic_command_authentication_v2.py::test_occurrence_uses_the_signed_height_interval_neighbors",
+        "tests/core/test_economic_command_authentication_v2.py::test_occurrence_leaves_sequencer_coordinates_and_predecessor_unsigned",
+        "tests/core/test_economic_command_authentication_v2.py::test_intent_enforces_u64_object_bound_and_exact_snapshot_types",
+        "tests/core/test_economic_command_authentication_v2.py::test_candidate_snapshot_rejects_exact_type_substitution",
+        "tests/core/test_economic_command_authentication_v2.py::test_v1_envelope_remains_an_exact_owned_candidate_component"
+      ]
+    },
+    {
+      "path": "tests/integration/test_isolated_economic_command_authentication_v2.py",
+      "sha256": "b82de7c996a3afef7701fb0c5326771a6a7dc8b2f109060380b4478d310ccce5",
+      "node_ids": [
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_genuine_v2_signature_uses_exact_prepared_message_and_no_authority_result",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_signature_for_another_key_or_message_never_authenticates[foreign_key]",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_signature_for_another_key_or_message_never_authenticates[message_prehash]",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_signature_for_another_key_or_message_never_authenticates[v1_domain]",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_signature_for_another_key_or_message_never_authenticates[malformed]",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_forged_always_true_bound_handle_is_not_an_input",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_mallory_signature_cannot_substitute_an_ungoverned_alice_authorization",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_signed_occurrence_substitution_rejects_before_artifact_access",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_sequenced_height_has_the_exact_signed_interval",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_unsigned_sequencer_coordinates_still_need_separate_admission",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_measurement_and_manifest_failures_never_launch_verification",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_transport_timeout_propagates_without_authentication",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_unavailable_artifact_cannot_authenticate",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_retry_reacquires_and_rechecks_revocation_instead_of_caching_success",
+        "tests/integration/test_isolated_economic_command_authentication_v2.py::test_artifact_acquisition_cannot_change_the_owned_signed_inputs"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "replay",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Given explicitly governed fixture registries, a V2 body and signed intent, prepare the exact message and verify a sequenced occurrence. Independent canonical expected bytes and py_ecc signatures observe the selected schema, original owned inputs, exact request bytes and deterministic failure. The forged-registry case independently proves Mallory can sign its proposed message before checking that ungoverned authority rejects before artifact access."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Invalid authorization and occurrence inputs cannot acquire the artifact. Signature and transport failures cannot return success. The API owns no economic, replay, history or outbox writer and returns no reusable witness; repeated checks reacquire verification and respect revocation."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "intent_and_occurrence",
+      "points": [
+        "ten signed field substitutions",
+        "signed interval 10..12 at heights 9, 10, 12, 13",
+        "u64 maximum and overflow",
+        "64 and 65 consumed objects",
+        "exact types and alias mutation",
+        "unsigned sequencer coordinates remain separate"
+      ]
+    },
+    {
+      "name": "authorization",
+      "points": [
+        "active and revoked profile with the same content ID",
+        "selected and foreign policy or authorization roots",
+        "governed and foreign route",
+        "enabled and disabled authorization",
+        "key, algorithm, nonce and validity intervals",
+        "coherent Mallory registry with a valid foreign signature"
+      ]
+    },
+    {
+      "name": "verification",
+      "points": [
+        "raw V2 signing message",
+        "V1 domain and extra prehash",
+        "foreign key and malformed signature",
+        "V2 schema root selection",
+        "artifact and manifest mismatch",
+        "unavailable artifact and timeout",
+        "injected verifier parameter rejected",
+        "repeated and alias-mutating artifact acquisition"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Remove the profile-governed authorization-registry root check. Mallory has a valid signature for a coherent forged registry; the control must reject before artifact acquisition.",
+      "killed_by": "tests/integration/test_isolated_economic_command_authentication_v2.py::test_mallory_signature_cannot_substitute_an_ungoverned_alice_authorization",
+      "mutant": {
+        "path": "src/core/economic_command_authentication_v2.py",
+        "needle_lines": [
+          "    if binding.policy_root != candidate.authorization_registry.registry_root:",
+          "        raise ValueError(\"command authorization registry is not profile governed\")"
+        ],
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    },
+    {
+      "description": "Remove the selected release message-schema check. A release for a foreign signing contract must remain ineligible.",
+      "killed_by": "tests/core/test_economic_command_authentication_v2.py::test_prepare_requires_the_selected_release_to_bind_the_v2_message_schema",
+      "mutant": {
+        "path": "src/core/economic_command_authentication_v2.py",
+        "needle_lines": [
+          "    if release.message_schema_root != ECONOMIC_COMMAND_AUTHENTICATION_MESSAGE_SCHEMA_ROOT_V2:",
+          "        raise ValueError(\"command signature verifier message schema root mismatch\")"
+        ],
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    },
+    {
+      "description": "Ignore the cryptographic result after signature verification. A foreign-key signature must never produce successful authentication.",
+      "killed_by": "tests/integration/test_isolated_economic_command_authentication_v2.py::test_signature_for_another_key_or_message_never_authenticates[foreign_key]",
+      "mutant": {
+        "path": "src/integration/economic_command_authentication_v2.py",
+        "needle_lines": [
+          "    if verified is not True:",
+          "        raise ValueError(\"command authentication signature rejected\")"
+        ],
+        "replacement_lines": [
+          "    return None"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "The hygiene runner executes the declared Python nodes only. Its protocol fixture intercepts process execution after sealed-file acquisition; no native ELF execution is attributed to that fixture.",
+    "The separately configured native test requires ZENODEX_BLS_VERIFIER_TEST_BINARY and SHA-256 597f1e56fcca8f00bc94805cf020ca0e6f2779ded3b1944d1d699231f55b0eee. Default Python runs explicitly skip it; hosted CI execution is not asserted.",
+    "Profile/status and release evidence selection remain external premises. Profile status is excluded from the content ID, so matching roots alone cannot establish activation.",
+    "Exact measured executable bytes do not prove honest verification in a compromised process, operating system, dynamic loader or library environment.",
+    "Signing hashes bounded opaque command bytes. The actual V2 transition must decode or construct its exact command and recompute its origin-bearing body hash.",
+    "The actual V2 custody guest, complete settlement profile, replay/current predecessor, durable publication, effects, historical migration and no-bypass remain open.",
+    "The mutation ledger must execute these rows against an archived committed subject; packet validation alone is not a mutation result.",
+    "No new Lean, Kani, ESSO proof, actual RISC0 receipt, live activation, full formal-core completion or V3 completion is claimed."
+  ]
+}
