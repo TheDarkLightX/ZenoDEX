@@ -1,0 +1,155 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260909-custody-input-v2",
+  "created_date": "2026-09-09",
+  "claim_scope": "Bounded canonical input admission to the existing V2 custody coordinator. The Python nodes replay ten retained economic outputs and one actual global custody/claimant consumer. Rust sources and tests are pinned subjects; Cargo replay is a separate gate. No receipt, cryptographic authentication, store or publication authority is established.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-V2-CLOSED-CANONICAL-INPUT",
+    "CUSTODY-V2-DECODE-BEFORE-TRANSITION",
+    "CUSTODY-V2-UNCHANGED-ECONOMIC-OUTCOMES"
+  ],
+  "failure_modes": [
+    "Malformed, noncanonical, foreign-schema, duplicate-field or wrong-command-shape bytes reach an economic transition.",
+    "Depth, huge integer or lone-surrogate parser faults escape the public typed codec error contract.",
+    "An oversized collection is constructed before its existing row ceiling is enforced.",
+    "A new input envelope excludes otherwise admitted states by combining the independent 1MiB limits.",
+    "A valid unknown command is reclassified from the existing typed economic no-op into a parse failure.",
+    "An economic transition fault is swallowed and reported as a decode failure.",
+    "Input decoding changes exact custody effects, canonical roots, dormant identities or global claimant preservation."
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/asset_lane_custody_codec_v2.py",
+      "sha256": "ccc8197e817b3831f8e1fdcb169dc49af2dc7cd94267b7f3ab695c52c1829ebd"
+    },
+    {
+      "path": "src/core/asset_lane_custody_input_v2.py",
+      "sha256": "6e9e5067bd8cd21d5b8680f5d07cdafab3016fb01fc1513d961262868de6a616"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/asset_lane_custody_input.rs",
+      "sha256": "4f371042548ebe08b94c373ad0e73361e6e8db4d0c963ba0e2d49fe93e1823f3"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/lib.rs",
+      "sha256": "74f6f74a79f57daf532cf2d8b3203b8400d8cdb56816e1de6ff4dc68357adb43"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/tests/asset_lane_custody_input.rs",
+      "sha256": "7b3f29e1d30a6df11506ee4a8df90b75ad28ac9c8fc59ecd4a481cde0cfc395e"
+    },
+    {
+      "path": "tests/data/asset_lane_custody_v2_golden.json",
+      "sha256": "6d128ed29521daea1211b2e7e2ba1b421b833723e5b21ab2a452e89ee103a4a1"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_asset_lane_custody_codec_v2.py",
+      "sha256": "362364ddef56dddb77910cc23cf41b20d1b71a9e35baaf72181e9a44eb300896",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_codec_v2.py::test_existing_custody_golden_states_round_trip_exact_canonical_bytes",
+        "tests/core/test_asset_lane_custody_codec_v2.py::test_legal_nonzero_and_dormant_custody_states_are_exact_codec_fixed_points",
+        "tests/core/test_asset_lane_custody_codec_v2.py::test_encoder_rejects_nonexact_and_forged_custody_state_values",
+        "tests/core/test_asset_lane_custody_codec_v2.py::test_decoded_state_does_not_retain_an_exposed_row_alias",
+        "tests/core/test_asset_lane_custody_codec_v2.py::test_untrusted_parser_failures_are_typed_codec_rejections",
+        "tests/core/test_asset_lane_custody_codec_v2.py::test_decoder_rejects_closed_field_schema_and_exact_numeric_type_mutants",
+        "tests/core/test_asset_lane_custody_codec_v2.py::test_decoder_rejects_reordered_custody_rows_and_preconstructs_row_ceilings",
+        "tests/core/test_asset_lane_custody_codec_v2.py::test_decoder_rejects_noncanonical_object_key_order"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_input_v2.py",
+      "sha256": "2e539d1e8897ef19db13ab80e8e7288447e486c2e397bc73f198fa2e1b44792c",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_input_v2.py::test_required_serialized_inputs_preserve_full_golden_outcomes",
+        "tests/core/test_asset_lane_custody_input_v2.py::test_given_encoded_custody_transfer_then_actual_global_consumer_preserves_claimants",
+        "tests/core/test_asset_lane_custody_input_v2.py::test_selected_command_shape_retains_unknown_command_leaf_rejection",
+        "tests/core/test_asset_lane_custody_input_v2.py::test_context_then_state_then_command_failure_precedence",
+        "tests/core/test_asset_lane_custody_input_v2.py::test_economic_transition_faults_are_not_reclassified_as_decode_failures",
+        "tests/core/test_asset_lane_custody_input_v2.py::test_malformed_input_never_reaches_the_transition",
+        "tests/core/test_asset_lane_custody_input_v2.py::test_invalid_route_rejects_before_any_decode"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "replay",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests prepare canonical golden inputs or one explicit malformed boundary, invoke the public codec or bytes transition, then check complete outcomes, exact bytes, typed refusal or no transition call."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Malformed inputs cannot call the economic transition. Unknown commands preserve empty effects and identical pre/post roots. Successful decoding creates only the existing NONE/SHADOW result. Transition faults retain their original exception identity."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "encoding",
+      "points": [
+        "exact canonical bytes",
+        "duplicate or missing fields",
+        "wrong schema",
+        "noncanonical order",
+        "deep JSON",
+        "huge integer",
+        "lone surrogate",
+        "bool or numeric string",
+        "u128 overflow",
+        "non-bytes input",
+        "independent 1MiB cap"
+      ]
+    },
+    {
+      "name": "row_limits",
+      "points": [
+        "transfer policies 257",
+        "balances 4097",
+        "supplies 257",
+        "origin assets 257",
+        "managed policies 257",
+        "custody rows 4097"
+      ]
+    },
+    {
+      "name": "outcome_and_precedence",
+      "points": [
+        "ten complete golden outcomes",
+        "unknown transfer and managed command",
+        "invalid route before decoding",
+        "context before state before command",
+        "no economic callback on parse failure",
+        "economic fault retains identity",
+        "global custody and claimant frame"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Restore the reproduced public parser bug: a lone surrogate leaks TypeError rather than the promised GlobalSettlementCodecErrorV2. The retained test failed on the original source before repair.",
+      "killed_by": "tests/core/test_asset_lane_custody_codec_v2.py::test_untrusted_parser_failures_are_typed_codec_rejections",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_codec_v2.py",
+        "needle_lines": [
+          "    except (RecursionError, TypeError, ValueError) as exc:"
+        ],
+        "replacement_lines": [
+          "    except (RecursionError, ValueError) as exc:"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Packet validation is structural. Its runner executes the declared Python nodes; it does not run Cargo, Lean, Kani, ESSO or a RISC0 guest.",
+    "Golden replay covers the ten retained cases and does not establish universal Python/Rust parser or runtime equivalence. Parse-error messages are not a cross-language wire contract.",
+    "The surrogate defect was observed failing before its repair. The declared source mutant is not executed merely by validating this packet.",
+    "Historical leaf codecs and V1 receipt consumers remain unchanged. No accepted-result decoder, signed-intent authentication, measured image, receipt admission, publication, migration, release or full V3 completion is claimed."
+  ]
+}

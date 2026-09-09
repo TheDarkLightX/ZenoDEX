@@ -68,6 +68,16 @@ and receipt. The global consumer checks actual complete tables, unchanged
 claimants, occurrence/replay and producer bindings. Historical account-only
 state and receipt formats are unchanged. Output authority remains `NONE`.
 
+The Python custody codec now accepts only the exact canonical successor state,
+checks all six row arrays before constructing their component tuples, and
+turns malformed JSON, excessive nesting, huge integers and lone surrogates into
+typed decode failures. Python and Rust expose
+`transition_asset_lane_custody_bytes_v2`: an explicit leaf route selects the
+existing command shape, then context, state and command decode in that order.
+Each input retains its independent 1 MiB limit. Unknown commands retain their
+economic no-op outcome, and economic faults are not hidden as parser failures.
+The byte path has exact golden controls and reaches the actual global consumer.
+
 The Lean `AssetLaneCustodyRefinementV2` lift establishes constructed finite-row
 accounting and custody preservation with selected leaf models, plus concrete
 legal-state acceptance controls. It does not prove every runtime constructor,
@@ -90,10 +100,20 @@ crate. Structural acceptance validation rejects changed pins, deleted or
 duplicated requirements, unsupported evidence reuse, and fabricated claim
 states. A successful replay does not fill unrelated capability mappings.
 
-Next, connect the successor to explicit input decoding and the selected
-receipt/verifier and publication path; prove and test the resulting source and
-store-authority bindings. Do not count the native global relation as a mounted
-publisher. Carry these custody cases through that integration. Independently,
+Next, connect the successor to its selected receipt/verifier and publication
+path; prove and test the resulting source and store-authority bindings. The
+review at `89e817d8` found that existing real module/coordinator/route guests and
+durable publication consume ABI V1. The smallest proposed V2 proof family is a
+flat guest that recomputes the existing custody coordinator and global relation
+and commits their exact V2 statement. This needs a defined semantic subject,
+measured guest/image and real receipt; native preparation cannot substitute.
+Reuse the measured raw-byte receipt verifier transport where applicable, but
+define explicit V2 authentication and durable state admission. Matching an
+occurrence's predecessor root establishes consistency; the publisher must
+acquire and revalidate the committed predecessor to establish its authority.
+Do not cast V2 states or occurrences into V1 types. Do not count the native
+global relation as a mounted publisher. Carry the custody cases through that
+integration. Independently,
 the acceptance index's first mapping gap is Tau-originated asset registration:
 inspect its existing implementation/tests before recording linkage or choosing
 a repair. A missing mapping does not mean an implementation is absent.
@@ -117,3 +137,18 @@ clippy reports the existing `too_many_arguments` finding in
 `global_refinement.rs`, and the claims registry references missing
 `tools/check_derivatives_authorization_matrix.py`. No gate was weakened and no
 live publication, migration or authority activation was performed.
+
+The subsequent input-boundary run passed 130 selected Python tests, 125
+standalone Rust tests, the ten golden vectors and the existing hygiene gate's
+64 selected Python cases. Ruff, focused mypy and scoped clippy passed. No new
+Lean, Kani, ESSO, guest build or genuine receipt was run for this decoder patch.
+
+Complexity review uses the existing simplification skill and exact outcome
+checks. Radon 6.0.1 found high Python hotspots in snapshot decoding (152), the
+operation dispatcher (116) and zUSD `step_multi` (83). The new byte entry is 6;
+custody binding predicates reach 17. These are source metrics, not measured
+overengineering or safety scores. Review retained the custody predicates because
+their checks and rejection order have distinct obligations. Do not split
+helpers, replace conjunctions with `all()`, or delete guards solely to lower a
+score. The finite minimizer proves minima only for its declared guard-deletion
+grammar and finite model, not arbitrary source programs.
