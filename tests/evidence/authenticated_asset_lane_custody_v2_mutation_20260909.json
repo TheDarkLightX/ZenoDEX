@@ -1,0 +1,55 @@
+{
+  "errors": 0,
+  "killed": 3,
+  "legacy": 0,
+  "mechanical": 3,
+  "narrative": 0,
+  "packet": "THV1-20260909-authenticated-custody-v2",
+  "rows": [
+    {
+      "description": "Remove BLS occurrence authentication from the combined consumer. A foreign signature over otherwise valid economics must never reach receipt verification.",
+      "exit": 1,
+      "killer": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_foreign_signature_blocks_valid_and_rejected_economics[valid_economics]",
+      "mutant_sha256": "60708df8aace7da865375db6ba91b62edbf6135432b8075e395c514f563056bb",
+      "mutation": {
+        "needle_first_line": "    verify_isolated_economic_command_occurrence_v2(",
+        "needle_sha256": "de0f483c6365081404051587b0f33559d1080c8e7cdb5d312caac4d1f1be36c6",
+        "path": "src/integration/authenticated_asset_lane_custody_receipt_v2.py",
+        "replacement_sha256": "e225b388d251d09902488254da501605f76393535a8838121ecc2372c568af31"
+      },
+      "seconds": 3.573,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Use caller original economic disclosures after BLS I/O instead of the captured values. Mutation during acquisition must leave the original expected statement unchanged.",
+      "exit": 1,
+      "killer": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_bls_artifact_acquisition_cannot_change_the_owned_custody_inputs",
+      "mutant_sha256": "faea77c2d93d0aa93f355976c01e70f57cd699f8d2c52e30cb3a2393abca0361",
+      "mutation": {
+        "needle_first_line": "        owned_context,",
+        "needle_sha256": "2bfc8d3d79100854aeca1d1ce7a793a1f46925cc754c0064e9def2e64ec234c8",
+        "path": "src/integration/authenticated_asset_lane_custody_receipt_v2.py",
+        "replacement_sha256": "9c994aa9e833ecdf4abf7c375e87cc3cc1ec0184e96dd783ff7ead9955968009"
+      },
+      "seconds": 3.396,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Use caller original receipt configuration after BLS I/O. A substituted image and timeout must not replace the captured verifier configuration.",
+      "exit": 1,
+      "killer": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_bls_artifact_acquisition_cannot_change_the_owned_custody_inputs",
+      "mutant_sha256": "fad97c8334ccc31271f28a4b889cb17b20a798b4633afdb3e38f9aa8c078098b",
+      "mutation": {
+        "needle_first_line": "        verifier=owned_receipt_verifier,",
+        "needle_sha256": "480c7e73aaaba6aa98f1ba3c0b3d34901939a6c29b2369bda5a3448715eac093",
+        "path": "src/integration/authenticated_asset_lane_custody_receipt_v2.py",
+        "replacement_sha256": "b45ab615fe484f97ddf7429afd9b67f4a0005643511f512ad3f181cadbd648e6"
+      },
+      "seconds": 3.881,
+      "verdict": "KILLED"
+    }
+  ],
+  "schema": "zenodex/thv1-mutation-ledger/v1",
+  "subject_commit": "f8b8dd99836dc1d0f6f30eb8b5166afcdf2687c3",
+  "survived": 0
+}

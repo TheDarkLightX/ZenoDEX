@@ -288,9 +288,13 @@ the exact source/tests, including the independent native BLS transport alias.
 No receipt, profile or publication authority was granted.
 
 The combined entry's packet declares mechanical removals of BLS authentication,
-economic snapshot use and receipt-configuration snapshot use. Replay them with
-the existing mutation ledger against the committed implementation before
-crediting those mutation outcomes. Full guest proof generation and genuine
+economic snapshot use and receipt-configuration snapshot use. Its
+[retained composition mutation replay](../tests/evidence/authenticated_asset_lane_custody_v2_mutation_20260909.json)
+archived implementation `f8b8dd99836dc1d0f6f30eb8b5166afcdf2687c3`, passed
+both distinct unmutated controls and killed all three mutants with zero
+survivors or replay errors. Replay with
+`python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260909-authenticated-custody-v2 --rev f8b8dd99836dc1d0f6f30eb8b5166afcdf2687c3`.
+Temporary mutation workspaces were removed. Full guest proof generation and genuine
 receipt qualification still require suitable compute; no new Lean, ESSO or Kani
 proof is attributed to these integration changes.
 
