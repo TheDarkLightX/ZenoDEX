@@ -151,9 +151,13 @@ Assessment date: September 8, 2026. Exact integration subjects are recorded in
 the progress ledger and linked evidence below. This is a closure checklist,
 not a fresh deployment audit. Linked older evidence retains
 its exact original subject and bounds. A checked item below denotes the stated
-scoped deliverable; it does not close the enclosing workstream. No reliable
-weighted completion percentage has been established for V3 or the formal core.
-The older handoff's 35-45% figure was a planning estimate, not a measured baseline.
+scoped deliverable; it does not close the enclosing workstream. The
+[September 8 assessment](research/ZENODEX_V3_PROGRESS_ASSESSMENT_20260908.md)
+establishes a reproducible advisory baseline: Fable estimates 23.4% for V3 and
+21.0% for the formal core; Opus estimates 28.9% and 23.4% using different weights.
+These estimates retain their judgment ranges and evidence limitations. They do
+not change the closure counts below or measure remaining code or time. The older
+35–45% handoff estimate had no equivalent scored baseline.
 
 ### Delivery audit at the September 8 checkpoint
 

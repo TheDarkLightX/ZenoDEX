@@ -7,6 +7,13 @@ below. Each reviewed selected functions and evidence, with explicit scope
 limits. The scalar-copy adoption below has focused source and runtime evidence;
 the remaining proposals are not qualified source patches.
 
+The [September 8 follow-up](ZENODEX_SIMPLIFICATION_REVIEW_20260908.md) records
+Fable 5.1's formal-core proposals and independent Astra Max/Daybreak Max reviews.
+It narrows journal, decoder and acceptance-check sharing, rejects context aliases
+and replacement-API removal, and retains custody/provenance obligations for a
+V2 migration. Its counterexamples prevent treating those proposals as equivalent
+refactors. The scalar-copy result below remains a separate completed patch.
+
 This September 7 execution addendum implements the user's request to examine
 simplification after an initial correct implementation. It operates within
 W07, W09 and W13 of the admitted V3 graph. It does not replace that immutable
