@@ -400,8 +400,8 @@ grammar and finite model, not arbitrary source programs.
 ## Custody trace and derived witness increment, September 9
 
 `AssetLaneCustodyTraceV2.lean` now derives full row representability through
-arbitrary finite transfer/issue/burn histories from initial admission alone.
-Policies and command widths are explicit static premises. Custody rows,
+arbitrary finite transfer/issue/burn histories from initial row admission plus
+static policy-selection and command-width premises. Custody rows,
 registration and policy frames are preserved exactly. The fresh Lean suite
 passes eight checks, including independent concrete tables, five false-law
 refusals and matching Python prefixes. It does not prove actual runtime
@@ -420,7 +420,7 @@ Daybreak reviews accepted the scoped final subjects. The
 [verification record](../tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json)
 retains source hashes, commands, initial test/type errors and repairs, review
 subjects, and CLI-recorded usage. Final hygiene passes 24 new core cases; the
-native crate passes146 tests; selected integration passes53 with one optional
+native crate passes 146 tests; combined core/integration passes 53 with one optional
 measured-native BLS case skipped. Full Clippy retains an unchanged argument-count
 failure. No fixtures, proof claims or admission gates were weakened.
 

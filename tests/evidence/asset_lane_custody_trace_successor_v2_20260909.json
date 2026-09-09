@@ -172,7 +172,9 @@
     "duration_ms": 2031567,
     "total_cost_usd": 20.5708085,
     "measurement_limits": "CLI-recorded usage, not independently provider-audited. input_tokens excludes separately recorded cached input. costBasis=list is an estimated list-price equivalent, not a confirmed invoice or subscription charge. Auxiliary Haiku usage is retained separately.",
-    "execution_limit": "Worker had file tools only; root executed all runtime gates. No agent runtime pass is inferred from its report."
+    "execution_limit": "Worker had file tools only; root executed all runtime gates. No agent runtime pass is inferred from its report.",
+    "observed_input_tokens_including_cache": 24701581,
+    "input_token_derivation": "Sum of the three raw CLI input-token categories above. Includes cache creation and cache reads; not a count of unique source tokens."
   },
   "repairs": [
     {
@@ -196,6 +198,47 @@
     "No model proves anti-replay, signature, parser, resource-limit or publication refinement for arbitrary actual runtime executions. Lean roots are abstract; static policy/command premises remain.",
     "Genuine RISC0 guest/receipt, custody guest/profile role, store-current atomic publication, restart/recovery and destination no-bypass remain open.",
     "Full RISC0/Mathlib builds, ESSO/Kani campaigns, optional measured-native BLS replay and broad critical-quality gates were not run in this batch.",
-    "Full V3 and formal core remain incomplete. No workstream, lane, route or value-movement gate closed. Existing empty-reserve and ABI domains remain unchanged."
-  ]
+    "Full V3 and formal core remain incomplete. No workstream, lane, route or value-movement gate closed. Existing empty-reserve and ABI domains remain unchanged.",
+    "The 53 combined checks consist of 49 integration cases and 4 prover-input cases already included in the 24 new core checks; do not sum overlapping test counts."
+  ],
+  "contribution_records": [
+    {
+      "id": "V3-20260909-custody-root",
+      "model": "Astra (active integrator)",
+      "work": "Trace theorem, prover-input composition, integration, corrections and gate execution; resource telemetry unavailable."
+    },
+    {
+      "id": "V3-20260909-custody-astra-peer",
+      "model": "gpt-6-astra",
+      "work": "Independent mathematical review, concrete Lean controls and narrow score review; multiple follow-up turns, resource telemetry unavailable."
+    },
+    {
+      "id": "V3-20260909-custody-daybreak",
+      "model": "gpt-daybreak-blue-latest",
+      "work": "Independent security review of draft/final production hashes; resource telemetry unavailable."
+    },
+    {
+      "id": "V3-20260909-custody-opus",
+      "model": "claude-opus-5",
+      "work": "Four-file constructor/test implementation; exact CLI session and raw usage above."
+    },
+    {
+      "id": "V3-20260909-custody-cli-helper",
+      "model": "claude-haiku-4-5-20251001",
+      "work": "CLI-recorded auxiliary helper, not a separate assigned implementation agent. Usage is separate from Opus in modelUsage."
+    },
+    {
+      "id": "V3-20260909-custody-launch-1",
+      "model": null,
+      "work": "Automatic approval review rejected launch before Claude ran; resolved after explicit user authorization. No model usage observed."
+    },
+    {
+      "id": "V3-20260909-custody-launch-2",
+      "model": null,
+      "work": "Second automatic approval review rejected launch before Claude ran; resolved after explicit user authorization. No model usage observed."
+    }
+  ],
+  "archived_mutation_evidence": "tests/evidence/asset_lane_custody_successor_v2_mutation_20260909.json",
+  "archived_mutation_result": "At c61f536315191bd0a1a482a3932fdeb43009cd6f, both unmodified controls passed, both declared mutants killed,0 survivors/errors. Temporary archive/copies removed by runner.",
+  "subject_commit": "c61f536315191bd0a1a482a3932fdeb43009cd6f"
 }

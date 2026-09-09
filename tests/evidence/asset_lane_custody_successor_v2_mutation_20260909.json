@@ -1,0 +1,41 @@
+{
+  "errors": 0,
+  "killed": 2,
+  "legacy": 0,
+  "mechanical": 2,
+  "narrative": 0,
+  "packet": "THV1-20260909-custody-derived-successor-v2",
+  "rows": [
+    {
+      "description": "Omit the new replay row. The independent accepted successor control must fail instead of emitting the original golden state.",
+      "exit": 1,
+      "killer": "tests/core/test_asset_lane_custody_global_successor_v2.py::test_transfer_successor_equals_the_independently_written_admitted_post_state",
+      "mutant_sha256": "1e73c9105962966a95547b923b30981f97c166fb20415c86cdcb522fd9fce416",
+      "mutation": {
+        "needle_first_line": "        replay_state=_successor_replay_state(before, consumed),",
+        "needle_sha256": "e1e136ac61c163b876e93d601d7f33d126b1ba0982605cdd85e82b2ce78b4c8e",
+        "path": "src/core/asset_lane_custody_global_v2.py",
+        "replacement_sha256": "0c01c2d5ee21c5d161abcadefc53a57fd89ec6e1c5235649c8b188f25c0e0715"
+      },
+      "seconds": 1.632,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Return the constructed successor without the actual global refiner. The foreign/post-lane substitution must then fail its expected refusal.",
+      "exit": 1,
+      "killer": "tests/core/test_asset_lane_custody_global_successor_v2.py::test_wrong_predecessor_lane_rejects_and_returns_no_successor",
+      "mutant_sha256": "d41892e8a902a810a96e47a729660679327da01069acf810de7fc427d0e98925",
+      "mutation": {
+        "needle_first_line": "    refine_asset_lane_custody_global_v2(lane_pre, owned, before, after, consumed)",
+        "needle_sha256": "f2c26df3c56fe3d86a4056af5bbba458cee78ff674f011529f8cbbf9d34a5d3c",
+        "path": "src/core/asset_lane_custody_global_v2.py",
+        "replacement_sha256": "20d1297783890750049a2dc3e89c0c4538d9216b74fee0571d9ce0b6803c603c"
+      },
+      "seconds": 1.554,
+      "verdict": "KILLED"
+    }
+  ],
+  "schema": "zenodex/thv1-mutation-ledger/v1",
+  "subject_commit": "c61f536315191bd0a1a482a3932fdeb43009cd6f",
+  "survived": 0
+}

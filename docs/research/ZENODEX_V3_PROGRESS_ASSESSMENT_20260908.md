@@ -246,3 +246,14 @@ reuses Git observations and this assessment calculator. It records shared
 outcomes once, exposes missing model/resource data and retains corrections.
 This reporting work claims no economic or formal-core percentage advancement.
 Its implementation is outside the frozen range counted above.
+
+
+## September 9 custody trace amendment
+
+The [reviewed batch amendment](ZENODEX_CUSTODY_TRACE_DELIVERY_20260909.md) moves
+the carried formal-core estimate from 20.981% to 21.038% (+0.057 percentage
+points). V3 remains 23.369%. Only the managed issue/burn proof components
+changed; all other rows and earlier unrescored work remain carried forward.
+This is a narrow amendment, not a full current-checkout reassessment. The
+existing calculator replays both endpoint inputs; closure remains 0/14
+workstreams, 0/12 lanes, 0/4 routes and 0/12 value-movement gates.
