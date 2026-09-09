@@ -1,0 +1,27 @@
+{
+  "errors": 0,
+  "killed": 1,
+  "legacy": 0,
+  "mechanical": 1,
+  "narrative": 0,
+  "packet": "THV1-20260909-custody-statement-v2",
+  "rows": [
+    {
+      "description": "Bypass the actual global refiner and emit caller-provided endpoint roots after the successful custody command. The retained substitution test must then fail because forged claimant, custody and replay states reach statement emission.",
+      "exit": 1,
+      "killer": "tests/core/test_asset_lane_custody_statement_v2.py::test_statement_cannot_bypass_global_consumer_substitution_guards",
+      "mutant_sha256": "b2e32bd73db7501a505c58a4ccb0aab014e25c56a768c4a39edec7dc72cf3f34",
+      "mutation": {
+        "needle_first_line": "    refinement = refine_asset_lane_custody_global_v2(",
+        "needle_sha256": "d73dedc7d6e7c3ed0c923db3e3febdf84f3e33fe60b347c77ee7719b3e36a954",
+        "path": "src/core/asset_lane_custody_statement_v2.py",
+        "replacement_sha256": "9cb53af91a75560d09d5d3259ca98c006d4085ec0d347f6689a42149b14aa037"
+      },
+      "seconds": 1.422,
+      "verdict": "KILLED"
+    }
+  ],
+  "schema": "zenodex/thv1-mutation-ledger/v1",
+  "subject_commit": "abbade2d0cb3e7f59825fffef94d8e80a41058d5",
+  "survived": 0
+}

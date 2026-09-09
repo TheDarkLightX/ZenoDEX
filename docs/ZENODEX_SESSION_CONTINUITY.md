@@ -172,6 +172,14 @@ global-refinement-bypass mutant, executable with the existing mutation ledger:
 python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260909-custody-statement-v2 --rev HEAD
 ```
 
+The [retained mutation replay](../tests/evidence/asset_lane_custody_statement_v2_mutation_20260909.json)
+against implementation commit `abbade2d0cb3e7f59825fffef94d8e80a41058d5`
+passed its unmutated control and killed the global-refinement bypass mutant
+(one killed, zero survivors or replay errors). The hygiene runner separately
+passed 31 selected Python cases; the production-boundary audit returned
+`ok=true`. Temporary mutation copies and the new guest's regeneratable native
+build cache were removed after verification; source, locks and evidence remain.
+
 These are native integration results, with independent read-only Astra review.
 No new Lean, ESSO, Kani, actual guest image, genuine receipt, host proof service,
 authentication, durable store admission or production qualification was run for
