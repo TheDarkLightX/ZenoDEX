@@ -395,3 +395,37 @@ their checks and rejection order have distinct obligations. Do not split
 helpers, replace conjunctions with `all()`, or delete guards solely to lower a
 score. The finite minimizer proves minima only for its declared guard-deletion
 grammar and finite model, not arbitrary source programs.
+
+
+## Custody trace and derived witness increment, September 9
+
+`AssetLaneCustodyTraceV2.lean` now derives full row representability through
+arbitrary finite transfer/issue/burn histories from initial admission alone.
+Policies and command widths are explicit static premises. Custody rows,
+registration and policy frames are preserved exactly. The fresh Lean suite
+passes eight checks, including independent concrete tables, five false-law
+refusals and matching Python prefixes. It does not prove actual runtime
+authentication, replay, parser, resource-ceiling or publication refinement.
+
+The Python/Rust `derive_asset_lane_custody_global_post_v2` constructs the complete
+successor and then requires the existing refiner. The Python
+`prepare_asset_lane_custody_global_prover_input_v2` now prepares all five existing
+guest frames from predecessor and command alone. It preserves their exact hashes
+and returns typed leaf rejection without a proving frame. This is pure witness
+preparation; no publisher was mounted.
+
+Opus implemented the constructor twins/tests in four exclusive files. Astra
+implemented the trace proof and prover-input composition; independent Astra and
+Daybreak reviews accepted the scoped final subjects. The
+[verification record](../tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json)
+retains source hashes, commands, initial test/type errors and repairs, review
+subjects, and CLI-recorded usage. Final hygiene passes 24 new core cases; the
+native crate passes146 tests; selected integration passes53 with one optional
+measured-native BLS case skipped. Full Clippy retains an unchanged argument-count
+failure. No fixtures, proof claims or admission gates were weakened.
+
+Next: qualify the explicit custody guest/profile role and real receipt, then
+use the derived successor in a current-store publication transaction with exact
+retry/recovery. The ABI V1 durable publisher does not automatically accept this
+V2 statement. Do not treat model trace induction or a constructed witness as
+production publication or universal runtime refinement.

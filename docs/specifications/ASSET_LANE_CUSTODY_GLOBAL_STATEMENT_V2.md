@@ -40,6 +40,21 @@ information for this restricted producer.
 
 ## Framed witness boundary
 
+`prepare_asset_lane_custody_global_prover_input_v2` prepares this witness from
+the context, lane predecessor, command and global predecessor. It captures owned
+inputs, executes the existing custody coordinator, derives the global successor,
+then emits the unchanged five-component frame. Leaf rejection returns its typed
+rejection and empty effects. Invalid structure or global relation produces no
+frame. Preparing this witness grants no authentication or publication authority.
+
+The Python and Rust `derive_asset_lane_custody_global_post_v2` functions reuse
+the existing global refiner. They project balances and positive supply from the
+accepted lane, update only its state root, advance height once, and insert the
+occurrence's replay row without overwriting retained rows. Custody, liabilities,
+other lane metadata and the remaining global frame are preserved. Existing
+height/table ceilings, duplicate replay or occurrence identities, and mismatched
+predecessors reject. The current empty-reserve restriction remains in force.
+
 The inner input frame is exactly:
 
 ```text
@@ -153,6 +168,21 @@ ZENODEX_BLS_VERIFIER_TEST_BINARY=/path/to/measured/verifier python3 -m pytest -q
 ```
 
 ## Remaining admission obligations
+
+`lean-mathlib/Proofs/AssetLaneCustodyTraceV2.lean` proves that the finite-row
+transfer/issue/burn model preserves complete row representability through every
+prefix of an arbitrary finite mixed history. Representation is assumed only
+for the initial state; selected immutable policies and command widths remain
+explicit premises. It also proves exact preservation of custody and registration
+through these commands. The proof derives account bounds from total physical
+holdings, including custody, rather than assuming bounds for each later state.
+
+Replay with `python3 -m pytest -q
+tests/formal/test_lean_asset_lane_custody_trace_v2.py`. The suite checks explicit
+theorem signatures, a concrete issue/transfer/reject/burn history against
+independently written tables, five false-law refusals, and matching Python
+prefixes. Roots remain abstract in this model; it does not prove runtime parser,
+resource ceiling, authentication, replay consumption or publication refinement.
 
 The inner economic payload is not a complete admitted CBC profile. Hashing its
 route release, subject and grant does not authenticate them. The combined

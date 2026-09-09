@@ -1,0 +1,201 @@
+{
+  "schema": "zenodex/custody-trace-successor-verification/v1",
+  "base_commit": "ff9112b9970e4f510fcf198f7baafe149b98265a",
+  "claim_scope": "Finite-row initial-only trace preservation; Python/Rust derived global successor and unchanged predecessor-only proving frame. No publication or whole-core qualification.",
+  "source_sha256": {
+    "src/core/asset_lane_custody_global_v2.py": "f84c91c8c434bb383356baf949f501ea774d037d55042108a55d43f86707bb4a",
+    "src/core/asset_lane_custody_input_v2.py": "b35c86b806598054e4b7b21a4935831f0e645882559de34b25064a592d56355a",
+    "zk/global_settlement_abi_v2/src/asset_lane_custody_global.rs": "6883ba3292cf450b2b3c2122ed43044238fab9078e9c0dc6c974b0a5dfce4bb5",
+    "lean-mathlib/Proofs/AssetLaneCustodyTraceV2.lean": "fda710c542059d5041afd36bfd96746e8f208f98b8c4a31c4b723c9e9c6b9940",
+    "tests/formal/asset_lane_custody_trace_v2_controls.lean": "9131cfcd7c68e5ccc008d090341f17038d59729b41de4d8f4bd67f50c934688f",
+    "tests/formal/test_lean_asset_lane_custody_trace_v2.py": "c8168d5ba6bd3672b9bb069e0e8d149143ea2d81a31d2d0e374966584539a114",
+    "tests/core/test_asset_lane_custody_global_successor_v2.py": "943a21ec5e1024a5d27788fe0a8211f6a1b85168e1a98080621c30ff734c8174",
+    "tests/core/test_asset_lane_custody_prover_input_v2.py": "875c41d30a0c79af693ad48253c274ab2b72428eb2469990fad8f6345fbba7d7",
+    "zk/global_settlement_abi_v2/tests/asset_lane_custody_global_successor.rs": "3d1a77d0554db46168a21e57e5eed663d47985efd95ea332b526ee699ed3a302"
+  },
+  "checks": [
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_trace_v2.py",
+      "result": "8 passed in79.48s; fresh Lean4.27.0 source/dependency build, explicit signatures and standard axiom audit, concrete mixed trace, five false-law refusals and Python prefix replay"
+    },
+    {
+      "command": "cargo +1.87.0 test --locked --manifest-path zk/global_settlement_abi_v2/Cargo.toml",
+      "result": "146 passed,0 failed including14 new successor tests; native crate only"
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_asset_lane_custody*_v2.py",
+      "result": "165 passed; one new root-owned subject fixture failed on dataclasses.replace against an opaque context. Corrected with the existing exact context constructor; all4 final proving-input cases and20 successor cases replayed by the hygiene gate."
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_asset_lane_custody_prover_input_v2.py tests/integration/test_asset_lane_custody_receipt_verification_v2.py tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py",
+      "result": "53 passed,1 optional measured-native BLS test skipped; receipt exchange remains a protocol fixture"
+    },
+    {
+      "command": "python3 tools/run_test_hygiene_gate_v1.py --changed-file M:src/core/asset_lane_custody_global_v2.py --changed-file M:src/core/asset_lane_custody_input_v2.py --changed-file M:zk/global_settlement_abi_v2/src/asset_lane_custody_global.rs --json",
+      "result": "24 passed;3 critical source paths covered. Archived mechanical mutants require their separately retained replay."
+    },
+    {
+      "command": "python3 -m ruff check src/core/asset_lane_custody_global_v2.py src/core/asset_lane_custody_input_v2.py tests/core/test_asset_lane_custody_global_successor_v2.py tests/core/test_asset_lane_custody_prover_input_v2.py tests/formal/test_lean_asset_lane_custody_trace_v2.py",
+      "result": "passed"
+    },
+    {
+      "command": "python3 -m mypy --follow-imports=silent src/core/asset_lane_custody_global_v2.py src/core/asset_lane_custody_input_v2.py",
+      "result": "passed"
+    },
+    {
+      "command": "cargo +1.87.0 fmt --manifest-path zk/global_settlement_abi_v2/Cargo.toml --check",
+      "result": "passed after formatting the new Rust test file"
+    },
+    {
+      "command": "cargo +1.87.0 clippy --locked --manifest-path zk/global_settlement_abi_v2/Cargo.toml --all-targets -- -D warnings",
+      "result": "blocked by unchanged src/global_refinement.rs:102 too_many_arguments; retained source unchanged"
+    },
+    {
+      "command": "cargo +1.87.0 clippy --locked --manifest-path zk/global_settlement_abi_v2/Cargo.toml --test asset_lane_custody_global_successor -- -D warnings -A clippy::too_many_arguments",
+      "result": "passed with that existing lint explicitly allowed for this narrower command; full Clippy remains failing"
+    },
+    {
+      "command": "python3 tools/check_production_boundary.py --json",
+      "result": "14 checks and8 requirements passed; scoped scanner is not deployment qualification"
+    },
+    {
+      "command": "python3 tools/render_asset_lane_custody_v2_golden.py --check",
+      "result": "10 oracle-checked vectors match; no regeneration"
+    },
+    {
+      "command": "python3 tools/render_asset_lane_custody_statement_v2_golden.py --check",
+      "result": "five oracle-checked disclosures match; no regeneration"
+    }
+  ],
+  "reviews": [
+    {
+      "model": "gpt-6-astra",
+      "task": "custody_trace_review",
+      "result": "No material blocker. Full RowsRepresentable preservation and mixed histories derive successor conditions from initial admission; no hidden intermediate invariant assumption. Independently compiled exact source and supplied positive/false-law controls.",
+      "source_sha256": "fda710c542059d5041afd36bfd96746e8f208f98b8c4a31c4b723c9e9c6b9940"
+    },
+    {
+      "model": "gpt-daybreak-blue-latest",
+      "task": "custody_successor_security_review",
+      "result": "Scoped acceptance at final three production hashes. Corrected replay-sort comment; cast/local binding has unchanged runtime behavior. Five-frame and collision probes passed on reviewed draft. No additional pytest/Cargo gates run by reviewer.",
+      "source_sha256": {
+        "src/core/asset_lane_custody_global_v2.py": "f84c91c8c434bb383356baf949f501ea774d037d55042108a55d43f86707bb4a",
+        "src/core/asset_lane_custody_input_v2.py": "b35c86b806598054e4b7b21a4935831f0e645882559de34b25064a592d56355a",
+        "zk/global_settlement_abi_v2/src/asset_lane_custody_global.rs": "6883ba3292cf450b2b3c2122ed43044238fab9078e9c0dc6c974b0a5dfce4bb5"
+      }
+    }
+  ],
+  "worker": {
+    "run_id": "OPUS-CUSTODY-GLOBAL-SUCCESSOR-20260909",
+    "session_id": "ecc3ac3a-6e79-438e-b8ae-4b826b86580c",
+    "requested_model": "claude-opus-5",
+    "effort": "max",
+    "status": "completed",
+    "base_commit": "ff9112b9970e4f510fcf198f7baafe149b98265a",
+    "packet_sha256": "b141c2b1efe3e67ec46a92b3dd7bcf9918f787f4981e1b2ec1a312c077bc1361",
+    "owned_paths": [
+      "src/core/asset_lane_custody_global_v2.py",
+      "zk/global_settlement_abi_v2/src/asset_lane_custody_global.rs",
+      "tests/core/test_asset_lane_custody_global_successor_v2.py",
+      "zk/global_settlement_abi_v2/tests/asset_lane_custody_global_successor.rs"
+    ],
+    "unowned_source_changes": [],
+    "submitted_sha256": {
+      "src/core/asset_lane_custody_global_v2.py": "2fe7cdc0a3f4fe2aafd5d0962371404cd64593ae2001aedad98f9d898fbf30b2",
+      "tests/core/test_asset_lane_custody_global_successor_v2.py": "943a21ec5e1024a5d27788fe0a8211f6a1b85168e1a98080621c30ff734c8174",
+      "zk/global_settlement_abi_v2/src/asset_lane_custody_global.rs": "d4bffde12939dc13e23a193ba3aa9df1fdff6a0c517fab145415b68806211a54",
+      "zk/global_settlement_abi_v2/tests/asset_lane_custody_global_successor.rs": "bce8bb3c1db126f655e43b7f689de1d519e787867ad4ac3386c3d81b94b48827"
+    },
+    "usage": {
+      "input_tokens": 218,
+      "cache_creation_input_tokens": 409174,
+      "cache_read_input_tokens": 24292189,
+      "output_tokens": 173204,
+      "output_tokens_details": {
+        "thinking_tokens": 130081
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 409174,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 4723,
+          "cache_read_input_tokens": 410399,
+          "cache_creation_input_tokens": 2159,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 2159
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard"
+    },
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 1709,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001784,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-5": {
+        "inputTokens": 218,
+        "outputTokens": 173204,
+        "cacheReadInputTokens": 24292189,
+        "cacheCreationInputTokens": 409174,
+        "webSearchRequests": 0,
+        "costUSD": 20.569024499999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 130081,
+        "canonicalModel": "claude-opus-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "duration_ms": 2031567,
+    "total_cost_usd": 20.5708085,
+    "measurement_limits": "CLI-recorded usage, not independently provider-audited. input_tokens excludes separately recorded cached input. costBasis=list is an estimated list-price equivalent, not a confirmed invoice or subscription charge. Auxiliary Haiku usage is retained separately.",
+    "execution_limit": "Worker had file tools only; root executed all runtime gates. No agent runtime pass is inferred from its report."
+  },
+  "repairs": [
+    {
+      "owner": "Opus submission/root correction",
+      "finding": "Replay sorting comment falsely implied duplicate occurrence IDs become adjacent. Corrected comment; set-based uniqueness logic already rejected them."
+    },
+    {
+      "owner": "Root",
+      "finding": "New rejection test guessed a nonexistent lowercase code. Replaced with exact OCCURRENCE_COMMAND_MISMATCH enum and added genuine UNAUTHORIZED_SUBJECT case."
+    },
+    {
+      "owner": "Root",
+      "finding": "New subject fixture tried dataclasses.replace on an opaque context with a custom initializer. Corrected test fixture constructor; no runtime policy changed."
+    },
+    {
+      "owner": "Root",
+      "finding": "Mypy required explicit narrowing after exact-type rejection. Used the existing producer cast pattern; no runtime validation weakened."
+    }
+  ],
+  "nonclaims": [
+    "No model proves anti-replay, signature, parser, resource-limit or publication refinement for arbitrary actual runtime executions. Lean roots are abstract; static policy/command premises remain.",
+    "Genuine RISC0 guest/receipt, custody guest/profile role, store-current atomic publication, restart/recovery and destination no-bypass remain open.",
+    "Full RISC0/Mathlib builds, ESSO/Kani campaigns, optional measured-native BLS replay and broad critical-quality gates were not run in this batch.",
+    "Full V3 and formal core remain incomplete. No workstream, lane, route or value-movement gate closed. Existing empty-reserve and ABI domains remain unchanged."
+  ]
+}

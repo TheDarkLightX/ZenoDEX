@@ -1,0 +1,155 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260909-custody-derived-successor-v2",
+  "created_date": "2026-09-09",
+  "claim_scope": "Pure custody-global successor derivation and predecessor-only witness preparation. Python nodes execute here; native Rust and finite-row Lean are separate gates. No receipt or publication qualification.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-V2-DERIVED-SUCCESSOR-REFINES",
+    "CUSTODY-V2-REPLAY-INSERT-WITHOUT-OVERWRITE",
+    "CUSTODY-V2-RETAINED-COMPLETE-FRAME",
+    "CUSTODY-V2-PREDECESSOR-ONLY-WITNESS"
+  ],
+  "failure_modes": [
+    "A successor returns without validating the complete lane/global relation.",
+    "Replay history is overwritten, omitted or duplicates occurrence identity.",
+    "Custody, claimant, dormant support, retained lane metadata or global frame rows change.",
+    "Height or table growth exceeds the existing admitted domain.",
+    "A foreign predecessor or rejected command produces a proving frame."
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/asset_lane_custody_global_v2.py",
+      "sha256": "f84c91c8c434bb383356baf949f501ea774d037d55042108a55d43f86707bb4a"
+    },
+    {
+      "path": "src/core/asset_lane_custody_input_v2.py",
+      "sha256": "b35c86b806598054e4b7b21a4935831f0e645882559de34b25064a592d56355a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/asset_lane_custody_global.rs",
+      "sha256": "6883ba3292cf450b2b3c2122ed43044238fab9078e9c0dc6c974b0a5dfce4bb5"
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "replay",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Accepted fixtures precede controlled substitutions; actual derived rows and existing independent frame hashes are observed."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Exact typed leaf rejects have empty effects and unchanged owned inputs; structural/global refusal returns no successor/frame. These pure APIs have no effect sink."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "lifecycle",
+      "points": [
+        "transfer plus fee with 80 account and20 custody atoms",
+        "issue7",
+        "burn80 leaving custody20",
+        "dormant issue1 and burn1",
+        "chained issue transfer burn",
+        "unauthorized subject",
+        "changed command hash"
+      ]
+    },
+    {
+      "name": "complete_state",
+      "points": [
+        "other enabled lane",
+        "prior replay before and after inserted ID",
+        "duplicate replay",
+        "duplicate occurrence",
+        "foreign predecessor",
+        "foreign lane",
+        "unchanged nonempty oracle/outbox/history/terminal rows",
+        "u64 maximum height",
+        "65536 retained replay rows then one insertion",
+        "4096 custody rows"
+      ]
+    },
+    {
+      "name": "witness",
+      "points": [
+        "five independent existing guest frame hashes",
+        "typed economic rejection",
+        "foreign global predecessor"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Return the constructed successor without the actual global refiner. The foreign/post-lane substitution must then fail its expected refusal.",
+      "killed_by": "tests/core/test_asset_lane_custody_global_successor_v2.py::test_wrong_predecessor_lane_rejects_and_returns_no_successor",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_global_v2.py",
+        "needle_lines": [
+          "    refine_asset_lane_custody_global_v2(lane_pre, owned, before, after, consumed)"
+        ],
+        "replacement_lines": [
+          "    # Mutant: omit the final relation."
+        ]
+      }
+    },
+    {
+      "description": "Omit the new replay row. The independent accepted successor control must fail instead of emitting the original golden state.",
+      "killed_by": "tests/core/test_asset_lane_custody_global_successor_v2.py::test_transfer_successor_equals_the_independently_written_admitted_post_state",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_global_v2.py",
+        "needle_lines": [
+          "        replay_state=_successor_replay_state(before, consumed),"
+        ],
+        "replacement_lines": [
+          "        replay_state=before.replay_state,"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Packet validation is structural. Only its declared Python nodes run in this hygiene gate; Rust tests, Lean compilation and archived mutants are separate commands.",
+    "Golden vectors share canonical constructors and hash primitives; independent literal economic rows and framing do not establish universal codec or runtime refinement.",
+    "Existing empty-reserve, frame and row ceilings remain. Snapshot ownership is not authentication; supplied context and predecessor consistency are not current-store authority.",
+    "No measured guest build, genuine receipt, Kani/ESSO campaign, publisher mount, migration, authority activation or whole-program completion."
+  ],
+  "test_pins": [
+    {
+      "path": "tests/core/test_asset_lane_custody_global_successor_v2.py",
+      "sha256": "943a21ec5e1024a5d27788fe0a8211f6a1b85168e1a98080621c30ff734c8174",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_transfer_successor_equals_the_independently_written_admitted_post_state",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_derived_successor_repasses_the_original_relation_and_is_deterministic",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_issue_burn_and_dormant_successors_project_only_positive_supply",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_every_unchanged_global_frame_field_is_carried_into_the_successor",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_other_enabled_lane_keeps_its_root_release_and_enabled_metadata",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_prior_replay_rows_are_retained_canonically_around_the_inserted_identity",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_replay_identity_collisions_reject_instead_of_overwriting_a_prior_row",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_duplicate_occurrence_identity_rejects_before_the_relation_is_consulted",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_wrong_predecessor_lane_rejects_and_returns_no_successor",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_predecessor_that_the_occurrence_does_not_bind_is_rejected",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_occurrence_height_that_is_not_the_successor_height_rejects",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_height_ceiling_rejects_the_successor_at_the_maximum_predecessor_height",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_replay_row_ceiling_rejects_before_the_relation_is_consulted",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_maximum_custody_rows_are_carried_into_the_admitted_successor",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_repeated_issue_transfer_burn_sequence_chains_admitted_successors",
+        "tests/core/test_asset_lane_custody_global_successor_v2.py::test_successor_neither_aliases_the_predecessor_nor_exposes_mutable_rows"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_prover_input_v2.py",
+      "sha256": "875c41d30a0c79af693ad48253c274ab2b72428eb2469990fad8f6345fbba7d7",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_prover_input_v2.py::test_predecessor_only_preparation_reproduces_all_five_independent_guest_frames",
+        "tests/core/test_asset_lane_custody_prover_input_v2.py::test_rejected_command_produces_no_proving_input_or_state_change",
+        "tests/core/test_asset_lane_custody_prover_input_v2.py::test_conserved_foreign_predecessor_cannot_be_framed_for_proving"
+      ]
+    }
+  ],
+  "removed_paths": []
+}
