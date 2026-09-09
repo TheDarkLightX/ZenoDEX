@@ -146,3 +146,22 @@ Its ledger expects an older hash of
 matches the starting commit byte for byte. That stale evidence remains open.
 No old test, ledger pin or score was changed to make the run pass. Full economic,
 Lean, ESSO, Kani, RISC0 and hosted CI gates were not run for this advisory change.
+
+## Reporting implementation checkpoint
+
+The reporting implementation is committed at
+`a9cbd37dc17c5190655a557070f2d45c2ee573e7`. Its complete seven-file diff adds
+2,747 lines: 1,143 tooling, 680 tests, 641 data and 283 documentation. It adds
+zero economic-runtime or proof-source lines and earns no product-completion
+credit. The concrete support gain is a replayable contribution account with
+the inflation and continuity regressions described above.
+
+The manifest now includes this support batch and its four recorded contributors
+(Terra implementation, Astra review/integration and Daybreak review): **19
+contribution records across seven batches**. Append-only replay against the
+implementation commit passes. All resource observations remain unknown. The
+legacy stale document pin is retained as a confirmed unresolved finding.
+
+This checkpoint's data/documentation append follows the measured implementation
+commit and is outside that 2,747-line range. Future batches should start at the
+last accounted implementation commit so this bookkeeping is included once.

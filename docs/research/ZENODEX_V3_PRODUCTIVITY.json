@@ -285,6 +285,82 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260909-productivity-terra-implementation",
+      "model_id": "gpt-5.6-terra",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "productivity-reporting",
+      "risk": "standard",
+      "provenance": {
+        "commit": "a9cbd37dc17c5190655a557070f2d45c2ee573e7",
+        "path": "tests/evidence/v3_productivity_verification_20260909.json",
+        "sha256": "3d4eb1480b64fea8b38b64fb9e7f4824722be222713e3cd53fd04af8cdbbd206"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260909-productivity-astra-audit",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "productivity-reporting",
+      "risk": "standard",
+      "provenance": {
+        "commit": "a9cbd37dc17c5190655a557070f2d45c2ee573e7",
+        "path": "tests/evidence/v3_productivity_verification_20260909.json",
+        "sha256": "3d4eb1480b64fea8b38b64fb9e7f4824722be222713e3cd53fd04af8cdbbd206"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260909-productivity-daybreak-review",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "productivity-reporting",
+      "risk": "standard",
+      "provenance": {
+        "commit": "a9cbd37dc17c5190655a557070f2d45c2ee573e7",
+        "path": "tests/evidence/v3_productivity_verification_20260909.json",
+        "sha256": "3d4eb1480b64fea8b38b64fb9e7f4824722be222713e3cd53fd04af8cdbbd206"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260909-productivity-root-integration",
+      "model_id": "Astra (version unrecorded)",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "productivity-reporting",
+      "risk": "standard",
+      "provenance": {
+        "commit": "a9cbd37dc17c5190655a557070f2d45c2ee573e7",
+        "path": "tests/evidence/v3_productivity_verification_20260909.json",
+        "sha256": "3d4eb1480b64fea8b38b64fb9e7f4824722be222713e3cd53fd04af8cdbbd206"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -488,6 +564,47 @@
         "review": null
       },
       "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260909-productivity-reporting",
+      "before_commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+      "after_commit": "a9cbd37dc17c5190655a557070f2d45c2ee573e7",
+      "kind": "support",
+      "obligation_ids": [
+        "W00"
+      ],
+      "run_ids": [
+        "V3-20260909-productivity-terra-implementation",
+        "V3-20260909-productivity-astra-audit",
+        "V3-20260909-productivity-daybreak-review",
+        "V3-20260909-productivity-root-integration"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Offline contributor and quality reports now derive complete code deltas, validate recorded measurements and score continuity, retain corrections and expose missing data. 42 focused tests pass. This support work closes no economic capability and grants no formal-core or V3 completion credit.",
+        "evidence": {
+          "commit": "a9cbd37dc17c5190655a557070f2d45c2ee573e7",
+          "path": "tests/evidence/v3_productivity_verification_20260909.json",
+          "sha256": "3d4eb1480b64fea8b38b64fb9e7f4824722be222713e3cd53fd04af8cdbbd206"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "LEGACY-PROGRESS-REPLAY-DOCUMENT-PIN-DRIFT",
+          "status": "confirmed",
+          "evidence": {
+            "commit": "a9cbd37dc17c5190655a557070f2d45c2ee573e7",
+            "path": "tests/evidence/v3_productivity_verification_20260909.json",
+            "sha256": "3d4eb1480b64fea8b38b64fb9e7f4824722be222713e3cd53fd04af8cdbbd206"
+          }
+        }
+      ],
       "supersedes": null
     }
   ]
