@@ -67,6 +67,33 @@ frame. The guest aborts on transport, decoding, transition or refinement failure
 and commits exactly the statement bytes on success. No inner self-image field
 or recursive receipt is introduced.
 
+## Conditional receipt verification
+
+The Python integration entry takes the same five typed producer inputs, raw
+receipt bytes, and an explicitly configured `GlobalReceiptVerifierV1`. It
+requires that exact verifier class and reconstructs its four primitive
+configuration fields before preparation. Existing economic rejection returns
+unchanged without invoking the verifier. For a successful statement, it invokes
+the existing measured transport with the configured image and the exact locally
+prepared statement bytes. It returns those bytes only after verification
+completes; preparation and verifier failures retain their existing error types.
+No caller-supplied expected journal or verification callback is accepted.
+
+This contract depends on a trusted selection of the executable digest and guest
+image. Measuring an executable establishes its identity; it does not establish
+that arbitrary configured code performs cryptographic checking. The returned
+bytes are ordinary data and confer no release, authorization or publication
+authority. Every retry verifies again and consumes no replay state.
+
+The fixed custody endpoint selects its compiled guest ELF/image and exact JSON
+Receipt codec. It reuses the existing version-1 raw transport protocol and
+shared Rust verifier without changing their wire format. The verifier requires
+the compiled ELF's actual image, a Succinct receipt, the exact journal, successful
+execution and empty assumptions. RISC0 is built with `disable-dev-mode`.
+The executable target requires the `compiled-guest` feature and the actual
+methods build. Native codec tests build without that feature; they contain no
+fallback image or cryptographic-success claim.
+
 ## Remaining admission obligations
 
 This is the inner economic payload, not a complete admitted CBC profile. Its

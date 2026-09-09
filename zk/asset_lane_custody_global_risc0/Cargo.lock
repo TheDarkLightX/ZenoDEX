@@ -2490,6 +2490,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-asset-lane-custody-global-risc0-host"
+version = "0.1.0"
+dependencies = [
+ "risc0-zkvm",
+ "serde_json",
+ "zenodex-asset-lane-custody-global-risc0-methods",
+]
+
+[[package]]
 name = "zenodex-asset-lane-custody-global-risc0-methods"
 version = "0.1.0"
 dependencies = [

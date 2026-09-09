@@ -1,0 +1,188 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260909-custody-receipt-v2",
+  "created_date": "2026-09-09",
+  "claim_scope": "Conditional native V2 custody statement preparation through the existing measured receipt transport. Python tests use a non-cryptographic child process fixture. Native Rust codec and fake-refusal tests are separate Cargo gates. The compiled fixed endpoint, actual new guest image and genuine receipt success remain unqualified.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-V2-VERIFY-LOCAL-STATEMENT",
+    "CUSTODY-V2-VERIFIER-CONFIG-SNAPSHOT",
+    "CUSTODY-V2-LEAF-REJECT-NO-LAUNCH",
+    "CUSTODY-V2-TRANSPORT-FAILURE-NO-RESULT"
+  ],
+  "failure_modes": [
+    "An adapter returns accepted statement bytes without running its configured verifier.",
+    "Verifier inputs use a foreign image, caller journal or different raw receipt.",
+    "Caller aliases mutate verifier configuration during statement preparation.",
+    "A typed economic rejection launches verification, consumes replay state or emits effects.",
+    "Preparation or transport errors become a successful statement or a new economic rejection.",
+    "A default host build exposes a placeholder verifier image or accepts fake proof authority."
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/asset_lane_custody_receipt_verification_v2.py",
+      "sha256": "2722eb8bee21e4d17404fe203b50e3357996701a2de197f0e6bb73253cb4a910"
+    },
+    {
+      "path": "src/integration/global_receipt_verifier_v1.py",
+      "sha256": "5e727d826ea298559e3bc2136fe96dec62f2d56eb66e6488771e652b699fcd47"
+    },
+    {
+      "path": "src/core/asset_lane_custody_statement_v2.py",
+      "sha256": "47f945fddcf2dfb3190eeaace3d2dbe95a53ec30cc6347fe9cd041f5d89a390e"
+    },
+    {
+      "path": "tests/integration/test_global_receipt_verifier_v1.py",
+      "sha256": "eb2b88a37c590524956eaf7d3eaa0fe0f6ca2354d0a5e81315f3d5c5adb113de"
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_statement_parity_v2.py",
+      "sha256": "f4d0c70b3da3c8fc9626ea02940223b4ec4a9114af007a7215d62e5eecbef965"
+    },
+    {
+      "path": "tests/core/test_asset_lane_coordinator_v2.py",
+      "sha256": "04e9e2adacfd603ad0b4a6bf6b97818a5331b6ec0e1e164898358200aa3f1cea"
+    },
+    {
+      "path": "tests/data/asset_lane_custody_statement_v2_golden.json",
+      "sha256": "770f99fe8b97d5c5debe480fcbbb44cb5e400f39667cc409b9c3362585759354"
+    },
+    {
+      "path": "zk/risc0_receipt_verifier_v1/mod.rs",
+      "sha256": "5a638c33944186c798233fd2bffb919ee9ae9558d13512186e952b44edada050"
+    },
+    {
+      "path": "zk/risc0_receipt_verifier_v1/protocol.rs",
+      "sha256": "d626fc7cc969f42504d9ff19d59570071fd049a6b1fed6e0b6cc2101d8060b82"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/Cargo.toml",
+      "sha256": "4aaf680f0afdcbb508232301f45668445d56ffd85a9fb54a7b9c4982cd751391"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/Cargo.lock",
+      "sha256": "843e5b5f5243747ccf141b43bf6eec78925cc97dc04644054e7d79a58d8905b4"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/README.md",
+      "sha256": "6ab3e2dca77eba18a74135edfe20a0660d581ba0867fd44298d743caf6967e9f"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/host/Cargo.toml",
+      "sha256": "b30dcb85861f5612e16cfaacb071552e7546c2afc44701ae2cd7485d009a77c9"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/host/src/lib.rs",
+      "sha256": "f508e25f0dd18958fb430643f37c90ac04cc84592d1b1311dca9d699011d1e4e"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/host/src/bin/verify_receipt_v2.rs",
+      "sha256": "84ff3074d8814093bbd316b45909e22ad4108a172184c786f9b90cd239051fda"
+    },
+    {
+      "path": "docs/specifications/ASSET_LANE_CUSTODY_GLOBAL_STATEMENT_V2.md",
+      "sha256": "17288fcccd2b99451b64a60dfb55ef76417aa1f57d39e8acc6d9322439e1f3c2"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "26d66f35ef32a6a7dce87ccdf79171a1e77fb6f3cd1d3193053bbcf683e4a313"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_asset_lane_custody_receipt_verification_v2.py",
+      "sha256": "cb6b935bb630731640743191350ee3553c976eb7aa2df8392cc432c0e626e77f",
+      "node_ids": [
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_native_golden_cases_bind_exact_image_and_prepared_journal",
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_unauthorized_leaf_noop_returns_verbatim_without_receipt_launch",
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_wrong_context_and_global_semantic_failure_never_launch_receipt",
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_invalid_verifier_precedes_statement_preparation",
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_verifier_snapshot_blocks_alias_mutation_during_preparation",
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_native_verifier_rejections_propagate_unchanged[empty_receipt]",
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_native_verifier_rejections_propagate_unchanged[unavailable]",
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_native_verifier_rejections_propagate_unchanged[rejected]",
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_native_verifier_rejections_propagate_unchanged[wrong_response_image]",
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_verifier_request_error_from_prepared_bytes_is_unmapped",
+        "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_retry_reverifies_the_same_statement_without_mutating_inputs"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "replay",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Given complete retained economic inputs and an exact verifier configuration, invoke the actual preparation and transport and observe exact request bytes, native typed rejection or the original transport reason. The process oracle independently checks protocol framing and retained expected statements; it does not verify cryptography."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Unauthorized and invalid-context leaves retain empty effects, and unauthorized rejection has identical pre/post roots. Leaf rejection and global relation failures reach no verifier process. Retries reverify with unchanged inputs; this API owns no store or replay writer."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "statement_binding",
+      "points": [
+        "five retained custody statements",
+        "wrong context root",
+        "missing global replay row",
+        "exact raw receipt and image",
+        "wrong response image"
+      ]
+    },
+    {
+      "name": "verifier_config",
+      "points": [
+        "exact type",
+        "subclass refused",
+        "invalid timeout before preparation",
+        "image and timeout alias mutation during preparation",
+        "unavailable executable"
+      ]
+    },
+    {
+      "name": "outcomes",
+      "points": [
+        "typed leaf no-op",
+        "global relation failure",
+        "empty raw receipt",
+        "empty prepared journal",
+        "backend rejection",
+        "repeat successful protocol verification"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Remove the actual receipt-verifier call. The unavailable-verifier control must then fail because the adapter returns prepared bytes despite no verifier.",
+      "killed_by": "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_native_verifier_rejections_propagate_unchanged[unavailable]",
+      "mutant": {
+        "path": "src/integration/asset_lane_custody_receipt_verification_v2.py",
+        "needle_lines": [
+          "    snapshot.verify_succinct_receipt(",
+          "        receipt_bytes,",
+          "        expected_image_id=snapshot.expected_image_id,",
+          "        expected_journal_bytes=prepared,",
+          "    )"
+        ],
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "The hygiene runner executes only declared Python nodes. Host codec tests and Clippy use separate Cargo commands; hosted CI is not asserted.",
+    "The subprocess fixture substitutes ordinary Python execution after measured input acquisition. It proves protocol and adapter behavior, not actual sealed-ELF execution or receipt cryptography.",
+    "Exact executable and image configuration is an external deployment premise. Hashing arbitrary configured code establishes identity, not honest cryptographic verification or release admission.",
+    "The fixed binary requires the actual compiled-guest methods build. Native codec tests build without that feature and neither execute the fixed binary nor produce a genuine Succinct receipt.",
+    "The mutation ledger must execute the declared mutant against a committed archived subject; packet validation alone is not a mutation result.",
+    "Returned bytes confer no authority. V2 profile admission, signature and grant authentication, store-current binding, durable publication, outbox and no-bypass remain open.",
+    "No new Lean, Kani, ESSO, live migration, activation, full formal-core or V3 completion is claimed."
+  ]
+}

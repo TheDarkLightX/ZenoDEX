@@ -2,8 +2,10 @@
 
 This flat guest calls the existing Rust custody coordinator and global state
 refiner, then commits their exact four-field economic statement. Its Python
-producer and native Rust entry share five retained economic vectors. The guest
-has no recursive children, host prover service, signing authority or publisher.
+producer and native Rust entry share five retained economic vectors. A fixed
+verification-only host selects this guest's compiled ELF/image and exact JSON
+Receipt codec through the existing raw receipt protocol. The workspace has no
+recursive children, host prover service, signing authority or publisher.
 
 The [statement specification](../../docs/specifications/ASSET_LANE_CUSTODY_GLOBAL_STATEMENT_V2.md)
 defines the inner payload and bounded witness frame. Guest stdin is the frame's
@@ -25,6 +27,8 @@ cargo +1.90.0 test --locked --manifest-path zk/asset_lane_custody_global_risc0/C
   -p zenodex-asset-lane-custody-global-guest --lib
 cargo +1.90.0 check --locked --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml \
   -p zenodex-asset-lane-custody-global-guest --bin zenodex-asset-lane-custody-global-guest
+cargo +1.90.0 test --locked --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml \
+  -p zenodex-asset-lane-custody-global-risc0-host --lib
 ```
 
 Build the actual ELF and computed image ID on qualified proof infrastructure:
@@ -33,7 +37,26 @@ Build the actual ELF and computed image ID on qualified proof infrastructure:
 cargo +1.90.0 build --locked --release \
   --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml \
   -p zenodex-asset-lane-custody-global-risc0-methods
+cargo +1.90.0 build --locked --release \
+  --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml \
+  -p zenodex-asset-lane-custody-global-risc0-host --features compiled-guest \
+  --bin verify_receipt_v2
 ```
+
+The host library's default build contains only the bounded Receipt codec. The
+executable requires `compiled-guest` and the actual methods dependency; there
+is no alternative image selection or placeholder executable. It reuses the
+shared verifier's Succinct-only, compiled-image and exact-journal checks.
+`disable-dev-mode` is a required SDK feature. Run verifier processes with
+`RISC0_DEV_MODE=0`, as the existing Python transport enforces. The pinned SDK
+panics if called with both that feature and `RISC0_DEV_MODE=1`; this refuses
+verification and is not a typed codec error.
+
+`src/integration/asset_lane_custody_receipt_verification_v2.py` connects native
+statement preparation to a snapshot of the concrete measured verifier config.
+Its result remains ordinary bytes under a trusted configuration premise. A
+wrong or maliciously selected executable is not made trustworthy by hashing it.
+Native codec and protocol-fixture tests provide no genuine-receipt success.
 
 The methods build refuses `RISC0_SKIP_BUILD`; it supplies no placeholder images.
 The direct SDK/build dependencies reuse RISC0 `=3.0.6`, as in the existing guest

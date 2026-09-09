@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["methods", "methods/guest"]
+members = ["methods", "methods/guest", "host"]
 default-members = ["methods"]
 
 [profile.release]

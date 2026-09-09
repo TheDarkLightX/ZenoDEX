@@ -1,0 +1,27 @@
+[package]
+name = "zenodex-asset-lane-custody-global-risc0-host"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Fixed receipt verifier endpoint for the V2 custody global statement guest"
+
+[lib]
+doctest = false
+
+[features]
+default = []
+compiled-guest = ["dep:zenodex-asset-lane-custody-global-risc0-methods"]
+
+[[bin]]
+name = "verify_receipt_v2"
+path = "src/bin/verify_receipt_v2.rs"
+required-features = ["compiled-guest"]
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.6", default-features = false, features = ["std", "disable-dev-mode"] }
+serde_json = "=1.0.148"
+zenodex-asset-lane-custody-global-risc0-methods = { path = "../methods", optional = true }
+
+[lints.rust]
+unsafe_code = "forbid"

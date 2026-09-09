@@ -89,6 +89,15 @@ The flat guest in `zk/asset_lane_custody_global_risc0` uses that same Rust entry
 bounds stdin allocation and requires EOF. Its native binary compiles and its
 transport tests run; the actual zkVM image and receipt remain unqualified.
 
+The conditional Python receipt adapter now reconstructs the concrete verifier
+configuration before preparing this statement. It preserves economic rejection
+without verifier launch, passes only locally prepared bytes to the existing
+measured transport, and returns those bytes after verification. The fixed Rust
+endpoint statically selects this guest's compiled ELF/image; its executable
+requires the actual methods build. Native codec tests have no fallback image.
+This connects the source path, while trusted executable selection, actual
+rebuilt-image verification and every publication authority remain open.
+
 The Lean `AssetLaneCustodyRefinementV2` lift establishes constructed finite-row
 accounting and custody preservation with selected leaf models, plus concrete
 legal-state acceptance controls. It does not prove every runtime constructor,
@@ -104,27 +113,33 @@ python3 tools/v3_acceptance.py --replay custody-successor-v2-python
 python3 tools/render_asset_lane_custody_v2_golden.py --check
 python3 tools/render_asset_lane_custody_statement_v2_golden.py --check
 python3 -m pytest -q tests/core/test_asset_lane_custody*_v2.py tests/tools/test_v3_acceptance.py
+python3 -m pytest -q tests/integration/test_asset_lane_custody_receipt_verification_v2.py tests/integration/test_global_receipt_verifier_v1.py
 cargo +1.87.0 test --locked --manifest-path zk/global_settlement_abi_v2/Cargo.toml
 cargo +1.90.0 test --locked --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml -p zenodex-asset-lane-custody-global-guest --lib
 cargo +1.90.0 check --locked --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml -p zenodex-asset-lane-custody-global-guest --bin zenodex-asset-lane-custody-global-guest
+cargo +1.90.0 test --locked --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml -p zenodex-asset-lane-custody-global-risc0-host --lib
 ```
 
 The CI workflow declares these Python regressions, the standalone Rust crate
-and native guest checks; hosted execution is not claimed here. Structural
+and native guest/host checks; hosted execution is not claimed here. Structural
 acceptance validation rejects changed pins, deleted or
 duplicated requirements, unsupported evidence reuse, and fabricated claim
 states. A successful replay does not fill unrelated capability mappings.
 
-Next, connect the successor to its selected receipt/verifier and publication
-path; prove and test the resulting source and store-authority bindings. The
+Next, qualify the rebuilt receipt path and complete explicit V2 authentication
+and publication admission; prove the resulting store-authority bindings. The
 review at `89e817d8` found that existing real module/coordinator/route guests and
 durable publication consume ABI V1. The V2 flat guest source now recomputes the
 existing custody coordinator and global relation and commits their exact V2
-statement. Next qualify its actual rebuilt image and genuine receipt, then its
-context admission and publication consumer. Do not restart statement or framing
+statement. Its conditional Python adapter now uses the existing measured
+transport, and its fixed Rust verifier source selects the new compiled image.
+Qualify the actual rebuilt image and genuine receipt, then the context
+admission and publication consumer. Do not restart statement or framing
 design; their defined subject and five-case native evidence are retained.
-Reuse the measured raw-byte receipt verifier transport where applicable, but
-define explicit V2 authentication and durable state admission. Matching an
+Define explicit V2 authentication and durable state admission. The existing V1
+authentication module signs a different command-hash domain and binds exact V1
+profile, intent and occurrence types; those cannot authenticate V2 through
+casts. Matching an
 occurrence's predecessor root establishes consistency; the publisher must
 acquire and revalidate the committed predecessor to establish its authority.
 Do not cast V2 states or occurrences into V1 types. Do not count the native
@@ -186,6 +201,22 @@ authentication, durable store admission or production qualification was run for
 this batch. Native transport tests do not execute the guest's zkVM abort/commit
 branches. The guest build reuses pinned RISC0 3.0.6 and refuses placeholder
 method generation; actual proof qualification still needs suitable compute.
+
+The conditional receipt integration passed 197 selected Python tests, including
+the new adapter and existing measured transport, and nine native Rust tests
+(five guest transport, four host codec/fake-refusal). Its hygiene gate passed
+17 cases covering nine critical paths. Ruff, focused mypy, host Clippy and
+formatting passed; the production-boundary audit returned `ok=true`. Independent
+read-only Astra review found no blocker in this conditional contract.
+
+The same 52 receipt transport tests also passed with parent
+`RISC0_DEV_MODE=1`, while the child environment remained `RISC0_DEV_MODE=0`.
+A separate native SDK diagnostic with dev mode enabled panicked because the
+required `disable-dev-mode` feature was set; it did not accept the fake receipt.
+The default host build cannot produce the verifier binary without the
+`compiled-guest` feature and real methods build. Actual fixed-binary execution,
+new-image proof verification, V2 authentication and durable admission remain
+unrun. No new Lean, Kani or ESSO proof is attributed to this transport patch.
 
 Complexity review uses the existing simplification skill and exact outcome
 checks. Radon 6.0.1 found high Python hotspots in snapshot decoding (152), the
