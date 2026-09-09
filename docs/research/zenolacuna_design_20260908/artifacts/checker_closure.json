@@ -1,0 +1,556 @@
+{
+  "checker_sha256": "332073a5502b9f3ac59fd867b1060a51d1663fdca61fb890f4fd08dea76bbebc",
+  "files": [
+    {
+      "path": "src/__init__.py",
+      "sha256": "9167a221f11035601a1390a78fa6baff6cac0eae14753853b14a87eb8bf7d68b"
+    },
+    {
+      "path": "src/agents/__init__.py",
+      "sha256": "a38281524a5e16737b07d6e14970968c5de3ebb9bc512d675d7912512ab6a816"
+    },
+    {
+      "path": "src/agents/intent_signer.py",
+      "sha256": "f6e9b5e3820d869aa4b6546bf2acdbea5521d264425261b74e0de2271d79d718"
+    },
+    {
+      "path": "src/agents/relayer.py",
+      "sha256": "c2a80d4d54111e5214287acac8a04120b0997c05a4ad2df2b89f2fffdc3a8cf1"
+    },
+    {
+      "path": "src/agents/strategy_ir.py",
+      "sha256": "56ec395f3595712f34bd0b2ee82d1f93f6e374496323c2c87a53dd3d29b8844d"
+    },
+    {
+      "path": "src/core/__init__.py",
+      "sha256": "37be961ff354a7aecba0745dfe18dea09ce6e4421ca65860575f9980f7bae1ee"
+    },
+    {
+      "path": "src/core/amm_dispatch.py",
+      "sha256": "be50ee96522333ecc62bf792fdad8469aa722429dabba00dd4adfe4a6a2d263c"
+    },
+    {
+      "path": "src/core/batch_clearing.py",
+      "sha256": "d865f37c287bad127aa32adecde069d63ccccb6755b7f886bb60f1af14be318d"
+    },
+    {
+      "path": "src/core/cpmm.py",
+      "sha256": "bdb8e0e662860e52701084d792c450a95a77f29a489f1a7d0d58a7248598582c"
+    },
+    {
+      "path": "src/core/cubic_sum_amm.py",
+      "sha256": "f3af6a95f01287d33c1287cd4b1d10ad8b99172e1c26054d4fab5c15dc49842b"
+    },
+    {
+      "path": "src/core/dex.py",
+      "sha256": "1c65af62b0d0bf396d1678213c33248ea5168c86124ad9e11b702321ef11f439"
+    },
+    {
+      "path": "src/core/dex_intent_auth_message.py",
+      "sha256": "0ac379acb41db8e1b3c6ac12d281e0b78099aebc1b500bf8e7adeb77a1ec9060"
+    },
+    {
+      "path": "src/core/dex_intent_auth_shape_gate.py",
+      "sha256": "886ce1c7ce0742478464cffd6e058bf28ebfc2bdf9328fc21db42a44f5ad8df4"
+    },
+    {
+      "path": "src/core/domain_limits.py",
+      "sha256": "8da457278ff54be6440b3779b8c4074d38656ceaf5bfdc2091d60e767bf564bd"
+    },
+    {
+      "path": "src/core/epoch_oracle_commitment.py",
+      "sha256": "f336efc1632f946225ccbd7f34452d98a69fb241bbe867a4179f3290be2b0a00"
+    },
+    {
+      "path": "src/core/fees.py",
+      "sha256": "db00f955480d9238b31b25907bbac41f4f44a674f9bf54ab34947a3227624213"
+    },
+    {
+      "path": "src/core/liquidity.py",
+      "sha256": "2e5ff5545470df3df5bd643607c4f9c5aff5b1ece0cb5dde27e35f1f32052e0d"
+    },
+    {
+      "path": "src/core/oracle.py",
+      "sha256": "847334004c29e6869a59ba15c91dc9d7ae4abd3caac8fd76d78efaef668250d2"
+    },
+    {
+      "path": "src/core/perp_apply_funding_auto_gate.py",
+      "sha256": "4d3471a49d407498c428179a3d29e68de0dcf10cae6691709771cc2986f15f43"
+    },
+    {
+      "path": "src/core/perp_funding_apply_gate.py",
+      "sha256": "d1772b259cb847c68c22c4b9be0008983321b04af8f6b7d63b50d690aca618e1"
+    },
+    {
+      "path": "src/core/perp_liquidation_eligibility_gate.py",
+      "sha256": "dea350a797d8d483f146f49ae422f868338c38116afde05e56cf0795fbc1212b"
+    },
+    {
+      "path": "src/core/perp_submission_auth_field_selector_gate.py",
+      "sha256": "4196edd62eb49de951814efaa06360e6159c7d9f9d7e7de696ec6f43476f2389"
+    },
+    {
+      "path": "src/core/perp_submission_auth_message.py",
+      "sha256": "15de98f5b671c29b5737cef5d431821b2411844be63d54da8382b9066e1d8b11"
+    },
+    {
+      "path": "src/core/perp_v2/__init__.py",
+      "sha256": "c1a5230a19a84eb09f5582e66ca402a683c7f0adea26ebeea35e192e36137c5c"
+    },
+    {
+      "path": "src/core/perp_v2/effects.py",
+      "sha256": "f9c82a878d9c3dd964766fda4fefa95b9b4e8c12ba8c4f4c55d58a22dce18d3d"
+    },
+    {
+      "path": "src/core/perp_v2/engine.py",
+      "sha256": "f19b110c2046ec158e292ed1c03aeab97cd4bdaa2f0abe07b359b218f7502d00"
+    },
+    {
+      "path": "src/core/perp_v2/errors.py",
+      "sha256": "c45964ff41340e83f380f50f95f81c9edcdc237af2a54dc2e9c43eee0c010a88"
+    },
+    {
+      "path": "src/core/perp_v2/funding_rule.py",
+      "sha256": "ab845d69310e160c563861502adec6262670a1f080dc28eff3335e80174a0d2c"
+    },
+    {
+      "path": "src/core/perp_v2/guards.py",
+      "sha256": "09d5772bc6587fcb668cc8342c6450d36631b9498a406f8116e3ac29015b9003"
+    },
+    {
+      "path": "src/core/perp_v2/invariants.py",
+      "sha256": "650af2f2a805f6876e26d94b35fab08b07309794ce58357e9f96d42548d6fa19"
+    },
+    {
+      "path": "src/core/perp_v2/math.py",
+      "sha256": "1b19bb76ebe0ea9c1a78eaec7f2ed964dd634b75ec11ea076b2f31717ee05a0b"
+    },
+    {
+      "path": "src/core/perp_v2/state.py",
+      "sha256": "6f099a7c0ea1f6de29a9c4230fc235a82c5604001fc9dc8b2234897e2e151570"
+    },
+    {
+      "path": "src/core/perp_v2/types.py",
+      "sha256": "0c8082b7c335fdb248f4221d9323581a7d945a02d79d230c0af3aee9b23c62ba"
+    },
+    {
+      "path": "src/core/perp_v2/updates.py",
+      "sha256": "485ab0e762e702e5ed15b5668f69e02cb6b82c0c4b16f29bd5ec6186b9730c93"
+    },
+    {
+      "path": "src/core/perps.py",
+      "sha256": "f51f8def9d1eba3c683494c5aefc2653bb1f2c28077b3c3cc92658f8b1b71577"
+    },
+    {
+      "path": "src/core/pokayoke_swap_guardrails.py",
+      "sha256": "a8a08c39f8711235391c6093664b42d68d6f7908c0207486849b585f20e6c3f1"
+    },
+    {
+      "path": "src/core/price_impact_preview.py",
+      "sha256": "709512db609fd34db7bc1f22991d692a717bf9302184a0c1458094da51c0907c"
+    },
+    {
+      "path": "src/core/quartic_blend_amm.py",
+      "sha256": "91562bd14f6dcd529e7589373b36dbb3fb2658e9c2b129da2a4e429ee0e04f62"
+    },
+    {
+      "path": "src/core/quintic_blend_amm.py",
+      "sha256": "dd1a3154c0972b5b2d0e9bf638d0f75cbbca37e3c2b27a083b748dd9678aef57"
+    },
+    {
+      "path": "src/core/quote_receipts.py",
+      "sha256": "e49650707b05003857b8c0f34dbd7036f212ff86fc93ab3a1341013369f03fd2"
+    },
+    {
+      "path": "src/core/route_settlement.py",
+      "sha256": "43665218b381c4ab24220b7173657deafda7231447efe9ae49b9dd147828ad2a"
+    },
+    {
+      "path": "src/core/routing.py",
+      "sha256": "b652cc5377195832823484c188a60114091299e65f4c6cf198153a77cf0e7d86"
+    },
+    {
+      "path": "src/core/sandwich_risk.py",
+      "sha256": "6ac8a32e02261904c51a1419bc56ebda17668555aea675fe88aba143f06cb061"
+    },
+    {
+      "path": "src/core/settlement.py",
+      "sha256": "25f5547bcb36b2bb4ba4dabbeb0186623767047c7eb952173692833d206c742f"
+    },
+    {
+      "path": "src/core/settlement_normal_form.py",
+      "sha256": "bb601b6fe60c4c9d3bd6626504b6b8c193249af602c13da0530e3820f384fd3e"
+    },
+    {
+      "path": "src/core/settlement_strong_validator.py",
+      "sha256": "fcfa861232f67e41f88d6648e269edd3cee2ce9d642c3c8c74b3f35236d1bf9e"
+    },
+    {
+      "path": "src/core/slippage_advisor.py",
+      "sha256": "6137633ca5a04d6c79a36533742e25dafc22beebc3393d88b8d845056a8e33ce"
+    },
+    {
+      "path": "src/core/split_routing.py",
+      "sha256": "264a4d41b3459fbfbbc3b037dab2da9d8a661aaa497ef88bdeed80474b05b19e"
+    },
+    {
+      "path": "src/core/split_routing_dispatch.py",
+      "sha256": "0488b9f34be7c452505a90726bc574f06a07a336540f2855891c85b3e129592e"
+    },
+    {
+      "path": "src/core/sum_boost_amm.py",
+      "sha256": "ea065feeabd877082cc4b601e3175f1b338fe7b8cbeff3707da7f50ab47d1c45"
+    },
+    {
+      "path": "src/core/uniform_batch_clearing.py",
+      "sha256": "4e419dc2f8157c6c3ed31187468bf04a46ea89ea4c9ce04112a7aa6faa7a2c7d"
+    },
+    {
+      "path": "src/core/vault.py",
+      "sha256": "1a6371019ee91ffb4402851af36eba4639c273b1305dbeea6cd200e19532495b"
+    },
+    {
+      "path": "src/core/zusd.py",
+      "sha256": "694dacc9086993a194892a4c14d86d2122ffc4ca5b54a3e5b45064c92d3f7363"
+    },
+    {
+      "path": "src/core/zusd_multi_oracle_commit_mcr.py",
+      "sha256": "d275868358826278c13d5450abd22e155449fb1cfc9fb154bec6381d6fb78ff0"
+    },
+    {
+      "path": "src/core/zusd_multi_redeem_selector.py",
+      "sha256": "eadf91eb72ec13eb1d2d830ef67343fa493140977caeb5028e6c301f11712bb8"
+    },
+    {
+      "path": "src/integration/__init__.py",
+      "sha256": "bfaf1447933a330aea27f3c3fd26a53143bcbcbe90b11567daac307ec5c88b7a"
+    },
+    {
+      "path": "src/integration/autotrader_signal_profile.py",
+      "sha256": "0a7c283a9d44af2eab55da730b0f95f0aebce896cd5b9373a88d7e166e7a6663"
+    },
+    {
+      "path": "src/integration/autotrader_signal_registry.py",
+      "sha256": "a9e321e39f5d871e27b784fb29fcd2b10654c0f98d5b6d988b5811f424bd5b78"
+    },
+    {
+      "path": "src/integration/autotrader_signals.py",
+      "sha256": "80d30a7280d680cbfd274a357a32af9bff66e5b55000f7f04834430a072ee3ce"
+    },
+    {
+      "path": "src/integration/exact_in_route_certificate.py",
+      "sha256": "ae3227b6125d02fe76c863f897c54e71e0f8957083a775594581e1a8c6ff292c"
+    },
+    {
+      "path": "src/integration/operations.py",
+      "sha256": "39400aab96c59a793e5599f33bd745438d3ec9ce4330d1777c495fb9f5a250b5"
+    },
+    {
+      "path": "src/integration/settlement_end_to_end_certificate_packet.py",
+      "sha256": "889642e3a54e2b23f08f13ffc92c4c7f866064fa8e9378b68fa03ef5aebfcaf3"
+    },
+    {
+      "path": "src/integration/settlement_endogenous_lp_value_packet.py",
+      "sha256": "de0a6ea33085d353820c474c8da43807b18acaab6019ed4eaf3e3de2f8233235"
+    },
+    {
+      "path": "src/integration/settlement_feature_extension_packet.py",
+      "sha256": "bbfb306c65e021d85bbddd40f05245808b6c1dc000842240808e4a6bcff1c1f1"
+    },
+    {
+      "path": "src/integration/settlement_lp_value_contract.py",
+      "sha256": "ac547c7b9f16bae07703ca4cbe3e6c4e334098a11dc2bd467deafa61f2ef4c4a"
+    },
+    {
+      "path": "src/integration/settlement_price_attestation.py",
+      "sha256": "ce119d52d8b0ec7b80c3731bcfe832e57290e4fad5e0366c9f0de75d83cfe11a"
+    },
+    {
+      "path": "src/integration/settlement_price_provenance.py",
+      "sha256": "dc4bfb3e6039d4b61ec7d7ca91b452f4222226f8a94a32f805e6454bb8f6372a"
+    },
+    {
+      "path": "src/integration/settlement_strong_certificate.py",
+      "sha256": "16be5ff869d26209be8e38c28bde8fe6edd7e02a02a13e67d27118a5ed685eec"
+    },
+    {
+      "path": "src/integration/settlement_value_contract.py",
+      "sha256": "3f0a01ea7e9243cf88d00bb67246cd89eb2f5458c9cb0bde9d97b2052f0a71a1"
+    },
+    {
+      "path": "src/integration/settlement_value_packet.py",
+      "sha256": "4229ad765fec82d12ac54b7102e738fdec52816b374fcc57536a531db267c8d4"
+    },
+    {
+      "path": "src/integration/tau_gate.py",
+      "sha256": "e031ca07027f9d3d7dedf105a89a2842a34b4d9e2711764a5787c3cd2e2ed578"
+    },
+    {
+      "path": "src/integration/tau_net_client.py",
+      "sha256": "1a91138f2b27a834f7b85a4544855186b7eebd05d6f1cd329df7d07d8dba0df7"
+    },
+    {
+      "path": "src/integration/tau_runner.py",
+      "sha256": "2dd8579d881a7688fdc9f65f6b049f73f3f937728a18edea0f8fafbb54eedf1c"
+    },
+    {
+      "path": "src/integration/tau_witness.py",
+      "sha256": "75825663b7def4ca839d2db3ae67fc94dff2f90940ac359117f8f062ed9a11c3"
+    },
+    {
+      "path": "src/integration/validation.py",
+      "sha256": "9c1f877f75e5d12a4a8b38c530d643c8263a7d638af51839601f7bc96a6ee707"
+    },
+    {
+      "path": "src/integration/zusd_oracle_contracts.py",
+      "sha256": "36906ee0269a485e75cdd362ddbcf22241d6ba6b67be29d37a59529a599de7e0"
+    },
+    {
+      "path": "src/kernels/__init__.py",
+      "sha256": "50c97ed96643a00d9575dd1fa85ccd9231480a2a9f21b31f12788ec5343e26be"
+    },
+    {
+      "path": "src/kernels/python/__init__.py",
+      "sha256": "e27029a47fe29be8c95e29fc16be8f108261bc55aeb12a6fae65543f4ff4e282"
+    },
+    {
+      "path": "src/kernels/python/cpmm_swap_v8.py",
+      "sha256": "fab563352f16f77cd53c9255675b3873c35dfae283f95060a5de2ad422ff8e02"
+    },
+    {
+      "path": "src/kernels/python/cubic_sum_swap_v1.py",
+      "sha256": "87b8027e2c0a638dc024ea359cb552548f16ace17b30c3a1cda2c54419ebe95f"
+    },
+    {
+      "path": "src/kernels/python/exact_out_many_pool_canonical_domain_v1.py",
+      "sha256": "0e87420a8b7e9811eaa00f8e23ad8f330f9e7d2d89dc79db8bdeb460bfa2422a"
+    },
+    {
+      "path": "src/kernels/python/exact_out_many_pool_prefilter_subset_search_v1.py",
+      "sha256": "3cf6722c325a39a4cf755bbe55f44b354d09c98cf2318b9a5598e84055d8f082"
+    },
+    {
+      "path": "src/kernels/python/exact_out_many_pool_repaired_prefilter_v1.py",
+      "sha256": "89c4ad81385af6f1f2590faf212d82697c9444c0f8c758a05d55b147aeef4f58"
+    },
+    {
+      "path": "src/kernels/python/external_signal_profile_decode_v2.py",
+      "sha256": "50fd609e8298357a76c5d56e8ba9518c46ac64d328db9748a9ef004bf7f1eb9a"
+    },
+    {
+      "path": "src/kernels/python/external_signal_profile_encode_v2.py",
+      "sha256": "785292d5d603b7dcca8cbd51405ac052b050b91ef99c0e432053335637244062"
+    },
+    {
+      "path": "src/kernels/python/lp_math_v7.py",
+      "sha256": "98ce0037531361f76296557758f0efe327a9aad7af36f87ed7a2a794e962f241"
+    },
+    {
+      "path": "src/kernels/python/quartic_blend_swap_v1.py",
+      "sha256": "f0943102a2b49d0868d3687b12eb8fedd7f798ba8e9edce0b3b9f259c60bc906"
+    },
+    {
+      "path": "src/kernels/python/quintic_blend_swap_v1.py",
+      "sha256": "1611a98462d16faff012927e0ed3608a8ec2f74e6cf740e533bce874042616a0"
+    },
+    {
+      "path": "src/kernels/python/settlement_swap_runtime_v1.py",
+      "sha256": "15f2ea50ceb3679c139fb957d3abc1771d1d56bd5256e57b66bfb80966e3f4dd"
+    },
+    {
+      "path": "src/kernels/python/strategy_external_signal_contract_v1_adapter.py",
+      "sha256": "84047b6fb97723ee2a624441dfa1fa8ff5dac98fbc57563775f26fe4fdd65b6b"
+    },
+    {
+      "path": "src/kernels/python/strategy_external_signal_source_registry_guard_v1_adapter.py",
+      "sha256": "d0ced56832c9e63f491e483dceaeabcbd822b742bc6fa3bbfe1e336a4dc94e00"
+    },
+    {
+      "path": "src/kernels/python/strategy_observation_packet_contract_v1_adapter.py",
+      "sha256": "f7792a7f7b93ea02b7682f5d50e90d7ce027990d878ee08aac7ac3d7c140c2fd"
+    },
+    {
+      "path": "src/kernels/python/sum_boost_swap_v1.py",
+      "sha256": "cfa2f36be36aec73436a4f781f2f31e218628d25f033f9b721601c3caae6f6f5"
+    },
+    {
+      "path": "src/runtime/__init__.py",
+      "sha256": "d22cfea7545086c2162d23bdedc60a74dfbd32a49a0ab68564de02852ddeb21c"
+    },
+    {
+      "path": "src/runtime/authority.py",
+      "sha256": "c06486d9d933948f2c16f618ec39610500390500534ebf9a90b0126fcb36a0fc"
+    },
+    {
+      "path": "src/runtime/rust_invoker.py",
+      "sha256": "8a1b4f6e56a4ecb748a7032997e7cd982250f09ac15aca069140bf3ab0771039"
+    },
+    {
+      "path": "src/state/__init__.py",
+      "sha256": "a9349c4a474930b4fc772874c788eb117cf829d7953ad84205d74a6a2621a93a"
+    },
+    {
+      "path": "src/state/balances.py",
+      "sha256": "d8ff5e523bdcc8194efe9138ac41d6edb3dda5a75d10d50f2394595ef63cb449"
+    },
+    {
+      "path": "src/state/canonical.py",
+      "sha256": "5864562594e715eb32bb3b54c5d0afd4987d3009d63d53a77b587f18b3ba429b"
+    },
+    {
+      "path": "src/state/intents.py",
+      "sha256": "99878e8c09ab31277afeb8dd1e9e26f777176f4d56da124867dd0985b3f2718a"
+    },
+    {
+      "path": "src/state/lp.py",
+      "sha256": "165f81fdd48a3cc9c260af909f93007f2a010cb1a56774b6c4d7bf13213988de"
+    },
+    {
+      "path": "src/state/nonces.py",
+      "sha256": "2530277cc18fb6855d7e2629ab031526d39ca52ed580592bc5bd708b840a04a8"
+    },
+    {
+      "path": "src/state/pools.py",
+      "sha256": "f57cfaf0e57b664b9264d6a0f53849b1c5e6ee0a57294211703b8c03def1ba71"
+    },
+    {
+      "path": "src/tau_composition/__init__.py",
+      "sha256": "95be79260d05e693911f5d4a180e69cce597942707dd1de84fdd63921a860f79"
+    },
+    {
+      "path": "src/tau_composition/runtime.py",
+      "sha256": "4e316682e9b22292fdd7e29f1956d5066c144d90ae1e93943302258e5a5d6ebe"
+    },
+    {
+      "path": "src/tau_composition/terms.py",
+      "sha256": "7b0d4e9539ce1d40c6e53b64f2cd3373ca3d427a3bb7e854fee4403d41fc428f"
+    },
+    {
+      "path": "src/tau_workbench/__init__.py",
+      "sha256": "35e2638fc49f3b44316b2fe99fbebc683aa4c3bf5375b43d563e66924f339b18"
+    },
+    {
+      "path": "src/tau_workbench/programs.py",
+      "sha256": "1b5a7345d549624534bba973cb4cfc2c8c20ae7ef2bb996c8954fea0a0ee4b9c"
+    },
+    {
+      "path": "src/zenolacuna/__init__.py",
+      "sha256": "a683c69e3fda36af236b9fd0d4335d132d74e403241a4374e551f967c77e44e3"
+    },
+    {
+      "path": "src/zenolacuna/authority.py",
+      "sha256": "896c4f76c91a350f66e83705698c627f44b0311e2c1e78dfd46256e2275225ef"
+    },
+    {
+      "path": "src/zenolacuna/check.py",
+      "sha256": "b2c4503e009554943736a64d1cdff80439d59a83b1ad4d7736b47fa3a8f2f019"
+    },
+    {
+      "path": "src/zenolacuna/codec.py",
+      "sha256": "1e675c3332e36eb1f0105a03232bf7df2bea4b639826659889425056e95cb34b"
+    },
+    {
+      "path": "src/zenolacuna/engine.py",
+      "sha256": "a080c858b49e9ac05b9ab7fb5fe9d5b0f95845f05442ccaecc603579a3748623"
+    },
+    {
+      "path": "src/zenolacuna/filesystem.py",
+      "sha256": "61e4f333969ea8e770c2d65dc87edec79dad20af1cd6e5a6a4101e4b3aac0851"
+    },
+    {
+      "path": "src/zenolacuna/model.py",
+      "sha256": "20d78fd8c7588a64e46774c19adf468034c0122e36f6f9a8d01e7f090cc6fb4b"
+    },
+    {
+      "path": "src/zenolacuna/ports/__init__.py",
+      "sha256": "1720e895a72ba85282fd7ef2f37f347b0a6a7f95ea1b7585a83759d916d4443f"
+    },
+    {
+      "path": "src/zenolacuna/ports/migration_tau.py",
+      "sha256": "33307401ba363c48e19e3496d9567ac0a635b641a0466765a195a7d7fadd794f"
+    },
+    {
+      "path": "src/zenolacuna/ports/programs.py",
+      "sha256": "3442d311ceb5cefc498bdf398f71b01dc99c4f5da853718b1f4ee7504d6dc3f7"
+    },
+    {
+      "path": "src/zenolacuna/ports/signal_graph_esso.py",
+      "sha256": "84a147cb547e3bd6c5e6886db914a96de7023cc40518bea7a4a7ebb60b815619"
+    },
+    {
+      "path": "src/zenolacuna/ports/signals.py",
+      "sha256": "3c901402c3b9a3bb767801a2eb1353faa24f3cf9cd3197917fcd7f1b44ff40c5"
+    },
+    {
+      "path": "src/zenolacuna/ports/tau.py",
+      "sha256": "25ed33a4e567c66f4a68de86b998efc73bbccc75818f1b0338aed669303937c2"
+    },
+    {
+      "path": "src/zenolacuna/project.py",
+      "sha256": "35f81c3679ea2d2b4c9e585ee8832c394cc3cf62637c5500271ac31c0d7c7f65"
+    },
+    {
+      "path": "src/zenolacuna/project_bindings.py",
+      "sha256": "f4e25b4b3080145db0a3a2175c84fe556bbc0ede4cac7caba5850bab4f8ac5c5"
+    },
+    {
+      "path": "src/zenolacuna/project_cli.py",
+      "sha256": "018d8f34c31485de993a3cdbaa7d49d63cd9e17c6daf2a373d4f5ab86d6ba870"
+    },
+    {
+      "path": "src/zenolacuna/project_core.py",
+      "sha256": "b6d78624479534a91218fd99036ba443ae5c973d2c3019836d66934e7034f41c"
+    },
+    {
+      "path": "src/zenolacuna/project_execution.py",
+      "sha256": "e790139aaf3a30ee7767be0c3fd801aef628bf5bae24b4a96129158f48c573fc"
+    },
+    {
+      "path": "src/zenolacuna/project_runtime.py",
+      "sha256": "9d50fced6214a9093715b56554114b6827bea7c2a7fec2af76bbcce110cef336"
+    },
+    {
+      "path": "src/zenolacuna/project_solvers.py",
+      "sha256": "ece2568f96e7beff9f40ab11c598f58201830355c7b12c4419a3bd46df4dde83"
+    },
+    {
+      "path": "src/zenolacuna/project_storage.py",
+      "sha256": "431291cf8462bc686628309a2be65d9e9cae05a4f84b55f0c4d6707f3aa3a84e"
+    },
+    {
+      "path": "src/zenolacuna/project_types.py",
+      "sha256": "6d23c16dc951e6e0825e7f9ada5dc0c7127541ba440e334a09ff0089a9c89090"
+    },
+    {
+      "path": "src/zenolacuna/proposals.py",
+      "sha256": "1658c502cb82f30d6d132c60ce0519785196a062c64b494b19db93dc14148300"
+    },
+    {
+      "path": "src/zenolacuna/questions.py",
+      "sha256": "585ad6656b44e0c2efdee6d1809419e7c7621bf5b0e16c7f545f9ab16e8cf062"
+    },
+    {
+      "path": "src/zenolacuna/relations.py",
+      "sha256": "1e41fa92e469ef766d85374cc9696132764d38909cb3689c1a981f41da65a338"
+    },
+    {
+      "path": "src/zenolacuna/signal_migration.py",
+      "sha256": "b121f5d8e410f7afeb6064d79cc3e7bf16498cfe9c26a01d67804ef7eac7eccc"
+    },
+    {
+      "path": "tools/__init__.py",
+      "sha256": "3d77a25f5834c990e926350ec79dcb20357404a1845eaea8f538f92ba9a0ab8f"
+    },
+    {
+      "path": "tools/tau_signal_migration_case.py",
+      "sha256": "1d2e5fa3cf5a684d348cea5cb24f4f06f64c9fad03bd76bd968f2a58378ef9bf"
+    },
+    {
+      "path": "tools/zenolacuna_project_entry.py",
+      "sha256": "fcb5b6f9dbbb30787be0cf55a7145e7ceb1d0536bd374f9226dbdfdd4be2821d"
+    }
+  ],
+  "schema": "zenolacuna/checker-closure/v1",
+  "source_bytes": 1857984,
+  "source_files": 137
+}

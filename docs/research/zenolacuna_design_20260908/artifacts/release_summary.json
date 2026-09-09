@@ -1,0 +1,378 @@
+{
+  "approval_label": "TEST_CREDENTIALS",
+  "artifacts": {
+    "native_bundle_sha256": "6b4bf83db08e0e7af29e657bef285a750a139ce2df1d5512980a7015bd1c505c",
+    "original_local_qualification_report_sha256": "66bb143ceed37c5bee73678bbe174da1e9e18499d04aee3fa8504fd479afe484"
+  },
+  "authority": "NONE",
+  "benchmark": {
+    "baseline_scope": "Direct check_migration uses the same finite graph checker without the signed lifecycle, persisted replay or required native solvers. Its time also includes its import and omission negative check.",
+    "cli_processes": 38,
+    "direct_baseline": {
+      "accepted_transitions": 3762,
+      "candidate_relation_matches": true,
+      "checked_edges": 208170,
+      "checked_inputs128": 128,
+      "checked_parser_pairs": 128,
+      "checked_states": 1542,
+      "claim": "BOUNDED_REAL_SIGNAL_V1_V2_MIGRATION_GRAPH",
+      "code": "SIGNAL_MIGRATION_CHECKED",
+      "evidence": "EXHAUSTIVE_FINITE",
+      "parser_projection_code": "SIGNAL_FIXTURE_PARITY",
+      "rejected_transitions": 204408,
+      "smallest_counterexample": null,
+      "source_sha256": {
+        "src/integration/autotrader_signal_profile.py": "0a7c283a9d44af2eab55da730b0f95f0aebce896cd5b9373a88d7e166e7a6663",
+        "src/integration/autotrader_signals.py": "80d30a7280d680cbfd274a357a32af9bff66e5b55000f7f04834430a072ee3ce",
+        "src/kernels/python/external_signal_profile_decode_v2.py": "50fd609e8298357a76c5d56e8ba9518c46ac64d328db9748a9ef004bf7f1eb9a",
+        "src/kernels/python/external_signal_profile_encode_v2.py": "785292d5d603b7dcca8cbd51405ac052b050b91ef99c0e432053335637244062",
+        "src/kernels/python/strategy_external_signal_contract_v1_adapter.py": "84047b6fb97723ee2a624441dfa1fa8ff5dac98fbc57563775f26fe4fdd65b6b",
+        "src/zenolacuna/model.py": "20d78fd8c7588a64e46774c19adf468034c0122e36f6f9a8d01e7f090cc6fb4b",
+        "src/zenolacuna/ports/signals.py": "3c901402c3b9a3bb767801a2eb1353faa24f3cf9cd3197917fcd7f1b44ff40c5",
+        "src/zenolacuna/signal_migration.py": "b121f5d8e410f7afeb6064d79cc3e7bf16498cfe9c26a01d67804ef7eac7eccc",
+        "tools/tau_signal_migration_case.py": "1d2e5fa3cf5a684d348cea5cb24f4f06f64c9fad03bd76bd968f2a58378ef9bf"
+      }
+    },
+    "false_completions_in_fixture": 0,
+    "fixed_question_baseline": 1,
+    "measurement_conditions": "One descriptive local run after the focused test suite completed; no controlled-host, speedup, throughput or independent-repeat timing claim.",
+    "missed_missing_requirement_cases_in_fixture": 0,
+    "owner_question_count": 1,
+    "premature_workflow_cases_detected": 2,
+    "runtime_llm_calls": 0,
+    "spurious_witnesses_in_fixture": 0,
+    "timings_ms": {
+      "archive_replay": 17189,
+      "completion": 25091,
+      "direct_check_migration": 2134,
+      "end_to_end": 155631
+    },
+    "unique_missing_requirements_in_fixture": 1
+  },
+  "checker_sha256": "332073a5502b9f3ac59fd867b1060a51d1663fdca61fb890f4fd08dea76bbebc",
+  "completion": {
+    "candidate_root": "4a5b2567d0ca57f8be1ac247dad0e500eee8b51d322e93b90913df2559ca0b8a",
+    "certificate": {
+      "approval_roots": [],
+      "authority": "NONE",
+      "candidate_root": "4a5b2567d0ca57f8be1ac247dad0e500eee8b51d322e93b90913df2559ca0b8a",
+      "checker_sha256": "332073a5502b9f3ac59fd867b1060a51d1663fdca61fb890f4fd08dea76bbebc",
+      "model": {
+        "authority": "NONE",
+        "claim": "FINITE_MODEL_ONLY",
+        "classes": [
+          [
+            1
+          ]
+        ],
+        "code": "FINITE_MODEL_REPLAYED",
+        "evidence": "EXHAUSTIVE_FINITE",
+        "history_bound": null,
+        "pending_question": null,
+        "policy": {
+          "question": null,
+          "status": "EXACT_MINIMAX",
+          "work": 0,
+          "worst_cost": 0
+        },
+        "scope_kind": "FINITE_RELATION",
+        "scope_root": "aa3eabccb5c53cf19679db095468664dd5e540f2e492b57a94aca4bf3fd614e9",
+        "survivors": [
+          1
+        ],
+        "witness": null,
+        "workflow": "COMPLETE_FOR_SCOPE"
+      },
+      "project_id": "zenolacuna-real-migration-qualification",
+      "revision": "2014abd4443dc54a9690523a2905f41ca1f0d11c5a0e2b5a10a9718f82bfe4c1",
+      "runtime": {
+        "adapter": "SIGNAL_MIGRATION",
+        "claim": "FINITE_SIGNAL_MIGRATION_GRAPH",
+        "report": {
+          "accepted_transitions": 3762,
+          "authority": "NONE",
+          "candidate_relation_matches": true,
+          "checked_edges": 208170,
+          "checked_inputs128": 128,
+          "checked_parser_pairs": 128,
+          "checked_states": 1542,
+          "claim": "BOUNDED_REAL_SIGNAL_V1_V2_MIGRATION_GRAPH",
+          "code": "SIGNAL_MIGRATION_CHECKED",
+          "declared_observations": [
+            "schema",
+            "auth_ok",
+            "freshness_ok",
+            "outcome",
+            "normalized_json",
+            "error_type",
+            "error",
+            "terminal",
+            "effect"
+          ],
+          "evidence": "EXHAUSTIVE_FINITE",
+          "missing_observations": [],
+          "mode": "GUARDED",
+          "parser_projection_code": "SIGNAL_FIXTURE_PARITY",
+          "rejected_transitions": 204408,
+          "smallest_counterexample": null,
+          "source_sha256": [
+            [
+              "src/zenolacuna/signal_migration.py",
+              "b121f5d8e410f7afeb6064d79cc3e7bf16498cfe9c26a01d67804ef7eac7eccc"
+            ],
+            [
+              "src/zenolacuna/model.py",
+              "20d78fd8c7588a64e46774c19adf468034c0122e36f6f9a8d01e7f090cc6fb4b"
+            ],
+            [
+              "src/zenolacuna/ports/signals.py",
+              "3c901402c3b9a3bb767801a2eb1353faa24f3cf9cd3197917fcd7f1b44ff40c5"
+            ],
+            [
+              "tools/tau_signal_migration_case.py",
+              "1d2e5fa3cf5a684d348cea5cb24f4f06f64c9fad03bd76bd968f2a58378ef9bf"
+            ],
+            [
+              "src/integration/autotrader_signals.py",
+              "80d30a7280d680cbfd274a357a32af9bff66e5b55000f7f04834430a072ee3ce"
+            ],
+            [
+              "src/integration/autotrader_signal_profile.py",
+              "0a7c283a9d44af2eab55da730b0f95f0aebce896cd5b9373a88d7e166e7a6663"
+            ],
+            [
+              "src/kernels/python/external_signal_profile_encode_v2.py",
+              "785292d5d603b7dcca8cbd51405ac052b050b91ef99c0e432053335637244062"
+            ],
+            [
+              "src/kernels/python/external_signal_profile_decode_v2.py",
+              "50fd609e8298357a76c5d56e8ba9518c46ac64d328db9748a9ef004bf7f1eb9a"
+            ],
+            [
+              "src/kernels/python/strategy_external_signal_contract_v1_adapter.py",
+              "84047b6fb97723ee2a624441dfa1fa8ff5dac98fbc57563775f26fe4fdd65b6b"
+            ]
+          ],
+          "unknown_observations": []
+        }
+      },
+      "schema": "zenolacuna/completion/v1",
+      "scope_revision": "ce30b16e97489850d2941fb7c4a71d19e74ae364c388a0740c82c08152d42779",
+      "scope_root": "aa3eabccb5c53cf19679db095468664dd5e540f2e492b57a94aca4bf3fd614e9",
+      "solvers": {
+        "esso": {
+          "code": "ESSO_GRAPH_VERIFIED",
+          "esso_sha256": "fcfe9a64d13ce8b7a2af88415e06e37b4cc9cd4582d37f1bb0475e571d47320e",
+          "model_sha256": "6af844c4a58aeece2b014cd5d2fd1188945cc8ffabc670445c1e893b0d884754",
+          "parity": {
+            "authority": "NONE",
+            "checked_guard_rows": 208170,
+            "checked_states": 1542,
+            "code": "ESSO_GRAPH_RUNTIME_PARITY",
+            "evidence": "EXHAUSTIVE_FINITE",
+            "mode": "GUARDED",
+            "model_matches": true,
+            "model_sha256": "dd094963c26b577cfd949ddad643fe082eebcd0645f0ff14703ec660425f8a02",
+            "runtime_code": "SIGNAL_MIGRATION_CHECKED",
+            "runtime_edges": 208170,
+            "source_sha256": [
+              [
+                "src/integration/autotrader_signal_profile.py",
+                "0a7c283a9d44af2eab55da730b0f95f0aebce896cd5b9373a88d7e166e7a6663"
+              ],
+              [
+                "src/integration/autotrader_signals.py",
+                "80d30a7280d680cbfd274a357a32af9bff66e5b55000f7f04834430a072ee3ce"
+              ],
+              [
+                "src/kernels/python/external_signal_profile_decode_v2.py",
+                "50fd609e8298357a76c5d56e8ba9518c46ac64d328db9748a9ef004bf7f1eb9a"
+              ],
+              [
+                "src/kernels/python/external_signal_profile_encode_v2.py",
+                "785292d5d603b7dcca8cbd51405ac052b050b91ef99c0e432053335637244062"
+              ],
+              [
+                "src/kernels/python/strategy_external_signal_contract_v1_adapter.py",
+                "84047b6fb97723ee2a624441dfa1fa8ff5dac98fbc57563775f26fe4fdd65b6b"
+              ],
+              [
+                "src/zenolacuna/model.py",
+                "20d78fd8c7588a64e46774c19adf468034c0122e36f6f9a8d01e7f090cc6fb4b"
+              ],
+              [
+                "src/zenolacuna/ports/signal_graph_esso.py",
+                "84a147cb547e3bd6c5e6886db914a96de7023cc40518bea7a4a7ebb60b815619"
+              ],
+              [
+                "src/zenolacuna/ports/signals.py",
+                "3c901402c3b9a3bb767801a2eb1353faa24f3cf9cd3197917fcd7f1b44ff40c5"
+              ],
+              [
+                "src/zenolacuna/signal_migration.py",
+                "b121f5d8e410f7afeb6064d79cc3e7bf16498cfe9c26a01d67804ef7eac7eccc"
+              ],
+              [
+                "tools/tau_signal_migration_case.py",
+                "1d2e5fa3cf5a684d348cea5cb24f4f06f64c9fad03bd76bd968f2a58378ef9bf"
+              ]
+            ],
+            "verified": true
+          },
+          "queries": [
+            "inductive_CANCEL",
+            "inductive_DELIVER",
+            "inductive_ENQUEUE",
+            "inductive_RETRY",
+            "inductive_ROLLBACK_CONSUMER",
+            "inductive_ROLLBACK_PRODUCER",
+            "inductive_UPGRADE_CONSUMER",
+            "inductive_UPGRADE_PRODUCER",
+            "init_implies_inv"
+          ],
+          "result": "unsat",
+          "solvers": [
+            "z3",
+            "cvc5"
+          ],
+          "tool_versions": {
+            "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+            "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+            "platform": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39",
+            "python": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]",
+            "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)",
+            "solvers": {
+              "cvc5": "This is cvc5 version 1.1.2",
+              "z3": "4.15.4"
+            }
+          }
+        },
+        "tau": {
+          "authority": "NONE",
+          "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+          "code": "TAU_FINITE_RELATION_CHECKED",
+          "equivalent": true,
+          "evidence": "EXHAUSTIVE_FINITE",
+          "formula": "((((b0' & b1' & b2' & b3' & b4') | (b0 & b1' & b2 & b3' & b4') | (b0' & b1' & b2' & b3 & b4') | (b0 & b1' & b2' & b3 & b4') | (b0' & b1' & b2 & b3 & b4') | (b0 & b1 & b2 & b3 & b4')) ^ ((b0' & b1' & b2' & b3' & b4') | (b0 & b1' & b2 & b3' & b4') | (b0' & b1' & b2' & b3 & b4') | (b0 & b1' & b2' & b3 & b4') | (b0' & b1' & b2 & b3 & b4') | (b0 & b1 & b2 & b3 & b4'))) = 0)",
+          "scope_root": "aa3eabccb5c53cf19679db095468664dd5e540f2e492b57a94aca4bf3fd614e9"
+        },
+        "tau_migration_guard": {
+          "authority": "NONE",
+          "binary_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326",
+          "checked_capability_states": 18,
+          "code": "TAU_CONSUMER_GUARD_PROJECTED",
+          "expected": "(((p & b) | (p' & a)) & (q' | (v & b) | (v' & a))) = 1",
+          "guard": "(p'|b')&(p|a')|q&(v'|b')&(v|a') = 0",
+          "query": "ex co ex cn ((co = a) && (cn = b) && ((((p & cn) | (p' & co)) & (q' | (v & cn) | (v' & co))) = 1))"
+        }
+      },
+      "sources": [
+        {
+          "path": "src/zenolacuna/signal_migration.py",
+          "sha256": "b121f5d8e410f7afeb6064d79cc3e7bf16498cfe9c26a01d67804ef7eac7eccc"
+        },
+        {
+          "path": "src/zenolacuna/model.py",
+          "sha256": "20d78fd8c7588a64e46774c19adf468034c0122e36f6f9a8d01e7f090cc6fb4b"
+        },
+        {
+          "path": "src/zenolacuna/ports/signals.py",
+          "sha256": "3c901402c3b9a3bb767801a2eb1353faa24f3cf9cd3197917fcd7f1b44ff40c5"
+        },
+        {
+          "path": "tools/tau_signal_migration_case.py",
+          "sha256": "1d2e5fa3cf5a684d348cea5cb24f4f06f64c9fad03bd76bd968f2a58378ef9bf"
+        },
+        {
+          "path": "src/integration/autotrader_signals.py",
+          "sha256": "80d30a7280d680cbfd274a357a32af9bff66e5b55000f7f04834430a072ee3ce"
+        },
+        {
+          "path": "src/integration/autotrader_signal_profile.py",
+          "sha256": "0a7c283a9d44af2eab55da730b0f95f0aebce896cd5b9373a88d7e166e7a6663"
+        },
+        {
+          "path": "src/kernels/python/external_signal_profile_encode_v2.py",
+          "sha256": "785292d5d603b7dcca8cbd51405ac052b050b91ef99c0e432053335637244062"
+        },
+        {
+          "path": "src/kernels/python/external_signal_profile_decode_v2.py",
+          "sha256": "50fd609e8298357a76c5d56e8ba9518c46ac64d328db9748a9ef004bf7f1eb9a"
+        },
+        {
+          "path": "src/kernels/python/strategy_external_signal_contract_v1_adapter.py",
+          "sha256": "84047b6fb97723ee2a624441dfa1fa8ff5dac98fbc57563775f26fe4fdd65b6b"
+        }
+      ],
+      "survivors_root": "44c2c255580cc21ca9af66195f340538d7d37966ea968018110dae84578608a9",
+      "task_sha256": "331278e70bf5eb234a6ffff7fdf7cdbe7240e432bf35357bd9bc3125bb3fafbb"
+    },
+    "claim": "FINITE_SIGNAL_MIGRATION_GRAPH",
+    "revision": "2014abd4443dc54a9690523a2905f41ca1f0d11c5a0e2b5a10a9718f82bfe4c1",
+    "workflow": "COMPLETE_FOR_SCOPE"
+  },
+  "lean": {
+    "axioms": [
+      "propext",
+      "Quot.sound",
+      "Classical.choice"
+    ],
+    "command": "lake env lean Proofs/ZenoLacuna.lean",
+    "environment": "existing pinned mathlib artifacts; source and toolchain match isolated candidate",
+    "exit_code": 0,
+    "source_sha256": "d84b1ed792196ee9a73e68b0b8d2294063e1c9307f19401ae02d998bc0669690",
+    "theorems": 12,
+    "toolchain_sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+  },
+  "nonclaims": [
+    "No real human approval or deployment using these test credentials",
+    "No arbitrary Python or unbounded-history correctness",
+    "No complete inventory of human intent or omitted requirements",
+    "No settlement or Tau Net deployment authority",
+    "No patent or commercial-use clearance",
+    "Replay requires the recorded checker and native environment; this is not a cross-platform reproducibility result",
+    "No full repository production gates or remote CI result"
+  ],
+  "owner_public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+  "publication_base": "4b683914a8328044c57a3fc72fb81771f6ed9247",
+  "qualification_artifacts": {
+    "cli_bootstrap_sha256": {
+      "tools/zenolacuna.py": "5449790905bb0e662a3f746c626caca5b65dccc7ddb70dcb4e958679feb93e8b",
+      "tools/zenolacuna_project_entry.py": "fcb5b6f9dbbb30787be0cf55a7145e7ceb1d0536bd374f9226dbdfdd4be2821d"
+    },
+    "runner_sha256": "f68998519fe421e41e021a960e114501125717abd00e9dfa492c0add6d837992"
+  },
+  "qualification_command": "python3 tools/zenolacuna_qualify.py --out <fresh-output> --tau-bin <selected-Tau> --esso-root <selected-ESSO>",
+  "replay": {
+    "certificate_equal": true,
+    "claim": "FINITE_SIGNAL_MIGRATION_GRAPH",
+    "revision": "2014abd4443dc54a9690523a2905f41ca1f0d11c5a0e2b5a10a9718f82bfe4c1",
+    "scope": "EXACT_HISTORICAL_SNAPSHOT",
+    "workflow": "COMPLETE_FOR_SCOPE"
+  },
+  "required_tool_pins": {
+    "esso_sha256": "fcfe9a64d13ce8b7a2af88415e06e37b4cc9cd4582d37f1bb0475e571d47320e",
+    "tau_sha256": "b62c0706f682d305fce461750d2332a473ce1fb0e6e7f45b2bb46e5174d07326"
+  },
+  "schema": "zenolacuna/public-release-evidence/v1",
+  "source_sha256": {
+    "src/integration/autotrader_signal_profile.py": "0a7c283a9d44af2eab55da730b0f95f0aebce896cd5b9373a88d7e166e7a6663",
+    "src/integration/autotrader_signals.py": "80d30a7280d680cbfd274a357a32af9bff66e5b55000f7f04834430a072ee3ce",
+    "src/kernels/python/external_signal_profile_decode_v2.py": "50fd609e8298357a76c5d56e8ba9518c46ac64d328db9748a9ef004bf7f1eb9a",
+    "src/kernels/python/external_signal_profile_encode_v2.py": "785292d5d603b7dcca8cbd51405ac052b050b91ef99c0e432053335637244062",
+    "src/kernels/python/strategy_external_signal_contract_v1_adapter.py": "84047b6fb97723ee2a624441dfa1fa8ff5dac98fbc57563775f26fe4fdd65b6b",
+    "src/zenolacuna/model.py": "20d78fd8c7588a64e46774c19adf468034c0122e36f6f9a8d01e7f090cc6fb4b",
+    "src/zenolacuna/ports/signals.py": "3c901402c3b9a3bb767801a2eb1353faa24f3cf9cd3197917fcd7f1b44ff40c5",
+    "src/zenolacuna/signal_migration.py": "b121f5d8e410f7afeb6064d79cc3e7bf16498cfe9c26a01d67804ef7eac7eccc",
+    "tools/tau_signal_migration_case.py": "1d2e5fa3cf5a684d348cea5cb24f4f06f64c9fad03bd76bd968f2a58378ef9bf"
+  },
+  "status": "QUALIFIED_FOR_SUPPORTED_FINITE_PROFILE",
+  "test_command": "TAU_BIN=<selected-Tau> python3 -m pytest -q tests/test_zenolacuna*.py",
+  "tests": {
+    "errors": 0,
+    "failures": 0,
+    "passed": 277,
+    "seconds": "281.783",
+    "skipped": 0
+  }
+}

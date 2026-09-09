@@ -1,0 +1,82 @@
+{
+  "authority": "NONE",
+  "engine_implemented": false,
+  "examples": [
+    {
+      "counterexample": {
+        "bad_pairs": [
+          [
+            0,
+            1
+          ]
+        ],
+        "question_answers": [
+          0,
+          1,
+          1
+        ]
+      },
+      "example_checked": true,
+      "id": "quotient_congruence",
+      "required_guard": "reject_question_not_constant_on_semantic_classes"
+    },
+    {
+      "counterexample": {
+        "available_questions": 1,
+        "unseparable_children": [
+          [
+            1,
+            2
+          ]
+        ],
+        "useful_first_split": true
+      },
+      "example_checked": true,
+      "id": "unseparable_continuation",
+      "required_guard": "propagate_tagged_infinity_to_root_policy"
+    },
+    {
+      "counterexample": {
+        "lost_contexts": [
+          1
+        ],
+        "positive_witness_survives": true
+      },
+      "example_checked": true,
+      "id": "protected_applicability",
+      "required_guard": "preserve_each_protected_applicability_class"
+    },
+    {
+      "counterexample": {
+        "newly_admitted_traces": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ]
+      },
+      "example_checked": true,
+      "id": "history_correlation",
+      "required_guard": "preserve_complete_trace_language_or_fixed_run_choice"
+    },
+    {
+      "counterexample": {
+        "all_selected_fixtures_agree": true,
+        "full_domain_mismatches": [
+          128
+        ]
+      },
+      "example_checked": true,
+      "id": "fixture_scope",
+      "required_guard": "enumerate_declared_concrete_domain_or_check_simulation"
+    }
+  ],
+  "schema": "zenolacuna/design-counterexamples-v1",
+  "source_sha256": "6eb11477b82df162defa1732ae4824c3d8cbdfe6287a3f49b74833b75a4c4566",
+  "status": "EXAMPLES_CHECKED",
+  "theorems_machine_checked": false
+}

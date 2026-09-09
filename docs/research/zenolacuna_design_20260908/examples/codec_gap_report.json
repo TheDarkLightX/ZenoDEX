@@ -1,0 +1,38 @@
+{
+  "authority": "NONE",
+  "checks": {
+    "allowlist_exact": true,
+    "bytecode_disabled": true,
+    "mixed_pairs_distinguish_all": true,
+    "normal_pair_complete": true,
+    "reserved_values_return_sentinel": true,
+    "xor1_pair_complete": true
+  },
+  "claim_boundary": "The altered pair demonstrates an omitted compatibility decision; it is not a published-adapter defect report.",
+  "counts": {
+    "normal_encode_xor1_decode_mismatches": 128,
+    "normal_roundtrips": 128,
+    "reserved_bytes": 128,
+    "reserved_decode_sentinel": 128,
+    "reserved_encode_sentinel": 128,
+    "semantic_words": 128,
+    "xor1_encode_normal_decode_mismatches": 128,
+    "xor1_reserved_decode_sentinel": 128,
+    "xor1_reserved_encode_sentinel": 128,
+    "xor1_roundtrips": 128
+  },
+  "engine_implemented": false,
+  "example_source_sha256": "a197b5f2a84d4e4a117236918ff5602f813e1f7f8df73fcf992db5802cb0da94",
+  "illustration_only": true,
+  "schema": "zenolacuna/codec-gap-example-v1",
+  "source_hashes": {
+    "decode_kernel": {
+      "path": "src/kernels/python/external_signal_profile_decode_v2.py",
+      "sha256": "50fd609e8298357a76c5d56e8ba9518c46ac64d328db9748a9ef004bf7f1eb9a"
+    },
+    "encode_kernel": {
+      "path": "src/kernels/python/external_signal_profile_encode_v2.py",
+      "sha256": "785292d5d603b7dcca8cbd51405ac052b050b91ef99c0e432053335637244062"
+    }
+  }
+}
