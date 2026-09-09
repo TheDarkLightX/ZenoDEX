@@ -1,0 +1,69 @@
+{
+  "errors": 0,
+  "killed": 4,
+  "legacy": 0,
+  "mechanical": 4,
+  "narrative": 0,
+  "packet": "THV1-20260909-custody-profile-binding-v2",
+  "rows": [
+    {
+      "description": "Bypass mounted profile admission and accept coherent foreign writer metadata despite the signed selected profile.",
+      "exit": 1,
+      "killer": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_coherent_foreign_profile_metadata_rejects_before_verifier_io[writer_epoch]",
+      "mutant_sha256": "6f613edb4e5da45041886a123934dfb4de5e4425ef13cc1014602f7d9283e642",
+      "mutation": {
+        "needle_first_line": "    require_asset_lane_custody_profile_binding_v2(",
+        "needle_sha256": "0ccc56e8100f18efe328c0c6bcdca66ff84e78294625679d197756707af17c46",
+        "path": "src/integration/authenticated_asset_lane_custody_receipt_v2.py",
+        "replacement_sha256": "e225b388d251d09902488254da501605f76393535a8838121ecc2372c568af31"
+      },
+      "seconds": 4.674,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Remove exact single-lane route requirement and admit a valid governed two-lane route with only the flat custody statement.",
+      "exit": 1,
+      "killer": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_two_lane_route_cannot_be_satisfied_by_a_flat_custody_statement",
+      "mutant_sha256": "9bdbc024e7be5a860a5828edb5a497057743998894ff2a47aacab26e6b388a63",
+      "mutation": {
+        "needle_first_line": "    if route.ordered_lanes != (LaneIdV1.ASSET_TRANSFER,):",
+        "needle_sha256": "60b833c7f666329e1589b32ae5992d4d90d8d65e60c49934c7304017027b8d4c",
+        "path": "src/core/asset_lane_custody_profile_binding_v2.py",
+        "replacement_sha256": "e225b388d251d09902488254da501605f76393535a8838121ecc2372c568af31"
+      },
+      "seconds": 5.603,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Remove other-lane release membership checking, admitting consistent foreign release IDs in both global disclosures.",
+      "exit": 1,
+      "killer": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_coherent_foreign_profile_metadata_rejects_before_verifier_io[other_lane_release]",
+      "mutant_sha256": "33b9dcbaba9d4d7b63c52517484d807f35246645104b30e9443ff609e0b5b10f",
+      "mutation": {
+        "needle_first_line": "        if lane_state.module_release_id != release.release_id:",
+        "needle_sha256": "a8ecd12af3292e73e1e879efbaf1888b23743970499820bfadd8bf9e15e8cb45",
+        "path": "src/core/asset_lane_custody_profile_binding_v2.py",
+        "replacement_sha256": "0b35470fd90e318ed51e754d5837ebd51e1adb2bb11ee5c4d4fb7ce4345d7673"
+      },
+      "seconds": 6.392,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Remove predecessor enabled-flag checking and allow an inactive selected lane to appear enabled coherently in both disclosures.",
+      "exit": 1,
+      "killer": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_coherent_foreign_profile_metadata_rejects_before_verifier_io[other_lane_enabled]",
+      "mutant_sha256": "3bc63e8c678ebb6e9ca992c7dc9943839c989bdf9cc738d9e00b504b894bcb16",
+      "mutation": {
+        "needle_first_line": "        if lane_state.enabled is not expected_enabled:",
+        "needle_sha256": "23428c02d447e15a501289d10f6001eacf0e036c092dc74249f1ef1ca0eda7d9",
+        "path": "src/core/asset_lane_custody_profile_binding_v2.py",
+        "replacement_sha256": "0b35470fd90e318ed51e754d5837ebd51e1adb2bb11ee5c4d4fb7ce4345d7673"
+      },
+      "seconds": 4.716,
+      "verdict": "KILLED"
+    }
+  ],
+  "schema": "zenodex/thv1-mutation-ledger/v1",
+  "subject_commit": "c966636ffa6d4ff036fa6d2e27525f577f1fd4d4",
+  "survived": 0
+}

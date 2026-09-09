@@ -323,10 +323,15 @@ lane-metadata preservation; no redundant successor predicate or new authority
 handle was added. The consumer's inherited long signature and body remain to
 keep snapshot capture and verifier order visible in one call. Direct tests were
 simplified by removing a redundant profile builder and repeated malformed-input
-branches without changing their nine cases. The new hygiene packet declares
-four mechanical guard-removal mutants; only archived replay may count them as
-killed. Full guest qualification, publication, Lean/ESSO/Kani/runtime refinement
-and whole-program completion remain open.
+branches without changing their nine cases. The
+[retained profile-binding mutation replay](../tests/evidence/asset_lane_custody_profile_binding_v2_mutation_20260909.json)
+archived implementation `c966636ffa6d4ff036fa6d2e27525f577f1fd4d4`, passed all
+four unmutated controls, and killed all four declared guard-removal mutants with
+zero survivors or errors. Replay with
+`python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260909-custody-profile-binding-v2 --rev c966636ffa6d4ff036fa6d2e27525f577f1fd4d4`.
+Its temporary archive and mutation copies were removed. Full guest qualification,
+publication, Lean/ESSO/Kani/runtime refinement and whole-program completion remain
+open.
 
 Complexity review uses the existing simplification skill and exact outcome
 checks. Radon 6.0.1 found high Python hotspots in snapshot decoding (152), the
