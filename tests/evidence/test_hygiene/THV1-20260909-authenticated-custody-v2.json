@@ -1,0 +1,249 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260909-authenticated-custody-v2",
+  "created_date": "2026-09-09",
+  "claim_scope": "One isolated owning call binds a V2 signed intent to its actual typed custody command and exact locally prepared receipt statement. Native BLS is separately executed on five economic vectors; all RISC0 receipt exchanges here remain protocol fixtures. No release/profile/current-store or publication qualification follows.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "AUTH-CUSTODY-V2-SAME-OWNED-INPUTS",
+    "AUTH-CUSTODY-V2-EXACT-TYPED-BODY",
+    "AUTH-CUSTODY-V2-SIGNATURE-BEFORE-RECEIPT",
+    "AUTH-CUSTODY-V2-CAPTURE-RECEIPT-CONFIG",
+    "AUTH-CUSTODY-V2-REJECTION-NO-EFFECT"
+  ],
+  "failure_modes": [
+    "A valid signature for one opaque body is used with a different typed command, amount or origin.",
+    "Receipt verification proceeds without authenticating the occurrence, including for otherwise valid economics.",
+    "Mutation of original command, context, custody or global disclosures during BLS artifact acquisition changes the later economic statement.",
+    "Original receipt configuration is re-read after authentication and substitutes a foreign image or timeout.",
+    "An authenticated command changes existing claimant rows or turns receipt rejection into successful statement output.",
+    "Structural or signature failures are hidden by an economic rejection or returned as a successful statement."
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/authenticated_asset_lane_custody_receipt_v2.py",
+      "sha256": "e3a06d436a8d20b589d7315b8717627defb37c748af9145575b90d2b4a5f1fec"
+    },
+    {
+      "path": "src/integration/economic_command_authentication_v2.py",
+      "sha256": "680509ad4d11d4af956f6684e7b1be49219fb04634a40c5cef079d6b28e7f8fd"
+    },
+    {
+      "path": "src/integration/asset_lane_custody_receipt_verification_v2.py",
+      "sha256": "2722eb8bee21e4d17404fe203b50e3357996701a2de197f0e6bb73253cb4a910"
+    },
+    {
+      "path": "src/integration/global_receipt_verifier_v1.py",
+      "sha256": "5e727d826ea298559e3bc2136fe96dec62f2d56eb66e6488771e652b699fcd47"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_v1.py",
+      "sha256": "56cb70b822a20cc7cc7b3a3bd10aa8098f2ae145484f532a785d015465a3f08b"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_deployment_v1.py",
+      "sha256": "646a8a6d99508fc854c5baaaa6434b84a9d86114502040242c59a0be874dbf49"
+    },
+    {
+      "path": "src/core/economic_command_authentication_types_v2.py",
+      "sha256": "168ecb546f3ef084fc90ec622f6db01a55968715efbbd2a40e3b7b339b6466e4"
+    },
+    {
+      "path": "src/core/economic_command_authentication_v2.py",
+      "sha256": "1d96afb386a0ea81161edbaefb895fdfca70f1edf457d898b219e6081195c62c"
+    },
+    {
+      "path": "src/core/asset_lane_coordinator_v2.py",
+      "sha256": "61fde299a03aacc8a453134925602ea439c1bc58c194c5891cc9c9cefc7e795b"
+    },
+    {
+      "path": "src/core/asset_lane_custody_state_v2.py",
+      "sha256": "4fbc66a705b686acd3a64c92ce054571e6955567568ba755549fa0eeae06f88a"
+    },
+    {
+      "path": "src/core/asset_lane_state_v2.py",
+      "sha256": "650dc5ab0a2a6010b9b512bfc59bcb7a33e7d376bbffffdb106bda5abb65f5a2"
+    },
+    {
+      "path": "src/core/global_economic_state_v2.py",
+      "sha256": "2948531057e332a301c0cdd278771040a86eda38f34ca839cd1ec196fc75b12e"
+    },
+    {
+      "path": "src/core/asset_lane_custody_statement_v2.py",
+      "sha256": "47f945fddcf2dfb3190eeaace3d2dbe95a53ec30cc6347fe9cd041f5d89a390e"
+    },
+    {
+      "path": "src/core/asset_lane_custody_global_v2.py",
+      "sha256": "7923fcad504164b83946bcd7fd732339c26023ac9185b61789a6a993cf73f509"
+    },
+    {
+      "path": "tests/integration/test_isolated_economic_command_authentication_v2.py",
+      "sha256": "b82de7c996a3afef7701fb0c5326771a6a7dc8b2f109060380b4478d310ccce5"
+    },
+    {
+      "path": "tests/integration/test_global_receipt_verifier_v1.py",
+      "sha256": "eb2b88a37c590524956eaf7d3eaa0fe0f6ca2354d0a5e81315f3d5c5adb113de"
+    },
+    {
+      "path": "tests/core/test_economic_command_authentication_v1.py",
+      "sha256": "aae449eb0d17291f6028c9e60aae3d0b5fca18754f08b1edec6372ba0ff8aa50"
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_statement_parity_v2.py",
+      "sha256": "f4d0c70b3da3c8fc9626ea02940223b4ec4a9114af007a7215d62e5eecbef965"
+    },
+    {
+      "path": "tests/data/asset_lane_custody_statement_v2_golden.json",
+      "sha256": "770f99fe8b97d5c5debe480fcbbb44cb5e400f39667cc409b9c3362585759354"
+    },
+    {
+      "path": "tools/render_asset_lane_custody_v2_golden.py",
+      "sha256": "5f0e83fd9e1b8ce22b1dc5c80da573a1f2c07e7cc65a112780fda34655fbeef8"
+    },
+    {
+      "path": "docs/specifications/ASSET_LANE_CUSTODY_GLOBAL_STATEMENT_V2.md",
+      "sha256": "a02bc5ac41e2c287afcffd90de7443c6a54ced30309d94d307e213e11c3a0cf9"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "5bddfa1c45ae8021ffe4433b93bb415a6015f1855fabf02d86ad7319ae50d88a"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py",
+      "sha256": "d906fa061e429442dec51c6d82ceff7e5d696197f6389fb3dad11a05fc0c2cc3",
+      "node_ids": [
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_signed_custody_lifecycles_reach_the_exact_receipt_statement",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_signed_body_must_equal_the_actual_typed_command_before_io",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_foreign_signature_blocks_valid_and_rejected_economics[valid_economics]",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_foreign_signature_blocks_valid_and_rejected_economics[rejected_economics]",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_authenticated_economic_rejection_is_exact_and_launches_no_receipt",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_valid_signature_cannot_move_an_existing_claimant",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_bls_artifact_acquisition_cannot_change_the_owned_custody_inputs",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_structural_input_failures_precede_bls_io",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_receipt_transport_failure_cannot_return_an_authenticated_statement"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "replay",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Given five retained transfer/issue/burn/dormancy economic cases rebound to a synthetic signing profile, sign the V2 body, call the actual combined consumer and observe the exact receipt request. Expected statement bytes use the existing leaf coordinator plus independent integer row arithmetic, without the statement producer or combined consumer as oracle. Negative controls separately observe body, signature, structural, claimant and receipt failures."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Structural and body failures reach neither verifier; signature failure reaches no receipt exchange. An authenticated insufficient-balance result retains exact equal roots and empty effects. The API has no economic/replay/history/outbox writer; accepted inputs remain canonically unchanged. Alias mutation deliberately modifies the originals, but the result and receipt request must retain the captured subject."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "economic_cases",
+      "points": [
+        "transfer with backed custody claim",
+        "issue with custody",
+        "full account burn preserving custody",
+        "issue from dormancy",
+        "burn to dormancy",
+        "authenticated insufficient balance",
+        "changed claimant with valid signature"
+      ]
+    },
+    {
+      "name": "authentication_and_order",
+      "points": [
+        "exact typed command bytes",
+        "changed amount",
+        "changed origin",
+        "valid signature on noncanonical opaque bytes",
+        "foreign signature with valid economics",
+        "foreign signature with rejected economics",
+        "missing occurrence",
+        "malformed global before leaf rejection"
+      ]
+    },
+    {
+      "name": "ownership_and_verification",
+      "points": [
+        "mutable receipt refused",
+        "nonexact verifier refused",
+        "invalid timeout",
+        "simultaneous mutation of original command/context/custody/global/candidate/config during BLS acquisition",
+        "exact statement and raw receipt request",
+        "receipt verification rejection"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Remove BLS occurrence authentication from the combined consumer. A foreign signature over otherwise valid economics must never reach receipt verification.",
+      "killed_by": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_foreign_signature_blocks_valid_and_rejected_economics[valid_economics]",
+      "mutant": {
+        "path": "src/integration/authenticated_asset_lane_custody_receipt_v2.py",
+        "needle_lines": [
+          "    verify_isolated_economic_command_occurrence_v2(",
+          "        owned_candidate,",
+          "        occurrence,",
+          "        signature_artifact_path=signature_artifact_path,",
+          "        signature_evidence_manifest=signature_evidence_manifest,",
+          "        signature_timeout_ms=signature_timeout_ms,",
+          "    )"
+        ],
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    },
+    {
+      "description": "Use caller original economic disclosures after BLS I/O instead of the captured values. Mutation during acquisition must leave the original expected statement unchanged.",
+      "killed_by": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_bls_artifact_acquisition_cannot_change_the_owned_custody_inputs",
+      "mutant": {
+        "path": "src/integration/authenticated_asset_lane_custody_receipt_v2.py",
+        "needle_lines": [
+          "        owned_context,",
+          "        owned_pre_state,",
+          "        owned_command,",
+          "        owned_global_pre,",
+          "        owned_global_post,"
+        ],
+        "replacement_lines": [
+          "        context,",
+          "        pre_state,",
+          "        command,",
+          "        global_pre,",
+          "        global_post,"
+        ]
+      }
+    },
+    {
+      "description": "Use caller original receipt configuration after BLS I/O. A substituted image and timeout must not replace the captured verifier configuration.",
+      "killed_by": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_bls_artifact_acquisition_cannot_change_the_owned_custody_inputs",
+      "mutant": {
+        "path": "src/integration/authenticated_asset_lane_custody_receipt_v2.py",
+        "needle_lines": [
+          "        verifier=owned_receipt_verifier,"
+        ],
+        "replacement_lines": [
+          "        verifier=receipt_verifier,"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "The ordinary gate uses the existing independent py_ecc BLS protocol fixture and a separately intercepted receipt exchange. It does not execute either native verifier or verify a RISC0 receipt.",
+    "The explicitly configured native BLS test executes the previously measured Rust ELF for all five economic vectors and foreign-key failures. It still intercepts receipt exchange and uses synthetic profile/release evidence; hosted CI is not asserted.",
+    "The expected statement reuses the leaf coordinator, with independent arithmetic and retained economic cases. This is composition evidence, not an independent proof of every coordinator or codec obligation.",
+    "Signature and eager structural validation precede economic execution in this new entry. After authentication, typed leaf rejection and existing global/transport errors retain their contracts.",
+    "Profile activation/status selection, writer epoch equality, selected module membership and the flat guest role/specification/image are separate unestablished admission predicates. A configured image is not equated to a V1 profile image slot.",
+    "Trusted executable selection and honest process/OS/loader/library execution remain premises. Hashing arbitrary code or returning bytes does not create authority.",
+    "Real new guest image/receipt, current datastore authority, durable publication/recovery, effect destinations, no-bypass, full formal/runtime refinement and V3 completion remain open.",
+    "Mechanical mutation rows require successful archived replay; packet validation alone is not a killed-mutant result."
+  ]
+}

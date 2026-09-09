@@ -135,9 +135,17 @@ The [authentication contract](specifications/ECONOMIC_COMMAND_AUTHENTICATION_V2.
 defines the signed fields and the unsigned sequencer coordinates. Checking
 returns no reusable authority and consumes no replay state.
 
-Next, qualify the rebuilt receipt path and combine V2 authentication with exact
-custody/profile admission and current-store publication; prove the resulting
-store-authority bindings. The
+The combined isolated consumer now authenticates the actual typed custody
+command and conditionally verifies its statement within one owning call.
+Candidate, command, context, custody/global disclosures and receipt configuration
+are captured before BLS I/O. Valid signatures cannot substitute command bytes
+or change claimant rows. Structural snapshot errors precede authentication;
+signature failure precedes economic execution; authenticated leaf rejection
+remains an exact no-effect result without receipt verification.
+
+Next, qualify the rebuilt receipt path and establish explicit custody/profile
+admission and current-store publication; prove the resulting store-authority
+bindings. The
 review at `89e817d8` found that existing real module/coordinator/route guests and
 durable publication consume ABI V1. The V2 flat guest source now recomputes the
 existing custody coordinator and global relation and commits their exact V2
@@ -149,9 +157,10 @@ design; their defined subject and five-case native evidence are retained.
 The new V2 authentication path signs the V2 command-hash domain and binds exact
 V2 intent and occurrence types. Its explicit reuse of unchanged profile/registry
 formats does not establish actual guest, state, route or current activation
-admission. It hashes opaque bounded command bytes; the consumer must match the
-actual typed command and enforce its schema/origin requirements. Combine
-verification with use of the same owned inputs before any protected operation.
+admission. Authentication alone hashes opaque bounded command bytes; the
+combined custody consumer now matches the actual owned typed command and uses
+that command in the existing economic transition. Its successful bytes still
+confer no authority on a later protected operation.
 Matching an
 occurrence's predecessor root establishes consistency; the publisher must
 acquire and revalidate the committed predecessor to establish its authority.
@@ -267,6 +276,23 @@ all three unmutated controls and killed all three mutants, with zero survivors
 or replay errors. Replay with
 `python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260909-command-authentication-v2 --rev 3d4301c685d42890eb41bfed76c51b0776f940c0`.
 The temporary archive and mutation workspaces were removed after verification.
+
+The combined authenticated-custody entry passed 64 selected integration cases;
+the two native cases skipped in that default run were executed separately with
+the measured BLS artifact. The new native case covered all five custody
+lifecycles and a foreign-key rejection for each, with receipt exchanges still
+explicitly mocked at the protocol boundary. Its hygiene packet passed 19 cases
+across three critical paths. Ruff, focused mypy and the scoped production-boundary
+checker passed. Astra reviewed the composition contract and Daybreak reviewed
+the exact source/tests, including the independent native BLS transport alias.
+No receipt, profile or publication authority was granted.
+
+The combined entry's packet declares mechanical removals of BLS authentication,
+economic snapshot use and receipt-configuration snapshot use. Replay them with
+the existing mutation ledger against the committed implementation before
+crediting those mutation outcomes. Full guest proof generation and genuine
+receipt qualification still require suitable compute; no new Lean, ESSO or Kani
+proof is attributed to these integration changes.
 
 Complexity review uses the existing simplification skill and exact outcome
 checks. Radon 6.0.1 found high Python hotspots in snapshot decoding (152), the

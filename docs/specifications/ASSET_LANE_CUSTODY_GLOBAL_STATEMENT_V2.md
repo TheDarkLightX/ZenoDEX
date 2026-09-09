@@ -94,17 +94,58 @@ The executable target requires the `compiled-guest` feature and the actual
 methods build. Native codec tests build without that feature; they contain no
 fallback image or cryptographic-success claim.
 
+## Same-call isolated authentication and receipt consumption
+
+`verify_isolated_authenticated_asset_lane_custody_receipt_v2` combines the
+[V2 intent check](ECONOMIC_COMMAND_AUTHENTICATION_V2.md) with this conditional
+receipt adapter. It snapshots the candidate, context, typed command, custody
+state, both global disclosures and concrete receipt verifier configuration
+before signature-verifier I/O. Receipt bytes must have the exact immutable
+`bytes` type. The signed envelope must equal the actual owned command's
+canonical body bytes, including its origin field.
+
+It authenticates the owned context occurrence through the fixed sealed BLS
+factory, then invokes the existing custody receipt adapter on those same owned
+inputs. Mutation of caller originals during artifact acquisition cannot change
+the command, disclosures or configured image later checked. There is no
+intermediate authentication handle, caller-supplied journal or deferred use of
+the originals.
+
+This entry has explicit rejection order: eager structural snapshot failures
+precede authentication; signature failure precedes economic execution. After
+authentication, typed economic rejection returns unchanged and launches no
+receipt verification. Global relation and receipt transport failures propagate.
+Successful checking returns ordinary statement bytes and creates no economic,
+replay, history, outbox or publication effect.
+
+The integration tests rebind the five retained economic cases to a synthetic
+signing profile and independently check their integer row changes. The optional
+measured-native test executes real sealed BLS verification for all five cases,
+including foreign-key failures. Its RISC0 receipt exchange is still a protocol
+fixture. Replaying that test requires the same artifact variable and measured
+ELF described in the authentication contract:
+
+```bash
+python3 -m pytest -q tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py
+ZENODEX_BLS_VERIFIER_TEST_BINARY=/path/to/measured/verifier python3 -m pytest -q tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_native_bls_checks_all_five_custody_vectors_before_protocol_receipts
+```
+
 ## Remaining admission obligations
 
-This is the inner economic payload, not a complete admitted CBC profile. Its
-occurrence commits a route release, subject and grant, but hashing those values
-does not authenticate them or establish active policy membership. Matching the
+The inner economic payload is not a complete admitted CBC profile. Hashing its
+route release, subject and grant does not authenticate them. The combined
+consumer checks the signed occurrence against supplied governed authorization,
+under the authentication contract's trusted profile/status selection premise.
+It does not establish writer epoch equality with the profile, context/module
+membership in its selected lane release, or the flat guest's admitted role,
+specification and measured image. Do not equate that image with a V1 profile
+image slot without a defined role mapping. Matching the
 predecessor root establishes consistency with the supplied disclosures; current
 store authority must be acquired and revalidated by the publication shell.
 
 Qualification still requires the actual rebuilt guest image, genuine receipt
 verification of the exact image and journal, explicit release/profile/context
-admission, authenticated intent, durable state and atomic publication. A proof
+admission, current authentication authority, durable state and atomic publication. A proof
 producer or compromised publisher must have no alternate value-writing path.
 Native tests and this format do not discharge those obligations.
 
