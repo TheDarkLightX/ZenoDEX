@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
 import pytest
@@ -41,13 +41,25 @@ from src.core.global_settlement_primitives_v2 import (
     canonical_global_bytes_v2,
     hash_economic_command_body_bytes_v2,
 )
-from src.core.global_settlement_types_v1 import EconomicPolicyRegistryV1
+from src.core.global_settlement_types_v1 import (
+    EconomicPolicyRegistryV1,
+    EconomicProfileSnapshotV1,
+    LaneCoordinatorRegistryV1,
+    LaneIdV1,
+    LaneModuleReleaseV1,
+    LaneRegistryV1,
+    ProfileStatusV1,
+    ReleaseStatusV1,
+    RouteRegistryV1,
+    RouteReleaseV1,
+)
 from src.core.global_settlement_types_v2 import LaneIdV2
 from src.integration import authenticated_asset_lane_custody_receipt_v2 as pipeline
 from src.integration import global_receipt_verifier_v1 as receipt_transport
 from src.integration import sealed_bls_command_verifier_deployment_v1 as bls_deployment
 from tests.core.test_asset_lane_custody_statement_parity_v2 import CASES, typed_inputs
 from tests.core.test_economic_command_authentication_v1 import _rebuild_profile
+from tests.core.test_lane_module_release_route_binding_v1 import _active_evidence
 from tests.integration.test_global_receipt_verifier_v1 import IMAGE, OTHER_IMAGE, backend
 from tests.integration.test_isolated_economic_command_authentication_v2 import (
     _ARTIFACT,
@@ -85,8 +97,10 @@ def _sign(candidate, scalar=_SECRET):
     )
 
 
-def _case(index=0, artifact=_ARTIFACT, *, amount=None):
+def _case(index=0, artifact=_ARTIFACT, *, amount=None, profile=None):
     base, _, manifest, _ = _signed_case(artifact)
+    if profile is not None:
+        base = replace(base, profile=profile)
     context, lane, command, before, after = typed_inputs(CASES[index])
     if amount is not None:
         command = replace(command, amount_atoms=amount)
@@ -120,7 +134,30 @@ def _case(index=0, artifact=_ARTIFACT, *, amount=None):
         )
     )
     profile = _rebuild_profile(base.profile, policies.registry_root)
-    before = replace(before, profile_root=profile.profile_id)
+    release = profile.lane_registry.release_for(LaneIdV1.ASSET_TRANSFER)
+    lane = AssetLaneCustodyStateV2(
+        replace(lane.transfer_state, module_release_id=release.release_id),
+        replace(lane.origin_registry, module_release_id=release.release_id),
+        lane.managed_policies,
+        lane.custody,
+    )
+    releases = {row.lane_id.value: row for row in profile.lane_registry.releases}
+    before = replace(
+        before,
+        profile_root=profile.profile_id,
+        writer_epoch=profile.authority_epoch,
+        lane_roots=tuple(
+            replace(
+                row,
+                module_release_id=releases[row.lane_id.value].release_id,
+                enabled=releases[row.lane_id.value].status is ReleaseStatusV1.ACTIVE_NEW,
+                state_root=lane.state_root
+                if row.lane_id is LaneIdV2.ASSET_TRANSFER
+                else row.state_root,
+            )
+            for row in before.lane_roots
+        ),
+    )
     occurrence = replace(
         occurrence,
         profile_root=profile.profile_id,
@@ -129,7 +166,7 @@ def _case(index=0, artifact=_ARTIFACT, *, amount=None):
         pre_state_root=before.state_root,
     )
     context = AssetLaneContextV2(
-        context.writer_epoch, context.module_release_id, before.state_root, occurrence
+        profile.authority_epoch, release.release_id, before.state_root, occurrence
     )
     intent = EconomicCommandIntentV2(
         occurrence.chain_id,
@@ -160,7 +197,20 @@ def _case(index=0, artifact=_ARTIFACT, *, amount=None):
             ),
         )
     )
-    # Rebind the retained economics to this synthetic signing profile. Expected
+    return _recompute_economics(
+        _Case(candidate, (context, lane, command, before, after), manifest, b"")
+    )
+
+
+def _recompute_economics(case):
+    context, lane, command, before, after = case.inputs
+    occurrence = context.occurrence
+    assert occurrence is not None
+    occurrence = replace(occurrence, pre_state_root=before.state_root)
+    context = AssetLaneContextV2(
+        context.writer_epoch, context.module_release_id, before.state_root, occurrence
+    )
+    # Rebind the retained economics to the supplied test metadata. Expected
     # bytes use the leaf coordinator plus independent integer row arithmetic;
     # neither the statement producer nor the new consumer constructs the oracle.
     result = transition_asset_lane_custody_v2(context, lane, command)
@@ -193,7 +243,85 @@ def _case(index=0, artifact=_ARTIFACT, *, amount=None):
     else:
         assert type(result) is AssetLaneRejectedV2
         expected = result
-    return _Case(candidate, (context, lane, command, before, after), manifest, expected)
+    return replace(case, inputs=(context, lane, command, before, after), expected=expected)
+
+
+def _profile_with_spot(profile, route_lanes):
+    # Synthetic evidence labels test structural compatibility only. They do not
+    # qualify Spot or either guest. Rebuild every changed content-derived ID.
+    old_spot = profile.lane_registry.release_for(LaneIdV1.SPOT_LIQUIDITY)
+    spot = LaneModuleReleaseV1.build(
+        **(
+            {
+                field.name: getattr(old_spot, field.name)
+                for field in fields(old_spot)
+                if field.name != "release_id"
+            }
+            | {
+                "command_variants": ("asset_transfer",),
+                "status": ReleaseStatusV1.ACTIVE_NEW,
+                "accepts_new_objects": True,
+                "evidence_statuses": _active_evidence(),
+            }
+        )
+    )
+    lanes = LaneRegistryV1(
+        tuple(
+            spot if row.lane_id is LaneIdV1.SPOT_LIQUIDITY else row
+            for row in profile.lane_registry.releases
+        )
+    )
+    coordinators = LaneCoordinatorRegistryV1(
+        tuple(
+            replace(
+                row,
+                status=ReleaseStatusV1.ACTIVE_NEW,
+                accepts_new_objects=True,
+                evidence_statuses=_active_evidence(),
+            )
+            if row.lane_id is LaneIdV1.SPOT_LIQUIDITY
+            else row
+            for row in profile.lane_coordinator_registry.releases
+        )
+    )
+    route = profile.route_registry.route_for_command("asset_transfer")
+    selected = RouteReleaseV1.build(
+        **(
+            {
+                field.name: getattr(route, field.name)
+                for field in fields(route)
+                if field.name != "route_release_id"
+            }
+            | {
+                "ordered_lanes": route_lanes,
+                "module_release_ids": tuple(
+                    lanes.release_for(lane).release_id for lane in route_lanes
+                ),
+                "dependency_roles": tuple(lane.value for lane in route_lanes),
+                "port_schema_roots": tuple(OTHER_IMAGE for _ in route_lanes),
+            }
+        )
+    )
+    routes = RouteRegistryV1(
+        tuple(
+            selected if row.command_kind == "asset_transfer" else row
+            for row in profile.route_registry.routes
+        )
+    )
+    return EconomicProfileSnapshotV1.build(
+        **(
+            {
+                field.name: getattr(profile, field.name)
+                for field in fields(profile)
+                if field.name != "profile_id"
+            }
+            | {
+                "lane_registry": lanes,
+                "lane_coordinator_registry": coordinators,
+                "route_registry": routes,
+            }
+        )
+    )
 
 
 def _run(case, path, verifier, receipt_bytes=_RECEIPT):
@@ -240,6 +368,140 @@ def test_signed_custody_lifecycles_reach_the_exact_receipt_statement(
     assert _run(case, path, backend()) == case.expected
     assert len(signatures) == len(requests) == 1
     assert canonical_global_bytes_v2(case.inputs) == original
+
+
+@pytest.mark.parametrize(
+    "kind", ("writer_epoch", "custody_module", "other_lane_release", "other_lane_enabled")
+)
+def test_coherent_foreign_profile_metadata_rejects_before_verifier_io(
+    protocol_case, monkeypatch, kind
+):
+    _, path, signatures = protocol_case
+    case = _case()
+    context, lane, command, before, after = case.inputs
+    if kind == "writer_epoch":
+        before = replace(before, writer_epoch=before.writer_epoch + 1)
+        context = AssetLaneContextV2(
+            before.writer_epoch, context.module_release_id, before.state_root, context.occurrence
+        )
+    else:
+        target = LaneIdV2.ASSET_TRANSFER if kind == "custody_module" else LaneIdV2.SPOT_LIQUIDITY
+        if kind == "custody_module":
+            lane = AssetLaneCustodyStateV2(
+                replace(lane.transfer_state, module_release_id=OTHER_IMAGE),
+                replace(lane.origin_registry, module_release_id=OTHER_IMAGE),
+                lane.managed_policies,
+                lane.custody,
+            )
+            context = AssetLaneContextV2(
+                context.writer_epoch, OTHER_IMAGE, before.state_root, context.occurrence
+            )
+        before = replace(
+            before,
+            lane_roots=tuple(
+                replace(
+                    row,
+                    module_release_id=row.module_release_id
+                    if kind == "other_lane_enabled"
+                    else OTHER_IMAGE,
+                    enabled=not row.enabled if kind == "other_lane_enabled" else row.enabled,
+                    state_root=lane.state_root if kind == "custody_module" else row.state_root,
+                )
+                if row.lane_id is target
+                else row
+                for row in before.lane_roots
+            ),
+        )
+    case = _recompute_economics(replace(case, inputs=(context, lane, command, before, after)))
+    assert type(case.expected) is bytes
+    requests = _receipt_exchange(monkeypatch, case.expected)
+    error = {
+        "writer_epoch": "custody profile writer epoch mismatch",
+        "custody_module": "custody profile module release mismatch",
+        "other_lane_release": "custody profile predecessor lane release mismatch",
+        "other_lane_enabled": "custody profile predecessor enabled mismatch",
+    }[kind]
+    original = canonical_global_bytes_v2(case.inputs)
+    with pytest.raises(ValueError, match=error):
+        _run(case, path, backend())
+    assert signatures == requests == []
+    assert canonical_global_bytes_v2(case.inputs) == original
+
+
+@pytest.mark.parametrize("kind", ("enabled_other_lane", "nonzero_disabled_root"))
+def test_unchanged_other_lane_state_remains_compatible(protocol_case, monkeypatch, kind):
+    _, path, signatures = protocol_case
+    case = _case()
+    if kind == "enabled_other_lane":
+        profile = _profile_with_spot(case.candidate.profile, (LaneIdV1.ASSET_TRANSFER,))
+        case = _case(profile=profile)
+    else:
+        context, lane, command, before, after = case.inputs
+        before = replace(
+            before,
+            lane_roots=tuple(
+                replace(row, state_root=OTHER_IMAGE)
+                if row.lane_id is LaneIdV2.SPOT_LIQUIDITY
+                else row
+                for row in before.lane_roots
+            ),
+        )
+        case = _recompute_economics(replace(case, inputs=(context, lane, command, before, after)))
+    assert type(case.expected) is bytes
+    requests = _receipt_exchange(monkeypatch, case.expected)
+    assert _run(case, path, backend()) == case.expected
+    assert len(signatures) == len(requests) == 1
+
+
+def test_two_lane_route_cannot_be_satisfied_by_a_flat_custody_statement(protocol_case, monkeypatch):
+    _, path, signatures = protocol_case
+    case = _case()
+    profile = _profile_with_spot(
+        case.candidate.profile, (LaneIdV1.ASSET_TRANSFER, LaneIdV1.SPOT_LIQUIDITY)
+    )
+    case = _case(profile=profile)
+    assert type(case.expected) is bytes
+    requests = _receipt_exchange(monkeypatch, case.expected)
+    with pytest.raises(ValueError, match="custody profile route lane name mismatch"):
+        _run(case, path, backend())
+    assert signatures == requests == []
+
+
+@pytest.mark.parametrize("kind", ("writer_epoch", "profile_root", "lane_release", "lane_enabled"))
+def test_accepted_economics_cannot_change_profile_metadata_in_the_successor(
+    protocol_case, monkeypatch, kind
+):
+    _, path, signatures = protocol_case
+    case = _case()
+    context, lane, command, before, after = case.inputs
+    if kind in ("writer_epoch", "profile_root"):
+        after = replace(
+            after, **{kind: after.writer_epoch + 1 if kind == "writer_epoch" else OTHER_IMAGE}
+        )
+        error = "global refinement fixed context changed"
+    else:
+        after = replace(
+            after,
+            lane_roots=tuple(
+                replace(
+                    row,
+                    **(
+                        {"module_release_id": OTHER_IMAGE}
+                        if kind == "lane_release"
+                        else {"enabled": not row.enabled}
+                    ),
+                )
+                if row.lane_id is LaneIdV2.SPOT_LIQUIDITY
+                else row
+                for row in after.lane_roots
+            ),
+        )
+        error = "global refinement lane ownership changed outside migration"
+    case = replace(case, inputs=(context, lane, command, before, after))
+    requests = _receipt_exchange(monkeypatch, case.expected)
+    with pytest.raises(ValueError, match=error):
+        _run(case, path, backend())
+    assert len(signatures) == 1 and requests == []
 
 
 @pytest.mark.parametrize("change", ("amount", "origin", "noncanonical_signed_body"))
@@ -305,6 +567,34 @@ def test_authenticated_economic_rejection_is_exact_and_launches_no_receipt(
     assert len(signatures) == 1 and requests == []
 
 
+def test_leaf_rejection_precedes_semantic_successor_checks(protocol_case, monkeypatch):
+    _, path, signatures = protocol_case
+    case = _case(amount=1000)
+    context, lane, command, before, after = case.inputs
+    after = replace(after, writer_epoch=after.writer_epoch + 1)
+    case = replace(case, inputs=(context, lane, command, before, after))
+    requests = _receipt_exchange(monkeypatch, case.expected)
+    result = _run(case, path, backend())
+    assert type(result) is AssetLaneRejectedV2
+    assert result == case.expected
+    assert result.pre_state_root == result.post_state_root == lane.state_root
+    assert result.effects.is_empty
+    assert len(signatures) == 1 and requests == []
+
+
+def test_revoked_profile_rejects_before_verifier_io(protocol_case, monkeypatch):
+    _, path, signatures = protocol_case
+    case = _case()
+    candidate = replace(
+        case.candidate, profile=replace(case.candidate.profile, status=ProfileStatusV1.REVOKED)
+    )
+    case = replace(case, candidate=candidate)
+    requests = _receipt_exchange(monkeypatch, case.expected)
+    with pytest.raises(ValueError, match="custody profile requires an ACTIVE profile"):
+        _run(case, path, backend())
+    assert signatures == requests == []
+
+
 def test_valid_signature_cannot_move_an_existing_claimant(protocol_case, monkeypatch):
     _, path, signatures = protocol_case
     case = _case()
@@ -334,6 +624,11 @@ def test_bls_artifact_acquisition_cannot_change_the_owned_custody_inputs(
         object.__setattr__(before, "profile_root", OTHER_IMAGE)
         object.__setattr__(after, "_liabilities", ())
         object.__setattr__(case.candidate.envelope, "signature_bytes", b"\0" * 96)
+        object.__setattr__(case.candidate.profile, "status", ProfileStatusV1.REVOKED)
+        object.__setattr__(case.candidate.profile, "authority_epoch", context.writer_epoch)
+        object.__setattr__(
+            case.candidate.profile.lane_registry.releases[0], "release_id", OTHER_IMAGE
+        )
         object.__setattr__(verifier, "expected_image_id", OTHER_IMAGE)
         object.__setattr__(verifier, "timeout_ms", 1)
         return original_read(path)

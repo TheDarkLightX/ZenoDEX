@@ -104,6 +104,23 @@ before signature-verifier I/O. Receipt bytes must have the exact immutable
 `bytes` type. The signed envelope must equal the actual owned command's
 canonical body bytes, including its origin field.
 
+Before verifier I/O, the pure
+`require_asset_lane_custody_profile_binding_v2` predicate reconstructs the
+selected profile, context and global predecessor. The profile must be ACTIVE,
+its authority epoch must match the context and predecessor, and its governed
+command route must select exactly ASSET_TRANSFER. The context's module release
+must be that profile's selected ASSET_TRANSFER release. Every predecessor lane
+row must match the profile's canonical lane name, release ID and enabled status;
+the predecessor profile root must equal the selected profile ID. The profile's
+existing constructors validate route/module and coordinator membership.
+
+This explicitly reuses the V1 profile/registry formats without converting V2
+states or occurrences. Other enabled lanes and unchanged nonzero disabled roots
+remain admissible when their metadata matches the profile. Accepted global
+refinement already preserves profile, writer and all lane release/enabled fields
+into the successor, so this predicate does not repeat successor validation. This
+is a Python admission check; it adds no assertion to the flat Rust guest.
+
 It authenticates the owned context occurrence through the fixed sealed BLS
 factory, then invokes the existing custody receipt adapter on those same owned
 inputs. Mutation of caller originals during artifact acquisition cannot change
@@ -111,15 +128,20 @@ the command, disclosures or configured image later checked. There is no
 intermediate authentication handle, caller-supplied journal or deferred use of
 the originals.
 
-This entry has explicit rejection order: eager structural snapshot failures
-precede authentication; signature failure precedes economic execution. After
+This entry has explicit rejection order: eager structural snapshot and profile
+binding failures precede authentication; signature failure precedes economic execution. After
 authentication, typed economic rejection returns unchanged and launches no
-receipt verification. Global relation and receipt transport failures propagate.
+receipt verification, including when a well-formed proposed successor has
+mismatched profile metadata. Accepted commands undergo the full global relation;
+global relation and receipt transport failures propagate.
 Successful checking returns ordinary statement bytes and creates no economic,
 replay, history, outbox or publication effect.
 
 The integration tests rebind the five retained economic cases to a synthetic
-signing profile and independently check their integer row changes. The optional
+signing profile and independently check their integer row changes. Coherent
+foreign writer/module/other-lane metadata and a valid two-lane route reject
+before verifier I/O; accepted successor metadata substitutions reject before
+receipt verification. The optional
 measured-native test executes real sealed BLS verification for all five cases,
 including foreign-key failures. Its RISC0 receipt exchange is still a protocol
 fixture. Replaying that test requires the same artifact variable and measured
@@ -136,16 +158,19 @@ The inner economic payload is not a complete admitted CBC profile. Hashing its
 route release, subject and grant does not authenticate them. The combined
 consumer checks the signed occurrence against supplied governed authorization,
 under the authentication contract's trusted profile/status selection premise.
-It does not establish writer epoch equality with the profile, context/module
-membership in its selected lane release, or the flat guest's admitted role,
-specification and measured image. Do not equate that image with a V1 profile
-image slot without a defined role mapping. Matching the
+Structural profile binding now establishes writer epoch equality, selected
+module membership and predecessor lane metadata consistency. It does not qualify
+the custody state-schema/specification commitments or the flat guest's admitted
+role and measured image. No existing mounted module/coordinator/route/root
+receipt role accepts this four-field statement unchanged. Define that role's
+statement, schema and specification binding before assigning its image to a
+profile slot. Matching the
 predecessor root establishes consistency with the supplied disclosures; current
 store authority must be acquired and revalidated by the publication shell.
 
 Qualification still requires the actual rebuilt guest image, genuine receipt
-verification of the exact image and journal, explicit release/profile/context
-admission, current authentication authority, durable state and atomic publication. A proof
+verification of the exact image and journal, release/guest-role qualification,
+current authentication authority, durable state and atomic publication. A proof
 producer or compromised publisher must have no alternate value-writing path.
 Native tests and this format do not discharge those obligations.
 

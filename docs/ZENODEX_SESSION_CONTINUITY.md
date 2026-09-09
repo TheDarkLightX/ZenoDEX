@@ -139,25 +139,31 @@ The combined isolated consumer now authenticates the actual typed custody
 command and conditionally verifies its statement within one owning call.
 Candidate, command, context, custody/global disclosures and receipt configuration
 are captured before BLS I/O. Valid signatures cannot substitute command bytes
-or change claimant rows. Structural snapshot errors precede authentication;
+or change claimant rows. The pure profile predicate now requires an ACTIVE
+profile, its exact single-ASSET route and module, its authority epoch, and all
+twelve predecessor lane release/enabled fields. Structural snapshot and profile
+binding errors precede authentication;
 signature failure precedes economic execution; authenticated leaf rejection
 remains an exact no-effect result without receipt verification.
 
-Next, qualify the rebuilt receipt path and establish explicit custody/profile
-admission and current-store publication; prove the resulting store-authority
+Next, qualify the rebuilt receipt path and explicit custody schema/guest-role
+admission, then current-store publication; prove the resulting store-authority
 bindings. The
 review at `89e817d8` found that existing real module/coordinator/route guests and
 durable publication consume ABI V1. The V2 flat guest source now recomputes the
 existing custody coordinator and global relation and commits their exact V2
 statement. Its conditional Python adapter now uses the existing measured
 transport, and its fixed Rust verifier source selects the new compiled image.
-Qualify the actual rebuilt image and genuine receipt, then the context
+Qualify the actual rebuilt image and genuine receipt, then the guest-role
 admission and publication consumer. Do not restart statement or framing
 design; their defined subject and five-case native evidence are retained.
 The new V2 authentication path signs the V2 command-hash domain and binds exact
 V2 intent and occurrence types. Its explicit reuse of unchanged profile/registry
-formats does not establish actual guest, state, route or current activation
-admission. Authentication alone hashes opaque bounded command bytes; the
+formats does not establish actual guest, state-schema or current activation
+qualification. The new structural predicate checks selected route membership;
+no currently mounted V1 receipt role accepts the four-field flat statement
+unchanged. Define its role/schema/specification binding before assigning the
+new image to a profile slot. Authentication alone hashes opaque bounded command bytes; the
 combined custody consumer now matches the actual owned typed command and uses
 that command in the existing economic transition. Its successful bytes still
 confer no authority on a later protected operation.
@@ -297,6 +303,30 @@ survivors or replay errors. Replay with
 Temporary mutation workspaces were removed. Full guest proof generation and genuine
 receipt qualification still require suitable compute; no new Lean, ESSO or Kani
 proof is attributed to these integration changes.
+
+The next isolated increment mounts
+`require_asset_lane_custody_profile_binding_v2` before BLS I/O. Its retained
+baseline had five valid lifecycle controls pass and three coherent metadata
+regressions fail to reject: foreign writer epoch, custody module and another
+lane's release ID. After mounting, 77 selected integration cases and nine direct
+predicate cases passed; the hygiene gate replayed 29 cases across four critical
+paths. The native sealed BLS test separately passed all five economic cases and
+foreign signatures, with RISC0 exchanges still protocol fixtures. Ruff, focused
+mypy and the scoped production-boundary checker passed. The other optional
+native test in the combined default run was not repeated in this increment.
+Astra reviewed the predicate contract, Terra implemented its core/tests, and
+Daybreak independently reviewed the final source and semantic controls.
+
+The binding admits matching enabled other lanes and unchanged retained disabled
+roots. Existing accepted global refinement establishes successor profile and
+lane-metadata preservation; no redundant successor predicate or new authority
+handle was added. The consumer's inherited long signature and body remain to
+keep snapshot capture and verifier order visible in one call. Direct tests were
+simplified by removing a redundant profile builder and repeated malformed-input
+branches without changing their nine cases. The new hygiene packet declares
+four mechanical guard-removal mutants; only archived replay may count them as
+killed. Full guest qualification, publication, Lean/ESSO/Kani/runtime refinement
+and whole-program completion remain open.
 
 Complexity review uses the existing simplification skill and exact outcome
 checks. Radon 6.0.1 found high Python hotspots in snapshot decoding (152), the

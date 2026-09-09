@@ -12,6 +12,9 @@ from pathlib import Path
 
 from ..core.asset_lane_coordinator_v2 import _route_and_owned_command_v2
 from ..core.asset_lane_coordinator_values_v2 import AssetLaneCommandV2, AssetLaneRejectedV2
+from ..core.asset_lane_custody_profile_binding_v2 import (
+    require_asset_lane_custody_profile_binding_v2,
+)
 from ..core.asset_lane_custody_state_v2 import (
     AssetLaneCustodyStateV2,
     snapshot_asset_lane_custody_state_v2,
@@ -54,10 +57,11 @@ def verify_isolated_authenticated_asset_lane_custody_receipt_v2(
 ) -> bytes | AssetLaneRejectedV2:
     """Authenticate one owned command, then verify its exact custody statement.
 
-    Structural snapshot errors precede authentication, and signature failure
-    precedes economic execution. Authenticated leaf rejection returns unchanged
-    without receipt verification. Full profile and current-store admission are
-    separate requirements; a successful return grants no authority.
+    Structural snapshot and profile-binding errors precede authentication, and
+    signature failure precedes economic execution. Authenticated leaf rejection
+    returns unchanged without receipt verification. Full profile qualification
+    and current-store admission remain separate requirements; a successful return
+    grants no authority.
     """
 
     owned_candidate = snapshot_command_authentication_candidate_v2(candidate)
@@ -84,6 +88,9 @@ def verify_isolated_authenticated_asset_lane_custody_receipt_v2(
         owned_command,
     ):
         raise ValueError("authenticated command body does not match the custody command")
+    require_asset_lane_custody_profile_binding_v2(
+        owned_candidate.profile, owned_context, owned_global_pre
+    )
     verify_isolated_economic_command_occurrence_v2(
         owned_candidate,
         occurrence,

@@ -1,0 +1,239 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260909-custody-profile-binding-v2",
+  "created_date": "2026-09-09",
+  "claim_scope": "Pure structural profile consistency mounted before BLS in the isolated V2 custody receipt consumer: active single-ASSET route, context epoch/module and complete predecessor lane metadata. This establishes no guest/schema qualification, current-store authority or publication.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-PROFILE-V2-GOVERNED-ROUTE",
+    "CUSTODY-PROFILE-V2-EXACT-PREDECESSOR",
+    "CUSTODY-PROFILE-V2-OWNED-INPUTS",
+    "CUSTODY-PROFILE-V2-REJECT-ORDER"
+  ],
+  "failure_modes": [
+    "Coherent writer/context or custody-module metadata bypasses the signed profile selection.",
+    "A valid two-lane route is satisfied with a flat statement containing only one lane transition.",
+    "Another lane changes release or enabled metadata consistently in both disclosures while the signed profile remains unchanged.",
+    "Valid enabled other lanes or unchanged retained disabled roots are incorrectly refused.",
+    "Accepted successor metadata changes bypass the global frame, or semantic successor checks hide exact leaf rejection.",
+    "Postconstruction profile forgery or I/O mutation changes the owned decision."
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/asset_lane_custody_profile_binding_v2.py",
+      "sha256": "a6ab3f87d49adff958e38efa2c3ce674b6ffee87dc31f57274a6dcee117b151b"
+    },
+    {
+      "path": "src/integration/authenticated_asset_lane_custody_receipt_v2.py",
+      "sha256": "3f5081e4448296374741172c7dcc4900512d6262e0f8457d6856874a38b39e33"
+    },
+    {
+      "path": "src/core/global_economic_profile_snapshot_v1.py",
+      "sha256": "6878f42b94b07ecb2ce48196d39eeaa75115c8f8c66765dbc81de92288f537f7"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "854a65b68a0c76a3af3afc62b53eb48c333b9e87f854e8f10fd54a851ff27ac4"
+    },
+    {
+      "path": "src/core/asset_lane_state_v2.py",
+      "sha256": "650dc5ab0a2a6010b9b512bfc59bcb7a33e7d376bbffffdb106bda5abb65f5a2"
+    },
+    {
+      "path": "src/core/global_economic_state_v2.py",
+      "sha256": "2948531057e332a301c0cdd278771040a86eda38f34ca839cd1ec196fc75b12e"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v2.py",
+      "sha256": "c40b90311f32b304b5c73b6f382e2f7e790312147d9072c91faa9104dac319df"
+    },
+    {
+      "path": "src/core/asset_lane_custody_global_v2.py",
+      "sha256": "7923fcad504164b83946bcd7fd732339c26023ac9185b61789a6a993cf73f509"
+    },
+    {
+      "path": "tests/core/test_lane_module_release_route_binding_v1.py",
+      "sha256": "2dede0423e0831249f13ddf20b1cf83201dc0ca8117fc8833aaf15578c99530d"
+    },
+    {
+      "path": "tests/core/test_economic_command_authentication_v1.py",
+      "sha256": "aae449eb0d17291f6028c9e60aae3d0b5fca18754f08b1edec6372ba0ff8aa50"
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_statement_parity_v2.py",
+      "sha256": "f4d0c70b3da3c8fc9626ea02940223b4ec4a9114af007a7215d62e5eecbef965"
+    },
+    {
+      "path": "tests/integration/test_isolated_economic_command_authentication_v2.py",
+      "sha256": "b82de7c996a3afef7701fb0c5326771a6a7dc8b2f109060380b4478d310ccce5"
+    },
+    {
+      "path": "tests/integration/test_global_receipt_verifier_v1.py",
+      "sha256": "eb2b88a37c590524956eaf7d3eaa0fe0f6ca2354d0a5e81315f3d5c5adb113de"
+    },
+    {
+      "path": "tests/data/asset_lane_custody_statement_v2_golden.json",
+      "sha256": "770f99fe8b97d5c5debe480fcbbb44cb5e400f39667cc409b9c3362585759354"
+    },
+    {
+      "path": "tools/render_asset_lane_custody_v2_golden.py",
+      "sha256": "5f0e83fd9e1b8ce22b1dc5c80da573a1f2c07e7cc65a112780fda34655fbeef8"
+    },
+    {
+      "path": "docs/specifications/ASSET_LANE_CUSTODY_GLOBAL_STATEMENT_V2.md",
+      "sha256": "659fc18677f72beffce76a0b0ca8032002294a1c644e108af5b40a13af2fe5e9"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "5bddfa1c45ae8021ffe4433b93bb415a6015f1855fabf02d86ad7319ae50d88a"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py",
+      "sha256": "0345b9ec9c5d456a39210ec0980dba5d8aa44b8f1848d4237b35d6fa537f6a8f",
+      "node_ids": [
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_signed_custody_lifecycles_reach_the_exact_receipt_statement",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_coherent_foreign_profile_metadata_rejects_before_verifier_io[writer_epoch]",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_coherent_foreign_profile_metadata_rejects_before_verifier_io[custody_module]",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_coherent_foreign_profile_metadata_rejects_before_verifier_io[other_lane_release]",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_coherent_foreign_profile_metadata_rejects_before_verifier_io[other_lane_enabled]",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_unchanged_other_lane_state_remains_compatible",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_two_lane_route_cannot_be_satisfied_by_a_flat_custody_statement",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_accepted_economics_cannot_change_profile_metadata_in_the_successor",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_authenticated_economic_rejection_is_exact_and_launches_no_receipt",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_leaf_rejection_precedes_semantic_successor_checks",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_revoked_profile_rejects_before_verifier_io",
+        "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_bls_artifact_acquisition_cannot_change_the_owned_custody_inputs"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_profile_binding_v2.py",
+      "sha256": "ad668da26c34bf27194945309f6e3ff5c964e3c854f3a0f43939067a83fa962a",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_profile_binding_v2.py::test_active_profile_and_aligned_predecessor_bind_without_input_mutation",
+        "tests/core/test_asset_lane_custody_profile_binding_v2.py::test_profile_status_and_occurrence_are_direct_preconditions",
+        "tests/core/test_asset_lane_custody_profile_binding_v2.py::test_predecessor_profile_coordinates_reject_isolated_drift",
+        "tests/core/test_asset_lane_custody_profile_binding_v2.py::test_stale_content_addressed_profile_cannot_bypass_snapshot_reconstruction",
+        "tests/core/test_asset_lane_custody_profile_binding_v2.py::test_direct_api_rejects_malformed_snapshot_inputs"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "metamorphic",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Given a structurally aligned synthetic profile and retained economics, vary one metadata obligation while recomputing coherent context/disclosures. Valid lifecycle controls pass. Before mounting, the coherent writer/module/other-lane regressions failed to reject (5 controls passed, 3 tests failed). Expected statement construction uses the existing leaf coordinator plus independent integer row arithmetic, not the new binder or combined consumer."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Profile failures leave captured economic input bytes unchanged and invoke neither verifier. Accepted successor violations invoke BLS once and no receipt. Authenticated leaf rejection retains equal roots and empty effects even for a well-formed semantically mismatched successor. This API owns no state/replay/history/outbox writer."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "profile_and_predecessor",
+      "points": [
+        "ACTIVE versus SHADOW/REVOKED",
+        "present versus missing occurrence",
+        "exact versus foreign writer epoch",
+        "exact versus foreign profile root",
+        "selected versus coherent foreign custody release",
+        "selected versus coherent foreign other-lane release",
+        "matching versus inverted enabled flag"
+      ]
+    },
+    {
+      "name": "composition_and_frame",
+      "points": [
+        "one-lane versus valid two-lane route",
+        "matching enabled other lane",
+        "nonzero retained disabled root",
+        "successor profile/writer/release/enabled substitution",
+        "typed economic rejection before semantic successor validation"
+      ]
+    },
+    {
+      "name": "owned_values",
+      "points": [
+        "exact profile/context/global types",
+        "stale content-derived profile identity",
+        "nested original profile/release mutation during BLS artifact acquisition"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Bypass mounted profile admission and accept coherent foreign writer metadata despite the signed selected profile.",
+      "killed_by": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_coherent_foreign_profile_metadata_rejects_before_verifier_io[writer_epoch]",
+      "mutant": {
+        "path": "src/integration/authenticated_asset_lane_custody_receipt_v2.py",
+        "needle_lines": [
+          "    require_asset_lane_custody_profile_binding_v2(",
+          "        owned_candidate.profile, owned_context, owned_global_pre",
+          "    )"
+        ],
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    },
+    {
+      "description": "Remove other-lane release membership checking, admitting consistent foreign release IDs in both global disclosures.",
+      "killed_by": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_coherent_foreign_profile_metadata_rejects_before_verifier_io[other_lane_release]",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_profile_binding_v2.py",
+        "needle_lines": [
+          "        if lane_state.module_release_id != release.release_id:",
+          "            raise ValueError(\"custody profile predecessor lane release mismatch\")"
+        ],
+        "replacement_lines": [
+          "        pass"
+        ]
+      }
+    },
+    {
+      "description": "Remove exact single-lane route requirement and admit a valid governed two-lane route with only the flat custody statement.",
+      "killed_by": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_two_lane_route_cannot_be_satisfied_by_a_flat_custody_statement",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_profile_binding_v2.py",
+        "needle_lines": [
+          "    if route.ordered_lanes != (LaneIdV1.ASSET_TRANSFER,):",
+          "        raise ValueError(\"custody profile route lane name mismatch\")"
+        ],
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    },
+    {
+      "description": "Remove predecessor enabled-flag checking and allow an inactive selected lane to appear enabled coherently in both disclosures.",
+      "killed_by": "tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_coherent_foreign_profile_metadata_rejects_before_verifier_io[other_lane_enabled]",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_profile_binding_v2.py",
+        "needle_lines": [
+          "        if lane_state.enabled is not expected_enabled:",
+          "            raise ValueError(\"custody profile predecessor enabled mismatch\")"
+        ],
+        "replacement_lines": [
+          "        pass"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Synthetic release evidence tests structural consistency. Profile activation, state-schema/specification and actual flat guest-role/image qualification remain trusted or open.",
+    "Other enabled lanes and unchanged nonzero disabled roots are admitted when their metadata matches. This consumer executes only the one-lane ASSET route.",
+    "The pure predicate is Python admission logic. No Rust guest or wire format is changed and no Python/Rust parity claim is made for this predicate.",
+    "Default BLS verification uses the existing independent py_ecc protocol fixture; RISC0 exchange remains a protocol fixture even in the separately executed measured-native BLS test.",
+    "Expected economics reuses the leaf coordinator with an independent integer row oracle; these tests are not a complete proof of the coordinator.",
+    "Current-store provenance, replay/publication/recovery, destination enforcement, no-bypass and full formal/runtime refinement remain open.",
+    "Declared mechanical mutants count as killed only after successful unmutated controls and actual archived replay."
+  ]
+}
