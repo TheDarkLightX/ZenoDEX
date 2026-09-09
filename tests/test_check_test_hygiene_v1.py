@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 from tools.check_test_hygiene_v1 import (
     DEFAULT_CONTRACT,
@@ -13,8 +15,34 @@ from tools.check_test_hygiene_v1 import (
     ChangedPathV1,
     TestHygieneError,
     check_repository,
+    collect_git_changed_paths,
 )
 from tools.test_hygiene_model_v1 import load_contract
+
+
+def test_diff_selection_uses_the_pinned_commit_for_both_git_reads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    commit = "a" * 40
+    merge_base = "b" * 40
+    calls: list[list[str]] = []
+
+    def git_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        # HEAD represents a concurrent successor and must never select the diff.
+        assert "HEAD" not in command
+        assert kwargs["cwd"] == tmp_path
+        output = merge_base + "\n" if command[1] == "merge-base" else "M\tsrc/core/example.py\n"
+        return subprocess.CompletedProcess(command, 0, stdout=output)
+
+    monkeypatch.setattr(subprocess, "run", git_run)
+    assert collect_git_changed_paths(tmp_path, "origin/main", head_ref=commit) == (
+        ChangedPathV1("M", "src/core/example.py"),
+    )
+    assert calls == [
+        ["git", "merge-base", "origin/main", commit],
+        ["git", "diff", "--name-status", "--find-renames", merge_base, commit],
+    ]
 
 
 def _sha256(path: Path) -> str:
@@ -422,12 +450,20 @@ def test_default_contract_retains_mandatory_critical_path_probes() -> None:
 
 def test_pull_request_ci_runs_diff_aware_hygiene_gate() -> None:
     # Arrange
-    workflow = (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github/workflows/test-hygiene.yml").read_text(encoding="utf-8")
+    )
 
     # Act / Assert
-    assert (
-        'python tools/run_test_hygiene_gate_v1.py --base-ref "origin/${{ github.base_ref }}"'
-        in workflow
+    # This is the status context required by the repository host.
+    steps = workflow["jobs"]["test-hygiene"]["steps"]
+    command = (
+        'python tools/run_test_hygiene_gate_v1.py --base-ref "origin/${{ github.base_ref }}" '
+        "--replay-mutations --json"
+    )
+    assert any(
+        step.get("if") == "github.event_name == 'pull_request'" and step.get("run") == command
+        for step in steps
     )
 
 

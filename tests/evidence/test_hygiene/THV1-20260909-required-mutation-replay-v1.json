@@ -1,0 +1,278 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260909-required-mutation-replay-v1",
+  "created_date": "2026-09-09",
+  "claim_scope": "The optional strict hygiene runner executes selected declared mutations at one committed subject and propagates failures. The candidate dedicated test-hygiene PR job selects this mode. This packet does not qualify old-to-new economic equivalence, minimal design, independent host approval or deployed CI.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "HYGIENE-DECLARED-KILLER-MUST-EXECUTE",
+    "HYGIENE-ONE-COMMITTED-SUBJECT",
+    "HYGIENE-SELECTED-DEPENDENCY-FRESHNESS",
+    "HYGIENE-NONVACUOUS-MUTATION-CLAIM",
+    "HYGIENE-REQUIRED-PR-WIRING",
+    "HYGIENE-JSON-DIAGNOSTIC-SEPARATION"
+  ],
+  "failure_modes": [
+    "A co-edited negative assertion becomes assert True while its declared guard-removal mutant is never executed.",
+    "Skipped or failed controls, surviving mutants or ledger errors still yield a successful top-level gate.",
+    "Diff selection uses a different HEAD from the archived mutation subject.",
+    "Selected contract, packet, source dependency or test bytes differ between the worktree and archived commit.",
+    "A mutation-family packet supplies only narrative rows and obtains a vacuous success.",
+    "The required PR status runs only packet/pytest checks while the strict runner remains unwired.",
+    "Real pytest stdout corrupts the CLI JSON report."
+  ],
+  "source_pins": [
+    {
+      "path": "tools/check_test_hygiene_v1.py",
+      "sha256": "4428a233c2d7d5a3b548024181ed79c274e950abb880e4fdd364cf06e112b872"
+    },
+    {
+      "path": "tools/run_test_hygiene_gate_v1.py",
+      "sha256": "a7e9f3486ef93d288e3c36f2637a496e08cc661672eff63b5108cbe938c03412"
+    },
+    {
+      "path": "tools/test_hygiene_model_v1.py",
+      "sha256": "8515767ba81ddc62f341e0351d24a6f5a0990631295c64306de91d5b849c7ad5"
+    },
+    {
+      "path": "tools/test_hygiene_evidence_v1.py",
+      "sha256": "10ad95d6a6d3548ee9368451901fe29f1956684c2bc2e44fffc32d7c5d6df6e3"
+    },
+    {
+      "path": "tools/thv1_mutation_ledger_v1.py",
+      "sha256": "0598c625e00ad48170f607c51912b9d5e4fa2199d57012ffe1caa62b94215eee"
+    },
+    {
+      "path": "tools/test_hygiene_contract_v1.json",
+      "sha256": "101307caf2c8f0545fefebe3e8ef92730779fa017a5c70913816fd8e4fba2851"
+    },
+    {
+      "path": "tools/run_critical_quality_gate.sh",
+      "sha256": "8e26961bff27ac0b82893cc1cb6d1689b9a3078e8c60d18fb628cf27a9d68285"
+    },
+    {
+      "path": "tests/test_thv1_mutation_ledger_v1.py",
+      "sha256": "b49948f6e2da4b3741c423d1487f7bd3e172e2f10f5567cbb87326accd24ed1e"
+    },
+    {
+      "path": "tests/conftest.py",
+      "sha256": "a2263692d1ef8bf756abed83b889d4f2d02571fc13e456467242301e3b7ba311"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "232c294680d1dacdb03d8a9320b59cf14fdc780fbb7c5d364f52e224f281fa75"
+    },
+    {
+      "path": "requirements-dev.lock.txt",
+      "sha256": "a7b2cfe02fa4df0e24980e23a8f3fff254e72438384e8d4b30ce1ac4d8a90a06"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "52d7126292303cd1f94d2c36611c2e43787098f07509bbefbfe7581a8feb16df"
+    },
+    {
+      "path": ".github/workflows/test-hygiene.yml",
+      "sha256": "afab356acf8ca716a9c32e53abfec10600d46b6d3b9217a78a5aac908091329a"
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "sha256": "d2263f6e95afa3d401495b54cc1c3cba3831506e4dbea86ceda1b0d0f48fcb05"
+    },
+    {
+      "path": "docs/testing/TEST_HYGIENE_CONTRACT_V1.md",
+      "sha256": "758f70e7aeb882b5c6eb0bade7e06ee028c9a4efca911d0209e881e67ff57ac3"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_test_hygiene_v1.py",
+      "sha256": "d673daa997b3da815c964c0fed64b9cbf3f39a8cd05ea412813acb70160d6465",
+      "node_ids": [
+        "tests/test_check_test_hygiene_v1.py::test_diff_selection_uses_the_pinned_commit_for_both_git_reads",
+        "tests/test_check_test_hygiene_v1.py::test_changed_critical_path_requires_evidence_packet",
+        "tests/test_check_test_hygiene_v1.py::test_current_pins_and_strong_evidence_cover_critical_change",
+        "tests/test_check_test_hygiene_v1.py::test_stale_source_pin_rejects_packet",
+        "tests/test_check_test_hygiene_v1.py::test_required_boundary_family_needs_boundary_inventory",
+        "tests/test_check_test_hygiene_v1.py::test_named_mutation_must_be_killed_by_pinned_node",
+        "tests/test_check_test_hygiene_v1.py::test_existing_evidence_packets_are_append_only",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_requires_explicit_replacement",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_replacement_must_be_a_pinned_test",
+        "tests/test_check_test_hygiene_v1.py::test_path_traversal_in_packet_rejects",
+        "tests/test_check_test_hygiene_v1.py::test_noncritical_document_change_needs_no_packet",
+        "tests/test_check_test_hygiene_v1.py::test_unknown_contract_field_rejects_fail_closed",
+        "tests/test_check_test_hygiene_v1.py::test_repository_contract_and_bootstrap_packet_are_structurally_valid",
+        "tests/test_check_test_hygiene_v1.py::test_default_contract_retains_mandatory_critical_path_probes",
+        "tests/test_check_test_hygiene_v1.py::test_pull_request_ci_runs_diff_aware_hygiene_gate",
+        "tests/test_check_test_hygiene_v1.py::test_critical_quality_gate_validates_static_hygiene_contract",
+        "tests/test_check_test_hygiene_v1.py::test_stale_lower_version_packet_cannot_shadow_a_newer_one",
+        "tests/test_check_test_hygiene_v1.py::test_lineage_key_matches_the_o008_checker_key",
+        "tests/test_check_test_hygiene_v1.py::test_added_packet_legacy_rule_needs_both_dates_before_the_cutover"
+      ]
+    },
+    {
+      "path": "tests/test_run_test_hygiene_gate_v1.py",
+      "sha256": "4a8ca1d1a2a323ec0a5c46b659ed5ed00dbc861687e31d2a8d094c37bf1eb7e2",
+      "node_ids": [
+        "tests/test_run_test_hygiene_gate_v1.py::test_runner_executes_exact_nodes_without_shell",
+        "tests/test_run_test_hygiene_gate_v1.py::test_runner_skips_process_when_diff_has_no_critical_nodes",
+        "tests/test_run_test_hygiene_gate_v1.py::test_runner_propagates_pytest_failure",
+        "tests/test_run_test_hygiene_gate_v1.py::test_replay_executes_a_committed_mechanical_killer_and_cleans_scratch",
+        "tests/test_run_test_hygiene_gate_v1.py::test_replay_rejects_a_coedited_or_skipped_killer",
+        "tests/test_run_test_hygiene_gate_v1.py::test_replay_preflight_rejects_stale_worktree_metadata_or_pins[tools/test_hygiene_contract_v1.json-contract]",
+        "tests/test_run_test_hygiene_gate_v1.py::test_replay_preflight_rejects_stale_worktree_metadata_or_pins[tests/evidence/test_hygiene/THV1-20260903-ledger-subject-v1.json-packet]",
+        "tests/test_run_test_hygiene_gate_v1.py::test_replay_preflight_rejects_stale_worktree_metadata_or_pins[src/core/mod.py-source]",
+        "tests/test_run_test_hygiene_gate_v1.py::test_replay_preflight_rejects_stale_worktree_metadata_or_pins[src/core/dependency.py-source]",
+        "tests/test_run_test_hygiene_gate_v1.py::test_replay_preflight_rejects_stale_worktree_metadata_or_pins[tests/test_mod.py-test]",
+        "tests/test_run_test_hygiene_gate_v1.py::test_replay_preflight_rejects_a_pin_stale_at_the_committed_subject",
+        "tests/test_run_test_hygiene_gate_v1.py::test_replay_resolves_head_once_and_reuses_the_exact_commit",
+        "tests/test_run_test_hygiene_gate_v1.py::test_strict_replay_rejects_a_selected_narrative_only_mutation_packet",
+        "tests/test_run_test_hygiene_gate_v1.py::test_strict_replay_keeps_nonmutation_packets_and_no_selection_explicit",
+        "tests/test_run_test_hygiene_gate_v1.py::test_default_gate_does_not_resolve_or_replay_mutations",
+        "tests/test_run_test_hygiene_gate_v1.py::test_replay_refuses_nonstandard_contract_or_evidence_paths",
+        "tests/test_run_test_hygiene_gate_v1.py::test_cli_replay_failure_is_one_json_document_or_a_failed_human_summary",
+        "tests/test_run_test_hygiene_gate_v1.py::test_strict_cli_uses_one_resolved_subject_for_diff_and_replay",
+        "tests/test_run_test_hygiene_gate_v1.py::test_strict_cli_json_keeps_real_pytest_output_on_stderr"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tiny committed repositories contain an independent fixed decision (negative input rejects, positive input succeeds). The tests weaken or skip only the negative oracle and observe exact gate failure, ledger counts and commit identity. Parent review also reproduced the old f4239d23 gate accepting assert True with two passing tests; the strict candidate refuses it. This is test-gate behavior, not proof of economic correctness."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Strict freshness and metadata errors precede declared pytest execution. Mutation rows execute in disposable archive copies; the real replay checks preservation of an unrelated dirty file and removal of scratch. No economic state or host branch protection is mutated."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "evidence_execution",
+      "points": [
+        "passing versus toothless killer",
+        "selected killer versus skipped zero-pass control",
+        "mechanical versus narrative-only mutation claim",
+        "explicit nonmutation packet",
+        "no selected critical paths",
+        "nonstandard metadata paths"
+      ]
+    },
+    {
+      "name": "exact_subject",
+      "points": [
+        "one HEAD resolution across selection and replay",
+        "current versus stale contract",
+        "current versus stale packet",
+        "current versus stale mutant source",
+        "current versus stale imported dependency",
+        "current versus stale test pin",
+        "committed pin drift",
+        "unrelated dirty file preserved"
+      ]
+    },
+    {
+      "name": "operator_outcome",
+      "points": [
+        "success versus failed top-level status",
+        "JSON versus human output",
+        "real subprocess diagnostics",
+        "required PR-conditioned strict command"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Ignore a failed mutation replay when setting the top-level gate result.",
+      "killed_by": "tests/test_run_test_hygiene_gate_v1.py::test_replay_rejects_a_coedited_or_skipped_killer",
+      "mutant": {
+        "path": "tools/run_test_hygiene_gate_v1.py",
+        "needle_lines": [
+          "        report[\"ok\"] = cast(dict[str, object], report[\"mutation_replay\"])[\"ok\"]"
+        ],
+        "replacement_lines": [
+          "        report[\"ok\"] = True"
+        ]
+      }
+    },
+    {
+      "description": "Allow a selected imported dependency to differ from the committed source.",
+      "killed_by": "tests/test_run_test_hygiene_gate_v1.py::test_replay_preflight_rejects_stale_worktree_metadata_or_pins[src/core/dependency.py-source]",
+      "mutant": {
+        "path": "tools/run_test_hygiene_gate_v1.py",
+        "needle_lines": [
+          "    if worktree_path.read_bytes() != committed:"
+        ],
+        "replacement_lines": [
+          "    if False:"
+        ]
+      }
+    },
+    {
+      "description": "Treat a narrative-only mutation family as executable mutation evidence.",
+      "killed_by": "tests/test_run_test_hygiene_gate_v1.py::test_strict_replay_rejects_a_selected_narrative_only_mutation_packet",
+      "mutant": {
+        "path": "tools/run_test_hygiene_gate_v1.py",
+        "needle_lines": [
+          "        if \"mutation\" in packet.families and not any(row.kind == \"mechanical\" for row in rows):"
+        ],
+        "replacement_lines": [
+          "        if False:"
+        ]
+      }
+    },
+    {
+      "description": "Select changed files using a moving HEAD instead of the pinned subject commit.",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_diff_selection_uses_the_pinned_commit_for_both_git_reads",
+      "mutant": {
+        "path": "tools/check_test_hygiene_v1.py",
+        "needle_lines": [
+          "            [\"git\", \"diff\", \"--name-status\", \"--find-renames\", merge_base, head_ref],"
+        ],
+        "replacement_lines": [
+          "            [\"git\", \"diff\", \"--name-status\", \"--find-renames\", merge_base, \"HEAD\"],"
+        ]
+      }
+    },
+    {
+      "description": "Leave mutation replay out of the host-required PR check.",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_pull_request_ci_runs_diff_aware_hygiene_gate",
+      "mutant": {
+        "path": ".github/workflows/test-hygiene.yml",
+        "needle_lines": [
+          "        run: python tools/run_test_hygiene_gate_v1.py --base-ref \"origin/${{ github.base_ref }}\" --replay-mutations --json"
+        ],
+        "replacement_lines": [
+          "        run: python tools/run_test_hygiene_gate_v1.py --base-ref \"origin/${{ github.base_ref }}\" --json"
+        ]
+      }
+    },
+    {
+      "description": "Mix real pytest diagnostics into the machine-readable JSON channel.",
+      "killed_by": "tests/test_run_test_hygiene_gate_v1.py::test_strict_cli_json_keeps_real_pytest_output_on_stderr",
+      "mutant": {
+        "path": "tools/run_test_hygiene_gate_v1.py",
+        "needle_lines": [
+          "        stdout=sys.stderr,"
+        ],
+        "replacement_lines": [
+          "        stdout=None,"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "These declared fault families are bounded executable regressions, not an exhaustive mutation score or formal proof.",
+    "The ledger verifies a candidate against its mutants. Baseline-to-candidate preservation and co-edited oracle correctness require separate evidence.",
+    "The runner checks selected declared pins. It does not establish hermetic dependencies or protection against a malicious test process or compromised operating system.",
+    "Candidate-controlled workflows and scripts cannot authenticate their own independent review. The live host lacks a required independent PR approval rule; this local change does not alter host policy or deploy the workflow.",
+    "Generic pytest success may include skips; mechanical mutation controls require a nonzero passed-test count.",
+    "No selected mechanical rows is explicitly reported and grants no mutation assurance. A selected mutation-family packet without mechanical rows is rejected.",
+    "The dedicated workflow is checked as source. Hosted CI, all historical packets, Rust proof builds, V3 qualification and formal-core completion are not established."
+  ]
+}

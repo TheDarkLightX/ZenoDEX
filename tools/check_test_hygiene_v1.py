@@ -335,21 +335,22 @@ def _reject_packet_rewrites(
 
 
 def collect_git_changed_paths(
-    repo_root: Path, base_ref: str
+    repo_root: Path, base_ref: str, *, head_ref: str = "HEAD"
 ) -> tuple[ChangedPathV1, ...]:
-    """Return base-to-HEAD changes with renames normalized to delete plus add."""
+    """Return base-to-subject changes with renames normalized to delete plus add."""
 
     require(bool(base_ref.strip()), "base ref must not be empty")
+    require(bool(head_ref.strip()), "head ref must not be empty")
     try:
         merge_base = subprocess.run(
-            ["git", "merge-base", base_ref, "HEAD"],
+            ["git", "merge-base", base_ref, head_ref],
             cwd=repo_root,
             check=True,
             capture_output=True,
             text=True,
         ).stdout.strip()
         output = subprocess.run(
-            ["git", "diff", "--name-status", "--find-renames", merge_base, "HEAD"],
+            ["git", "diff", "--name-status", "--find-renames", merge_base, head_ref],
             cwd=repo_root,
             check=True,
             capture_output=True,

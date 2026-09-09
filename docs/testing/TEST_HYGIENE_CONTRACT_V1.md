@@ -1,6 +1,7 @@
 # ZenoDEX Test Hygiene Contract V1
 
-Status: `IMPLEMENTED_GATE`, pending repository-host branch-protection activation.
+Status: `IMPLEMENTED_GATE`. Host enforcement and deployed workflow versions must
+be checked separately from this source checkout.
 
 This contract controls test-evidence promotion for changed critical paths. It
 does not establish correctness, production readiness, proof soundness, or
@@ -15,7 +16,7 @@ decides whether a change has supplied the minimum reviewable evidence packet.
 AgentOutput
   -> VersionedEvidencePacket
   -> DiffAwareChecker
-  -> DeclaredTestExecution
+  -> DeclaredTestAndMutationExecution
   -> RequiredRepositoryCheck
   -> HumanOwnerReview
 ```
@@ -26,10 +27,17 @@ of an agent's report. Every matched critical path must have a current hash pin
 in an evidence packet. Existing packets are append-only.
 
 The gate itself remains a critical authority surface. Repository-host settings
-must require the `critical-quality` check and CODEOWNER approval for `.github/`,
+must require the `test-hygiene` check and independent owner approval for `.github/`,
 `tools/`, `tests/`, and this contract. A writer able to change the checker,
 workflow, ownership policy, and branch settings can bypass this repository-local
 control.
+
+The read-only host check on 2026-09-09 found that `main` requires `test-hygiene`
+from GitHub Actions, requires an up-to-date branch, enforces the restriction on
+administrators, and disallows force pushes and deletion. It had no required PR
+approval rule or ruleset. This candidate preserves that check name in the
+dedicated workflow. No host setting or live workflow is changed by a local
+commit, and these observed settings do not establish independent review.
 
 ## Canonical artifacts
 
@@ -163,11 +171,47 @@ python3 tools/run_test_hygiene_gate_v1.py \
 PR CI uses the fetched base branch:
 
 ```bash
-python3 tools/run_test_hygiene_gate_v1.py --base-ref origin/main
+python3 tools/run_test_hygiene_gate_v1.py --base-ref origin/main --replay-mutations
 ```
 
 The static contract check and permanent checker regressions are also part of
 `tools/run_critical_quality_gate.sh`.
+
+With `--replay-mutations`, the runner resolves one commit before selecting the
+base-to-subject diff and requires the
+selected contract, packets and every selected source/test pin to match that
+commit. It executes the existing mutation ledger for the selected packets,
+serially, in temporary copies that are removed afterward. The ledger uses no
+external packet override or row filter. Unrelated dirty files do not qualify
+as evidence and are preserved. Uncommitted selected inputs cannot qualify an
+archived replay. This mode uses the standard contract/evidence locations.
+
+A surviving mutant, failing or zero-test control, unavailable execution, timeout,
+pin mismatch or unviable mutant fails the check. Each selected packet declaring
+the `mutation` family must contain at least one mechanical row; a narrative-only
+or legacy-only claim cannot satisfy this mode. Narrative and legacy rows remain
+explicit. Noncritical diffs and packets without a mutation claim may have zero
+mechanical rows, which grant no mutation assurance. Expensive selected
+Rust rows are not silently skipped; their execution dependencies must be supplied
+or the affected evidence remains unqualified. Local checks without this option
+retain their narrower packet/pytest scope.
+The JSON report goes to stdout; pytest and mutation diagnostics go to stderr.
+
+## Simplicity and preservation review
+
+Use the short PR template to identify the actual obligation, smallest alternative,
+net concepts/state/dependencies, and any source/test/specification/oracle changes
+made together. Link existing evidence rather than creating another review packet.
+An independent reviewer checks the final source commit and the preserved contract;
+material edits require renewed review. A text claim of independent review is not
+authenticated approval. Repository-host approval controls remain necessary.
+
+Mutation replay compares the candidate with deliberately faulty versions of that
+candidate. It cannot establish old-to-new equivalence or that co-edited tests
+preserve the intended contract. Use independent baseline-to-candidate proof,
+differential or replay evidence for that claim. Syntax/complexity tools suggest
+review targets; they do not certify the smallest sufficient design. Stop when the
+scoped requirement and applicable checks pass, and reopen on new evidence.
 
 ## Promotion and nonclaims
 
@@ -178,6 +222,13 @@ A green V1 gate establishes only these scoped facts:
 - required evidence families and applicability decisions are present;
 - named pytest nodes pass;
 - existing evidence packets were not edited in the candidate diff.
+
+The mutation-enabled run additionally establishes the exact archived subject and
+the declared mechanical replay outcomes. Its report distinguishes mechanical,
+narrative and legacy rows. A zero-mechanical report carries no mutation assurance.
+Generic pytest success can still include skipped tests; only the mutation
+controls explicitly reject a zero-passed-test result. Inspect declared test
+outcomes before claiming that every required scenario executed.
 
 Human review still checks whether the named invariant, mutant, boundaries,
 tests, and nonclaims truthfully describe the change. Stronger proof, replay,

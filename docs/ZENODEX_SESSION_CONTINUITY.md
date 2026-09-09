@@ -58,6 +58,15 @@ Do not count new wrappers, documents, tests or proof files as closed capabilitie
 Do not recreate a tracker or repeat broad reviews when the next failing
 acceptance condition is already known.
 
+The [existing hygiene runner](testing/TEST_HYGIENE_CONTRACT_V1.md) now has
+`--replay-mutations` for committed selected evidence. Use it to execute declared
+faults and controls; narrative declarations do not satisfy a mutation claim.
+The PR template records the smallest alternative and jointly edited oracles.
+These checks do not prove baseline-to-candidate equivalence or enforce an
+independent reviewer. The source candidate wires the strict runner into the
+host-required `test-hygiene` context; deployment and independent host approval
+remain separate. This tooling work closes no economic capability.
+
 ## Current implemented behavior and remaining obligations
 
 The explicit `AssetLaneCustodyStateV2` successor represents a valid supply split
