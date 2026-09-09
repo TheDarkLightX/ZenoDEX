@@ -67,6 +67,25 @@ independent reviewer. The source candidate wires the strict runner into the
 host-required `test-hygiene` context; deployment and independent host approval
 remain separate. This tooling work closes no economic capability.
 
+The enforcement implementation at
+`5b317f9a4d5682ed5291e62739f8eaac3db698d3` has a retained
+[strict replay report](../tests/evidence/required_mutation_replay_gate_v1_20260909.json):
+all six declared mutants were killed after passing unmodified controls, with
+no survivors or errors. It selected 39 passing tests. Reproduce on that commit:
+
+```bash
+python3 tools/run_test_hygiene_gate_v1.py --base-ref f4239d23b38d65a44a6a5c9bb303e05108388b85 --replay-mutations --json
+```
+
+The combined checker/runner/ledger suite passed 58 tests. The full
+`tools/run_critical_quality_gate.sh` passed its 433 acceptance and 852 critical
+tests using the existing development environment selected through `PYTHON`;
+the system interpreter alone lacked `pytest_cov`. These suites overlap.
+Astra reviewed the integration and Daybreak independently reviewed the frozen
+source and pins. Those model reviews supply no authenticated host approval.
+Hosted CI, Lean, ESSO, Kani and RISC0 proof qualification were not run for this
+assurance-tooling change. Resume the next economic obligation below.
+
 ## Current implemented behavior and remaining obligations
 
 The explicit `AssetLaneCustodyStateV2` successor represents a valid supply split
