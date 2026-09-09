@@ -165,3 +165,25 @@ legacy stale document pin is retained as a confirmed unresolved finding.
 This checkpoint's data/documentation append follows the measured implementation
 commit and is outside that 2,747-line range. Future batches should start at the
 last accounted implementation commit so this bookkeeping is included once.
+
+
+## Custody trace and successor delivery
+
+The [reviewed increment](ZENODEX_CUSTODY_TRACE_DELIVERY_20260909.md) now has a
+REVIEWED_DELTA: formal-core estimate 20.981%→21.038% (+0.057pp), V3 unchanged
+at 23.369%, with all other scores explicitly carried forward. The existing
+reporter validates 26 contribution records across 8 batches and the seven new
+records (Opus, root, Astra review, Daybreak review, CLI auxiliary Haiku and two
+launches rejected before model execution). Shared credit is counted once.
+
+Five source-bound resource observations are now available. Opus input includes
+uncached, cache-creation and cache-read categories; it is not a unique-source
+token count. Actual billed cost, root and builtin-agent resources remain
+unknown. The measured code range ends at `c61f536315191bd0a1a482a3932fdeb43009cd6f`;
+later assessment/mutation/accounting data must be included once in the next
+range. The compact complete endpoint inputs are required by the existing
+reporter; no reporting tool or runtime framework was added.
+
+```bash
+python3 tools/v3_productivity_report.py docs/research/ZENODEX_V3_PRODUCTIVITY.json --baseline-manifest-commit ff9112b9970e4f510fcf198f7baafe149b98265a
+```

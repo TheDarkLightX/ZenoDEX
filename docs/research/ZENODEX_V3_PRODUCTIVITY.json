@@ -361,6 +361,179 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260909-custody-root",
+      "model_id": "Astra (active integrator)",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "custody-trace-successor",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+        "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+        "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260909-custody-astra-peer",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody-trace-successor",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+        "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+        "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260909-custody-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody-trace-successor",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+        "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+        "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260909-custody-opus",
+      "model_id": "claude-opus-5",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-trace-successor",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+        "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+        "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 24701581,
+          "evidence": {
+            "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+            "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+          },
+          "json_pointer": "/worker/observed_input_tokens_including_cache"
+        },
+        "output_tokens": {
+          "value": 173204,
+          "evidence": {
+            "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+            "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+          },
+          "json_pointer": "/worker/usage/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 2031567,
+          "evidence": {
+            "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+            "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+          },
+          "json_pointer": "/worker/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260909-custody-cli-helper",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-trace-successor",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+        "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+        "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 1709,
+          "evidence": {
+            "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+            "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+          },
+          "json_pointer": "/worker/modelUsage/claude-haiku-4-5-20251001/inputTokens"
+        },
+        "output_tokens": {
+          "value": 15,
+          "evidence": {
+            "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+            "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+          },
+          "json_pointer": "/worker/modelUsage/claude-haiku-4-5-20251001/outputTokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260909-custody-launch-1",
+      "model_id": null,
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "launch-rejected-before-model-execution",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+        "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+        "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260909-custody-launch-2",
+      "model_id": null,
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "launch-rejected-before-model-execution",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+        "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+        "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -602,6 +775,100 @@
             "commit": "a9cbd37dc17c5190655a557070f2d45c2ee573e7",
             "path": "tests/evidence/v3_productivity_verification_20260909.json",
             "sha256": "3d4eb1480b64fea8b38b64fb9e7f4824722be222713e3cd53fd04af8cdbbd206"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260909-custody-trace-successor",
+      "before_commit": "a9cbd37dc17c5190655a557070f2d45c2ee573e7",
+      "after_commit": "c61f536315191bd0a1a482a3932fdeb43009cd6f",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W04",
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260909-custody-root",
+        "V3-20260909-custody-astra-peer",
+        "V3-20260909-custody-daybreak",
+        "V3-20260909-custody-opus",
+        "V3-20260909-custody-cli-helper",
+        "V3-20260909-custody-launch-1",
+        "V3-20260909-custody-launch-2"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Initial-row-admission plus static-input premises now imply finite mixed trace preservation. Python/Rust derive the complete admitted global successor and predecessor-only proving frames. Archived guard mutants are killed. Managed issue/burn proof credit rises; no publication or whole-core qualification.",
+        "evidence": {
+          "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+          "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+          "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+          "path": "tests/evidence/v3_custody_trace_assessment_before_20260909.json",
+          "sha256": "98e883127560e37b2725b058afa009cba373c5a950208c49c916633ea3e2e1a8"
+        },
+        "after": {
+          "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+          "path": "tests/evidence/v3_custody_trace_assessment_after_20260909.json",
+          "sha256": "7bb710e003061af5370d77d72c8abe209c1c4da0ca3665a397deebd09aa94d04"
+        },
+        "review": {
+          "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+          "path": "docs/research/ZENODEX_CUSTODY_TRACE_DELIVERY_20260909.md",
+          "sha256": "609a1f088ebe5e99b9ddc990728bb756eeb11c619ee89206375d743561710866"
+        }
+      },
+      "findings": [
+        {
+          "id": "CUSTODY-SUCCESSOR-REPLAY-SORT-COMMENT",
+          "status": "repaired",
+          "evidence": {
+            "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+            "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+          }
+        },
+        {
+          "id": "ROOT-CUSTODY-REJECTION-CODE-ORACLE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+            "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+          }
+        },
+        {
+          "id": "ROOT-CUSTODY-OPAQUE-CONTEXT-FIXTURE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+            "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+          }
+        },
+        {
+          "id": "ROOT-CUSTODY-RESULT-TYPE-NARROWING",
+          "status": "repaired",
+          "evidence": {
+            "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+            "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
+          }
+        },
+        {
+          "id": "INHERITED-RUST-CLIPPY-ARGUMENT-COUNT",
+          "status": "confirmed",
+          "evidence": {
+            "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
+            "sha256": "0a459b4b091c90b504c3e97dc0df070d73eb1b089f33576b5f3e7765f7dabd7f"
           }
         }
       ],
