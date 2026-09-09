@@ -1,0 +1,55 @@
+{
+  "errors": 0,
+  "killed": 3,
+  "legacy": 0,
+  "mechanical": 3,
+  "narrative": 0,
+  "packet": "THV1-20260909-command-authentication-v2",
+  "rows": [
+    {
+      "description": "Ignore the cryptographic result after signature verification. A foreign-key signature must never produce successful authentication.",
+      "exit": 1,
+      "killer": "tests/integration/test_isolated_economic_command_authentication_v2.py::test_signature_for_another_key_or_message_never_authenticates[foreign_key]",
+      "mutant_sha256": "6d66380843650a6693150006d231435454f3bf96855417a9f343c5e31f214556",
+      "mutation": {
+        "needle_first_line": "    if verified is not True:",
+        "needle_sha256": "bf0d4ebd6e5244649771b42bd75d0da092ccf835f6f60ef08a419a63bec273cf",
+        "path": "src/integration/economic_command_authentication_v2.py",
+        "replacement_sha256": "ad4a411333c4578bb0c606ba07df5bb85d9b9b6a2c655e186a4c12f311b8c355"
+      },
+      "seconds": 3.103,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Remove the profile-governed authorization-registry root check. Mallory has a valid signature for a coherent forged registry; the control must reject before artifact acquisition.",
+      "exit": 1,
+      "killer": "tests/integration/test_isolated_economic_command_authentication_v2.py::test_mallory_signature_cannot_substitute_an_ungoverned_alice_authorization",
+      "mutant_sha256": "8b8b99b33fc71a6cdb904bf2d7a0f9e8bb4a171b5dd765691cda41eb2b42cd11",
+      "mutation": {
+        "needle_first_line": "    if binding.policy_root != candidate.authorization_registry.registry_root:",
+        "needle_sha256": "4c9d291f01afe9863b215816cdc1ea2a0d57ca31533670f7ba2e05e47b05fd20",
+        "path": "src/core/economic_command_authentication_v2.py",
+        "replacement_sha256": "e225b388d251d09902488254da501605f76393535a8838121ecc2372c568af31"
+      },
+      "seconds": 3.197,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Remove the selected release message-schema check. A release for a foreign signing contract must remain ineligible.",
+      "exit": 1,
+      "killer": "tests/core/test_economic_command_authentication_v2.py::test_prepare_requires_the_selected_release_to_bind_the_v2_message_schema",
+      "mutant_sha256": "469adcc8b3e7f2059404b1fdf8ce9301ca1a90103043b91dd6a637f3697ba40a",
+      "mutation": {
+        "needle_first_line": "    if release.message_schema_root != ECONOMIC_COMMAND_AUTHENTICATION_MESSAGE_SCHEMA_ROOT_V2:",
+        "needle_sha256": "23d029c83cc27db832c73bec7daced5a679ddb20cdb90efd2582026ac2957c98",
+        "path": "src/core/economic_command_authentication_v2.py",
+        "replacement_sha256": "e225b388d251d09902488254da501605f76393535a8838121ecc2372c568af31"
+      },
+      "seconds": 1.611,
+      "verdict": "KILLED"
+    }
+  ],
+  "schema": "zenodex/thv1-mutation-ledger/v1",
+  "subject_commit": "3d4301c685d42890eb41bfed76c51b0776f940c0",
+  "survived": 0
+}

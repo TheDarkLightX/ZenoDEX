@@ -260,8 +260,13 @@ No runtime guard or evidence threshold was weakened. CI declares the Python
 regressions, including an explicitly skipped native test when no measured
 artifact is configured. The authentication packet declares three mechanical
 mutants: ungoverned signer-registry acceptance, foreign message-schema release
-acceptance and ignored cryptographic rejection. Run the existing mutation
-ledger on the implementation commit before crediting their rejection.
+acceptance and ignored cryptographic rejection. The
+[retained authentication mutation replay](../tests/evidence/economic_command_authentication_v2_mutation_20260909.json)
+archived implementation `3d4301c685d42890eb41bfed76c51b0776f940c0`, passed
+all three unmutated controls and killed all three mutants, with zero survivors
+or replay errors. Replay with
+`python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260909-command-authentication-v2 --rev 3d4301c685d42890eb41bfed76c51b0776f940c0`.
+The temporary archive and mutation workspaces were removed after verification.
 
 Complexity review uses the existing simplification skill and exact outcome
 checks. Radon 6.0.1 found high Python hotspots in snapshot decoding (152), the
