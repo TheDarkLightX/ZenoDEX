@@ -1,0 +1,494 @@
+{
+  "schema": "zenodex/v3-productivity/v1",
+  "runs": [
+    {
+      "id": "HIST-assessment-fable",
+      "model_id": "claude-fable-5-1",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "partial-progress-assessment",
+      "risk": "critical",
+      "provenance": {
+        "commit": "7888cad58ccca50f1f2e1f5f7c22ee350ff7feb5",
+        "path": "docs/research/ZENODEX_V3_PROGRESS_ASSESSMENT_20260908.md",
+        "sha256": "4bebc78476b1927e98f6f2896464792f48cda0d68629799c52cfbb41c1fecfb5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-assessment-opus",
+      "model_id": "claude-opus-5",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "partial-progress-assessment",
+      "risk": "critical",
+      "provenance": {
+        "commit": "7888cad58ccca50f1f2e1f5f7c22ee350ff7feb5",
+        "path": "docs/research/ZENODEX_V3_PROGRESS_ASSESSMENT_20260908.md",
+        "sha256": "4bebc78476b1927e98f6f2896464792f48cda0d68629799c52cfbb41c1fecfb5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-assessment-opus-cross-review",
+      "model_id": "claude-opus-5",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "partial-progress-assessment",
+      "risk": "critical",
+      "provenance": {
+        "commit": "7888cad58ccca50f1f2e1f5f7c22ee350ff7feb5",
+        "path": "docs/research/ZENODEX_V3_PROGRESS_ASSESSMENT_20260908.md",
+        "sha256": "4bebc78476b1927e98f6f2896464792f48cda0d68629799c52cfbb41c1fecfb5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-custody-statement-astra-review",
+      "model_id": "Astra (version unrecorded)",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody-statement",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-custody-receipt-astra-review",
+      "model_id": "Astra (version unrecorded)",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "conditional-custody-receipt",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-auth-terra",
+      "model_id": "Terra (version unrecorded)",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "command-authentication",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-auth-astra",
+      "model_id": "Astra (version unrecorded)",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "command-authentication",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-auth-daybreak",
+      "model_id": "Daybreak (version unrecorded)",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "command-authentication",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-capture-astra",
+      "model_id": "Astra (version unrecorded)",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "authenticated-custody-composition",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-capture-daybreak",
+      "model_id": "Daybreak (version unrecorded)",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "authenticated-custody-composition",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-profile-terra",
+      "model_id": "Terra (version unrecorded)",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-profile-binding",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-profile-astra",
+      "model_id": "Astra (version unrecorded)",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody-profile-binding",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-profile-daybreak",
+      "model_id": "Daybreak (version unrecorded)",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody-profile-binding",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-hygiene-astra-review",
+      "model_id": "Astra (version unrecorded)",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "required-mutation-replay",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "HIST-hygiene-daybreak-review",
+      "model_id": "Daybreak (version unrecorded)",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "required-mutation-replay",
+      "risk": "critical",
+      "provenance": {
+        "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    }
+  ],
+  "batches": [
+    {
+      "id": "V3-20260909-derived-root-rejection",
+      "before_commit": "70f9157ef097384c6b48db22c254d8134f19f8f5",
+      "after_commit": "3a20d7aa9884a662b3f7cf79f11f6f9562c8a7d0",
+      "kind": "repair",
+      "obligation_ids": [
+        "W07",
+        "W09"
+      ],
+      "run_ids": [],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Python derived-root zero rejection now agrees with Rust; no numerical reassessment.",
+        "evidence": {
+          "commit": "7888cad58ccca50f1f2e1f5f7c22ee350ff7feb5",
+          "path": "docs/research/ZENODEX_V3_PROGRESS_ASSESSMENT_20260908.md",
+          "sha256": "4bebc78476b1927e98f6f2896464792f48cda0d68629799c52cfbb41c1fecfb5"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "DERIVED-ROOT-ZERO-REJECTION-DIVERGENCE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "7888cad58ccca50f1f2e1f5f7c22ee350ff7feb5",
+            "path": "docs/research/ZENODEX_V3_PROGRESS_ASSESSMENT_20260908.md",
+            "sha256": "4bebc78476b1927e98f6f2896464792f48cda0d68629799c52cfbb41c1fecfb5"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260909-assessment-and-simplification",
+      "before_commit": "3a20d7aa9884a662b3f7cf79f11f6f9562c8a7d0",
+      "after_commit": "7888cad58ccca50f1f2e1f5f7c22ee350ff7feb5",
+      "kind": "support",
+      "obligation_ids": [
+        "W00"
+      ],
+      "run_ids": [
+        "HIST-assessment-fable",
+        "HIST-assessment-opus",
+        "HIST-assessment-opus-cross-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Retains the fixed-scope assessment and reviewed simplification guidance; adds no economic workflow.",
+        "evidence": {
+          "commit": "7888cad58ccca50f1f2e1f5f7c22ee350ff7feb5",
+          "path": "docs/research/ZENODEX_V3_PROGRESS_ASSESSMENT_20260908.md",
+          "sha256": "4bebc78476b1927e98f6f2896464792f48cda0d68629799c52cfbb41c1fecfb5"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260909-custody-successor-and-bytes",
+      "before_commit": "7888cad58ccca50f1f2e1f5f7c22ee350ff7feb5",
+      "after_commit": "062e08f01a6faadd0775f57549502f9676455884",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W07",
+        "W09"
+      ],
+      "run_ids": [],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Custody-aware transfer, issue and burn plus canonical input and a scoped Lean lift; universal runtime refinement and publication remain open.",
+        "evidence": {
+          "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+          "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+          "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260909-custody-statement-and-receipt",
+      "before_commit": "062e08f01a6faadd0775f57549502f9676455884",
+      "after_commit": "77870977be80d127e8a32f4503261f1038d74c3b",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W03",
+        "W06",
+        "W09",
+        "W10"
+      ],
+      "run_ids": [
+        "HIST-custody-statement-astra-review",
+        "HIST-custody-receipt-astra-review"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Native flat guest inputs and a conditional receipt adapter reconstruct the global statement. Actual guest image, genuine receipt and publisher qualification remain open.",
+        "evidence": {
+          "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+          "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+          "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260909-authenticated-custody-binding",
+      "before_commit": "77870977be80d127e8a32f4503261f1038d74c3b",
+      "after_commit": "f4239d23b38d65a44a6a5c9bb303e05108388b85",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W03",
+        "W06",
+        "W07"
+      ],
+      "run_ids": [
+        "HIST-auth-terra",
+        "HIST-auth-astra",
+        "HIST-auth-daybreak",
+        "HIST-capture-astra",
+        "HIST-capture-daybreak",
+        "HIST-profile-terra",
+        "HIST-profile-astra",
+        "HIST-profile-daybreak"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Sealed BLS verification and one captured input bind custody checks to matching profile metadata; publication remains open.",
+        "evidence": {
+          "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+          "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+          "sha256": "8914b7b0decc89790ff1eaff8f26c1a2ad208ad45f3bc5c24bbd4d8a6322e513"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "COHERENT-CUSTODY-PROFILE-SUBSTITUTION",
+          "status": "repaired",
+          "evidence": {
+            "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+            "path": "tests/evidence/asset_lane_custody_profile_binding_v2_mutation_20260909.json",
+            "sha256": "ab01d9707d8f85a94ac073967d0271c4255926744ae891da522ea4aa0a40d3c3"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260909-required-mutation-replay",
+      "before_commit": "f4239d23b38d65a44a6a5c9bb303e05108388b85",
+      "after_commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+      "kind": "support",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "HIST-hygiene-astra-review",
+        "HIST-hygiene-daybreak-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "The required hygiene check executes declared mutants against an exact committed subject, with six retained killed mutants and passing controls. No product or formal-core completion credit.",
+        "evidence": {
+          "commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+          "path": "tests/evidence/required_mutation_replay_gate_v1_20260909.json",
+          "sha256": "651cb3cdf192ee6c21485d9fae255f8b4498d497b5eef5ee21414b275ab39e9f"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    }
+  ]
+}

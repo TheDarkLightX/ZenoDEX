@@ -1,0 +1,147 @@
+{
+  "schema": "zenodex/v3-productivity-verification/v1",
+  "claim_scope": "Source-recorded local verification of an advisory reporting tool. No economic, formal-core, model identity, billing, release or publication qualification.",
+  "baseline_commit": "45c3310cee9a4e4b62ba0868e5b4f4d4e6bfe44a",
+  "source_pins": [
+    {
+      "path": "tools/v3_productivity_report.py",
+      "sha256": "12ec47edbf33eb61d5ebf7e390fe711199b9b1720ce2f8bb946973d4a3cc1b1c"
+    },
+    {
+      "path": "tests/tools/test_v3_productivity_report.py",
+      "sha256": "cf786c3b4985ea88a5946a0f70f46c1be0cf9017bbd1b3718122ffda81f3f077"
+    },
+    {
+      "path": "tools/v3_progress_assessment_calc.py",
+      "sha256": "2c6b1ccbc9e0529911a98eb34441f3e918aacb5b679a58c05f1fce1571969fdc"
+    },
+    {
+      "path": "tools/check_v3_progress.py",
+      "sha256": "97cba6453729848415cafb109b7f5edde161df08d43310ef5bc6bfd3f36daf54"
+    }
+  ],
+  "checks": [
+    {
+      "command": "python3 -m pytest -q tests/tools/test_v3_productivity_report.py tests/tools/test_v3_progress_assessment_calc.py",
+      "status": "passed",
+      "passed": 42,
+      "failed": 0
+    },
+    {
+      "command": "python3 -m ruff check tools/v3_productivity_report.py tests/tools/test_v3_productivity_report.py",
+      "status": "passed"
+    },
+    {
+      "command": "python3 -m mypy tools/v3_productivity_report.py",
+      "status": "passed"
+    },
+    {
+      "command": "python3 tools/v3_productivity_report.py docs/research/ZENODEX_V3_PRODUCTIVITY.json",
+      "status": "passed",
+      "scope": "Initial six-batch backfill; future appended batches are outside these counts.",
+      "run_records": 15,
+      "batches": 6,
+      "net_lines": 26983,
+      "score_transitions": 0,
+      "unknown_resource_fields": 60
+    },
+    {
+      "command": "python3 -m pytest -q tests/tools/test_v3_productivity_report.py tests/tools/test_v3_progress_assessment_calc.py tests/test_check_v3_progress.py",
+      "status": "failed",
+      "passed": 55,
+      "failed": 21,
+      "cause": "The legacy replay fixture rejects a pre-existing stale document pin before its mocked replay checks. No failing assertion was weakened or removed."
+    }
+  ],
+  "preexisting_drift": [
+    {
+      "path": "docs/research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md",
+      "expected": "a6a85aa6089a1ffe7d2b481a27f58ef3e3d1f95a903de78f7909e6db218de1a7",
+      "current": "4cf34d4cc4f1ee6500ac26a8246983459cec71c34c0bf17a604738d55a8c7bfe",
+      "baseline_45c331": "4cf34d4cc4f1ee6500ac26a8246983459cec71c34c0bf17a604738d55a8c7bfe",
+      "unchanged_from_baseline": true
+    }
+  ],
+  "independent_review": {
+    "model_id": "gpt-daybreak-blue-latest",
+    "effort": "max",
+    "task_id": "/root/productivity_integrity_review",
+    "disposition": "SCOPED_ACCEPT",
+    "tested_subject": [
+      {
+        "path": "tools/v3_productivity_report.py",
+        "sha256": "12ec47edbf33eb61d5ebf7e390fe711199b9b1720ce2f8bb946973d4a3cc1b1c"
+      },
+      {
+        "path": "tests/tools/test_v3_productivity_report.py",
+        "sha256": "cf786c3b4985ea88a5946a0f70f46c1be0cf9017bbd1b3718122ffda81f3f077"
+      }
+    ],
+    "preacceptance_repro_families": [
+      "One pinned usage observation charged twice under separate run IDs.",
+      "Equal deltas backed by different absolute scores for the same subject.",
+      "Discontinuous score at the shared commit of successive batches.",
+      "Outdated selected baseline used to omit committed manifest history.",
+      "Competing branch implementations counted as one delivered progress history.",
+      "Confirmed-to-repaired finding lifecycle refused.",
+      "Binary addition refused instead of reporting unavailable LOC.",
+      "Same-head support work gaining credit through scenario bands with unchanged central score."
+    ],
+    "regression_replay": "All eight repaired families reject or report as intended; 35 reporter tests passed.",
+    "scope_note": "These were defects in the uncommitted reporter draft, not escaped economic runtime regressions."
+  },
+  "contributions": [
+    {
+      "id": "productivity-terra-implementation",
+      "task_id": "/root/productivity_report_impl",
+      "model_id": "gpt-5.6-terra",
+      "model_basis": "configured collaboration model",
+      "effort": "max",
+      "role": "implementation",
+      "status": "completed"
+    },
+    {
+      "id": "productivity-astra-audit",
+      "task_id": "/root/implementation_value_audit",
+      "model_id": "gpt-6-astra",
+      "model_basis": "configured collaboration model",
+      "effort": "max",
+      "role": "review",
+      "status": "completed"
+    },
+    {
+      "id": "productivity-daybreak-review",
+      "task_id": "/root/productivity_integrity_review",
+      "model_id": "gpt-daybreak-blue-latest",
+      "model_basis": "configured collaboration model",
+      "effort": "max",
+      "role": "review",
+      "status": "completed"
+    },
+    {
+      "id": "productivity-root-integration",
+      "task_id": "/root",
+      "model_id": "Astra (version unrecorded)",
+      "model_basis": "session role declaration; exact runtime version unexposed",
+      "effort": null,
+      "role": "integration",
+      "status": "completed"
+    }
+  ],
+  "resource_observations": null,
+  "resource_note": "This harness did not expose per-run token/cost observations. Command duration and goal counters are not substituted for model usage.",
+  "not_run": [
+    "Full critical economics gate",
+    "Lean",
+    "ESSO",
+    "Kani",
+    "RISC0 guest build or proving",
+    "Hosted CI"
+  ],
+  "remaining_limits": [
+    "Dispatch inventory is not reconciled. Historical contribution records are not a complete census.",
+    "No assessed progress delta exists for the historical batches.",
+    "Source hashes and JSON-pointer matching do not authenticate billing, model identity or truthful execution.",
+    "Run metadata revisions require a reviewed schema successor; v1 only supersedes batches."
+  ]
+}

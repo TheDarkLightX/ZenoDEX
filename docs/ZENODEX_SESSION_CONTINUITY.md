@@ -18,6 +18,31 @@ evidence; it grants no release, migration, or publication authority.
 3. Record one concrete acceptance condition and exclusive file ownership for
    the next patch. Finish its integrated test before expanding adjacent work.
    A blocker should name the missing input or executable condition.
+4. Read the [code-value account](research/ZENODEX_V3_PROGRESS_ASSESSMENT_20260908.md#code-value-account-september-9-2026).
+   Before coding, name the existing capability/workstream and the acceptance
+   change the batch should deliver. After coding, append its exact commit range,
+   before/after behavior, source-bound evidence, and added/removed/net lines split
+   into runtime, proof, tests, tooling and data/documentation. Include dependencies
+   and generated artifacts; preserve unrelated worktree changes.
+5. Compare affected score rows under the same denominator and rubric. Report the
+   old/new scores and percentage-point changes only after evidence review and
+   calculator validation; retain the previous scored subject. A partial advance
+   can earn credit without closing a whole lane. Mark an unreviewed delta
+   `NOT_RESCORED`; the last adopted aggregate estimate is unchanged. Do not
+   turn missing reassessment into a measured zero gain.
+   Record support work and regression repairs separately, with their concrete
+   benefit and remaining delivery blocker. Review gates and test counts alone
+   do not increase product credit.
+6. Use those records when selecting the next batch. If code keeps growing without
+   advancing the intended acceptance condition, reconsider the decomposition,
+   reuse/simplify existing code, and finish the missing integration before adding
+   adjacent machinery. Do not optimize percentages by weakening evidence,
+   deleting required checks or changing weights. Use the existing
+   [contribution report](research/ZENODEX_V3_PRODUCTIVITY.md) to record known
+   runs across all contributing models, including failures and no-change work,
+   and pinned resource observations when available. Shared gain counts once;
+   missing data stays unknown. Append corrections and check the earlier
+   manifest prefix. Report next-step acceptance value and quality alongside LOC.
 
 ## Semantic precedence
 
