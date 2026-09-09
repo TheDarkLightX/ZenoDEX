@@ -1,0 +1,847 @@
+{
+  "schema": "zenodex/v3-acceptance-index/v1",
+  "source_pins": {
+    "plan_v3": {
+      "path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V3.json",
+      "sha256": "e1b45e9ef9da7fa2c584567db3ac4605b6eb4ec065933b9e71be5ba82ef31adc"
+    },
+    "capability_manifest_v1": {
+      "path": "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json",
+      "sha256": "34930be9d4d69c4c46c7c97f57fd492d4c95061f8960f936261a8a3415d5db95"
+    },
+    "normative_requirements_v1": {
+      "path": "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V1.json",
+      "sha256": "29d67d2c8ebd35d6e0003927c73043f3f282efe16b780b4493504d1d00db390f"
+    },
+    "abi_v2": {
+      "version": "GLOBAL_SETTLEMENT_ABI_V2",
+      "sources": [
+        {
+          "path": "docs/research/GLOBAL_SETTLEMENT_ABI_V2_DELTA_AND_COMPATIBILITY_20260831.json",
+          "sha256": "0339dd0af60d4ab438ca249e367d217301342e48f361d0dbff6ae6f06be10a6e"
+        },
+        {
+          "path": "src/core/global_settlement_types_v2.py",
+          "sha256": "5c8c94f75f26b32b8b72b1a608600012b5a22152014202616162ed7b30cee58f"
+        },
+        {
+          "path": "src/core/global_settlement_abi_v2_codec.py",
+          "sha256": "446231db1524a7333b0fb2cc3e7b36f2dc59f0bca19cbce5ba0378475d048ccc"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "id": "asset-transfer-module-v2",
+      "version": "ASSET_TRANSFER_MODULE_V2",
+      "abi_version": "GLOBAL_SETTLEMENT_ABI_V2",
+      "sources": [
+        {
+          "path": "src/core/asset_transfer_module_v2.py",
+          "sha256": "b18030eb4e5631e6315e5d483b4cca3f0f601af4747ac18c2e3b94d8b3f96cf3"
+        }
+      ]
+    },
+    {
+      "id": "asset-transfer-custody-successor-v1",
+      "version": "ASSET_TRANSFER_CUSTODY_SUCCESSOR_V1",
+      "abi_version": "GLOBAL_SETTLEMENT_ABI_V1",
+      "sources": [
+        {
+          "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_CUSTODY_REPAIR_DESIGN.md",
+          "sha256": "7dababd988c843e4df6a2ce99fde13cbcc53ce4379886eeb8748abbb813e22df"
+        },
+        {
+          "path": "src/core/asset_transfer_lane_module_custody_v1.py",
+          "sha256": "0d2118f275f6aa5bd308125b83b7c4528dbfc086749c8cb744bacea15983b45e"
+        }
+      ]
+    },
+    {
+      "id": "asset-lane-custody-successor-v2-python",
+      "version": "ASSET_LANE_CUSTODY_SUCCESSOR_V2_PYTHON",
+      "abi_version": "GLOBAL_SETTLEMENT_ABI_V2",
+      "source_status": "PINNED",
+      "sources": [
+        {
+          "path": "src/core/asset_lane_custody_state_v2.py",
+          "sha256": "4fbc66a705b686acd3a64c92ce054571e6955567568ba755549fa0eeae06f88a"
+        },
+        {
+          "path": "src/core/asset_lane_custody_coordinator_v2.py",
+          "sha256": "f34dd59aeb8952a42c81edecbcda183bb5d866ddf754d6e755f6de9c502bea88"
+        },
+        {
+          "path": "src/core/asset_lane_custody_global_v2.py",
+          "sha256": "7923fcad504164b83946bcd7fd732339c26023ac9185b61789a6a993cf73f509"
+        }
+      ]
+    }
+  ],
+  "inventory": {
+    "capability_ids": [
+      "ASSET_TRANSFER:account_lifecycle",
+      "ASSET_TRANSFER:native_asset_accounting",
+      "ASSET_TRANSFER:generic_transfer",
+      "ASSET_TRANSFER:managed_issue",
+      "ASSET_TRANSFER:managed_burn",
+      "ASSET_TRANSFER:transaction_fee",
+      "ASSET_TRANSFER:tau_originated_asset_registration",
+      "SPOT_LIQUIDITY:pool_create",
+      "SPOT_LIQUIDITY:exact_in_swap",
+      "SPOT_LIQUIDITY:exact_out_swap",
+      "SPOT_LIQUIDITY:governed_route",
+      "SPOT_LIQUIDITY:atomic_batch",
+      "SPOT_LIQUIDITY:lp_issue",
+      "SPOT_LIQUIDITY:lp_burn",
+      "SPOT_LIQUIDITY:pool_close",
+      "SPOT_LIQUIDITY:fee_allocation",
+      "SPOT_LIQUIDITY:residue_terminal_disposition",
+      "FARM_INCENTIVES:lp_stake",
+      "FARM_INCENTIVES:stake_activation",
+      "FARM_INCENTIVES:emission_accrual",
+      "FARM_INCENTIVES:emission_claim",
+      "FARM_INCENTIVES:farm_cancellation",
+      "FARM_INCENTIVES:farm_terminal_drain",
+      "ZDEX_TOKENOMICS:fee_routing",
+      "ZDEX_TOKENOMICS:staking_claim",
+      "ZDEX_TOKENOMICS:host_compensation_claim",
+      "ZDEX_TOKENOMICS:treasury_claim",
+      "ZDEX_TOKENOMICS:reserve_lifecycle",
+      "ZDEX_TOKENOMICS:atomic_purchase_and_burn",
+      "ZDEX_TOKENOMICS:retained_supply_hyperdeflation",
+      "ZUSD_MONETARY:vault_open",
+      "ZUSD_MONETARY:collateral_deposit",
+      "ZUSD_MONETARY:collateral_withdraw",
+      "ZUSD_MONETARY:zusd_mint",
+      "ZUSD_MONETARY:zusd_repay",
+      "ZUSD_MONETARY:vault_owner_close",
+      "ZUSD_MONETARY:multi_vault_redemption",
+      "ZUSD_MONETARY:stability_pool_deposit",
+      "ZUSD_MONETARY:stability_pool_withdraw",
+      "ZUSD_MONETARY:stability_pool_claim",
+      "ZUSD_MONETARY:liquidation",
+      "ZUSD_MONETARY:recovery_mode",
+      "ZUSD_MONETARY:all_claims_terminal_drain",
+      "PERPS_MARKET:margin_deposit",
+      "PERPS_MARKET:margin_withdraw",
+      "PERPS_MARKET:position_open",
+      "PERPS_MARKET:position_adjust",
+      "PERPS_MARKET:funding_accrual",
+      "PERPS_MARKET:fee_allocation",
+      "PERPS_MARKET:liquidation",
+      "PERPS_MARKET:insurance_reserve",
+      "PERPS_MARKET:auto_deleveraging",
+      "PERPS_MARKET:bankruptcy_resolution",
+      "PERPS_MARKET:terminal_closeout",
+      "ORACLE_MARKET:query_create",
+      "ORACLE_MARKET:tip_escrow",
+      "ORACLE_MARKET:reporter_bond",
+      "ORACLE_MARKET:report_submit",
+      "ORACLE_MARKET:report_finality",
+      "ORACLE_MARKET:reporter_reward",
+      "ORACLE_MARKET:report_dispute",
+      "ORACLE_MARKET:reward_clawback",
+      "ORACLE_MARKET:reporter_slash",
+      "ORACLE_MARKET:oracle_terminal_drain",
+      "SEALED_AUCTION:bid_commitment",
+      "SEALED_AUCTION:bond_accounting_location",
+      "SEALED_AUCTION:bid_reveal",
+      "SEALED_AUCTION:deterministic_clearing",
+      "SEALED_AUCTION:payment_settlement",
+      "SEALED_AUCTION:inventory_settlement",
+      "SEALED_AUCTION:refund",
+      "SEALED_AUCTION:slash",
+      "SEALED_AUCTION:auction_cancel",
+      "SEALED_AUCTION:auction_expiry",
+      "STRATEGY_ESCROW:value_reservation",
+      "STRATEGY_ESCROW:strategy_activation",
+      "STRATEGY_ESCROW:strategy_trigger",
+      "STRATEGY_ESCROW:strategy_replace",
+      "STRATEGY_ESCROW:strategy_cancel",
+      "STRATEGY_ESCROW:strategy_expiry",
+      "STRATEGY_ESCROW:strategy_recovery",
+      "PROOF_REWARDS:reward_reserve",
+      "PROOF_REWARDS:verified_result_binding",
+      "PROOF_REWARDS:claimant_binding",
+      "PROOF_REWARDS:claim_nullifier",
+      "PROOF_REWARDS:reward_payout",
+      "PROOF_REWARDS:task_terminal_state",
+      "EXTERNAL_CUSTODY:registered_external_lock",
+      "EXTERNAL_CUSTODY:registered_external_burn",
+      "EXTERNAL_CUSTODY:registered_external_release",
+      "EXTERNAL_CUSTODY:registered_external_mint",
+      "EXTERNAL_CUSTODY:external_finality",
+      "EXTERNAL_CUSTODY:external_timeout",
+      "EXTERNAL_CUSTODY:external_refund",
+      "EXTERNAL_CUSTODY:outbox_acknowledgment",
+      "EXTERNAL_CUSTODY:destination_idempotency",
+      "GOVERNANCE_MIGRATION:asset_registry_change",
+      "GOVERNANCE_MIGRATION:parameter_change",
+      "GOVERNANCE_MIGRATION:release_activation",
+      "GOVERNANCE_MIGRATION:treasury_action",
+      "GOVERNANCE_MIGRATION:schema_migration",
+      "GOVERNANCE_MIGRATION:writer_epoch_rotation",
+      "GOVERNANCE_MIGRATION:autonomous_governance_command_submission"
+    ],
+    "route_ids": [
+      "fee_funded_zdex_purchase_and_burn",
+      "zusd_liquidation_settlement",
+      "perps_epoch_settlement",
+      "strategy_triggered_spot_swap"
+    ],
+    "exclusions": [
+      {
+        "id": "zusd_emergency_shutdown",
+        "disposition": "EXCLUDED_DAY_ONE_PROVE_NO_WRITER"
+      },
+      {
+        "id": "unregistered_external_destination",
+        "disposition": "REJECT_WITHOUT_MUTATION"
+      },
+      {
+        "id": "autonomous_governance_publication_authority",
+        "disposition": "FORBIDDEN_COMMAND_SUBMISSION_ONLY"
+      },
+      {
+        "id": "caller_selected_route_or_proof_profile",
+        "disposition": "FORBIDDEN_GOVERNED_SELECTION_ONLY"
+      }
+    ],
+    "workflow_ids": [
+      "WF-01",
+      "WF-02",
+      "WF-03",
+      "WF-04",
+      "WF-05",
+      "WF-06",
+      "WF-07",
+      "WF-08",
+      "WF-09",
+      "WF-10",
+      "WF-11",
+      "WF-12",
+      "WF-13",
+      "WF-14",
+      "WF-15",
+      "WF-16",
+      "WF-17",
+      "WF-18"
+    ],
+    "bdd_ids": [
+      "BDD-001",
+      "BDD-002",
+      "BDD-003",
+      "BDD-004",
+      "BDD-005",
+      "BDD-006",
+      "BDD-007",
+      "BDD-008",
+      "BDD-009",
+      "BDD-010",
+      "BDD-011",
+      "BDD-012",
+      "BDD-013",
+      "BDD-014",
+      "BDD-015",
+      "BDD-016",
+      "BDD-017",
+      "BDD-018",
+      "BDD-019",
+      "BDD-020",
+      "BDD-021",
+      "BDD-022",
+      "BDD-023",
+      "BDD-024",
+      "BDD-025",
+      "BDD-026",
+      "BDD-027",
+      "BDD-028",
+      "BDD-029",
+      "BDD-030",
+      "BDD-031",
+      "BDD-032",
+      "BDD-033",
+      "BDD-034",
+      "BDD-035",
+      "BDD-036",
+      "BDD-037",
+      "BDD-038",
+      "BDD-039",
+      "BDD-040",
+      "BDD-041",
+      "BDD-042",
+      "BDD-043",
+      "BDD-044",
+      "BDD-045",
+      "BDD-046",
+      "BDD-047",
+      "BDD-048",
+      "BDD-049",
+      "BDD-050",
+      "BDD-051",
+      "BDD-052",
+      "BDD-053",
+      "BDD-054",
+      "BDD-055",
+      "BDD-056",
+      "BDD-057",
+      "BDD-058",
+      "BDD-059",
+      "BDD-060",
+      "BDD-061",
+      "BDD-062",
+      "BDD-063",
+      "BDD-064",
+      "BDD-065",
+      "BDD-066",
+      "BDD-067",
+      "BDD-068",
+      "BDD-069",
+      "BDD-070",
+      "BDD-071",
+      "BDD-072",
+      "BDD-073",
+      "BDD-074",
+      "BDD-075",
+      "BDD-076",
+      "BDD-077",
+      "BDD-078",
+      "BDD-079",
+      "BDD-080",
+      "BDD-081"
+    ]
+  },
+  "mappings": [
+    {
+      "id": "CAPABILITY:ASSET_TRANSFER:account_lifecycle",
+      "kind": "CAPABILITY",
+      "mapping": "MAPPED",
+      "behavior": "BOUNDED_COMPONENT_OBSERVATION",
+      "reason": "The inspected V2 transfer core accepts one origin- and occurrence-bound account transfer with explicit rows and roots.",
+      "bindings": [
+        {
+          "case_id": "transfer-v2-core",
+          "implementation_paths": [
+            "src/core/asset_transfer_module_v2.py",
+            "src/core/global_settlement_types_v2.py"
+          ],
+          "limitation": "This direct V2 core case does not execute a V3 mounted runtime, replay path, receipt verifier, or publication shell."
+        }
+      ]
+    },
+    {
+      "id": "CAPABILITY:ASSET_TRANSFER:generic_transfer",
+      "kind": "CAPABILITY",
+      "mapping": "MAPPED",
+      "behavior": "BOUNDED_COMPONENT_OBSERVATION",
+      "reason": "The inspected V2 core, isolated V1 successor, and provisional V2 Python successor observe an authorized custody transfer, unchanged custody, complete supply, and selected global-frame mutation refusals.",
+      "bindings": [
+        {
+          "case_id": "transfer-v2-core",
+          "implementation_paths": [
+            "src/core/asset_transfer_module_v2.py",
+            "src/core/global_settlement_types_v2.py"
+          ],
+          "limitation": "This direct V2 core case does not execute a V3 mounted runtime, replay path, receipt verifier, or publication shell."
+        },
+        {
+          "case_id": "custody-transfer-v1",
+          "implementation_paths": [
+            "src/core/asset_transfer_lane_module_custody_v1.py"
+          ],
+          "limitation": "This isolated V1 custody-successor case does not bind a V3 ABI V2 release, guest image, runtime replay, or production publication."
+        },
+        {
+          "case_id": "custody-successor-v2-python",
+          "implementation_paths": [
+            "src/core/asset_lane_custody_state_v2.py",
+            "src/core/asset_lane_custody_coordinator_v2.py",
+            "src/core/asset_lane_custody_global_v2.py"
+          ],
+          "limitation": "This provisional V2 Python case observes custody transfer, issue/burn, exact no-effect, and global-frame refusals; it does not execute Rust, a V3 mounted runtime, receipt, proof, publisher, or complete lifecycle."
+        }
+      ]
+    },
+    {
+      "id": "CAPABILITY:ASSET_TRANSFER:native_asset_accounting",
+      "kind": "CAPABILITY",
+      "mapping": "MAPPED",
+      "behavior": "BOUNDED_REJECTION_OBSERVATION",
+      "reason": "The inspected V2 core explicitly rejects native accounting as unimplemented without effects.",
+      "bindings": [
+        {
+          "case_id": "transfer-v2-core",
+          "implementation_paths": [
+            "src/core/asset_transfer_module_v2.py",
+            "src/core/global_settlement_types_v2.py"
+          ],
+          "limitation": "This direct V2 core case does not execute a V3 mounted runtime, replay path, receipt verifier, or publication shell."
+        }
+      ]
+    },
+    {
+      "id": "CAPABILITY:ASSET_TRANSFER:transaction_fee",
+      "kind": "CAPABILITY",
+      "mapping": "MAPPED",
+      "behavior": "BOUNDED_COMPONENT_OBSERVATION",
+      "reason": "The inspected V2 and custody cases observe fee rows and reject a balances-only conservation mutant.",
+      "bindings": [
+        {
+          "case_id": "transfer-v2-core",
+          "implementation_paths": [
+            "src/core/asset_transfer_module_v2.py",
+            "src/core/global_settlement_types_v2.py"
+          ],
+          "limitation": "This direct V2 core case does not execute a V3 mounted runtime, replay path, receipt verifier, or publication shell."
+        },
+        {
+          "case_id": "custody-transfer-v1",
+          "implementation_paths": [
+            "src/core/asset_transfer_lane_module_custody_v1.py"
+          ],
+          "limitation": "This isolated V1 custody-successor case does not bind a V3 ABI V2 release, guest image, runtime replay, or production publication."
+        }
+      ]
+    },
+    {
+      "id": "BDD:BDD-001",
+      "kind": "BDD",
+      "mapping": "MAPPED",
+      "behavior": "BOUNDED_COMPONENT_OBSERVATION",
+      "reason": "The inspected V2 core observes one debit, credit, fee allocation, conservation row, lane write, and occurrence consumption.",
+      "bindings": [
+        {
+          "case_id": "transfer-v2-core",
+          "implementation_paths": [
+            "src/core/asset_transfer_module_v2.py",
+            "src/core/global_settlement_types_v2.py"
+          ],
+          "limitation": "This direct V2 core case does not execute a V3 mounted runtime, replay path, receipt verifier, or publication shell."
+        }
+      ]
+    },
+    {
+      "id": "BDD:BDD-002",
+      "kind": "BDD",
+      "mapping": "MAPPED",
+      "behavior": "BOUNDED_REJECTION_OBSERVATION",
+      "reason": "The inspected V2 core observes unauthorized-subject rejection with unchanged roots and empty effects.",
+      "bindings": [
+        {
+          "case_id": "transfer-v2-core",
+          "implementation_paths": [
+            "src/core/asset_transfer_module_v2.py",
+            "src/core/global_settlement_types_v2.py"
+          ],
+          "limitation": "This direct V2 core case does not execute a V3 mounted runtime, replay path, receipt verifier, or publication shell."
+        }
+      ]
+    },
+    {
+      "id": "CAPABILITY:ASSET_TRANSFER:managed_issue",
+      "kind": "CAPABILITY",
+      "mapping": "MAPPED",
+      "behavior": "BOUNDED_COMPONENT_OBSERVATION",
+      "reason": "The provisional V2 Python successor observes managed issue raising USD supply from 100 to 107, then full burn returning the canonical custody and complete supply state.",
+      "bindings": [
+        {
+          "case_id": "custody-successor-v2-python",
+          "implementation_paths": [
+            "src/core/asset_lane_custody_state_v2.py",
+            "src/core/asset_lane_custody_coordinator_v2.py",
+            "src/core/asset_lane_custody_global_v2.py"
+          ],
+          "limitation": "This provisional V2 Python case observes custody transfer, issue/burn, exact no-effect, and global-frame refusals; it does not execute Rust, a V3 mounted runtime, receipt, proof, publisher, or complete lifecycle."
+        }
+      ]
+    },
+    {
+      "id": "CAPABILITY:ASSET_TRANSFER:managed_burn",
+      "kind": "CAPABILITY",
+      "mapping": "MAPPED",
+      "behavior": "BOUNDED_COMPONENT_OBSERVATION",
+      "reason": "The provisional V2 Python successor observes full managed burn after issue returning the canonical custody and complete supply state.",
+      "bindings": [
+        {
+          "case_id": "custody-successor-v2-python",
+          "implementation_paths": [
+            "src/core/asset_lane_custody_state_v2.py",
+            "src/core/asset_lane_custody_coordinator_v2.py",
+            "src/core/asset_lane_custody_global_v2.py"
+          ],
+          "limitation": "This provisional V2 Python case observes custody transfer, issue/burn, exact no-effect, and global-frame refusals; it does not execute Rust, a V3 mounted runtime, receipt, proof, publisher, or complete lifecycle."
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "kind": "CAPABILITY",
+      "mapping": "GAP",
+      "ids": [
+        "CAPABILITY:ASSET_TRANSFER:tau_originated_asset_registration",
+        "CAPABILITY:SPOT_LIQUIDITY:pool_create",
+        "CAPABILITY:SPOT_LIQUIDITY:exact_in_swap",
+        "CAPABILITY:SPOT_LIQUIDITY:exact_out_swap",
+        "CAPABILITY:SPOT_LIQUIDITY:governed_route",
+        "CAPABILITY:SPOT_LIQUIDITY:atomic_batch",
+        "CAPABILITY:SPOT_LIQUIDITY:lp_issue",
+        "CAPABILITY:SPOT_LIQUIDITY:lp_burn",
+        "CAPABILITY:SPOT_LIQUIDITY:pool_close",
+        "CAPABILITY:SPOT_LIQUIDITY:fee_allocation",
+        "CAPABILITY:SPOT_LIQUIDITY:residue_terminal_disposition",
+        "CAPABILITY:FARM_INCENTIVES:lp_stake",
+        "CAPABILITY:FARM_INCENTIVES:stake_activation",
+        "CAPABILITY:FARM_INCENTIVES:emission_accrual",
+        "CAPABILITY:FARM_INCENTIVES:emission_claim",
+        "CAPABILITY:FARM_INCENTIVES:farm_cancellation",
+        "CAPABILITY:FARM_INCENTIVES:farm_terminal_drain",
+        "CAPABILITY:ZDEX_TOKENOMICS:fee_routing",
+        "CAPABILITY:ZDEX_TOKENOMICS:staking_claim",
+        "CAPABILITY:ZDEX_TOKENOMICS:host_compensation_claim",
+        "CAPABILITY:ZDEX_TOKENOMICS:treasury_claim",
+        "CAPABILITY:ZDEX_TOKENOMICS:reserve_lifecycle",
+        "CAPABILITY:ZDEX_TOKENOMICS:atomic_purchase_and_burn",
+        "CAPABILITY:ZDEX_TOKENOMICS:retained_supply_hyperdeflation",
+        "CAPABILITY:ZUSD_MONETARY:vault_open",
+        "CAPABILITY:ZUSD_MONETARY:collateral_deposit",
+        "CAPABILITY:ZUSD_MONETARY:collateral_withdraw",
+        "CAPABILITY:ZUSD_MONETARY:zusd_mint",
+        "CAPABILITY:ZUSD_MONETARY:zusd_repay",
+        "CAPABILITY:ZUSD_MONETARY:vault_owner_close",
+        "CAPABILITY:ZUSD_MONETARY:multi_vault_redemption",
+        "CAPABILITY:ZUSD_MONETARY:stability_pool_deposit",
+        "CAPABILITY:ZUSD_MONETARY:stability_pool_withdraw",
+        "CAPABILITY:ZUSD_MONETARY:stability_pool_claim",
+        "CAPABILITY:ZUSD_MONETARY:liquidation",
+        "CAPABILITY:ZUSD_MONETARY:recovery_mode",
+        "CAPABILITY:ZUSD_MONETARY:all_claims_terminal_drain",
+        "CAPABILITY:PERPS_MARKET:margin_deposit",
+        "CAPABILITY:PERPS_MARKET:margin_withdraw",
+        "CAPABILITY:PERPS_MARKET:position_open",
+        "CAPABILITY:PERPS_MARKET:position_adjust",
+        "CAPABILITY:PERPS_MARKET:funding_accrual",
+        "CAPABILITY:PERPS_MARKET:fee_allocation",
+        "CAPABILITY:PERPS_MARKET:liquidation",
+        "CAPABILITY:PERPS_MARKET:insurance_reserve",
+        "CAPABILITY:PERPS_MARKET:auto_deleveraging",
+        "CAPABILITY:PERPS_MARKET:bankruptcy_resolution",
+        "CAPABILITY:PERPS_MARKET:terminal_closeout",
+        "CAPABILITY:ORACLE_MARKET:query_create",
+        "CAPABILITY:ORACLE_MARKET:tip_escrow",
+        "CAPABILITY:ORACLE_MARKET:reporter_bond",
+        "CAPABILITY:ORACLE_MARKET:report_submit",
+        "CAPABILITY:ORACLE_MARKET:report_finality",
+        "CAPABILITY:ORACLE_MARKET:reporter_reward",
+        "CAPABILITY:ORACLE_MARKET:report_dispute",
+        "CAPABILITY:ORACLE_MARKET:reward_clawback",
+        "CAPABILITY:ORACLE_MARKET:reporter_slash",
+        "CAPABILITY:ORACLE_MARKET:oracle_terminal_drain",
+        "CAPABILITY:SEALED_AUCTION:bid_commitment",
+        "CAPABILITY:SEALED_AUCTION:bond_accounting_location",
+        "CAPABILITY:SEALED_AUCTION:bid_reveal",
+        "CAPABILITY:SEALED_AUCTION:deterministic_clearing",
+        "CAPABILITY:SEALED_AUCTION:payment_settlement",
+        "CAPABILITY:SEALED_AUCTION:inventory_settlement",
+        "CAPABILITY:SEALED_AUCTION:refund",
+        "CAPABILITY:SEALED_AUCTION:slash",
+        "CAPABILITY:SEALED_AUCTION:auction_cancel",
+        "CAPABILITY:SEALED_AUCTION:auction_expiry",
+        "CAPABILITY:STRATEGY_ESCROW:value_reservation",
+        "CAPABILITY:STRATEGY_ESCROW:strategy_activation",
+        "CAPABILITY:STRATEGY_ESCROW:strategy_trigger",
+        "CAPABILITY:STRATEGY_ESCROW:strategy_replace",
+        "CAPABILITY:STRATEGY_ESCROW:strategy_cancel",
+        "CAPABILITY:STRATEGY_ESCROW:strategy_expiry",
+        "CAPABILITY:STRATEGY_ESCROW:strategy_recovery",
+        "CAPABILITY:PROOF_REWARDS:reward_reserve",
+        "CAPABILITY:PROOF_REWARDS:verified_result_binding",
+        "CAPABILITY:PROOF_REWARDS:claimant_binding",
+        "CAPABILITY:PROOF_REWARDS:claim_nullifier",
+        "CAPABILITY:PROOF_REWARDS:reward_payout",
+        "CAPABILITY:PROOF_REWARDS:task_terminal_state",
+        "CAPABILITY:EXTERNAL_CUSTODY:registered_external_lock",
+        "CAPABILITY:EXTERNAL_CUSTODY:registered_external_burn",
+        "CAPABILITY:EXTERNAL_CUSTODY:registered_external_release",
+        "CAPABILITY:EXTERNAL_CUSTODY:registered_external_mint",
+        "CAPABILITY:EXTERNAL_CUSTODY:external_finality",
+        "CAPABILITY:EXTERNAL_CUSTODY:external_timeout",
+        "CAPABILITY:EXTERNAL_CUSTODY:external_refund",
+        "CAPABILITY:EXTERNAL_CUSTODY:outbox_acknowledgment",
+        "CAPABILITY:EXTERNAL_CUSTODY:destination_idempotency",
+        "CAPABILITY:GOVERNANCE_MIGRATION:asset_registry_change",
+        "CAPABILITY:GOVERNANCE_MIGRATION:parameter_change",
+        "CAPABILITY:GOVERNANCE_MIGRATION:release_activation",
+        "CAPABILITY:GOVERNANCE_MIGRATION:treasury_action",
+        "CAPABILITY:GOVERNANCE_MIGRATION:schema_migration",
+        "CAPABILITY:GOVERNANCE_MIGRATION:writer_epoch_rotation",
+        "CAPABILITY:GOVERNANCE_MIGRATION:autonomous_governance_command_submission"
+      ],
+      "reason": "Uninspected capability: no reviewed semantic specification, implementation, and code-owned case binding is recorded."
+    },
+    {
+      "kind": "ROUTE",
+      "mapping": "GAP",
+      "ids": [
+        "ROUTE:fee_funded_zdex_purchase_and_burn",
+        "ROUTE:zusd_liquidation_settlement",
+        "ROUTE:perps_epoch_settlement",
+        "ROUTE:strategy_triggered_spot_swap"
+      ],
+      "reason": "Uninspected route: no reviewed cross-lane implementation and code-owned case binding is recorded."
+    },
+    {
+      "kind": "EXCLUSION",
+      "mapping": "GAP",
+      "ids": [
+        "EXCLUSION:zusd_emergency_shutdown",
+        "EXCLUSION:unregistered_external_destination",
+        "EXCLUSION:autonomous_governance_publication_authority",
+        "EXCLUSION:caller_selected_route_or_proof_profile"
+      ],
+      "reason": "Uninspected exclusion: no reviewed no-writer or rejection-path binding is recorded."
+    },
+    {
+      "kind": "WORKFLOW",
+      "mapping": "GAP",
+      "ids": [
+        "WORKFLOW:WF-01",
+        "WORKFLOW:WF-02",
+        "WORKFLOW:WF-03",
+        "WORKFLOW:WF-04",
+        "WORKFLOW:WF-05",
+        "WORKFLOW:WF-06",
+        "WORKFLOW:WF-07",
+        "WORKFLOW:WF-08",
+        "WORKFLOW:WF-09",
+        "WORKFLOW:WF-10",
+        "WORKFLOW:WF-11",
+        "WORKFLOW:WF-12",
+        "WORKFLOW:WF-13",
+        "WORKFLOW:WF-14",
+        "WORKFLOW:WF-15",
+        "WORKFLOW:WF-16",
+        "WORKFLOW:WF-17",
+        "WORKFLOW:WF-18"
+      ],
+      "reason": "Uninspected workflow: its required lifecycle classes have no complete reviewed V3 binding."
+    },
+    {
+      "kind": "BDD",
+      "mapping": "GAP",
+      "ids": [
+        "BDD:BDD-004",
+        "BDD:BDD-005",
+        "BDD:BDD-006",
+        "BDD:BDD-007",
+        "BDD:BDD-008",
+        "BDD:BDD-009",
+        "BDD:BDD-010",
+        "BDD:BDD-011",
+        "BDD:BDD-012",
+        "BDD:BDD-013",
+        "BDD:BDD-014",
+        "BDD:BDD-015",
+        "BDD:BDD-016",
+        "BDD:BDD-017",
+        "BDD:BDD-018",
+        "BDD:BDD-019",
+        "BDD:BDD-020",
+        "BDD:BDD-021",
+        "BDD:BDD-022",
+        "BDD:BDD-023",
+        "BDD:BDD-024",
+        "BDD:BDD-025",
+        "BDD:BDD-026",
+        "BDD:BDD-027",
+        "BDD:BDD-028",
+        "BDD:BDD-029",
+        "BDD:BDD-030",
+        "BDD:BDD-031",
+        "BDD:BDD-032",
+        "BDD:BDD-033",
+        "BDD:BDD-034",
+        "BDD:BDD-035",
+        "BDD:BDD-036",
+        "BDD:BDD-037",
+        "BDD:BDD-038",
+        "BDD:BDD-039",
+        "BDD:BDD-040",
+        "BDD:BDD-041",
+        "BDD:BDD-042",
+        "BDD:BDD-043",
+        "BDD:BDD-044",
+        "BDD:BDD-045",
+        "BDD:BDD-046",
+        "BDD:BDD-047",
+        "BDD:BDD-048",
+        "BDD:BDD-049",
+        "BDD:BDD-050",
+        "BDD:BDD-051",
+        "BDD:BDD-052",
+        "BDD:BDD-053",
+        "BDD:BDD-054",
+        "BDD:BDD-055",
+        "BDD:BDD-056",
+        "BDD:BDD-057",
+        "BDD:BDD-058",
+        "BDD:BDD-059",
+        "BDD:BDD-060",
+        "BDD:BDD-061",
+        "BDD:BDD-062",
+        "BDD:BDD-063",
+        "BDD:BDD-064",
+        "BDD:BDD-065",
+        "BDD:BDD-066",
+        "BDD:BDD-067",
+        "BDD:BDD-068",
+        "BDD:BDD-069",
+        "BDD:BDD-070",
+        "BDD:BDD-071",
+        "BDD:BDD-072",
+        "BDD:BDD-073",
+        "BDD:BDD-074",
+        "BDD:BDD-075",
+        "BDD:BDD-076",
+        "BDD:BDD-077",
+        "BDD:BDD-078",
+        "BDD:BDD-079",
+        "BDD:BDD-080",
+        "BDD:BDD-081"
+      ],
+      "reason": "Uninspected historical scenario: no reviewed V3 successor behavior and code-owned case binding is recorded."
+    }
+  ],
+  "successors": [
+    {
+      "id": "V3-PRECOMMIT-REJECTION",
+      "supersedes": "BDD:BDD-003",
+      "outcome": "PRECOMMIT_REJECTION",
+      "mapping": "MAPPED",
+      "behavior": "BOUNDED_REJECTION_OBSERVATION",
+      "reason": "A distinct V2 no-op core observation is linked to the V3 outcome contract; runtime refinement remains unqualified.",
+      "binding": {
+        "case_id": "transfer-v2-core",
+        "implementation_paths": [
+          "src/core/asset_transfer_module_v2.py",
+          "src/core/global_settlement_types_v2.py"
+        ],
+        "limitation": "This distinct V2 core observation does not inherit historical BDD-003 runtime evidence or establish a V3 mounted runtime."
+      }
+    }
+  ],
+  "claim_states": {
+    "inventory": "STRUCTURAL_ONLY",
+    "mapped_tests": "PARTIAL",
+    "behavior": "NOT_LIFECYCLE_QUALIFIED",
+    "replay": "UNRECORDED",
+    "full_conformance": "UNESTABLISHED"
+  },
+  "authority": {
+    "settlement": "NONE",
+    "value_movement": "NONE",
+    "production": "NONE",
+    "release": "NONE"
+  },
+  "nonclaims": [
+    "Inventory completeness is structural only.",
+    "A mapped test is bounded linkage evidence and does not qualify a complete lifecycle.",
+    "An optional replay is unrecorded unless a separately reviewed evidence path binds it.",
+    "This index establishes no formal-core, whole-program, release, or value-movement completion."
+  ],
+  "case_catalog": {
+    "transfer-v2-core": {
+      "component_id": "asset-transfer-module-v2",
+      "pytest_nodes": [
+        "tests/core/test_asset_transfer_module_v2.py::test_transfer_accepts_one_origin_and_occurrence_bound_command",
+        "tests/core/test_asset_transfer_module_v2.py::test_unknown_disabled_and_subject_guards_preserve_rejection_precedence",
+        "tests/core/test_asset_transfer_module_v2.py::test_insufficient_balance_rejects_without_partial_application"
+      ],
+      "implementation_paths": [
+        "src/core/asset_transfer_module_v2.py",
+        "src/core/global_settlement_types_v2.py"
+      ],
+      "semantic_spec_paths": [
+        "docs/research/GLOBAL_SETTLEMENT_ABI_V2_DELTA_AND_COMPATIBILITY_20260831.json",
+        "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V1.json"
+      ],
+      "allowed_ids": [
+        "BDD:BDD-001",
+        "BDD:BDD-002",
+        "CAPABILITY:ASSET_TRANSFER:account_lifecycle",
+        "CAPABILITY:ASSET_TRANSFER:generic_transfer",
+        "CAPABILITY:ASSET_TRANSFER:native_asset_accounting",
+        "CAPABILITY:ASSET_TRANSFER:transaction_fee",
+        "V3-PRECOMMIT-REJECTION"
+      ],
+      "test_sources": [
+        {
+          "path": "tests/core/test_asset_transfer_module_v2.py",
+          "sha256": "baee3b35c68a07daeb10051cb19b165ef9a66ef482ea2ab200510aa6e66aa92b"
+        }
+      ]
+    },
+    "custody-transfer-v1": {
+      "component_id": "asset-transfer-custody-successor-v1",
+      "pytest_nodes": [
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_recomputation_refuses_legacy_and_coherent_foreign_outputs",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_balances_only_mutant_is_refused_by_existing_coordinator",
+        "tests/core/test_asset_transfer_lane_module_custody_v1.py::test_omitted_port_root_rebind_is_rejected_by_owned_accepted_constructor"
+      ],
+      "implementation_paths": [
+        "src/core/asset_transfer_lane_module_custody_v1.py"
+      ],
+      "semantic_spec_paths": [
+        "docs/research/ZENODEX_WHOLE_PROGRAM_V3_CUSTODY_REPAIR_DESIGN.md"
+      ],
+      "allowed_ids": [
+        "CAPABILITY:ASSET_TRANSFER:generic_transfer",
+        "CAPABILITY:ASSET_TRANSFER:transaction_fee"
+      ],
+      "test_sources": [
+        {
+          "path": "tests/core/test_asset_transfer_lane_module_custody_v1.py",
+          "sha256": "15700d24078987cdf70376b4f9b8cefcf6cbcbb6aba96b9f6102c3006652e808"
+        }
+      ]
+    },
+    "custody-successor-v2-python": {
+      "component_id": "asset-lane-custody-successor-v2-python",
+      "source_status": "PINNED",
+      "test_sources": [
+        {
+          "path": "tests/core/test_asset_lane_custody_v2.py",
+          "sha256": "b42da5ca3e13a925ad830370e9e06bc426e62a7efdfaca83e23594da430e9c32"
+        },
+        {
+          "path": "tests/core/test_asset_lane_custody_global_v2.py",
+          "sha256": "ddca580f552f1d4225946604b3a55555a06f135167bdb01b8da9bfa099986d4f"
+        }
+      ],
+      "pytest_nodes": [
+        "tests/core/test_asset_lane_custody_v2.py::test_given_accounts_and_vault_when_authorized_transfer_then_complete_value_is_preserved",
+        "tests/core/test_asset_lane_custody_v2.py::test_issue_then_burn_preserves_custody_and_complete_supply",
+        "tests/core/test_asset_lane_custody_v2.py::test_unauthorized_transfer_is_exact_no_effect",
+        "tests/core/test_asset_lane_custody_global_v2.py::test_given_backed_claim_when_transfer_then_global_checker_accepts_complete_frame",
+        "tests/core/test_asset_lane_custody_global_v2.py::test_semantic_mutants_cannot_pass_the_global_consumer",
+        "tests/core/test_asset_lane_custody_global_v2.py::test_wrong_writer_epoch_is_rejected_despite_conserved_totals"
+      ],
+      "implementation_paths": [
+        "src/core/asset_lane_custody_state_v2.py",
+        "src/core/asset_lane_custody_coordinator_v2.py",
+        "src/core/asset_lane_custody_global_v2.py"
+      ],
+      "semantic_spec_paths": [
+        "docs/research/GLOBAL_SETTLEMENT_ABI_V2_DELTA_AND_COMPATIBILITY_20260831.json",
+        "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V1.json"
+      ],
+      "allowed_ids": [
+        "CAPABILITY:ASSET_TRANSFER:generic_transfer",
+        "CAPABILITY:ASSET_TRANSFER:managed_issue",
+        "CAPABILITY:ASSET_TRANSFER:managed_burn"
+      ]
+    }
+  }
+}

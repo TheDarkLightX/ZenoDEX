@@ -29,6 +29,17 @@ jobs:
         run: |
           python -m pip install --require-hashes -r requirements-dev.lock.txt
 
+      - name: Check V3 acceptance continuity and custody behavior
+        run: |
+          python tools/v3_acceptance.py --validate
+          python tools/render_asset_lane_custody_v2_golden.py --check
+          python -m pytest -q tests/tools/test_v3_acceptance.py tests/core/test_asset_lane_custody*_v2.py
+
+      - name: Replay custody and global ABI V2 in Rust
+        run: |
+          rustup toolchain install 1.87.0 --profile minimal
+          cargo +1.87.0 test --locked --manifest-path zk/global_settlement_abi_v2/Cargo.toml
+
       - name: Fetch PR base ref
         if: github.event_name == 'pull_request'
         run: |

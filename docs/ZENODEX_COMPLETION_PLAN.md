@@ -8,6 +8,10 @@ The executable dependency graph is
 Selection through the active-plan registry is a separate, exact-subject,
 research-only admission. This document grants no economic or release authority.
 
+Resumed sessions start with [the continuity contract](ZENODEX_SESSION_CONTINUITY.md)
+to recover the integration subject, semantic precedence and next executable
+acceptance condition. The checklist below remains the whole-program scope.
+
 ## Objective and starting subject
 
 Complete the formal functional core across twelve economic lanes, connect it to

@@ -2,6 +2,9 @@
 
 pub mod asset_lane_coordinator;
 pub mod asset_lane_coordinator_types;
+pub mod asset_lane_custody;
+pub mod asset_lane_custody_global;
+pub mod asset_lane_custody_state;
 pub mod asset_lane_state;
 pub mod asset_origin_registry;
 pub mod asset_origin_registry_types;
@@ -27,6 +30,9 @@ pub mod wire_records;
 
 pub use asset_lane_coordinator::transition_asset_lane_v2;
 pub use asset_lane_coordinator_types::*;
+pub use asset_lane_custody::*;
+pub use asset_lane_custody_global::*;
+pub use asset_lane_custody_state::*;
 pub use asset_lane_state::*;
 pub use asset_origin_registry::*;
 pub use asset_origin_registry_types::*;

@@ -1,0 +1,257 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260909-custody-successor-v2",
+  "created_date": "2026-09-09",
+  "claim_scope": "Source-pinned bounded Python evidence for the explicitly named ABI V2 custody successor: actual account-plus-custody totals, unchanged full custody and claimant rows, dormant supply identity, source/result binding and exact typed no-op rejection. Acceptance-index controls distinguish pinned runtime cases from coverage and conformance. Rust artifacts and CI configuration are pinned subjects; this packet's executable nodes run Python only. The Lean file is a pinned observation subject, without theorem-replay credit.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ASSET-CUSTODY-V2-PHYSICAL-ROWS-AND-ACTUAL-SUPPLY",
+    "ASSET-CUSTODY-V2-EXACT-CUSTODY-AND-CLAIMANT-FRAME",
+    "ASSET-CUSTODY-V2-SOURCE-AND-RECEIPT-BINDING",
+    "ASSET-CUSTODY-V2-DORMANT-IDENTITY-AND-RESOURCE-REJECTION",
+    "V3-ACCEPTANCE-PINNED-SCOPE-FAILS-CLOSED"
+  ],
+  "failure_modes": [
+    "A legal account-plus-vault state is excluded by the historical account-only invariant, or completed effects still report only account totals.",
+    "Transfer, managed issue, full account burn or reissue changes custody rows, loses dormant zero-supply identity, or changes unrelated asset rows.",
+    "Caller-owned row mutation changes a retained state or result; malformed account-domain, duplicate, zero, foreign or unbacked custody is accepted.",
+    "A coherently rebound leaf result substitutes account totals, supply totals, writer epoch, release or transfer policy and receives custody acceptance.",
+    "A received successor receipt or source root is corrupted; a global claimant, custody owner/domain, lane root or replay row is substituted or omitted.",
+    "Aggregate account-row growth from 4096 to 4097 escapes STATE_RESOURCE_LIMIT, or that limit masks a prior PROJECTION_MISMATCH.",
+    "Source/test drift, deleted or duplicate requirements, a missing test node, an unlinked implementation, historical ABI evidence or fabricated conformance is promoted.",
+    "A failed, skipped or mixed passed-and-skipped replay is treated as successful; provisional source pins pass the acceptance check."
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/asset_lane_custody_state_v2.py",
+      "sha256": "4fbc66a705b686acd3a64c92ce054571e6955567568ba755549fa0eeae06f88a"
+    },
+    {
+      "path": "src/core/asset_lane_custody_coordinator_v2.py",
+      "sha256": "f34dd59aeb8952a42c81edecbcda183bb5d866ddf754d6e755f6de9c502bea88"
+    },
+    {
+      "path": "src/core/asset_lane_custody_global_v2.py",
+      "sha256": "7923fcad504164b83946bcd7fd732339c26023ac9185b61789a6a993cf73f509"
+    },
+    {
+      "path": "tools/render_asset_lane_custody_v2_golden.py",
+      "sha256": "5f0e83fd9e1b8ce22b1dc5c80da573a1f2c07e7cc65a112780fda34655fbeef8"
+    },
+    {
+      "path": "tests/data/asset_lane_custody_v2_golden.json",
+      "sha256": "6d128ed29521daea1211b2e7e2ba1b421b833723e5b21ab2a452e89ee103a4a1"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyRefinementV2.lean",
+      "sha256": "df3cf08fc7b108d08efc78ab7cecbc5f86e221a80c210e6c9b5ad229699a8de9"
+    },
+    {
+      "path": "tools/v3_acceptance.py",
+      "sha256": "3a9bfd95f8a2e28ef937a100539bca077b07bb11452845f191066cd57f9cfd61"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/asset_lane_custody.rs",
+      "sha256": "1c41a7d8ddc5f6b4ae75fef69a4ee0bae9f9b09036d99c5359162cb6d7c7eb7b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/asset_lane_custody_state.rs",
+      "sha256": "b043d4cc84cdd41d0df8d1b24ed0ca372e0cf0de745606896eb0bfb000d8c06c"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/asset_lane_custody_global.rs",
+      "sha256": "31abc2262a7d66ab1913064ef78527729d8f2393161ce0ecaf707348ebf2d0e2"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/lib.rs",
+      "sha256": "8d9d174985129ac83a6185fc8e664860ffa240f178f783450dd519388e183cb1"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/tests/asset_lane_custody.rs",
+      "sha256": "bb6fc913931f2cb096be8111ed46a59bd29b7226edaaf565baa383b9ae5f891a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/tests/asset_lane_custody_global.rs",
+      "sha256": "cba5e29bb918cccd7c8309392420c7ac015408b194f72d5a613760ffd6b42aa6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/tests/asset_lane_custody_golden.rs",
+      "sha256": "81f4d64b3079a5ed09bb9be65c63cf5f909efb6c1a355b53bbeda2d2c2da00b9"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "bda59dc4830e59f8e98d943161750ae6db1adece65b68d87359a60aee65bff51"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_asset_lane_custody_v2.py",
+      "sha256": "b42da5ca3e13a925ad830370e9e06bc426e62a7efdfaca83e23594da430e9c32",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_v2.py::test_given_accounts_and_vault_when_authorized_transfer_then_complete_value_is_preserved",
+        "tests/core/test_asset_lane_custody_v2.py::test_historical_account_only_state_does_not_silently_reinterpret_custody",
+        "tests/core/test_asset_lane_custody_v2.py::test_issue_then_burn_preserves_custody_and_complete_supply",
+        "tests/core/test_asset_lane_custody_v2.py::test_unauthorized_transfer_is_exact_no_effect",
+        "tests/core/test_asset_lane_custody_v2.py::test_required_valid_custody_domain_has_successful_transfers",
+        "tests/core/test_asset_lane_custody_v2.py::test_burn_all_spendable_accounts_leaves_vault_supply_then_reissue",
+        "tests/core/test_asset_lane_custody_v2.py::test_dormant_asset_retains_identity_through_issue_burn_reissue",
+        "tests/core/test_asset_lane_custody_v2.py::test_custody_is_owned_at_constructor_and_getter_boundaries",
+        "tests/core/test_asset_lane_custody_v2.py::test_invalid_custody_cannot_enter_successor_state",
+        "tests/core/test_asset_lane_custody_v2.py::test_maximum_physical_supply_is_accepted_and_extra_issue_rejects",
+        "tests/core/test_asset_lane_custody_v2.py::test_every_custody_row_is_preserved_at_the_declared_ceiling"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_global_v2.py",
+      "sha256": "ddca580f552f1d4225946604b3a55555a06f135167bdb01b8da9bfa099986d4f",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_global_v2.py::test_given_backed_claim_when_transfer_then_global_checker_accepts_complete_frame",
+        "tests/core/test_asset_lane_custody_global_v2.py::test_managed_custody_and_dormant_states_reach_global_admission",
+        "tests/core/test_asset_lane_custody_global_v2.py::test_sender_fee_owner_retains_the_specified_global_fee_mirror_refusal",
+        "tests/core/test_asset_lane_custody_global_v2.py::test_semantic_mutants_cannot_pass_the_global_consumer",
+        "tests/core/test_asset_lane_custody_global_v2.py::test_wrong_writer_epoch_is_rejected_despite_conserved_totals",
+        "tests/core/test_asset_lane_custody_global_v2.py::test_global_consumer_revalidates_the_received_successor_receipt"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_bindings_v2.py",
+      "sha256": "4a0e3e9e7b1faa04c61c0e719fe8a71d3c7e4924780da98a972c39dee0e30af9",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_bindings_v2.py::test_coherent_leaf_mutants_reject_without_custody_or_economic_change"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_bounds_v2.py",
+      "sha256": "72d274e5897faedc9ee5466803f3a9568d46c79be884eef4d64c69f47f9e2e4c",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_bounds_v2.py::test_aggregate_row_growth_is_noop_and_corrupt_projection_has_prior_rejection"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_golden_v2.py",
+      "sha256": "9c8628c2b5c24e034c7709687bfd32e33f0a90cc29e0f682cd40e055f31f7e59",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_golden_v2.py::test_python_custody_vectors_and_listed_source_hashes_are_current"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_refinement_v2.py",
+      "sha256": "3ef690ac85d7bdaa86e4d58de978d4a1aa5b805dbf00d10e4abd63cc0a76e26c",
+      "node_ids": [
+        "tests/formal/test_lean_asset_lane_custody_refinement_v2.py::test_custody_state_fields_match_the_formal_legal_source_and_leaf_controls"
+      ]
+    },
+    {
+      "path": "tests/tools/test_v3_acceptance.py",
+      "sha256": "9d01bb7d8d0ae8719f48b5dc4c88cb1abc22061b5a9e54ca2aad849f7f53d9f6",
+      "node_ids": [
+        "tests/tools/test_v3_acceptance.py::test_structural_inventory_is_distinct_from_bindings_replay_and_conformance",
+        "tests/tools/test_v3_acceptance.py::test_pinned_custody_successor_is_limited_python_evidence",
+        "tests/tools/test_v3_acceptance.py::test_check_rejects_provisional_case_sources",
+        "tests/tools/test_v3_acceptance.py::test_requirement_deletion_or_duplication_rejects",
+        "tests/tools/test_v3_acceptance.py::test_stale_component_or_test_binding_rejects",
+        "tests/tools/test_v3_acceptance.py::test_nonexistent_node_or_unlinked_implementation_rejects",
+        "tests/tools/test_v3_acceptance.py::test_successor_cannot_inherit_historical_runtime_evidence_by_name",
+        "tests/tools/test_v3_acceptance.py::test_failing_or_skipped_replay_cannot_promote_bindings",
+        "tests/tools/test_v3_acceptance.py::test_duplicate_json_key_and_fabricated_full_conformance_reject"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "property",
+    "stateful",
+    "differential",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests construct explicit legal custody states or one named corruption, act through the new coordinator/global consumer or acceptance checker, and assert exact atom rows, roots, rejection codes or refusal diagnostics. The deterministic property uses 40 bounded examples. The golden renderer checks a separate integer account oracle before comparing ten retained vectors."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Typed transition refusals require identical pre/post lane roots and empty effects; the aggregate-boundary test also compares the complete input canonical value. Global refusals construct no refinement result. Acceptance-checker failure controls cannot promote coverage or conformance. These pure checks expose no publication or economic write port."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "physical_custody_and_supply",
+      "points": [
+        "zero custody",
+        "one-atom issue and full burn",
+        "nonzero custody with accounts below actual supply",
+        "u128 maximum physical supply then extra issue refusal"
+      ]
+    },
+    {
+      "name": "registered_supply_lifecycle",
+      "points": [
+        "dormant zero with identity retained",
+        "issue then burn back to zero",
+        "burn all account value while vault supply remains",
+        "reissue after terminal account balance"
+      ]
+    },
+    {
+      "name": "resource_and_reject_precedence",
+      "points": [
+        "4096 custody rows accepted",
+        "4097 custody rows rejected",
+        "4096 aggregate account rows grow to 4097 after managed leaf acceptance",
+        "corrupt account projection rejects before aggregate resource limit"
+      ]
+    },
+    {
+      "name": "binding_and_frame",
+      "points": [
+        "exact source/result accepts",
+        "account and supply scalar substitution",
+        "writer/release/policy substitution",
+        "receipt/source-root corruption",
+        "custody owner/domain/claimant substitution",
+        "missing replay row"
+      ]
+    },
+    {
+      "name": "acceptance_checker_evidence",
+      "points": [
+        "pinned current source",
+        "source or test bytes drift",
+        "provisional evidence",
+        "failed replay",
+        "skipped-only replay",
+        "mixed passed-and-skipped replay",
+        "fabricated full conformance"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Remove the nonpassing-summary refusal: a zero-exit replay reporting '2 passed, 1 skipped' then returns successfully. The pinned test requires REPLAY_NONPASS. This is an executable source-mutation declaration; packet validation does not execute it or credit a kill.",
+      "killed_by": "tests/tools/test_v3_acceptance.py::test_failing_or_skipped_replay_cannot_promote_bindings",
+      "mutant": {
+        "path": "tools/v3_acceptance.py",
+        "needle_lines": [
+          "    if re.search(r\"\\b(?:skipped|xfailed|xpassed|failed|error|deselected)\\b\", output, re.IGNORECASE):",
+          "        _reject(\"REPLAY_NONPASS\")"
+        ],
+        "replacement_lines": [
+          "    if False:",
+          "        _reject(\"REPLAY_NONPASS\")"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Creating or structurally validating this packet runs no pytest node and establishes no new passing replay. The existing combined hygiene runner owns the selected Python replay.",
+    "Only the bounded Python observation node is selected from the formal test file. Fresh Lean fixtures and theorem consumers remain separately gated and are not replayed or credited by this packet. RowsRepresentable is not every runtime constructor invariant.",
+    "Rust sources, tests and exports are pinned for subject continuity. The selected pytest nodes do not run Cargo or establish Python/Rust equivalence; the separately reported standalone Rust tests and golden replay remain separate evidence.",
+    "The CI workflow pin records configured evidence routing. Python hygiene replay does not execute GitHub Actions or establish hosted CI success, deployment or release qualification.",
+    "The declared source mutation is not executed during packet construction or ordinary selected-node replay. No mechanical mutation kill, mutation score or exhaustive fault coverage is claimed.",
+    "Finite observations do not prove universal runtime, compiler, codec, guest or whole-program refinement. Signature authentication, genuine receipts, governed profile qualification, publication, migration and complete asset lifecycles remain outside scope.",
+    "The existing positive-fee sender-as-fee-owner global fee-mirror refusal remains deliberate. Global claimant preservation is checked in the restricted complete-table relation with empty reserves.",
+    "Bounded custody acceptance does not establish full V3 capability or workflow conformance. Production authority remains NONE and profile authentication remains SHADOW."
+  ]
+}
