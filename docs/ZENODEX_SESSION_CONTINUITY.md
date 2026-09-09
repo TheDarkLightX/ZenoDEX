@@ -218,6 +218,14 @@ The default host build cannot produce the verifier binary without the
 new-image proof verification, V2 authentication and durable admission remain
 unrun. No new Lean, Kani or ESSO proof is attributed to this transport patch.
 
+The [receipt-adapter mutation replay](../tests/evidence/asset_lane_custody_receipt_v2_mutation_20260909.json)
+archived implementation `c9e1227e23a82596f67f7b25331eae2acde76e57`.
+The unavailable-verifier control passed, and removing the verification call
+was killed (one killed, zero survivors or errors). Replay it with
+`python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260909-custody-receipt-v2 --rev c9e1227e23a82596f67f7b25331eae2acde76e57`.
+The temporary mutation copies and 810 MiB native custody build cache were
+removed after the checks; the six unrelated dirty files remain unchanged.
+
 Complexity review uses the existing simplification skill and exact outcome
 checks. Radon 6.0.1 found high Python hotspots in snapshot decoding (152), the
 operation dispatcher (116) and zUSD `step_multi` (83). The new byte entry is 6;

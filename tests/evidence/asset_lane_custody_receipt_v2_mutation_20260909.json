@@ -1,0 +1,27 @@
+{
+  "errors": 0,
+  "killed": 1,
+  "legacy": 0,
+  "mechanical": 1,
+  "narrative": 0,
+  "packet": "THV1-20260909-custody-receipt-v2",
+  "rows": [
+    {
+      "description": "Remove the actual receipt-verifier call. The unavailable-verifier control must then fail because the adapter returns prepared bytes despite no verifier.",
+      "exit": 1,
+      "killer": "tests/integration/test_asset_lane_custody_receipt_verification_v2.py::test_native_verifier_rejections_propagate_unchanged[unavailable]",
+      "mutant_sha256": "745775a8c0e7a17353d9fd5cf422faa547400a8ff3b3eddf1227d097db3264cd",
+      "mutation": {
+        "needle_first_line": "    snapshot.verify_succinct_receipt(",
+        "needle_sha256": "28e09d5c7b31698a917d069fc7e8a0f5254ed7ae5f7032d3936bf0eef34d0208",
+        "path": "src/integration/asset_lane_custody_receipt_verification_v2.py",
+        "replacement_sha256": "e225b388d251d09902488254da501605f76393535a8838121ecc2372c568af31"
+      },
+      "seconds": 1.756,
+      "verdict": "KILLED"
+    }
+  ],
+  "schema": "zenodex/thv1-mutation-ledger/v1",
+  "subject_commit": "c9e1227e23a82596f67f7b25331eae2acde76e57",
+  "survived": 0
+}
