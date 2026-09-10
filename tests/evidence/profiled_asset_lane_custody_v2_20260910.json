@@ -1,0 +1,148 @@
+{
+  "schema": "zenodex/profiled-custody-delivery/v1",
+  "base_commit": "8c4f0456664f660c6c1ca7eab54e5fb7f4a7fd23",
+  "subject_commit": "fe7f60c49bd6e75d65c5f6ed3ea747cc70217531",
+  "claim_scope": "Isolated selected-role authentication and exact-journal receipt admission; native prover host source. No genuine receipt, publication or formal-core closure.",
+  "delivered": [
+    "Separate custody role commits exact profile, epoch, schemas, image, endpoint, build commitments and limits without reinterpreting V1 receipt ports.",
+    "Same-call shell owns inputs, authenticates the signed command, recomputes the statement, measures the selected endpoint and invokes sealed verification.",
+    "A compiled-guest-gated proof producer reuses the existing economic frame, requests Succinct proof and checks exact image/journal and proof before emitting canonical receipt bytes."
+  ],
+  "verification": [
+    {
+      "command": "python3 tools/run_test_hygiene_gate_v1.py --changed-file A:src/core/asset_lane_custody_guest_role_v2.py --changed-file A:src/integration/profiled_asset_lane_custody_receipt_v2.py --changed-file M:zk/asset_lane_custody_global_risc0/host/src/lib.rs --changed-file A:zk/asset_lane_custody_global_risc0/host/src/bin/prove_receipt_v2.rs --replay-mutations --json",
+      "result": "PASS: 41 Python cases; 4 archived controls and 4 killed mutants; 0 survivors/errors. Test counts overlap earlier focused runs."
+    },
+    {
+      "command": "python3 -m ruff check src/core/asset_lane_custody_guest_role_v2.py src/integration/profiled_asset_lane_custody_receipt_v2.py tests/core/test_asset_lane_custody_guest_role_v2.py tests/integration/test_profiled_asset_lane_custody_receipt_v2.py tools/v3_acceptance.py",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 -m mypy --follow-imports=silent src/core/asset_lane_custody_guest_role_v2.py src/integration/profiled_asset_lane_custody_receipt_v2.py",
+      "result": "PASS: 2 source files"
+    },
+    {
+      "command": "python3 -m pytest -q tests/tools/test_v3_acceptance.py",
+      "result": "PASS: 12 cases"
+    },
+    {
+      "command": "python3 tools/v3_acceptance.py --validate",
+      "result": "PASS: structural inventory; acceptance remains unestablished"
+    },
+    {
+      "command": "python3 tools/v3_acceptance.py --replay custody-successor-v2-python",
+      "result": "PASS: bounded retained custody cases"
+    },
+    {
+      "command": "cargo +1.90.0 test --offline --locked --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml -p zenodex-asset-lane-custody-global-risc0-host --lib",
+      "result": "Worker executed: 9 native tests passed. No compiled-guest feature, methods build or guest execution."
+    },
+    {
+      "command": "cargo +1.90.0 clippy --offline --locked --manifest-path zk/asset_lane_custody_global_risc0/Cargo.toml -p zenodex-asset-lane-custody-global-risc0-host --tests -- -D warnings",
+      "result": "Worker executed: PASS"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "mutation_replay": {
+    "path": "tests/evidence/profiled_asset_lane_custody_v2_mutation_20260910.json",
+    "sha256": "925605cf2bfa85092ab5b33a54a9b8fa34bfc00db9697f21eb2a31beef2092d6"
+  },
+  "review": {
+    "model": "gpt-daybreak-blue-latest",
+    "subject_commit": "fe7f60c49bd6e75d65c5f6ed3ea747cc70217531",
+    "disposition": "No blocking finding in the scoped reviewed subject. Root corrected review wording: post-snapshot caller mutation may still return the original owned statement successfully; substitution cannot change the verified subject.",
+    "core_sha256": "8b026531c69df738bf8b2e2f72dda91e94a58ec0360b6a3cfca98c2ef68b0411",
+    "integration_sha256": "bfc605a408e308aab2f8f0dc61344f7eacecbd602e4e5dbe4a5dbe87e6752242",
+    "host_lib_sha256": "791654b520a623a6434bf725d77603d9a0dfb9374432ac4912a0f987ba6be382"
+  },
+  "findings": [
+    {
+      "id": "CUSTODY-ROLE-MANIFEST-ALIAS",
+      "status": "repaired",
+      "detail": "Worker constructor retained a caller manifest. Constructor now owns manifest/artifact rows; alias-removal mutant is killed."
+    },
+    {
+      "id": "CUSTODY-PROVER-WORK-LIMIT",
+      "status": "repaired",
+      "detail": "Review found an absent host session limit. Added provisional 16777216-cycle setting. Native construction passes; actual executor enforcement and legal-state fit remain unrun."
+    },
+    {
+      "id": "ROOT-CUSTODY-ROLE-CONTEXT-FIXTURE",
+      "status": "repaired",
+      "detail": "Three new tests used dataclasses.replace on a custom-init context and failed before reaching their guards. Root changed fixture construction, preserving intended negatives. Final 21 core cases pass; no runtime behavior changed for this repair."
+    },
+    {
+      "id": "CUSTODY-SUCCESSOR-ACCEPTANCE-PIN",
+      "status": "repaired",
+      "detail": "Baseline validation rejected COMPONENT_SOURCE_STALE for the preceding successor-constructor change. Refreshed only that source SHA and its frozen layout digest; all capability mappings and counts unchanged."
+    },
+    {
+      "id": "CUSTODY-PROVER-SDK-SELECTION",
+      "status": "confirmed",
+      "detail": "The client-only SDK default prover can panic on unsupported or unavailable environment configuration. It emits no accepted receipt; typed availability failure remains open."
+    }
+  ],
+  "contributors": [
+    {
+      "id": "V3-20260910-custody-role-root",
+      "model_id": "Astra (active integrator)",
+      "role": "integration",
+      "status": "completed",
+      "work": "Role contract, same-call shell/tests, final core simplification/repair, gates and integration."
+    },
+    {
+      "id": "V3-20260910-custody-role-luna",
+      "model_id": "gpt-5.6-luna",
+      "effort": "high",
+      "role": "implementation",
+      "status": "completed",
+      "work": "Role binding and core tests; constructor ownership repair. Worker reported 16 cases before root additions; final source is covered by root gate."
+    },
+    {
+      "id": "V3-20260910-custody-host-terra",
+      "model_id": "gpt-5.6-terra",
+      "effort": "high",
+      "role": "implementation",
+      "status": "completed",
+      "work": "Rust proof producer, native tests, offline client lock and reviewed session-limit repair."
+    },
+    {
+      "id": "V3-20260910-custody-role-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "work": "Role separation, ownership, verifier admission and prover review on exact source hashes."
+    },
+    {
+      "id": "V3-20260910-custody-role-opus-launch",
+      "model_id": "claude-opus-5 (requested; did not execute)",
+      "effort": "high",
+      "role": "implementation",
+      "status": "failed",
+      "work": "Automatic approval review rejected exporting the exact 27 MB source packet. Built-in Luna handled the task; no Opus result or usage is claimed."
+    }
+  ],
+  "resources": {
+    "per_run_tokens_elapsed_and_cost": null,
+    "reason": "Built-in harness returned no per-run accounting for this batch. No prices or savings are inferred from model names.",
+    "removed_native_cache_logical_bytes": 772108919,
+    "free_disk_after_cleanup": "7.6 GiB as displayed by df; root filesystem"
+  },
+  "dependency_review": {
+    "added_packages": 14,
+    "changed_js_wasm_packages": 5,
+    "license_observation": "The cached manifests for all 19 added/changed package versions offer MIT or Apache-2.0 (aho-corasick also offers Unlicense). This is metadata inspection, not legal or vulnerability clearance.",
+    "scope": "Pinned SDK 3.0.6 client feature plus existing V2 ABI; no in-process prove or Bonsai feature. Native cache reached 731 MiB and was removed after no active build processes remained. Release dependency and executable qualification remain open."
+  },
+  "assessment": "NOT_RESCORED; no new aggregate percentage, lane, route, workstream or value-safety closure is claimed.",
+  "nonclaims": [
+    "Receipt exchanges use protocol fixtures; one optional existing measured-native BLS case was skipped in the combined run. The new consumer did not execute a production BLS-plus-real-RISC0 end-to-end success.",
+    "No actual methods/guest build, feature-gated producer/verifier binary build, genuine Succinct receipt, proof-negative matrix, image/source qualification or cycle-fit measurement was run.",
+    "No new Lean, ESSO or Kani proof, universal runtime refinement, current-store authority, atomic publication/recovery, migration, profile activation or destination enforcement.",
+    "Expected role root and active profile remain trusted isolated configuration; manifest evidence labels are declarations.",
+    "No controlled solo-versus-delegated comparison exists, so this delivery establishes no measured delegation speedup or cost saving."
+  ]
+}

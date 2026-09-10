@@ -1,0 +1,57 @@
+{
+  "changed_path_count": 4,
+  "contract_schema": "zenodex/test-hygiene-contract/v1",
+  "covered_critical_paths": [
+    "src/core/asset_lane_custody_guest_role_v2.py",
+    "src/integration/profiled_asset_lane_custody_receipt_v2.py",
+    "zk/asset_lane_custody_global_risc0/host/src/bin/prove_receipt_v2.rs",
+    "zk/asset_lane_custody_global_risc0/host/src/lib.rs"
+  ],
+  "critical_path_count": 4,
+  "evidence_packet_count": 299,
+  "mutation_replay": {
+    "errors": 0,
+    "killed": 4,
+    "ledger_nonzero": 0,
+    "legacy": 0,
+    "mechanical": 4,
+    "narrative": 0,
+    "ok": true,
+    "subject_commit": "fe7f60c49bd6e75d65c5f6ed3ea747cc70217531",
+    "survived": 0
+  },
+  "mutation_rows": {
+    "legacy": 6403,
+    "mechanical": 688,
+    "mechanical_current": 155,
+    "narrative": 14
+  },
+  "ok": true,
+  "pytest_node_ids": [
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_actual_predecessor_and_occurrence_must_match_the_selected_role",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_backend_protocol_root_is_existing_v1_protocol_coordinate",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_binding_root_has_fixed_v2_role_and_purpose_coordinates",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_bool_and_overflow_epoch_reject_at_construction",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_coherent_role_for_another_profile_or_epoch_is_rejected",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_constructor_owns_manifest_and_artifact_rows",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_external_expected_root_is_independent_and_mismatch_rejects",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_forged_role_schema_is_revalidated_by_the_selector",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_missing_required_evidence_rejects",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_schema_literals_are_recomputed_from_the_normative_json",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_subclass_manifest_and_binding_are_rejected",
+    "tests/core/test_asset_lane_custody_guest_role_v2.py::test_valid_role_binding_is_owned_and_preserves_v1_profile_coordinates",
+    "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_authenticated_rejection_needs_no_receipt_endpoint",
+    "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_bad_signature_precedes_economics_and_receipt_measurement",
+    "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_caller_mutation_during_signature_io_cannot_change_verified_subject",
+    "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_endpoint_must_match_the_selected_implementation",
+    "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_given_selected_custody_role_when_authenticated_then_exact_statement",
+    "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_raw_verifier_cannot_replace_selected_role_input",
+    "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_receipt_refusal_cannot_return_success_or_change_economic_inputs",
+    "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_replacement_after_measurement_is_rejected_by_sealed_transport",
+    "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_selected_resource_ceiling_rejects_before_receipt_endpoint_io",
+    "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_unselected_self_consistent_role_rejects_before_signature_or_artifact_io"
+  ],
+  "selected_evidence_ids": [
+    "THV1-20260910-profiled-custody-v2"
+  ]
+}

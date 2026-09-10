@@ -424,8 +424,39 @@ native crate passes 146 tests; combined core/integration passes 53 with one opti
 measured-native BLS case skipped. Full Clippy retains an unchanged argument-count
 failure. No fixtures, proof claims or admission gates were weakened.
 
-Next: qualify the explicit custody guest/profile role and real receipt, then
+The explicit custody role is implemented in the September 10 increment below.
+Next: qualify the real receipt and selected build, then
 use the derived successor in a current-store publication transaction with exact
 retry/recovery. The ABI V1 durable publisher does not automatically accept this
 V2 statement. Do not treat model trace induction or a constructed witness as
 production publication or universal runtime refinement.
+
+### September 10: selected custody role and bounded proof producer
+
+Commit `fe7f60c49bd6e75d65c5f6ed3ea747cc70217531` adds the separate custody role,
+same-call authenticated receipt admission and a feature-gated proof producer.
+The independent expected role root selects the profile, epoch, schema, image,
+endpoint implementation and build commitments. The shell snapshots inputs,
+authenticates the actual command, recomputes the statement and uses measured,
+sealed receipt verification. It returns ordinary bytes or the existing typed
+economic rejection. V1 profile image slots and receipt ports retain their meaning.
+
+The [delivery record](../tests/evidence/profiled_asset_lane_custody_v2_20260910.json)
+binds the exact subject, participants, repaired findings and unrun obligations.
+Its gate passed 41 Python cases and killed all four archived guard-removal
+mutants; Terra's native host run passed nine tests and strict Clippy. Daybreak
+reviewed the final source. Luna's manifest-alias defect and the missing prover
+session limit were repaired; the native environment test checks construction
+only. Root also removed duplicate manifest copying and repaired three test setup
+errors. The acceptance index's stale predecessor-constructor hash was refreshed
+without changing capability mappings or scores. The task-owned 731 MiB native
+build cache was removed after checking ownership and active processes.
+
+No actual guest image, feature-gated producer binary, genuine receipt or new
+formal refinement theorem was qualified. The expected role root and active
+profile remain trusted isolated configuration. The 16,777,216-cycle work ceiling
+has no measured legal-state fit; SDK prover selection can still panic on
+unsupported or unavailable configuration. Next work remains the real rebuilt
+receipt qualification and store-owned selection/current-head revalidation with
+atomic publication, exact retries and recovery. Keep aggregate progress
+`NOT_RESCORED` until the existing assessment is deliberately rerun.
