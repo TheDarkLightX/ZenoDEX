@@ -74,7 +74,7 @@
         },
         {
           "path": "src/core/asset_lane_custody_global_v2.py",
-          "sha256": "7923fcad504164b83946bcd7fd732339c26023ac9185b61789a6a993cf73f509"
+          "sha256": "f84c91c8c434bb383356baf949f501ea774d037d55042108a55d43f86707bb4a"
         }
       ]
     }

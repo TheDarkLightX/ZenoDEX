@@ -1,0 +1,231 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260910-profiled-custody-v2",
+  "created_date": "2026-09-10",
+  "claim_scope": "Isolated custody role selection, same-call authentication and measured exact-journal receipt transport. Native proof producer source and bounded input tests; no genuine receipt or publication qualification.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-ROLE-INDEPENDENT-SELECTION",
+    "CUSTODY-ROLE-OWNED-MANIFEST",
+    "CUSTODY-ROLE-EXACT-ENDPOINT",
+    "CUSTODY-ROLE-AUTHENTICATED-REJECT"
+  ],
+  "failure_modes": [
+    "Caller substitutes a coherent foreign image or profile.",
+    "Manifest alias mutation changes the selected role.",
+    "A replaced endpoint grants success under the original selection.",
+    "Bad signature is bypassed on success or economic rejection.",
+    "Proof refusal or response substitution yields economic success."
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/asset_lane_custody_guest_role_v2.py",
+      "sha256": "8b026531c69df738bf8b2e2f72dda91e94a58ec0360b6a3cfca98c2ef68b0411"
+    },
+    {
+      "path": "src/integration/profiled_asset_lane_custody_receipt_v2.py",
+      "sha256": "bfc605a408e308aab2f8f0dc61344f7eacecbd602e4e5dbe4a5dbe87e6752242"
+    },
+    {
+      "path": "src/core/economic_receipt_verifier_evidence_v1.py",
+      "sha256": "66bbc6de53605e05a28d45602f2de896058370d6ac3df7cb04ef0a1cb97ce045"
+    },
+    {
+      "path": "src/core/asset_lane_custody_profile_binding_v2.py",
+      "sha256": "a6ab3f87d49adff958e38efa2c3ce674b6ffee87dc31f57274a6dcee117b151b"
+    },
+    {
+      "path": "src/integration/global_receipt_verifier_v1.py",
+      "sha256": "5e727d826ea298559e3bc2136fe96dec62f2d56eb66e6488771e652b699fcd47"
+    },
+    {
+      "path": "src/integration/isolated_economic_receipt_verifier_v1.py",
+      "sha256": "311b6e993cb3fc756968833770bf33f9dae9269004e4c630fce6bf01aa98fe3c"
+    },
+    {
+      "path": "src/integration/economic_command_authentication_v2.py",
+      "sha256": "680509ad4d11d4af956f6684e7b1be49219fb04634a40c5cef079d6b28e7f8fd"
+    },
+    {
+      "path": "docs/specifications/asset-lane-custody-guest-role-v2.json",
+      "sha256": "9982afa5870c52d2ddf0b0d91456049259a599ed21808efeeaa19c9d47d3da84"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/host/Cargo.toml",
+      "sha256": "645735ba63477f644ac82168f78c8f76a6e92faee26ea5f07805746b265f1b7f"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/host/src/lib.rs",
+      "sha256": "791654b520a623a6434bf725d77603d9a0dfb9374432ac4912a0f987ba6be382"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/host/src/bin/prove_receipt_v2.rs",
+      "sha256": "53640a30c82f4b9db99c5980b927b6b6f9d546fed3d6ece9820350d86493f04b"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/Cargo.lock",
+      "sha256": "c7ed7bf32a7540ed242dcc63ac96dab015313d68dbf25757e6ed280fabea1311"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_asset_lane_custody_guest_role_v2.py",
+      "sha256": "cf6bc1c0d587c18a1eb85299d2bb7ab3f8f71565d43baa6bf39d90c0cf1f083b",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_valid_role_binding_is_owned_and_preserves_v1_profile_coordinates",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_constructor_owns_manifest_and_artifact_rows",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_binding_root_has_fixed_v2_role_and_purpose_coordinates",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_schema_literals_are_recomputed_from_the_normative_json",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_forged_role_schema_is_revalidated_by_the_selector",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_backend_protocol_root_is_existing_v1_protocol_coordinate",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_missing_required_evidence_rejects",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_coherent_role_for_another_profile_or_epoch_is_rejected",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_actual_predecessor_and_occurrence_must_match_the_selected_role",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_external_expected_root_is_independent_and_mismatch_rejects",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_bool_and_overflow_epoch_reject_at_construction",
+        "tests/core/test_asset_lane_custody_guest_role_v2.py::test_subclass_manifest_and_binding_are_rejected"
+      ]
+    },
+    {
+      "path": "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py",
+      "sha256": "26dee84cf64f8c1c1ae7127fa139bb39348af92005ab0c9ab5273c4ec6637df3",
+      "node_ids": [
+        "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_given_selected_custody_role_when_authenticated_then_exact_statement",
+        "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_unselected_self_consistent_role_rejects_before_signature_or_artifact_io",
+        "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_raw_verifier_cannot_replace_selected_role_input",
+        "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_authenticated_rejection_needs_no_receipt_endpoint",
+        "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_bad_signature_precedes_economics_and_receipt_measurement",
+        "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_selected_resource_ceiling_rejects_before_receipt_endpoint_io",
+        "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_endpoint_must_match_the_selected_implementation",
+        "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_receipt_refusal_cannot_return_success_or_change_economic_inputs",
+        "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_replacement_after_measurement_is_rejected_by_sealed_transport",
+        "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_caller_mutation_during_signature_io_cannot_change_verified_subject"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "metamorphic",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Five retained economic controls use the existing leaf producer with independent integer row changes. Foreign coordinates are varied independently. Process responses are protocol fixtures, not cryptographic proof evidence."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Bad role selection performs no verifier I/O; bad signature precedes economics; typed economic rejection has empty effects and needs no receipt artifact. Receipt refusal preserves captured input bytes and returns no success. This consumer has no writer or replay capability."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "selection",
+      "points": [
+        "fixed schemas versus foreign coordinates",
+        "independent expected root versus coherent foreign role",
+        "matching versus foreign profile and epoch",
+        "actual predecessor versus context and occurrence drift",
+        "boolean and u64 overflow epoch"
+      ]
+    },
+    {
+      "name": "transport",
+      "points": [
+        "selected receipt/journal ceilings",
+        "endpoint replacement before and after measurement",
+        "empty receipt on typed rejection",
+        "proof rejection versus foreign response request/image"
+      ]
+    },
+    {
+      "name": "ownership",
+      "points": [
+        "caller manifest and artifact row aliases",
+        "command/global successor/manifest mutation during signature I/O"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Remove independent expected-role-root equality.",
+      "killed_by": "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_unselected_self_consistent_role_rejects_before_signature_or_artifact_io",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_guest_role_v2.py",
+        "needle_lines": [
+          "    if (",
+          "        hash_global_v2(",
+          "            ASSET_LANE_CUSTODY_GUEST_ROLE_BINDING_DOMAIN_V2, owned_binding.to_canonical()",
+          "        )",
+          "        != expected_binding_root",
+          "    ):",
+          "        raise ValueError(\"custody guest binding root mismatch\")"
+        ],
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    },
+    {
+      "description": "Retain the caller manifest alias in the binding constructor.",
+      "killed_by": "tests/core/test_asset_lane_custody_guest_role_v2.py::test_constructor_owns_manifest_and_artifact_rows",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_guest_role_v2.py",
+        "needle_lines": [
+          "        object.__setattr__(",
+          "            self,",
+          "            \"evidence_manifest\",",
+          "            _snapshot_economic_receipt_verifier_manifest_v1(self.evidence_manifest),",
+          "        )"
+        ],
+        "replacement_lines": [
+          "        pass"
+        ]
+      }
+    },
+    {
+      "description": "Remove selected endpoint implementation-root equality.",
+      "killed_by": "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_endpoint_must_match_the_selected_implementation",
+      "mutant": {
+        "path": "src/integration/profiled_asset_lane_custody_receipt_v2.py",
+        "needle_lines": [
+          "    if economic_receipt_verifier_implementation_root_v1(artifact) != manifest.implementation_root:",
+          "        raise GlobalReceiptVerifierErrorV1(GlobalReceiptVerifierRejectV1.EXECUTABLE_BINDING)"
+        ],
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    },
+    {
+      "description": "Remove same-call signature verification.",
+      "killed_by": "tests/integration/test_profiled_asset_lane_custody_receipt_v2.py::test_bad_signature_precedes_economics_and_receipt_measurement",
+      "mutant": {
+        "path": "src/integration/profiled_asset_lane_custody_receipt_v2.py",
+        "needle_lines": [
+          "    verify_isolated_economic_command_occurrence_v2(",
+          "        owned_candidate,",
+          "        occurrence,",
+          "        signature_artifact_path=signature_artifact_path,",
+          "        signature_evidence_manifest=owned_signature_manifest,",
+          "        signature_timeout_ms=signature_timeout_ms,",
+          "    )"
+        ],
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Evidence labels and source hashes declare identity and coverage; they do not qualify a build or supply store provenance.",
+    "Expected role root and active profile remain trusted isolated configuration. No V1 image slot or receipt port is reinterpreted.",
+    "Python role admission is shell configuration logic with no Rust parity or Lean refinement claim.",
+    "Native Rust tests cover framing, canonical receipt codec and client environment construction; they do not compile the feature-gated producer, execute a guest, or demonstrate the cycle limit.",
+    "Prover session ceiling is provisional; genuine exact-image Succinct proof, negative proof matrix and legal-state fit remain unrun.",
+    "No activation, store-current revalidation, atomic publication, replay/recovery, destination enforcement, whole-core or production closure.",
+    "Mechanical mutants count only after archived control and mutant execution."
+  ]
+}

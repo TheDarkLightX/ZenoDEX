@@ -1,0 +1,44 @@
+{
+  "schema": "zenodex/asset-lane-custody-guest-role-specification/v2",
+  "role": "ASSET_LANE_CUSTODY_GLOBAL_V2",
+  "purpose": "ISOLATED_QUALIFICATION",
+  "proof_system": "risc0-succinct",
+  "profile_selection": "The expected binding root is an explicit trusted isolated configuration input. The binding commits the exact profile ID and authority epoch. V1 root, module, coordinator and route image slots retain their meanings.",
+  "state_schema": {
+    "schema": "zenodex/asset-lane-custody-state/v2",
+    "fields": ["custody", "managed_policies", "origin_registry", "schema", "transfer_state"],
+    "component_abi": "zenodex/global-settlement-abi/v2",
+    "global_disclosure_schema": "zenodex/global-settlement-abi/v2",
+    "global_disclosure_fields": ["balances", "chain_id", "custody", "deployment_root", "height", "history_root", "lane_roots", "liabilities", "oracle_occurrences", "outbox", "profile_root", "replay_state", "reserves", "schema", "supplies", "terminal_obligations", "writer_epoch"],
+    "module_journal_abi": "zenodex/global-settlement-abi/v2",
+    "encoding": "exact canonical JSON with existing V2 component codecs and resource limits"
+  },
+  "journal_schema": {
+    "schema": "zenodex/asset-lane-custody-global-statement/v2",
+    "fields": ["global_post_state_root", "global_pre_state_root", "module_journal", "schema"],
+    "module_journal_abi": "zenodex/global-settlement-abi/v2",
+    "encoding": "exact canonical JSON"
+  },
+  "receipt_schema": {
+    "encoding": "serde_json::to_vec(risc0_zkvm::Receipt)",
+    "sdk_version": "3.0.6",
+    "kind": "Succinct",
+    "execution": "successful",
+    "assumptions": "empty",
+    "dev_mode": "disabled"
+  },
+  "economic_semantics": {
+    "commands": ["asset_transfer", "managed_asset_burn", "managed_asset_issue"],
+    "transition": "Use the existing V2 custody coordinator and its typed transfer or managed lifecycle command. Authenticate the exact canonical command and occurrence before economic execution.",
+    "holdings": "Physical account and custody atoms reconcile with declared supply. Claimant liabilities are not additional physical holdings. Complete custody, claimants and unrelated lane metadata are preserved.",
+    "global_relation": "Use the existing complete V2 custody/global refiner, with exact occurrence, replay insertion, writer and predecessor bindings; retain empty reserves and the sender-as-fee-owner refusal.",
+    "rejection": "Structural and role-selection failures precede signature verification. Signature failure precedes economic execution. Economic rejection returns the existing typed no-effect result without receipt verification.",
+    "terminal": "Full account burn preserves custody. Zero-supply dormant asset identities remain registered and can be reissued under the existing managed policy. No new withdrawal or migration behavior is selected."
+  },
+  "endpoint_selection": "The binding owns the existing receipt evidence manifest, including the exact guest image, receipt and journal schemas, semantic specification, source, toolchain, implementation, protocol, limits and evidence artifacts. The shell measures a regular non-symlink endpoint, matches its implementation root and executes a sealed copy matching the measured SHA-256. No supplied backend or verifier handle can grant success.",
+  "build_provenance": "The manifest source and toolchain roots must cover the combined custody guest, economic dependencies and fixed verifier endpoint build. Required SPECIFIED, IMPLEMENTED, TESTED, SOURCE_PINNED and TOOLCHAIN_PINNED artifact labels establish declared coverage only; source-to-image and genuine-proof evidence must be independently replayed before qualification.",
+  "bounds": "The existing 16 MiB receipt and 1 MiB journal ceilings apply. A selected manifest may tighten either ceiling; admission checks its limits before receipt verification.",
+  "prover_session_limit_cycles": 16777216,
+  "prover_limit_scope": "This provisional host work ceiling matches the existing perps route host ceiling. It bounds proof attempts and changes no economic transition or journal. Maximum legal custody states fitting this ceiling remain a required qualification measurement; a native check does not establish that coverage.",
+  "nonclaims": "A binding or evidence-status declaration is not proof of build provenance, genuine receipt execution, profile activation, current store authority, no-bypass, migration or publication. The process and operating system remain trusted. Publication requires store-owned binding selection and revalidation at its atomic commit."
+}

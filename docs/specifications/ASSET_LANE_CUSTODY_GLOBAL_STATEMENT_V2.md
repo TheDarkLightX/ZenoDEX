@@ -167,6 +167,35 @@ python3 -m pytest -q tests/integration/test_authenticated_asset_lane_custody_rec
 ZENODEX_BLS_VERIFIER_TEST_BINARY=/path/to/measured/verifier python3 -m pytest -q tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py::test_native_bls_checks_all_five_custody_vectors_before_protocol_receipts
 ```
 
+## Separately selected custody guest role
+
+`verify_isolated_profiled_asset_lane_custody_receipt_v2` strengthens the isolated
+consumer with the explicit `ASSET_LANE_CUSTODY_GLOBAL_V2` role. The normative
+[role document](asset-lane-custody-guest-role-v2.json) defines its fixed schema,
+journal, receipt and specification coordinates. `AssetLaneCustodyGuestRoleBindingV2`
+owns the manifest and artifact rows. Its domain-separated root commits the role,
+isolated purpose, profile ID, authority epoch and the complete artifact manifest,
+including image, endpoint implementation, source/toolchain commitments and limits.
+
+The expected role root must be selected independently from trusted isolated
+configuration. The selector checks that root, active profile, writer epoch and
+actual global predecessor before authentication. It never reads a V1 profile
+image slot as this role, and no V1 receipt port consumes the four-field journal.
+Existing V1 profile decoding and historical verification remain unchanged.
+
+The shell captures the command, context, disclosures and manifests before I/O,
+authenticates the exact command occurrence, prepares the statement and measures
+the selected receipt endpoint. The existing transport remeasures and executes
+sealed bytes, requiring the selected image and exact locally derived journal.
+Receipt type, path type and timeout are checked eagerly. Authenticated economic
+rejection needs no receipt artifact or verification, even with empty receipt
+bytes; it preserves the original typed rejection and empty effects. Receipt
+failure propagates and cannot produce success or consume replay state.
+
+Manifest evidence labels are declarations. Source/toolchain commitments must
+eventually be qualified against the combined guest and endpoint build. This
+binding and the native protocol tests do not establish that qualification.
+
 ## Remaining admission obligations
 
 `lean-mathlib/Proofs/AssetLaneCustodyTraceV2.lean` proves that the finite-row
@@ -189,13 +218,12 @@ route release, subject and grant does not authenticate them. The combined
 consumer checks the signed occurrence against supplied governed authorization,
 under the authentication contract's trusted profile/status selection premise.
 Structural profile binding now establishes writer epoch equality, selected
-module membership and predecessor lane metadata consistency. It does not qualify
-the custody state-schema/specification commitments or the flat guest's admitted
-role and measured image. No existing mounted module/coordinator/route/root
-receipt role accepts this four-field statement unchanged. Define that role's
-statement, schema and specification binding before assigning its image to a
-profile slot. Matching the
-predecessor root establishes consistency with the supplied disclosures; current
+module membership and predecessor lane metadata consistency. The separate role
+now selects fixed custody schema/specification commitments and manifest image
+coordinates; its measured image and genuine receipt remain unqualified. No
+existing mounted module/coordinator/route/root receipt role accepts this
+four-field statement unchanged. Matching the predecessor root establishes
+consistency with the supplied disclosures; current
 store authority must be acquired and revalidated by the publication shell.
 
 Qualification still requires the actual rebuilt guest image, genuine receipt
