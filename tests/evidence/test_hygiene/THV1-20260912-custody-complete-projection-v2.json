@@ -1,0 +1,114 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260912-custody-complete-projection-v2",
+  "created_date": "2026-09-12",
+  "claim_scope": "Exact finite accepted leaf reprojection; complete owned-state encoder and byte/resource relations; bounded Python/Lean post-state correspondence and explicit metadata-loss counterexamples. No universal runtime or publication refinement.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-EXACT-LEAF-PROJECTION",
+    "CUSTODY-COMPLETE-STATE-BYTES",
+    "CUSTODY-COMPLETE-RESOURCE-BOUNDARY",
+    "CUSTODY-METADATA-INFORMATION-GAPS"
+  ],
+  "failure_modes": [
+    "Reconstruction loses a managed sibling or zero-supply identity while selected totals agree.",
+    "Complete encoding omits or misattributes origin metadata, custody, or nested policy fields.",
+    "A leaf accepts while the full materialized state exceeds the one-MiB ceiling.",
+    "Erased structural facts are mistaken for full constructor or policy-origin admission."
+  ],
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyExactProjectionV2.lean",
+      "sha256": "9486eb80bc01d6eb26c3ae0f86ba94c74c6e4b5ddeba6adc4538306459dce03b"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyCompleteStateV2.lean",
+      "sha256": "f7101c17778fe4bff9ca2481f184b2176307e4366141961ee8ac79fa9c7f1802"
+    },
+    {
+      "path": "tests/formal/asset_lane_custody_exact_projection_v2_controls.lean",
+      "sha256": "bf9f385e2add6b76e0596291731ce82e147e4c1284308ba11f51f5990052c528"
+    }
+  ],
+  "test_pins": [
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_exact_projection_v2.py",
+      "sha256": "203c7ef85552575e2cde4e2b896341688755bbf2aa33bab6c3a22eea53105a9f",
+      "node_ids": [
+        "tests/formal/test_lean_asset_lane_custody_exact_projection_v2.py::test_exact_projection_signatures_and_standard_axioms",
+        "tests/formal/test_lean_asset_lane_custody_exact_projection_v2.py::test_exact_reprojection_controls_keep_full_siblings_and_terminal_zero"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py",
+      "sha256": "1f5ffe6ebba80d9a020572e83e187395d00c2a8ff8ca1e7dc2b3a70e2b9fa9ab",
+      "node_ids": [
+        "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py::test_complete_state_contracts_and_standard_axioms",
+        "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py::test_actual_full_canonical_bytes_and_runtime_enum_codes",
+        "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py::test_exact_complete_state_resource_boundary",
+        "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py::test_runtime_goldens_then_complete_state_step_bytes"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_metadata_v2.py",
+      "sha256": "02699c80cba2bc74075cd222545dc5b3754e1278e4e93832e05250a6900cdf8f",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_metadata_v2.py::test_issue_policy_root_erasure_hides_constructor_invalid_managed_subset",
+        "tests/core/test_asset_lane_custody_metadata_v2.py::test_structural_row_facts_do_not_admit_transfer_managed_identity_drift",
+        "tests/core/test_asset_lane_custody_metadata_v2.py::test_joint_policy_root_drift_precedes_an_independent_leaf_rejection"
+      ]
+    }
+  ],
+  "removed_paths": [],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "differential",
+    "formal",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Runtime-admitted immutable values and independent expected tables precede actual finite transitions, exact leaf and full-byte comparisons, and explicit no-op assertions."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Three retained goldens check exact rejected roots and empty effects. Metadata-priority and full-size overflow controls observe exact coordinator route/code, unchanged complete pre-state and all six empty-effect fields."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "finite state and serialization",
+      "points": [
+        "dormant managed sibling",
+        "issue from zero",
+        "burn to zero",
+        "interleaved unmanaged asset",
+        "nonzero custody",
+        "empty aggregate",
+        "escaped strings",
+        "native origin",
+        "null optional policy fields",
+        "18 exact runtime encodings"
+      ]
+    },
+    {
+      "name": "outcomes",
+      "points": [
+        "7 accepted and 3 rejected pinned transactions",
+        "leaf acceptance with full post exactly1048576bytes",
+        "leaf acceptance with full post1048577bytes and exact coordinator rejection",
+        "managed subset and identity constructor exceptions",
+        "registry binding rejection before independent leaf rejection"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Nine public theorems and the retained controls are kernel-checked against pinned Lean4.27.0 with standard axioms only. Source syntax/hash gates are separate from semantic evidence.",
+    "CompleteState.step materializes the finite candidate before outer admission; Resources is not invariant. It does not itself model outer rejection.",
+    "The one-MiB control compares full lengths, unchanged metadata and transfer bytes; it does not compare an embedded one-MiB cross-codec byte string.",
+    "No runtime edits, new policy constants, wire changes, cryptographic receipts, hosted tests, production authority, or whole-program completion.",
+    "Two deliberate Lean model mutants are recorded separately with source pins and assertion outcomes; this hygiene packet does not claim an automated runtime mutation campaign."
+  ]
+}
