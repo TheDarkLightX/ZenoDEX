@@ -1361,6 +1361,101 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260912-custody-trace-bounds-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "custody-finite-trace-bounds",
+      "risk": "critical",
+      "provenance": {
+        "commit": "0250bc6aa659114dd96c119bafc35b12548f820f",
+        "path": "tests/evidence/custody_finite_trace_bounds_v2_20260912.json",
+        "sha256": "29996198246aa289583c7f3fb0802844da7475cbb08a49a04dbd384d320fc5f7"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-trace-bounds-proof-worker",
+      "model_id": null,
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-finite-trace",
+      "risk": "critical",
+      "provenance": {
+        "commit": "0250bc6aa659114dd96c119bafc35b12548f820f",
+        "path": "tests/evidence/custody_finite_trace_bounds_v2_20260912.json",
+        "sha256": "29996198246aa289583c7f3fb0802844da7475cbb08a49a04dbd384d320fc5f7"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-trace-bounds-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody-finite-trace-and-exact-projection",
+      "risk": "critical",
+      "provenance": {
+        "commit": "0250bc6aa659114dd96c119bafc35b12548f820f",
+        "path": "tests/evidence/custody_finite_trace_bounds_v2_20260912.json",
+        "sha256": "29996198246aa289583c7f3fb0802844da7475cbb08a49a04dbd384d320fc5f7"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-trace-bounds-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-rust-aggregate-boundaries",
+      "risk": "critical",
+      "provenance": {
+        "commit": "0250bc6aa659114dd96c119bafc35b12548f820f",
+        "path": "tests/evidence/custody_finite_trace_bounds_v2_20260912.json",
+        "sha256": "29996198246aa289583c7f3fb0802844da7475cbb08a49a04dbd384d320fc5f7"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-trace-bounds-derivatives-recovery-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "research",
+      "status": "completed",
+      "task_kind": "historical-derivatives-checker-restoration-falsified",
+      "risk": "critical",
+      "provenance": {
+        "commit": "0250bc6aa659114dd96c119bafc35b12548f820f",
+        "path": "tests/evidence/custody_finite_trace_bounds_v2_20260912.json",
+        "sha256": "29996198246aa289583c7f3fb0802844da7475cbb08a49a04dbd384d320fc5f7"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -2137,6 +2232,81 @@
           "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
           "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
           "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-custody-trace-bounds-implementation",
+      "before_commit": "55e5f3ad66ec580b207bffcf43fdf8fdc10a626a",
+      "after_commit": "2706a9316fb8b8996e30a699fe18bacfe69ad15a",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-trace-bounds-root",
+        "V3-20260912-custody-trace-bounds-proof-worker",
+        "V3-20260912-custody-trace-bounds-daybreak",
+        "V3-20260912-custody-trace-bounds-luna"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Actual finite leaf verdicts drive complete-row/custody-frame histories from one initial admission. Python now checks exact typed leaf reprojection. Natural Python/Rust aggregate row/byte boundaries preserve exact rejection/no-effect. Fresh Lean, runtime/parity and archived mutation evidence pass. 1 runtime line changed, 312 proof lines added, 1101 test lines added/23 removed; generated source pins and hygiene data are separate. NOT_RESCORED; no full lane, workstream or value qualification.",
+        "evidence": {
+          "commit": "0250bc6aa659114dd96c119bafc35b12548f820f",
+          "path": "tests/evidence/custody_finite_trace_bounds_v2_20260912.json",
+          "sha256": "29996198246aa289583c7f3fb0802844da7475cbb08a49a04dbd384d320fc5f7"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "CUSTODY-EXACT-LEAF-REPROJECTION",
+          "status": "repaired",
+          "evidence": {
+            "commit": "0250bc6aa659114dd96c119bafc35b12548f820f",
+            "path": "tests/evidence/custody_finite_trace_bounds_v2_20260912.json",
+            "sha256": "29996198246aa289583c7f3fb0802844da7475cbb08a49a04dbd384d320fc5f7"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-custody-trace-bounds-evidence",
+      "before_commit": "2706a9316fb8b8996e30a699fe18bacfe69ad15a",
+      "after_commit": "0250bc6aa659114dd96c119bafc35b12548f820f",
+      "kind": "support",
+      "obligation_ids": [
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-trace-bounds-root",
+        "V3-20260912-custody-trace-bounds-proof-worker",
+        "V3-20260912-custody-trace-bounds-daybreak",
+        "V3-20260912-custody-trace-bounds-luna",
+        "V3-20260912-custody-trace-bounds-derivatives-recovery-luna"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Records exact source, verification, typed mutants, regeneration, proof limits, failed historical checker restoration and continuation. Historical CLOSED matrix rejected against disputed current claims; no checker/claim repair was accepted. This support interval earns no product credit. Later accounting-only append lies outside quantified interval.",
+        "evidence": {
+          "commit": "0250bc6aa659114dd96c119bafc35b12548f820f",
+          "path": "tests/evidence/custody_finite_trace_bounds_v2_20260912.json",
+          "sha256": "29996198246aa289583c7f3fb0802844da7475cbb08a49a04dbd384d320fc5f7"
         }
       },
       "assessment": {
