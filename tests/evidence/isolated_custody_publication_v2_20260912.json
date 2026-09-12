@@ -1,0 +1,370 @@
+{
+  "schema": "zenodex/isolated-custody-publication-evidence/v2",
+  "subject_commit": "3018ec0f133ea9388153544b45cbe8edfcab66d6",
+  "baseline_commit": "cde251c4c3463d6f1e8b7d5ad5bcca0a9649acce",
+  "authority": "NONE",
+  "claim_scope": "Implemented and tested fresh isolated custody publication under selected genesis/configuration and an honest publisher, SQLite and filesystem. No formal-core, W06, production or cryptographic-guest qualification.",
+  "score_delta": "REVIEWED_DELTA",
+  "acceptance_change": {
+    "before": "The complete V2 custody core, role, authentication and conditional receipt consumer had no store-owning publication caller.",
+    "after": "One SQLite owner acquires complete global/custody predecessors, calls selected profiled verification, then atomically rechecks authority and head, retains complete record/replay state and handles exact retries, revocation and bounded recovery."
+  },
+  "source_pins": [
+    {
+      "path": "src/core/global_economic_authority_head_v2.py",
+      "sha256": "a2e1324f52c5ae08f5a37d69c352c0261579ea26835d107313d77e4633aeb772"
+    },
+    {
+      "path": "src/core/asset_lane_custody_frame_v2.py",
+      "sha256": "7b8538c7e854b5ea9c3c8b02e483f26ea49e1ebdc499efaca997a08dd0cb4862"
+    },
+    {
+      "path": "src/integration/custody_publication_record_v2.py",
+      "sha256": "6dc65574151a6b9739d73f024e10f3b4351a3ce69915fb138875a9fdf245ec1c"
+    },
+    {
+      "path": "src/integration/isolated_custody_publisher_v2.py",
+      "sha256": "f63ed84fc34bf2353e02d1e7e4987d67074debf595c0e0ea9039c4d0f73404ba"
+    }
+  ],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_economic_authority_head_v2.py",
+      "sha256": "bef95269ee726cfbc071b2a0df0e62ab09cd08c23edce1bfaae81e8ddf474df7"
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_frame_decode_v2.py",
+      "sha256": "d50bcbe27d36cb791a8613bece17c6534cc41842a6ae19c6141bf730aa9aca62"
+    },
+    {
+      "path": "tests/integration/test_custody_publication_record_v2.py",
+      "sha256": "d10aed98fc30e46c0cda1aa6fa247e191586f6ccd16cc53c76fc27613f081af0"
+    },
+    {
+      "path": "tests/integration/test_isolated_custody_publisher_v2.py",
+      "sha256": "44cb569f18dea153b65956f0f249205215e67c7695cceb0e976690aba756eea4"
+    }
+  ],
+  "source_diff": {
+    "added": 3061,
+    "removed": 0,
+    "runtime_added": 1275,
+    "tests_added": 1382,
+    "specification_added": 135,
+    "hygiene_data_added": 269,
+    "new_proof_lines": 0,
+    "new_dependencies": 0,
+    "files": [
+      {
+        "path": "docs/specifications/ISOLATED_CUSTODY_PUBLICATION_V2.md",
+        "added": 135,
+        "removed": 0
+      },
+      {
+        "path": "src/core/asset_lane_custody_frame_v2.py",
+        "added": 33,
+        "removed": 0
+      },
+      {
+        "path": "src/core/global_economic_authority_head_v2.py",
+        "added": 242,
+        "removed": 0
+      },
+      {
+        "path": "src/integration/custody_publication_record_v2.py",
+        "added": 239,
+        "removed": 0
+      },
+      {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "added": 761,
+        "removed": 0
+      },
+      {
+        "path": "tests/core/test_asset_lane_custody_frame_decode_v2.py",
+        "added": 124,
+        "removed": 0
+      },
+      {
+        "path": "tests/core/test_global_economic_authority_head_v2.py",
+        "added": 266,
+        "removed": 0
+      },
+      {
+        "path": "tests/evidence/test_hygiene/THV1-20260912-isolated-custody-publication-v2.json",
+        "added": 269,
+        "removed": 0
+      },
+      {
+        "path": "tests/integration/test_custody_publication_record_v2.py",
+        "added": 466,
+        "removed": 0
+      },
+      {
+        "path": "tests/integration/test_isolated_custody_publisher_v2.py",
+        "added": 526,
+        "removed": 0
+      }
+    ]
+  },
+  "verification": [
+    {
+      "command": "python3 -m pytest -q tests/core/test_global_economic_authority_head_v2.py tests/core/test_asset_lane_custody_frame_decode_v2.py tests/core/test_asset_lane_custody_frame_v2.py tests/integration/test_isolated_custody_publisher_v2.py tests/integration/test_profiled_asset_lane_custody_receipt_v2.py tests/integration/test_global_economic_authority_journal_v1.py",
+      "status": "PASS",
+      "passed": 164,
+      "seconds": 64.64
+    },
+    {
+      "command": "python3 -m pytest -q tests/integration/test_custody_publication_record_v2.py",
+      "status": "PASS",
+      "passed": 45,
+      "seconds": 4.79
+    },
+    {
+      "command": "python3 -m ruff check src/core/global_economic_authority_head_v2.py src/core/asset_lane_custody_frame_v2.py src/integration/custody_publication_record_v2.py src/integration/isolated_custody_publisher_v2.py tests/core/test_global_economic_authority_head_v2.py tests/core/test_asset_lane_custody_frame_decode_v2.py tests/integration/test_custody_publication_record_v2.py tests/integration/test_isolated_custody_publisher_v2.py",
+      "status": "PASS"
+    },
+    {
+      "command": "python3 -m mypy --follow-imports=silent src/core/global_economic_authority_head_v2.py src/core/asset_lane_custody_frame_v2.py src/integration/custody_publication_record_v2.py src/integration/isolated_custody_publisher_v2.py",
+      "status": "PASS"
+    },
+    {
+      "command": "python3 tools/v3_acceptance.py --validate",
+      "status": "PASS_STRUCTURAL_ONLY"
+    },
+    {
+      "command": "python3 tools/check_test_hygiene_v1.py --changed-file A:src/core/global_economic_authority_head_v2.py --changed-file M:src/core/asset_lane_custody_frame_v2.py --changed-file A:src/integration/custody_publication_record_v2.py --changed-file A:src/integration/isolated_custody_publisher_v2.py --changed-file A:tests/core/test_global_economic_authority_head_v2.py --changed-file A:tests/core/test_asset_lane_custody_frame_decode_v2.py --changed-file A:tests/integration/test_custody_publication_record_v2.py --changed-file A:tests/integration/test_isolated_custody_publisher_v2.py --changed-file A:tests/evidence/test_hygiene/THV1-20260912-isolated-custody-publication-v2.json --json",
+      "status": "PASS",
+      "selected_packet": "THV1-20260912-isolated-custody-publication-v2"
+    },
+    {
+      "command": "python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260912-isolated-custody-publication-v2 --rev 3018ec0f133ea9388153544b45cbe8edfcab66d6",
+      "status": "PASS",
+      "control_rule": "Each selected killer passed on its unmodified archived subject before mutation.",
+      "killed": 6,
+      "survived": 0,
+      "errors": 0,
+      "report": {
+        "path": "tests/evidence/isolated_custody_publication_v2_mutation_20260912.json",
+        "sha256": "fb2cb9c205c71ddf4f276fad656975eda8e3f57a22a303b125e96c6bf68168a8"
+      }
+    },
+    {
+      "command": "git diff --check",
+      "status": "PASS"
+    },
+    {
+      "command": "python3 tools/v3_progress_assessment_calc.py tests/evidence/v3_custody_publication_assessment_before_20260912.json",
+      "status": "PASS",
+      "scope": "denominator, identities and arithmetic; not evidence adequacy"
+    },
+    {
+      "command": "python3 tools/v3_progress_assessment_calc.py tests/evidence/v3_custody_publication_assessment_after_20260912.json",
+      "status": "PASS",
+      "scope": "denominator, identities and arithmetic; not evidence adequacy"
+    },
+    {
+      "command": "python3 tools/check_production_boundary.py --json",
+      "status": "PASS",
+      "check_count": 14,
+      "scope": "14 declared boundary checks; not deployment-complete no-bypass qualification"
+    },
+    {
+      "command": "python3 tools/check_whole_program_plan_v3.py --json",
+      "status": "PASS",
+      "closed_value_movement_gate_count": 0
+    },
+    {
+      "command": "python3 tools/permissionless_assurance.py status",
+      "status": "REPORT_ONLY",
+      "limitations": [
+        "Historical assurance snapshot is dated 2026-04-06.",
+        "Worktree environment lacks external/ESSO and tau-binary for corresponding release lanes.",
+        "Displayed readiness is tooling availability, not V3 qualification."
+      ]
+    }
+  ],
+  "verification_limits": {
+    "distinct_targeted_tests_passed": 209,
+    "receipt_exchanges": "Protocol fixtures in SQLite tests; selected crypto boundary is called but genuine guest/receipt is not qualified.",
+    "independent_oracles": "Fixed economic row projections, fixed statement digests, literal frame layout, explicit complete-table observations and controlled SQL interleavings.",
+    "new_formal_theorems": 0
+  },
+  "development_findings": [
+    {
+      "id": "CUSTODY-V2-RAW-COMMIT-BYPASS",
+      "status": "repaired",
+      "origin": "Introduced during this unpublished implementation; not a baseline product exploit.",
+      "before": "Reviewer acquired a mint token via _read and passed a constructed record with invalid unverified signature/receipt to _commit; it returned COMMITTED. Retained regression failed before the repair.",
+      "after": "No token mint or raw record sink. The only economic write closure captures the record locally after selected verification and does not escape.",
+      "regression": "tests/integration/test_isolated_custody_publisher_v2.py::test_unverified_material_has_no_direct_mint_or_raw_commit_entry"
+    },
+    {
+      "id": "CUSTODY-V2-EMPTY-FINAL-BOOTSTRAP",
+      "status": "repaired",
+      "origin": "Introduced during this unpublished implementation.",
+      "before": "Creating the final file before initializing SQLite left an empty final path after interruption.",
+      "after": "Validate and durably install the selected genesis from a candidate; resume interrupted candidates or exact link pairs and preserve foreign files.",
+      "regression": "tests/integration/test_isolated_custody_publisher_v2.py::test_given_bootstrap_interruption_when_retried_then_install_exact_genesis"
+    },
+    {
+      "id": "CUSTODY-V2-GENESIS-ROOT-TYPE",
+      "status": "repaired",
+      "before": "Initial authority candidate accepted a generic token for genesis identity.",
+      "after": "Exact nonzero canonical root and malformed scalar/decoder controls."
+    },
+    {
+      "id": "CUSTODY-V2-STATE-DECODE-DISPATCH",
+      "status": "repaired",
+      "before": "Initial use of the public wire-record dispatcher rejected bare complete global states, failing both first integration controls.",
+      "after": "Use the existing strict bare-state decoder and canonical loader."
+    }
+  ],
+  "development_errors": [
+    "Extra built-in decoder-worker launch hit the thread cap; root implemented the decoder and Luna tested it.",
+    "First test-hygiene checker invocation omitted STATUS:path prefixes; corrected invocation passed.",
+    "Initial tests used the wrong receipt exception and dataclasses.replace for a custom context initializer; corrected the test construction.",
+    "First Git staging attempt was read-only; scoped local Git index/commit escalation was approved.",
+    "First candidate assessment serialized low/high field names instead of required lower/upper totals; calculator rejected SECTION_SCORE. Corrected exact endpoints validate and preserve every other row."
+  ],
+  "participants": [
+    {
+      "id": "V3-20260912-custody-publisher-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "work": "Publisher, durable record/replay, frame inverse, integration tests, integration review, repairs and retained evidence."
+    },
+    {
+      "id": "V3-20260912-custody-authority-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "effort": "max",
+      "work": "V2 authority value and tests; frame inverse tests; separate durable-record tests. Reviewed and integrated by root."
+    },
+    {
+      "id": "V3-20260912-custody-publisher-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "work": "Design and repeated exact-source security review; reproduced raw-commit and bootstrap defects; accepted corrected isolated subject. Independently replayed 37 integration and 66 core tests plus Ruff. Counts overlap parent tests."
+    },
+    {
+      "id": "V3-20260912-custody-fable-export",
+      "model_id": null,
+      "role": "implementation",
+      "status": "failed",
+      "work": "Requested Fable 5.1 implementation launch rejected before external execution; built-in Luna completed the task. No source export or Fable model invocation."
+    },
+    {
+      "id": "V3-20260912-custody-decoder-spawn",
+      "model_id": null,
+      "role": "implementation",
+      "status": "failed",
+      "work": "Additional decoder-worker spawn refused by thread cap; no worker executed."
+    }
+  ],
+  "external_launch": {
+    "requested_model": "claude-fable-5-1",
+    "executed": false,
+    "review_rejected_action": "Launch an external implementation with a new private 183780-byte source packet.",
+    "review_reason": "Broad Fable implementation approval did not authorize this specific sensitive payload and destination.",
+    "safe_alternative": "Built-in Luna worker, with no external source export.",
+    "new_fable_usage_observation": null
+  },
+  "resource_observations": {
+    "model_tokens": null,
+    "model_cost": null,
+    "whole_turn_elapsed_ms": null,
+    "note": "Built-in worker/provider counters were not supplied. Retain null; test timing is not development duration."
+  },
+  "residual_obligations": [
+    "Certified initialization of live economic ownership.",
+    "Rebuilt guest/image/role/actual receipt qualification and legal-state cycle fit.",
+    "Full formal runtime/parser/arithmetic and datastore refinement.",
+    "Independent historical signature/receipt verification and registry reselection.",
+    "External rollback anchor, finality and multi-host writer exclusion.",
+    "Committed-effect delivery ancestry and destination enforcement.",
+    "Same-lineage migration and old-writer retirement.",
+    "Remaining V3 lanes, routes, lifecycles and release gates."
+  ],
+  "unrun": [
+    "Lean",
+    "ESSO",
+    "Kani",
+    "Rust or guest builds",
+    "Genuine custody proof/receipt generation and verification",
+    "Full critical quality gate",
+    "Full release or production qualification",
+    "Live migration or activation"
+  ],
+  "score_review": {
+    "scope": "W06 only; every other score carried without fresh assessment. Earlier unrescored deliveries remain excluded.",
+    "independent_reviewer": "gpt-daybreak-blue-latest",
+    "integrator": "gpt-6-astra",
+    "verdict": "accepted narrow advisory increment",
+    "predecessor": {
+      "commit": "6049f4258bafc6af80d091c755a8989a309c4d81",
+      "path": "tests/evidence/v3_custody_trace_assessment_after_20260909.json",
+      "sha256": "7bb710e003061af5370d77d72c8abe209c1c4da0ca3665a397deebd09aa94d04"
+    },
+    "before": {
+      "path": "tests/evidence/v3_custody_publication_assessment_before_20260912.json",
+      "sha256": "7a273d1f6837276793eb3f479a0645f77d14a4764ea94545e15cfe855c28f106"
+    },
+    "after": {
+      "path": "tests/evidence/v3_custody_publication_assessment_after_20260912.json",
+      "sha256": "e3ab43992d16451add386f5b92e26bf1d694506b760b414578f96d9894eb01de"
+    },
+    "W06": {
+      "weight": 5,
+      "before": [
+        0.4,
+        0.5,
+        0.6
+      ],
+      "after": [
+        0.5,
+        0.6,
+        0.7
+      ]
+    },
+    "full_v3": {
+      "before_percent": [
+        16.113,
+        23.369,
+        31.447
+      ],
+      "after_percent": [
+        16.613,
+        23.869,
+        31.947
+      ],
+      "delta_percentage_points": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "formal_core": {
+      "before_percent": [
+        15.208,
+        21.038,
+        27.124
+      ],
+      "after_percent": [
+        15.208,
+        21.038,
+        27.124
+      ],
+      "delta_percentage_points": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "rationale": "Existing V1 CAS/retry mechanics already had credit. New credit is current complete V2 custody/global publication with bounded state acquisition and recovery. No duplicate W07 credit and no new semantics/preservation/refinement theorem.",
+    "ceiling": "Advisory weighted estimate only; no effort prediction, full-checkout reassessment or release authority."
+  }
+}

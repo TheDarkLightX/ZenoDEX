@@ -1,0 +1,97 @@
+{
+  "errors": 0,
+  "killed": 6,
+  "legacy": 0,
+  "mechanical": 6,
+  "narrative": 0,
+  "packet": "THV1-20260912-isolated-custody-publication-v2",
+  "rows": [
+    {
+      "description": "Allow a revoked authority to create another successor.",
+      "exit": 1,
+      "killer": "tests/core/test_global_economic_authority_head_v2.py::test_revoked_successor_is_adjacent_coordinate_preserving_and_terminal",
+      "mutant_sha256": "9f83493a930df4b8800f103b27c2dcfe53fcb64008fd3e1403d5768608e258a4",
+      "mutation": {
+        "needle_first_line": "        if self.status is not GlobalEconomicAuthorityStatusV2.ACTIVE:",
+        "needle_sha256": "160245bd14f485df8621ccdc2757094c5f617ce9c7ec8fa7953d52ae9e5bdabf",
+        "path": "src/core/global_economic_authority_head_v2.py",
+        "replacement_sha256": "0b35470fd90e318ed51e754d5837ebd51e1adb2bb11ee5c4d4fb7ce4345d7673"
+      },
+      "seconds": 1.322,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Misclassify response loss after commit as an ordinary exception.",
+      "exit": 1,
+      "killer": "tests/integration/test_isolated_custody_publisher_v2.py::test_given_interruption_when_recovered_then_complete_pre_or_post",
+      "mutant_sha256": "17e6cc491910215333c424a465c7bbbee6f0782cc147ac96ae3d6166cc1c6f87",
+      "mutation": {
+        "needle_first_line": "                    commit_attempted = True",
+        "needle_sha256": "3ccf367071360c6226d76037ff66958811adaa136b49e9648f148047b6348e4f",
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "replacement_sha256": "b0e2395a3de97ff1fff9b10ac7229996f6ee0b25a99f6a3b1e45089914d681d4"
+      },
+      "seconds": 7.361,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Omit exact statement comparison after pure replay.",
+      "exit": 1,
+      "killer": "tests/integration/test_custody_publication_record_v2.py::test_altered_statement_or_frame_cannot_replay",
+      "mutant_sha256": "f728c6f1c5a36a374284998e406a4fbe0810cd9767f39a3daccd2826b6eb3201",
+      "mutation": {
+        "needle_first_line": "        if replay.statement != self.statement:",
+        "needle_sha256": "c68b044ce678e5a35de0b0f7365b8d48bce5a713e6350f05737b67ae568e3d84",
+        "path": "src/integration/custody_publication_record_v2.py",
+        "replacement_sha256": "0b35470fd90e318ed51e754d5837ebd51e1adb2bb11ee5c4d4fb7ce4345d7673"
+      },
+      "seconds": 5.455,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Remove exact frame EOF requirement.",
+      "exit": 1,
+      "killer": "tests/core/test_asset_lane_custody_frame_decode_v2.py::test_decoder_rejects_trailing_bytes_nonexact_input_and_oversized_frame",
+      "mutant_sha256": "90bb6ba6407693ce00129e53ff2b8e5c24ddc82d99e4d356e65d9ea4eef46708",
+      "mutation": {
+        "needle_first_line": "    if cursor != len(raw):",
+        "needle_sha256": "100ffda8ccf5868a8cdc8e16a5fbd26a6ee625ff00bc62170be87e753c629d81",
+        "path": "src/core/asset_lane_custody_frame_v2.py",
+        "replacement_sha256": "e225b388d251d09902488254da501605f76393535a8838121ecc2372c568af31"
+      },
+      "seconds": 1.367,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Replace selected cryptographic admission with pure statement preparation.",
+      "exit": 1,
+      "killer": "tests/integration/test_isolated_custody_publisher_v2.py::test_given_rejected_request_when_processed_then_every_durable_table_is_unchanged",
+      "mutant_sha256": "77702d0acadae28eb8b879e690e19580f9f19b154ba9c8b668bc8ecef329c7b8",
+      "mutation": {
+        "needle_first_line": "        statement = verify_isolated_profiled_asset_lane_custody_receipt_v2(",
+        "needle_sha256": "102d2c16a0c2a7774af20eaba6893dd3f11b1412eee1e8406346b1ea5fb9eb13",
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "replacement_sha256": "d9f80134b2186f9ea3e46819c90caa77bc9fc3518a43abd0d0d44be7a999ad7a"
+      },
+      "seconds": 3.255,
+      "verdict": "KILLED"
+    },
+    {
+      "description": "Return a writer on restart after its authority was revoked.",
+      "exit": 1,
+      "killer": "tests/integration/test_isolated_custody_publisher_v2.py::test_given_revocation_when_new_request_then_no_economic_change",
+      "mutant_sha256": "d5cfd87b5d2b47c1fe51b0d0de0da0cac2e3ac4b8e4e70a1b59b4e329e196d99",
+      "mutation": {
+        "needle_first_line": "            if head.authority != publisher._expected_authority:",
+        "needle_sha256": "5aa9d036655ad98e3a5cc1c3a7d0b62d7d9937c39707020b30195c0824cc3aef",
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "replacement_sha256": "6223f31d04866d4f1f96d452a8ab44209bcd882e420f1a6fe010d82176e119fa"
+      },
+      "seconds": 3.239,
+      "verdict": "KILLED"
+    }
+  ],
+  "schema": "zenodex/thv1-mutation-ledger/v1",
+  "subject_commit": "3018ec0f133ea9388153544b45cbe8edfcab66d6",
+  "survived": 0
+}

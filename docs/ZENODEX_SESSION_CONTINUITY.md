@@ -60,49 +60,58 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
-## September 12 sprint checkpoint
+## September 12: current isolated publication checkpoint
 
-Source commit `2863bde5ff100b2bd1aa091706d30af805dce3f1` adds a bounded offline
-oracle revision preflight and restricts the custody prover selector to the
-default external IPC path. The pinned actor backend omits the session limit;
-unknown and non-Unicode selectors now receive the native configuration guard's
-typed refusal. The SDK rereads the environment, so stable process configuration
-and an honest IPC server remain assumptions. This does not qualify a guest,
-receipt, publisher, or cycle-count attestation. See the
-[delivery record](research/ZENODEX_FABLE_SPRINT_20260912.md).
+Source commit `3018ec0f133ea9388153544b45cbe8edfcab66d6` implements the fresh
+isolated V2 publisher. Use
+[its specification](specifications/ISOLATED_CUSTODY_PUBLICATION_V2.md) and
+[pinned delivery evidence](../tests/evidence/isolated_custody_publication_v2_20260912.json).
+`IsolatedCustodyPublisherV2` owns one SQLite store, both complete state values,
+current authority, profiled signature/receipt admission and the atomic record/head
+commit. Do not restart publisher, record, frame or role design. V1 bytes and the
+M6 protocol remain unchanged; no live balance migration or activation occurred.
 
-For W06, use `global_economic_durable_publisher_v1.py`,
-`global_economic_epoch_journal_v1.py` and the shared authority journal as the
-existing architectural seam. The M6 filesystem store owns a different protocol;
-do not extract its internals into an independent custody ledger. A matching
-durable subject or manifest is insufficient restart authority. Retain current
-authority generation/status/store identity, complete source acquisition and
-one atomic compare-and-swap. Exact retry compares the complete canonical bundle,
-including receipt bytes.
+The immutable genesis pair and separately selected configuration determine the
+V2 authority. Fresh open revalidates both and refuses a revoked writer.
+Publication obtains its predecessor in one transaction, verifies the exact
+request, then rechecks source and authority under the write transaction. The
+commit closure is local to that verified call. A raw record/token entry point
+was rejected after a reproducible development bypass; do not restore one during
+refactoring. Exact retries include signature and receipt bytes. Complete
+PRE/POST recovery, response-loss classification, competing writers, in-flight
+revocation and interrupted genesis installation have retained tests.
 
-The next isolated V2 contract needs a distinct genesis/deployment identity,
-canonical full global and custody-lane state, the separately selected role and
-verifier configuration, and a V2 authority/head/bundle format. Both state values
-must come from one committed snapshot. Reuse the existing complete projection,
-derived successor, authentication and profiled receipt consumer. Preserve the
-single SQLite transaction for record insertion and head movement; do not invent
-M6 orphan-directory recovery. A fresh isolated deployment does not require live
-V1 retirement. Same-lineage migration and shared balances still require their
-own continuity and old-writer exclusion evidence.
+The isolated store has no external effect dispatcher. It preserves the existing
+outbox and terminal rows for these commands. Economic `history_root` stays fixed;
+publication ancestry is the contiguous durable record chain. Recovery replays
+complete economics and message bindings. It does not repeat cryptographic
+verification or reselect historical authorization registries. Whole-file rollback
+can restore old authority without an independent anchor. Honest publisher,
+SQLite/filesystem and independently selected genesis/configuration are premises.
 
-The ordinary V1 and V2 relations deliberately preserve economic `history_root`.
-Publication ancestry is separately bound by durable records: predecessor
-publication ID, pre/post state roots, contiguous sequence/height and the current
-head. Carry that binding into V2 without changing the proven successor or
-creating a self-referential record ID. External monotonic anchoring remains a
-separate rollback-resistance premise.
+The next acceptance condition is a rebuilt custody guest and fixed verifier
+accepting one genuine receipt for this exact statement and selected role, followed
+by commit/reopen/exact-retry through this publisher. Measure legal-state cycle
+fit against the admitted ceiling. Run heavy guest/proof work on suitable compute;
+Runpod is currently unavailable. Do not substitute fake receipt fixtures for this
+condition. Then discharge concrete store/runtime refinement, historical
+verification, rollback resistance, finality, delivery ancestry and migration as
+their own obligations. Full W06 and formal-core completion remain open.
 
-Fleet lesson: the first Max implementation attempts exhausted output without
-patches. Direct edits in isolated copies with narrower contracts and High effort
-delivered the replacements. Preserve failed runs and review corrections in the
-existing productivity ledger; do not impose elapsed-time cutoffs or count a
-model's successful exit as accepted implementation. The first storage review
-had an incomplete packet and its proposed design was rejected before coding.
+This slice passed 209 distinct targeted Python cases and six archived mutation
+rows, with no survivors or replay errors. The receipts in the storage tests are
+protocol fixtures. The new source adds 1,275 runtime lines and 1,382 test lines;
+135 specification lines and 269 hygiene-data lines are accounted separately.
+No new proof or dependency is claimed. The reviewed W06-only amendment moves
+the carried V3 estimate from 23.369% to 23.869% (+0.500 percentage points). Formal
+core stays at 21.038%. Other rows and earlier unrescored work remain carried
+forward; these are advisory estimates, not a whole-checkout reassessment. The productivity ledger records Luna implementation, Astra integration
+and repairs, Daybreak review, and the refused external Fable launch.
+
+The earlier [Fable sprint](research/ZENODEX_FABLE_SPRINT_20260912.md) delivered
+the oracle preflight and native custody prover selector. Its stable-environment
+and honest-IPC assumptions remain. Its then-missing V2 publication seam has now
+been implemented above; its usage counters are historical observations.
 
 ## Acceptance discipline
 
@@ -193,7 +202,7 @@ measured transport, and returns those bytes after verification. The fixed Rust
 endpoint statically selects this guest's compiled ELF/image; its executable
 requires the actual methods build. Native codec tests have no fallback image.
 This connects the source path, while trusted executable selection, actual
-rebuilt-image verification and every publication authority remain open.
+rebuilt-image verification and production publication authority remain open.
 
 The Lean `AssetLaneCustodyRefinementV2` lift establishes constructed finite-row
 accounting and custody preservation with selected leaf models, plus concrete
@@ -243,37 +252,17 @@ binding errors precede authentication;
 signature failure precedes economic execution; authenticated leaf rejection
 remains an exact no-effect result without receipt verification.
 
-Next, qualify the rebuilt receipt path and explicit custody schema/guest-role
-admission, then current-store publication; prove the resulting store-authority
-bindings. The
-review at `89e817d8` found that existing real module/coordinator/route guests and
-durable publication consume ABI V1. The V2 flat guest source now recomputes the
-existing custody coordinator and global relation and commits their exact V2
-statement. Its conditional Python adapter now uses the existing measured
-transport, and its fixed Rust verifier source selects the new compiled image.
-Qualify the actual rebuilt image and genuine receipt, then the guest-role
-admission and publication consumer. Do not restart statement or framing
-design; their defined subject and five-case native evidence are retained.
-The new V2 authentication path signs the V2 command-hash domain and binds exact
-V2 intent and occurrence types. Its explicit reuse of unchanged profile/registry
-formats does not establish actual guest, state-schema or current activation
-qualification. The new structural predicate checks selected route membership;
-no currently mounted V1 receipt role accepts the four-field flat statement
-unchanged. Define its role/schema/specification binding before assigning the
-new image to a profile slot. Authentication alone hashes opaque bounded command bytes; the
-combined custody consumer now matches the actual owned typed command and uses
-that command in the existing economic transition. Its successful bytes still
-confer no authority on a later protected operation.
-Matching an
-occurrence's predecessor root establishes consistency; the publisher must
-acquire and revalidate the committed predecessor to establish its authority.
-Do not cast V2 states or occurrences into V1 types. Do not count the native
-global relation as a mounted publisher. Carry the custody cases through that
-integration. Independently,
-the acceptance index's first mapping gap is Tau-originated asset registration.
-Its V2 core and golden/negative tests exist, with authority `NONE`, but no
-integration caller or durable replay consumer was found. Normative UP-11 is
-`UNRESOLVED_POLICY_NOT_SELECTABLE` pending the stable Tau interface. Existing
+The selected custody role and fresh isolated publication consumer now exist;
+the current checkpoint above selects their next qualification condition. Existing
+real module/coordinator/route guests and the older durable publisher still consume
+ABI V1. Keep the V2 flat statement and its explicit role separate. Native
+relation tests and modeled trace induction do not establish universal runtime
+refinement or production publication.
+
+Independently, the acceptance index's first mapping gap is Tau-originated asset
+registration. Its V2 core and golden/negative tests exist, with authority `NONE`,
+but no integration caller or durable replay consumer was found. Normative UP-11
+is `UNRESOLVED_POLICY_NOT_SELECTABLE` pending the stable Tau interface. Existing
 tests can support a bounded component observation; they cannot close finality
 policy or a mounted lifecycle. Do not recreate the existing core to fill a
 mapping gap.
@@ -468,11 +457,10 @@ native crate passes 146 tests; combined core/integration passes 53 with one opti
 measured-native BLS case skipped. Full Clippy retains an unchanged argument-count
 failure. No fixtures, proof claims or admission gates were weakened.
 
-The explicit custody role is implemented in the September 10 increment below.
-Next: qualify the real receipt and selected build, then
-use the derived successor in a current-store publication transaction with exact
-retry/recovery. The ABI V1 durable publisher does not automatically accept this
-V2 statement. Do not treat model trace induction or a constructed witness as
+The explicit custody role was implemented in the September 10 increment below.
+The current September 12 checkpoint adds store-owned publication; the real
+receipt and selected build remain unqualified. The ABI V1 durable publisher
+does not automatically accept this V2 statement. Do not treat model trace induction or a constructed witness as
 production publication or universal runtime refinement.
 
 ### September 10: selected custody role and bounded proof producer
@@ -499,8 +487,8 @@ build cache was removed after checking ownership and active processes.
 No actual guest image, feature-gated producer binary, genuine receipt or new
 formal refinement theorem was qualified. The expected role root and active
 profile remain trusted isolated configuration. The 16,777,216-cycle work ceiling
-has no measured legal-state fit; SDK prover selection can still panic on
-unsupported or unavailable configuration. Next work remains the real rebuilt
-receipt qualification and store-owned selection/current-head revalidation with
-atomic publication, exact retries and recovery. Keep aggregate progress
-`NOT_RESCORED` until the existing assessment is deliberately rerun.
+has no measured legal-state fit. The subsequent September 12 sprint guards
+unsupported SDK selection, and the current checkpoint adds isolated publication.
+The genuine rebuilt receipt and remaining production/refinement obligations are
+still open. Keep aggregate progress `NOT_RESCORED` until the existing assessment
+is deliberately rerun.

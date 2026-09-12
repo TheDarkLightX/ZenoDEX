@@ -257,3 +257,49 @@ changed; all other rows and earlier unrescored work remain carried forward.
 This is a narrow amendment, not a full current-checkout reassessment. The
 existing calculator replays both endpoint inputs; closure remains 0/14
 workstreams, 0/12 lanes, 0/4 routes and 0/12 value-movement gates.
+
+
+## September 12 isolated custody publication amendment
+
+Implementation `3018ec0f133ea9388153544b45cbe8edfcab66d6` adds a fresh isolated
+V2 store owner for complete global/custody state, selected receipt admission,
+current authority, atomic publication and bounded recovery. Daybreak reviewed
+the exact source; Astra integrated and repaired it. The
+[delivery evidence](../../tests/evidence/isolated_custody_publication_v2_20260912.json)
+records 209 distinct targeted tests, six killed mutations after passing controls,
+development failures, source hashes and unrun proof/release obligations.
+
+The existing rubric's W06 weight remains five. Only its low/central/high score
+changes from 0.40/0.50/0.60 to 0.50/0.60/0.70. Prior V1 publication mechanics
+already received credit; this increment credits the complete current V2 state
+consumer. No W07 capability gets the same credit again. Formal-core scores stay
+fixed because this patch adds no new semantics, preservation or refinement proof.
+
+| Carried estimate | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| Full V3 central | 23.369% | 23.869% | +0.500 pp |
+| Full V3 low/high | 16.113–31.447% | 16.613–31.947% | +0.500 pp |
+| Formal core central | 21.038% | 21.038% | 0.000 pp |
+| Formal core low/high | 15.208–27.124% | 15.208–27.124% | 0.000 pp |
+
+The predecessor is the adopted September 9 trace amendment, not the original
+September 8 baseline. The two frozen calculator inputs carry all unchanged rows
+without fresh assessment. Earlier unrescored deliveries remain excluded. Replay:
+
+```sh
+python3 tools/v3_progress_assessment_calc.py tests/evidence/v3_custody_publication_assessment_before_20260912.json
+python3 tools/v3_progress_assessment_calc.py tests/evidence/v3_custody_publication_assessment_after_20260912.json
+```
+
+These are planning judgments under fixed weights. All 103 capabilities, 12 lanes,
+four routes and four exclusions remain. Closure stays at 0/14 workstreams,
+0/12 lanes, 0/4 routes and 0/12 value-movement gates. Genuine matching RISC0
+receipts, multi-occurrence epoch qualification, certified initialization,
+concrete runtime/store refinement and production lifecycle obligations remain.
+
+The implementation commit adds 1,275 runtime lines, 1,382 test lines, 135
+specification lines and 269 hygiene-data lines, removing zero. It adds no proof,
+dependency or new tracker. The subsequent evidence and immutable calculator
+snapshots are support data, recorded separately in the existing productivity
+manifest. Provider tokens and total development time were unavailable; test
+runtimes are not development-time measurements.
