@@ -2460,6 +2460,63 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260912-perps-margin-root",
+      "model_id": "gpt-6-astra",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "perps-margin-proof-runtime-correspondence-integration-and-replay",
+      "risk": "critical",
+      "provenance": {
+        "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+        "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
+        "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-perps-margin-astra-review",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-mathematical-scope-and-fixed-rubric-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+        "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
+        "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-perps-margin-daybreak-review",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-effect-frame-mutation-and-golden-provenance-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+        "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
+        "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -3743,7 +3800,7 @@
         {
           "id": "CUSTODY-COORDINATOR-COHERENT-RECIPIENT-FAULT",
           "status": "confirmed",
-            "evidence": {
+          "evidence": {
             "commit": "110441000f58ee678f063d118300ddac3ef8958b",
             "path": "tests/evidence/custody_coordinator_bundle_v2_20260912.json",
             "sha256": "2be4e19641c395f487fa56c38dc52074f7fa32209578cc08bd157a389902478a"
@@ -3752,7 +3809,7 @@
         {
           "id": "CUSTODY-COORDINATOR-EXACT-EFFECT-ORACLE",
           "status": "repaired",
-            "evidence": {
+          "evidence": {
             "commit": "110441000f58ee678f063d118300ddac3ef8958b",
             "path": "tests/evidence/custody_coordinator_bundle_v2_20260912.json",
             "sha256": "2be4e19641c395f487fa56c38dc52074f7fa32209578cc08bd157a389902478a"
@@ -3785,6 +3842,122 @@
           "commit": "110441000f58ee678f063d118300ddac3ef8958b",
           "path": "tests/evidence/custody_coordinator_bundle_v2_20260912.json",
           "sha256": "2be4e19641c395f487fa56c38dc52074f7fa32209578cc08bd157a389902478a"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-perps-margin-lifecycle-delivery",
+      "before_commit": "244c50ebcbed2a3fbb332d5853ce7260d989a5e2",
+      "after_commit": "88c9f27d992cb57664870887542e379f91c1e0fa",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-coordinator-opus-main",
+        "V3-20260912-coordinator-opus-aux",
+        "V3-20260912-coordinator-root",
+        "V3-20260912-coordinator-astra-review",
+        "V3-20260912-coordinator-daybreak",
+        "V3-20260912-coordinator-luna-reuse",
+        "V3-20260912-coordinator-aristotle",
+        "V3-20260912-perps-margin-root",
+        "V3-20260912-perps-margin-astra-review",
+        "V3-20260912-perps-margin-daybreak-review"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Selected-account margin lifecycle proofs and finite complete Python/Rust outcome correspondence, independently reviewed. New implementation e97d6f4d..88c9f27d adds 936/deletes 2; this broader assessment interval includes preceding support metadata once and supersedes its support-only batch. No economic runtime change. Full market reconstruction and universal runtime refinement remain open.",
+        "evidence": {
+          "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+          "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
+          "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "110441000f58ee678f063d118300ddac3ef8958b",
+          "path": "tests/evidence/v3_custody_coordinator_assessment_after_20260912.json",
+          "sha256": "c5ae99a580e4cfd84c25eff95a1eed70946882d51d0abff5fed505e4a277a172"
+        },
+        "after": {
+          "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "b3f53d40a500d83c965c3d9b181aa316c378f45d93a2467f87e596ea3f075627"
+        },
+        "review": {
+          "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+          "path": "tests/evidence/perps_margin_lifecycle_review_20260912.md",
+          "sha256": "47ecb0d5bf6559c5e119ecc63b3ec17b041a9796f5a6f56f12055b59d1f867a3"
+        }
+      },
+      "findings": [
+        {
+          "id": "PERPS-FIXED-ACCOUNT-TRACE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+            "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
+            "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
+          }
+        },
+        {
+          "id": "PERPS-INDEPENDENT-FRAME-ORACLE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+            "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
+            "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
+          }
+        },
+        {
+          "id": "PERPS-SINGLE-SITE-MUTANTS",
+          "status": "repaired",
+          "evidence": {
+            "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+            "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
+            "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
+          }
+        },
+        {
+          "id": "PERPS-REUSABLE-ORACLE-GOLDEN",
+          "status": "repaired",
+          "evidence": {
+            "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+            "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
+            "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
+          }
+        }
+      ],
+      "supersedes": "V3-20260912-custody-coordinator-evidence"
+    },
+    {
+      "id": "V3-20260912-perps-margin-lifecycle-evidence",
+      "before_commit": "88c9f27d992cb57664870887542e379f91c1e0fa",
+      "after_commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+      "kind": "support",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-perps-margin-root",
+        "V3-20260912-perps-margin-astra-review",
+        "V3-20260912-perps-margin-daybreak-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "1611 support additions retain exact evidence, failed attempts, contributor declarations, independent review, one after assessment and session continuity. No additional product credit. Native token, cost and exclusive model elapsed counters are unavailable.",
+        "evidence": {
+          "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+          "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
+          "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
         }
       },
       "assessment": {

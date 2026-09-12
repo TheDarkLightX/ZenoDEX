@@ -267,6 +267,7 @@ aggregate resource/reprojection and runtime correspondence. Its implementation,
 adversarial controls and proof review proceed concurrently on disjoint files.
 No launch, documentation volume, individual lemma or repeated check increments
 completion credit.
+
 # September 12: perps margin-account lifecycle delivery
 
 Implementation `e97d6f4d…` → `88c9f27d…` adds 936 lines and removes two: 308 proof
@@ -287,7 +288,14 @@ and active-process checks; final replay caches and logs remain local.
 
 The reviewed gain counts once: formal +.050 percentage points and V3 +.100.
 The existing fixed-rubric before subject is `244c50eb…`; its intervening
-metadata-only interval must be superseded in the contribution manifest when
-recording this longer scored interval. Keep the exact new implementation count
+metadata-only interval is superseded in the contribution manifest by this
+longer scored interval. Keep the exact new implementation count
 above separate from that carried support work. The same two margin capabilities
 remain partial; complete-market refinement and genuine publication remain open.
+
+Manifest validation against `e97d6f4d…` passed: prior prefix preserved, all 266
+referenced blob occurrences and 70 integer observations verified, 103 contributor
+records and 26 active batches. The shared reviewed gain counts once. The 1,611
+lines of evidence/assessment/continuity support in `26057f38…` receive no extra
+credit; this final manifest/report append is a further support tail for the next
+committed interval.

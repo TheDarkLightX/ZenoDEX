@@ -434,6 +434,7 @@ guest's genuine image/receipt/publication qualification. Other lane and route
 obligations remain. Bounded correspondence and proof preservation do not imply
 complete cryptography, parser verification, production safety or full formal-core
 completion.
+
 # September 12 amendment: current perps margin-account lifecycle
 
 New implementation range: `e97d6f4d510962e6887a12e7de28d8444feef5f5` →
