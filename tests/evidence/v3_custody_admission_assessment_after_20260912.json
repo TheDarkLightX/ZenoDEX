@@ -1,35 +1,12 @@
 {
   "schema": "zenodex/v3-progress-independent-assessment/v1",
   "advisory_only": true,
-  "release_authority": {
-    "formal_core_complete": false,
-    "whole_value_movement_safe": false,
-    "production_promotion": false,
-    "whole_product_complete": false,
-    "release_ready": false,
-    "closed_value_movement_gate_count": 0
-  },
+  "release_authority": {"formal_core_complete": false, "whole_value_movement_safe": false, "production_promotion": false, "whole_product_complete": false, "release_ready": false, "closed_value_movement_gate_count": 0},
   "method": {
     "denominators": {
       "full_v3": {
         "weight_points": 100,
-        "workstream_weights": {
-          "W00": 2,
-          "W01": 3,
-          "W02": 6,
-          "W03": 4,
-          "W04": 4,
-          "W05": 2,
-          "W06": 5,
-          "W07": 30,
-          "W08": 8,
-          "W09": 10,
-          "W10": 6,
-          "W11": 8,
-          "W12": 4,
-          "W13": 6,
-          "EXCLUSIONS": 2
-        },
+        "workstream_weights": {"W00": 2, "W01": 3, "W02": 6, "W03": 4, "W04": 4, "W05": 2, "W06": 5, "W07": 30, "W08": 8, "W09": 10, "W10": 6, "W11": 8, "W12": 4, "W13": 6, "EXCLUSIONS": 2},
         "w07_rule": "lane weight = 30 * capability_count / 103 (ASSET_TRANSFER 2.0388, SPOT 2.9126, FARM 1.7476, ZDEX 2.0388, ZUSD 3.7864, PERPS 3.2039, ORACLE 2.9126, SEALED 2.9126, STRATEGY 2.0388, PROOF 1.7476, EXTERNAL 2.6214, GOVERNANCE 2.0388)",
         "w08_rule": "4 required routes, 2 points each",
         "exclusion_rule": "4 exclusions, 0.5 points each; credit is only for proved no-writer / reject-without-mutation evidence, never for the excluded feature existing"
@@ -40,142 +17,21 @@
         "route_units": 12,
         "cross_cutting_units": 25,
         "capability_score_rule": "0.3*semantics + 0.4*preservation_proofs + 0.3*implementation_refinement, each component in [0,1]",
-        "cross_cutting_rows": [
-          "F-INIT certified initialization (6)",
-          "F-GLOBAL global state relation and trace composition (6)",
-          "F-ALLOC allocation/ownership relation (4)",
-          "F-REFINE universal codec/parser/arithmetic/execution refinement (6)",
-          "F-TOOLS model-to-runtime bridge tooling and gates (3)"
-        ]
+        "cross_cutting_rows": ["F-INIT certified initialization (6)", "F-GLOBAL global state relation and trace composition (6)", "F-ALLOC allocation/ownership relation (4)", "F-REFINE universal codec/parser/arithmetic/execution refinement (6)", "F-TOOLS model-to-runtime bridge tooling and gates (3)"]
       },
       "capability_registry": {
-        "ASSET_TRANSFER": [
-          "account_lifecycle",
-          "native_asset_accounting",
-          "generic_transfer",
-          "managed_issue",
-          "managed_burn",
-          "transaction_fee",
-          "tau_originated_asset_registration"
-        ],
-        "SPOT_LIQUIDITY": [
-          "pool_create",
-          "exact_in_swap",
-          "exact_out_swap",
-          "governed_route",
-          "atomic_batch",
-          "lp_issue",
-          "lp_burn",
-          "pool_close",
-          "fee_allocation",
-          "residue_terminal_disposition"
-        ],
-        "FARM_INCENTIVES": [
-          "lp_stake",
-          "stake_activation",
-          "emission_accrual",
-          "emission_claim",
-          "farm_cancellation",
-          "farm_terminal_drain"
-        ],
-        "ZDEX_TOKENOMICS": [
-          "fee_routing",
-          "staking_claim",
-          "host_compensation_claim",
-          "treasury_claim",
-          "reserve_lifecycle",
-          "atomic_purchase_and_burn",
-          "retained_supply_hyperdeflation"
-        ],
-        "ZUSD_MONETARY": [
-          "vault_open",
-          "collateral_deposit",
-          "collateral_withdraw",
-          "zusd_mint",
-          "zusd_repay",
-          "vault_owner_close",
-          "multi_vault_redemption",
-          "stability_pool_deposit",
-          "stability_pool_withdraw",
-          "stability_pool_claim",
-          "liquidation",
-          "recovery_mode",
-          "all_claims_terminal_drain"
-        ],
-        "PERPS_MARKET": [
-          "margin_deposit",
-          "margin_withdraw",
-          "position_open",
-          "position_adjust",
-          "funding_accrual",
-          "fee_allocation",
-          "liquidation",
-          "insurance_reserve",
-          "auto_deleveraging",
-          "bankruptcy_resolution",
-          "terminal_closeout"
-        ],
-        "ORACLE_MARKET": [
-          "query_create",
-          "tip_escrow",
-          "reporter_bond",
-          "report_submit",
-          "report_finality",
-          "reporter_reward",
-          "report_dispute",
-          "reward_clawback",
-          "reporter_slash",
-          "oracle_terminal_drain"
-        ],
-        "SEALED_AUCTION": [
-          "bid_commitment",
-          "bond_accounting_location",
-          "bid_reveal",
-          "deterministic_clearing",
-          "payment_settlement",
-          "inventory_settlement",
-          "refund",
-          "slash",
-          "auction_cancel",
-          "auction_expiry"
-        ],
-        "STRATEGY_ESCROW": [
-          "value_reservation",
-          "strategy_activation",
-          "strategy_trigger",
-          "strategy_replace",
-          "strategy_cancel",
-          "strategy_expiry",
-          "strategy_recovery"
-        ],
-        "PROOF_REWARDS": [
-          "reward_reserve",
-          "verified_result_binding",
-          "claimant_binding",
-          "claim_nullifier",
-          "reward_payout",
-          "task_terminal_state"
-        ],
-        "EXTERNAL_CUSTODY": [
-          "registered_external_lock",
-          "registered_external_burn",
-          "registered_external_release",
-          "registered_external_mint",
-          "external_finality",
-          "external_timeout",
-          "external_refund",
-          "outbox_acknowledgment",
-          "destination_idempotency"
-        ],
-        "GOVERNANCE_MIGRATION": [
-          "asset_registry_change",
-          "parameter_change",
-          "release_activation",
-          "treasury_action",
-          "schema_migration",
-          "writer_epoch_rotation",
-          "autonomous_governance_command_submission"
-        ]
+        "ASSET_TRANSFER": ["account_lifecycle", "native_asset_accounting", "generic_transfer", "managed_issue", "managed_burn", "transaction_fee", "tau_originated_asset_registration"],
+        "SPOT_LIQUIDITY": ["pool_create", "exact_in_swap", "exact_out_swap", "governed_route", "atomic_batch", "lp_issue", "lp_burn", "pool_close", "fee_allocation", "residue_terminal_disposition"],
+        "FARM_INCENTIVES": ["lp_stake", "stake_activation", "emission_accrual", "emission_claim", "farm_cancellation", "farm_terminal_drain"],
+        "ZDEX_TOKENOMICS": ["fee_routing", "staking_claim", "host_compensation_claim", "treasury_claim", "reserve_lifecycle", "atomic_purchase_and_burn", "retained_supply_hyperdeflation"],
+        "ZUSD_MONETARY": ["vault_open", "collateral_deposit", "collateral_withdraw", "zusd_mint", "zusd_repay", "vault_owner_close", "multi_vault_redemption", "stability_pool_deposit", "stability_pool_withdraw", "stability_pool_claim", "liquidation", "recovery_mode", "all_claims_terminal_drain"],
+        "PERPS_MARKET": ["margin_deposit", "margin_withdraw", "position_open", "position_adjust", "funding_accrual", "fee_allocation", "liquidation", "insurance_reserve", "auto_deleveraging", "bankruptcy_resolution", "terminal_closeout"],
+        "ORACLE_MARKET": ["query_create", "tip_escrow", "reporter_bond", "report_submit", "report_finality", "reporter_reward", "report_dispute", "reward_clawback", "reporter_slash", "oracle_terminal_drain"],
+        "SEALED_AUCTION": ["bid_commitment", "bond_accounting_location", "bid_reveal", "deterministic_clearing", "payment_settlement", "inventory_settlement", "refund", "slash", "auction_cancel", "auction_expiry"],
+        "STRATEGY_ESCROW": ["value_reservation", "strategy_activation", "strategy_trigger", "strategy_replace", "strategy_cancel", "strategy_expiry", "strategy_recovery"],
+        "PROOF_REWARDS": ["reward_reserve", "verified_result_binding", "claimant_binding", "claim_nullifier", "reward_payout", "task_terminal_state"],
+        "EXTERNAL_CUSTODY": ["registered_external_lock", "registered_external_burn", "registered_external_release", "registered_external_mint", "external_finality", "external_timeout", "external_refund", "outbox_acknowledgment", "destination_idempotency"],
+        "GOVERNANCE_MIGRATION": ["asset_registry_change", "parameter_change", "release_activation", "treasury_action", "schema_migration", "writer_epoch_rotation", "autonomous_governance_command_submission"]
       },
       "registry_pin": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V3.json sha256 e1b45e9ef9da7fa2c584567db3ac4605b6eb4ec065933b9e71be5ba82ef31adc; matches src/core/lane_capability_registry_v1.py and lean-mathlib/Proofs/LaneCapabilityRegistryV1.lean"
     }
@@ -185,22 +41,7 @@
     "central_percent": 23.869,
     "lower_percent": 16.613,
     "upper_percent": 31.947,
-    "covers_workstreams": [
-      "W00",
-      "W01",
-      "W02",
-      "W03",
-      "W04",
-      "W05",
-      "W06",
-      "W07",
-      "W08",
-      "W09",
-      "W10",
-      "W11",
-      "W12",
-      "W13"
-    ],
+    "covers_workstreams": ["W00", "W01", "W02", "W03", "W04", "W05", "W06", "W07", "W08", "W09", "W10", "W11", "W12", "W13"],
     "rows": [
       {
         "id": "W00",
@@ -211,30 +52,12 @@
         "high": 0.65,
         "docs_only_allowed": true,
         "evidence": [
-          {
-            "path": "docs/ZENODEX_COMPLETION_PLAN.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V3.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ADVISORY_REVIEW.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/claims_registry.yaml",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "tools/check_whole_program_plan_v3.py",
-            "class": "UNKNOWN"
-          }
+          {"path": "docs/ZENODEX_COMPLETION_PLAN.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V3.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ADVISORY_REVIEW.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/claims_registry.yaml", "class": "UNKNOWN"},
+          {"path": "tools/check_whole_program_plan_v3.py", "class": "UNKNOWN"}
         ]
       },
       {
@@ -246,30 +69,12 @@
         "high": 0.4,
         "docs_only_allowed": true,
         "evidence": [
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/m6_command_lane_registry_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/dex_engine.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_O007A_DEPLOYED_SINK_CLOSURE_V2.json",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "tools/zeno_ledger_node.py",
-            "class": "ABSENT"
-          }
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/m6_command_lane_registry_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/dex_engine.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_O007A_DEPLOYED_SINK_CLOSURE_V2.json", "class": "UNKNOWN"},
+          {"path": "tools/zeno_ledger_node.py", "class": "ABSENT"}
         ]
       },
       {
@@ -281,34 +86,13 @@
         "high": 0.35,
         "docs_only_allowed": true,
         "evidence": [
-          {
-            "path": "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/m6_safe_mount_types_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/m6_commit_port_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V2.json",
-            "class": "MISSING"
-          },
-          {
-            "path": "src/core/global_settlement_types_v1.py",
-            "class": "UNKNOWN"
-          }
+          {"path": "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/m6_safe_mount_types_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/m6_commit_port_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V2.json", "class": "MISSING"},
+          {"path": "src/core/global_settlement_types_v1.py", "class": "UNKNOWN"}
         ]
       },
       {
@@ -319,42 +103,15 @@
         "central": 0.55,
         "high": 0.65,
         "evidence": [
-          {
-            "path": "src/integration/global_receipt_verifier_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/sealed_bls_command_verifier_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/economic_receipt_verifier_deployment_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_COMMAND_VERIFIER_MEASUREMENT_GAP_20260905.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FINAL_RECEIPT_QUALIFICATION.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_COMPLETION_FOLLOWUP_20260905.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "zk/economic_command_bls_verifier_v1",
-            "class": "ABSENT"
-          },
-          {
-            "path": "zk/global_economic_epoch_risc0/host/src/bin/verify_receipt_v1.rs",
-            "class": "ABSENT"
-          },
-          {
-            "path": "tests/integration/test_global_receipt_verifier_v1.py",
-            "class": "UNKNOWN"
-          }
+          {"path": "src/integration/global_receipt_verifier_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/sealed_bls_command_verifier_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/economic_receipt_verifier_deployment_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_COMMAND_VERIFIER_MEASUREMENT_GAP_20260905.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FINAL_RECEIPT_QUALIFICATION.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "docs/research/ZENODEX_V3_COMPLETION_FOLLOWUP_20260905.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "zk/economic_command_bls_verifier_v1", "class": "ABSENT"},
+          {"path": "zk/global_economic_epoch_risc0/host/src/bin/verify_receipt_v1.rs", "class": "ABSENT"},
+          {"path": "tests/integration/test_global_receipt_verifier_v1.py", "class": "UNKNOWN"}
         ]
       },
       {
@@ -365,38 +122,14 @@
         "central": 0.35,
         "high": 0.45,
         "evidence": [
-          {
-            "path": "src/core/asset_transfer_global_allocation_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/asset_transfer_epoch_allocation_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_accounting_lane_producers_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_accounting_allocation_certificate_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/GlobalAccountingAllocationCertificateV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ALLOCATION_BINDING_REVIEW.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_EPOCH_POSITION_EVIDENCE.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "zk/global_settlement_abi_v1/src/asset_transfer_global_allocation.rs",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/asset_transfer_global_allocation_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/asset_transfer_epoch_allocation_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_accounting_lane_producers_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_accounting_allocation_certificate_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/GlobalAccountingAllocationCertificateV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ALLOCATION_BINDING_REVIEW.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_EPOCH_POSITION_EVIDENCE.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "zk/global_settlement_abi_v1/src/asset_transfer_global_allocation.rs", "class": "ABSENT"}
         ]
       },
       {
@@ -407,18 +140,9 @@
         "central": 0.45,
         "high": 0.55,
         "evidence": [
-          {
-            "path": "src/integration/global_allocation_shadow_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SHADOW_EVIDENCE.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/integration/test_global_allocation_shadow_v1.py",
-            "class": "UNKNOWN"
-          }
+          {"path": "src/integration/global_allocation_shadow_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SHADOW_EVIDENCE.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/integration/test_global_allocation_shadow_v1.py", "class": "UNKNOWN"}
         ]
       },
       {
@@ -429,58 +153,19 @@
         "central": 0.6,
         "high": 0.7,
         "evidence": [
-          {
-            "path": "src/integration/global_economic_durable_publisher_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/global_economic_epoch_journal_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/isolated_asset_receipt_pipeline_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/economic_command_authentication_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ALLOCATION_PUBLICATION_CONTRACT.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_MOUNTED_PIPELINE_EVIDENCE.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "docs/research/ZENODEX_CUSTODY_PIPELINE_INTEGRATION_20260906.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_COMPLETION_FOLLOWUP_20260905.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "src/integration/isolated_custody_publisher_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/custody_publication_record_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_economic_authority_head_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/integration/test_isolated_custody_publisher_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/evidence/test_hygiene/THV1-20260912-isolated-custody-publication-v2.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "src/integration/global_economic_durable_publisher_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/global_economic_epoch_journal_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/isolated_asset_receipt_pipeline_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/economic_command_authentication_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ALLOCATION_PUBLICATION_CONTRACT.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_MOUNTED_PIPELINE_EVIDENCE.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "docs/research/ZENODEX_CUSTODY_PIPELINE_INTEGRATION_20260906.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "docs/research/ZENODEX_V3_COMPLETION_FOLLOWUP_20260905.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "src/integration/isolated_custody_publisher_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/custody_publication_record_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_economic_authority_head_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/integration/test_isolated_custody_publisher_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/test_hygiene/THV1-20260912-isolated-custody-publication-v2.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "credit_rationale": "Prior V1 publication mechanics already had credit. The complete current V2 global/custody consumer adds store-owned admission, exact lineage and restart/recovery evidence. No repeated W07 capability or formal-core credit.",
         "remaining_acceptance_work": "Genuine matching RISC0 receipt and selected build; multi-occurrence epoch evidence; complete W06 prerequisites and concrete runtime/store refinement. Fixture-backed isolated tests grant no production authority."
@@ -493,99 +178,27 @@
         "central": 0.4,
         "high": 0.4543,
         "evidence": [
-          {
-            "path": "src/core/asset_transfer_module_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/managed_asset_lifecycle_module_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/asset_origin_registry_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_accounting_lane_producers_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ManagedAssetLifecycleRefinementV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetOriginRegistryRefinementV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FINAL_RECEIPT_QUALIFICATION.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "zk/global_settlement_abi_v1/src/asset_transfer.rs",
-            "class": "ABSENT"
-          },
-          {
-            "path": "zk/asset_transfer_module_risc0",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/asset_transfer_module_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/managed_asset_lifecycle_module_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/asset_origin_registry_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_accounting_lane_producers_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ManagedAssetLifecycleRefinementV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetOriginRegistryRefinementV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FINAL_RECEIPT_QUALIFICATION.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "zk/global_settlement_abi_v1/src/asset_transfer.rs", "class": "ABSENT"},
+          {"path": "zk/asset_transfer_module_risc0", "class": "ABSENT"}
         ],
         "capabilities": [
-          {
-            "id": "account_lifecycle",
-            "c": 0.35,
-            "unc": "V",
-            "note": "rows appear/vanish under proved row-growth and dormant tests; no explicit open/close command"
-          },
-          {
-            "id": "native_asset_accounting",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "V2 module excludes native coin; only legacy balances handle NATIVE_ASSET"
-          },
-          {
-            "id": "generic_transfer",
-            "c": 0.62,
-            "unc": "H",
-            "note": "typed V1/V2 cores, mounted pipeline, five genuine historical receipts, finite proofs"
-          },
-          {
-            "id": "managed_issue",
-            "c": 0.45,
-            "unc": "V",
-            "note": "V2 lifecycle module, Lean refinement model, runtime parity; unmounted"
-          },
-          {
-            "id": "managed_burn",
-            "c": 0.45,
-            "unc": "V",
-            "note": "as managed_issue"
-          },
-          {
-            "id": "transaction_fee",
-            "c": 0.4,
-            "unc": "V",
-            "note": "fee rows and collector attribution proved; fee policy unresolved"
-          },
-          {
-            "id": "tau_originated_asset_registration",
-            "c": 0.38,
-            "unc": "V",
-            "note": "origin registry V2 core and Lean model; unmounted"
-          }
+          {"id": "account_lifecycle", "c": 0.35, "unc": "V", "note": "rows appear/vanish under proved row-growth and dormant tests; no explicit open/close command"},
+          {"id": "native_asset_accounting", "c": 0.15, "unc": "V", "legacy_only": true, "note": "V2 module excludes native coin; only legacy balances handle NATIVE_ASSET"},
+          {"id": "generic_transfer", "c": 0.62, "unc": "H", "note": "typed V1/V2 cores, mounted pipeline, five genuine historical receipts, finite proofs"},
+          {"id": "managed_issue", "c": 0.45, "unc": "V", "note": "V2 lifecycle module, Lean refinement model, runtime parity; unmounted"},
+          {"id": "managed_burn", "c": 0.45, "unc": "V", "note": "as managed_issue"},
+          {"id": "transaction_fee", "c": 0.4, "unc": "V", "note": "fee rows and collector attribution proved; fee policy unresolved"},
+          {"id": "tau_originated_asset_registration", "c": 0.38, "unc": "V", "note": "origin registry V2 core and Lean model; unmounted"}
         ]
       },
       {
@@ -596,113 +209,27 @@
         "central": 0.162,
         "high": 0.215,
         "evidence": [
-          {
-            "path": "src/integration/dex_engine.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/CPMMInvariants.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_accounting_allocation_certificate_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/liquidity.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "src/core/zdex_spot_buyback_transition_v2.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "tests/core/test_batch_clearing_remove_liquidity_reserved_lock.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_COMPLETION_FOLLOWUP_20260905.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "zk/state_proof_risc0",
-            "class": "ABSENT"
-          }
+          {"path": "src/integration/dex_engine.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/CPMMInvariants.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_accounting_allocation_certificate_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/liquidity.py", "class": "UNKNOWN"},
+          {"path": "src/core/zdex_spot_buyback_transition_v2.py", "class": "UNKNOWN"},
+          {"path": "tests/core/test_batch_clearing_remove_liquidity_reserved_lock.py", "class": "UNKNOWN"},
+          {"path": "docs/research/ZENODEX_V3_COMPLETION_FOLLOWUP_20260905.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "zk/state_proof_risc0", "class": "ABSENT"}
         ],
         "capabilities": [
-          {
-            "id": "pool_create",
-            "c": 0.18,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy create with locked LP; no V3 admission"
-          },
-          {
-            "id": "exact_in_swap",
-            "c": 0.25,
-            "unc": "V",
-            "note": "legacy cpmm plus typed buyback spot transition V1/V2 with Lean"
-          },
-          {
-            "id": "exact_out_swap",
-            "c": 0.18,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy exact-out with minimality proofs; no V3 module"
-          },
-          {
-            "id": "governed_route",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "routing exists; caller-selectable donor configuration"
-          },
-          {
-            "id": "atomic_batch",
-            "c": 0.18,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "batch clearing and strong replay; legacy boundary"
-          },
-          {
-            "id": "lp_issue",
-            "c": 0.18,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy add-liquidity; no V3 claimant projection"
-          },
-          {
-            "id": "lp_burn",
-            "c": 0.2,
-            "unc": "H",
-            "legacy_only": true,
-            "note": "reserved LP lock repair recorded with Rust mirror; legacy"
-          },
-          {
-            "id": "pool_close",
-            "c": 0.05,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "GAP: no close transition found"
-          },
-          {
-            "id": "fee_allocation",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "fee capture exists; percentages and claimants unresolved"
-          },
-          {
-            "id": "residue_terminal_disposition",
-            "c": 0.1,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "dust carry accounting only"
-          }
+          {"id": "pool_create", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy create with locked LP; no V3 admission"},
+          {"id": "exact_in_swap", "c": 0.25, "unc": "V", "note": "legacy cpmm plus typed buyback spot transition V1/V2 with Lean"},
+          {"id": "exact_out_swap", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy exact-out with minimality proofs; no V3 module"},
+          {"id": "governed_route", "c": 0.15, "unc": "V", "legacy_only": true, "note": "routing exists; caller-selectable donor configuration"},
+          {"id": "atomic_batch", "c": 0.18, "unc": "V", "legacy_only": true, "note": "batch clearing and strong replay; legacy boundary"},
+          {"id": "lp_issue", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy add-liquidity; no V3 claimant projection"},
+          {"id": "lp_burn", "c": 0.2, "unc": "H", "legacy_only": true, "note": "reserved LP lock repair recorded with Rust mirror; legacy"},
+          {"id": "pool_close", "c": 0.05, "unc": "V", "legacy_only": true, "note": "GAP: no close transition found"},
+          {"id": "fee_allocation", "c": 0.15, "unc": "V", "legacy_only": true, "note": "fee capture exists; percentages and claimants unresolved"},
+          {"id": "residue_terminal_disposition", "c": 0.1, "unc": "V", "legacy_only": true, "note": "dust carry accounting only"}
         ]
       },
       {
@@ -713,78 +240,21 @@
         "central": 0.0717,
         "high": 0.1317,
         "evidence": [
-          {
-            "path": "src/core/vault.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_accounting_allocation_certificate_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/core/test_vault_ref_parity.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "src/integration/zeno_ledger_tokenomics.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "src/kernels/dex/vault_manager.yaml",
-            "class": "ABSENT"
-          },
-          {
-            "path": "tools/zeno_ledger_node.py",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/vault.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_accounting_allocation_certificate_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/core/test_vault_ref_parity.py", "class": "UNKNOWN"},
+          {"path": "src/integration/zeno_ledger_tokenomics.py", "class": "UNKNOWN"},
+          {"path": "src/kernels/dex/vault_manager.yaml", "class": "ABSENT"},
+          {"path": "tools/zeno_ledger_node.py", "class": "ABSENT"}
         ],
         "capabilities": [
-          {
-            "id": "lp_stake",
-            "c": 0.1,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "aggregate vault stake only"
-          },
-          {
-            "id": "stake_activation",
-            "c": 0.06,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "immediate aggregate activation; policy unselected"
-          },
-          {
-            "id": "emission_accrual",
-            "c": 0.1,
-            "unc": "H",
-            "legacy_only": true,
-            "note": "per-share index arithmetic; no authoritative schedule"
-          },
-          {
-            "id": "emission_claim",
-            "c": 0.1,
-            "unc": "H",
-            "legacy_only": true,
-            "note": "aggregate harvest; testnet claim writer is a different grant"
-          },
-          {
-            "id": "farm_cancellation",
-            "c": 0.04,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "GAP"
-          },
-          {
-            "id": "farm_terminal_drain",
-            "c": 0.03,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "GAP"
-          }
+          {"id": "lp_stake", "c": 0.1, "unc": "V", "legacy_only": true, "note": "aggregate vault stake only"},
+          {"id": "stake_activation", "c": 0.06, "unc": "V", "legacy_only": true, "note": "immediate aggregate activation; policy unselected"},
+          {"id": "emission_accrual", "c": 0.1, "unc": "H", "legacy_only": true, "note": "per-share index arithmetic; no authoritative schedule"},
+          {"id": "emission_claim", "c": 0.1, "unc": "H", "legacy_only": true, "note": "aggregate harvest; testnet claim writer is a different grant"},
+          {"id": "farm_cancellation", "c": 0.04, "unc": "V", "legacy_only": true, "note": "GAP"},
+          {"id": "farm_terminal_drain", "c": 0.03, "unc": "V", "legacy_only": true, "note": "GAP"}
         ]
       },
       {
@@ -795,98 +265,27 @@
         "central": 0.2143,
         "high": 0.2729,
         "evidence": [
-          {
-            "path": "src/core/zdex_fee_allocation_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/zdex_purchase_burn_route_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/zdex_hyperdeflation_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/zdex_tokenomics_lane_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/zdex_atomic_buyback_route_composition_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZDEXAtomicBuybackTwoPhaseV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZDEXAtomicBuybackAccountingV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZDEXHyperdeflationV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_PROGRESS.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "zk/zdex_tokenomics_lane_coordinator_risc0",
-            "class": "ABSENT"
-          },
-          {
-            "path": "src/kernels/dex/zdex_atomic_buyback_lifecycle_v1.yaml",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/zdex_fee_allocation_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/zdex_purchase_burn_route_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/zdex_hyperdeflation_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/zdex_tokenomics_lane_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/zdex_atomic_buyback_route_composition_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZDEXAtomicBuybackTwoPhaseV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZDEXAtomicBuybackAccountingV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZDEXHyperdeflationV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_V3_PROGRESS.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "zk/zdex_tokenomics_lane_coordinator_risc0", "class": "ABSENT"},
+          {"path": "src/kernels/dex/zdex_atomic_buyback_lifecycle_v1.yaml", "class": "ABSENT"}
         ],
         "capabilities": [
-          {
-            "id": "fee_routing",
-            "c": 0.35,
-            "unc": "V",
-            "note": "typed six-destination allocation core, receipt boundary gate; policy unresolved"
-          },
-          {
-            "id": "staking_claim",
-            "c": 0.08,
-            "unc": "V",
-            "note": "state-root placeholder only"
-          },
-          {
-            "id": "host_compensation_claim",
-            "c": 0.06,
-            "unc": "V",
-            "note": "placeholder"
-          },
-          {
-            "id": "treasury_claim",
-            "c": 0.06,
-            "unc": "V",
-            "note": "placeholder"
-          },
-          {
-            "id": "reserve_lifecycle",
-            "c": 0.2,
-            "unc": "V",
-            "note": "buyback spend and named unallocated reserve; drain policy open"
-          },
-          {
-            "id": "atomic_purchase_and_burn",
-            "c": 0.4,
-            "unc": "H",
-            "note": "route composer V1/V2, Lean, recorded guests and ESSO; unmounted, command disabled"
-          },
-          {
-            "id": "retained_supply_hyperdeflation",
-            "c": 0.35,
-            "unc": "H",
-            "note": "typed core, Lean bound, recorded Rust/guest; policy p/q unselected"
-          }
+          {"id": "fee_routing", "c": 0.35, "unc": "V", "note": "typed six-destination allocation core, receipt boundary gate; policy unresolved"},
+          {"id": "staking_claim", "c": 0.08, "unc": "V", "note": "state-root placeholder only"},
+          {"id": "host_compensation_claim", "c": 0.06, "unc": "V", "note": "placeholder"},
+          {"id": "treasury_claim", "c": 0.06, "unc": "V", "note": "placeholder"},
+          {"id": "reserve_lifecycle", "c": 0.2, "unc": "V", "note": "buyback spend and named unallocated reserve; drain policy open"},
+          {"id": "atomic_purchase_and_burn", "c": 0.4, "unc": "H", "note": "route composer V1/V2, Lean, recorded guests and ESSO; unmounted, command disabled"},
+          {"id": "retained_supply_hyperdeflation", "c": 0.35, "unc": "H", "note": "typed core, Lean bound, recorded Rust/guest; policy p/q unselected"}
         ]
       },
       {
@@ -897,135 +296,30 @@
         "central": 0.1854,
         "high": 0.2377,
         "evidence": [
-          {
-            "path": "src/core/zusd.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/zusd_monetary_bridge.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/zusd_shutdown.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZUSDLiquidationPartition.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZUSDOwnerClose.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZUSDGlobalLiabilityCover.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "tests/formal/test_lean_zusd_owner_close_runtime_v1.py",
-            "class": "UNKNOWN"
-          }
+          {"path": "src/core/zusd.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/zusd_monetary_bridge.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/zusd_shutdown.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZUSDLiquidationPartition.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZUSDOwnerClose.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZUSDGlobalLiabilityCover.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "tests/formal/test_lean_zusd_owner_close_runtime_v1.py", "class": "UNKNOWN"}
         ],
         "capabilities": [
-          {
-            "id": "vault_open",
-            "c": 0.2,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy open via first deposit/mint"
-          },
-          {
-            "id": "collateral_deposit",
-            "c": 0.2,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy kernel tag deposit_collateral"
-          },
-          {
-            "id": "collateral_withdraw",
-            "c": 0.2,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy kernel tag withdraw_collateral"
-          },
-          {
-            "id": "zusd_mint",
-            "c": 0.2,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy mint_zusd with MCR/TCR guards"
-          },
-          {
-            "id": "zusd_repay",
-            "c": 0.2,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy repay_zusd"
-          },
-          {
-            "id": "vault_owner_close",
-            "c": 0.28,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "Lean owner-close model pinned to Liquity plus runtime parity"
-          },
-          {
-            "id": "multi_vault_redemption",
-            "c": 0.18,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy redeem and multi-redeem selector"
-          },
-          {
-            "id": "stability_pool_deposit",
-            "c": 0.18,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy deposit_sp"
-          },
-          {
-            "id": "stability_pool_withdraw",
-            "c": 0.18,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy withdraw_sp"
-          },
-          {
-            "id": "stability_pool_claim",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "gains assigned in bridge; no explicit claim command"
-          },
-          {
-            "id": "liquidation",
-            "c": 0.2,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy liquidate plus partition proof; M6 command disabled"
-          },
-          {
-            "id": "recovery_mode",
-            "c": 0.2,
-            "unc": "H",
-            "legacy_only": true,
-            "note": "recovery gate regions and recorded TLA/ESSO lifecycle"
-          },
-          {
-            "id": "all_claims_terminal_drain",
-            "c": 0.04,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "GAP"
-          }
+          {"id": "vault_open", "c": 0.2, "unc": "V", "legacy_only": true, "note": "legacy open via first deposit/mint"},
+          {"id": "collateral_deposit", "c": 0.2, "unc": "V", "legacy_only": true, "note": "legacy kernel tag deposit_collateral"},
+          {"id": "collateral_withdraw", "c": 0.2, "unc": "V", "legacy_only": true, "note": "legacy kernel tag withdraw_collateral"},
+          {"id": "zusd_mint", "c": 0.2, "unc": "V", "legacy_only": true, "note": "legacy mint_zusd with MCR/TCR guards"},
+          {"id": "zusd_repay", "c": 0.2, "unc": "V", "legacy_only": true, "note": "legacy repay_zusd"},
+          {"id": "vault_owner_close", "c": 0.28, "unc": "V", "legacy_only": true, "note": "Lean owner-close model pinned to Liquity plus runtime parity"},
+          {"id": "multi_vault_redemption", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy redeem and multi-redeem selector"},
+          {"id": "stability_pool_deposit", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy deposit_sp"},
+          {"id": "stability_pool_withdraw", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy withdraw_sp"},
+          {"id": "stability_pool_claim", "c": 0.15, "unc": "V", "legacy_only": true, "note": "gains assigned in bridge; no explicit claim command"},
+          {"id": "liquidation", "c": 0.2, "unc": "V", "legacy_only": true, "note": "legacy liquidate plus partition proof; M6 command disabled"},
+          {"id": "recovery_mode", "c": 0.2, "unc": "H", "legacy_only": true, "note": "recovery gate regions and recorded TLA/ESSO lifecycle"},
+          {"id": "all_claims_terminal_drain", "c": 0.04, "unc": "V", "legacy_only": true, "note": "GAP"}
         ]
       },
       {
@@ -1036,123 +330,29 @@
         "central": 0.1682,
         "high": 0.2236,
         "evidence": [
-          {
-            "path": "src/core/perps_margin_module_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/perps_market_policy_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/perp_engine.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/perp_v4/engine.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/PerpEpochSafety.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/PerpADLSybilBankruptcyClosure.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/PerpProtocolSafety.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/PERPS_MARGIN_GLOBAL_SETTLEMENT_SHADOW_V1.md",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "zk/perps_margin_module_risc0",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/perps_margin_module_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/perps_market_policy_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/perp_engine.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/perp_v4/engine.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpEpochSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpADLSybilBankruptcyClosure.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpProtocolSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/PERPS_MARGIN_GLOBAL_SETTLEMENT_SHADOW_V1.md", "class": "UNKNOWN"},
+          {"path": "zk/perps_margin_module_risc0", "class": "ABSENT"}
         ],
         "capabilities": [
-          {
-            "id": "margin_deposit",
-            "c": 0.38,
-            "unc": "H",
-            "note": "typed V1 core with recorded Rust/guest and receipt binding tests"
-          },
-          {
-            "id": "margin_withdraw",
-            "c": 0.38,
-            "unc": "H",
-            "note": "as margin_deposit"
-          },
-          {
-            "id": "position_open",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy engines only"
-          },
-          {
-            "id": "position_adjust",
-            "c": 0.12,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy"
-          },
-          {
-            "id": "funding_accrual",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy funding market; command disabled; disputed evidence"
-          },
-          {
-            "id": "fee_allocation",
-            "c": 0.08,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "no V3 fee ownership"
-          },
-          {
-            "id": "liquidation",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy partial liquidation with Lean; disabled"
-          },
-          {
-            "id": "insurance_reserve",
-            "c": 0.12,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy with mechanism Lean"
-          },
-          {
-            "id": "auto_deleveraging",
-            "c": 0.1,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "Lean closure note; no V3 transition"
-          },
-          {
-            "id": "bankruptcy_resolution",
-            "c": 0.1,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy"
-          },
-          {
-            "id": "terminal_closeout",
-            "c": 0.12,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy closeout modules"
-          }
+          {"id": "margin_deposit", "c": 0.38, "unc": "H", "note": "typed V1 core with recorded Rust/guest and receipt binding tests"},
+          {"id": "margin_withdraw", "c": 0.38, "unc": "H", "note": "as margin_deposit"},
+          {"id": "position_open", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy engines only"},
+          {"id": "position_adjust", "c": 0.12, "unc": "V", "legacy_only": true, "note": "legacy"},
+          {"id": "funding_accrual", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy funding market; command disabled; disputed evidence"},
+          {"id": "fee_allocation", "c": 0.08, "unc": "V", "legacy_only": true, "note": "no V3 fee ownership"},
+          {"id": "liquidation", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy partial liquidation with Lean; disabled"},
+          {"id": "insurance_reserve", "c": 0.12, "unc": "V", "legacy_only": true, "note": "legacy with mechanism Lean"},
+          {"id": "auto_deleveraging", "c": 0.1, "unc": "V", "legacy_only": true, "note": "Lean closure note; no V3 transition"},
+          {"id": "bankruptcy_resolution", "c": 0.1, "unc": "V", "legacy_only": true, "note": "legacy"},
+          {"id": "terminal_closeout", "c": 0.12, "unc": "V", "legacy_only": true, "note": "legacy closeout modules"}
         ]
       },
       {
@@ -1163,101 +363,25 @@
         "central": 0.078,
         "high": 0.128,
         "evidence": [
-          {
-            "path": "src/core/global_oracle_occurrence_authority_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/oracle_current_dispute_status_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_settlement_lifecycle_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/oracle.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/oracle_economic_security.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/zeno_oracle_authority.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "src/core/global_oracle_occurrence_authority_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/oracle_current_dispute_status_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_settlement_lifecycle_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/oracle.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/oracle_economic_security.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/zeno_oracle_authority.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_O008_FORMAL_CYCLE_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {
-            "id": "query_create",
-            "c": 0.06,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "no V3 query object"
-          },
-          {
-            "id": "tip_escrow",
-            "c": 0.04,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "absent"
-          },
-          {
-            "id": "reporter_bond",
-            "c": 0.05,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy economic-security envelope only"
-          },
-          {
-            "id": "report_submit",
-            "c": 0.15,
-            "unc": "V",
-            "note": "occurrence authority and legacy ingress; command disabled"
-          },
-          {
-            "id": "report_finality",
-            "c": 0.22,
-            "unc": "V",
-            "note": "finalized reusable reads and V2 occurrence deltas with regress guards"
-          },
-          {
-            "id": "reporter_reward",
-            "c": 0.04,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "absent"
-          },
-          {
-            "id": "report_dispute",
-            "c": 0.12,
-            "unc": "V",
-            "note": "dispute status witness V1"
-          },
-          {
-            "id": "reward_clawback",
-            "c": 0.03,
-            "unc": "V",
-            "note": "absent"
-          },
-          {
-            "id": "reporter_slash",
-            "c": 0.04,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "absent"
-          },
-          {
-            "id": "oracle_terminal_drain",
-            "c": 0.03,
-            "unc": "V",
-            "note": "absent"
-          }
+          {"id": "query_create", "c": 0.06, "unc": "V", "legacy_only": true, "note": "no V3 query object"},
+          {"id": "tip_escrow", "c": 0.04, "unc": "V", "legacy_only": true, "note": "absent"},
+          {"id": "reporter_bond", "c": 0.05, "unc": "V", "legacy_only": true, "note": "legacy economic-security envelope only"},
+          {"id": "report_submit", "c": 0.15, "unc": "V", "note": "occurrence authority and legacy ingress; command disabled"},
+          {"id": "report_finality", "c": 0.22, "unc": "V", "note": "finalized reusable reads and V2 occurrence deltas with regress guards"},
+          {"id": "reporter_reward", "c": 0.04, "unc": "V", "legacy_only": true, "note": "absent"},
+          {"id": "report_dispute", "c": 0.12, "unc": "V", "note": "dispute status witness V1"},
+          {"id": "reward_clawback", "c": 0.03, "unc": "V", "note": "absent"},
+          {"id": "reporter_slash", "c": 0.04, "unc": "V", "legacy_only": true, "note": "absent"},
+          {"id": "oracle_terminal_drain", "c": 0.03, "unc": "V", "note": "absent"}
         ]
       },
       {
@@ -1268,102 +392,24 @@
         "central": 0.107,
         "high": 0.157,
         "evidence": [
-          {
-            "path": "src/core/sealed_bid_auction.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/sealed_bid_bonds.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/confidential_sealed_bid_api.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/CommitRevealStrategyproof.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/sealed_bid_auction.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/sealed_bid_bonds.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/confidential_sealed_bid_api.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/CommitRevealStrategyproof.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml", "class": "ABSENT"}
         ],
         "capabilities": [
-          {
-            "id": "bid_commitment",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy commit records"
-          },
-          {
-            "id": "bond_accounting_location",
-            "c": 0.12,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "bond arithmetic, no accounting location"
-          },
-          {
-            "id": "bid_reveal",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "legacy reveal verification"
-          },
-          {
-            "id": "deterministic_clearing",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "uniform-price clearing"
-          },
-          {
-            "id": "payment_settlement",
-            "c": 0.1,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "settlement preview/record only"
-          },
-          {
-            "id": "inventory_settlement",
-            "c": 0.08,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "fixed inventory model"
-          },
-          {
-            "id": "refund",
-            "c": 0.1,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "bond refund decisions"
-          },
-          {
-            "id": "slash",
-            "c": 0.1,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "non-reveal slash decisions"
-          },
-          {
-            "id": "auction_cancel",
-            "c": 0.06,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "reset only; no terminal state"
-          },
-          {
-            "id": "auction_expiry",
-            "c": 0.06,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "M6 command name only"
-          }
+          {"id": "bid_commitment", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy commit records"},
+          {"id": "bond_accounting_location", "c": 0.12, "unc": "V", "legacy_only": true, "note": "bond arithmetic, no accounting location"},
+          {"id": "bid_reveal", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy reveal verification"},
+          {"id": "deterministic_clearing", "c": 0.15, "unc": "V", "legacy_only": true, "note": "uniform-price clearing"},
+          {"id": "payment_settlement", "c": 0.1, "unc": "V", "legacy_only": true, "note": "settlement preview/record only"},
+          {"id": "inventory_settlement", "c": 0.08, "unc": "V", "legacy_only": true, "note": "fixed inventory model"},
+          {"id": "refund", "c": 0.1, "unc": "V", "legacy_only": true, "note": "bond refund decisions"},
+          {"id": "slash", "c": 0.1, "unc": "V", "legacy_only": true, "note": "non-reveal slash decisions"},
+          {"id": "auction_cancel", "c": 0.06, "unc": "V", "legacy_only": true, "note": "reset only; no terminal state"},
+          {"id": "auction_expiry", "c": 0.06, "unc": "V", "legacy_only": true, "note": "M6 command name only"}
         ]
       },
       {
@@ -1374,70 +420,20 @@
         "central": 0.03,
         "high": 0.08,
         "evidence": [
-          {
-            "path": "src/core/lane_capability_registry_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/current_profile_lane_gate_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_accounting_allocation_certificate_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core (any strategy-escrow lane module)",
-            "class": "MISSING"
-          }
+          {"path": "src/core/lane_capability_registry_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/current_profile_lane_gate_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_accounting_allocation_certificate_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core (any strategy-escrow lane module)", "class": "MISSING"}
         ],
         "capabilities": [
-          {
-            "id": "value_reservation",
-            "c": 0.03,
-            "unc": "V",
-            "note": "registry and fail-closed gate only"
-          },
-          {
-            "id": "strategy_activation",
-            "c": 0.03,
-            "unc": "V",
-            "note": "registry only"
-          },
-          {
-            "id": "strategy_trigger",
-            "c": 0.03,
-            "unc": "V",
-            "note": "registry only"
-          },
-          {
-            "id": "strategy_replace",
-            "c": 0.03,
-            "unc": "V",
-            "note": "registry only"
-          },
-          {
-            "id": "strategy_cancel",
-            "c": 0.03,
-            "unc": "V",
-            "note": "registry only"
-          },
-          {
-            "id": "strategy_expiry",
-            "c": 0.03,
-            "unc": "V",
-            "note": "registry only"
-          },
-          {
-            "id": "strategy_recovery",
-            "c": 0.03,
-            "unc": "V",
-            "note": "registry only"
-          }
+          {"id": "value_reservation", "c": 0.03, "unc": "V", "note": "registry and fail-closed gate only"},
+          {"id": "strategy_activation", "c": 0.03, "unc": "V", "note": "registry only"},
+          {"id": "strategy_trigger", "c": 0.03, "unc": "V", "note": "registry only"},
+          {"id": "strategy_replace", "c": 0.03, "unc": "V", "note": "registry only"},
+          {"id": "strategy_cancel", "c": 0.03, "unc": "V", "note": "registry only"},
+          {"id": "strategy_expiry", "c": 0.03, "unc": "V", "note": "registry only"},
+          {"id": "strategy_recovery", "c": 0.03, "unc": "V", "note": "registry only"}
         ]
       },
       {
@@ -1448,80 +444,20 @@
         "central": 0.0783,
         "high": 0.1283,
         "evidence": [
-          {
-            "path": "src/core/proof_rewards_policy_blocked_lane_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ProofRewardsPolicyBlockedLaneV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/proof_mining_runtime.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/proof_mining_manager.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZenoDEXProofMiningClaimability.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "zk/global_settlement_abi_v1/src/proof_rewards_policy_blocked_lane.rs",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/proof_rewards_policy_blocked_lane_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ProofRewardsPolicyBlockedLaneV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/proof_mining_runtime.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/proof_mining_manager.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZenoDEXProofMiningClaimability.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "zk/global_settlement_abi_v1/src/proof_rewards_policy_blocked_lane.rs", "class": "ABSENT"}
         ],
         "capabilities": [
-          {
-            "id": "reward_reserve",
-            "c": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true,
-            "note": "blocked; legacy pool balance"
-          },
-          {
-            "id": "verified_result_binding",
-            "c": 0.1,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true,
-            "note": "blocked; legacy claimability gate and lemma"
-          },
-          {
-            "id": "claimant_binding",
-            "c": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true,
-            "note": "blocked"
-          },
-          {
-            "id": "claim_nullifier",
-            "c": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true,
-            "note": "blocked; legacy claimed slots"
-          },
-          {
-            "id": "reward_payout",
-            "c": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true,
-            "note": "blocked"
-          },
-          {
-            "id": "task_terminal_state",
-            "c": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true,
-            "note": "blocked"
-          }
+          {"id": "reward_reserve", "c": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true, "note": "blocked; legacy pool balance"},
+          {"id": "verified_result_binding", "c": 0.1, "unc": "V", "disabled_or_blocked": true, "legacy_only": true, "note": "blocked; legacy claimability gate and lemma"},
+          {"id": "claimant_binding", "c": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true, "note": "blocked"},
+          {"id": "claim_nullifier", "c": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true, "note": "blocked; legacy claimed slots"},
+          {"id": "reward_payout", "c": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true, "note": "blocked"},
+          {"id": "task_terminal_state", "c": 0.05, "unc": "V", "disabled_or_blocked": true, "legacy_only": true, "note": "blocked"}
         ]
       },
       {
@@ -1532,97 +468,23 @@
         "central": 0.0656,
         "high": 0.1156,
         "evidence": [
-          {
-            "path": "src/core/external_custody_disabled_lane_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ExternalCustodyDisabledLaneV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_accounting_lane_producers_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/m6_outbox_delivery_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/zeno_ledger_cross_shard_effect_application.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "zk/global_settlement_abi_v1/src/external_custody_disabled_lane.rs",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/external_custody_disabled_lane_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ExternalCustodyDisabledLaneV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_accounting_lane_producers_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/m6_outbox_delivery_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/zeno_ledger_cross_shard_effect_application.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "zk/global_settlement_abi_v1/src/external_custody_disabled_lane.rs", "class": "ABSENT"}
         ],
         "capabilities": [
-          {
-            "id": "registered_external_lock",
-            "c": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "note": "disabled reject proved; legacy cross-shard donor"
-          },
-          {
-            "id": "registered_external_burn",
-            "c": 0.06,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "note": "disabled"
-          },
-          {
-            "id": "registered_external_release",
-            "c": 0.06,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "note": "disabled"
-          },
-          {
-            "id": "registered_external_mint",
-            "c": 0.06,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "note": "disabled"
-          },
-          {
-            "id": "external_finality",
-            "c": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "note": "disabled; finality policy absent"
-          },
-          {
-            "id": "external_timeout",
-            "c": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "note": "disabled"
-          },
-          {
-            "id": "external_refund",
-            "c": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "note": "disabled"
-          },
-          {
-            "id": "outbox_acknowledgment",
-            "c": 0.1,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true,
-            "note": "M6 delivery shell records attempts; unmounted"
-          },
-          {
-            "id": "destination_idempotency",
-            "c": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true,
-            "note": "M6 delivery journal; unmounted"
-          }
+          {"id": "registered_external_lock", "c": 0.08, "unc": "V", "disabled_or_blocked": true, "note": "disabled reject proved; legacy cross-shard donor"},
+          {"id": "registered_external_burn", "c": 0.06, "unc": "V", "disabled_or_blocked": true, "note": "disabled"},
+          {"id": "registered_external_release", "c": 0.06, "unc": "V", "disabled_or_blocked": true, "note": "disabled"},
+          {"id": "registered_external_mint", "c": 0.06, "unc": "V", "disabled_or_blocked": true, "note": "disabled"},
+          {"id": "external_finality", "c": 0.05, "unc": "V", "disabled_or_blocked": true, "note": "disabled; finality policy absent"},
+          {"id": "external_timeout", "c": 0.05, "unc": "V", "disabled_or_blocked": true, "note": "disabled"},
+          {"id": "external_refund", "c": 0.05, "unc": "V", "disabled_or_blocked": true, "note": "disabled"},
+          {"id": "outbox_acknowledgment", "c": 0.1, "unc": "V", "disabled_or_blocked": true, "legacy_only": true, "note": "M6 delivery shell records attempts; unmounted"},
+          {"id": "destination_idempotency", "c": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true, "note": "M6 delivery journal; unmounted"}
         ]
       },
       {
@@ -1633,92 +495,25 @@
         "central": 0.1714,
         "high": 0.2214,
         "evidence": [
-          {
-            "path": "src/core/m6_migration_lifecycle_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/GovernanceMigrationLifecycleV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/m6_migration_admission_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/global_economic_migration_journal_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/global_economic_authority_journal_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_economic_durable_activation_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/economic_initial_state_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/autonomous_governance_live_apply.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/zeno_governance_authority.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WRITER_AUTHORITY_IDENTITY_20260905.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "src/core/m6_migration_lifecycle_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/GovernanceMigrationLifecycleV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/m6_migration_admission_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/global_economic_migration_journal_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/global_economic_authority_journal_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_economic_durable_activation_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/economic_initial_state_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/autonomous_governance_live_apply.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/zeno_governance_authority.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WRITER_AUTHORITY_IDENTITY_20260905.md", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {
-            "id": "asset_registry_change",
-            "c": 0.18,
-            "unc": "V",
-            "note": "origin registry V2 shares this obligation; no governed change command"
-          },
-          {
-            "id": "parameter_change",
-            "c": 0.08,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "policy registry snapshots only"
-          },
-          {
-            "id": "release_activation",
-            "c": 0.28,
-            "unc": "V",
-            "note": "durable activation bundles, initial-state admission, authority head"
-          },
-          {
-            "id": "treasury_action",
-            "c": 0.04,
-            "unc": "V",
-            "note": "absent"
-          },
-          {
-            "id": "schema_migration",
-            "c": 0.22,
-            "unc": "V",
-            "note": "migration lifecycle core, Lean and durable shell; unmounted"
-          },
-          {
-            "id": "writer_epoch_rotation",
-            "c": 0.25,
-            "unc": "V",
-            "note": "authority generations and identity checks; fencing open"
-          },
-          {
-            "id": "autonomous_governance_command_submission",
-            "c": 0.15,
-            "unc": "V",
-            "legacy_only": true,
-            "note": "session-store admission wrapper; not the V3 command path"
-          }
+          {"id": "asset_registry_change", "c": 0.18, "unc": "V", "note": "origin registry V2 shares this obligation; no governed change command"},
+          {"id": "parameter_change", "c": 0.08, "unc": "V", "legacy_only": true, "note": "policy registry snapshots only"},
+          {"id": "release_activation", "c": 0.28, "unc": "V", "note": "durable activation bundles, initial-state admission, authority head"},
+          {"id": "treasury_action", "c": 0.04, "unc": "V", "note": "absent"},
+          {"id": "schema_migration", "c": 0.22, "unc": "V", "note": "migration lifecycle core, Lean and durable shell; unmounted"},
+          {"id": "writer_epoch_rotation", "c": 0.25, "unc": "V", "note": "authority generations and identity checks; fencing open"},
+          {"id": "autonomous_governance_command_submission", "c": 0.15, "unc": "V", "legacy_only": true, "note": "session-store admission wrapper; not the V3 command path"}
         ]
       },
       {
@@ -1729,30 +524,12 @@
         "central": 0.3,
         "high": 0.38,
         "evidence": [
-          {
-            "path": "src/core/zdex_purchase_burn_route_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/zdex_atomic_buyback_route_composition_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZDEXAtomicBuybackTwoPhaseV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/m6_safe_mount_types_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md",
-            "class": "HISTORICAL_RECORDED"
-          }
+          {"path": "src/core/zdex_purchase_burn_route_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/zdex_atomic_buyback_route_composition_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZDEXAtomicBuybackTwoPhaseV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/m6_safe_mount_types_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md", "class": "HISTORICAL_RECORDED"}
         ]
       },
       {
@@ -1763,26 +540,11 @@
         "central": 0.08,
         "high": 0.13,
         "evidence": [
-          {
-            "path": "src/core/m6_safe_mount_types_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZUSDLiquidationPartition.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/zusd_liquidation_partition.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "src/core (zusd liquidation route composer)",
-            "class": "MISSING"
-          }
+          {"path": "src/core/m6_safe_mount_types_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZUSDLiquidationPartition.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/zusd_liquidation_partition.py", "class": "UNKNOWN"},
+          {"path": "src/core (zusd liquidation route composer)", "class": "MISSING"}
         ]
       },
       {
@@ -1793,26 +555,11 @@
         "central": 0.08,
         "high": 0.13,
         "evidence": [
-          {
-            "path": "src/core/m6_safe_mount_types_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/PerpEpochSafety.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/perp_epoch.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "src/core (perps epoch route composer)",
-            "class": "MISSING"
-          }
+          {"path": "src/core/m6_safe_mount_types_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpEpochSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/perp_epoch.py", "class": "UNKNOWN"},
+          {"path": "src/core (perps epoch route composer)", "class": "MISSING"}
         ]
       },
       {
@@ -1823,18 +570,9 @@
         "central": 0.02,
         "high": 0.07,
         "evidence": [
-          {
-            "path": "src/core/m6_command_lane_registry_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core (strategy route composer)",
-            "class": "MISSING"
-          }
+          {"path": "src/core/m6_command_lane_registry_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core (strategy route composer)", "class": "MISSING"}
         ]
       },
       {
@@ -1845,54 +583,18 @@
         "central": 0.3,
         "high": 0.4,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/GlobalEconomicRefinementTraceV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_economic_state_effect_refinement_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FORMAL_MATH_ARCHITECTURE_REVIEW.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ESSO_REPLAY.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "zk/global_settlement_abi_v2/src/global_refinement.rs",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "src/kernels/dex/global_settlement_core_v1.yaml",
-            "class": "ABSENT"
-          },
-          {
-            "path": "zk (any #[kani::proof] harness)",
-            "class": "MISSING"
-          }
+          {"path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/GlobalEconomicRefinementTraceV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_economic_state_effect_refinement_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FORMAL_MATH_ARCHITECTURE_REVIEW.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ESSO_REPLAY.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "zk/global_settlement_abi_v2/src/global_refinement.rs", "class": "UNKNOWN"},
+          {"path": "src/kernels/dex/global_settlement_core_v1.yaml", "class": "ABSENT"},
+          {"path": "zk (any #[kani::proof] harness)", "class": "MISSING"}
         ]
       },
       {
@@ -1903,38 +605,14 @@
         "central": 0.2,
         "high": 0.3,
         "evidence": [
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FINAL_RECEIPT_QUALIFICATION.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_COMMON_CHAIN_REVIEW.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "zk/global_economic_epoch_risc0",
-            "class": "ABSENT"
-          },
-          {
-            "path": "zk/asset_transfer_route_composer_risc0",
-            "class": "ABSENT"
-          },
-          {
-            "path": "zk/asset_lane_coordinator_risc0",
-            "class": "ABSENT"
-          },
-          {
-            "path": "zk/perps_margin_lane_coordinator_risc0",
-            "class": "ABSENT"
-          },
-          {
-            "path": "zk/zdex_tokenomics_lane_coordinator_risc0",
-            "class": "ABSENT"
-          }
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FINAL_RECEIPT_QUALIFICATION.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_COMMON_CHAIN_REVIEW.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "zk/global_economic_epoch_risc0", "class": "ABSENT"},
+          {"path": "zk/asset_transfer_route_composer_risc0", "class": "ABSENT"},
+          {"path": "zk/asset_lane_coordinator_risc0", "class": "ABSENT"},
+          {"path": "zk/perps_margin_lane_coordinator_risc0", "class": "ABSENT"},
+          {"path": "zk/zdex_tokenomics_lane_coordinator_risc0", "class": "ABSENT"}
         ]
       },
       {
@@ -1945,42 +623,15 @@
         "central": 0.22,
         "high": 0.3,
         "evidence": [
-          {
-            "path": "src/integration/global_economic_epoch_journal_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/global_economic_authority_journal_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/global_economic_migration_journal_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/global_economic_durable_publisher_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/m6_outbox_delivery_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WRITER_AUTHORITY_IDENTITY_20260905.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_LIVE_WRITER_STORE_PAIR_20260906.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_SPARSE_AUTHORIZATION_AND_CUSTODY_RESTART_20260906.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "src/integration/global_economic_epoch_journal_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/global_economic_authority_journal_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/global_economic_migration_journal_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/global_economic_durable_publisher_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/m6_outbox_delivery_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WRITER_AUTHORITY_IDENTITY_20260905.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_LIVE_WRITER_STORE_PAIR_20260906.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_SPARSE_AUTHORIZATION_AND_CUSTODY_RESTART_20260906.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"}
         ]
       },
       {
@@ -1992,26 +643,11 @@
         "high": 0.1,
         "docs_only_allowed": true,
         "evidence": [
-          {
-            "path": "docs/research/ZENODEX_VALUE_MOVEMENT_CLOSURE_LEDGER_V2.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/ZENODEX_COMPLETION_PLAN.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_PROGRESS.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/claims_registry.yaml",
-            "class": "UNKNOWN"
-          }
+          {"path": "docs/research/ZENODEX_VALUE_MOVEMENT_CLOSURE_LEDGER_V2.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/ZENODEX_COMPLETION_PLAN.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_V3_PROGRESS.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/claims_registry.yaml", "class": "UNKNOWN"}
         ]
       },
       {
@@ -2022,34 +658,13 @@
         "central": 0.15,
         "high": 0.3,
         "evidence": [
-          {
-            "path": "tools/dex-ui",
-            "class": "ABSENT"
-          },
-          {
-            "path": "docs/ZENODEX_UI_SURFACE_STATUS_2026_05_20.md",
-            "class": "ABSENT"
-          },
-          {
-            "path": "docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md",
-            "class": "ABSENT"
-          },
-          {
-            "path": "src/integration/perps_wallet_api.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "src/integration/zusd_monetary_wallet_api.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "docs/research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_TAU_ECONOMIC_QUALIFICATION_20260905.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "tools/dex-ui", "class": "ABSENT"},
+          {"path": "docs/ZENODEX_UI_SURFACE_STATUS_2026_05_20.md", "class": "ABSENT"},
+          {"path": "docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md", "class": "ABSENT"},
+          {"path": "src/integration/perps_wallet_api.py", "class": "UNKNOWN"},
+          {"path": "src/integration/zusd_monetary_wallet_api.py", "class": "UNKNOWN"},
+          {"path": "docs/research/ZENODEX_POST_CORRECTNESS_SIMPLIFICATION_20260907.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_TAU_ECONOMIC_QUALIFICATION_20260905.md", "class": "VERIFIED_SOURCE_INSPECTION"}
         ]
       },
       {
@@ -2060,22 +675,10 @@
         "central": 0.1,
         "high": 0.15,
         "evidence": [
-          {
-            "path": "src/core/zusd_shutdown.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/current_profile_lane_gate_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "release-bound DISABLED_PROVED_NO_WRITER certificate",
-            "class": "MISSING"
-          }
+          {"path": "src/core/zusd_shutdown.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/current_profile_lane_gate_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "release-bound DISABLED_PROVED_NO_WRITER certificate", "class": "MISSING"}
         ]
       },
       {
@@ -2086,22 +689,10 @@
         "central": 0.45,
         "high": 0.5,
         "evidence": [
-          {
-            "path": "src/core/external_custody_disabled_lane_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ExternalCustodyDisabledLaneV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/m6_command_lane_registry_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "zk/global_settlement_abi_v1/src/external_custody_disabled_lane.rs",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/external_custody_disabled_lane_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ExternalCustodyDisabledLaneV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/m6_command_lane_registry_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "zk/global_settlement_abi_v1/src/external_custody_disabled_lane.rs", "class": "ABSENT"}
         ]
       },
       {
@@ -2112,18 +703,9 @@
         "central": 0.15,
         "high": 0.2,
         "evidence": [
-          {
-            "path": "src/integration/autonomous_governance_live_apply.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "mechanical exclusion proof for governance writers",
-            "class": "MISSING"
-          }
+          {"path": "src/integration/autonomous_governance_live_apply.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "mechanical exclusion proof for governance writers", "class": "MISSING"}
         ]
       },
       {
@@ -2134,26 +716,11 @@
         "central": 0.3,
         "high": 0.35,
         "evidence": [
-          {
-            "path": "src/integration/isolated_asset_receipt_pipeline_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/m6_command_lane_registry_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/economic_receipt_verifier_deployment_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FORMAL_MATH_ARCHITECTURE_REVIEW.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/dex_engine.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "src/integration/isolated_asset_receipt_pipeline_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/m6_command_lane_registry_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/economic_receipt_verifier_deployment_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FORMAL_MATH_ARCHITECTURE_REVIEW.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/dex_engine.py", "class": "VERIFIED_SOURCE_INSPECTION"}
         ]
       }
     ]
@@ -2172,150 +739,38 @@
         "central": 0.4736,
         "high": 0.5279,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ManagedAssetLifecycleRefinementV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetOriginRegistryRefinementV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_SHARED_ASSET_LIFECYCLE_20260908.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_SPARSE_AUTHORIZATION_AND_CUSTODY_RESTART_20260906.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetLaneCustodyTraceV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/test_lean_asset_lane_custody_trace_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetLaneCustodyEffectPlanV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetLaneCustodyExactProjectionV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetLaneCustodyCompleteStateV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/asset_lane_custody_exact_projection_v2_controls.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/test_lean_asset_lane_custody_exact_projection_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/core/test_asset_lane_custody_metadata_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetLaneCustodyAdmissionV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/asset_lane_custody_admission_v2_witness.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/test_lean_asset_lane_custody_admission_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ManagedAssetLifecycleRefinementV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetOriginRegistryRefinementV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_SHARED_ASSET_LIFECYCLE_20260908.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_SPARSE_AUTHORIZATION_AND_CUSTODY_RESTART_20260906.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetLaneCustodyTraceV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_asset_lane_custody_trace_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/asset_lane_custody_trace_successor_v2_20260909.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetLaneCustodyEffectPlanV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetLaneCustodyExactProjectionV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetLaneCustodyCompleteStateV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/asset_lane_custody_exact_projection_v2_controls.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_asset_lane_custody_exact_projection_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/core/test_asset_lane_custody_metadata_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/custody_complete_projection_v2_20260912.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetLaneCustodyAdmissionV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/asset_lane_custody_admission_v2_witness.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_asset_lane_custody_admission_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {
-            "id": "account_lifecycle",
-            "sem": 0.4,
-            "prf": 0.4,
-            "ref": 0.3,
-            "unc": "V"
-          },
-          {
-            "id": "native_asset_accounting",
-            "sem": 0.3,
-            "prf": 0.15,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "generic_transfer",
-            "sem": 0.7,
-            "prf": 0.76,
-            "ref": 0.47,
-            "unc": "H"
-          },
-          {
-            "id": "managed_issue",
-            "sem": 0.6,
-            "prf": 0.76,
-            "ref": 0.42,
-            "unc": "V"
-          },
-          {
-            "id": "managed_burn",
-            "sem": 0.6,
-            "prf": 0.76,
-            "ref": 0.42,
-            "unc": "V"
-          },
-          {
-            "id": "transaction_fee",
-            "sem": 0.5,
-            "prf": 0.5,
-            "ref": 0.35,
-            "unc": "V"
-          },
-          {
-            "id": "tau_originated_asset_registration",
-            "sem": 0.5,
-            "prf": 0.45,
-            "ref": 0.35,
-            "unc": "V"
-          }
+          {"id": "account_lifecycle", "sem": 0.4, "prf": 0.4, "ref": 0.3, "unc": "V"},
+          {"id": "native_asset_accounting", "sem": 0.3, "prf": 0.15, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "generic_transfer", "sem": 0.7, "prf": 0.76, "ref": 0.47, "unc": "H"},
+          {"id": "managed_issue", "sem": 0.6, "prf": 0.76, "ref": 0.42, "unc": "V"},
+          {"id": "managed_burn", "sem": 0.6, "prf": 0.76, "ref": 0.42, "unc": "V"},
+          {"id": "transaction_fee", "sem": 0.5, "prf": 0.5, "ref": 0.35, "unc": "V"},
+          {"id": "tau_originated_asset_registration", "sem": 0.5, "prf": 0.45, "ref": 0.35, "unc": "V"}
         ]
       },
       {
@@ -2326,107 +781,23 @@
         "central": 0.1881,
         "high": 0.2381,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/CPMMInvariants.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZDEXSpotBuybackTransitionV1.lean",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "lean-mathlib/Proofs/BatchOptimality.lean",
-            "class": "UNKNOWN"
-          }
+          {"path": "lean-mathlib/Proofs/CPMMInvariants.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZDEXSpotBuybackTransitionV1.lean", "class": "UNKNOWN"},
+          {"path": "lean-mathlib/Proofs/BatchOptimality.lean", "class": "UNKNOWN"}
         ],
         "capabilities": [
-          {
-            "id": "pool_create",
-            "sem": 0.3,
-            "prf": 0.1,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "exact_in_swap",
-            "sem": 0.35,
-            "prf": 0.3,
-            "ref": 0.2,
-            "unc": "V"
-          },
-          {
-            "id": "exact_out_swap",
-            "sem": 0.35,
-            "prf": 0.25,
-            "ref": 0.15,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "governed_route",
-            "sem": 0.25,
-            "prf": 0.2,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "atomic_batch",
-            "sem": 0.3,
-            "prf": 0.25,
-            "ref": 0.15,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "lp_issue",
-            "sem": 0.3,
-            "prf": 0.2,
-            "ref": 0.15,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "lp_burn",
-            "sem": 0.3,
-            "prf": 0.15,
-            "ref": 0.15,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "pool_close",
-            "sem": 0.1,
-            "prf": 0.03,
-            "ref": 0.03,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "fee_allocation",
-            "sem": 0.25,
-            "prf": 0.2,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "residue_terminal_disposition",
-            "sem": 0.15,
-            "prf": 0.15,
-            "ref": 0.05,
-            "unc": "V",
-            "legacy_only": true
-          }
+          {"id": "pool_create", "sem": 0.3, "prf": 0.1, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "exact_in_swap", "sem": 0.35, "prf": 0.3, "ref": 0.2, "unc": "V"},
+          {"id": "exact_out_swap", "sem": 0.35, "prf": 0.25, "ref": 0.15, "unc": "V", "legacy_only": true},
+          {"id": "governed_route", "sem": 0.25, "prf": 0.2, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "atomic_batch", "sem": 0.3, "prf": 0.25, "ref": 0.15, "unc": "V", "legacy_only": true},
+          {"id": "lp_issue", "sem": 0.3, "prf": 0.2, "ref": 0.15, "unc": "V", "legacy_only": true},
+          {"id": "lp_burn", "sem": 0.3, "prf": 0.15, "ref": 0.15, "unc": "V", "legacy_only": true},
+          {"id": "pool_close", "sem": 0.1, "prf": 0.03, "ref": 0.03, "unc": "V", "legacy_only": true},
+          {"id": "fee_allocation", "sem": 0.25, "prf": 0.2, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "residue_terminal_disposition", "sem": 0.15, "prf": 0.15, "ref": 0.05, "unc": "V", "legacy_only": true}
         ]
       },
       {
@@ -2437,68 +808,17 @@
         "central": 0.0837,
         "high": 0.1337,
         "evidence": [
-          {
-            "path": "src/core/vault.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/kernels/dex/vault_manager.yaml",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/vault.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/kernels/dex/vault_manager.yaml", "class": "ABSENT"}
         ],
         "capabilities": [
-          {
-            "id": "lp_stake",
-            "sem": 0.15,
-            "prf": 0.15,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "stake_activation",
-            "sem": 0.1,
-            "prf": 0.05,
-            "ref": 0.05,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "emission_accrual",
-            "sem": 0.1,
-            "prf": 0.15,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "emission_claim",
-            "sem": 0.1,
-            "prf": 0.15,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "farm_cancellation",
-            "sem": 0.05,
-            "prf": 0.03,
-            "ref": 0.02,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "farm_terminal_drain",
-            "sem": 0.05,
-            "prf": 0.02,
-            "ref": 0.02,
-            "unc": "V",
-            "legacy_only": true
-          }
+          {"id": "lp_stake", "sem": 0.15, "prf": 0.15, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "stake_activation", "sem": 0.1, "prf": 0.05, "ref": 0.05, "unc": "V", "legacy_only": true},
+          {"id": "emission_accrual", "sem": 0.1, "prf": 0.15, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "emission_claim", "sem": 0.1, "prf": 0.15, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "farm_cancellation", "sem": 0.05, "prf": 0.03, "ref": 0.02, "unc": "V", "legacy_only": true},
+          {"id": "farm_terminal_drain", "sem": 0.05, "prf": 0.02, "ref": 0.02, "unc": "V", "legacy_only": true}
         ]
       },
       {
@@ -2509,81 +829,21 @@
         "central": 0.2473,
         "high": 0.3059,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/ZDEXAtomicBuybackTwoPhaseV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZDEXAtomicBuybackAccountingV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZDEXHyperdeflationV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/zdex_fee_allocation_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZDEXAcquisitionBurnOccurrenceV2.lean",
-            "class": "UNKNOWN"
-          }
+          {"path": "lean-mathlib/Proofs/ZDEXAtomicBuybackTwoPhaseV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZDEXAtomicBuybackAccountingV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZDEXHyperdeflationV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/zdex_fee_allocation_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "lean-mathlib/Proofs/ZDEXAcquisitionBurnOccurrenceV2.lean", "class": "UNKNOWN"}
         ],
         "capabilities": [
-          {
-            "id": "fee_routing",
-            "sem": 0.45,
-            "prf": 0.35,
-            "ref": 0.35,
-            "unc": "V"
-          },
-          {
-            "id": "staking_claim",
-            "sem": 0.15,
-            "prf": 0.05,
-            "ref": 0.03,
-            "unc": "V"
-          },
-          {
-            "id": "host_compensation_claim",
-            "sem": 0.1,
-            "prf": 0.03,
-            "ref": 0.03,
-            "unc": "V"
-          },
-          {
-            "id": "treasury_claim",
-            "sem": 0.1,
-            "prf": 0.03,
-            "ref": 0.03,
-            "unc": "V"
-          },
-          {
-            "id": "reserve_lifecycle",
-            "sem": 0.3,
-            "prf": 0.3,
-            "ref": 0.2,
-            "unc": "V"
-          },
-          {
-            "id": "atomic_purchase_and_burn",
-            "sem": 0.55,
-            "prf": 0.5,
-            "ref": 0.35,
-            "unc": "H"
-          },
-          {
-            "id": "retained_supply_hyperdeflation",
-            "sem": 0.5,
-            "prf": 0.45,
-            "ref": 0.35,
-            "unc": "H"
-          }
+          {"id": "fee_routing", "sem": 0.45, "prf": 0.35, "ref": 0.35, "unc": "V"},
+          {"id": "staking_claim", "sem": 0.15, "prf": 0.05, "ref": 0.03, "unc": "V"},
+          {"id": "host_compensation_claim", "sem": 0.1, "prf": 0.03, "ref": 0.03, "unc": "V"},
+          {"id": "treasury_claim", "sem": 0.1, "prf": 0.03, "ref": 0.03, "unc": "V"},
+          {"id": "reserve_lifecycle", "sem": 0.3, "prf": 0.3, "ref": 0.2, "unc": "V"},
+          {"id": "atomic_purchase_and_burn", "sem": 0.55, "prf": 0.5, "ref": 0.35, "unc": "H"},
+          {"id": "retained_supply_hyperdeflation", "sem": 0.5, "prf": 0.45, "ref": 0.35, "unc": "H"}
         ]
       },
       {
@@ -2594,136 +854,27 @@
         "central": 0.2063,
         "high": 0.2563,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/ZUSDLiquidationPartition.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZUSDOwnerClose.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZUSDGlobalLiabilityCover.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/zusd.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZUSDGenericTokenAdmission.lean",
-            "class": "UNKNOWN"
-          }
+          {"path": "lean-mathlib/Proofs/ZUSDLiquidationPartition.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZUSDOwnerClose.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZUSDGlobalLiabilityCover.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/zusd.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "lean-mathlib/Proofs/ZUSDGenericTokenAdmission.lean", "class": "UNKNOWN"}
         ],
         "capabilities": [
-          {
-            "id": "vault_open",
-            "sem": 0.35,
-            "prf": 0.15,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "collateral_deposit",
-            "sem": 0.35,
-            "prf": 0.15,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "collateral_withdraw",
-            "sem": 0.35,
-            "prf": 0.15,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "zusd_mint",
-            "sem": 0.35,
-            "prf": 0.2,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "zusd_repay",
-            "sem": 0.35,
-            "prf": 0.15,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "vault_owner_close",
-            "sem": 0.45,
-            "prf": 0.45,
-            "ref": 0.3,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "multi_vault_redemption",
-            "sem": 0.3,
-            "prf": 0.2,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "stability_pool_deposit",
-            "sem": 0.3,
-            "prf": 0.15,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "stability_pool_withdraw",
-            "sem": 0.3,
-            "prf": 0.15,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "stability_pool_claim",
-            "sem": 0.25,
-            "prf": 0.15,
-            "ref": 0.08,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "liquidation",
-            "sem": 0.35,
-            "prf": 0.35,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "recovery_mode",
-            "sem": 0.3,
-            "prf": 0.3,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "all_claims_terminal_drain",
-            "sem": 0.1,
-            "prf": 0.03,
-            "ref": 0.02,
-            "unc": "V",
-            "legacy_only": true
-          }
+          {"id": "vault_open", "sem": 0.35, "prf": 0.15, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "collateral_deposit", "sem": 0.35, "prf": 0.15, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "collateral_withdraw", "sem": 0.35, "prf": 0.15, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "zusd_mint", "sem": 0.35, "prf": 0.2, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "zusd_repay", "sem": 0.35, "prf": 0.15, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "vault_owner_close", "sem": 0.45, "prf": 0.45, "ref": 0.3, "unc": "V", "legacy_only": true},
+          {"id": "multi_vault_redemption", "sem": 0.3, "prf": 0.2, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "stability_pool_deposit", "sem": 0.3, "prf": 0.15, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "stability_pool_withdraw", "sem": 0.3, "prf": 0.15, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "stability_pool_claim", "sem": 0.25, "prf": 0.15, "ref": 0.08, "unc": "V", "legacy_only": true},
+          {"id": "liquidation", "sem": 0.35, "prf": 0.35, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "recovery_mode", "sem": 0.3, "prf": 0.3, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "all_claims_terminal_drain", "sem": 0.1, "prf": 0.03, "ref": 0.02, "unc": "V", "legacy_only": true}
         ]
       },
       {
@@ -2734,118 +885,25 @@
         "central": 0.2325,
         "high": 0.2906,
         "evidence": [
-          {
-            "path": "src/core/perps_margin_module_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/PerpEpochSafety.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/PerpADLSybilBankruptcyClosure.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/PerpProtocolSafety.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/PerpIntegerBridge.lean",
-            "class": "UNKNOWN"
-          }
+          {"path": "src/core/perps_margin_module_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpEpochSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpADLSybilBankruptcyClosure.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpProtocolSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpIntegerBridge.lean", "class": "UNKNOWN"}
         ],
         "capabilities": [
-          {
-            "id": "margin_deposit",
-            "sem": 0.5,
-            "prf": 0.3,
-            "ref": 0.35,
-            "unc": "H"
-          },
-          {
-            "id": "margin_withdraw",
-            "sem": 0.5,
-            "prf": 0.3,
-            "ref": 0.35,
-            "unc": "H"
-          },
-          {
-            "id": "position_open",
-            "sem": 0.3,
-            "prf": 0.3,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "position_adjust",
-            "sem": 0.25,
-            "prf": 0.25,
-            "ref": 0.08,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "funding_accrual",
-            "sem": 0.3,
-            "prf": 0.35,
-            "ref": 0.1,
-            "unc": "H",
-            "legacy_only": true
-          },
-          {
-            "id": "fee_allocation",
-            "sem": 0.15,
-            "prf": 0.1,
-            "ref": 0.05,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "liquidation",
-            "sem": 0.3,
-            "prf": 0.35,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "insurance_reserve",
-            "sem": 0.25,
-            "prf": 0.3,
-            "ref": 0.08,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "auto_deleveraging",
-            "sem": 0.2,
-            "prf": 0.25,
-            "ref": 0.05,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "bankruptcy_resolution",
-            "sem": 0.2,
-            "prf": 0.25,
-            "ref": 0.05,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "terminal_closeout",
-            "sem": 0.25,
-            "prf": 0.2,
-            "ref": 0.08,
-            "unc": "V",
-            "legacy_only": true
-          }
+          {"id": "margin_deposit", "sem": 0.5, "prf": 0.3, "ref": 0.35, "unc": "H"},
+          {"id": "margin_withdraw", "sem": 0.5, "prf": 0.3, "ref": 0.35, "unc": "H"},
+          {"id": "position_open", "sem": 0.3, "prf": 0.3, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "position_adjust", "sem": 0.25, "prf": 0.25, "ref": 0.08, "unc": "V", "legacy_only": true},
+          {"id": "funding_accrual", "sem": 0.3, "prf": 0.35, "ref": 0.1, "unc": "H", "legacy_only": true},
+          {"id": "fee_allocation", "sem": 0.15, "prf": 0.1, "ref": 0.05, "unc": "V", "legacy_only": true},
+          {"id": "liquidation", "sem": 0.3, "prf": 0.35, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "insurance_reserve", "sem": 0.25, "prf": 0.3, "ref": 0.08, "unc": "V", "legacy_only": true},
+          {"id": "auto_deleveraging", "sem": 0.2, "prf": 0.25, "ref": 0.05, "unc": "V", "legacy_only": true},
+          {"id": "bankruptcy_resolution", "sem": 0.2, "prf": 0.25, "ref": 0.05, "unc": "V", "legacy_only": true},
+          {"id": "terminal_closeout", "sem": 0.25, "prf": 0.2, "ref": 0.08, "unc": "V", "legacy_only": true}
         ]
       },
       {
@@ -2856,99 +914,22 @@
         "central": 0.0983,
         "high": 0.1483,
         "evidence": [
-          {
-            "path": "src/core/global_oracle_occurrence_authority_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_settlement_lifecycle_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZenoOracleGeneralizationV1.lean",
-            "class": "UNKNOWN"
-          }
+          {"path": "src/core/global_oracle_occurrence_authority_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_settlement_lifecycle_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZenoOracleGeneralizationV1.lean", "class": "UNKNOWN"}
         ],
         "capabilities": [
-          {
-            "id": "query_create",
-            "sem": 0.15,
-            "prf": 0.03,
-            "ref": 0.03,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "tip_escrow",
-            "sem": 0.1,
-            "prf": 0.02,
-            "ref": 0.02,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "reporter_bond",
-            "sem": 0.15,
-            "prf": 0.05,
-            "ref": 0.03,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "report_submit",
-            "sem": 0.3,
-            "prf": 0.15,
-            "ref": 0.15,
-            "unc": "V"
-          },
-          {
-            "id": "report_finality",
-            "sem": 0.4,
-            "prf": 0.25,
-            "ref": 0.25,
-            "unc": "V"
-          },
-          {
-            "id": "reporter_reward",
-            "sem": 0.1,
-            "prf": 0.02,
-            "ref": 0.02,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "report_dispute",
-            "sem": 0.25,
-            "prf": 0.1,
-            "ref": 0.1,
-            "unc": "V"
-          },
-          {
-            "id": "reward_clawback",
-            "sem": 0.08,
-            "prf": 0.02,
-            "ref": 0.02,
-            "unc": "V"
-          },
-          {
-            "id": "reporter_slash",
-            "sem": 0.1,
-            "prf": 0.02,
-            "ref": 0.02,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "oracle_terminal_drain",
-            "sem": 0.08,
-            "prf": 0.02,
-            "ref": 0.02,
-            "unc": "V"
-          }
+          {"id": "query_create", "sem": 0.15, "prf": 0.03, "ref": 0.03, "unc": "V", "legacy_only": true},
+          {"id": "tip_escrow", "sem": 0.1, "prf": 0.02, "ref": 0.02, "unc": "V", "legacy_only": true},
+          {"id": "reporter_bond", "sem": 0.15, "prf": 0.05, "ref": 0.03, "unc": "V", "legacy_only": true},
+          {"id": "report_submit", "sem": 0.3, "prf": 0.15, "ref": 0.15, "unc": "V"},
+          {"id": "report_finality", "sem": 0.4, "prf": 0.25, "ref": 0.25, "unc": "V"},
+          {"id": "reporter_reward", "sem": 0.1, "prf": 0.02, "ref": 0.02, "unc": "V", "legacy_only": true},
+          {"id": "report_dispute", "sem": 0.25, "prf": 0.1, "ref": 0.1, "unc": "V"},
+          {"id": "reward_clawback", "sem": 0.08, "prf": 0.02, "ref": 0.02, "unc": "V"},
+          {"id": "reporter_slash", "sem": 0.1, "prf": 0.02, "ref": 0.02, "unc": "V", "legacy_only": true},
+          {"id": "oracle_terminal_drain", "sem": 0.08, "prf": 0.02, "ref": 0.02, "unc": "V"}
         ]
       },
       {
@@ -2959,104 +940,22 @@
         "central": 0.1451,
         "high": 0.1951,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/CommitRevealStrategyproof.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/sealed_bid_bonds.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml",
-            "class": "ABSENT"
-          }
+          {"path": "lean-mathlib/Proofs/CommitRevealStrategyproof.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/sealed_bid_bonds.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml", "class": "ABSENT"}
         ],
         "capabilities": [
-          {
-            "id": "bid_commitment",
-            "sem": 0.3,
-            "prf": 0.25,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "bond_accounting_location",
-            "sem": 0.25,
-            "prf": 0.2,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "bid_reveal",
-            "sem": 0.3,
-            "prf": 0.25,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "deterministic_clearing",
-            "sem": 0.3,
-            "prf": 0.25,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "payment_settlement",
-            "sem": 0.2,
-            "prf": 0.1,
-            "ref": 0.08,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "inventory_settlement",
-            "sem": 0.15,
-            "prf": 0.08,
-            "ref": 0.05,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "refund",
-            "sem": 0.2,
-            "prf": 0.15,
-            "ref": 0.08,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "slash",
-            "sem": 0.2,
-            "prf": 0.15,
-            "ref": 0.08,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "auction_cancel",
-            "sem": 0.1,
-            "prf": 0.03,
-            "ref": 0.03,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "auction_expiry",
-            "sem": 0.1,
-            "prf": 0.03,
-            "ref": 0.03,
-            "unc": "V",
-            "legacy_only": true
-          }
+          {"id": "bid_commitment", "sem": 0.3, "prf": 0.25, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "bond_accounting_location", "sem": 0.25, "prf": 0.2, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "bid_reveal", "sem": 0.3, "prf": 0.25, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "deterministic_clearing", "sem": 0.3, "prf": 0.25, "ref": 0.1, "unc": "V", "legacy_only": true},
+          {"id": "payment_settlement", "sem": 0.2, "prf": 0.1, "ref": 0.08, "unc": "V", "legacy_only": true},
+          {"id": "inventory_settlement", "sem": 0.15, "prf": 0.08, "ref": 0.05, "unc": "V", "legacy_only": true},
+          {"id": "refund", "sem": 0.2, "prf": 0.15, "ref": 0.08, "unc": "V", "legacy_only": true},
+          {"id": "slash", "sem": 0.2, "prf": 0.15, "ref": 0.08, "unc": "V", "legacy_only": true},
+          {"id": "auction_cancel", "sem": 0.1, "prf": 0.03, "ref": 0.03, "unc": "V", "legacy_only": true},
+          {"id": "auction_expiry", "sem": 0.1, "prf": 0.03, "ref": 0.03, "unc": "V", "legacy_only": true}
         ]
       },
       {
@@ -3067,69 +966,18 @@
         "central": 0.023,
         "high": 0.073,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/CurrentProfileLaneGateV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lane semantics, proofs and implementation",
-            "class": "MISSING"
-          }
+          {"path": "lean-mathlib/Proofs/CurrentProfileLaneGateV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lane semantics, proofs and implementation", "class": "MISSING"}
         ],
         "capabilities": [
-          {
-            "id": "value_reservation",
-            "sem": 0.05,
-            "prf": 0.02,
-            "ref": 0.0,
-            "unc": "V"
-          },
-          {
-            "id": "strategy_activation",
-            "sem": 0.05,
-            "prf": 0.02,
-            "ref": 0.0,
-            "unc": "V"
-          },
-          {
-            "id": "strategy_trigger",
-            "sem": 0.05,
-            "prf": 0.02,
-            "ref": 0.0,
-            "unc": "V"
-          },
-          {
-            "id": "strategy_replace",
-            "sem": 0.05,
-            "prf": 0.02,
-            "ref": 0.0,
-            "unc": "V"
-          },
-          {
-            "id": "strategy_cancel",
-            "sem": 0.05,
-            "prf": 0.02,
-            "ref": 0.0,
-            "unc": "V"
-          },
-          {
-            "id": "strategy_expiry",
-            "sem": 0.05,
-            "prf": 0.02,
-            "ref": 0.0,
-            "unc": "V"
-          },
-          {
-            "id": "strategy_recovery",
-            "sem": 0.05,
-            "prf": 0.02,
-            "ref": 0.0,
-            "unc": "V"
-          }
+          {"id": "value_reservation", "sem": 0.05, "prf": 0.02, "ref": 0.0, "unc": "V"},
+          {"id": "strategy_activation", "sem": 0.05, "prf": 0.02, "ref": 0.0, "unc": "V"},
+          {"id": "strategy_trigger", "sem": 0.05, "prf": 0.02, "ref": 0.0, "unc": "V"},
+          {"id": "strategy_replace", "sem": 0.05, "prf": 0.02, "ref": 0.0, "unc": "V"},
+          {"id": "strategy_cancel", "sem": 0.05, "prf": 0.02, "ref": 0.0, "unc": "V"},
+          {"id": "strategy_expiry", "sem": 0.05, "prf": 0.02, "ref": 0.0, "unc": "V"},
+          {"id": "strategy_recovery", "sem": 0.05, "prf": 0.02, "ref": 0.0, "unc": "V"}
         ]
       },
       {
@@ -3140,74 +988,17 @@
         "central": 0.1095,
         "high": 0.1595,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/ProofRewardsPolicyBlockedLaneV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZenoDEXProofMiningClaimability.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/proof_rewards_policy_blocked_lane_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "lean-mathlib/Proofs/ProofRewardsPolicyBlockedLaneV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZenoDEXProofMiningClaimability.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/proof_rewards_policy_blocked_lane_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {
-            "id": "reward_reserve",
-            "sem": 0.15,
-            "prf": 0.1,
-            "ref": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true
-          },
-          {
-            "id": "verified_result_binding",
-            "sem": 0.2,
-            "prf": 0.15,
-            "ref": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true
-          },
-          {
-            "id": "claimant_binding",
-            "sem": 0.15,
-            "prf": 0.1,
-            "ref": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true
-          },
-          {
-            "id": "claim_nullifier",
-            "sem": 0.15,
-            "prf": 0.1,
-            "ref": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true
-          },
-          {
-            "id": "reward_payout",
-            "sem": 0.15,
-            "prf": 0.1,
-            "ref": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true
-          },
-          {
-            "id": "task_terminal_state",
-            "sem": 0.1,
-            "prf": 0.08,
-            "ref": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true
-          }
+          {"id": "reward_reserve", "sem": 0.15, "prf": 0.1, "ref": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true},
+          {"id": "verified_result_binding", "sem": 0.2, "prf": 0.15, "ref": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true},
+          {"id": "claimant_binding", "sem": 0.15, "prf": 0.1, "ref": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true},
+          {"id": "claim_nullifier", "sem": 0.15, "prf": 0.1, "ref": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true},
+          {"id": "reward_payout", "sem": 0.15, "prf": 0.1, "ref": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true},
+          {"id": "task_terminal_state", "sem": 0.1, "prf": 0.08, "ref": 0.05, "unc": "V", "disabled_or_blocked": true, "legacy_only": true}
         ]
       },
       {
@@ -3218,94 +1009,20 @@
         "central": 0.1017,
         "high": 0.1517,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/ExternalCustodyDisabledLaneV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/external_custody_disabled_lane_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/m6_outbox_delivery_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "lean-mathlib/Proofs/ExternalCustodyDisabledLaneV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/external_custody_disabled_lane_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/m6_outbox_delivery_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {
-            "id": "registered_external_lock",
-            "sem": 0.2,
-            "prf": 0.1,
-            "ref": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true
-          },
-          {
-            "id": "registered_external_burn",
-            "sem": 0.15,
-            "prf": 0.08,
-            "ref": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true
-          },
-          {
-            "id": "registered_external_release",
-            "sem": 0.15,
-            "prf": 0.08,
-            "ref": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true
-          },
-          {
-            "id": "registered_external_mint",
-            "sem": 0.15,
-            "prf": 0.08,
-            "ref": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true
-          },
-          {
-            "id": "external_finality",
-            "sem": 0.15,
-            "prf": 0.08,
-            "ref": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true
-          },
-          {
-            "id": "external_timeout",
-            "sem": 0.1,
-            "prf": 0.08,
-            "ref": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true
-          },
-          {
-            "id": "external_refund",
-            "sem": 0.1,
-            "prf": 0.08,
-            "ref": 0.05,
-            "unc": "V",
-            "disabled_or_blocked": true
-          },
-          {
-            "id": "outbox_acknowledgment",
-            "sem": 0.25,
-            "prf": 0.1,
-            "ref": 0.1,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true
-          },
-          {
-            "id": "destination_idempotency",
-            "sem": 0.2,
-            "prf": 0.1,
-            "ref": 0.08,
-            "unc": "V",
-            "disabled_or_blocked": true,
-            "legacy_only": true
-          }
+          {"id": "registered_external_lock", "sem": 0.2, "prf": 0.1, "ref": 0.08, "unc": "V", "disabled_or_blocked": true},
+          {"id": "registered_external_burn", "sem": 0.15, "prf": 0.08, "ref": 0.05, "unc": "V", "disabled_or_blocked": true},
+          {"id": "registered_external_release", "sem": 0.15, "prf": 0.08, "ref": 0.05, "unc": "V", "disabled_or_blocked": true},
+          {"id": "registered_external_mint", "sem": 0.15, "prf": 0.08, "ref": 0.05, "unc": "V", "disabled_or_blocked": true},
+          {"id": "external_finality", "sem": 0.15, "prf": 0.08, "ref": 0.05, "unc": "V", "disabled_or_blocked": true},
+          {"id": "external_timeout", "sem": 0.1, "prf": 0.08, "ref": 0.05, "unc": "V", "disabled_or_blocked": true},
+          {"id": "external_refund", "sem": 0.1, "prf": 0.08, "ref": 0.05, "unc": "V", "disabled_or_blocked": true},
+          {"id": "outbox_acknowledgment", "sem": 0.25, "prf": 0.1, "ref": 0.1, "unc": "V", "disabled_or_blocked": true, "legacy_only": true},
+          {"id": "destination_idempotency", "sem": 0.2, "prf": 0.1, "ref": 0.08, "unc": "V", "disabled_or_blocked": true, "legacy_only": true}
         ]
       },
       {
@@ -3316,79 +1033,20 @@
         "central": 0.2141,
         "high": 0.2641,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/GovernanceMigrationLifecycleV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/m6_migration_lifecycle_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/economic_initial_state_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetOriginRegistryRefinementV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/integration/global_economic_authority_journal_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "lean-mathlib/Proofs/GovernanceMigrationLifecycleV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/m6_migration_lifecycle_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/economic_initial_state_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetOriginRegistryRefinementV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/global_economic_authority_journal_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {
-            "id": "asset_registry_change",
-            "sem": 0.35,
-            "prf": 0.3,
-            "ref": 0.2,
-            "unc": "V"
-          },
-          {
-            "id": "parameter_change",
-            "sem": 0.2,
-            "prf": 0.05,
-            "ref": 0.05,
-            "unc": "V",
-            "legacy_only": true
-          },
-          {
-            "id": "release_activation",
-            "sem": 0.45,
-            "prf": 0.3,
-            "ref": 0.25,
-            "unc": "V"
-          },
-          {
-            "id": "treasury_action",
-            "sem": 0.1,
-            "prf": 0.02,
-            "ref": 0.02,
-            "unc": "V"
-          },
-          {
-            "id": "schema_migration",
-            "sem": 0.4,
-            "prf": 0.35,
-            "ref": 0.15,
-            "unc": "V"
-          },
-          {
-            "id": "writer_epoch_rotation",
-            "sem": 0.4,
-            "prf": 0.25,
-            "ref": 0.2,
-            "unc": "V"
-          },
-          {
-            "id": "autonomous_governance_command_submission",
-            "sem": 0.3,
-            "prf": 0.1,
-            "ref": 0.1,
-            "unc": "V",
-            "legacy_only": true
-          }
+          {"id": "asset_registry_change", "sem": 0.35, "prf": 0.3, "ref": 0.2, "unc": "V"},
+          {"id": "parameter_change", "sem": 0.2, "prf": 0.05, "ref": 0.05, "unc": "V", "legacy_only": true},
+          {"id": "release_activation", "sem": 0.45, "prf": 0.3, "ref": 0.25, "unc": "V"},
+          {"id": "treasury_action", "sem": 0.1, "prf": 0.02, "ref": 0.02, "unc": "V"},
+          {"id": "schema_migration", "sem": 0.4, "prf": 0.35, "ref": 0.15, "unc": "V"},
+          {"id": "writer_epoch_rotation", "sem": 0.4, "prf": 0.25, "ref": 0.2, "unc": "V"},
+          {"id": "autonomous_governance_command_submission", "sem": 0.3, "prf": 0.1, "ref": 0.1, "unc": "V", "legacy_only": true}
         ]
       },
       {
@@ -3399,26 +1057,11 @@
         "central": 0.42,
         "high": 0.5,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/ZDEXAtomicBuybackTwoPhaseV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/ZDEXAtomicBuybackAccountingV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/zdex_purchase_burn_route_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md",
-            "class": "HISTORICAL_RECORDED"
-          }
+          {"path": "lean-mathlib/Proofs/ZDEXAtomicBuybackTwoPhaseV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/ZDEXAtomicBuybackAccountingV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/zdex_purchase_burn_route_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_V3_FORMAL_WAVE1_PARENT_REVIEW_20260905.md", "class": "HISTORICAL_RECORDED"}
         ]
       },
       {
@@ -3429,14 +1072,8 @@
         "central": 0.155,
         "high": 0.205,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/ZUSDLiquidationPartition.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "lean-mathlib/Proofs/ZUSDLiquidationPartition.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ]
       },
       {
@@ -3447,14 +1084,8 @@
         "central": 0.155,
         "high": 0.205,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/PerpEpochSafety.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "lean-mathlib/Proofs/PerpEpochSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ]
       },
       {
@@ -3465,14 +1096,8 @@
         "central": 0.023,
         "high": 0.073,
         "evidence": [
-          {
-            "path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "route semantics, proofs and implementation",
-            "class": "MISSING"
-          }
+          {"path": "docs/research/M6_O005_SEMANTIC_RESOLUTIONS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "route semantics, proofs and implementation", "class": "MISSING"}
         ]
       },
       {
@@ -3483,30 +1108,12 @@
         "central": 0.35,
         "high": 0.45,
         "evidence": [
-          {
-            "path": "src/core/economic_initial_state_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_economic_durable_activation_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FINAL_RECEIPT_QUALIFICATION.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "docs/research/ECONOMIC_INITIAL_STATE_PREDECESSOR_BINDING_V1.md",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "tests/core/test_economic_initial_state_v1.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "zk/economic_initial_state_risc0",
-            "class": "ABSENT"
-          }
+          {"path": "src/core/economic_initial_state_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_economic_durable_activation_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FINAL_RECEIPT_QUALIFICATION.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "docs/research/ECONOMIC_INITIAL_STATE_PREDECESSOR_BINDING_V1.md", "class": "UNKNOWN"},
+          {"path": "tests/core/test_economic_initial_state_v1.py", "class": "UNKNOWN"},
+          {"path": "zk/economic_initial_state_risc0", "class": "ABSENT"}
         ]
       },
       {
@@ -3517,30 +1124,12 @@
         "central": 0.35,
         "high": 0.45,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/GlobalEconomicRefinementTraceV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FORMAL_MATH_ARCHITECTURE_REVIEW.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_TRANSFER_GLOBAL_SUCCESSOR_20260906.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          }
+          {"path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/GlobalEconomicRefinementTraceV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/AssetTransferGlobalSuccessorV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FORMAL_MATH_ARCHITECTURE_REVIEW.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_TRANSFER_GLOBAL_SUCCESSOR_20260906.md", "class": "VERIFIED_SOURCE_INSPECTION"}
         ]
       },
       {
@@ -3551,26 +1140,11 @@
         "central": 0.4,
         "high": 0.5,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/GlobalAccountingAllocationCertificateV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_accounting_allocation_certificate_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/asset_transfer_global_allocation_v1.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ESSO_REPLAY.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "src/kernels/dex/global_accounting_allocation_certificate_v1.yaml",
-            "class": "ABSENT"
-          }
+          {"path": "lean-mathlib/Proofs/GlobalAccountingAllocationCertificateV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_accounting_allocation_certificate_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/asset_transfer_global_allocation_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ESSO_REPLAY.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "src/kernels/dex/global_accounting_allocation_certificate_v1.yaml", "class": "ABSENT"}
         ]
       },
       {
@@ -3581,34 +1155,13 @@
         "central": 0.25,
         "high": 0.35,
         "evidence": [
-          {
-            "path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "src/core/global_economic_state_effect_refinement_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "docs/research/ZENODEX_TRANSFER_FORWARD_LOOP_20260908.md",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "zk/global_settlement_abi_v2/src/global_refinement.rs",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "zk/global_settlement_abi_v1",
-            "class": "ABSENT"
-          },
-          {
-            "path": "zk (any #[kani::proof] harness)",
-            "class": "MISSING"
-          }
+          {"path": "lean-mathlib/Proofs/CheckedEconomicAggregationV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/global_economic_state_effect_refinement_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_TRANSFER_FINITE_OUTCOMES_20260908.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/research/ZENODEX_TRANSFER_FORWARD_LOOP_20260908.md", "class": "UNKNOWN"},
+          {"path": "zk/global_settlement_abi_v2/src/global_refinement.rs", "class": "UNKNOWN"},
+          {"path": "zk/global_settlement_abi_v1", "class": "ABSENT"},
+          {"path": "zk (any #[kani::proof] harness)", "class": "MISSING"}
         ]
       },
       {
@@ -3619,41 +1172,16 @@
         "central": 0.55,
         "high": 0.65,
         "evidence": [
-          {
-            "path": "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tools/check_v3_progress.py",
-            "class": "VERIFIED_SOURCE_INSPECTION"
-          },
-          {
-            "path": "tests/formal/lean_stdlib_gate_v1.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "tests/formal/test_scan_lean_proof_placeholders_v1.py",
-            "class": "UNKNOWN"
-          },
-          {
-            "path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ESSO_REPLAY.md",
-            "class": "HISTORICAL_RECORDED"
-          },
-          {
-            "path": "tests/evidence/test_hygiene",
-            "class": "ABSENT"
-          }
+          {"path": "tests/formal/test_lean_asset_transfer_finite_outcome_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tools/check_v3_progress.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/lean_stdlib_gate_v1.py", "class": "UNKNOWN"},
+          {"path": "tests/formal/test_scan_lean_proof_placeholders_v1.py", "class": "UNKNOWN"},
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_ESSO_REPLAY.md", "class": "HISTORICAL_RECORDED"},
+          {"path": "tests/evidence/test_hygiene", "class": "ABSENT"}
         ]
       }
     ]
   },
-  "assessment_basis": {
-    "kind": "FIXED-RUBRIC-PARTIAL-AMENDMENT",
-    "inherited_subject": "e2224617a092380d21ac6028d889a511cfc00e74",
-    "inherited_assessment": "tests/evidence/v3_custody_complete_projection_assessment_after_20260912.json",
-    "inherited_assessment_sha256": "8acc6ee21455f7c4345bd60e7118888df7e67e98304770f504810fd8fa076f11",
-    "scope": "Raise only generic_transfer, managed_issue and managed_burn proof scores from 0.75 to 0.76 after the four-test exact-source constructor-admission gate passes. All semantics, refinement, uncertainty labels, other capability/workstream scores, weights and authority flags remain inherited unchanged. This is a narrow advisory amendment, not a full fresh reassessment.",
-    "review_evidence": "tests/evidence/custody_admission_guard_review_20260912.md"
-  },
+  "assessment_basis": {"kind": "FIXED-RUBRIC-PARTIAL-AMENDMENT", "inherited_subject": "e2224617a092380d21ac6028d889a511cfc00e74", "inherited_assessment": "tests/evidence/v3_custody_complete_projection_assessment_after_20260912.json", "inherited_assessment_sha256": "8acc6ee21455f7c4345bd60e7118888df7e67e98304770f504810fd8fa076f11", "scope": "Raise only generic_transfer, managed_issue and managed_burn proof scores from 0.75 to 0.76 after the four-test exact-source constructor-admission gate passes. All semantics, refinement, uncertainty labels, other capability/workstream scores, weights and authority flags remain inherited unchanged. This is a narrow advisory amendment, not a full fresh reassessment.", "review_evidence": "tests/evidence/custody_admission_guard_review_20260912.md"},
   "subject": "0f14e8dc294df181c9ffc40de7136449f118d452"
 }
