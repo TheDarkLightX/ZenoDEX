@@ -85,7 +85,7 @@ SOURCE = PROOFS / f"{MODULE}.lean"
 GOLDEN_FIXTURE = REPO / "tests/data/asset_lane_custody_v2_golden.json"
 GOLDEN_FIXTURE_SHA256 = "6d128ed29521daea1211b2e7e2ba1b421b833723e5b21ab2a452e89ee103a4a1"
 GOLDEN_CASES = json.loads(GOLDEN_FIXTURE.read_bytes())["cases"]
-SOURCE_SHA256 = "23bb4463a43b8ce8a4e234937d4f3187354cdeffef35a7645305059a1f05457a"
+SOURCE_SHA256 = "d00750b72818eda7a96bdf9939442067d77f22cc5d749ea5c6eef5636e604012"
 DEPENDENCIES = (
     ("AssetLaneCustodyRefinementV2", "df3cf08fc7b108d08efc78ab7cecbc5f86e221a80c210e6c9b5ad229699a8de9"),
     ("AssetLaneCustodyTraceV2", "fda710c542059d5041afd36bfd96746e8f208f98b8c4a31c4b723c9e9c6b9940"),
@@ -93,6 +93,8 @@ DEPENDENCIES = (
     (MODULE, SOURCE_SHA256),
 )
 THEOREM_NAMES = (
+    "transfer_post_from_leaf_eq",
+    "managed_post_from_leaf_eq",
     "complete_plan_fields",
     "complete_conservation_admitted",
     "complete_plan_admission",
@@ -163,6 +165,21 @@ def _axiom_names(output: str) -> set[str]:
 
 
 CONTRACTS = r"""
+example : ∀ {digest : B.Bytes → String} {ctx : T.Context} {pre : C.State}
+    {command : T.Command} {policy : T.Policy},
+    FT.policyFor (transferSource pre) command.asset = some policy →
+    (FT.transition digest ctx (transferSource pre) command).verdict = .accepted →
+    transferPostFromLeaf pre (FT.transition digest ctx (transferSource pre) command).post =
+      C.transferPost pre policy command :=
+  @transfer_post_from_leaf_eq
+
+example : ∀ {digest : B.Bytes → String} {ctx : M.Context} {pre : C.State}
+    {command : M.Command},
+    (FM.transition digest ctx (managedSource pre) command).verdict = .accepted →
+    managedPostFromLeaf pre (FM.transition digest ctx (managedSource pre) command).post =
+      R.recomposedPost pre command.asset command.accountOwner (M.signedAmount command) :=
+  @managed_post_from_leaf_eq
+
 example : ∀ {pre post : C.State} {row : AssetConservationRow},
     AssetConservationAdmitted row → C.PhysicalBalanced pre → C.PhysicalBalanced post →
     C.supplyAt pre row.asset = row.supplyPreAtoms →
@@ -201,10 +218,12 @@ example {digest : B.Bytes → String} {ctx : T.Context} {pre : C.State}
       policy ∈ pre.transferState.policies ∧
       (AssetTransferRefinementV2.transition roots ctx (C.transferView pre policy) command).verdict =
         .accepted ∧
-      let post := C.transferPost pre policy command
+      let leafPost := (FT.transition digest ctx (transferSource pre) command).post
+      let post := transferPostFromLeaf pre leafPost
       let completed := transferEffectPlan digest ctx pre command completePreRoot completePostRoot
       let source := TP.transferPlan digest ctx (transferSource pre) command
-      completed.assetConservation = [transferCompletedConservation pre post command] ∧
+      post = C.transferPost pre policy command ∧
+        completed.assetConservation = [transferCompletedConservation pre post command] ∧
         AssetConservationAdmitted (transferCompletedConservation pre post command) ∧
         EffectPlanAdmitted completed ∧
         completed.rows = source.rows ∧ completed.feeConservation = source.feeConservation ∧
@@ -223,10 +242,12 @@ example {digest : B.Bytes → String} {ctx : M.Context} {pre : C.State}
       policy ∈ pre.managedPolicies ∧
       (ManagedAssetLifecycleRefinementV2.transition roots ctx (C.managedView pre policy) command).verdict =
         .accepted ∧
-      let post := R.recomposedPost pre command.asset command.accountOwner (M.signedAmount command)
+      let leafPost := (FM.transition digest ctx (managedSource pre) command).post
+      let post := managedPostFromLeaf pre leafPost
       let completed := managedEffectPlan digest ctx pre command completePreRoot completePostRoot
       let source := MP.managedPlan digest ctx (managedSource pre) command
-      completed.assetConservation = [managedCompletedConservation pre post command] ∧
+      post = R.recomposedPost pre command.asset command.accountOwner (M.signedAmount command) ∧
+        completed.assetConservation = [managedCompletedConservation pre post command] ∧
         AssetConservationAdmitted (managedCompletedConservation pre post command) ∧
         EffectPlanAdmitted completed ∧
         completed.rows = source.rows ∧ completed.feeConservation = source.feeConservation ∧
@@ -280,6 +301,11 @@ def transferPolicy : T.Policy :=
 def managedPolicy : M.Policy :=
   ⟨"A", .registeredOrdinaryToken, some "origin", 8,
     some ⟨"issuer", "issue-grant"⟩, some "burn-grant", true⟩
+def transferPolicyB : T.Policy :=
+  ⟨"B", "collector", 0, true, .registeredOrdinaryToken, some "origin-b", 8⟩
+def managedPolicyB : M.Policy :=
+  ⟨"B", .registeredOrdinaryToken, some "origin-b", 8,
+    some ⟨"issuer", "issue-grant-b"⟩, some "burn-grant-b", true⟩
 def balances : List AmountRow := [⟨"sender", "A", "accounts", 5⟩]
 def supplies : List V1SupplyRow := [⟨"A", 10⟩]
 def custody : List AmountRow := [⟨"vault", "A", "escrow", 5⟩]
@@ -287,6 +313,13 @@ def pre : C.State :=
   { transferState := ⟨"release", [transferPolicy], balances, supplies⟩
     originRegistry := ["A"]
     managedPolicies := [managedPolicy]
+    custody := custody }
+def siblingPre : C.State :=
+  { transferState := ⟨"release", [transferPolicy, transferPolicyB],
+      [⟨"sender", "A", "accounts", 5⟩, ⟨"sibling", "B", "accounts", 7⟩],
+      [⟨"A", 10⟩, ⟨"B", 7⟩]⟩
+    originRegistry := ["A", "B"]
+    managedPolicies := [managedPolicy, managedPolicyB]
     custody := custody }
 
 def transfer : T.Command :=
@@ -343,9 +376,14 @@ def transferLeaf : FT.State :=
   ⟨"release", [transferPolicy], [⟨"sender", "A", "accounts", 5⟩], [⟨"A", 10⟩]⟩
 def managedLeaf : FM.State :=
   ⟨"release", [managedPolicy], [⟨"sender", "A", "accounts", 5⟩], [⟨"A", 10⟩]⟩
+def siblingLeaf : FM.State :=
+  ⟨"release", [managedPolicy, managedPolicyB],
+    [⟨"sender", "A", "accounts", 5⟩, ⟨"sibling", "B", "accounts", 7⟩],
+    [⟨"A", 10⟩, ⟨"B", 7⟩]⟩
 
 theorem transferSourceEq : transferSource pre = transferLeaf := rfl
 theorem managedSourceEq : managedSource pre = managedLeaf := by decide +kernel
+theorem siblingSourceEq : managedSource siblingPre = siblingLeaf := by decide +kernel
 
 theorem transferStructural : FT.Structural (transferSource pre) := by
   rw [transferSourceEq]
@@ -456,6 +494,65 @@ theorem burnAccepted :
   unfold digest
   rw [managedSourceEq]
   decide +kernel
+theorem siblingIssueAccepted :
+    (FM.transition digest issueContext (managedSource siblingPre) issue).verdict = .accepted := by
+  rw [siblingSourceEq]
+  apply (ManagedAssetFiniteOutcomeV2.accepted_iff digest issueContext siblingLeaf issue).mpr
+  refine ⟨by decide, ?_⟩
+  apply (ManagedAssetFiniteOutcomeV2.candidate_resources_iff_source_capacity
+    (by unfold AssetTransferSparseTablesV1.Unique; decide)
+    (by unfold SourceAssetKeysUnique; decide) (by decide)).mpr
+  unfold ManagedAssetFiniteOutcomeV2.SourceCapacity
+  decide
+
+theorem siblingBalanceSort :
+    CanonicalEpochEconomicRowsV1.sortOn AssetTransferSparseTablesV1.balanceWire
+      [⟨"sender", "A", "accounts", 6⟩, ⟨"sibling", "B", "accounts", 7⟩] =
+        [⟨"sender", "A", "accounts", 6⟩, ⟨"sibling", "B", "accounts", 7⟩] :=
+  AssetLaneFiniteRecompositionV2.sortOn_eq_of_perm_keys _ _ _
+    (List.Perm.refl _) (by decide) (by decide)
+
+theorem siblingBalanceSortTwice :
+    CanonicalEpochEconomicRowsV1.sortOn AssetTransferSparseTablesV1.balanceWire
+      (CanonicalEpochEconomicRowsV1.sortOn AssetTransferSparseTablesV1.balanceWire
+        [⟨"sender", "A", "accounts", 6⟩, ⟨"sibling", "B", "accounts", 7⟩]) =
+      [⟨"sender", "A", "accounts", 6⟩, ⟨"sibling", "B", "accounts", 7⟩] := by
+  simp only [siblingBalanceSort]
+
+theorem siblingSupplySort :
+    CanonicalEpochEconomicRowsV1.sortOn V1SupplyRow.asset [⟨"A", 11⟩, ⟨"B", 7⟩] =
+      [⟨"A", 11⟩, ⟨"B", 7⟩] :=
+  AssetLaneFiniteRecompositionV2.sortOn_eq_of_perm_keys _ _ _
+    (List.Perm.refl _) (by decide) (by decide)
+
+example :
+    (managedPostFromLeaf siblingPre
+      (FM.transition digest issueContext (managedSource siblingPre) issue).post).transferState.balances =
+        [⟨"sender", "A", "accounts", 6⟩, ⟨"sibling", "B", "accounts", 7⟩] ∧
+      (managedPostFromLeaf siblingPre
+        (FM.transition digest issueContext (managedSource siblingPre) issue).post).transferState.supplies =
+        [⟨"A", 11⟩, ⟨"B", 7⟩] := by
+  rw [managed_post_from_leaf_eq siblingIssueAccepted]
+  simp +decide [R.recomposedPost, R.managedAssets, siblingPre, managedPolicy,
+    managedPolicyB, issue, M.signedAmount,
+    AssetLaneFiniteRecompositionV2.recomposeBalances,
+    AssetLaneFiniteRecompositionV2.recomposeSupplies,
+    AssetLaneFiniteRecompositionV2.mergeBalances,
+    AssetLaneFiniteRecompositionV2.mergeSupplies,
+    AssetLaneFiniteRecompositionV2.outsideBalances,
+    AssetLaneFiniteRecompositionV2.outsideSupplies,
+    AssetLaneFiniteRecompositionV2.selectSupplies,
+    AssetLaneSharedProjectionV2.selectRows,
+    ManagedAssetFiniteAccountingV2.updateRows,
+    CanonicalEpochEconomicRowsV1.lookupLast,
+    CanonicalEpochEconomicRowsV1.amountKey,
+    AssetTransferSparseTablesV1.accountKey,
+    AssetTransferSparseTablesV1.putAmount,
+    AssetTransferSparseTablesV1.eraseKey,
+    AssetTransferSparseTablesV1.makeAmount,
+    AssetTransferSparseTablesV1.accounts,
+    adjustComplete]
+  exact ⟨siblingBalanceSortTwice, siblingSupplySort⟩
 
 example :
     (transferEffectPlan digest transferContext pre transfer
@@ -606,6 +703,36 @@ def test_accounts_only_completion_mutant_is_refused(custody_effect_plan_lean: Le
     assert checked.returncode == 1, checked.stdout + checked.stderr
     assert "error:" in checked.stdout
     assert "amountForAsset" in checked.stdout
+    assert "unexpected token" not in checked.stdout
+    assert "unknown identifier" not in checked.stdout.lower()
+
+
+def test_managed_leaf_sibling_loss_mutant_is_refused(
+    custody_effect_plan_lean: LeanSubject,
+) -> None:
+    source = SOURCE.read_text()
+    original = (
+        "balances := Q.mergeBalances (R.managedAssets pre) pre.transferState.balances\n"
+        "        leafPost.balances"
+    )
+    assert source.count(original) == 1
+    mutant = source.replace(original, original.replace("leafPost.balances", "(List.take 1 leafPost.balances)"))
+    prefix, separator, _ = mutant.partition("\ntheorem transfer_post_from_leaf_eq")
+    assert separator
+    constructor = custody_effect_plan_lean.source / "ManagedSiblingLossConstructor.lean"
+    constructor.write_text(prefix + "\nend Proofs.AssetLaneCustodyEffectPlanV2\n")
+    constructor_checked = _compile(custody_effect_plan_lean, constructor)
+    assert constructor_checked.returncode == 0, (
+        constructor_checked.stdout + constructor_checked.stderr
+    )
+    assert constructor_checked.stdout == constructor_checked.stderr == ""
+    path = custody_effect_plan_lean.source / "ManagedSiblingLossCustodyEffectPlanMutant.lean"
+    path.write_text(mutant)
+    checked = _compile(custody_effect_plan_lean, path)
+    assert checked.returncode == 1, checked.stdout + checked.stderr
+    assert "error:" in checked.stdout
+    assert "application type mismatch" not in checked.stdout.lower()
+    assert "failed to synthesize" not in checked.stdout.lower()
     assert "unexpected token" not in checked.stdout
     assert "unknown identifier" not in checked.stdout.lower()
 

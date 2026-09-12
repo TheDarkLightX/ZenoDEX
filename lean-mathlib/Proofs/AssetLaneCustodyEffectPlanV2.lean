@@ -37,15 +37,15 @@ namespace H
 export AssetLaneSharedProjectionV2 (selectRows supply_filter_lookup)
 end H
 namespace Q
-export AssetLaneFiniteRecompositionV2 (selectSupplies)
+export AssetLaneFiniteRecompositionV2 (selectSupplies mergeBalances mergeSupplies)
 end Q
 namespace FT
 export AssetTransferFiniteOutcomeV2 (State Structural transition policyFor policyFor_spec
-  project accepted_selected_leaf accepted_accounting)
+  project accepted_post_effects accepted_selected_leaf accepted_accounting)
 end FT
 namespace FM
 export ManagedAssetFiniteOutcomeV2 (State Structural transition policyFor policyFor_spec
-  project accepted_selected_leaf accepted_accounting)
+  project accepted_post_effects accepted_selected_leaf accepted_accounting)
 end FM
 namespace TP
 export AssetTransferFiniteEffectPlanV2 (transferPlan transferConservation
@@ -79,6 +79,39 @@ def managedSource (pre : C.State) : FM.State :=
     policies := pre.managedPolicies
     balances := H.selectRows (R.managedAssets pre) pre.transferState.balances
     supplies := Q.selectSupplies (R.managedAssets pre) pre.transferState.supplies }
+
+/-- Rebuild the complete transfer state from every field of the actual finite
+leaf post while retaining the custody frame. -/
+def transferPostFromLeaf (pre : C.State) (leafPost : FT.State) : C.State :=
+  { pre with transferState :=
+      ⟨leafPost.moduleReleaseId, leafPost.policies, leafPost.balances, leafPost.supplies⟩ }
+
+/-- Merge the actual managed-leaf post into the unchanged non-managed
+complement, retaining complete policies, registry and custody. -/
+def managedPostFromLeaf (pre : C.State) (leafPost : FM.State) : C.State :=
+  { pre with transferState := { pre.transferState with
+      balances := Q.mergeBalances (R.managedAssets pre) pre.transferState.balances
+        leafPost.balances
+      supplies := Q.mergeSupplies (R.managedAssets pre) pre.transferState.supplies
+        leafPost.supplies } }
+
+theorem transfer_post_from_leaf_eq {digest : B.Bytes → String} {ctx : T.Context}
+    {pre : C.State} {command : T.Command} {policy : T.Policy}
+    (selected : FT.policyFor (transferSource pre) command.asset = some policy)
+    (accepted : (FT.transition digest ctx (transferSource pre) command).verdict = .accepted) :
+    transferPostFromLeaf pre (FT.transition digest ctx (transferSource pre) command).post =
+      C.transferPost pre policy command := by
+  rw [(FT.accepted_post_effects accepted).1]
+  rw [AssetTransferFiniteOutcomeV2.candidate, selected]
+  rfl
+
+theorem managed_post_from_leaf_eq {digest : B.Bytes → String} {ctx : M.Context}
+    {pre : C.State} {command : M.Command}
+    (accepted : (FM.transition digest ctx (managedSource pre) command).verdict = .accepted) :
+    managedPostFromLeaf pre (FM.transition digest ctx (managedSource pre) command).post =
+      R.recomposedPost pre command.asset command.accountOwner (M.signedAmount command) := by
+  rw [(FM.accepted_post_effects accepted).1]
+  rfl
 
 def completeConservationRow (pre post : C.State)
     (row : AssetConservationRow) : AssetConservationRow :=
@@ -207,7 +240,7 @@ def transferEffectPlan (digest : B.Bytes → String) (ctx : T.Context) (pre : C.
   | .accepted =>
       match FT.policyFor source command.asset with
       | none => EffectPlan.empty
-      | some policy => completePlan pre (C.transferPost pre policy command)
+      | some _ => completePlan pre (transferPostFromLeaf pre result.post)
           completePreRoot completePostRoot (TP.transferPlan digest ctx source command)
 
 def managedEffectPlan (digest : B.Bytes → String) (ctx : M.Context) (pre : C.State)
@@ -216,8 +249,7 @@ def managedEffectPlan (digest : B.Bytes → String) (ctx : M.Context) (pre : C.S
   let result := FM.transition digest ctx source command
   match result.verdict with
   | .rejected _ => EffectPlan.empty
-  | .accepted => completePlan pre
-      (R.recomposedPost pre command.asset command.accountOwner (M.signedAmount command))
+  | .accepted => completePlan pre (managedPostFromLeaf pre result.post)
       completePreRoot completePostRoot (MP.managedPlan digest ctx source command)
 
 theorem transfer_rejected_empty {digest : B.Bytes → String} {ctx : T.Context} {pre : C.State}
@@ -309,6 +341,7 @@ theorem transfer_accepted_fields {digest : B.Bytes → String} {ctx : T.Context}
         completePlan pre (C.transferPost pre policy command) completePreRoot completePostRoot
           (TP.transferPlan digest ctx (transferSource pre) command) := by
     simp only [transferEffectPlan, accepted, selected]
+    rw [transfer_post_from_leaf_eq selected accepted]
   rw [completed]
   have sourceConservation :
       (TP.transferPlan digest ctx (transferSource pre) command).assetConservation =
@@ -453,6 +486,7 @@ theorem managed_accepted_fields {digest : B.Bytes → String} {ctx : M.Context}
           (R.recomposedPost pre command.asset command.accountOwner (M.signedAmount command))
           completePreRoot completePostRoot (MP.managedPlan digest ctx (managedSource pre) command) := by
     simp only [managedEffectPlan, accepted]
+    rw [managed_post_from_leaf_eq accepted]
   rw [completed]
   have sourceConservation :
       (MP.managedPlan digest ctx (managedSource pre) command).assetConservation =
@@ -495,6 +529,7 @@ theorem transfer_accepted_plan_admitted {digest : B.Bytes → String} {ctx : T.C
         completePlan pre (C.transferPost pre policy command) completePreRoot completePostRoot
           (TP.transferPlan digest ctx (transferSource pre) command) := by
     simp only [transferEffectPlan, accepted, selected]
+    rw [transfer_post_from_leaf_eq selected accepted]
   rw [completed]
   exact transported
 
@@ -530,12 +565,13 @@ theorem managed_accepted_plan_admitted {digest : B.Bytes → String} {ctx : M.Co
           (R.recomposedPost pre command.asset command.accountOwner (M.signedAmount command))
           completePreRoot completePostRoot (MP.managedPlan digest ctx (managedSource pre) command) := by
     simp only [managedEffectPlan, accepted]
+    rw [managed_post_from_leaf_eq accepted]
   rw [completed]
   exact transported
 
 /-- Actual finite transfer acceptance derives the selected policy, the scalar
-accepted leaf, the exact completed row, its conservation admission, and every
-unchanged field. -/
+accepted leaf, equality of the reconstructed finite post to the complete-state
+post, conservation, plan admission, and every unchanged field. -/
 theorem transfer_accepted_completion {digest : B.Bytes → String} {ctx : T.Context}
     {pre : C.State} {command : T.Command} {completePreRoot completePostRoot : RootId}
     (roots : T.RootModel) (admitted : C.RowsRepresentable pre)
@@ -545,10 +581,12 @@ theorem transfer_accepted_completion {digest : B.Bytes → String} {ctx : T.Cont
       policy ∈ pre.transferState.policies ∧
       (AssetTransferRefinementV2.transition roots ctx (C.transferView pre policy) command).verdict =
         .accepted ∧
-      let post := C.transferPost pre policy command
+      let leafPost := (FT.transition digest ctx (transferSource pre) command).post
+      let post := transferPostFromLeaf pre leafPost
       let completed := transferEffectPlan digest ctx pre command completePreRoot completePostRoot
       let source := TP.transferPlan digest ctx (transferSource pre) command
-      completed.assetConservation = [transferCompletedConservation pre post command] ∧
+      post = C.transferPost pre policy command ∧
+        completed.assetConservation = [transferCompletedConservation pre post command] ∧
         AssetConservationAdmitted (transferCompletedConservation pre post command) ∧
         EffectPlanAdmitted completed ∧
         completed.rows = source.rows ∧ completed.feeConservation = source.feeConservation ∧
@@ -559,17 +597,20 @@ theorem transfer_accepted_completion {digest : B.Bytes → String} {ctx : T.Cont
     transfer_accepted_policy roots structural accepted
   refine ⟨policy, selected, member, scalar, ?_⟩
   dsimp only
+  have postEq := transfer_post_from_leaf_eq selected accepted
   have fields := transfer_accepted_fields (completePreRoot := completePreRoot)
     (completePostRoot := completePostRoot) structural selected accepted
   have conservation := transfer_accepted_conservation roots admitted structural selected accepted
   have planAdmitted := transfer_accepted_plan_admitted (completePreRoot := completePreRoot)
     (completePostRoot := completePostRoot) roots admitted structural selected accepted
-  exact ⟨fields.1, conservation, planAdmitted, fields.2.1, fields.2.2.1, fields.2.2.2.1,
-    fields.2.2.2.2.1, fields.2.2.2.2.2⟩
+  refine ⟨postEq, ?_⟩
+  rw [postEq]
+  exact ⟨fields.1, conservation, planAdmitted, fields.2.1, fields.2.2.1,
+    fields.2.2.2.1, fields.2.2.2.2.1, fields.2.2.2.2.2⟩
 
 /-- Actual finite managed acceptance derives the selected policy and scalar
-leaf before proving the recomposed complete-state row. No post invariant or
-completed-effect consistency is assumed. -/
+leaf before proving that the merged finite post is the recomposed complete
+state. No post invariant or completed-effect consistency is assumed. -/
 theorem managed_accepted_completion {digest : B.Bytes → String} {ctx : M.Context}
     {pre : C.State} {command : M.Command} {completePreRoot completePostRoot : RootId}
     (roots : M.RootModel) (admitted : C.RowsRepresentable pre)
@@ -580,10 +621,12 @@ theorem managed_accepted_completion {digest : B.Bytes → String} {ctx : M.Conte
       policy ∈ pre.managedPolicies ∧
       (ManagedAssetLifecycleRefinementV2.transition roots ctx (C.managedView pre policy) command).verdict =
         .accepted ∧
-      let post := R.recomposedPost pre command.asset command.accountOwner (M.signedAmount command)
+      let leafPost := (FM.transition digest ctx (managedSource pre) command).post
+      let post := managedPostFromLeaf pre leafPost
       let completed := managedEffectPlan digest ctx pre command completePreRoot completePostRoot
       let source := MP.managedPlan digest ctx (managedSource pre) command
-      completed.assetConservation = [managedCompletedConservation pre post command] ∧
+      post = R.recomposedPost pre command.asset command.accountOwner (M.signedAmount command) ∧
+        completed.assetConservation = [managedCompletedConservation pre post command] ∧
         AssetConservationAdmitted (managedCompletedConservation pre post command) ∧
         EffectPlanAdmitted completed ∧
         completed.rows = source.rows ∧ completed.feeConservation = source.feeConservation ∧
@@ -594,13 +637,16 @@ theorem managed_accepted_completion {digest : B.Bytes → String} {ctx : M.Conte
     managed_accepted_policy roots admitted structural accepted
   refine ⟨policy, selected, member, scalar, ?_⟩
   dsimp only
+  have postEq := managed_post_from_leaf_eq accepted
   have fields := managed_accepted_fields (completePreRoot := completePreRoot)
     (completePostRoot := completePostRoot) admitted structural selected accepted
   have conservation := managed_accepted_conservation admitted structural commandAdmitted ownerToken
     selected accepted
   have planAdmitted := managed_accepted_plan_admitted (completePreRoot := completePreRoot)
     (completePostRoot := completePostRoot) admitted structural commandAdmitted ownerToken selected accepted
-  exact ⟨fields.1, conservation, planAdmitted, fields.2.1, fields.2.2.1, fields.2.2.2.1,
-    fields.2.2.2.2.1, fields.2.2.2.2.2⟩
+  refine ⟨postEq, ?_⟩
+  rw [postEq]
+  exact ⟨fields.1, conservation, planAdmitted, fields.2.1, fields.2.2.1,
+    fields.2.2.2.1, fields.2.2.2.2.1, fields.2.2.2.2.2⟩
 
 end Proofs.AssetLaneCustodyEffectPlanV2
