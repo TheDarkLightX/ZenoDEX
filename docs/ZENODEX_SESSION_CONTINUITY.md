@@ -60,6 +60,25 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 12: complete structural closure of finite custody histories
+
+The [structural closure evidence](../tests/evidence/custody_structural_v2_20260912.json)
+records five source theorems and fresh replay of their exact signatures, axiom
+sets and controls. One initial complete row/order/token predicate supplies both
+leaf structural predicates at every reached prefix. Two symbolic consumers feed
+those results into the existing effect-plan admission proofs. Dormant managed
+siblings remain present. Explicit counterexamples show why accounting rows and
+command shape alone are insufficient.
+
+This closes the repeated leaf-structure premise in the finite model. It does
+not close complete origin metadata, outer resources, canonical bytes, runtime,
+receipts or publication. Next prove exact full leaf reprojection, then the
+materialized complete-state admission and coordinator outcome relation. The
+batch is `NOT_RESCORED`; the last adopted estimates and 0/12 qualification remain
+unchanged. External Fable/Opus implementation launch was rejected before execution
+pending specific private-packet/destination approval; native workers completed
+this proof. No external implementation contribution is claimed.
+
 ## September 12: actual finite custody histories and aggregate boundaries
 
 Source `2706a9316fb8b8996e30a699fe18bacfe69ad15a` adds the

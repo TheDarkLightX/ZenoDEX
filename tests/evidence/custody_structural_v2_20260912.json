@@ -1,0 +1,125 @@
+{
+  "schema": "zenodex/custody-structural-evidence/v1",
+  "baseline_commit": "a17e5dee5461032fbc39700e40ca2d174c031552",
+  "subject_commit": "e60bbf666b5c56deb89364ce7a5eea93f3b2727c",
+  "authority": "NONE",
+  "obligation": "W09: CUSTODY-FINITE-COMPLETE-STRUCTURE and CUSTODY-PREFIX-SOURCE-ADMISSION",
+  "before": "The prior finite history preserved balanced complete rows and fixed frame. Each effect-plan proof still required separate leaf structural assumptions.",
+  "after": "One explicit initial CompleteStructural predicate and per-command ActionAdmission imply full modeled structure and both leaf Structural predicates at every finite prefix. Two symbolic consumers use reached prefixes with the existing accepted effect-plan proofs.",
+  "claim_ceiling": "Structural closure of the finite custody model. No full coordinator constructor, resource, metadata, canonical-byte, runtime, receipt or publication refinement.",
+  "source_pins": {
+    "lean-mathlib/Proofs/AssetLaneCustodyStructuralV2.lean": "a1d6e09ff74cbca8627a6f7add05c897b732f17e09f2110c5bd2550a9bf170fd",
+    "tests/evidence/test_hygiene/THV1-20260912-custody-structural-v2.json": "79ff50995c44dff6d36da6179699d18bc5ddff57f8aa3b030014d292cd4b7128",
+    "tests/formal/asset_lane_custody_structural_v2_controls.lean": "3884a410f8240ca952a577bae9477f334f08711950b875de023188b5cd8733c8",
+    "tests/formal/test_lean_asset_lane_custody_structural_v2.py": "af7363f3b49f34f2fa17749ef18d528acd232c6d48911a38edad3b52832ede2c"
+  },
+  "proofs": [
+    "transfer_source_structural",
+    "managed_source_structural",
+    "step_preserves_complete",
+    "run_preserves_complete",
+    "every_prefix_complete_and_sources"
+  ],
+  "controls": [
+    "RowsRepresentable permits duplicated managed policy keys; the managed Structural predicate rejects them.",
+    "RowsRepresentable permits unordered balances; the transfer Structural predicate rejects them.",
+    "CommandShape permits an empty recipient; ActionAdmission excludes it.",
+    "Two managed policies retain the dormant AUD identity and full ORD supply, excluding only interleaved unmanaged EUR.",
+    "Mixed issue, transfer, unknown-asset and unauthorized rejections, then burn yields the independently listed complete table; every prefix is structurally admitted.",
+    "Transfer and managed effect-plan consumers derive source premises at arbitrary prefixes and retain explicit supplied-root assumptions."
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_structural_v2.py",
+      "outcome": "2 passed in 112.62s; fresh pinned Lean 4.27.0 standard-library source closure. Five exact signature and standard-axiom audits; complete control replay."
+    },
+    {
+      "command": "python3 -m mypy --follow-imports=silent tests/formal/test_lean_asset_lane_custody_structural_v2.py",
+      "outcome": "Success: no issues found in 1 source file."
+    },
+    {
+      "command": "python3 -m ruff check tests/formal/test_lean_asset_lane_custody_structural_v2.py",
+      "outcome": "All checks passed."
+    },
+    {
+      "command": "python3 tools/check_test_hygiene_v1.py --changed-file A:lean-mathlib/Proofs/AssetLaneCustodyStructuralV2.lean --changed-file A:tests/formal/test_lean_asset_lane_custody_structural_v2.py --changed-file A:tests/formal/asset_lane_custody_structural_v2_controls.lean --json",
+      "outcome": "PASS; all three critical paths covered by THV1-20260912-custody-structural-v2."
+    },
+    {
+      "command": "git diff --check; targeted repository redflags scanner; placeholder scan",
+      "outcome": "PASS; no redflag findings or sorry/admit/custom axioms/unsafe/native_decide. The five public proofs and two prefix consumers use only standard Lean axioms."
+    }
+  ],
+  "contributors": [
+    {
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "work": "Reviewed and simplified proof by removing a redundant 20-line managed preservation helper; added premise counterexamples and universal effect-plan consumers, fresh tests and evidence."
+    },
+    {
+      "model_id": null,
+      "model_family": "Codex on GPT-6; provider ID unavailable",
+      "role": "implementation",
+      "work": "382-line structural closure proof; direct pinned Lean compilation and signature audit."
+    },
+    {
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "work": "Reviewed exact final proof hash; no blocking finding. Confirmed successor-free premises and full sibling coverage; retained constructor/resource/metadata nonclaims."
+    },
+    {
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "work": "Repaired literal token controls using a local definitional Decidable instance; joined controls compiled with unchanged predicates and proof source."
+    }
+  ],
+  "rework": [
+    "Initial control join had a mid-file import, removed by the test generator.",
+    "Literal token obligations required the existing explicit local Decidable pattern; no predicate or theorem weakening.",
+    "Automatic local git-stage review timed out once; the permitted single retry and scoped local commit succeeded."
+  ],
+  "external_dispatch": {
+    "status": "rejected_before_execution",
+    "worker_invocations": 0,
+    "source_exported": false,
+    "intended": "Two Fable 5.1 max implementations and one Opus max review of prepared source copies.",
+    "reason": "Automatic approval review requires specific authorization for the private packets and Anthropic destination; async approval pending. No alternate external channel used.",
+    "account_observation": {
+      "source": "Claude Code v2.1.269 /usage in empty directory without project context or LLM invocation",
+      "observed_at_utc": "2026-09-12T13:58:09.057686+00:00",
+      "fable_week_percent": 86,
+      "all_models_week_percent": 48,
+      "paid_usage_credits_enabled": false,
+      "usage_tokens": 0
+    }
+  },
+  "code_value": {
+    "source_commit_added": 854,
+    "source_commit_removed": 0,
+    "categories_follow_productivity_tool": {
+      "proof": 630,
+      "tests": 142,
+      "data": 82
+    },
+    "clarification": "The prior finite-trace evidence manually counted the 202-line Lean control file as tests: proof312/tests1101 additions. The existing productivity tool classifies every .lean file as proof: proof514/tests899 additions. Both classify the same total1579 additions/30 deletions; historical records are retained. Current source batch follows the tool convention.",
+    "assessment_status": "NOT_RESCORED",
+    "carried_formal_core_estimate_percent": 21.081,
+    "carried_v3_estimate_percent": 23.869,
+    "qualified_value_gates": 0,
+    "qualified_value_gate_denominator": 12
+  },
+  "not_run": [
+    "Full Lake build",
+    "Full repository Python/Rust test suites",
+    "ESSO or Kani campaign",
+    "Genuine custody guest build/proof/receipt qualification",
+    "Hosted or production gates"
+  ],
+  "residual": [
+    "The finite custody State retains registry keys, not all actual origin metadata or issue-root-defined managed coverage.",
+    "CompleteStructural excludes aggregate resources, complete serializer syntax and bytes, authenticated roots and authority.",
+    "The trace is an actual finite-leaf model, not the complete outer coordinator outcome or the deployed implementation.",
+    "No new mutation campaign; earlier finite-trace semantic mutants remain separately recorded."
+  ],
+  "next_acceptance": "Prove full exact managed/transfer leaf reprojection from actual accepted posts, then close complete metadata/byte/resource admission and ordered coordinator outcomes. Reuse the existing origin types and partition algebra when possible."
+}
