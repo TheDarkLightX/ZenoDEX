@@ -1,0 +1,254 @@
+{
+  "schema": "zenodex/perps-margin-lifecycle-evidence/v1",
+  "subject": "88c9f27d992cb57664870887542e379f91c1e0fa",
+  "implementation_base": "e97d6f4d510962e6887a12e7de28d8444feef5f5",
+  "release_authority": "NONE",
+  "value_movement_gates_closed": 0,
+  "claim": "Current selected-account ordered margin transition proofs and finite complete Python/Rust outcome correspondence.",
+  "normative_source": "docs/research/PERPS_MARGIN_GLOBAL_SETTLEMENT_SHADOW_V1.md (settled margin rules); M6 WF-10/BDD-042 account-drain fragment, not full market closeout.",
+  "source_sha256": {
+    "lean-mathlib/Proofs/PerpsMarginTransitionV1.lean": "875d0cd04d05777c1ccea718706cc047ea9e7621ae4fcace8d8165b9ca4d7fae",
+    "tests/formal/test_lean_perps_margin_transition_v1.py": "31536aa1980daf8876a1cadfc2682fd5cf87cdaf6cabf697d48436b65b9c46af",
+    "zk/global_settlement_abi_v1/examples/perps_margin_outcomes_v1.rs": "7a6adbfcb95a1c97f09a07f8ce91ed2c4cde81d72d6ce90f41bac00af674a940",
+    "tests/core/test_perps_margin_lane_coordinator_v1.py": "e2446a0309292fa5e27d16bb19cf302335efaddaad175d52d23308732190f1cb",
+    "src/core/perps_margin_module_v1.py": "482f6158a9cf4ad42c3d2994e13f6f70e2a5f3d64abfd78d4430b5c138f6dbb2",
+    "src/core/perps_margin_types_v1.py": "30061112b5239934c6b8c192ac893078a2a092d8e2310f7fa50ab9a1314882a9",
+    "zk/global_settlement_abi_v1/src/perps_margin.rs": "ba88c7269bf01f8a8a90572a81f7d9b51a8cd20b01c612f881e7d797abff94f6",
+    "zk/global_settlement_abi_v1/src/perps_margin_types.rs": "bd11416d4f48dcb59a584a07edc02c8e558f9caa9f7939871d7cea1aaf5709f0",
+    "tests/core/test_perps_margin_module_v1.py": "66a070589c506269866a7fb54d7325f0b5868d2fd2f4ba65f0edc188d87565a9",
+    "tests/formal/lean_stdlib_gate_v1.py": "09ad16acbe682dab10742550d5d4ca460d1b55e9487d3796c2ae8d6b28493142"
+  },
+  "proved": [
+    "Least quote-e8 ceiling covers the exact numerator; no base-e8 division is introduced.",
+    "Accepted transitions preserve account identity, position and entry price and advance the selected nonce.",
+    "Accepted subject equality and exact close tombstone derive from ordered transition guards; Selected binds account identity.",
+    "Closed fixed-account histories remain closed; this is not a theorem over arbitrary market lookups.",
+    "Subject-matching flat accounts can withdraw all and close in ACTIVE/DRAIN_ONLY with explicit positive amount <=i128 maximum and two remaining nonce slots.",
+    "Rejected selected-account transitions preserve the exact input view."
+  ],
+  "finite_runtime_correspondence": {
+    "static_case_count": 38,
+    "case_names": [
+      "deposit",
+      "release_before_unknown",
+      "unknown_before_halt",
+      "halt",
+      "drain_deposit",
+      "market_before_asset",
+      "asset_before_subject",
+      "subject",
+      "surplus_oracle_before_nonce",
+      "missing",
+      "count_63",
+      "count_64",
+      "missing_before_limit",
+      "drain_withdraw",
+      "drain_close",
+      "closed_repeat",
+      "owner_before_nonce",
+      "closed_before_nonce",
+      "nonce_exhausted",
+      "nonce",
+      "oracle_missing",
+      "oracle_wrong_price",
+      "flat_surplus_oracle",
+      "close_amount_before_position",
+      "close_position_before_collateral",
+      "close_collateral",
+      "zero",
+      "delta_overflow",
+      "balance_overflow",
+      "insufficient",
+      "maintenance_39999999",
+      "maintenance_40000000",
+      "maintenance_40000001",
+      "delta_max",
+      "balance_max",
+      "nonce_max",
+      "ceil_1",
+      "ceil_2"
+    ],
+    "history_attempts": 7,
+    "history": "deposit25; unauthorized withdraw25; withdraw25; close0; post-close deposit/withdraw/close reject. Same market state evolves only through accepted outputs.",
+    "observables": [
+      "full post-state",
+      "ordered effects including principals, assets, domains, amounts",
+      "lane write and occurrence",
+      "terminal obligations",
+      "private port",
+      "module journal",
+      "statement and derived roots",
+      "exact rejection code, unchanged roots and empty effects"
+    ],
+    "independent_oracle": "Fixed rejection table and bounds; fixed principal/delta/frame assertions; independently compiled Lean decisions. Python/Rust output equality is complementary evidence.",
+    "constructor_boundary": "The arithmetic-overflow reject is guarded in the model but excluded from valid-state corpus coverage because the decoded market envelope bounds every admitted position. Invalid codec/schema/type inputs remain covered by existing runtime suites, not by the projected Lean model."
+  },
+  "mutation_evidence": {
+    "count": 6,
+    "single_source_site": true,
+    "names": [
+      "subject",
+      "rounding",
+      "nonce",
+      "claimant",
+      "sibling",
+      "tombstone"
+    ],
+    "criterion": "Pristine passes; each modified module imports and returns typed Accepted; the independent semantic oracle then fails. No import error or constructor exception counts as a kill."
+  },
+  "verification": [
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_perps_margin_transition_v1.py",
+      "passed": 8,
+      "seconds": 29.66,
+      "junit_sha256": "f63050d7299aaa46f9735ba389eb2300ba1d9efd5a27f2f38ac1c4af1a7ad023",
+      "fresh_lean": "4.27.0 Std-only; source copy byte-equal; six independent theorem signatures and reachable theorem dependencies axiom-audited",
+      "allowed_axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ]
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_perps_margin_module_v1.py tests/core/test_perps_margin_lane_coordinator_v1.py",
+      "passed": 49,
+      "seconds": 4.1,
+      "junit_sha256": "d02482d02957b927530d915c9ef3e4cc927c401b1a5f437a568bc65968e8e9e2"
+    },
+    {
+      "command": "CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 cargo +1.87.0 test --offline --locked --manifest-path zk/global_settlement_abi_v1/Cargo.toml --test perps_margin",
+      "passed": 18,
+      "test_seconds": 0.03,
+      "log_sha256": "6753226efb07e801df219d9775a81f287a73dd8413d82d0b8b8c4ec039a62c0a"
+    },
+    {
+      "command": "CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 cargo +1.87.0 test --offline --locked --manifest-path zk/global_settlement_abi_v1/Cargo.toml --test lane_module_release_route_binding -- perps_lane_coordinator_adds_complete_conservation_and_projection_roots --exact",
+      "passed": 1,
+      "test_seconds": 0.04,
+      "log_sha256": "12acdd7a37a9251b76222b20485e665a9e9921d5e3fc937c19047034cf4bd1a7"
+    },
+    {
+      "commands": [
+        "ruff check changed Python",
+        "mypy focused formal harness --follow-imports=silent",
+        "rustfmt +1.87.0 --check example",
+        "git diff --check",
+        "security redflags changed harness/example"
+      ],
+      "outcome": "PASS; redflags zero findings"
+    }
+  ],
+  "golden_repair": {
+    "cause_commit": "06ecdc30dcb123d898197e9f7d795d2dbbf582f3",
+    "cause": "Reusable Oracle fixture changed observed height and occurrence consumed-object IDs. Rust vectors were updated in that commit; Python coordinator vectors were missed.",
+    "prior_record": "docs/research/FCIS_PR477_PR478_FINDING_DISPOSITION_V1.json inherited_base_failure",
+    "repair": "Only two expected Python roots now match the already committed Rust roots; pre/post state and economic assertions unchanged.",
+    "generator": "No generator exists for these manual assertions; source-history inspection and independent Rust vector replay justify the repair."
+  },
+  "review_findings": [
+    {
+      "id": "PERPS-FIXED-ACCOUNT-TRACE",
+      "status": "repaired",
+      "detail": "Add Selected relation and same-account premise; no arbitrary lookup/history claim."
+    },
+    {
+      "id": "PERPS-INDEPENDENT-FRAME-ORACLE",
+      "status": "repaired",
+      "detail": "Pin sibling accounts, market parameters and exact principal/effect rows; positive 63-sibling case and executing sibling mutant."
+    },
+    {
+      "id": "PERPS-SINGLE-SITE-MUTANTS",
+      "status": "repaired",
+      "detail": "Unique source needles and replace-once; typed Accepted required before semantic failure."
+    },
+    {
+      "id": "PERPS-REUSABLE-ORACLE-GOLDEN",
+      "status": "repaired",
+      "detail": "Correct missed Python fixture vectors using retained same-commit Rust vectors."
+    }
+  ],
+  "failed_attempts": [
+    "Initial proof tactics and implicit Except equality probe did not compile; replaced with explicit case proofs and typed outcome probes.",
+    "Initial test serializer passed a private-port value to a codec that admits its canonical mapping; explicit mapping now matches Rust.",
+    "First broader Python run:48pass1stale golden failure, then repaired49pass.",
+    "First focused Rust golden command placed --exact on Cargo side; parser rejected it; corrected command passes.",
+    "Initial cleanup required CACHEDIR.TAG and refused to delete; later verified exact Cargo-only directory structure, task ownership and no active process before removal."
+  ],
+  "line_changes": {
+    "proofs": {
+      "added": 308,
+      "removed": 0
+    },
+    "tests_and_test_transport": {
+      "added": 628,
+      "removed": 2
+    },
+    "economic_runtime": {
+      "added": 0,
+      "removed": 0
+    },
+    "total": {
+      "added": 936,
+      "removed": 2
+    },
+    "automated_category_caveat": "The 29-line example is test transport; file-based productivity tooling may classify Rust examples as runtime."
+  },
+  "contributors": [
+    {
+      "id": "root",
+      "model": "gpt-6-astra",
+      "role": "implementation",
+      "output": "Implementation, compiler repairs, integration, replay, scoring and evidence.",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "cost_microusd": null
+    },
+    {
+      "id": "custody_successor_security_review",
+      "model": "gpt-6-astra",
+      "role": "review",
+      "output": "Independent lane selection, mathematical scope correction and incremental score recommendation.",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "cost_microusd": null
+    },
+    {
+      "id": "custody_publication_seam_review",
+      "model": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "output": "Independent effect/frame/mutation review and historical golden provenance.",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "cost_microusd": null
+    }
+  ],
+  "resources": {
+    "remote_proof_jobs": 0,
+    "new_external_model_jobs": 0,
+    "cleanup": {
+      "cache_count": 3,
+      "logical_bytes_removed": 323985990
+    },
+    "native_rust_initial_build_seconds": 22.95,
+    "model_usage": "Native harness does not expose per-run token/cost counters here; resource values remain unknown."
+  },
+  "not_run": [
+    "Full repository Lean/Rust suites",
+    "ESSO",
+    "Kani",
+    "RISC0 guest build or proving",
+    "production, mounted or live activation gates"
+  ],
+  "nonclaims": [
+    "No universal Python/Rust refinement, canonical codec or hashing theorem.",
+    "Selected view does not prove complete list reconstruction or lookup absence; those observations are finitely cross-checked.",
+    "Subject equality and Oracle-presence/price checks do not authenticate identities or Oracle truth.",
+    "Lean effect identities are algebraic helpers; actual effect ownership is finite runtime evidence.",
+    "No funding, liquidation, insurance, position close or whole-market terminal proof.",
+    "No feature, lane, route, release or value-safety gate is closed by this evidence."
+  ],
+  "next_acceptance": "Complete-market selection/reconstruction and ABI-bound refinement for this margin transition; the independent custody real-guest/receipt publication gate still needs proof infrastructure."
+}

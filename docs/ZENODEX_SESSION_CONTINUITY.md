@@ -60,6 +60,37 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 12: current perps margin-account lifecycle refinement
+
+Implementation `88c9f27d992cb57664870887542e379f91c1e0fa` completes the selected
+perps account proof/correspondence bundle. See the [delivery evidence](../tests/evidence/perps_margin_lifecycle_v1_20260912.json)
+and [independent review](../tests/evidence/perps_margin_lifecycle_review_20260912.md).
+The current quote-e8 transition now has ordered guard, owner/nonce preservation,
+exact close-tombstone, fixed-account absorption, least-ceiling and bounded
+withdraw-then-close proofs. Existing legacy rounding proofs remain intact.
+
+The fresh gate passed eight tests: 38 static outcomes, seven actual history
+attempts and six single-site executable mutations. Both runtimes agree on full
+results; independent assertions protect sibling accounts, market metadata and
+effect ownership. Forty-nine Python core/coordinator tests, 18 Rust margin
+tests and the shared Rust coordinator vector pass. Two stale Python golden
+hashes were repaired from the retained `06ecdc30d` fixture/Rust history; no
+economic runtime behavior changed. Root implemented; Astra and Daybreak reviewed.
+
+The [scoped assessment](../tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json)
+moves formal core **21.169% → 21.219%** and V3 **23.969% → 24.069%**.
+Only two margin proof/refinement components and W09 change. All other scores
+are inherited; value-safety qualification remains 0/12.
+
+**Next formal acceptance:** bind the selected-account view to complete market
+lookup and canonical replacement, proving preservation of every sibling,
+sorted uniqueness, peer position balance and admitted numeric bounds. Reuse
+the current model and complete-output corpus; avoid duplicating encoders or
+rescore-only lemma batches. Account closure is only a fragment of whole-market
+terminal closeout. Funding, liquidation, insurance and their unresolved policy
+choices remain separate. The independent custody rebuilt guest/real-receipt
+publication gate below still needs unavailable proof infrastructure.
+
 ## September 12: integrated coordinator outcomes and complete admission traces
 
 Implementation `244c50ebcbed2a3fbb332d5853ce7260d989a5e2` completes the previously

@@ -434,3 +434,40 @@ guest's genuine image/receipt/publication qualification. Other lane and route
 obligations remain. Bounded correspondence and proof preservation do not imply
 complete cryptography, parser verification, production safety or full formal-core
 completion.
+# September 12 amendment: current perps margin-account lifecycle
+
+New implementation range: `e97d6f4d510962e6887a12e7de28d8444feef5f5` →
+`88c9f27d992cb57664870887542e379f91c1e0fa`. The scoped assessed subject advances
+from `244c50ebcbed2a3fbb332d5853ce7260d989a5e2`; intervening support work receives
+no extra product credit. [Evidence](../../tests/evidence/perps_margin_lifecycle_v1_20260912.json)
+and [independent review](../../tests/evidence/perps_margin_lifecycle_review_20260912.md)
+retain exact sources, tests, failed attempts, claim ceilings and contributors.
+
+Before: no Lean transition for the current margin module; the older rounding
+proof uses different legacy units. After: selected-account ordered transition,
+subject/nonce/identity properties, exact close tombstone, fixed-account history,
+least quote ceiling and bounded flat-account drain/close proofs. Thirty-eight
+shared outcomes and seven history attempts compare full Python/Rust outputs;
+six single-site semantic mutants are killed by independent assertions.
+
+| Measure | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| Formal central estimate | 21.169% | 21.219% | +.050 points |
+| V3 central estimate | 23.969% | 24.069% | +.100 points |
+| Qualified value-safety gates | 0/12 | 0/12 | none |
+
+Only `margin_deposit` and `margin_withdraw` preservation .30→.35 and refinement
+.35→.40, and W09 .23/.31/.41→.24/.32/.42, change. Semantics, uncertainty and all
+other rows are inherited. The unchanged calculator validates the [after input](../../tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json).
+
+Code value: **+936/−2** across four files: proofs +308; tests and their native
+transport +628/−2; economic runtime +0/−0. The transport is a 29-line Rust
+example, so the automated whole-file classifier may label it runtime. The
+two-string inherited golden repair restores an existing parity gate and earns
+no separate product credit. Evidence, assessment and continuity changes are
+support work, counted separately after their commit. Model token/cost and
+exclusive elapsed time are unavailable; test durations are retained as tests.
+
+Remaining acceptance: complete market selection/reconstruction and numeric
+admission refinement, then broader market obligations and real publication.
+No full formal core, lane, route or production completion follows.
