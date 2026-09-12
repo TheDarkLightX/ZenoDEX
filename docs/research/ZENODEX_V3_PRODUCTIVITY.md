@@ -315,3 +315,13 @@ three required admitted-state witnesses. Failed drafts/setup and assessment
 cache repairs are retained in the delivery evidence. The existing after-input
 is revised with a Git-pinned predecessor instead of duplicating 1,199 lines.
 Support and carried metadata count once, with no automatic product credit.
+
+Manifest validation against `321d4d0325e0f0c8f8304e1ff67678084814b1e4`
+passed with the prior prefix preserved and the shared gain counted once.
+The first invocation used an abbreviated baseline SHA and rejected before
+acceptance; the corrected full-SHA invocation passes. There are 107 recorded
+contributions/attempts and 27 active batches. Support metadata adds306/removes47
+through `8810e75e7`; this manifest/report tail is further unscored support.
+Three completed duplicate Cargo targets, 336,427,271 logical bytes, were removed
+after exact path/marker and active-process checks. Final gate artifacts and
+source/log/JUnit evidence remain available.

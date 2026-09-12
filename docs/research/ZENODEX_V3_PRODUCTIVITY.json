@@ -2517,6 +2517,82 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260912-perps-market-root",
+      "model_id": "gpt-6-astra",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "complete-market-proof-integration-witnesses-and-replay",
+      "risk": "critical",
+      "provenance": {
+        "commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
+        "path": "tests/evidence/perps_margin_market_v1_20260912.json",
+        "sha256": "e6566c6d280f9f91ca566d0146fbf6f945f296179afe8445513684f8c17a2c84"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-perps-market-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "bounded-full-market-correspondence-boundaries-histories-and-mutant",
+      "risk": "critical",
+      "provenance": {
+        "commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
+        "path": "tests/evidence/perps_margin_market_v1_20260912.json",
+        "sha256": "e6566c6d280f9f91ca566d0146fbf6f945f296179afe8445513684f8c17a2c84"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-perps-market-astra-review",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-complete-market-numeric-admission-and-score-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
+        "path": "tests/evidence/perps_margin_market_v1_20260912.json",
+        "sha256": "e6566c6d280f9f91ca566d0146fbf6f945f296179afe8445513684f8c17a2c84"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-perps-market-daybreak-request",
+      "model_id": null,
+      "role": "review",
+      "status": "failed",
+      "task_kind": "review-request-rejected-by-native-thread-limit-no-worker-started",
+      "risk": "critical",
+      "provenance": {
+        "commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
+        "path": "tests/evidence/perps_margin_market_v1_20260912.json",
+        "sha256": "e6566c6d280f9f91ca566d0146fbf6f945f296179afe8445513684f8c17a2c84"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -3958,6 +4034,93 @@
           "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
           "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
           "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-perps-market-delivery",
+      "before_commit": "88c9f27d992cb57664870887542e379f91c1e0fa",
+      "after_commit": "7386fa2ea2488999aa453b701e3b666e32ee2d85",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-perps-margin-root",
+        "V3-20260912-perps-margin-astra-review",
+        "V3-20260912-perps-margin-daybreak-review",
+        "V3-20260912-perps-market-root",
+        "V3-20260912-perps-market-luna",
+        "V3-20260912-perps-market-astra-review",
+        "V3-20260912-perps-market-daybreak-request"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Complete-market structural/numeric preservation with internally derived count/lookup; separate gross totals and arbitrary multi-account closed histories. Fresh finite full-model/Python/Rust correspondence and concrete required-state witnesses. New implementation 321d4d032..7386fa2ea adds638/deletes17. Longer scored interval carries prior support once; universal decoding/effects/runtime refinement and production remain open.",
+        "evidence": {
+          "commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
+          "path": "tests/evidence/perps_margin_market_v1_20260912.json",
+          "sha256": "e6566c6d280f9f91ca566d0146fbf6f945f296179afe8445513684f8c17a2c84"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "b3f53d40a500d83c965c3d9b181aa316c378f45d93a2467f87e596ea3f075627"
+        },
+        "after": {
+          "commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "507f3ce08554847e97638c07992b13e27112d741545657cdc280f02367a16256"
+        },
+        "review": {
+          "commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
+          "path": "tests/evidence/perps_margin_market_review_20260912.md",
+          "sha256": "db49c23fb665c720a89e0f26639826e4c73625f1184d7a6a32d28a10c1b224be"
+        }
+      },
+      "findings": [
+        {
+          "id": "PERPS-POST-ACCOUNT-OPEN-PREMISE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
+            "path": "tests/evidence/perps_margin_market_v1_20260912.json",
+            "sha256": "e6566c6d280f9f91ca566d0146fbf6f945f296179afe8445513684f8c17a2c84"
+          }
+        }
+      ],
+      "supersedes": "V3-20260912-perps-margin-lifecycle-evidence"
+    },
+    {
+      "id": "V3-20260912-perps-market-evidence",
+      "before_commit": "7386fa2ea2488999aa453b701e3b666e32ee2d85",
+      "after_commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
+      "kind": "support",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-perps-market-root",
+        "V3-20260912-perps-market-luna",
+        "V3-20260912-perps-market-astra-review",
+        "V3-20260912-perps-market-daybreak-request"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "306 additions/47 deletions retain current proof evidence, scoped review, continuity and fixed-rubric score update. Previous assessment bytes remain Git-pinned; revising the existing after-input avoids duplicating another1199 lines. No extra product credit.",
+        "evidence": {
+          "commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
+          "path": "tests/evidence/perps_margin_market_v1_20260912.json",
+          "sha256": "e6566c6d280f9f91ca566d0146fbf6f945f296179afe8445513684f8c17a2c84"
         }
       },
       "assessment": {
