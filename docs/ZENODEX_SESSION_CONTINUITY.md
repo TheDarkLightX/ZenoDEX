@@ -60,6 +60,44 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 12: constructor admission and command-bound conservation
+
+Implementation `0f14e8dc294df181c9ffc40de7136449f118d452` closes the finite
+constructor-metadata/policy-origin admission batch. Runtime predecessor
+`f0b11b5578c52b7fb0b39fd690d2207278d2a9d9` also repairs Python/Rust command-asset
+conservation binding. See [delivery evidence](../tests/evidence/custody_admission_guard_v2_20260912.json)
+and [independent review](../tests/evidence/custody_admission_guard_review_20260912.md).
+Fresh constructor suite: four passed; transfer/issue/burn have inhabited full
+admission and actual runtime-generated input/post-row correspondences. Four
+archived Python mutants, a compiled Rust guard mutant and two compiling Lean
+predicate mutants have retained failures. Historical source/fixture issues are
+recorded without weakening their gates.
+
+The narrow reviewed amendment moves the carried formal-core estimate from
+21.094% to 21.103% (+0.009 pp); V3 remains 23.869%, qualification 0/12. Other rows
+are inherited. No full core, lane, route, genuine receipt or production gate closes.
+
+**Next deliver one coherent coordinator bundle:** ordered typed outcomes,
+source journal/effect bindings, actual finite leaf results, aggregate resource
+and exact reprojection checks, and runtime correspondence. Reuse the current
+FullState/admission/effect proofs. Avoid another chain of separately rescored
+small lemmas; assess the behavior bundle after integration and adversarial review.
+Select a separate lane task only from settled normative semantics, preserving
+explicitly unresolved policy choices. This change of batch size changes no
+assurance or policy requirement.
+
+Five actual Fable 5.1 Max workers ran. None delivered an accepted implementation
+file. Three implementation attempts reached provider credit exhaustion; two
+review attempts produced useful analysis. The parent had mistakenly granted
+`Write(./output/**)`; actual Write permission uses `Edit(./output/**)`.
+That mistake denied output writes and is part of the failed-run account.
+The corrected rule passed an output-only Opus probe. Opus then supplied the
+constructor proof candidate; parent and native reviews repaired it. Retain
+[all provider usage and dispositions](../tests/evidence/custody_admission_worker_usage_20260912.json).
+No raw private transcript or actual billed-cost estimate is published. Fable
+credits were exhausted at the observed return; do not silently substitute a
+model or describe a launch as delivery.
+
 ## September 12: exact custody reconstruction and complete-state bytes
 
 Source `e2224617a092380d21ac6028d889a511cfc00e74` closes exact accepted leaf
@@ -79,10 +117,13 @@ Next close modeled constructor metadata and policy-origin admission using the
 existing FullState, then the actual ordered coordinator outcome and source
 journal/effect relation. CompleteState.step materializes a finite candidate;
 it does not enforce outer admission. Universal runtime refinement and genuine
-receipt/publication qualification remain open. Five distinct Fable tasks are
-prepared with frozen copies and output-only writes; their private-source
-transfer to Anthropic still awaits the specific approval required after the
-automatic-review rejection. No external worker launch is claimed.
+receipt/publication qualification remain open. After the user's subsequent
+authorization, five distinct workers launched with frozen source packets and
+output-only candidate writes. Each reports `claude-fable-5-1`, with Max effort.
+Their tasks are constructor admission, coordinator outcomes, source-binding
+controls, mathematical review and end-to-end review. Candidate output requires
+independent inspection and executable verification before integration; a launch
+earns no delivery credit. The earlier rejected launch remains historical evidence.
 
 ## September 12: complete structural closure of finite custody histories
 

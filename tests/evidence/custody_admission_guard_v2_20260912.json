@@ -1,0 +1,373 @@
+{
+  "schema": "zenodex/custody-admission-guard-evidence/v1",
+  "baseline_commit": "5e1e5a9e84b162ebfa3c0e00fcf78aef6968d38a",
+  "subject_commit": "0f14e8dc294df181c9ffc40de7136449f118d452",
+  "authority": "NONE",
+  "obligations": [
+    "W09: complete modeled constructor metadata and origin-policy admission",
+    "W04/W06: command-bound custody conservation and source-coordinate rejection"
+  ],
+  "before": "Complete finite state and byte model lacked constructor metadata and policy-origin predicates. Python and Rust accepted a coherently injected USD transfer leaf whose conservation row described unchanged EUR.",
+  "after": "Python and Rust bind conservation to the executed command asset. Four finite complete-state theorems preserve constructor metadata, policy-origin binding and exact accepted leaf projection. Retained controls prove complete admission is inhabited for actual transfer/issue/burn, compare current runtime values and kill the two semantic predicate mutants. Ordered coordinator outcomes and source journal/effect refinement remain the next integrated obligation.",
+  "source_pins": {
+    "src/core/asset_lane_custody_coordinator_v2.py": "cc4d37ddb8d92ad8ae0b8e290791992b412f200381f932e87651861a27b0742b",
+    "zk/global_settlement_abi_v2/src/asset_lane_custody.rs": "404573d5a77320d0d8d6d2404fe2fd3e78d9003ede682ceb8b133cfd49fc1e99",
+    "lean-mathlib/Proofs/AssetLaneCustodyAdmissionV2.lean": "8d3b78d134bbb00e566a73d47c132af571875afae8871d7c13e6c75c242cad64",
+    "tests/core/test_asset_lane_custody_bindings_v2.py": "e18d339b75515eef4c86ab04bac15a37a713d0a07ab79102b57344462745bd98",
+    "tests/core/test_asset_lane_custody_source_bindings_v2.py": "ea6dcf3dcf431d0ca2dd430dca5f53a652d1adfa80ee42cd105dd615a3023274",
+    "tests/data/asset_lane_custody_v2_golden.json": "34224274d1e1113a14375ac2e24fd0ca2023c2de6e87b0ee58f873f29bbb1d6b",
+    "tests/data/asset_lane_custody_statement_v2_golden.json": "0b9cdb03eb6d3fb2d1b663cfe02a65cc8c9249c309079be59d1adc8585b49113",
+    "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py": "76544443438677e251ff1da4508e343cd365aded52ddd331366406a2dc4d209f",
+    "tests/formal/test_lean_asset_lane_custody_admission_v2.py": "5fa0bf7aad3d1384169b014083c4a3430c0d45b7cb1eed3413e21375831ec4d9",
+    "tests/formal/asset_lane_custody_admission_v2_controls.lean": "f215f353aaa18c6de3ed3c5f6c686f13ee5983f627561dfb89a1b01e5f78f32f",
+    "tests/formal/asset_lane_custody_admission_v2_witness.lean": "e0415851508dfa5d2abdd9e476675ba29b8b041b604262b4ee89df7b1908f234",
+    "tests/evidence/test_hygiene/THV1-20260912-custody-admission-v2.json": "663097510eaa6e778203676470f4eb4904e74fd273b575cc6cffd9dc542fcffa"
+  },
+  "runtime_verification": [
+    {
+      "command": "python3 -m pytest -q tests/core/test_asset_lane_custody_bindings_v2.py::test_conservation_must_name_command_asset_before_custody_completion",
+      "subject": "baseline production source with retained new regression",
+      "observation": "One intended failure at expected rejection type: the old coordinator returned Accepted. Earlier issue/burn trial setups failed accepted-leaf construction and do not count as guard kills.",
+      "junit": {
+        "sha256": "6e2d0304e4f40024555c52abe9e894fa47ea03f2b87f7e0ba8686108eb90694b",
+        "suites": [
+          {
+            "tests": "1",
+            "failures": "1",
+            "errors": "0",
+            "skipped": "0",
+            "time": "0.735"
+          }
+        ]
+      }
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_asset_lane_custody_bindings_v2.py tests/core/test_asset_lane_custody_source_bindings_v2.py",
+      "observation": "14 passed; final typed source. Ruff and repository MyPy --follow-imports=silent also passed.",
+      "junit": {
+        "sha256": "52e1124b3e1f4f724c73208cdd2a09ad3bde64e7b915ce031e367014ee58c59e",
+        "suites": [
+          {
+            "tests": "14",
+            "failures": "0",
+            "errors": "0",
+            "skipped": "0",
+            "time": "0.900"
+          }
+        ]
+      }
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_asset_lane_custody_*.py tests/integration/test_authenticated_asset_lane_custody_receipt_v2.py tests/integration/test_profiled_asset_lane_custody_receipt_v2.py tests/integration/test_isolated_custody_publisher_v2.py",
+      "observation": "300 passed,3 failed,1 skipped. Two V2 generated-source metadata failures subsequently repaired through recorded renderers; inherited untouched V1 fixture drift remains. The optional native BLS test was skipped.",
+      "junit": {
+        "sha256": "e01a8d1b12e997c5224efde5e9a41913e6b16fee150c7547bcf196b9c99a103c",
+        "suites": [
+          {
+            "tests": "304",
+            "failures": "3",
+            "errors": "0",
+            "skipped": "1",
+            "time": "123.165"
+          }
+        ]
+      }
+    },
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py",
+      "observation": "16 passed after V2 fixture regeneration; fresh pinned Lean dependency closure.",
+      "junit": {
+        "sha256": "17fb7398ef17caf11b0223495edaeee38f8fa18202526ceec0d0a6081129a9c7",
+        "suites": [
+          {
+            "tests": "16",
+            "failures": "0",
+            "errors": "0",
+            "skipped": "0",
+            "time": "110.608"
+          }
+        ]
+      }
+    },
+    {
+      "command": "python3 tools/check_production_boundary.py --json",
+      "observation": "ok=true,14 checks passed; this bounded audit does not qualify a release or the full implementation."
+    },
+    {
+      "command": "python3 tools/check_whole_program_plan_v3.py --json",
+      "observation": "ok=true; requirements floor 103/12/4/4, no findings, authority NONE,0 qualified value gates, all completion flags false."
+    },
+    {
+      "command": "git diff --check and repository redflags scanner over Python/Rust coordinator files",
+      "observation": "No whitespace errors. Scanner found33 medium Rust expect/panic/cast sites, all inside the cfg(test) module; zero production findings. This scan selects scrutiny, not a proof."
+    },
+    {
+      "command": "cargo +1.87.0 test --offline --locked --manifest-path zk/global_settlement_abi_v2/Cargo.toml --lib --test asset_lane_custody --test asset_lane_custody_golden",
+      "observation": "12 passed,0 failed,0 ignored in 0.37s; 16 passed,0 failed,0 ignored in 3.79s; 1 passed,0 failed,0 ignored in 0.10s",
+      "log_sha256": "40e81e35390d6ccff339ed053b96f76f88c3859f40c1c28571306bf89381f845"
+    },
+    {
+      "command": "python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260912-custody-command-source-binding-v2 --rev f0b11b5578c52b7fb0b39fd690d2207278d2a9d9",
+      "observation": "4 mechanical mutants killed,0 survivors,0 errors; two distinct unmutated killers passed. Mutation copies removed by existing ledger. Positive route controls also passed in the earlier independent copied-source campaign."
+    }
+  ],
+  "fixture_regeneration": {
+    "active_head": "5e1e5a9e84b162ebfa3c0e00fcf78aef6968d38a",
+    "commands": [
+      "python3 tools/render_asset_lane_custody_v2_golden.py",
+      "python3 tools/render_asset_lane_custody_statement_v2_golden.py",
+      "python3 tools/render_asset_lane_custody_v2_golden.py --check",
+      "python3 tools/render_asset_lane_custody_statement_v2_golden.py --check",
+      "python3 -m pytest -q tests/core/test_asset_lane_custody_golden_v2.py tests/core/test_asset_lane_custody_statement_parity_v2.py tests/core/test_asset_lane_custody_codec_v2.py tests/core/test_asset_lane_custody_frame_v2.py",
+      "python3 -m ruff check tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py tests/core/test_asset_lane_custody_golden_v2.py tests/core/test_asset_lane_custody_statement_parity_v2.py"
+    ],
+    "fixtures": {
+      "tests/data/asset_lane_custody_v2_golden.json": {
+        "old_sha256": "6f2830868ace35ff5af280d102c00d66d08b68b1938a10d65d3f9893c4af9ced",
+        "new_sha256": "34224274d1e1113a14375ac2e24fd0ca2023c2de6e87b0ee58f873f29bbb1d6b",
+        "case_count": 10
+      },
+      "tests/data/asset_lane_custody_statement_v2_golden.json": {
+        "old_sha256": "d9978dca0494a31aa8504d13ca1926f27bd567c356929db801583292d2501e1e",
+        "new_sha256": "0b9cdb03eb6d3fb2d1b663cfe02a65cc8c9249c309079be59d1adc8585b49113",
+        "case_count": 5
+      }
+    },
+    "source_hash_diff": {
+      "src/core/asset_lane_custody_coordinator_v2.py": {
+        "old": "db218292c2ab32b152db2575a5fcb8c575e4eb49fe54920d624592b470bdd10c",
+        "new": "cc4d37ddb8d92ad8ae0b8e290791992b412f200381f932e87651861a27b0742b"
+      }
+    },
+    "comparison": {
+      "decoded_payload_roots_outcomes_equal": true,
+      "json_diff_paths": [
+        "tests/data/asset_lane_custody_v2_golden.json/source_sha256/src/core/asset_lane_custody_coordinator_v2.py",
+        "tests/data/asset_lane_custody_statement_v2_golden.json/source_sha256/src/core/asset_lane_custody_coordinator_v2.py"
+      ],
+      "direct_constant": {
+        "path": "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py",
+        "name": "GOLDEN_FIXTURE_SHA256",
+        "old": "6f2830868ace35ff5af280d102c00d66d08b68b1938a10d65d3f9893c4af9ced",
+        "new": "34224274d1e1113a14375ac2e24fd0ca2023c2de6e87b0ee58f873f29bbb1d6b"
+      },
+      "statement_fixture_direct_hash_constant": null
+    },
+    "test_outcome": "52 passed in 1.61s; both renderer --check commands and scoped Ruff passed",
+    "nonclaims": "V2 fixture freshness and metadata refresh only; inherited V1 fixture drift remains unaddressed."
+  },
+  "source_coordinate_mutants": {
+    "schema": "zenodex/custody-source-binding-mutation-receipt/v1",
+    "source_sha256": "cc4d37ddb8d92ad8ae0b8e290791992b412f200381f932e87651861a27b0742b",
+    "test_sha256": "ea6dcf3dcf431d0ca2dd430dca5f53a652d1adfa80ee42cd105dd615a3023274",
+    "runner_sha256": "0e8396e3c2f89030baad4d7d6c11910c3f1a856543882ba15fb4dc24a3d6908e",
+    "control": "8 passed",
+    "mutants": [
+      {
+        "field": "chain_id",
+        "needle_occurrences": 1,
+        "mutant_sha256": "cff48132bbfcc727e04f0e351ace1b2f423212ea66657a583c7eebf17fd24b42",
+        "pytest_exit": 1,
+        "outcome": "KILLED_AT_EXACT_REJECT_TYPE; 2_POSITIVE_CONTROLS_PASSED"
+      },
+      {
+        "field": "deployment_root",
+        "needle_occurrences": 1,
+        "mutant_sha256": "7ea77bdf60eb2ed7ffa16a9f82fee7f8366a8b42e313f458c4d941ce856fd3c4",
+        "pytest_exit": 1,
+        "outcome": "KILLED_AT_EXACT_REJECT_TYPE; 2_POSITIVE_CONTROLS_PASSED"
+      },
+      {
+        "field": "profile_root",
+        "needle_occurrences": 1,
+        "mutant_sha256": "403f31f7d6ed40d3f3b4ccde494d189b2245d9383e94f99a9e79ea9eb73dd15b",
+        "pytest_exit": 1,
+        "outcome": "KILLED_AT_EXACT_REJECT_TYPE; 2_POSITIVE_CONTROLS_PASSED"
+      }
+    ],
+    "claim_ceiling": "OFFLINE_PYTHON_GUARD_SENSITIVITY; NO_PRODUCTION_AUTHORITY"
+  },
+  "nonclaims": [
+    "Wrong-asset and source-coordinate tests inject faulty internal leaf results built by the public exact result constructors. The production coordinator calls fixed local leaves; no external result-injection port, practical hash collision, receipt forgery or production loss is established.",
+    "ConstructorAdmission and PolicyOriginBindings are separate phases; runtime lookup equivalence also needs unique registry assets from ConstructorAdmission. Roots and commitment functions are parameters; no cryptographic authenticity or universal codec proof follows.",
+    "The constructor preservation theorem takes initial admission, action admission and complete-post Resources as premises. Post resource fit is not inferred from pre-state resources or leaf acceptance.",
+    "Source journal/effect relation, actual ordered coordinator outcomes and universal runtime refinement remain open. The source-coordinate suite does not authenticate a leaf receipt root.",
+    "Rust source changes affect future guest builds. No rebuilt image, qualified genuine RISC0 receipt, live activation, full core or V3 completion is claimed.",
+    "The three positive actions share one initial state and are independent one-step cases; their new runtime comparison covers balances/supplies, not all emitted post metadata/custody. Existing custody tests retain their own complete-state scope.",
+    "The wrong-asset fix repairs a confirmed internal-coordinator defect. Source-coordinate tests also guard existing behavior and do not constitute a new externally injectable publication port.",
+    "No full Lake, full repository Python/Clippy, ESSO, Kani, genuine RISC0 proving, guest-image rebuild or release-wide qualification was performed for this batch. The broad run retained an inherited V1 golden metadata failure and one optional native BLS skip."
+  ],
+  "runtime_subject_commit": "f0b11b5578c52b7fb0b39fd690d2207278d2a9d9",
+  "archived_guard_mutation_replay": {
+    "packet": "THV1-20260912-custody-command-source-binding-v2",
+    "killed": 4,
+    "survived": 0,
+    "errors": 0,
+    "mechanical": 4,
+    "receipt_sha256": "0c4ae9139eebea7b87f890c6d368e2b42046420bdc3faa1fe88b45321b21587e"
+  },
+  "rework": [
+    "Parent corrected THV draft mechanical killers to pinned function nodes, exact occurrence-context source needles and the named match-versus-foreign boundary family. Static validation rejected all three incomplete drafts; no gate was weakened.",
+    "Initial source-binding salvage used follow-imports=skip and hid11 MyPy errors. Final repository --follow-imports=silent found them; explicit typed branches repaired them without changing assertions.",
+    "Initial Lean candidate needed explicit implicit-argument instantiation; semantic review added custody ordering and permitted zero issue-policy roots.",
+    "Parent initially conflated the earlier three-asset Lean witness with the current seven-asset Python multiasset fixture and incorrectly criticized valid USD coverage. Re-read actual Python fixture and withdrew that criticism. The unvalidated worker harness also had genuine missing pytest fixtures, malformed forall-signature punctuation, and test-construction problems; parent integrated the complete fixture chain and independent compiled controls.",
+    "Root first final-consumer draft produced one passing test and two failures from unused-binder warnings and Lean record-update parsing. Corrected both; fresh final4-test closure passed.",
+    "Independent review found a circular expected commitment derived from registry fields and a missing managed-root negative. Replaced it with policy-content hash computation, exact policy matching and separate managed-root drift.",
+    "Concrete witness originally keyed commitment lookup on asset only. Reviewer follow-up changed both lookups to full policy equality before integration; theorem statements unchanged.",
+    "Root Fable launcher used Write(./output/**), which does not grant the Write tool its edit permission. Corrected to Edit(./output/**) and verified a harmless output-only Opus probe before implementation. No bypass permission was introduced."
+  ],
+  "formal_predicate_mutants": {
+    "claim_ceiling": "bounded Lean predicate and current Python constructor reachability sensitivity only; no universal Python/Rust/Lean refinement, canonical-root implementation, cryptographic authenticity, hashing, receipt, publication, settlement, or production authority claim",
+    "controls": {
+      "baseline": {
+        "compile_exit": 0,
+        "path": "tests/formal/asset_lane_custody_admission_v2_controls.lean",
+        "semantic_subject": "one runtime-constructible USD full state has supply 2 and two ordered custody rows of 1; sorted state has ConstructorAdmission; reversing only custody order preserves CompleteStructural and Resources and loses CustodyOrdered and ConstructorAdmission; a native TAU zero-issue-root record satisfies RecordSyntax under a nonzero rootSyntax",
+        "sha256": "f215f353aaa18c6de3ed3c5f6c686f13ee5983f627561dfb89a1b01e5f78f32f"
+      }
+    },
+    "date": "2026-09-12",
+    "mutants": {
+      "drop_custody_order": {
+        "compile_only_repair": "metadata_of_frame uses exact custodyOrder instead of an unnecessary simpa; no proposition change beyond the guard edit",
+        "failure": "negated ConstructorMetadata for reverseCustodyState is false at control lines 320 and 325",
+        "frozen_control_exit": 1,
+        "opposite_witness": {
+          "baseline_exit": 1,
+          "mutant_exit": 0,
+          "path": "DropCustodyOrderWitness.lean",
+          "proposition": "reverseCustodyState has CompleteStructural, Resources, and false CustodyOrdered, yet the mutant has ConstructorAdmission",
+          "sha256": "65a022672a38d0d7806ba7b5cf0974fe5b1c721a7819dee23b287b2cce601a06"
+        },
+        "semantic_edit": "B.BalanceTokens state.custody \u2227 CustodyOrdered state -> B.BalanceTokens state.custody \u2227 True",
+        "source_compile_exit": 0,
+        "source_sha256": "15007dbc4e391b8c45cfc8b8f15035210e628b82d08cf3af12e07003dadd9347"
+      },
+      "require_nonzero_issue_root": {
+        "failure": "ConstructorMetadata for the valid unmanaged USD state and RecordSyntax for the native TAU zero-root record are false at lines 307, 314, and 332",
+        "frozen_control_exit": 1,
+        "opposite_witness": {
+          "baseline_exit": 1,
+          "mutant_exit": 0,
+          "path": "RequireNonzeroIssueRootWitness.lean",
+          "proposition": "the mutant rejects both concrete zero-sentinel witnesses",
+          "sha256": "bb59c4e09d677d2b13d915dd1e4ce6ee8d46c22c2215a2529f41d1e98d36617a"
+        },
+        "semantic_edit": "zeroRoot \u2228 rootSyntax issuePolicyRoot -> rootSyntax issuePolicyRoot",
+        "source_compile_exit": 0,
+        "source_sha256": "c0a4792b381b7b1b24b1d6749fd506019f859f3c1fead8c5025c7e45413a403c"
+      }
+    },
+    "repo_edits_this_task": [],
+    "runtime_reachability": {
+      "outcome": "current Python constructors accept unmanaged USD and native TAU zero issue-root states and reject reversed custody order",
+      "sha256": "dfdbe58dc3885c9d36d0e2b903ea2998e07a78ddb63dbcd386cf363d1e868bb0"
+    },
+    "schema": "zenodex/admission-mutation-review/v1",
+    "subject": {
+      "needle_counts": {
+        "custody_order_guard": 1,
+        "zero_sentinel_disjunction": 1
+      },
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyAdmissionV2.lean",
+      "sha256": "8d3b78d134bbb00e566a73d47c132af571875afae8871d7c13e6c75c242cad64"
+    }
+  },
+  "runtime_constructor_reachability": {
+    "claim_ceiling": "runtime constructor reachability only; no Python-Lean universal refinement or root authenticity",
+    "native_unmanaged": {
+      "asset": "TAU",
+      "issue_policy_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "origin_kind": "NATIVE",
+      "state_root": "0x4c7b2df99e5cacb44714cd120054057c20eeb24dbabade39bb61f5a3752761fe"
+    },
+    "reverse_order_runtime_rejection": {
+      "message": "custody lane rows must be canonically ordered and unique",
+      "type": "ValueError"
+    },
+    "sources": {
+      "src/core/asset_lane_state_v2.py": "650dc5ab0a2a6010b9b512bfc59bcb7a33e7d376bbffffdb106bda5abb65f5a2",
+      "src/core/asset_origin_registry_types_v2.py": "45665fa755a0f806474feed0856c9a5b4630bd98a4c9d1d924809b5109587e39",
+      "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py": "1f5ffe6ebba80d9a020572e83e187395d00c2a8ff8ca1e7dc2b3a70e2b9fa9ab"
+    },
+    "usd_unmanaged": {
+      "custody_keys": [
+        [
+          "USD",
+          "alice",
+          "escrow"
+        ],
+        [
+          "USD",
+          "zoe",
+          "escrow"
+        ]
+      ],
+      "issue_policy_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "state_root": "0xdb93346dbf8d01b56bac2f0a813a3cb6f20544ab8be73934ec3d0bb302219881",
+      "supply_atoms": 2
+    },
+    "zero_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "formal_verification": {
+    "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_admission_v2.py",
+    "tests": 4,
+    "passed": 4,
+    "failures": 0,
+    "skipped": 0,
+    "elapsed_seconds": 188.49,
+    "junit_sha256": "99e06f43a9504b54c361775cfd670e891cdee0a02e8221358ddba04cb64f12b2",
+    "log_sha256": "2be548a58dff9b6b722c041ab6d523aca4b139baee1c554a286435d24a3a7037",
+    "fresh_closure": true,
+    "lean_version": "4.27.0",
+    "warning_as_error": true,
+    "standard_axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "observation_scope": [
+      "Four exact public theorem signatures and axiom audits.",
+      "Full constructor witness; removing custody ordering and requiring nonzero issue roots cause compiled semantic failures.",
+      "Fourteen runtime metadata/binding observations: dormant sibling, issue then burn to zero, missing/duplicate policy, release/identity drift and separate transfer/managed commitment drift.",
+      "Three independent accepted transfer/issue/burn examples; exact runtime-generated pre/context/command correspondences, balance/supply rows, post resources and preserved admission/bindings; 22 audited witness theorems."
+    ],
+    "static_commands": [
+      "python3 -m ruff check tests/formal/test_lean_asset_lane_custody_admission_v2.py",
+      "python3 -m mypy --follow-imports=silent tests/formal/test_lean_asset_lane_custody_admission_v2.py"
+    ],
+    "static_outcome": "PASS",
+    "hygiene_outcome": "PASS:4 critical paths,4 nodes,THV1-20260912-custody-admission-v2",
+    "syntax_oracle_limit": "Witness rootSyntax is bounded, namespaceSyntax=True, digest opaque; policy roots are two exact sampled computations, not a universal hashing refinement."
+  },
+  "worker_delivery": {
+    "usage_evidence": "tests/evidence/custody_admission_worker_usage_20260912.json",
+    "fable_workers": 5,
+    "fable_model": "claude-fable-5-1",
+    "effort": "max",
+    "fable_accepted_implementation_files": 0,
+    "fable_result": "Three implementation attempts ended on provider credit exhaustion; source-binding Write was denied. Two review attempts completed analysis but their output file writes were denied. Math review contributed the custody-order finding; end-to-end review contributed a documentation correction. No implementation credit for launches or rejected proposals.",
+    "opus_model": "claude-opus-5",
+    "opus_result": "Scoped module candidate delivered. Parent compilation and critical review repaired inference, missing custody order and zero-sentinel behavior before acceptance.",
+    "native_result": "Daybreak supplied the runtime guard finding, compact source tests, semantic controls/mutants and final independent review. GPT-6 reviewer supplied three full admitted actions and reviewed the scoped assessment. Luna regenerated V2 fixtures; its unvalidated admission-harness draft was replaced after checkpoint.",
+    "authority": "Output-only proposals; root performs serial integration and verification."
+  },
+  "design_review": {
+    "new_state_or_registry": false,
+    "new_runtime_dependency": false,
+    "new_tracker": false,
+    "reused": "Existing FullState, exact projection, structural/resource predicates, pytest dependency closure, serializer, hygiene gate and productivity calculator.",
+    "metric_observation": "Test generator flagged71 physical lines, including embedded declarative Lean source. Retained as one bounded scenario rather than splitting its setup/expectation apart; no runtime complexity increased by this proof batch."
+  },
+  "assessment": {
+    "review": "tests/evidence/custody_admission_guard_review_20260912.md",
+    "before": "tests/evidence/v3_custody_admission_assessment_before_20260912.json",
+    "after": "tests/evidence/v3_custody_admission_assessment_after_20260912.json",
+    "formal_core_before": 21.094,
+    "formal_core_after": 21.103,
+    "full_v3_before": 23.869,
+    "full_v3_after": 23.869,
+    "qualified_gates": 0,
+    "advisory_partial_amendment": true
+  }
+}

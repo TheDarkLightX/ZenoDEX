@@ -303,3 +303,83 @@ dependency or new tracker. The subsequent evidence and immutable calculator
 snapshots are support data, recorded separately in the existing productivity
 manifest. Provider tokens and total development time were unavailable; test
 runtimes are not development-time measurements.
+
+## September 12 complete custody projection amendment
+
+The batch `be2693fcd5da816c8e723853b92d3fbe47754bc7` through
+`e2224617a092380d21ac6028d889a511cfc00e74` proves exact accepted leaf
+reprojection and adds a complete four-payload state encoder. Previously, the
+finite projection omitted origin metadata and had no full-state byte model.
+[Retained evidence](../../tests/evidence/custody_complete_projection_v2_20260912.json)
+records nine passing tests, 18 encodings, all ten transaction vectors, the full
+byte-cap boundary and two compiling semantic mutants killed by assertions.
+
+That implementation adds 892 proof/control lines, 874 Python test lines and 114
+hygiene-data lines, with no removals or runtime changes. The following evidence
+and accounting commits through `5e1e5a9e84b162ebfa3c0e00fcf78aef6968d38a` add
+2,828 support lines, including 2,361 copied before/after assessment lines.
+They receive no additional delivery credit. The append-only contribution
+manifest records known native contributions; provider tokens and development
+time remain unavailable for that batch.
+
+[Independent review](../../tests/evidence/custody_complete_projection_review_20260912.md)
+supports only a 0.02 refinement-score increase for generic transfer, managed
+issue and managed burn. Under the unchanged denominator this moves the carried
+formal-core estimate from 21.081% to 21.094% (+0.013 percentage points). V3 stays
+23.869%, and qualification stays 0/12. Other rows are inherited judgments.
+The [before](../../tests/evidence/v3_custody_complete_projection_assessment_before_20260912.json)
+and [after](../../tests/evidence/v3_custody_complete_projection_assessment_after_20260912.json)
+calculator inputs preserve the exact scored subjects. Constructor admission,
+ordered source-journal/effect checks, universal runtime refinement and genuine
+receipt/publication qualification remain the delivery blockers.
+
+## September 12 constructor admission and conservation repair
+
+Batch `5e1e5a9e84b162ebfa3c0e00fcf78aef6968d38a` through
+`0f14e8dc294df181c9ffc40de7136449f118d452` adds complete modeled constructor and
+policy-origin admission, inhabited transfer/issue/burn applications and exact
+runtime-generated input/post-row comparisons. It also repairs Python/Rust
+acceptance of a faulty internal USD leaf carrying coherent EUR conservation.
+[Evidence](../../tests/evidence/custody_admission_guard_v2_20260912.json) and
+[independent review](../../tests/evidence/custody_admission_guard_review_20260912.md)
+retain the scope, red/green controls, all failed attempts and remaining gaps.
+
+| Whole-file category | Added | Removed | Net |
+| --- | ---: | ---: | ---: |
+| Proof and Lean controls | 1,075 | 0 | 1,075 |
+| Runtime, including inline Rust tests | 107 | 10 | 97 |
+| Python tests | 632 | 6 | 626 |
+| Hygiene and regenerated data | 273 | 2 | 271 |
+| Documentation | 4 | 2 | 2 |
+| Total | 2,091 | 20 | 2,071 |
+
+The proof category comprises 276 theorem-module lines and 799 Lean control lines.
+Most runtime additions are the inline Rust regression; line count is not delivered
+functionality. The subsequent review, usage, assessment snapshots and continuity
+account are support work and receive no extra capability credit.
+
+The unchanged calculator validates a narrowly reviewed proof increment from 0.75
+to 0.76 for generic transfer, managed issue and managed burn only. The carried
+formal-core estimate moves **21.094% to 21.103% (+0.009 pp)**. V3 remains **23.869%**;
+qualification remains **0/12**. Other scores and uncertainty labels are inherited.
+The scope does not support a whole-program percentage reassessment.
+
+Five Fable 5.1 Max workers actually ran. None supplied an accepted implementation
+file. A parent permission-rule error denied output writes, and three runs ended
+with provider credits exhausted. Two review outputs informed corrections. After
+a corrected output-only permission probe, Opus supplied the proof candidate;
+parent/native review and compilation repaired it. The
+[usage record](../../tests/evidence/custody_admission_worker_usage_20260912.json)
+retains all fourteen main/auxiliary provider records. Fable reports 423,520 output
+tokens across its five runs; the Opus implementation reports 81,562, both including
+provider-reported reasoning. These are source-recorded usage counters, not LOC,
+billable invoices, exclusive wall time or accepted-work measurements. Native/root
+resource use is unavailable; actual billed cost remains unknown.
+
+The small percentage gain exposes an inefficient batch decomposition. The next
+acceptance unit is the complete coordinator outcome/journal/effect/runtime bundle,
+with one implementation owner and independent adversarial review. A separate lane
+bundle should proceed concurrently only where exact state and normative policy
+are established. Retain focused development checks, then run the shared proof
+closure at integrated checkpoints. Do not weaken proof premises, round up scores,
+claim a launch as delivery or repeatedly rescore individual lemmas to show activity.
