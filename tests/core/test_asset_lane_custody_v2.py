@@ -6,6 +6,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from src.core.asset_lane_coordinator_values_v2 import AssetLaneRejectedV2, AssetLaneRouteV2
 from src.core.asset_lane_custody_coordinator_v2 import (
     AssetLaneCustodyAcceptedV2,
     transition_asset_lane_custody_v2,
@@ -14,6 +15,7 @@ from src.core.asset_lane_custody_state_v2 import AssetLaneCustodyStateV2
 from src.core.asset_lane_state_v2 import AssetLaneStateV2
 from src.core.asset_transfer_types_v2 import AssetTransferStateV2
 from src.core.global_settlement_types_v2 import MAX_ATOMS_V2, AssetSupplyV2, EconomicAmountV2
+from src.core.managed_asset_lifecycle_types_v2 import ManagedAssetLifecycleRejectCodeV2
 from tests.core.test_asset_lane_coordinator_v2 import (
     _context,
     _managed_command,
@@ -39,6 +41,173 @@ def custody_state(accounts=80, custody=20):
         (managed,),
         (EconomicAmountV2("vault", "USD", "escrow", custody),) if custody else (),
     )
+
+
+_MULTIASSET_ASSETS = ("AUD", "EUR", "GBP", "JPY", "USD", "VND", "ZZZ")
+_MULTIASSET_MANAGED_ASSETS = ("GBP", "USD")
+
+
+def multiasset_custody_state() -> AssetLaneCustodyStateV2:
+    """Build the complete seven-asset table used by the lifecycle history."""
+
+    transfer_policies = tuple(
+        _transfer_policy(asset=asset, fee_atoms=0) for asset in _MULTIASSET_ASSETS
+    )
+    managed_policies = tuple(
+        _managed_policy(asset=asset) for asset in _MULTIASSET_MANAGED_ASSETS
+    )
+    return AssetLaneCustodyStateV2(
+        AssetTransferStateV2(
+            _root("module-release"),
+            transfer_policies,
+            (
+                EconomicAmountV2("carol", "EUR", "accounts", 7),
+                EconomicAmountV2("dana", "GBP", "accounts", 3),
+                EconomicAmountV2("erin", "JPY", "accounts", 5),
+                EconomicAmountV2("frank", "VND", "accounts", 11),
+            ),
+            (
+                AssetSupplyV2("AUD", 0),
+                AssetSupplyV2("EUR", 9),
+                AssetSupplyV2("GBP", 3),
+                AssetSupplyV2("JPY", 5),
+                AssetSupplyV2("USD", 0),
+                AssetSupplyV2("VND", 11),
+                AssetSupplyV2("ZZZ", 0),
+            ),
+        ),
+        _registry(transfer_policies, managed_policies),
+        managed_policies,
+        (EconomicAmountV2("vault", "EUR", "escrow", 2),),
+    )
+
+
+def _assert_multiasset_accepted(
+    result: object,
+    source: AssetLaneCustodyStateV2,
+    expected_balances: tuple[EconomicAmountV2, ...],
+    expected_supplies: tuple[AssetSupplyV2, ...],
+) -> AssetLaneCustodyAcceptedV2:
+    assert isinstance(result, AssetLaneCustodyAcceptedV2)
+    post = result.post_state
+    assert result.route is AssetLaneRouteV2.MANAGED_LIFECYCLE
+    assert post.transfer_state.balances == expected_balances
+    assert post.transfer_state.supplies == expected_supplies
+    assert tuple(policy.asset for policy in post.transfer_state.policies) == _MULTIASSET_ASSETS
+    assert tuple(row.asset for row in post.origin_registry.assets) == _MULTIASSET_ASSETS
+    assert tuple(policy.asset for policy in post.managed_policies) == _MULTIASSET_MANAGED_ASSETS
+    assert post.transfer_state.module_release_id == _root("module-release")
+    assert post.transfer_state.policies == source.transfer_state.policies
+    assert post.origin_registry == source.origin_registry
+    assert post.managed_policies == source.managed_policies
+    assert source.custody == (EconomicAmountV2("vault", "EUR", "escrow", 2),)
+    assert post.custody == (EconomicAmountV2("vault", "EUR", "escrow", 2),)
+    assert result.production_authority == "NONE"
+    assert result.profile_authentication == "SHADOW"
+    return result
+
+
+def _assert_source_unchanged(
+    source: AssetLaneCustodyStateV2,
+    canonical: dict[str, object],
+    state_root: str,
+) -> None:
+    assert source.to_canonical() == canonical
+    assert source.state_root == state_root
+
+
+def test_managed_multiasset_history_keeps_complete_rows_and_rejects_unauthorized_burn():
+    source = multiasset_custody_state()
+    source_canonical = source.to_canonical()
+    source_root = source.state_root
+
+    issue = _managed_command(amount_atoms=2)
+    issued = _assert_multiasset_accepted(
+        transition_asset_lane_custody_v2(_context(issue, nonce=1), source, issue),
+        source,
+        (
+            EconomicAmountV2("carol", "EUR", "accounts", 7),
+            EconomicAmountV2("dana", "GBP", "accounts", 3),
+            EconomicAmountV2("erin", "JPY", "accounts", 5),
+            EconomicAmountV2("alice", "USD", "accounts", 2),
+            EconomicAmountV2("frank", "VND", "accounts", 11),
+        ),
+        (
+            AssetSupplyV2("AUD", 0),
+            AssetSupplyV2("EUR", 9),
+            AssetSupplyV2("GBP", 3),
+            AssetSupplyV2("JPY", 5),
+            AssetSupplyV2("USD", 2),
+            AssetSupplyV2("VND", 11),
+            AssetSupplyV2("ZZZ", 0),
+        ),
+    )
+    _assert_source_unchanged(source, source_canonical, source_root)
+
+    middle = issued.post_state
+    middle_canonical = middle.to_canonical()
+    middle_root = middle.state_root
+    burn = _managed_command(
+        kind="managed_asset_burn",
+        owner="alice",
+        amount_atoms=2,
+    )
+    unauthorized = transition_asset_lane_custody_v2(
+        _context(burn, subject="mallory", nonce=2), middle, burn
+    )
+    assert isinstance(unauthorized, AssetLaneRejectedV2)
+    assert unauthorized.route is AssetLaneRouteV2.MANAGED_LIFECYCLE
+    assert unauthorized.code is ManagedAssetLifecycleRejectCodeV2.UNAUTHORIZED_SUBJECT
+    assert unauthorized.pre_state_root == unauthorized.post_state_root == middle_root
+    assert unauthorized.effects.is_empty
+    _assert_source_unchanged(middle, middle_canonical, middle_root)
+
+    burned = _assert_multiasset_accepted(
+        transition_asset_lane_custody_v2(_context(burn, nonce=3), middle, burn),
+        middle,
+        (
+            EconomicAmountV2("carol", "EUR", "accounts", 7),
+            EconomicAmountV2("dana", "GBP", "accounts", 3),
+            EconomicAmountV2("erin", "JPY", "accounts", 5),
+            EconomicAmountV2("frank", "VND", "accounts", 11),
+        ),
+        (
+            AssetSupplyV2("AUD", 0),
+            AssetSupplyV2("EUR", 9),
+            AssetSupplyV2("GBP", 3),
+            AssetSupplyV2("JPY", 5),
+            AssetSupplyV2("USD", 0),
+            AssetSupplyV2("VND", 11),
+            AssetSupplyV2("ZZZ", 0),
+        ),
+    )
+    _assert_source_unchanged(middle, middle_canonical, middle_root)
+
+    burned_source = burned.post_state
+    burned_source_canonical = burned_source.to_canonical()
+    burned_source_root = burned_source.state_root
+    reissue = _managed_command(amount_atoms=1, owner="bob")
+    _assert_multiasset_accepted(
+        transition_asset_lane_custody_v2(_context(reissue, nonce=4), burned_source, reissue),
+        burned_source,
+        (
+            EconomicAmountV2("carol", "EUR", "accounts", 7),
+            EconomicAmountV2("dana", "GBP", "accounts", 3),
+            EconomicAmountV2("erin", "JPY", "accounts", 5),
+            EconomicAmountV2("bob", "USD", "accounts", 1),
+            EconomicAmountV2("frank", "VND", "accounts", 11),
+        ),
+        (
+            AssetSupplyV2("AUD", 0),
+            AssetSupplyV2("EUR", 9),
+            AssetSupplyV2("GBP", 3),
+            AssetSupplyV2("JPY", 5),
+            AssetSupplyV2("USD", 1),
+            AssetSupplyV2("VND", 11),
+            AssetSupplyV2("ZZZ", 0),
+        ),
+    )
+    _assert_source_unchanged(burned_source, burned_source_canonical, burned_source_root)
 
 
 def test_given_accounts_and_vault_when_authorized_transfer_then_complete_value_is_preserved():
