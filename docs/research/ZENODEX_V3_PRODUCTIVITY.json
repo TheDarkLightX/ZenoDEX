@@ -1551,6 +1551,101 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260912-custody-complete-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "custody-complete-proof-integration-and-frozen-gates",
+      "risk": "critical",
+      "provenance": {
+        "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+        "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
+        "sha256": "671b5db1c04f08bc4ebbeb0e9136104db99540b7ff92256426c22e4b20ea7ee7"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-complete-proof-worker",
+      "model_id": null,
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-exact-reprojection-and-complete-state-Lean",
+      "risk": "critical",
+      "provenance": {
+        "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+        "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
+        "sha256": "671b5db1c04f08bc4ebbeb0e9136104db99540b7ff92256426c22e4b20ea7ee7"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-complete-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-complete-independent-value-and-step-controls",
+      "risk": "critical",
+      "provenance": {
+        "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+        "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
+        "sha256": "671b5db1c04f08bc4ebbeb0e9136104db99540b7ff92256426c22e4b20ea7ee7"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-complete-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "verification",
+      "status": "completed",
+      "task_kind": "custody-metadata-boundaries-and-model-semantic-mutants",
+      "risk": "critical",
+      "provenance": {
+        "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+        "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
+        "sha256": "671b5db1c04f08bc4ebbeb0e9136104db99540b7ff92256426c22e4b20ea7ee7"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-complete-assessment-review",
+      "model_id": null,
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody-fixed-rubric-independent-advisory-assessment",
+      "risk": "critical",
+      "provenance": {
+        "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+        "path": "tests/evidence/custody_complete_projection_review_20260912.md",
+        "sha256": "f3f09303e0c274a8be130555628935e324744a17b9fb8ad33230ee12a347483f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -2465,6 +2560,110 @@
           "commit": "d81c0cf6743d5154bea011b0eb1e8445fa535e45",
           "path": "tests/evidence/custody_structural_v2_20260912.json",
           "sha256": "e582bf24a6c6d42f84a3a62d6e4791fd7055ea1e65a26801f9006f2194043d56"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-custody-complete-implementation",
+      "before_commit": "be2693fcd5da816c8e723853b92d3fbe47754bc7",
+      "after_commit": "e2224617a092380d21ac6028d889a511cfc00e74",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-complete-root",
+        "V3-20260912-custody-complete-proof-worker",
+        "V3-20260912-custody-complete-luna",
+        "V3-20260912-custody-complete-daybreak",
+        "V3-20260912-custody-complete-assessment-review"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Exact finite accepted leaf reprojection, complete state erasure/metadata/byte relations, and bounded actual materialized-step evidence. Nine new pytest tests pass; two compiling model mutants were killed. Added 1,880 lines: 892 proof including 420 Lean controls, 874 Python tests, 114 hygiene data; zero runtime changes. Reviewed refinement-only amendment for three capabilities gives formal 21.081 -> 21.094 (+0.013 percentage points), V3 unchanged at 23.869. Scores are partial judgments; authority and 0/12 qualification unchanged.",
+        "evidence": {
+          "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+          "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
+          "sha256": "671b5db1c04f08bc4ebbeb0e9136104db99540b7ff92256426c22e4b20ea7ee7"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "4fdeeb2ddf73fc01a88ee17dd4b72bb2e3580b3c",
+          "path": "tests/evidence/v3_custody_complete_projection_assessment_before_20260912.json",
+          "sha256": "3ab942a0c4a09fc8e1ac17e856643caca497c73f70cf7d73c467b0be00362e6f"
+        },
+        "after": {
+          "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+          "path": "tests/evidence/v3_custody_complete_projection_assessment_after_20260912.json",
+          "sha256": "8acc6ee21455f7c4345bd60e7118888df7e67e98304770f504810fd8fa076f11"
+        },
+        "review": {
+          "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+          "path": "tests/evidence/custody_complete_projection_review_20260912.md",
+          "sha256": "f3f09303e0c274a8be130555628935e324744a17b9fb8ad33230ee12a347483f"
+        }
+      },
+      "findings": [
+        {
+          "id": "CUSTODY-COMPLETE-STATE-TEST-JSON-SHAPE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+            "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
+            "sha256": "671b5db1c04f08bc4ebbeb0e9136104db99540b7ff92256426c22e4b20ea7ee7"
+          }
+        },
+        {
+          "id": "CUSTODY-COMPLETE-STATE-TEST-UNION-FLOW",
+          "status": "repaired",
+          "evidence": {
+            "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+            "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
+            "sha256": "671b5db1c04f08bc4ebbeb0e9136104db99540b7ff92256426c22e4b20ea7ee7"
+          }
+        },
+        {
+          "id": "CUSTODY-ERASED-METADATA-ADMISSION-GAP",
+          "status": "confirmed",
+          "evidence": {
+            "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+            "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
+            "sha256": "671b5db1c04f08bc4ebbeb0e9136104db99540b7ff92256426c22e4b20ea7ee7"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-custody-complete-evidence",
+      "before_commit": "e2224617a092380d21ac6028d889a511cfc00e74",
+      "after_commit": "4fdeeb2ddf73fc01a88ee17dd4b72bb2e3580b3c",
+      "kind": "support",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-complete-root",
+        "V3-20260912-custody-complete-proof-worker",
+        "V3-20260912-custody-complete-luna",
+        "V3-20260912-custody-complete-daybreak",
+        "V3-20260912-custody-complete-assessment-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Pins final source, tests, semantic mutation observations and independent narrow assessment. The existing reporter rejected the old assessment subject, so an explicit unchanged-score baseline snapshot now binds the exact pre-batch commit; the historical assessment is preserved. Added 2,629 support lines, including 2,361 lines in the two frozen assessment snapshots. Five Fable workers are prepared; no model execution or source export pending specific transfer approval. No external implementation contribution or additional support score credit is claimed.",
+        "evidence": {
+          "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
+          "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
+          "sha256": "671b5db1c04f08bc4ebbeb0e9136104db99540b7ff92256426c22e4b20ea7ee7"
         }
       },
       "assessment": {
