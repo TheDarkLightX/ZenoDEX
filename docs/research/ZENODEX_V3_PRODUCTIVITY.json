@@ -629,6 +629,548 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260912-sprint-root",
+      "model_id": "Astra (active integrator)",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "sprint-integration-and-repair",
+      "risk": "critical",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-sprint-boundary-review",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "oracle-and-prover-boundary-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-sprint-publication-review",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "correct-global-publication-seam",
+      "risk": "critical",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-tau-utility-mapping",
+      "model_id": "gpt-5.6-luna",
+      "role": "research",
+      "status": "completed",
+      "task_kind": "prior-tau-policy-utility-mapping",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-sprint-export-rejected",
+      "model_id": null,
+      "role": "integration",
+      "status": "failed",
+      "task_kind": "automatic-review-rejected-before-execution",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-fable-custody-prover-config",
+      "model_id": "claude-fable-5-1",
+      "role": "implementation",
+      "status": "cancelled",
+      "task_kind": "bounded-sprint-custody-prover-config",
+      "risk": "critical",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 130,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_prover_config/usage/input_tokens"
+        },
+        "output_tokens": {
+          "value": 101072,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_prover_config/usage/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 1245834,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_prover_config/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-helper-custody-prover-config",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "cli-internal-helper-purpose-unreported",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 3275,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_prover_config/modelUsage/claude-haiku-4-5-20251001/inputTokens"
+        },
+        "output_tokens": {
+          "value": 17,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_prover_config/modelUsage/claude-haiku-4-5-20251001/outputTokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-fable-custody-prover-config-impl2",
+      "model_id": "claude-fable-5-1",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "bounded-sprint-custody-prover-config-impl2",
+      "risk": "critical",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 98,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_prover_config_impl2/usage/input_tokens"
+        },
+        "output_tokens": {
+          "value": 4265,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_prover_config_impl2/usage/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 48297,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_prover_config_impl2/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-helper-custody-prover-config-impl2",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "cli-internal-helper-purpose-unreported",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 1496,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_prover_config_impl2/modelUsage/claude-haiku-4-5-20251001/inputTokens"
+        },
+        "output_tokens": {
+          "value": 14,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_prover_config_impl2/modelUsage/claude-haiku-4-5-20251001/outputTokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-fable-custody-store-review",
+      "model_id": "claude-fable-5-1",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "bounded-sprint-custody-store-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 194,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_store_review/usage/input_tokens"
+        },
+        "output_tokens": {
+          "value": 62183,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_store_review/usage/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 737091,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_store_review/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-helper-custody-store-review",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "cli-internal-helper-purpose-unreported",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 3078,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_store_review/modelUsage/claude-haiku-4-5-20251001/inputTokens"
+        },
+        "output_tokens": {
+          "value": 16,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/custody_store_review/modelUsage/claude-haiku-4-5-20251001/outputTokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-fable-oracle-preflight",
+      "model_id": "claude-fable-5-1",
+      "role": "implementation",
+      "status": "cancelled",
+      "task_kind": "bounded-sprint-oracle-preflight",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 130,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/oracle_preflight/usage/input_tokens"
+        },
+        "output_tokens": {
+          "value": 67023,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/oracle_preflight/usage/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 1245775,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/oracle_preflight/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-helper-oracle-preflight",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "cli-internal-helper-purpose-unreported",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 2638,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/oracle_preflight/modelUsage/claude-haiku-4-5-20251001/inputTokens"
+        },
+        "output_tokens": {
+          "value": 16,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/oracle_preflight/modelUsage/claude-haiku-4-5-20251001/outputTokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-fable-oracle-preflight-impl2",
+      "model_id": "claude-fable-5-1",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "bounded-sprint-oracle-preflight-impl2",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 290,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/oracle_preflight_impl2/usage/input_tokens"
+        },
+        "output_tokens": {
+          "value": 24568,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/oracle_preflight_impl2/usage/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 250750,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/oracle_preflight_impl2/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-helper-oracle-preflight-impl2",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "cli-internal-helper-purpose-unreported",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 1443,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/oracle_preflight_impl2/modelUsage/claude-haiku-4-5-20251001/inputTokens"
+        },
+        "output_tokens": {
+          "value": 12,
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          },
+          "json_pointer": "/workers/oracle_preflight_impl2/modelUsage/claude-haiku-4-5-20251001/outputTokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-schema-custody-prover-config",
+      "model_id": null,
+      "role": "integration",
+      "status": "failed",
+      "task_kind": "cli-schema-rejected-before-model-execution",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-schema-custody-store-review",
+      "model_id": null,
+      "role": "integration",
+      "status": "failed",
+      "task_kind": "cli-schema-rejected-before-model-execution",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-schema-oracle-preflight",
+      "model_id": null,
+      "role": "integration",
+      "status": "failed",
+      "task_kind": "cli-schema-rejected-before-model-execution",
+      "risk": "standard",
+      "provenance": {
+        "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+        "path": "tests/evidence/fable_sprint_20260912.json",
+        "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -1044,6 +1586,138 @@
             "commit": "3e31640cc140fe0073d6df1145590f9736c943d4",
             "path": "tests/evidence/profiled_asset_lane_custody_v2_20260910.json",
             "sha256": "1012facbb7632a696de5e2ee31e4ec27fa8894efd2c430a85957b3257951a283"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-oracle-and-prover",
+      "before_commit": "8a99c42344de742ecceb4459711170563aa3784f",
+      "after_commit": "2863bde5ff100b2bd1aa091706d30af805dce3f1",
+      "kind": "repair",
+      "obligation_ids": [
+        "W02",
+        "W03"
+      ],
+      "run_ids": [
+        "V3-20260912-sprint-root",
+        "V3-20260912-sprint-boundary-review",
+        "V3-20260912-fable-custody-prover-config",
+        "V3-20260912-helper-custody-prover-config",
+        "V3-20260912-fable-custody-prover-config-impl2",
+        "V3-20260912-helper-custody-prover-config-impl2",
+        "V3-20260912-fable-oracle-preflight",
+        "V3-20260912-helper-oracle-preflight",
+        "V3-20260912-fable-oracle-preflight-impl2",
+        "V3-20260912-helper-oracle-preflight-impl2",
+        "V3-20260912-schema-custody-prover-config",
+        "V3-20260912-schema-oracle-preflight"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Offline reporter-capacity preflight and native custody prover selection guard implemented. Strict trace/context parsing and trace-first rejection repairs pass retained counterexamples. 72 Python and 12 native Rust tests pass. Stable environment/honest IPC remain assumptions; no genuine guest/receipt or whole-core qualification.",
+        "evidence": {
+          "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+          "path": "tests/evidence/fable_sprint_20260912.json",
+          "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "ORACLE-PREFLIGHT-DUPLICATE-TRACE-KEY",
+          "status": "repaired",
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          }
+        },
+        {
+          "id": "ORACLE-PREFLIGHT-TRACE-PRECEDENCE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          }
+        },
+        {
+          "id": "CUSTODY-PROVER-SDK-SELECTION",
+          "status": "repaired",
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          }
+        },
+        {
+          "id": "CUSTODY-PROVER-ENV-RECHECK",
+          "status": "confirmed",
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-sprint-evidence",
+      "before_commit": "2863bde5ff100b2bd1aa091706d30af805dce3f1",
+      "after_commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+      "kind": "support",
+      "obligation_ids": [
+        "W02",
+        "W03",
+        "W06"
+      ],
+      "run_ids": [
+        "V3-20260912-sprint-root",
+        "V3-20260912-sprint-publication-review",
+        "V3-20260912-tau-utility-mapping",
+        "V3-20260912-sprint-export-rejected",
+        "V3-20260912-fable-custody-store-review",
+        "V3-20260912-helper-custody-store-review",
+        "V3-20260912-schema-custody-store-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Retains failed fleet attempts, exact local evidence, Tau utility analysis and corrected W06 handoff. Rejects mistaken M6 second-ledger design before implementation; names current-authority/CAS, complete V2 state and external publication-history binding needed by a fresh isolated publisher. No V2 publication code or product closure.",
+        "evidence": {
+          "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+          "path": "docs/research/ZENODEX_FABLE_SPRINT_20260912.md",
+          "sha256": "3c8d18c08c52547bb2880065bf9a82c86a33f1707c55be84858ef13332aec69a"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "FABLE-STORE-PROPOSAL-WRONG-SEAM",
+          "status": "repaired",
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
+          }
+        },
+        {
+          "id": "SPRINT-MAX-NO-CANDIDATE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "11f750b040f516e791ee43cadb74db740c01e8ee",
+            "path": "tests/evidence/fable_sprint_20260912.json",
+            "sha256": "eab5b7e5f1280453b4cba0151fb569b6a25e682b13d43e1be803cd007c0af54c"
           }
         }
       ],
