@@ -1,0 +1,170 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260912-custody-command-source-binding-v2",
+  "created_date": "2026-09-12",
+  "claim_scope": "Command-asset conservation equality in Python/Rust custody V2; independent coherent source-coordinate fault controls; V2 source-metadata regeneration preserves transaction bytes. No external leaf injection, cryptographic receipt authenticity, guest image or production qualification.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-CONSERVATION-COMMAND-ASSET",
+    "CUSTODY-SOURCE-CONTEXT-BINDING",
+    "CUSTODY-TYPED-REJECT-IS-NOOP"
+  ],
+  "failure_modes": [
+    "Accepted USD leaf balance movement is paired with coherent unchanged EUR conservation.",
+    "Source journal names a foreign chain, deployment or profile.",
+    "Rejection changes state, consumes replay or returns economic effects."
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/asset_lane_custody_coordinator_v2.py",
+      "sha256": "cc4d37ddb8d92ad8ae0b8e290791992b412f200381f932e87651861a27b0742b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/asset_lane_custody.rs",
+      "sha256": "404573d5a77320d0d8d6d2404fe2fd3e78d9003ede682ceb8b133cfd49fc1e99"
+    },
+    {
+      "path": "tests/data/asset_lane_custody_v2_golden.json",
+      "sha256": "34224274d1e1113a14375ac2e24fd0ca2023c2de6e87b0ee58f873f29bbb1d6b"
+    },
+    {
+      "path": "tests/data/asset_lane_custody_statement_v2_golden.json",
+      "sha256": "0b9cdb03eb6d3fb2d1b663cfe02a65cc8c9249c309079be59d1adc8585b49113"
+    },
+    {
+      "path": "tools/render_asset_lane_custody_v2_golden.py",
+      "sha256": "5f0e83fd9e1b8ce22b1dc5c80da573a1f2c07e7cc65a112780fda34655fbeef8"
+    },
+    {
+      "path": "tools/render_asset_lane_custody_statement_v2_golden.py",
+      "sha256": "1ab6eabef5d0a4f159ce0b4f5926dc4e25dc6801b58ab905918816e95e599a30"
+    },
+    {
+      "path": "zk/asset_lane_custody_global_risc0/README.md",
+      "sha256": "45d8352ae9c1082c9b9ef7217d9d5fc278e1d185531078bf27ab2e29333055b1"
+    }
+  ],
+  "test_pins": [
+    {
+      "path": "tests/core/test_asset_lane_custody_bindings_v2.py",
+      "sha256": "e18d339b75515eef4c86ab04bac15a37a713d0a07ab79102b57344462745bd98",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_bindings_v2.py::test_coherent_leaf_mutants_reject_without_custody_or_economic_change",
+        "tests/core/test_asset_lane_custody_bindings_v2.py::test_conservation_must_name_command_asset_before_custody_completion"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_source_bindings_v2.py",
+      "sha256": "ea6dcf3dcf431d0ca2dd430dca5f53a652d1adfa80ee42cd105dd615a3023274",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_source_bindings_v2.py::test_real_leaf_and_outer_positive_controls",
+        "tests/core/test_asset_lane_custody_source_bindings_v2.py::test_faulty_internal_leaf_source_coordinate_is_exact_noop"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py",
+      "sha256": "76544443438677e251ff1da4508e343cd365aded52ddd331366406a2dc4d209f",
+      "node_ids": [
+        "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py::test_contract_surface_signatures_axioms_and_placeholders",
+        "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py::test_accepted_transfer_issue_and_burn_with_nonzero_custody",
+        "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py::test_ten_golden_outcomes_refine_actual_leaf_effects_by_exact_completion",
+        "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py::test_accounts_only_completion_mutant_is_refused",
+        "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py::test_managed_leaf_sibling_loss_mutant_is_refused",
+        "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py::test_lane_write_completion_mutants_are_refused"
+      ]
+    }
+  ],
+  "removed_paths": [],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "differential",
+    "mutation",
+    "formal",
+    "boundary"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "A real accepted two-asset USD transfer is the positive control; change only conservation to coherent unchanged EUR and recompute the existing effect/journal roots through exact public constructors. A retained baseline run failed at the intended rejection assertion. Source-coordinate cases each change one journal field on real transfer and managed-issue results."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Require exact coordinator route/reject code, equal pre/post roots, all six empty effect fields and unchanged complete predecessor canonical bytes. The core has no publication or outbox writer."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "conservation and source ownership",
+      "points": [
+        "selected asset versus unchanged covered sibling",
+        "two physical custody/account locations",
+        "transfer and managed issue",
+        "exact versus foreign chain/deployment/profile",
+        "coherent accepted-leaf constructors",
+        "same complete pre-state and six empty effect fields"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Removing command-asset equality admits coherent EUR conservation for changed USD balances.",
+      "killed_by": "tests/core/test_asset_lane_custody_bindings_v2.py::test_conservation_must_name_command_asset_before_custody_completion",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_coordinator_v2.py",
+        "needle_lines": [
+          "    if row.asset != command_asset or row.asset not in {p.asset for p in post.policies}:"
+        ],
+        "replacement_lines": [
+          "    if row.asset not in {p.asset for p in post.policies}:"
+        ]
+      }
+    },
+    {
+      "description": "Removing the chain_id comparison admits a foreign source journal on a fixed internal leaf.",
+      "killed_by": "tests/core/test_asset_lane_custody_source_bindings_v2.py::test_faulty_internal_leaf_source_coordinate_is_exact_noop",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_coordinator_v2.py",
+        "needle_lines": [
+          "        and journal.chain_id == occurrence.chain_id"
+        ],
+        "replacement_lines": [
+          "        and True"
+        ]
+      }
+    },
+    {
+      "description": "Removing the deployment_root comparison admits a foreign source journal on a fixed internal leaf.",
+      "killed_by": "tests/core/test_asset_lane_custody_source_bindings_v2.py::test_faulty_internal_leaf_source_coordinate_is_exact_noop",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_coordinator_v2.py",
+        "needle_lines": [
+          "        and journal.deployment_root == occurrence.deployment_root"
+        ],
+        "replacement_lines": [
+          "        and True"
+        ]
+      }
+    },
+    {
+      "description": "Removing the profile_root comparison admits a foreign source journal on a fixed internal leaf.",
+      "killed_by": "tests/core/test_asset_lane_custody_source_bindings_v2.py::test_faulty_internal_leaf_source_coordinate_is_exact_noop",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_coordinator_v2.py",
+        "needle_lines": [
+          "        and journal.profile_root == occurrence.profile_root"
+        ],
+        "replacement_lines": [
+          "        and True"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Faulty internal leaf/code-regression injection; production calls fixed local leaves and exposes no result injection port. No external exploit is established.",
+    "Three source-coordinate mutants were separately replayed in copied source with both positive routes passing; archived THV replay is recorded in the delivery evidence after code commit.",
+    "The exact new Rust unit regression failed at acceptance before repair and passed afterward. No rebuilt guest image or genuine RISC0 receipt was qualified.",
+    "Conservation and metadata controls do not authenticate a leaf receipt root. Outer ordered outcomes and full runtime/formal refinement remain open.",
+    "The V2 fixtures changed only the coordinator source hash; all 10 custody and 5 statement payloads, roots and outcomes are unchanged. An inherited V1 source-metadata drift failure remains untouched.",
+    "Boundary evidence for this guard is the matched-versus-foreign asset/context partition; this batch does not claim a new exhaustive numeric-boundary campaign."
+  ]
+}

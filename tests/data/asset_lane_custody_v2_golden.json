@@ -2107,7 +2107,7 @@
   "nonclaim": "Listed-source bounded runtime parity; no signature, proof guest, publication or migration qualification.",
   "schema": "zenodex/asset-lane-custody-v2-golden/v1",
   "source_sha256": {
-    "src/core/asset_lane_custody_coordinator_v2.py": "db218292c2ab32b152db2575a5fcb8c575e4eb49fe54920d624592b470bdd10c",
+    "src/core/asset_lane_custody_coordinator_v2.py": "cc4d37ddb8d92ad8ae0b8e290791992b412f200381f932e87651861a27b0742b",
     "src/core/asset_lane_custody_state_v2.py": "4fbc66a705b686acd3a64c92ce054571e6955567568ba755549fa0eeae06f88a",
     "src/core/asset_transfer_module_v2.py": "b18030eb4e5631e6315e5d483b4cca3f0f601af4747ac18c2e3b94d8b3f96cf3",
     "src/core/managed_asset_lifecycle_module_v2.py": "16f68aec399ef620e9e665ccdcd67a3dbd5a5255fde554e420d31213b4abf1eb",

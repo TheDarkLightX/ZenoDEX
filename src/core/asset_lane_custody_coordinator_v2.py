@@ -213,13 +213,15 @@ def _source_holds(
     )
 
 
-def _account_projection_holds(pre: AssetLaneCustodyStateV2, candidate: _LeafAccepted) -> bool:
+def _account_projection_holds(
+    pre: AssetLaneCustodyStateV2, command_asset: str, candidate: _LeafAccepted
+) -> bool:
     rows = candidate.effects.asset_conservation
     if len(rows) != 1:
         return False
     row = rows[0]
     post = candidate.post_state
-    if row.asset not in {p.asset for p in post.policies}:
+    if row.asset != command_asset or row.asset not in {p.asset for p in post.policies}:
         return False
     return (
         row.owned_and_custodied_pre_atoms == pre.account_atoms(row.asset)
@@ -330,7 +332,7 @@ def transition_asset_lane_custody_v2(
             AssetLaneRouteV2.COORDINATOR,
             AssetLaneCoordinatorRejectCodeV2.CANDIDATE_BINDING_MISMATCH,
         )
-    if not _account_projection_holds(pre, accepted):
+    if not _account_projection_holds(pre, command.asset, accepted):
         return _reject(
             pre, AssetLaneRouteV2.COORDINATOR, AssetLaneCoordinatorRejectCodeV2.PROJECTION_MISMATCH
         )

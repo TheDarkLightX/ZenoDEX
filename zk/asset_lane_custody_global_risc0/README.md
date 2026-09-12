@@ -17,8 +17,10 @@ canonical decoding, economic rejection or global refinement aborts execution.
 Native transport tests and source integration do not qualify a RISC0 image or
 receipt. The Python integration now combines isolated command authentication
 with explicit guest-role selection and measured endpoint verification. The
-workspace still has no qualified measured image, genuine receipt, store-owned
-role selection or durable publication path. In particular, the module journal's
+isolated publisher now provides store-owned role selection and durable
+publication, as specified in
+[isolated custody publication V2](../../docs/specifications/ISOLATED_CUSTODY_PUBLICATION_V2.md).
+A qualified measured image and genuine receipt remain open requirements. The module journal's
 `receipt_root` is a deterministic semantic commitment, not a cryptographic
 receipt. Historical ABI V1 proof families remain separate.
 

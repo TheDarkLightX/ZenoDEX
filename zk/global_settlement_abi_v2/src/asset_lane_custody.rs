@@ -329,12 +329,20 @@ fn leaf_post_supply_atoms(candidate: &LeafAcceptedV2, asset: &str) -> AbiResultV
 
 fn leaf_conservation_holds(
     pre_state: &AssetLaneCustodyStateV2,
+    command: &AssetLaneCommandV2,
     candidate: &LeafAcceptedV2,
 ) -> bool {
     if candidate.effects().asset_conservation.len() != 1 {
         return false;
     }
     let row = &candidate.effects().asset_conservation[0];
+    let command_asset = match command {
+        AssetLaneCommandV2::Transfer(command) => command.asset.as_str(),
+        AssetLaneCommandV2::ManagedLifecycle(command) => command.asset.as_str(),
+    };
+    if row.asset != command_asset {
+        return false;
+    }
     let values = (
         pre_state.account_total_atoms(&row.asset),
         leaf_post_account_total_atoms(candidate, &row.asset),
@@ -518,9 +526,10 @@ fn rebind_candidate(
 fn compose_candidate(
     context: &AssetLaneContextV2,
     pre_state: &AssetLaneCustodyStateV2,
-    route: AssetLaneRouteV2,
+    command: &AssetLaneCommandV2,
     candidate: LeafAcceptedV2,
 ) -> AbiResultV2<AssetLaneCustodyResultV2> {
+    let route = command.route();
     if !candidate_binding_holds(context, pre_state, &candidate) {
         return reject(
             pre_state,
@@ -530,7 +539,7 @@ fn compose_candidate(
             ),
         );
     }
-    if !leaf_conservation_holds(pre_state, &candidate) {
+    if !leaf_conservation_holds(pre_state, command, &candidate) {
         return reject(
             pre_state,
             AssetLaneRouteV2::COORDINATOR,
@@ -620,7 +629,7 @@ pub fn transition_asset_lane_custody_v2(
             }
         }
     };
-    compose_candidate(context, pre_state, route, candidate)
+    compose_candidate(context, pre_state, command, candidate)
 }
 
 #[cfg(test)]
@@ -761,10 +770,96 @@ mod tests {
         for supply_fields in [false, true] {
             let (context, state, command) = transfer_subject();
             let candidate = forged_transfer_candidate(&context, &state, &command, supply_fields);
-            let result = compose_candidate(&context, &state, AssetLaneRouteV2::TRANSFER, candidate)
-                .expect("coordinator evaluates forged totals");
+            let result = compose_candidate(
+                &context,
+                &state,
+                &AssetLaneCommandV2::Transfer(command),
+                candidate,
+            )
+            .expect("coordinator evaluates forged totals");
             assert_projection_noop(result, &state);
         }
+    }
+
+    #[test]
+    fn wrong_asset_conservation_is_a_projection_noop() {
+        let (context, mut state, command) = transfer_subject();
+        let mut eur_policy = state.transfer_state.policies[0].clone();
+        eur_policy.asset = "EUR".to_owned();
+        eur_policy.transfer_fee_atoms = 0;
+        eur_policy.asset_origin_root = Some(root(100));
+        let eur_policy_root =
+            asset_transfer_policy_root_v2(&eur_policy).expect("EUR transfer policy root");
+        state.transfer_state.policies.push(eur_policy);
+        state
+            .transfer_state
+            .policies
+            .sort_by(|left, right| left.asset.cmp(&right.asset));
+
+        let mut eur_record = state.origin_registry.assets[0].clone();
+        eur_record.asset = "EUR".to_owned();
+        eur_record.origin_kind = AssetOriginKindV2::TAU_ORIGINATED;
+        eur_record.origin_root = root(100);
+        eur_record.transfer_policy_root = eur_policy_root;
+        eur_record.issue_policy_root = RootV2::zero();
+        state.origin_registry.assets.push(eur_record);
+        state
+            .origin_registry
+            .assets
+            .sort_by(|left, right| left.asset.cmp(&right.asset));
+        state.transfer_state.balances.push(EconomicAmountV2 {
+            owner: "carol".to_owned(),
+            asset: "EUR".to_owned(),
+            custody_domain: ACCOUNT_CUSTODY_DOMAIN_V2.to_owned(),
+            amount_atoms: 7,
+        });
+        state
+            .transfer_state
+            .balances
+            .sort_by(|left, right| left.key().cmp(&right.key()));
+        state.transfer_state.supplies.push(AssetSupplyV2 {
+            asset: "EUR".to_owned(),
+            amount_atoms: 7,
+        });
+        state
+            .transfer_state
+            .supplies
+            .sort_by(|left, right| left.asset.cmp(&right.asset));
+        state.validate().expect("two-asset pre-state is valid");
+
+        let mut accepted = transfer_candidate(&context, &state, &command);
+        assert_eq!(command.asset, "USD");
+        assert!(!accepted.effects.rows.is_empty());
+        assert!(accepted
+            .effects
+            .rows
+            .iter()
+            .all(|effect| effect.asset == command.asset));
+        let row = &mut accepted.effects.asset_conservation[0];
+        assert_eq!(row.asset, command.asset);
+        row.asset = "EUR".to_owned();
+        row.owned_and_custodied_pre_atoms = 7;
+        row.owned_and_custodied_post_atoms = 7;
+        row.supply_pre_atoms = 7;
+        row.supply_post_atoms = 7;
+        row.authorized_issue_atoms = 0;
+        row.authorized_burn_atoms = 0;
+        accepted.module_journal.effect_plan_root = accepted
+            .effects
+            .effect_plan_root()
+            .expect("forged effect root");
+        accepted
+            .validate()
+            .expect("leaf-local validation does not bind conservation to the command");
+
+        let result = compose_candidate(
+            &context,
+            &state,
+            &AssetLaneCommandV2::Transfer(command),
+            LeafAcceptedV2::Transfer(accepted),
+        )
+        .expect("coordinator evaluates relabelled conservation");
+        assert_projection_noop(result, &state);
     }
 
     #[test]
@@ -778,7 +873,7 @@ mod tests {
         let result = compose_candidate(
             &context,
             &state,
-            AssetLaneRouteV2::TRANSFER,
+            &AssetLaneCommandV2::Transfer(command),
             LeafAcceptedV2::Transfer(accepted),
         )
         .expect("coordinator evaluates forged context");
@@ -953,7 +1048,7 @@ mod tests {
         let result = compose_candidate(
             &context,
             &state,
-            AssetLaneRouteV2::MANAGED_LIFECYCLE,
+            &AssetLaneCommandV2::ManagedLifecycle(command),
             LeafAcceptedV2::ManagedLifecycle(accepted),
         )
         .expect("coordinator evaluates simultaneous failures");
