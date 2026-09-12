@@ -243,6 +243,12 @@ before assessment and counts intervening metadata once. Historical records remai
 in the manifest. The broader interval's LOC includes earlier support work; the
 new implementation alone remains the separately reported 3,470 additions and
 12 removals. No score or runtime change is attributed to that older metadata.
+
+Append-only replay now validates **100 contribution records and 25 active
+batches**, with one preserved superseded support batch. All referenced blobs
+match; there are no overlapping, duplicate or divergent active ranges. The
+reporter reproduces the +0.066 pp formal-core and +0.100 pp V3 transition.
+Replay with `--baseline-manifest-commit afb5fd52cae91077276c36653dfe95d5e163ecd9`.
 Actual billed cost is unknown. A following Opus coordinator bundle is in flight
 and earns no delivery credit here.
 
