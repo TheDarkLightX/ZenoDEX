@@ -1,8 +1,9 @@
 """Current margin semantics: independent cases, Lean decisions, full Rust/Python results.
 
-The Lean input projects the selected account and market count. Complete market
-reconstruction, effects, ports and journals are checked below against both
-runtimes; this is finite correspondence, not a proof of either implementation.
+The Lean input materializes the complete market and derives account lookup and
+length from its owned list. Complete market reconstruction, effects, ports and
+journals are checked below against both runtimes; this is finite correspondence,
+not a proof of either implementation.
 """
 
 from __future__ import annotations
@@ -87,6 +88,27 @@ class Case:
     state: PerpsMarginStateV1
     command: PerpsMarginCommandV1
     expected: str
+
+
+def _account_with_id(
+    account_id: str,
+    *,
+    owner: str = "alice",
+    position_base: int = 0,
+    entry_price_e8: int | None = None,
+    collateral_atoms: int = 0,
+    nonce: int = 0,
+) -> PerpsMarginAccountV1:
+    return replace(
+        _account(
+            collateral_atoms=collateral_atoms,
+            position_base=position_base,
+            entry_price_e8=entry_price_e8,
+            nonce=nonce,
+        ),
+        account_id=account_id,
+        owner=owner,
+    )
 
 
 def _cases() -> list[Case]:
@@ -261,6 +283,74 @@ def _cases() -> list[Case]:
             ctx=_context(with_oracle=True, oracle_price_e8=10_001),
             command=replace(withdraw, amount_atoms=amount),
         )
+
+    # Upsert must preserve sorted order when a new account lands before,
+    # between, or after existing IDs. The target-in-the-middle case also
+    # protects the sibling frame while the selected account is replaced.
+    for name, existing_ids, target_id in (
+        ("insert_before", ("insert-b", "insert-c"), "insert-a"),
+        ("insert_middle", ("insert-a", "insert-c"), "insert-b"),
+        ("insert_after", ("insert-a", "insert-b"), "insert-c"),
+    ):
+        add(
+            name,
+            "ACCEPTED",
+            pre=_state(
+                accounts=tuple(_account_with_id(account_id) for account_id in existing_ids)
+            ),
+            command=replace(deposit, account_id=target_id, nonce=1),
+        )
+    add(
+        "same_id_sibling_frame",
+        "ACCEPTED",
+        pre=_state(
+            accounts=(
+                _account_with_id("frame-a", collateral_atoms=7, nonce=1),
+                _account_with_id("frame-b", collateral_atoms=11, nonce=1),
+                _account_with_id("frame-c", collateral_atoms=13, nonce=1),
+            )
+        ),
+        command=replace(deposit, account_id="frame-b", nonce=2),
+    )
+
+    # The signed i128 minimum is one magnitude larger than maxDelta. Three
+    # admitted peers balance exactly: -2^127 + (2^127 - 1) + 1 = 0.
+    i128_min_magnitude = 1 << 127
+    boundary = replace(
+        _state(),
+        index_price_e8=1,
+        maintenance_margin_bps=1,
+        depeg_buffer_bps=0,
+        max_position_abs=i128_min_magnitude,
+        accounts=(
+            _account_with_id(
+                "i128-negative",
+                position_base=-i128_min_magnitude,
+                entry_price_e8=1,
+                nonce=0,
+            ),
+            _account_with_id(
+                "i128-positive-max",
+                owner="bob",
+                position_base=i128_min_magnitude - 1,
+                entry_price_e8=1,
+                nonce=0,
+            ),
+            _account_with_id(
+                "i128-positive-one",
+                owner="bob",
+                position_base=1,
+                entry_price_e8=1,
+                nonce=0,
+            ),
+        ),
+    )
+    add(
+        "i128_min_balanced_deposit",
+        "ACCEPTED",
+        pre=boundary,
+        command=replace(deposit, account_id="i128-negative", amount_atoms=1, nonce=1),
+    )
     return result
 
 
@@ -295,22 +385,51 @@ def _account_literal(a) -> str:
     )
 
 
-def _lean_case(case: Case, result) -> str:
-    ctx, m, c = case.context, case.state, case.command
-    context = f"⟨{json.dumps(ctx.module_release_id)}, {json.dumps(ctx.subject_id)}, {str(ctx.has_oracle_authority).lower()}, {ctx.oracle_price_e8}⟩"
+def _market_literal(m: PerpsMarginStateV1) -> str:
     status = {"ACTIVE": "active", "DRAIN_ONLY": "drainOnly", "HALTED": "halted"}[
         m.market_status.value
     ]
-    market = f"⟨{json.dumps(m.module_release_id)}, {json.dumps(m.market_id)}, {json.dumps(m.collateral_asset)}, {m.index_price_e8}, {m.maintenance_margin_bps}, {m.depeg_buffer_bps}, .{status}, {len(m.accounts)}⟩"
+    accounts = ", ".join(
+        f"({_account_literal(account)} : Account)" for account in m.accounts
+    )
+    return (
+        f"⟨{json.dumps(m.module_release_id)}, {json.dumps(m.market_id)}, "
+        f"{json.dumps(m.collateral_asset)}, {m.index_price_e8}, "
+        f"{m.maintenance_margin_bps}, {m.depeg_buffer_bps}, {m.max_position_abs}, "
+        f".{status}, ([{accounts}] : List Account)⟩"
+    )
+
+
+def _market_admission_witness(m: PerpsMarginStateV1) -> str:
+    """Construct the invariant on required states, guarding against vacuous proofs."""
+    members = (
+        "  simp only [List.mem_cons, List.not_mem_nil, or_false] at ha\n"
+        + "  rcases ha with " + " | ".join("rfl" for _ in m.accounts)
+        + "\n  all_goals constructor <;> decide"
+        if m.accounts else "  cases ha"
+    )
+    return (
+        f"example : MarketAdmitted ({_market_literal(m)} : MarketState) := by\n"
+        "  refine ⟨by unfold OrderedAccounts; decide, by decide, by decide, by decide,\n"
+        "    by decide, by decide, by decide, by decide, by decide, ?_,\n"
+        "    by decide, by decide, by decide⟩\n  intro a ha\n" + members
+    )
+
+
+def _lean_case(case: Case, result) -> str:
+    ctx, m, c = case.context, case.state, case.command
+    context = f"⟨{json.dumps(ctx.module_release_id)}, {json.dumps(ctx.subject_id)}, {str(ctx.has_oracle_authority).lower()}, {ctx.oracle_price_e8}⟩"
+    market = _market_literal(m)
     command = f"⟨.{KINDS.get(c.command_kind, 'unknown')}, {json.dumps(c.account_id)}, {json.dumps(c.market_id)}, {json.dumps(c.owner)}, {json.dumps(c.asset)}, {c.amount_atoms}, {c.nonce}⟩"
-    account = m.account(c.account_id)
-    assert account is None or account.account_id == c.account_id
-    pre = "none" if account is None else f"(some {_account_literal(account)})"
     if isinstance(result, PerpsMarginRejectedV1):
         arms = f"| .error code => decide ((code : Reject) = Reject.{REJECTS[result.code.value]})\n| .ok _ => false"
     else:
-        arms = f"| .ok a => decide ((a : Account) = ({_account_literal(result.post_state.account(c.account_id))} : Account))\n| .error _ => false"
-    return f"-- {case.name}\n#eval match step {context} {market} {command} {pre} with\n{arms}"
+        arms = f"| .ok post => decide ((post : MarketState) = ({_market_literal(result.post_state)} : MarketState))\n| .error _ => false"
+    admission = (
+        _market_admission_witness(m)
+        if case.name in {"missing", "count_64", "i128_min_balanced_deposit"} else ""
+    )
+    return f"-- {case.name}\n{admission}\n#eval match stepMarket {context} {market} {command} with\n{arms}"
 
 
 @pytest.fixture(scope="module")
@@ -340,6 +459,30 @@ def lean_closure(tmp_path_factory):
         TheoremReference(
             f"{NS}.accepted_close_is_exact_tombstone",
             f"∀ ctx m c a b, {NS}.Selected c (some a) → c.kind = .close → {NS}.step ctx m c (some a) = .ok b → a.closed = false ∧ a.position = 0 ∧ a.collateral = 0 ∧ c.amount = 0 ∧ c.nonce = a.nonce + 1 ∧ b = {{ a with nonce := c.nonce, closed := true }} ∧ a.id = c.accountId ∧ b.owner = ctx.subject",
+        ),
+        TheoremReference(
+            f"{NS}.accepted_market_admitted",
+            f"∀ ctx s c post, {NS}.MarketAdmitted s → {NS}.stepMarket ctx s c = .ok post → {NS}.MarketAdmitted post",
+        ),
+        TheoremReference(
+            f"{NS}.accepted_market_lookup_frame",
+            f"∀ ctx s c post, {NS}.stepMarket ctx s c = .ok post → ∃ a, {NS}.lookupAccount c.accountId post.accounts = some a ∧ a.owner = ctx.subject ∧ ∀ id, id ≠ c.accountId → {NS}.lookupAccount id post.accounts = {NS}.lookupAccount id s.accounts",
+        ),
+        TheoremReference(
+            f"{NS}.accepted_market_gross",
+            f"∀ ctx s c post, {NS}.MarketAdmitted s → {NS}.stepMarket ctx s c = .ok post → {NS}.positiveGross post.accounts = {NS}.positiveGross s.accounts ∧ {NS}.negativeGross post.accounts = {NS}.negativeGross s.accounts",
+        ),
+        TheoremReference(
+            f"{NS}.market_history_admitted",
+            f"∀ inputs s, {NS}.MarketAdmitted s → {NS}.MarketAdmitted ({NS}.runMarket inputs s)",
+        ),
+        TheoremReference(
+            f"{NS}.market_closed_history_is_absorbing",
+            f"∀ inputs s a, {NS}.lookupAccount a.id s.accounts = some a → a.closed = true → {NS}.lookupAccount a.id ({NS}.runMarket inputs s).accounts = some a",
+        ),
+        TheoremReference(
+            f"{NS}.admitted_maintenance_numerator",
+            f"∀ s a, {NS}.MarketAdmitted s → a ∈ s.accounts → a.position.natAbs * s.price * (s.maintenanceBps + s.depegBps) ≤ {NS}.maxAtoms",
         ),
     )
     check_lean_stdlib_source("Proofs/PerpsMarginTransitionV1.lean", references, tmp)
@@ -496,7 +639,42 @@ def test_current_margin_ordered_outcomes_match_lean_and_rust(lean_closure, rust_
         "ACCEPTED",
         *(code.value for code in PerpsMarginRejectCodeV1 if code.value != "ARITHMETIC_OVERFLOW"),
     }
-    _compare(cases, lean_closure, rust_driver, tmp_path)
+    results = _compare(cases, lean_closure, rust_driver, tmp_path)
+    expected_ids = {
+        "insert_before": ("insert-a", "insert-b", "insert-c"),
+        "insert_middle": ("insert-a", "insert-b", "insert-c"),
+        "insert_after": ("insert-a", "insert-b", "insert-c"),
+        "same_id_sibling_frame": ("frame-a", "frame-b", "frame-c"),
+    }
+    for case, result in zip(cases, results, strict=True):
+        if case.name not in expected_ids:
+            continue
+        assert isinstance(result, PerpsMarginAcceptedV1)
+        assert tuple(account.account_id for account in result.post_state.accounts) == expected_ids[
+            case.name
+        ]
+
+    boundary_case = next(c for c in cases if c.name == "i128_min_balanced_deposit")
+    boundary_result = results[cases.index(boundary_case)]
+    i128_min_magnitude = 1 << 127
+    assert boundary_case.state.max_position_abs == i128_min_magnitude
+    assert sum(
+        account.position_base for account in boundary_case.state.accounts if account.position_base > 0
+    ) == i128_min_magnitude
+    assert sum(
+        -account.position_base
+        for account in boundary_case.state.accounts
+        if account.position_base < 0
+    ) == i128_min_magnitude
+    assert isinstance(boundary_result, PerpsMarginAcceptedV1)
+    assert tuple(
+        (account.account_id, account.position_base, account.entry_price_e8, account.collateral_atoms)
+        for account in boundary_result.post_state.accounts
+    ) == (
+        ("i128-negative", -i128_min_magnitude, 1, 1),
+        ("i128-positive-max", i128_min_magnitude - 1, 1, 0),
+        ("i128-positive-one", 1, 1, 0),
+    )
 
 
 def test_margin_drain_history_and_tombstone_match_all_three(lean_closure, rust_driver, tmp_path):
@@ -542,6 +720,62 @@ def test_margin_drain_history_and_tombstone_match_all_three(lean_closure, rust_d
     assert len(closed.effects.lane_writes) == 1
 
 
+def test_margin_interleaved_alice_bob_history_matches_all_three(
+    lean_closure, rust_driver, tmp_path
+):
+    pre = _state(
+        accounts=(
+            _account_with_id("history-alice", collateral_atoms=25),
+            _account_with_id("history-bob", owner="bob", collateral_atoms=30),
+        )
+    )
+    attempts = (
+        ("alice", "history-alice", "deposit", 5, 1, "ACCEPTED"),
+        ("bob", "history-bob", "deposit", 7, 1, "ACCEPTED"),
+        ("alice", "history-alice", "withdraw", 10, 2, "ACCEPTED"),
+        ("bob", "history-bob", "deposit", 1, 1, "NONCE_MISMATCH"),
+        ("alice", "history-alice", "withdraw", 25, 3, "INSUFFICIENT_COLLATERAL"),
+        ("bob", "history-bob", "withdraw", 7, 2, "ACCEPTED"),
+        ("alice", "history-alice", "deposit", 1, 3, "ACCEPTED"),
+        ("alice", "history-alice", "withdraw", 21, 4, "ACCEPTED"),
+        ("alice", "history-alice", "close", 0, 5, "ACCEPTED"),
+        ("bob", "history-bob", "deposit", 1, 3, "ACCEPTED"),
+        ("alice", "history-alice", "deposit", 1, 6, "ACCOUNT_CLOSED"),
+        ("bob", "history-bob", "withdraw", 1, 4, "ACCEPTED"),
+    )
+    cases = []
+    for index, (owner, account_id, kind, amount, nonce, expected) in enumerate(attempts):
+        case = Case(
+            f"interleaved_{index}",
+            replace(_context(subject_id=owner), command_occurrence_id=_root(100 + index)),
+            pre,
+            replace(
+                _command(
+                    f"perps_margin_{kind}",
+                    amount_atoms=amount,
+                    nonce=nonce,
+                    owner=owner,
+                ),
+                account_id=account_id,
+            ),
+            expected,
+        )
+        cases.append(case)
+        result = transition_perps_margin_v1(case.context, case.state, case.command)
+        if isinstance(result, PerpsMarginAcceptedV1):
+            pre = result.post_state
+
+    results = _compare(cases, lean_closure, rust_driver, tmp_path)
+    assert [
+        "ACCEPTED" if isinstance(result, PerpsMarginAcceptedV1) else result.code.value
+        for result in results
+    ] == [attempt[-1] for attempt in attempts]
+    assert tuple(
+        (account.account_id, account.collateral_atoms, account.nonce, account.status.value)
+        for account in results[-1].post_state.accounts
+    ) == (("history-alice", 0, 5, "CLOSED"), ("history-bob", 30, 4, "OPEN"))
+
+
 @pytest.mark.parametrize(
     "name,old,new,case_name",
     (
@@ -574,6 +808,12 @@ def test_margin_drain_history_and_tombstone_match_all_three(lean_closure, rust_d
             "claimant",
             "EconomicEffectKindV1.LIABILITY,\n            command.owner,",
             'EconomicEffectKindV1.LIABILITY,\n            "mallory",',
+            "deposit",
+        ),
+        (
+            "target_materialization",
+            "accounts[account.account_id] = account",
+            "if False:\n        accounts[account.account_id] = account",
             "deposit",
         ),
     ),
