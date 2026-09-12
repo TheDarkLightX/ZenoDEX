@@ -1,0 +1,82 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260912-custody-structural-v2",
+  "created_date": "2026-09-12",
+  "claim_scope": "Complete modeled structure supplies both finite asset-lane sources at every reached prefix. Exact theorem signatures and initial-admission counterexamples; no full constructor, resource, receipt or runtime refinement.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-FINITE-COMPLETE-STRUCTURE",
+    "CUSTODY-PREFIX-SOURCE-ADMISSION"
+  ],
+  "failure_modes": [
+    "Balanced complete rows admit duplicate managed policy keys.",
+    "Balanced complete rows omit canonical balance order.",
+    "CommandShape admits an empty recipient that does not satisfy the leaf token contract.",
+    "A mixed accepted/rejected history loses the next leaf structural premise or omits a dormant managed sibling."
+  ],
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyStructuralV2.lean",
+      "sha256": "a1d6e09ff74cbca8627a6f7add05c897b732f17e09f2110c5bd2550a9bf170fd"
+    },
+    {
+      "path": "tests/formal/asset_lane_custody_structural_v2_controls.lean",
+      "sha256": "3884a410f8240ca952a577bae9477f334f08711950b875de023188b5cd8733c8"
+    }
+  ],
+  "test_pins": [
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_structural_v2.py",
+      "sha256": "af7363f3b49f34f2fa17749ef18d528acd232c6d48911a38edad3b52832ede2c",
+      "node_ids": [
+        "tests/formal/test_lean_asset_lane_custody_structural_v2.py::test_initial_structure_contracts_and_standard_axioms",
+        "tests/formal/test_lean_asset_lane_custody_structural_v2.py::test_complete_initial_state_and_mixed_history_have_both_leaf_structures"
+      ]
+    }
+  ],
+  "removed_paths": [],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "formal",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Explicit initial tables and input histories precede exact universal contracts and independently listed complete post-state controls. Three admission counterexamples show necessary premises."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The unchanged actual finite history step returns exact pre-state on leaf rejection; the new preservation theorem reuses that result. No runtime or effect application changed. This proof does not introduce an outer-coordinator no-op claim."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "keys and ordering",
+      "points": [
+        "one managed policy",
+        "two managed policies with zero-supply AUD sibling and interleaved unmanaged EUR",
+        "duplicated managed policy",
+        "unordered balances with unchanged physical accounting"
+      ]
+    },
+    {
+      "name": "input and history",
+      "points": [
+        "empty recipient satisfies weaker shape but fails ActionAdmission",
+        "all prefixes including empty history",
+        "issue transfer unknown transfer unknown managed unauthorized transfer burn",
+        "completed table with retained nonzero custody"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "This packet does not itself execute Lean. The two pytest gates build a fresh standard-library dependency closure with pinned Lean 4.27.0.",
+    "No new mutation campaign: three explicit premise counterexamples are Lean-checked; the older finite-trace semantic mutation campaign remains separately recorded.",
+    "CompleteStructural is not the full Python/Rust constructor: resources, complete origin fields, canonical bytes and roots remain separate.",
+    "Two symbolic prefix consumers feed the existing effect-plan admission proofs with supplied root observations. They do not authenticate roots, actors, stores or receipts.",
+    "No economic runtime, policy constants, rounding, wire formats, activation, migration, value-safety qualification or product-completion promotion."
+  ]
+}
