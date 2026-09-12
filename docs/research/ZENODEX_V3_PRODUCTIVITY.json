@@ -1266,6 +1266,101 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260912-custody-completion-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "custody-finite-completion",
+      "risk": "critical",
+      "provenance": {
+        "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+        "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+        "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-completion-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-finite-completion",
+      "risk": "critical",
+      "provenance": {
+        "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+        "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+        "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-guest-prerequisites-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "research",
+      "status": "completed",
+      "task_kind": "custody-genuine-receipt-prerequisites",
+      "risk": "critical",
+      "provenance": {
+        "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+        "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+        "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-completion-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody-finite-completion",
+      "risk": "critical",
+      "provenance": {
+        "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+        "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+        "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-completion-proof-worker",
+      "model_id": null,
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-finite-completion",
+      "risk": "critical",
+      "provenance": {
+        "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+        "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+        "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -1921,6 +2016,127 @@
           "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
           "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
           "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-custody-finite-completion",
+      "before_commit": "932901e78a15f2f1835f933e993199ba6e844a45",
+      "after_commit": "89fbc2d69a2c68291f1226121d2fcf4e1ccff060",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-completion-root",
+        "V3-20260912-custody-completion-luna",
+        "V3-20260912-custody-completion-daybreak",
+        "V3-20260912-custody-completion-proof-worker"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Finite-model complete-row mixed histories and exact accepted leaf-post completion with conservation and full effect-plan admission. Source-pinned Lean, Python/Rust lifecycle and semantic-mutant evidence pass within recorded split checks. Adds 798 proof lines and 1521 test lines, removes 7 test lines, with 0 runtime changes. Only three proof-component scores rise 0.70->0.75: formal +0.043pp; full V3 unchanged. No universal runtime or production qualification.",
+        "evidence": {
+          "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+          "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+          "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+          "path": "tests/evidence/v3_custody_completion_assessment_before_20260912.json",
+          "sha256": "c0d6fb7213b99cf8a07958c3b13b8625b645fa2e30cb0cfeac45c9bc6a31098c"
+        },
+        "after": {
+          "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+          "path": "tests/evidence/v3_custody_completion_assessment_after_20260912.json",
+          "sha256": "f77d09cdc45063b731b6f5c63d4a365d408f329ab760efe0c082172d19312fd2"
+        },
+        "review": {
+          "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+          "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+          "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+        }
+      },
+      "findings": [
+        {
+          "id": "CUSTODY-EMPTY-FIXTURE-BLINDSPOT",
+          "status": "repaired",
+          "evidence": {
+            "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+            "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+            "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+          }
+        },
+        {
+          "id": "CUSTODY-REISSUE-IMMUTABILITY",
+          "status": "repaired",
+          "evidence": {
+            "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+            "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+            "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+          }
+        },
+        {
+          "id": "CUSTODY-ACTUAL-FINITE-POST",
+          "status": "repaired",
+          "evidence": {
+            "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+            "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+            "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+          }
+        },
+        {
+          "id": "CUSTODY-SIBLING-MUTANT-TYPE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+            "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+            "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+          }
+        },
+        {
+          "id": "CUSTODY-MULTIASSET-CONTROL-PROOF",
+          "status": "repaired",
+          "evidence": {
+            "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+            "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+            "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-custody-finite-completion-evidence",
+      "before_commit": "89fbc2d69a2c68291f1226121d2fcf4e1ccff060",
+      "after_commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+      "kind": "support",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-completion-root",
+        "V3-20260912-custody-completion-luna",
+        "V3-20260912-custody-guest-prerequisites-luna",
+        "V3-20260912-custody-completion-daybreak",
+        "V3-20260912-custody-completion-proof-worker"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Retains source pins, exact split verification and rework, read-only guest prerequisites, reviewed fixed-rubric inputs, continuity and the two required acceptance-pin changes. Assessment JSON values preserve compact row formatting; intermediate formatting expansion is excluded by this start-to-end diff. This support batch earns no product credit. The later accounting-only manifest append is outside this quantified interval.",
+        "evidence": {
+          "commit": "de1abad81fcfb62c49a2868c4e592c66bc873d32",
+          "path": "tests/evidence/custody_recomposition_effect_plan_v2_20260912.json",
+          "sha256": "471d19cb8db00f7f6ab68ec43ae815545e122a3711ca7355515b5fad561b8834"
         }
       },
       "assessment": {
