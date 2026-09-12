@@ -813,7 +813,7 @@
       "test_sources": [
         {
           "path": "tests/core/test_asset_lane_custody_v2.py",
-          "sha256": "b42da5ca3e13a925ad830370e9e06bc426e62a7efdfaca83e23594da430e9c32"
+          "sha256": "4d5804119fd80a3086d2bbfa5eeb0f313edc8446199185adb2b6616ac941f2fc"
         },
         {
           "path": "tests/core/test_asset_lane_custody_global_v2.py",

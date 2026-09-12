@@ -21,7 +21,7 @@ from typing import Any, NoReturn, cast
 SCHEMA = "zenodex/v3-acceptance-index/v1"
 ROOT = Path(__file__).resolve().parents[1]
 INDEX_PATH = "docs/research/ZENODEX_V3_ACCEPTANCE.json"
-LAYOUT_SHA256 = "10ea865eef29ac0c70e7e1ae2e9f4e312bd44e02304c07e7ce9bf14df3cfc3e6"
+LAYOUT_SHA256 = "89fc65798c53305b058c05da49b602fcba43f62f98c51e3471952904b3768fc4"
 REPLAY_CASES = {
     "transfer-v2-core": (
         "tests/core/test_asset_transfer_module_v2.py::test_transfer_accepts_one_origin_and_occurrence_bound_command",

@@ -1,0 +1,405 @@
+{
+  "schema": "zenodex/custody-completion-evidence/v2",
+  "baseline_commit": "932901e78a15f2f1835f933e993199ba6e844a45",
+  "authority": "NONE",
+  "acceptance_change": {
+    "before": "Partition algebra, finite leaves, custody row preservation and mixed trace invariants existed. They did not connect complete-row recomposition to the custody history or prove full custody-completed effect-plan admission from actual finite leaf posts.",
+    "after": "Complete-row recomposition equals the existing custody model through arbitrary admitted finite mixed histories. Accepted transfer, issue and burn consume the exact computed finite leaf post, reconstruct the complete modeled state, and produce an admitted completed effect plan. Rejected modeled leaf outcomes yield empty plans.",
+    "runtime_change": "None. Runtime evidence strengthens exact multiasset lifecycle and leaf-to-custody completion checks."
+  },
+  "theorem_scope": [
+    "Finite Lean State equality retains complete supply identities, balance rows, modeled registry/policy fields and custody; selected numeric totals alone are insufficient.",
+    "Initial RowsRepresentable and source leaf Structural premises remain explicit. Accepted finite outcomes derive the selected policy, post construction and plan conservation/admission; no post invariant or completed-effect consistency premise is assumed.",
+    "Complete roots are supplied observations. The finite state retains origin keys rather than all runtime origin fields. Root syntax, hashing/authenticity, canonical codec, resource correspondence, guest, journal and publication refinement remain open.",
+    "Full EffectPlanAdmitted covers admitted rows/conservation/fees, issue/burn and fee projections, item bounds and unique keys. Replacing an accepted singleton lane write preserves the total item bound.",
+    "Existing partition algebra was reused. The recomposition theorem compares Lean constructions; runtime tests establish finite current-source observations."
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py",
+      "status": "PASS_AFTER_TARGETED_CONTROL_REPAIR",
+      "initial_passed": 15,
+      "initial_failed": 1,
+      "initial_seconds": 359.19,
+      "source_sha256": "d00750b72818eda7a96bdf9939442067d77f22cc5d749ea5c6eef5636e604012",
+      "final_test_sha256": "2375de46aea2d7c02834edf260183b9d5e77476e4accf9be91d2e5bded349f89",
+      "correction": "Only the multiasset concrete control tried to reduce mergeSort definitionally. Its proof script now reuses sortOn_eq_of_perm_keys. The source, signatures/axioms, four mutants and ten runtime cases had passed unchanged.",
+      "final_control_check": "Compiled PREAMBLE + final CONTROLS through the existing _consumer/_compile helper against the same freshly compiled, hash-verified dependency library: exit0, no diagnostics.",
+      "distinct_cases_with_passing_evidence": 16,
+      "full_suite_rerun_after_control_only_edit": false,
+      "public_theorem_axiom_audits": 22,
+      "exact_signature_consumers": 8,
+      "executor": "Custody proof worker; source and test fixes reviewed by root and Daybreak",
+      "standard_axioms_only": [
+        "propext",
+        "Quot.sound",
+        "Classical.choice"
+      ]
+    },
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_recomposition_v2.py",
+      "status": "PASS",
+      "passed": 6,
+      "seconds": 84.06,
+      "subject_note": "Fresh Lean replay before seven runtime mutation cases were appended; retained proof/control code unchanged."
+    },
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_recomposition_v2.py -k runtime_history",
+      "status": "PASS",
+      "passed": 7,
+      "deselected": 6,
+      "seconds": 3.2
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_asset_lane_custody_v2.py",
+      "status": "PASS",
+      "passed": 16,
+      "executor": "Luna implementation worker"
+    },
+    {
+      "command": "cargo +1.87.0 test --offline --locked --manifest-path zk/global_settlement_abi_v2/Cargo.toml --test asset_lane_custody --test asset_lane_custody_golden",
+      "status": "PASS",
+      "passed": 14,
+      "detail": "13 native custody tests; one Rust golden test executes ten vectors.",
+      "executor": "Luna implementation worker"
+    },
+    {
+      "command": "cargo fmt --manifest-path zk/global_settlement_abi_v2/Cargo.toml -- --check",
+      "status": "PASS",
+      "executor": "Luna implementation worker"
+    },
+    {
+      "command": "python3 tools/v3_acceptance.py --validate",
+      "status": "PASS",
+      "detail": "Structural inventory and pinned test-source validation; acceptance remains unestablished."
+    },
+    {
+      "command": "python3 tools/v3_acceptance.py --replay custody-successor-v2-python",
+      "status": "PASS",
+      "detail": "Selected existing replay bundle passed; tool reports evidence remains unrecorded."
+    },
+    {
+      "command": "python3 -m pytest -q tests/tools/test_v3_acceptance.py",
+      "status": "PASS",
+      "passed": 12,
+      "seconds": 0.58
+    },
+    {
+      "command": "python3 tools/check_whole_program_plan_v3.py --json",
+      "status": "PASS",
+      "closed_value_movement_gate_count": 0
+    },
+    {
+      "command": "python3 tools/check_claims_registry.py",
+      "status": "FAIL",
+      "detail": "Inherited missing tools/check_derivatives_authorization_matrix.py at claims[123]; not modified or bypassed."
+    },
+    {
+      "command": "python3 -m ruff check tests/formal/test_lean_asset_lane_custody_recomposition_v2.py tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py tests/core/test_asset_lane_custody_v2.py tools/v3_acceptance.py",
+      "status": "PASS",
+      "detail": "Each listed changed Python file was checked; the effect-plan worker checked its final test-only repair."
+    },
+    {
+      "command": "python3 -m mypy --follow-imports=silent tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py",
+      "status": "PASS"
+    },
+    {
+      "command": "python3 tools/check_production_boundary.py --json",
+      "status": "PASS",
+      "declared_checks": 14,
+      "requirements": 8,
+      "detail": "Declared boundary checks passed; source inventory still reports BLOCKED_OPEN_COVERAGE and unmounted entrypoints. No deployment-complete no-bypass claim."
+    },
+    {
+      "command": "git diff --check -- <owned changed paths>",
+      "status": "PASS"
+    }
+  ],
+  "mutation_evidence": {
+    "recomposition_model": {
+      "killed": 4,
+      "faults": [
+        "discard dormant supply identities",
+        "discard unmanaged balances",
+        "change rejection custody",
+        "change accepted custody"
+      ]
+    },
+    "runtime_history": {
+      "killed": 7,
+      "faults": [
+        "discard unmanaged complement",
+        "duplicate unmanaged complement",
+        "discard managed sibling",
+        "discard dormant supply identity",
+        "substitute account owner",
+        "discard custody",
+        "substitute custody owner with equal total"
+      ]
+    },
+    "outcome_classes": "Compiler rejection establishes proof-construction mutant refusal. Runtime history mutants alter the actual Python coordinator in memory. These are separate evidence mechanisms.",
+    "effect_completion_model": {
+      "killed": 4,
+      "faults": [
+        "replace complete physical totals with account-only totals",
+        "retain old leaf lane root",
+        "duplicate completed lane write",
+        "discard all but one managed leaf balance row"
+      ],
+      "sibling_mutant_control": "The altered constructor alone compiles cleanly. Its full equality proof fails; type and syntax errors cannot supply the kill."
+    }
+  },
+  "rework_and_review": [
+    {
+      "id": "CUSTODY-PARTITION-REUSE",
+      "status": "corrected",
+      "detail": "Daybreak located existing proved partition algebra; root reused it instead of treating it as missing."
+    },
+    {
+      "id": "CUSTODY-EMPTY-FIXTURE-BLINDSPOT",
+      "status": "repaired",
+      "detail": "A custody-drop mutant survived the first empty-custody multiasset fixture. Added EUR account7, escrow2, supply9 and exact custody assertions in Python/Rust. Drop and equal-total owner-substitution mutants now fail."
+    },
+    {
+      "id": "CUSTODY-REISSUE-IMMUTABILITY",
+      "status": "repaired",
+      "detail": "Captured the exact input object, canonical value and root before reissue; the first draft re-read fresh snapshots after the call."
+    },
+    {
+      "id": "CUSTODY-TEST-FIXTURE-CONTEXT",
+      "status": "repaired",
+      "detail": "Initial Rust tests rejected RELEASE_MISMATCH then ASSET_ORIGIN_MISMATCH. Fixtures now bind release, origin, each nonce-specific global pre root and occurrence fields."
+    },
+    {
+      "id": "CUSTODY-LEAN-ITERATION-ERRORS",
+      "status": "repaired",
+      "detail": "An outside-project invocation selected the wrong Lean toolchain; pinned4.27 was used. Private lemma export and two test syntax defects were repaired without weakening statements. An initial recomposition test run had4passes/2failures before the fresh6-pass replay."
+    },
+    {
+      "id": "CUSTODY-EFFECT-TEST-TYPES",
+      "status": "repaired",
+      "detail": "Root found three MyPy branch-inference errors after the first15-pass effect-plan suite. Explicit command/outcome unions fixed typing; the ten runtime cases passed again."
+    },
+    {
+      "id": "CUSTODY-ACTUAL-FINITE-POST",
+      "status": "repaired",
+      "detail": "Daybreak identified missing full equality to the actual computed finite leaf post. The added constructors now consume every leaf row; primary theorems expose full modeled-state equality, including managed siblings."
+    },
+    {
+      "id": "CUSTODY-SIGNATURE-COUNT",
+      "status": "corrected",
+      "detail": "The initial owner report conflated20 audited theorem axiom sets with6 explicit signature consumers. Final audit/signature counts are recorded separately."
+    },
+    {
+      "id": "CUSTODY-SIBLING-MUTANT-TYPE",
+      "status": "repaired",
+      "detail": "The first unparenthesized take1 edit caused a type error. Parenthesized List.take and positive constructor-only compilation now distinguish elaboration from semantic theorem failure."
+    },
+    {
+      "id": "CUSTODY-MULTIASSET-CONTROL-PROOF",
+      "status": "repaired",
+      "detail": "A new concrete control failed on unreduced mergeSort. Reusing the existing sort-equality theorem repaired the test proof, with no production or Lean subject change."
+    }
+  ],
+  "independent_review": {
+    "reviewer_model": "gpt-daybreak-blue-latest",
+    "review_kind": "Read-only mathematical and test-quality review; no duplicate Lean/Rust run",
+    "root_review": "Astra inspected the definitions, exact premises/conclusions, runtime completion and worker changes.",
+    "publication_authority": "NONE",
+    "accepted_source_sha256": "d00750b72818eda7a96bdf9939442067d77f22cc5d749ea5c6eef5636e604012",
+    "final_control_script": "Root reviewed the sortOn_eq_of_perm_keys repair; worker compiled the exact final control against the fresh source library."
+  },
+  "resources": {
+    "python": "3.12.3",
+    "lean": "4.27.0; db93fe1608548721853390a10cd40580fe7d22ae",
+    "rust_cargo": "1.87.0; native tests used offline locked dependencies",
+    "local_free_disk_observed": "about 3.5 GB",
+    "native_target_cache": "existing 1.2 GB ABI cache; no CARGO_TARGET_DIR or profile override",
+    "runpod_available": false,
+    "gpu_used": false,
+    "heavy_guest_build_run": false,
+    "cleanup_performed": false,
+    "provider_tokens_elapsed_cost": "Unknown; test runtimes do not measure total model work."
+  },
+  "guest_prerequisite_inventory": {
+    "status": "READ_ONLY; not proof qualification",
+    "available": "r0vm3.0.6, active cargo-risczero3.0.6, host Rust1.90, RZUP guest Rust1.94.1, C++2024.1.5, cached RISC0=3.0.6 crates",
+    "missing": "No current custody methods.rs/ELF/image, compiled-guest host executable or genuine receipt found in inspected build paths.",
+    "provenance_issue": "RZUP lists cargo-risczero3.0.5 as default while the active executable reports3.0.6; guest toolchain default is unpinned. Resolve and pin when building.",
+    "next_acceptance": "Build exact custody guest and fixed verifier on suitable compute, measure legal-state cycle fit, produce a genuine receipt with development mode disabled, verify exact image/journal through the fixed transport, then isolated commit/reopen/exact retry.",
+    "limits": "No network, download, guest build, RISC0 proof or remote GPU run occurred."
+  },
+  "unrun": [
+    "full lake/mathlib build",
+    "ESSO",
+    "Kani",
+    "genuine RISC0 guest proof/receipt",
+    "full cargo test --all and clippy",
+    "full critical-quality suite",
+    "hosted CI",
+    "production shell/deployment qualification"
+  ],
+  "remaining_nonclaims": [
+    "formal functional core complete",
+    "universal Python/Rust implementation refinement",
+    "full W06/W09/W10/W11 closure",
+    "any qualified value-movement gate",
+    "whole V3/product completion",
+    "live migration or authority activation"
+  ],
+  "subject_commit": "89fbc2d69a2c68291f1226121d2fcf4e1ccff060",
+  "source_commits": [
+    "85e91119e605e602cae49ccf5a153c598f34ea22",
+    "dfa7869173f5877038029944b7eb5274894aa188",
+    "89fbc2d69a2c68291f1226121d2fcf4e1ccff060"
+  ],
+  "source_diff": {
+    "files": [
+      {
+        "path": "lean-mathlib/Proofs/AssetLaneCustodyEffectPlanV2.lean",
+        "added": 652,
+        "removed": 0,
+        "sha256": "d00750b72818eda7a96bdf9939442067d77f22cc5d749ea5c6eef5636e604012"
+      },
+      {
+        "path": "lean-mathlib/Proofs/AssetLaneCustodyRecompositionV2.lean",
+        "added": 146,
+        "removed": 0,
+        "sha256": "0ffbeb9fdc38e1bc3b9995e1b17582dd921bbab8ee0ee846d88d59587d0d42e3"
+      },
+      {
+        "path": "tests/core/test_asset_lane_custody_v2.py",
+        "added": 169,
+        "removed": 0,
+        "sha256": "4d5804119fd80a3086d2bbfa5eeb0f313edc8446199185adb2b6616ac941f2fc"
+      },
+      {
+        "path": "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py",
+        "added": 765,
+        "removed": 0,
+        "sha256": "2375de46aea2d7c02834edf260183b9d5e77476e4accf9be91d2e5bded349f89"
+      },
+      {
+        "path": "tests/formal/test_lean_asset_lane_custody_recomposition_v2.py",
+        "added": 221,
+        "removed": 0,
+        "sha256": "387fea118b35105e1ac163964845b7518f4cf6e876ba441ffd19aa058d37b112"
+      },
+      {
+        "path": "zk/global_settlement_abi_v2/tests/asset_lane_custody.rs",
+        "added": 366,
+        "removed": 7,
+        "sha256": "ed3bb22afe6423be492e35481ca10581a2aec3e31459d39929a9c5e45bf618d6"
+      }
+    ],
+    "added": 2319,
+    "removed": 7,
+    "proof_added": 798,
+    "tests_added": 1521,
+    "runtime_added": 0,
+    "runtime_removed": 0,
+    "new_dependencies": 0,
+    "note": "One baseline-to-final diff; intermediate proof/test edits and failed drafts are not counted twice. Support records and assessment copies are accounted separately."
+  },
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyEffectPlanV2.lean",
+      "sha256": "d00750b72818eda7a96bdf9939442067d77f22cc5d749ea5c6eef5636e604012"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyRecompositionV2.lean",
+      "sha256": "0ffbeb9fdc38e1bc3b9995e1b17582dd921bbab8ee0ee846d88d59587d0d42e3"
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_v2.py",
+      "sha256": "4d5804119fd80a3086d2bbfa5eeb0f313edc8446199185adb2b6616ac941f2fc"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py",
+      "sha256": "2375de46aea2d7c02834edf260183b9d5e77476e4accf9be91d2e5bded349f89"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_recomposition_v2.py",
+      "sha256": "387fea118b35105e1ac163964845b7518f4cf6e876ba441ffd19aa058d37b112"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/tests/asset_lane_custody.rs",
+      "sha256": "ed3bb22afe6423be492e35481ca10581a2aec3e31459d39929a9c5e45bf618d6"
+    }
+  ],
+  "contributions": [
+    {
+      "run_id": "V3-20260912-custody-completion-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "work": "Recomposition proof, formal/runtime mutants, mathematical integration, fixture/context and test-type repairs, final evidence and accounting."
+    },
+    {
+      "run_id": "V3-20260912-custody-completion-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "work": "Python/Rust multiasset lifecycle tests and native Rust validation; rework recorded above."
+    },
+    {
+      "run_id": "V3-20260912-custody-guest-prerequisites-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "research",
+      "status": "completed",
+      "work": "Read-only RISC0 build/receipt prerequisite inventory; no implementation or proof-generation credit."
+    },
+    {
+      "run_id": "V3-20260912-custody-completion-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "work": "Independent math, test-quality and marginal-score reviews; located existing algebra and exposed fixture/finite-post/false-mutant gaps."
+    },
+    {
+      "run_id": "V3-20260912-custody-completion-proof-worker",
+      "model_id": null,
+      "reported_model_family": "Codex on GPT-6",
+      "role": "implementation",
+      "status": "completed",
+      "work": "Effect-plan proof and tests, then full finite-post equality repair; exact provider identifier unavailable."
+    }
+  ],
+  "score_delta": {
+    "status": "REVIEWED_DELTA",
+    "before": "tests/evidence/v3_custody_completion_assessment_before_20260912.json",
+    "after": "tests/evidence/v3_custody_completion_assessment_after_20260912.json",
+    "amendment": "Only generic_transfer, managed_issue and managed_burn prf0.70->0.75. Existing recomposition/trace algebra receives no separate increment. No sem/ref, W07/W09, other V3, band or weight change.",
+    "full_v3": {
+      "before": 23.869,
+      "after": 23.869,
+      "central_delta_pp": 0,
+      "lower": 16.613,
+      "upper": 31.947
+    },
+    "formal_core": {
+      "before": 21.038,
+      "after": 21.081,
+      "central_delta_pp": 0.043,
+      "lower": 15.251,
+      "upper": 27.167
+    },
+    "interpretation": "Advisory partial amendment under the existing fixed denominator, not effort, runtime-wide reassessment or qualification.",
+    "evidence_integrity": "The existing calculator passed both records. Independent comparison allowed only the three proof scores, their derived totals, evidence and subject metadata."
+  },
+  "support_changes": {
+    "acceptance_pin": "Refreshed only the changed test source SHA in case_catalog.custody-successor-v2-python.test_sources[0] and the derived layout digest. Mapping, case list, statuses and authority are unchanged.",
+    "regeneration": [
+      "Compute SHA256 of tests/core/test_asset_lane_custody_v2.py; replace its one reviewed old pin in docs/research/ZENODEX_V3_ACCEPTANCE.json.",
+      "layout = {key: index[key] for key in ('source_pins', 'components', 'case_catalog')}",
+      "encoded = json.dumps(layout, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False)",
+      "digest = hashlib.sha256(encoded.encode()).hexdigest()",
+      "Replace only LAYOUT_SHA256 in tools/v3_acceptance.py; require exactly one old occurrence. Independently compare both files with their prior Git versions allowing only these edits.",
+      "Run v3_acceptance --validate, the selected custody replay and tests/tools/test_v3_acceptance.py."
+    ],
+    "layout_sha256_before": "10ea865eef29ac0c70e7e1ae2e9f4e312bd44e02304c07e7ce9bf14df3cfc3e6",
+    "layout_sha256_after": "89fc65798c53305b058c05da49b602fcba43f62f98c51e3471952904b3768fc4",
+    "assessment_copies": "Two immutable inputs retain the carried baseline and reviewed amendment at exact source subjects because the existing contribution checker requires them. They are support data, not new economic implementation.",
+    "accounting": "Append model contributions and separate source/support intervals to the existing manifest; preserve its previous prefix. Provider tokens/time/cost remain unknown."
+  }
+}

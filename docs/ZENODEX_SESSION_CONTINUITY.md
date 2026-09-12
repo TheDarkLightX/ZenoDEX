@@ -60,6 +60,40 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 12: custody formal construction checkpoint
+
+The [custody completion evidence](../tests/evidence/custody_recomposition_effect_plan_v2_20260912.json)
+records the new finite-model result and its exact verified source. The
+recomposition proof connects complete managed/unmanaged row reconstruction to
+the existing mixed custody histories, including zero-supply identities. Reuse
+the existing partition algebra; do not rebuild it.
+
+The effect-plan proof consumes the actual finite transfer/managed leaf post,
+reconstructs the complete modeled state, and establishes full state equality,
+conservation and effect-plan admission for accepted transfer, issue and burn.
+Rejected leaf outcomes return empty plans. The unchanged plan fields and the
+single complete-state lane write are explicit conclusions. The bridge includes
+unrelated managed siblings; selected-asset totals alone do not close this link.
+
+These are Lean construction theorems with source-state premises. Complete roots
+remain supplied observations, and the model retains origin keys rather than
+all runtime origin fields. Python/Rust multiasset lifecycle cases and ten
+leaf-to-coordinator completion examples provide bounded runtime evidence.
+Universal codec, resource, runtime, journal and root correspondence remain open.
+No runtime economics, rounding, wire formats or publication authority changed.
+
+The narrowly reviewed amendment raises only the proof component for generic
+transfer, managed issue and managed burn from 0.70 to 0.75. The carried advisory
+formal-core estimate moves from 21.038% to 21.081% (+0.043 percentage points);
+V3 remains 23.869%. Other scores and uncertainty bands are unchanged. These are
+partial planning judgments, with no full lane or value-safety gate closed.
+
+Keep the genuine guest/receipt acceptance condition below. Review full-state
+and full-outcome theorem conclusions before the next fresh proof replay; do not
+substitute a selected scalar projection for the complete constructor relation.
+The claims-registry check still reports the inherited missing
+`tools/check_derivatives_authorization_matrix.py`; this batch does not repair it.
+
 ## September 12: current isolated publication checkpoint
 
 Source commit `3018ec0f133ea9388153544b45cbe8edfcab66d6` implements the fresh
