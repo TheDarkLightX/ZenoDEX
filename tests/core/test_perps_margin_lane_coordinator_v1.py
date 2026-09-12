@@ -181,11 +181,12 @@ def test_withdraw_refines_candidate_rows_into_complete_conservation() -> None:
     assert result.lane_journal.pre_lane_root == pre.state_root
     assert result.lane_journal.post_lane_root == post.state_root
     assert result.lane_journal.effect_plan_root == result.effects.effect_plan_root
+    # Shared Rust vector: reusable Oracle fixtures consume only the command occurrence.
     assert result.effects.effect_plan_root == (
-        "0x53cb336b2b2c28c7cc5d130f1ff75d3e6d1b1dcee25e34adec16e03bceedac61"
+        "0x5cae7d4e468446992b37bf69ecf7172a08091d3d2c7dff547f18a556a8584f26"
     )
     assert result.lane_journal.journal_root == (
-        "0xc1b65ad2a9a2a493f4c6e218a71d638a98c29476fcb91912ccb2f7e46de8810c"
+        "0xb0c2198082ba9a895af3a645ab7b788ab81c5183a1ace6ff5b4a2bcabc8cca1d"
     )
     assert result.effects.rows == fixture.accepted.effects.rows
     assert len(result.effects.asset_conservation) == 1
