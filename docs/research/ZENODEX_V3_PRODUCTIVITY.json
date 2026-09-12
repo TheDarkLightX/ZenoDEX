@@ -1456,6 +1456,101 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260912-custody-structural-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "custody-structural-closure",
+      "risk": "critical",
+      "provenance": {
+        "commit": "d81c0cf6743d5154bea011b0eb1e8445fa535e45",
+        "path": "tests/evidence/custody_structural_v2_20260912.json",
+        "sha256": "e582bf24a6c6d42f84a3a62d6e4791fd7055ea1e65a26801f9006f2194043d56"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-structural-proof-worker",
+      "model_id": null,
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-structural-closure",
+      "risk": "critical",
+      "provenance": {
+        "commit": "d81c0cf6743d5154bea011b0eb1e8445fa535e45",
+        "path": "tests/evidence/custody_structural_v2_20260912.json",
+        "sha256": "e582bf24a6c6d42f84a3a62d6e4791fd7055ea1e65a26801f9006f2194043d56"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-structural-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody-structural-closure",
+      "risk": "critical",
+      "provenance": {
+        "commit": "d81c0cf6743d5154bea011b0eb1e8445fa535e45",
+        "path": "tests/evidence/custody_structural_v2_20260912.json",
+        "sha256": "e582bf24a6c6d42f84a3a62d6e4791fd7055ea1e65a26801f9006f2194043d56"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-structural-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-structural-literal-controls",
+      "risk": "critical",
+      "provenance": {
+        "commit": "d81c0cf6743d5154bea011b0eb1e8445fa535e45",
+        "path": "tests/evidence/custody_structural_v2_20260912.json",
+        "sha256": "e582bf24a6c6d42f84a3a62d6e4791fd7055ea1e65a26801f9006f2194043d56"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-structural-external-launch",
+      "model_id": null,
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "custody-source-export-rejected-before-model-execution",
+      "risk": "critical",
+      "provenance": {
+        "commit": "d81c0cf6743d5154bea011b0eb1e8445fa535e45",
+        "path": "tests/evidence/custody_structural_v2_20260912.json",
+        "sha256": "e582bf24a6c6d42f84a3a62d6e4791fd7055ea1e65a26801f9006f2194043d56"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -2307,6 +2402,69 @@
           "commit": "0250bc6aa659114dd96c119bafc35b12548f820f",
           "path": "tests/evidence/custody_finite_trace_bounds_v2_20260912.json",
           "sha256": "29996198246aa289583c7f3fb0802844da7475cbb08a49a04dbd384d320fc5f7"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-custody-structural-implementation",
+      "before_commit": "a17e5dee5461032fbc39700e40ca2d174c031552",
+      "after_commit": "e60bbf666b5c56deb89364ce7a5eea93f3b2727c",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-structural-root",
+        "V3-20260912-custody-structural-proof-worker",
+        "V3-20260912-custody-structural-daybreak",
+        "V3-20260912-custody-structural-luna"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "One initial complete row/order/token predicate supplies both finite leaf structures at every reached prefix. Five source theorems, three premise counterexamples, dormant sibling control and two effect-plan consumers pass fresh Lean replay. Final source commit adds854 lines:630 proof (includes248 Lean control lines),142 Python test,82 hygiene data. No runtime change or full constructor/refinement claim. NOT_RESCORED; previous manual/category convention clarified in evidence.",
+        "evidence": {
+          "commit": "d81c0cf6743d5154bea011b0eb1e8445fa535e45",
+          "path": "tests/evidence/custody_structural_v2_20260912.json",
+          "sha256": "e582bf24a6c6d42f84a3a62d6e4791fd7055ea1e65a26801f9006f2194043d56"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-custody-structural-evidence",
+      "before_commit": "e60bbf666b5c56deb89364ce7a5eea93f3b2727c",
+      "after_commit": "d81c0cf6743d5154bea011b0eb1e8445fa535e45",
+      "kind": "support",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-structural-root",
+        "V3-20260912-custody-structural-proof-worker",
+        "V3-20260912-custody-structural-daybreak",
+        "V3-20260912-custody-structural-luna",
+        "V3-20260912-custody-structural-external-launch"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Pins verified structural closure, exact nonclaims, simplification and native contributions. External source-export launch rejected before any worker execution; usage-only observation86% Fable/48% all-model and paid credits off does not measure implementation usage. Continuity points to exact reconstruction and full metadata/byte/resource admission. No score credit for this support interval.",
+        "evidence": {
+          "commit": "d81c0cf6743d5154bea011b0eb1e8445fa535e45",
+          "path": "tests/evidence/custody_structural_v2_20260912.json",
+          "sha256": "e582bf24a6c6d42f84a3a62d6e4791fd7055ea1e65a26801f9006f2194043d56"
         }
       },
       "assessment": {
