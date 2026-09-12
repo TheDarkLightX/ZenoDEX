@@ -1,0 +1,276 @@
+{
+  "authority": "NONE",
+  "baseline_commit": "8a99c42344de742ecceb4459711170563aa3784f",
+  "claim_ceiling": "Source-recorded local evidence and advisory reviews. No full formal core, lane, route, workstream or value-movement qualification.",
+  "counterexamples": [
+    {
+      "after": "inconclusive with duplicate-key reason",
+      "before": "candidate CLI accepts duplicate query_id",
+      "id": "ORACLE-PREFLIGHT-DUPLICATE-TRACE-KEY"
+    },
+    {
+      "after": "trace rejection occurs before context interpretation or loading",
+      "before": "malformed context masks semantic trace rejection in pure API and CLI",
+      "id": "ORACLE-PREFLIGHT-TRACE-PRECEDENCE"
+    },
+    {
+      "after": "native guard refuses unsuitable selectors; compiled guest path remains unqualified",
+      "before": "unknown selector panics in pinned SDK; actor drops session limit",
+      "id": "CUSTODY-PROVER-SDK-SELECTION"
+    }
+  ],
+  "launch_failures": {
+    "initial_automatic_review": "source-export launch rejected before execution; subsequent explicit user authorization allowed sprint",
+    "schema_initializations": {
+      "custody_prover_config": {
+        "exit_code": 1,
+        "model_id": null,
+        "reason": "CLI did not accept declared JSON Schema dialect; no model execution"
+      },
+      "custody_store_review": {
+        "exit_code": 1,
+        "model_id": null,
+        "reason": "CLI did not accept declared JSON Schema dialect; no model execution"
+      },
+      "oracle_preflight": {
+        "exit_code": 1,
+        "model_id": null,
+        "reason": "CLI did not accept declared JSON Schema dialect; no model execution"
+      }
+    }
+  },
+  "local_log_sha256": {
+    "host_baseline_test.log": "ec7b4fe5f2239b8016ec712075e0c5d66992762d5ee3cac95590c0b99e944f5d",
+    "host_candidate_test.log": "5b3f3ac629787c9e48d19d07314143007f1d484f5509f2ac7f669653859fff91",
+    "host_final_clippy.log": "b88984a388173bcd7bd01b95446022fa23a8e67397f60d67376cd508fec64cf3",
+    "host_final_test.log": "59d0cdd158355638769e4d3d91caeb492af74d12bdfa0e931c344fa35f9e1db9",
+    "oracle_candidate_test.log": "d4f3cfd3123abf12eab2138182dff63fe3d8ddc436172f657b9113865ff1c036",
+    "oracle_cli_precedence_before.log": "71aa72c292ab54176ed9dc418e7ca67b23da6142d3c3c1ef31784bb6b5ab502d",
+    "oracle_final_test.log": "ff02577ede5ff8cb16c12798e080213e49de1056961ea287efc89b7cbf05fb7b",
+    "oracle_mypy.log": "f9b031e5c45aa702cd4fef028d465551cb20a2c4698e0913c7b00766b20ac4d8",
+    "oracle_review_negative_before.log": "bd3385920f61ece30eab96dead4f70488dc0f9e84389cc5913dea8bcf492df50",
+    "oracle_ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+  },
+  "review_findings": {
+    "comment": "Corrected false suggestion actor could bypass final receipt-kind validation.",
+    "history": "Ordinary V1/V2 economic history_root stays fixed; publication ancestry is in canonical external durable records.",
+    "prover": "Stable environment and honest external IPC server are required; final receipt verification does not bind cycle count.",
+    "scope_correction": "Fresh isolated V2 deployment needs no V1 migration; same-lineage cutover still does.",
+    "storage_proposal": "Rejected before code: wrong M6 protocol; missing current writer authority/shared global CAS; incomplete retry identity and recovery contract. Parent supplied an incomplete initial source packet."
+  },
+  "reviewers": {
+    "integrator": "gpt-6-astra",
+    "oracle_and_prover": "gpt-daybreak-blue-latest",
+    "prior_tau_utility_mapping": "gpt-5.6-luna",
+    "publication_seam": "gpt-daybreak-blue-latest"
+  },
+  "schema": "zenodex/fable-sprint-evidence/v1",
+  "score_delta": "NOT_RESCORED",
+  "source_diff": {
+    "added": 730,
+    "files": 3,
+    "net": 727,
+    "python_tests_added": 439,
+    "removed": 3,
+    "rust_file_added": 68,
+    "rust_inline_test_lines_included": 37,
+    "tooling_added": 223,
+    "tooling_removed": 3
+  },
+  "source_files": {
+    "tests/test_zenodex_oracle_query_policy_preflight_v1.py": "319f93c48d24edc205b9a4e835ec3a11b198150e638bc3efef6f538dca8d3bab",
+    "tools/zenodex_oracle_query_policy.py": "a55eb484d204085db4a94cc4f83395ecdc1a4528ca9f35bb32a95b99cc53b5e1",
+    "zk/asset_lane_custody_global_risc0/host/src/lib.rs": "679884dbb9f1373526c10ffc3e70b7dcf934816f5740949047d0abc413819670"
+  },
+  "subject_commit": "2863bde5ff100b2bd1aa091706d30af805dce3f1",
+  "unrun": [
+    "actual guest build and image qualification",
+    "genuine receipt generation and verification",
+    "full release gates",
+    "Lean",
+    "Kani",
+    "ESSO",
+    "production publication or migration"
+  ],
+  "usage_observations": {
+    "attribution": "Account-level counters, not exact sprint billing. Per-worker provider counters separate cache input from new input; cost observations are intentionally not converted into subscription bills.",
+    "initial_fable_percent": 75,
+    "latest_all_models_percent": 47,
+    "latest_fable_percent": 84,
+    "paid_overage_enabled": false,
+    "reset": "2026-09-13T18:00:00-04:00"
+  },
+  "verification": {
+    "focused_mypy": "PASS",
+    "genuine_guest_or_receipt_run": false,
+    "host_baseline_tests_passed": 9,
+    "host_final_tests_passed": 12,
+    "native_host_clippy_no_deps": "PASS",
+    "new_proofs": 0,
+    "oracle_final_tests_passed": 72,
+    "oracle_initial_tests_passed": 67,
+    "oracle_small_grid_cases": 48,
+    "ruff": "PASS"
+  },
+  "workers": {
+    "custody_prover_config": {
+      "disposition": "no_candidate_output_limit_recovery",
+      "duration_ms": 1245834,
+      "effort": "max",
+      "modelUsage": {
+        "claude-fable-5-1": {
+          "cacheCreationInputTokens": 100189,
+          "cacheReadInputTokens": 194642,
+          "inputTokens": 130,
+          "outputTokens": 101072
+        },
+        "claude-haiku-4-5-20251001": {
+          "cacheCreationInputTokens": 0,
+          "cacheReadInputTokens": 0,
+          "inputTokens": 3275,
+          "outputTokens": 17
+        }
+      },
+      "permission_denial_tools": [
+        "Glob"
+      ],
+      "provider_result_subtype": "error_during_execution",
+      "reported_model": "claude-fable-5-1",
+      "source_manifest_sha256": "febe56fbc70b34594b781ac769413fcbd52c7601470bf1e2f9647d78736fb4af",
+      "status": "cancelled",
+      "usage": {
+        "cache_creation_input_tokens": 100189,
+        "cache_read_input_tokens": 194642,
+        "input_tokens": 130,
+        "output_tokens": 101072
+      }
+    },
+    "custody_prover_config_impl2": {
+      "disposition": "candidate_integrated_with_parent_review_and_repairs",
+      "duration_ms": 48297,
+      "effort": "high",
+      "modelUsage": {
+        "claude-fable-5-1": {
+          "cacheCreationInputTokens": 27952,
+          "cacheReadInputTokens": 56217,
+          "inputTokens": 98,
+          "outputTokens": 4265
+        },
+        "claude-haiku-4-5-20251001": {
+          "cacheCreationInputTokens": 0,
+          "cacheReadInputTokens": 0,
+          "inputTokens": 1496,
+          "outputTokens": 14
+        }
+      },
+      "permission_denial_tools": [],
+      "provider_result_subtype": "success",
+      "reported_model": "claude-fable-5-1",
+      "source_manifest_sha256": "dbab6bb89d042c85073ecb4f4208058b5bda78d3af5e71bdcfde84ecb839c6c3",
+      "status": "completed",
+      "usage": {
+        "cache_creation_input_tokens": 27952,
+        "cache_read_input_tokens": 56217,
+        "input_tokens": 98,
+        "output_tokens": 4265
+      }
+    },
+    "custody_store_review": {
+      "disposition": "proposal_rejected_after_correct_source_review",
+      "duration_ms": 737091,
+      "effort": "max",
+      "modelUsage": {
+        "claude-fable-5-1": {
+          "cacheCreationInputTokens": 180559,
+          "cacheReadInputTokens": 601110,
+          "inputTokens": 194,
+          "outputTokens": 62183
+        },
+        "claude-haiku-4-5-20251001": {
+          "cacheCreationInputTokens": 0,
+          "cacheReadInputTokens": 0,
+          "inputTokens": 3078,
+          "outputTokens": 16
+        }
+      },
+      "permission_denial_tools": [
+        "Glob",
+        "Glob",
+        "Glob",
+        "Write"
+      ],
+      "provider_result_subtype": "success",
+      "reported_model": "claude-fable-5-1",
+      "source_manifest_sha256": "52d8bca1c72aeec2a15d7bbc384c496f93cb28387b99090e93741b9e9c92402d",
+      "status": "completed",
+      "usage": {
+        "cache_creation_input_tokens": 180559,
+        "cache_read_input_tokens": 601110,
+        "input_tokens": 194,
+        "output_tokens": 62183
+      }
+    },
+    "oracle_preflight": {
+      "disposition": "no_candidate_output_limit_recovery",
+      "duration_ms": 1245775,
+      "effort": "max",
+      "modelUsage": {
+        "claude-fable-5-1": {
+          "cacheCreationInputTokens": 51235,
+          "cacheReadInputTokens": 141946,
+          "inputTokens": 130,
+          "outputTokens": 67023
+        },
+        "claude-haiku-4-5-20251001": {
+          "cacheCreationInputTokens": 0,
+          "cacheReadInputTokens": 0,
+          "inputTokens": 2638,
+          "outputTokens": 16
+        }
+      },
+      "permission_denial_tools": [
+        "Glob"
+      ],
+      "provider_result_subtype": "error_during_execution",
+      "reported_model": "claude-fable-5-1",
+      "source_manifest_sha256": "99dd9eda4740de78b3e36dfaa4d722ad9dbe22a77aaf02d66680ca352e18296c",
+      "status": "cancelled",
+      "usage": {
+        "cache_creation_input_tokens": 51235,
+        "cache_read_input_tokens": 141946,
+        "input_tokens": 130,
+        "output_tokens": 67023
+      }
+    },
+    "oracle_preflight_impl2": {
+      "disposition": "candidate_integrated_with_parent_review_and_repairs",
+      "duration_ms": 250750,
+      "effort": "high",
+      "modelUsage": {
+        "claude-fable-5-1": {
+          "cacheCreationInputTokens": 48543,
+          "cacheReadInputTokens": 296175,
+          "inputTokens": 290,
+          "outputTokens": 24568
+        },
+        "claude-haiku-4-5-20251001": {
+          "cacheCreationInputTokens": 0,
+          "cacheReadInputTokens": 0,
+          "inputTokens": 1443,
+          "outputTokens": 12
+        }
+      },
+      "permission_denial_tools": [],
+      "provider_result_subtype": "success",
+      "reported_model": "claude-fable-5-1",
+      "source_manifest_sha256": "990ba2016cbaac537abf803a2274ee3c99edeeca6a94203276bdde5ca051df57",
+      "status": "completed",
+      "usage": {
+        "cache_creation_input_tokens": 48543,
+        "cache_read_input_tokens": 296175,
+        "input_tokens": 290,
+        "output_tokens": 24568
+      }
+    }
+  }
+}

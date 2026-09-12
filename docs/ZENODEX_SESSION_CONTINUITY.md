@@ -60,6 +60,50 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 12 sprint checkpoint
+
+Source commit `2863bde5ff100b2bd1aa091706d30af805dce3f1` adds a bounded offline
+oracle revision preflight and restricts the custody prover selector to the
+default external IPC path. The pinned actor backend omits the session limit;
+unknown and non-Unicode selectors now receive the native configuration guard's
+typed refusal. The SDK rereads the environment, so stable process configuration
+and an honest IPC server remain assumptions. This does not qualify a guest,
+receipt, publisher, or cycle-count attestation. See the
+[delivery record](research/ZENODEX_FABLE_SPRINT_20260912.md).
+
+For W06, use `global_economic_durable_publisher_v1.py`,
+`global_economic_epoch_journal_v1.py` and the shared authority journal as the
+existing architectural seam. The M6 filesystem store owns a different protocol;
+do not extract its internals into an independent custody ledger. A matching
+durable subject or manifest is insufficient restart authority. Retain current
+authority generation/status/store identity, complete source acquisition and
+one atomic compare-and-swap. Exact retry compares the complete canonical bundle,
+including receipt bytes.
+
+The next isolated V2 contract needs a distinct genesis/deployment identity,
+canonical full global and custody-lane state, the separately selected role and
+verifier configuration, and a V2 authority/head/bundle format. Both state values
+must come from one committed snapshot. Reuse the existing complete projection,
+derived successor, authentication and profiled receipt consumer. Preserve the
+single SQLite transaction for record insertion and head movement; do not invent
+M6 orphan-directory recovery. A fresh isolated deployment does not require live
+V1 retirement. Same-lineage migration and shared balances still require their
+own continuity and old-writer exclusion evidence.
+
+The ordinary V1 and V2 relations deliberately preserve economic `history_root`.
+Publication ancestry is separately bound by durable records: predecessor
+publication ID, pre/post state roots, contiguous sequence/height and the current
+head. Carry that binding into V2 without changing the proven successor or
+creating a self-referential record ID. External monotonic anchoring remains a
+separate rollback-resistance premise.
+
+Fleet lesson: the first Max implementation attempts exhausted output without
+patches. Direct edits in isolated copies with narrower contracts and High effort
+delivered the replacements. Preserve failed runs and review corrections in the
+existing productivity ledger; do not impose elapsed-time cutoffs or count a
+model's successful exit as accepted implementation. The first storage review
+had an incomplete packet and its proposed design was rejected before coding.
+
 ## Acceptance discipline
 
 For each required workflow, connect its specification to concrete tests of the
