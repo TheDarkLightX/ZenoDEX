@@ -383,3 +383,54 @@ bundle should proceed concurrently only where exact state and normative policy
 are established. Retain focused development checks, then run the shared proof
 closure at integrated checkpoints. Do not weaken proof premises, round up scores,
 claim a launch as delivery or repeatedly rescore individual lemmas to show activity.
+
+## September 12 integrated coordinator amendment
+
+The coherent coordinator bundle is committed at
+`244c50ebcbed2a3fbb332d5853ce7260d989a5e2`, with
+[source-bound evidence](../../tests/evidence/custody_coordinator_bundle_v2_20260912.json)
+and [independent review](../../tests/evidence/custody_coordinator_bundle_review_20260912.md).
+It integrates ordered typed rejection, internally derived finite successors,
+source/effect/journal/receipt bindings, complete resource admission and preservation
+at every accepted or rejected prefix. The current runtime corresponds on ten fixed
+vectors and a four-attempt mixed history. Coherent unauthorized recipient state
+and effects are rejected by correct independent publication replay.
+
+| Carried estimate | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| Formal core central | 21.103% | 21.169% | +0.066 pp |
+| Formal core low/high | 15.272–27.188% | 15.339–27.254% | about +0.066 pp |
+| V3 central | 23.869% | 23.969% | +0.100 pp |
+| V3 low/high | 16.613–31.947% | 16.713–32.047% | +0.100 pp |
+
+The three transfer/issue/burn proof cells move 0.76→0.80 and their refinement
+cells each increase 0.05. W09 increases 0.01 under its unchanged weight of ten.
+The exact formal increment before row/report rounding is approximately 0.0664 pp.
+All other rows, semantic scores and uncertainty labels are inherited; this is
+a scoped amendment rather than a new whole-repository assessment. The calculator
+checks the [new after input](../../tests/evidence/v3_custody_coordinator_assessment_after_20260912.json)
+against the existing rubric. Its before input is the previous admission after
+input, reused without a second copy. Qualification remains 0/12.
+
+The measured implementation interval `afb5fd52…` through `244c50eb…` adds 3,470
+lines and removes 12: 1,378 proof-module additions; 2,090 test/control additions
+and ten removals; one source-inventory line and one tooling pin each replaced.
+Rust production bytes are unchanged; its inline test diff is counted as tests
+here. The automated contribution report retains its whole-file classification.
+The code adds assurance and adversarial coverage, with no new economic behavior.
+
+The two draft fixture/harness files totaled 1,784 lines. Integration uses 1,351,
+a reduction of 433 lines, while adding full commitment comparisons and history
+controls. Reuse of the existing constructor witness removes duplicated fixtures.
+Aristotle supplied three fixed proof bodies; root corrected and integrated the
+Opus drafts and independently checked the returned proofs. The new assessment,
+review, usage and continuity records are subsequent support data with no extra
+product credit. Git's implementation checkpoint interval is 2h03m21s, including
+earlier research and overlapping worker work; exclusive development time is
+unknown. Provider usage is source-recorded separately from accepted LOC.
+
+The next bottlenecks are actual runtime/source refinement and the existing V2
+guest's genuine image/receipt/publication qualification. Other lane and route
+obligations remain. Bounded correspondence and proof preservation do not imply
+complete cryptography, parser verification, production safety or full formal-core
+completion.

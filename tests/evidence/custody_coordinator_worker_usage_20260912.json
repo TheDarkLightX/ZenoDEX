@@ -1,0 +1,72 @@
+{
+  "events_sha256": "4dc6db1aecbc564d482e343d7dc90a5c6b94a294fa36ce743cf025483e4ba007",
+  "limits": [
+    "Native/Aristotle token, cost and exclusive elapsed measurements were unavailable.",
+    "Provider input sum includes cache rereads; output includes provider-reported reasoning. These are not unique-source tokens or LOC.",
+    "List-price cost is not an actual invoice and is not charged into productivity cost totals.",
+    "The provider run overlaps parent work; its elapsed time is not end-to-end project effort.",
+    "User requested parent implementation trial; no new external implementation run was launched in the final integration turn."
+  ],
+  "native_contributions": [
+    {
+      "id": "root",
+      "model": "Codex parent",
+      "role": "architecture, implementation, simplification, verification and integration"
+    },
+    {
+      "id": "custody_successor_security_review",
+      "model": "native Astra",
+      "role": "independent mathematical and oracle review"
+    },
+    {
+      "id": "custody_publication_seam_review",
+      "model": "native Daybreak",
+      "role": "runtime/Rust test candidate and independent adversarial review"
+    },
+    {
+      "id": "authority_v2_impl",
+      "model": "native Luna",
+      "role": "fixture reuse attempt; no accepted implementation change"
+    },
+    {
+      "id": "aristotle",
+      "model": "Aristotle",
+      "role": "three fixed Lean proof bodies; local parent review and compile required"
+    }
+  ],
+  "provider_session_id": "6fffa299-19f5-497f-873a-b2d52a9951fc",
+  "provider_terminal_status": "error_during_execution",
+  "runs": [
+    {
+      "cost_basis": "list",
+      "cost_microusd": null,
+      "disposition": "Auxiliary provider call, no implementation attribution",
+      "elapsed_ms": null,
+      "input_categories": {
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "inputTokens": 981
+      },
+      "input_tokens": 981,
+      "model_id": "claude-haiku-4-5-20251001",
+      "output_tokens": 13,
+      "provider_list_cost_usd": 0.001046
+    },
+    {
+      "cost_basis": "list",
+      "cost_microusd": null,
+      "disposition": "Draft contribution; corrected/replaced by parent",
+      "elapsed_ms": 4111855,
+      "input_categories": {
+        "cacheCreationInputTokens": 571396,
+        "cacheReadInputTokens": 11291617,
+        "inputTokens": 126
+      },
+      "input_tokens": 11863139,
+      "model_id": "claude-opus-5",
+      "output_tokens": 390084,
+      "provider_list_cost_usd": 21.1124985
+    }
+  ],
+  "schema": "zenodex/coordinator-contribution-resources/v1"
+}

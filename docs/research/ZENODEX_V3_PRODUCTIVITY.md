@@ -203,6 +203,46 @@ five native/root task records. Failed and discarded implementation attempts
 remain in the account. Five Fable workers delivered zero accepted implementation
 files; useful review findings are described separately. The provider usage file
 contains only sanitized counters and outcome descriptions, not private reasoning.
+
+## September 12 integrated coordinator delivery
+
+The coordinator bundle `afb5fd52…`→`244c50eb…` records one shared delivery:
+ordered complete outcomes, constructor/policy preservation through actual
+accepted/rejected histories, full finite runtime correspondence, and adversarial
+independent replay. It adds 3,470 lines and removes 12. Root owns integration;
+Opus drafts, Aristotle's three fixed proof bodies, native reviews and unsuccessful
+Luna fixture reuse are retained in the contribution account. Fable supplied no
+new work in this integration turn.
+
+The [reviewed amendment](../../tests/evidence/custody_coordinator_bundle_review_20260912.md)
+moves the carried estimates to 21.169% formal core (+0.066 pp) and 23.969% V3
+(+0.100 pp). The previous assessment supplies the before endpoint without another
+snapshot copy. The accompanying assessment/evidence/continuity changes are
+support-only; their line growth earns no second delivery increment.
+
+[Sanitized usage](../../tests/evidence/custody_coordinator_worker_usage_20260912.json)
+records the earlier Opus run's 390,084 output tokens, 11,863,139 input tokens
+including cache rereads, and 4,111,855 elapsed milliseconds. Output includes
+provider-reported reasoning; these are neither accepted-source tokens nor a
+per-model productivity score. Its terminal status was an execution error after
+interruption and its drafts needed parent repair. One auxiliary provider call is
+listed separately. Actual billed cost, native and Aristotle resources, and
+exclusive development time remain unknown. The Git checkpoint interval is
+2h03m21s and overlaps research, reviews and worker activity.
+
+Fixture/harness reuse reduced the two drafts from 1,784 to 1,351 lines while
+strengthening their oracle. Correct independent replay catches the coherent
+recipient state/effect reroute. The remaining value blocker is genuine current
+guest/receipt qualification and broader runtime refinement, alongside other
+lane obligations. The missing historical claims-registry evidence remains open.
+
+The reporter requires score subjects to equal batch endpoints. Its coordinator
+scoring interval therefore starts at the last adopted source `0f14e8dc…`, and
+supersedes the preceding admission-evidence-only batch. That retains the existing
+before assessment and counts intervening metadata once. Historical records remain
+in the manifest. The broader interval's LOC includes earlier support work; the
+new implementation alone remains the separately reported 3,470 additions and
+12 removals. No score or runtime change is attributed to that older metadata.
 Actual billed cost is unknown. A following Opus coordinator bundle is in flight
 and earns no delivery credit here.
 

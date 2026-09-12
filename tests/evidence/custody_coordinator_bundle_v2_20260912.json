@@ -1,0 +1,212 @@
+{
+  "adversarial_evidence": [
+    "Compiling Lean aggregate-frame mutant retains exact leaf/completed effects and state bytes but fails complete accepted-output, receipt-body and receipt-root equality.",
+    "Compiling Lean source-journal/receipt-identity mutant has the same independent failures; pristine extracted definitions pass all seven observations.",
+    "Retained Python/Rust cardinality and outbox guard mutants were killed after positive controls in the prior exact-source replay.",
+    "Prior balance-effect ancestry mutant was killed by the exact ValueError expectation; current regression retains that behavior.",
+    "Coherent bob-to-mallory post-state and effect reroute with recomputed roots passes the internal proposal path but fails independent frame replay with custody lane/global complete projection mismatch. This requires faulty internal code and is not a live injection route."
+  ],
+  "after_behavior": "Ordered leaf/coordinator rejection, actual finite accepted outcomes, complete constructor/policy admission at every prefix and exact finite runtime state/effect/journal/receipt comparison are integrated. Independent replay rejects a coherent unauthorized recipient reroute.",
+  "aristotle": {
+    "definitions_and_statements_unchanged": true,
+    "local_mathlib": "a3a10db0e9d66acbebf76c5e6a135066525ac900",
+    "local_toolchain": "Lean 4.27.0",
+    "net_lines_added": 79,
+    "project_id": "01619d9c-8275-4746-a22f-f84213084ddf",
+    "proof_bodies_filled": 3,
+    "remote_toolchain_limit": "Provider used Lean 4.28/alternate Mathlib; parent recompiled exact returned proof with original pinned local environment.",
+    "returned_sha256": "db237f62c260b102ed0eb3544a61f35153295a16d065e554702b25a7628c378e",
+    "status": "COMPLETE"
+  },
+  "authority": {
+    "closed_value_movement_gate_count": 0,
+    "formal_core_complete": false,
+    "production_promotion": false,
+    "whole_value_movement_safe": false
+  },
+  "before_behavior": "Finite leaf, full-state and admission proofs existed separately; no integrated ordered coordinator outcome/history proof and exact source-journal/effect/receipt correspondence gate.",
+  "before_commit": "afb5fd52cae91077276c36653dfe95d5e163ecd9",
+  "bounds": {
+    "effect_collections": 6,
+    "frozen_accepted": 7,
+    "frozen_cases": 10,
+    "frozen_rejected": 3,
+    "journal_fields": 14,
+    "mixed_history_attempts": 4,
+    "mixed_history_prefixes_including_initial": 5,
+    "receipt_body_fields": 9
+  },
+  "checkpoint_interval_seconds": 7401,
+  "implementation_commit": "244c50ebcbed2a3fbb332d5853ce7260d989a5e2",
+  "known_failed_attempts": [
+    "Opus supplied drafts but was stopped during execution; parent corrected obsolete route fields, vacuous occurrence premise and overstrong injectivity premise, and replaced weak commitment observers and duplicated fixtures.",
+    "Luna fixture reuse attempt delivered no change.",
+    "Parent draft harness initially compared domain records to decoded JSON, omitted a qualified byte helper, and named the wrong rejection string; corrected against fixed canonical vectors and actual normative code without changing runtime semantics.",
+    "A concrete trace-control list simplification failed elaboration; repaired and recompiled."
+  ],
+  "line_changes": {
+    "data": {
+      "added": 1,
+      "net": 0,
+      "removed": 1
+    },
+    "proof_modules": {
+      "added": 1378,
+      "net": 1378,
+      "removed": 0
+    },
+    "tests": {
+      "added": 2090,
+      "net": 2080,
+      "removed": 10
+    },
+    "tooling": {
+      "added": 1,
+      "net": 0,
+      "removed": 1
+    }
+  },
+  "next_acceptance": "Connect source/refinement assumptions to the current global command/receipt publication consumer over authenticated predecessors; extend beyond finite vectors and qualify the selected genuine guest image before release claims.",
+  "nonclaims": [
+    "Universal Python/Rust refinement",
+    "Cryptographic hashing or collision resistance proved in Lean",
+    "Canonical parser, schema and root validation proved universally",
+    "Source authenticity",
+    "Nonresource constructor exception closure",
+    "Genuine selected receipt/image qualification",
+    "Publication, durability, recovery or whole-deployment no-bypass qualification"
+  ],
+  "obligations": [
+    "W09",
+    "ASSET_TRANSFER:generic_transfer",
+    "ASSET_TRANSFER:managed_issue",
+    "ASSET_TRANSFER:managed_burn"
+  ],
+  "schema": "zenodex/custody-coordinator-bundle-evidence/v2",
+  "simplification": {
+    "basis": "Reused the existing admission witness, removed draft-only fields and impossible/vacuous assertions, replaced weak observations, and avoided duplicating separate runtime tests. Additional history and mutation controls remain.",
+    "draft_controls_and_harness_lines": 1784,
+    "integrated_controls_and_harness_lines": 1351,
+    "reduction": 433
+  },
+  "source_pin_repair": {
+    "kind": "manual inventory maintenance",
+    "layout_derivation": "SHA256(json.dumps({key: index[key] for key in ('source_pins', 'components', 'case_catalog')}, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False).encode()).hexdigest()",
+    "new_sha256": "cc4d37ddb8d92ad8ae0b8e290791992b412f200381f932e87651861a27b0742b",
+    "old_sha256": "db218292c2ab32b152db2575a5fcb8c575e4eb49fe54920d624592b470bdd10c",
+    "reason": "Carry the already-reviewed f0b11b557 command-asset conservation repair into the source inventory. No generator exists and no generated-evidence claim is made.",
+    "source": "src/core/asset_lane_custody_coordinator_v2.py"
+  },
+  "sources": [
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyCoordinatorOutcomeV2.lean",
+      "sha256": "fb3afba8139d5dce37712cd02d2f21a739d5e01d467689a44a19824b5d88f061"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyCoordinatorTraceV2.lean",
+      "sha256": "db237f62c260b102ed0eb3544a61f35153295a16d065e554702b25a7628c378e"
+    },
+    {
+      "path": "tests/formal/asset_lane_custody_coordinator_outcome_v2_controls.lean",
+      "sha256": "a263183581797a671103fcedc903f9db9dd84e800b423d1a207dac4e7de1d58d"
+    },
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_coordinator_outcome_v2.py",
+      "sha256": "f1dd926e2060a54383ff363c767e796329c8b7fadeb158dc63d5695db3028911"
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_coordinator_outcomes_v2.py",
+      "sha256": "de4ac080656e8462516bbe5bdc09e127e8d3d9900b3c66e6bee55f4fdbfb0550"
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_effect_ancestry_v2.py",
+      "sha256": "c23c09ea0a9fc4c5447a2d02888ea9ccbd08c983d00ee6eb41066147ff91e3f1"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/src/asset_lane_custody.rs",
+      "sha256": "6e2a4e405057f67e7b8cff3cd5ebe6cce89aa4d5fa33a50f2ba109dbc277344d"
+    },
+    {
+      "path": "tools/v3_acceptance.py",
+      "sha256": "407cbd164eeb0dc66d6829e73d2ce062b7d38cb00323b99f2f77c35dbfde3584"
+    },
+    {
+      "path": "docs/research/ZENODEX_V3_ACCEPTANCE.json",
+      "sha256": "ddd45d8173997234168d15105d09f90bd4041fa039d92fa3110ed87c787246e1"
+    }
+  ],
+  "unrun_or_blocked": [
+    "Full claims registry remains blocked by missing tools/check_derivatives_authorization_matrix.py at claims[123].",
+    "Full repository Lean/Rust, ESSO, Kani, RISC0 proof generation, hosted CI and production/mounted release gates were not run for this bundle.",
+    "Runpod remains unavailable."
+  ],
+  "verification": {
+    "acceptance": "python3 tools/v3_acceptance.py --validate: exit 0; structural inventory passes and case sources are pinned; acceptance remains unestablished.",
+    "acceptance_tests": {
+      "command": "python3 -m pytest -q tests/tools/test_v3_acceptance.py",
+      "elapsed_seconds": 0.59,
+      "tests_passed": 12
+    },
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "final_harness_replay": {
+      "fresh_closure_unchanged": true,
+      "harness_sha256": "f1dd926e2060a54383ff363c767e796329c8b7fadeb158dc63d5695db3028911",
+      "tests": [
+        {
+          "elapsed_seconds": 3.631,
+          "name": "test_coordinator_and_trace_contracts",
+          "status": "passed"
+        },
+        {
+          "elapsed_seconds": 5.494,
+          "name": "test_semantic_controls_use_only_standard_axioms",
+          "status": "passed"
+        },
+        {
+          "elapsed_seconds": 2.199,
+          "name": "test_control_fixture_matches_runtime_serializers",
+          "status": "passed"
+        },
+        {
+          "elapsed_seconds": 24.292,
+          "name": "test_frozen_runtime_outcomes_and_complete_lean_correspondence",
+          "status": "passed"
+        },
+        {
+          "elapsed_seconds": 13.266,
+          "name": "test_mixed_history_matches_every_complete_runtime_prefix",
+          "status": "passed"
+        },
+        {
+          "elapsed_seconds": 18.637,
+          "name": "test_compiling_completion_mutants_fail_the_runtime_oracle",
+          "status": "passed"
+        }
+      ]
+    },
+    "formal_fresh": {
+      "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_coordinator_outcome_v2.py",
+      "elapsed_seconds": 272.79,
+      "harness_sha256": null,
+      "subject_note": "Fresh run imported the pre-additive-effect-observation harness. Exact current harness replay is separately source-pinned below.",
+      "tests_passed": 6
+    },
+    "freshness_note": "The final harness adds one completed-effect equality observation and corresponding expected counts. All six final test functions were replayed against the same freshly compiled, byte-identical proof/control/witness closure; no proof-source change followed that fresh build.",
+    "lint": "Ruff passed all changed Python files; focused MyPy passed formal/core test files; git diff --check passed.",
+    "runtime": {
+      "command": "python3 -m pytest -q tests/core/test_asset_lane_custody_coordinator_outcomes_v2.py tests/core/test_asset_lane_custody_effect_ancestry_v2.py",
+      "elapsed_seconds": 11.11,
+      "tests_passed": 7
+    },
+    "rust": {
+      "command": "cargo +1.87.0 test --offline --locked --manifest-path zk/global_settlement_abi_v2/Cargo.toml --target-dir zk/global_settlement_abi_v2/target",
+      "provenance": "Prior parent replay of this exact unchanged Rust source after invalidating the owned package cache; not rerun in the final Python/Lean integration turn.",
+      "source_sha256": "6e2a4e405057f67e7b8cff3cd5ebe6cce89aa4d5fa33a50f2ba109dbc277344d",
+      "tests_passed": 155
+    }
+  }
+}

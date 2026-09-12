@@ -60,6 +60,50 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 12: integrated coordinator outcomes and complete admission traces
+
+Implementation `244c50ebcbed2a3fbb332d5853ce7260d989a5e2` completes the previously
+selected coordinator bundle within its finite-model scope. The
+[delivery evidence](../tests/evidence/custody_coordinator_bundle_v2_20260912.json)
+and [independent review](../tests/evidence/custody_coordinator_bundle_review_20260912.md)
+bind ordered outcomes, exact source-journal/effect observations, complete resource
+admission, accepted/rejected prefix preservation and runtime correspondence.
+Aristotle filled three fixed proof bodies; parent review and compilation under
+the original toolchain accepted them. Do not restart that completed proof search.
+
+Six formal tests passed after a fresh dependency build. The final harness, with
+an additional complete-effect observation, passed all six functions against that
+unchanged fresh closure. Ten fixed outcomes, a four-attempt mixed history and two
+compiling completion mutants are retained. Seven Python runtime regressions pass;
+the prior exact Rust source replay passed 155 tests. The manually maintained
+coordinator inventory pin now carries the earlier command-asset repair; its
+validator and twelve tests pass. The missing historical claims-registry evidence
+file remains unresolved.
+
+The [reviewed fixed-rubric amendment](../tests/evidence/v3_custody_coordinator_assessment_after_20260912.json)
+moves formal core **21.103% to 21.169%** and V3 **23.869% to 23.969%**.
+Other scores are inherited. No lane, route or value-safety gate closes.
+
+**Next integrated acceptance:** qualify the current custody/global guest image
+and genuine receipt through the existing isolated V2 publication consumer, with
+the actual authenticated command and predecessor. Retain wrong-context, stale
+head and coherent recipient-reroute rejection. The guest workspace already
+exists at `zk/asset_lane_custody_global_risc0`; its README gives the build/prove
+commands. Its image, real receipt and legal-state execution limits remain
+unqualified. Runpod is unavailable; do not start a large local build under the
+current disk pressure. Continue independent normative lane/refinement work while
+proof infrastructure is unavailable, without inventing unresolved policy values.
+
+The finite `SourceRelation.refines` premise is still not universal runtime
+refinement. A faulty internal leaf can coherently change both recipient state
+and effects and produce a candidate frame; correct independent publication
+replay rejects it. The retained ancestry regression distinguishes that condition
+from an effect-only mismatch. Do not add duplicate economics to the coordinator
+or describe caller-constructible evidence as authenticated publication authority.
+Further formal work must close a remaining runtime/lane obligation rather than
+rescore the same coordinator lemmas. Root remains the implementation owner for
+the user's implementation trial; independent reviews remain useful.
+
 ## September 12: constructor admission and command-bound conservation
 
 Implementation `0f14e8dc294df181c9ffc40de7136449f118d452` closes the finite
