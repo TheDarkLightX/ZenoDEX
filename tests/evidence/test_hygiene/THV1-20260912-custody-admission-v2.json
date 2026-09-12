@@ -1,0 +1,101 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260912-custody-admission-v2",
+  "created_date": "2026-09-12",
+  "claim_scope": "Four exact finite complete-state constructor/policy-binding/projection theorems, nonvacuous full constructor witnesses for actual accepted transfer/issue/burn, and runtime-generated state/command/post comparisons. General post-resource fit remains explicit; ordered coordinator outcomes, source journal/effect relation and universal runtime refinement remain open.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-COMPLETE-CONSTRUCTOR-ADMISSION",
+    "CUSTODY-POLICY-ORIGIN-BINDING",
+    "CUSTODY-CANONICAL-ORDER",
+    "CUSTODY-VALID-ZERO-ISSUE-ROOT"
+  ],
+  "failure_modes": [
+    "Finite erasure hides constructor-invalid policy coverage, identity or registry release.",
+    "Custody rows have correct quantities and unique keys in a noncanonical order.",
+    "A nonzero-root predicate rejects the valid zero issue-root sentinel.",
+    "A test derives its expected policy commitment from the registry field under test."
+  ],
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyAdmissionV2.lean",
+      "sha256": "8d3b78d134bbb00e566a73d47c132af571875afae8871d7c13e6c75c242cad64"
+    },
+    {
+      "path": "tests/formal/asset_lane_custody_admission_v2_controls.lean",
+      "sha256": "f215f353aaa18c6de3ed3c5f6c686f13ee5983f627561dfb89a1b01e5f78f32f"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyCompleteStateV2.lean",
+      "sha256": "f7101c17778fe4bff9ca2481f184b2176307e4366141961ee8ac79fa9c7f1802"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyExactProjectionV2.lean",
+      "sha256": "9486eb80bc01d6eb26c3ae0f86ba94c74c6e4b5ddeba6adc4538306459dce03b"
+    },
+    {
+      "path": "src/core/asset_lane_custody_state_v2.py",
+      "sha256": "4fbc66a705b686acd3a64c92ce054571e6955567568ba755549fa0eeae06f88a"
+    },
+    {
+      "path": "src/core/asset_origin_registry_v2.py",
+      "sha256": "b1846290fcdf2dc7255e54933ceca076e2ab3f3f07f5c1cf8fca0909bad30659"
+    },
+    {
+      "path": "tests/formal/asset_lane_custody_admission_v2_witness.lean",
+      "sha256": "e0415851508dfa5d2abdd9e476675ba29b8b041b604262b4ee89df7b1908f234"
+    }
+  ],
+  "test_pins": [
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_admission_v2.py",
+      "sha256": "5fa0bf7aad3d1384169b014083c4a3430c0d45b7cb1eed3413e21375831ec4d9",
+      "node_ids": [
+        "tests/formal/test_lean_asset_lane_custody_admission_v2.py::test_admission_contracts_and_standard_axioms",
+        "tests/formal/test_lean_asset_lane_custody_admission_v2.py::test_complete_admission_order_and_zero_issue_root_controls",
+        "tests/formal/test_lean_asset_lane_custody_admission_v2.py::test_actual_runtime_metadata_history_and_independent_falsifiers",
+        "tests/formal/test_lean_asset_lane_custody_admission_v2.py::test_actual_accepted_actions_preserve_complete_constructor"
+      ]
+    }
+  ],
+  "removed_paths": [],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "differential",
+    "formal",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Runtime constructors supply exact immutable values through the existing generator; owned policy hash functions independently supply commitment expectations. Sorted and reverse-only full states distinguish constructor admission while the reverse still has CompleteStructural and Resources. Kernel-checked and runtime-value controls have explicit premises."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "The new Lean layer states predicates and materialized-step theorems; it makes no outer reject-decision claim. The separate command/source-binding runtime packet owns typed rejection/no-effect evidence."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "complete-state admission",
+      "points": [
+        "sorted versus reversed custody",
+        "zero sentinel versus nonzero issue root",
+        "unmanaged/native and managed states",
+        "missing and duplicated managed policy coverage",
+        "registry release and optional-origin identity drift",
+        "separate transfer and managed commitment drift",
+        "positive custody",
+        "dormant sibling and managed issue then burn back to zero"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "Source/namespace predicates, commitment functions and digest remain parameters; roots confer no authentication. Runtime lookup equivalence requires unique registry assets from constructor admission.",
+    "Complete-post Resources is a premise of the general preservation theorem and is separately proved only for concrete controls. No arbitrary supplied successor is admitted.",
+    "Two compiling Lean model mutants with semantic failures/opposite witnesses are recorded separately in the delivery evidence; no source-hash failure is counted as a semantic kill.",
+    "The finite commitment oracle recognizes the exact sampled policy values and invokes Python policy hash functions. It is not a Lean hash implementation or a universal codec/refinement proof.",
+    "No whole core, lane, route, deployment, authority, release or genuine receipt qualification is claimed."
+  ]
+}
