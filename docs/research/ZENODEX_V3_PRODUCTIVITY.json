@@ -1171,6 +1171,101 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260912-custody-publisher-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "complete-v2-custody-publication",
+      "risk": "critical",
+      "provenance": {
+        "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+        "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+        "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-authority-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "bounded-v2-custody-implementation",
+      "risk": "critical",
+      "provenance": {
+        "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+        "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+        "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-publisher-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody-publication-security-and-score-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+        "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+        "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-fable-export",
+      "model_id": null,
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "bounded-v2-custody-implementation",
+      "risk": "critical",
+      "provenance": {
+        "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+        "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+        "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-custody-decoder-spawn",
+      "model_id": null,
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "bounded-v2-custody-implementation",
+      "risk": "critical",
+      "provenance": {
+        "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+        "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+        "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -1721,6 +1816,119 @@
           }
         }
       ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-isolated-custody-publication",
+      "before_commit": "cde251c4c3463d6f1e8b7d5ad5bcca0a9649acce",
+      "after_commit": "3018ec0f133ea9388153544b45cbe8edfcab66d6",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W06"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-publisher-root",
+        "V3-20260912-custody-authority-luna",
+        "V3-20260912-custody-publisher-daybreak",
+        "V3-20260912-custody-fable-export",
+        "V3-20260912-custody-decoder-spawn"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Fresh isolated V2 publisher owns complete state acquisition, selected profiled crypto admission, atomic current-authority/head CAS, exact retries and bounded recovery. 209 distinct targeted Python tests and six archived mutants pass. Genuine guest/receipt qualification, full W06 and formal core remain open. W06-only reviewed increment adds 0.500 pp to carried V3; formal stays unchanged.",
+        "evidence": {
+          "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+          "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+          "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+          "path": "tests/evidence/v3_custody_publication_assessment_before_20260912.json",
+          "sha256": "7a273d1f6837276793eb3f479a0645f77d14a4764ea94545e15cfe855c28f106"
+        },
+        "after": {
+          "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+          "path": "tests/evidence/v3_custody_publication_assessment_after_20260912.json",
+          "sha256": "e3ab43992d16451add386f5b92e26bf1d694506b760b414578f96d9894eb01de"
+        },
+        "review": {
+          "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+          "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+          "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+        }
+      },
+      "findings": [
+        {
+          "id": "CUSTODY-V2-RAW-COMMIT-BYPASS",
+          "status": "repaired",
+          "evidence": {
+            "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+            "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+            "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+          }
+        },
+        {
+          "id": "CUSTODY-V2-EMPTY-FINAL-BOOTSTRAP",
+          "status": "repaired",
+          "evidence": {
+            "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+            "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+            "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+          }
+        },
+        {
+          "id": "CUSTODY-V2-GENESIS-ROOT-TYPE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+            "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+            "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+          }
+        },
+        {
+          "id": "CUSTODY-V2-STATE-DECODE-DISPATCH",
+          "status": "repaired",
+          "evidence": {
+            "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+            "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+            "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-isolated-custody-publication-evidence",
+      "before_commit": "3018ec0f133ea9388153544b45cbe8edfcab66d6",
+      "after_commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+      "kind": "support",
+      "obligation_ids": [
+        "W06"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-publisher-root",
+        "V3-20260912-custody-authority-luna",
+        "V3-20260912-custody-publisher-daybreak",
+        "V3-20260912-custody-fable-export",
+        "V3-20260912-custody-decoder-spawn"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Retains exact replay/mutation evidence, two immutable inputs required by the existing assessment checker, scoped Daybreak review, repaired development defects, failed launches and corrected current handoff. Carries every unrelated score without reassessment. This support batch earns no product credit; the later accounting-only manifest append is outside this quantified interval.",
+        "evidence": {
+          "commit": "d937c91098f76860250c3c23e001c59d7222cba1",
+          "path": "tests/evidence/isolated_custody_publication_v2_20260912.json",
+          "sha256": "7ddb137dcd4f8ca2491acefbc86453b69be4a4658fbacb0291bf4b4e024cd77a"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
       "supersedes": null
     }
   ]
