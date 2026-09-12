@@ -644,6 +644,7 @@ mod tests {
         AssetClassV2, AssetTransferCommandV2, ACCOUNT_CUSTODY_DOMAIN_V2,
     };
     use crate::canonical::{decode_canonical_v2, ValidateCanonicalV2};
+    use crate::effects::ExternalOutboxEnqueueV2;
     use crate::managed_asset_lifecycle_types::ManagedAssetLifecycleCommandV2;
     use crate::state::{AssetSupplyV2, EconomicAmountV2};
 
@@ -746,23 +747,40 @@ mod tests {
         LeafAcceptedV2::Transfer(accepted)
     }
 
-    fn assert_projection_noop(result: AssetLaneCustodyResultV2, state: &AssetLaneCustodyStateV2) {
-        let AssetLaneCustodyResultV2::Rejected(rejected) = result else {
-            panic!("forged leaf totals unexpectedly accepted")
+    fn assert_coordinator_noop(
+        result: AssetLaneCustodyResultV2,
+        state: &AssetLaneCustodyStateV2,
+        code: AssetLaneCoordinatorRejectCodeV2,
+    ) {
+        let rejected = match result {
+            AssetLaneCustodyResultV2::Rejected(rejected) => rejected,
+            AssetLaneCustodyResultV2::Accepted(accepted) => panic!(
+                "faulty leaf unexpectedly accepted with {} external outbox entries",
+                accepted.effects().external_outbox_enqueue.len()
+            ),
         };
         assert_eq!(rejected.route(), AssetLaneRouteV2::COORDINATOR);
-        assert_eq!(
-            rejected.code(),
-            AssetLaneRejectCodeV2::Coordinator(
-                AssetLaneCoordinatorRejectCodeV2::PROJECTION_MISMATCH
-            )
-        );
+        assert_eq!(rejected.code(), AssetLaneRejectCodeV2::Coordinator(code));
         assert_eq!(rejected.pre_state_root(), rejected.post_state_root());
         assert_eq!(
             rejected.pre_state_root(),
             &state.state_root().expect("state root")
         );
-        assert!(rejected.effects().is_empty());
+        let effects = rejected.effects();
+        assert!(effects.rows.is_empty());
+        assert!(effects.asset_conservation.is_empty());
+        assert!(effects.fee_conservation.is_empty());
+        assert!(effects.lane_writes.is_empty());
+        assert!(effects.occurrence_consumptions.is_empty());
+        assert!(effects.external_outbox_enqueue.is_empty());
+    }
+
+    fn assert_projection_noop(result: AssetLaneCustodyResultV2, state: &AssetLaneCustodyStateV2) {
+        assert_coordinator_noop(
+            result,
+            state,
+            AssetLaneCoordinatorRejectCodeV2::PROJECTION_MISMATCH,
+        );
     }
 
     #[test]
@@ -1053,5 +1071,200 @@ mod tests {
         )
         .expect("coordinator evaluates simultaneous failures");
         assert_projection_noop(result, &state);
+    }
+
+    #[test]
+    fn extra_conservation_row_precedes_aggregate_resource_failure() {
+        let (context, state, command) =
+            unmanaged_subject(crate::resource_limits::MAX_BALANCE_ROWS_PER_ASSET_STATE_V2);
+        let result = transition_managed_asset_lifecycle_v2(
+            &context.managed_context(),
+            &state.managed_leaf_state(),
+            &command,
+        )
+        .expect("managed leaf executes below its local row ceiling");
+        let ManagedAssetLifecycleResultV2::Accepted(mut accepted) = result else {
+            panic!("managed fixture must accept")
+        };
+        accepted
+            .effects
+            .asset_conservation
+            .push(AssetConservationRowV2 {
+                asset: "ZZZ".to_owned(),
+                owned_and_custodied_pre_atoms: 0,
+                owned_and_custodied_post_atoms: 0,
+                supply_pre_atoms: 0,
+                supply_post_atoms: 0,
+                authorized_issue_atoms: 0,
+                authorized_burn_atoms: 0,
+            });
+        accepted.module_journal.effect_plan_root = accepted
+            .effects
+            .effect_plan_root()
+            .expect("expanded effect root");
+        accepted
+            .validate()
+            .expect("leaf-local validation permits an extra conservation row");
+
+        let result = compose_candidate(
+            &context,
+            &state,
+            &AssetLaneCommandV2::ManagedLifecycle(command),
+            LeafAcceptedV2::ManagedLifecycle(accepted),
+        )
+        .expect("coordinator evaluates expanded conservation");
+        assert_projection_noop(result, &state);
+    }
+
+    #[test]
+    fn leaf_external_outbox_is_a_candidate_binding_noop() {
+        let (context, state, command) = transfer_subject();
+        let control = transition_asset_lane_custody_v2(
+            &context,
+            &state,
+            &AssetLaneCommandV2::Transfer(command.clone()),
+        )
+        .expect("custody coordinator executes control");
+        assert!(matches!(control, AssetLaneCustodyResultV2::Accepted(_)));
+
+        let mut accepted = transfer_candidate(&context, &state, &command);
+        accepted
+            .effects
+            .external_outbox_enqueue
+            .push(ExternalOutboxEnqueueV2 {
+                effect_id: root(301),
+                destination_id: "external:bridge".to_owned(),
+                payload_hash: root(302),
+                adapter_profile_root: root(303),
+            });
+        accepted.module_journal.effect_plan_root = accepted
+            .effects
+            .effect_plan_root()
+            .expect("outbox effect root");
+        accepted
+            .validate()
+            .expect("leaf-local validation permits an external outbox entry");
+
+        let result = compose_candidate(
+            &context,
+            &state,
+            &AssetLaneCommandV2::Transfer(command),
+            LeafAcceptedV2::Transfer(accepted),
+        )
+        .expect("coordinator evaluates leaf outbox");
+        assert_coordinator_noop(
+            result,
+            &state,
+            AssetLaneCoordinatorRejectCodeV2::CANDIDATE_BINDING_MISMATCH,
+        );
+    }
+
+    #[test]
+    fn source_binding_precedes_projection_and_aggregate_resource_failure() {
+        let (context, state, command) =
+            unmanaged_subject(crate::resource_limits::MAX_BALANCE_ROWS_PER_ASSET_STATE_V2);
+        let control = transition_asset_lane_custody_v2(
+            &context,
+            &state,
+            &AssetLaneCommandV2::ManagedLifecycle(command.clone()),
+        )
+        .expect("custody coordinator evaluates the resource control");
+        assert_coordinator_noop(
+            control,
+            &state,
+            AssetLaneCoordinatorRejectCodeV2::STATE_RESOURCE_LIMIT,
+        );
+
+        let result = transition_managed_asset_lifecycle_v2(
+            &context.managed_context(),
+            &state.managed_leaf_state(),
+            &command,
+        )
+        .expect("managed leaf executes below its local row ceiling");
+        let ManagedAssetLifecycleResultV2::Accepted(mut accepted) = result else {
+            panic!("managed fixture must accept")
+        };
+        let row = &mut accepted.effects.asset_conservation[0];
+        row.owned_and_custodied_pre_atoms += 1;
+        row.owned_and_custodied_post_atoms += 1;
+        accepted.module_journal.chain_id = "foreign-chain".to_owned();
+        accepted.module_journal.effect_plan_root = accepted
+            .effects
+            .effect_plan_root()
+            .expect("faulty effect root");
+        accepted
+            .validate()
+            .expect("leaf-local validation permits aggregate faults");
+
+        let result = compose_candidate(
+            &context,
+            &state,
+            &AssetLaneCommandV2::ManagedLifecycle(command),
+            LeafAcceptedV2::ManagedLifecycle(accepted),
+        )
+        .expect("coordinator evaluates simultaneous faults");
+        assert_coordinator_noop(
+            result,
+            &state,
+            AssetLaneCoordinatorRejectCodeV2::CANDIDATE_BINDING_MISMATCH,
+        );
+    }
+
+    #[test]
+    fn aggregate_resource_failure_precedes_late_exact_projection() {
+        let (context, state, command) =
+            unmanaged_subject(crate::resource_limits::MAX_BALANCE_ROWS_PER_ASSET_STATE_V2);
+        let control = transition_asset_lane_custody_v2(
+            &context,
+            &state,
+            &AssetLaneCommandV2::ManagedLifecycle(command.clone()),
+        )
+        .expect("custody coordinator evaluates the resource control");
+        assert_coordinator_noop(
+            control,
+            &state,
+            AssetLaneCoordinatorRejectCodeV2::STATE_RESOURCE_LIMIT,
+        );
+
+        let result = transition_managed_asset_lifecycle_v2(
+            &context.managed_context(),
+            &state.managed_leaf_state(),
+            &command,
+        )
+        .expect("managed leaf executes below its local row ceiling");
+        let ManagedAssetLifecycleResultV2::Accepted(mut accepted) = result else {
+            panic!("managed fixture must accept")
+        };
+        accepted.post_state.policies[0].enabled = false;
+        assert_ne!(
+            accepted.post_state.policies,
+            state.managed_leaf_state().policies
+        );
+        let changed_post_root = accepted
+            .post_state
+            .state_root()
+            .expect("changed managed post root");
+        accepted.effects.lane_writes[0].post_root = changed_post_root.clone();
+        accepted.module_journal.post_lane_root = changed_post_root;
+        accepted.module_journal.effect_plan_root = accepted
+            .effects
+            .effect_plan_root()
+            .expect("changed effect root");
+        accepted
+            .validate()
+            .expect("leaf-local validation permits policy drift");
+
+        let result = compose_candidate(
+            &context,
+            &state,
+            &AssetLaneCommandV2::ManagedLifecycle(command),
+            LeafAcceptedV2::ManagedLifecycle(accepted),
+        )
+        .expect("coordinator evaluates resource and late projection faults");
+        assert_coordinator_noop(
+            result,
+            &state,
+            AssetLaneCoordinatorRejectCodeV2::STATE_RESOURCE_LIMIT,
+        );
     }
 }
