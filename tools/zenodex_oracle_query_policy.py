@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-
 TRACE_SCHEMA = "zenodex.oracle.query_policy_trace.v1"
 RESULT_SCHEMA = "zenodex.oracle.query_policy_verify_result.v1"
 MAX_TRACE_BYTES = 250_000
@@ -55,6 +54,26 @@ NOT_CLAIMED = [
     "does_not_claim_query_policy_governance_live",
     "does_not_claim_consumer_adapter_wired",
 ]
+PREFLIGHT_SCHEMA = "zenodex.oracle.query_policy_preflight_context.v1"
+PREFLIGHT_RESULT_SCHEMA = "zenodex.oracle.query_policy_preflight_result.v1"
+PREFLIGHT_PREMISE = "research_preflight_necessary_condition_only"
+MAX_PREFLIGHT_BYTES = 65_536
+# These are offline tool limits, not limits on the economic reporter registry.
+MAX_PREFLIGHT_REPORTERS = 64
+PREFLIGHT_CONTEXT_KEYS = {
+    "schema",
+    "query_id",
+    "current_policy_id",
+    "candidate_policy_id",
+    "eligible_reporter_ids",
+}
+PREFLIGHT_NOT_CLAIMED = NOT_CLAIMED + [
+    "does_not_claim_authenticated_reporter_registry",
+    "does_not_claim_source_quorum",
+    "does_not_claim_reporter_liveness",
+    "does_not_claim_reporter_authority",
+    "does_not_claim_sufficient_condition",
+]
 
 
 @dataclass(frozen=True)
@@ -81,6 +100,32 @@ class QueryPolicyResult:
             "last_epoch": self.last_epoch,
             "errors": list(self.errors),
             "not_claimed": NOT_CLAIMED,
+        }
+
+
+@dataclass(frozen=True)
+class PreflightResult:
+    status: str
+    errors: list[str]
+    query_id: str | None = None
+    current_policy_id: str | None = None
+    candidate_policy_id: str | None = None
+    min_distinct_reporters: int | None = None
+    eligible_reporter_count: int | None = None
+
+    def to_json_obj(self) -> dict[str, Any]:
+        return {
+            "schema": PREFLIGHT_RESULT_SCHEMA,
+            "ok": self.status == "accepted",
+            "status": self.status,
+            "premise": PREFLIGHT_PREMISE,
+            "query_id": self.query_id,
+            "current_policy_id": self.current_policy_id,
+            "candidate_policy_id": self.candidate_policy_id,
+            "min_distinct_reporters": self.min_distinct_reporters,
+            "eligible_reporter_count": self.eligible_reporter_count,
+            "errors": list(self.errors),
+            "not_claimed": PREFLIGHT_NOT_CLAIMED,
         }
 
 
@@ -160,12 +205,25 @@ def sample_policy_trace() -> dict[str, Any]:
     }
 
 
+def sample_preflight_context(trace: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    trace = sample_policy_trace() if trace is None else trace
+    policies = [event["policy"] for event in trace["events"] if event["type"] == "publish_policy"]
+    reporters = sorted(sample_hash(f"zenodex-oracle-query-policy-reporter-{pos}") for pos in range(3))
+    return {
+        "schema": PREFLIGHT_SCHEMA,
+        "query_id": trace["query_id"],
+        "current_policy_id": policies[-2]["policy_id"],
+        "candidate_policy_id": policies[-1]["policy_id"],
+        "eligible_reporter_ids": reporters,
+    }
+
+
 def _is_hash(value: object) -> bool:
     return isinstance(value, str) and bool(SHA256_RE.match(value))
 
 
 def _unknown_fields(
-    obj: Mapping[str, Any],
+    obj: Mapping[Any, Any],
     *,
     allowed: set[str],
     label: str,
@@ -431,6 +489,120 @@ def verify_policy_trace(obj: Mapping[str, Any]) -> QueryPolicyResult:
     )
 
 
+def _is_canonical_hash(value: object) -> bool:
+    return isinstance(value, str) and SHA256_RE.fullmatch(value) is not None
+
+
+def _canonical_hash(obj: Mapping[str, Any], key: str, errors: list[str]) -> str | None:
+    value = obj.get(key)
+    if not _is_canonical_hash(value):
+        errors.append(f"{key}_must_be_canonical_sha256")
+        return None
+    return str(value)
+
+
+def _revision_pair(
+    trace: Mapping[str, Any],
+    errors: list[str],
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Return (current, candidate) validated policies of an accepted trace with a real revision."""
+    trace_result = verify_policy_trace(trace)
+    if trace_result.status != "accepted":
+        errors.append("trace_not_accepted")
+        errors.extend(f"trace:{error}" for error in trace_result.errors)
+        return None
+    policies = [
+        event["policy"]
+        for event in trace["events"]
+        if event["type"] == "publish_policy"
+    ]
+    if len(policies) < 2:
+        errors.append("preflight_requires_policy_revision")
+        return None
+    return policies[-2], policies[-1]
+
+
+def _reporter_ids(context: Mapping[str, Any], errors: list[str]) -> list[str] | None:
+    """Return the sorted unique canonical reporter IDs, or None when malformed."""
+    raw = context.get("eligible_reporter_ids")
+    if not isinstance(raw, list):
+        errors.append("eligible_reporter_ids_must_be_list")
+        return None
+    before = len(errors)
+    ids: list[str] = []
+    for pos, value in enumerate(raw):
+        if not _is_canonical_hash(value):
+            errors.append(f"eligible_reporter_id_{pos}_must_be_canonical_sha256")
+        elif ids and str(value) <= ids[-1]:
+            errors.append(f"eligible_reporter_ids_must_be_sorted_unique:{pos}")
+        else:
+            ids.append(str(value))
+    return ids if len(errors) == before else None
+
+
+def _population_exhausted(context: Mapping[str, Any]) -> str | None:
+    raw = context.get("eligible_reporter_ids")
+    if isinstance(raw, list) and len(raw) > MAX_PREFLIGHT_REPORTERS:
+        return f"reporter_population_bound_exhausted:{len(raw)}>{MAX_PREFLIGHT_REPORTERS}"
+    return None
+
+
+def preflight_policy_revision(trace: object, context: object) -> PreflightResult:
+    """Offline necessary-condition preflight: min_distinct_reporters <= supplied eligible reporters.
+
+    Research premise only. The context is caller-supplied and unauthenticated; success
+    does not claim source quorum, reporter liveness, or reporter authority.
+    """
+    errors: list[str] = []
+    if not isinstance(trace, Mapping):
+        return PreflightResult(status="rejected", errors=["trace_must_be_object"])
+    pair = _revision_pair(trace, errors)
+    if pair is None:
+        return PreflightResult(status="rejected", errors=errors)
+    return _preflight_revision_context(pair, context)
+
+
+def _preflight_revision_context(
+    pair: tuple[dict[str, Any], dict[str, Any]], context: object,
+) -> PreflightResult:
+    errors: list[str] = []
+    if not isinstance(context, Mapping):
+        return PreflightResult(status="rejected", errors=["context_must_be_object"])
+    _unknown_fields(context, allowed=PREFLIGHT_CONTEXT_KEYS, label="preflight_context", errors=errors)
+    if context.get("schema") != PREFLIGHT_SCHEMA:
+        errors.append("preflight_context_schema_mismatch")
+    query_id = _canonical_hash(context, "query_id", errors)
+    current_policy_id = _canonical_hash(context, "current_policy_id", errors)
+    candidate_policy_id = _canonical_hash(context, "candidate_policy_id", errors)
+    for key, actual, expected in (
+        ("query_id", query_id, pair[1]["query_id"]),
+        ("current_policy_id", current_policy_id, pair[0]["policy_id"]),
+        ("candidate_policy_id", candidate_policy_id, pair[1]["policy_id"]),
+    ):
+        if actual is not None and actual != expected:
+            errors.append(f"context_{key}_mismatch")
+    exhausted = _population_exhausted(context)
+    reporters = None if exhausted else _reporter_ids(context, errors)
+    quorum = pair[1]["min_distinct_reporters"]
+    if reporters is not None and quorum > len(reporters):
+        errors.append(f"eligible_reporters_below_reporter_quorum:{len(reporters)}<{quorum}")
+    if errors:
+        status = "rejected"
+    elif exhausted:
+        status, errors = "inconclusive", [exhausted]
+    else:
+        status = "accepted"
+    return PreflightResult(
+        status=status,
+        errors=errors,
+        query_id=query_id,
+        current_policy_id=current_policy_id,
+        candidate_policy_id=candidate_policy_id,
+        min_distinct_reporters=quorum,
+        eligible_reporter_count=None if reporters is None else len(reporters),
+    )
+
+
 def _load_json(path: Path) -> Mapping[str, Any]:
     size = path.stat().st_size
     if size > MAX_TRACE_BYTES:
@@ -442,7 +614,27 @@ def _load_json(path: Path) -> Mapping[str, Any]:
     return obj
 
 
-def _write_result(result: QueryPolicyResult, output: Path | None) -> None:
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    obj: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError(f"duplicate_key:{key}")
+        obj[key] = value
+    return obj
+
+
+def _load_preflight_json(path: Path, *, maximum: int, label: str) -> Mapping[str, Any]:
+    with path.open("rb") as handle:
+        raw = handle.read(maximum + 1)
+    if len(raw) > maximum:
+        raise ValueError(f"{label}_file_too_large:{len(raw)}>{maximum}")
+    obj = json.loads(raw.decode("utf-8"), object_pairs_hook=_reject_duplicate_keys)
+    if not isinstance(obj, Mapping):
+        raise ValueError(f"{label} root must be a JSON object")
+    return obj
+
+
+def _write_result(result: QueryPolicyResult | PreflightResult, output: Path | None) -> None:
     text = json.dumps(result.to_json_obj(), indent=2, sort_keys=True) + "\n"
     if output is None:
         sys.stdout.write(text)
@@ -463,6 +655,25 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return 0 if result.status == "accepted" else 2
 
 
+def cmd_preflight(args: argparse.Namespace) -> int:
+    output = Path(args.output) if args.output else None
+    try:
+        trace = _load_preflight_json(Path(args.trace), maximum=MAX_TRACE_BYTES, label="query_policy")
+        errors: list[str] = []
+        pair = _revision_pair(trace, errors)
+        if pair is None:
+            result = PreflightResult(status="rejected", errors=errors)
+        else:
+            context = _load_preflight_json(
+                Path(args.context), maximum=MAX_PREFLIGHT_BYTES, label="preflight_context",
+            )
+            result = _preflight_revision_context(pair, context)
+    except (OSError, ValueError, RecursionError) as exc:
+        result = PreflightResult(status="inconclusive", errors=[f"preflight_load_failed:{exc}"])
+    _write_result(result, output)
+    return {"accepted": 0, "rejected": 2}.get(result.status, 3)
+
+
 def cmd_sample(args: argparse.Namespace) -> int:
     text = json.dumps(sample_policy_trace(), indent=2, sort_keys=True) + "\n"
     if args.output:
@@ -480,6 +691,15 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("trace", help="path to a query-policy trace JSON file")
     verify.add_argument("--output", help="optional output path for the verifier result JSON")
     verify.set_defaults(func=cmd_verify)
+
+    preflight = subparsers.add_parser(
+        "preflight",
+        help="offline research preflight: candidate reporter quorum vs supplied eligible reporters",
+    )
+    preflight.add_argument("trace", help="path to an accepted query-policy trace JSON file")
+    preflight.add_argument("context", help="path to a preflight context JSON file")
+    preflight.add_argument("--output", help="optional output path for the preflight result JSON")
+    preflight.set_defaults(func=cmd_preflight)
 
     sample = subparsers.add_parser("sample", help="emit a minimal accepted query-policy trace")
     sample.add_argument("--output", help="optional output path for the sample trace JSON")

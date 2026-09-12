@@ -48,6 +48,7 @@ pub enum AssetLaneCustodyProofHostErrorV2 {
     PlaceholderMethod,
     MethodBinding,
     Environment,
+    ProverConfiguration,
     Proving,
     ReceiptKind,
     ReceiptJournal,
@@ -161,6 +162,35 @@ fn development_mode_requested_v2(value: Option<&std::ffi::OsStr>) -> bool {
     })
 }
 
+/// Accepts only the SDK's default external IPC prover selection.
+///
+/// Unset, empty, or case-insensitive `ipc` resolve to the external `r0vm`
+/// prover, which honours the executor session limit and the Succinct opts.
+/// Every other explicit selector is refused. `actor` in particular is a host
+/// compatibility hazard: the pinned SDK forwards `segment_limit_po2` but drops
+/// `ExecutorEnv::session_limit` and ignores `ProverOpts`, so it would silently
+/// bypass `MAX_ASSET_LANE_CUSTODY_GLOBAL_CYCLES_V2` and ignore the requested
+/// proving options. The final receipt-kind check remains mandatory regardless
+/// of backend. Non-Unicode values are refused rather than treated as unset.
+/// The CLI environment must remain stable: the SDK rereads this selector.
+/// Cycle enforcement relies on the pinned honest IPC server, not receipt metadata.
+#[cfg(any(feature = "compiled-guest", test))]
+fn require_external_ipc_prover_v2(
+    value: Option<&std::ffi::OsStr>,
+) -> Result<(), AssetLaneCustodyProofHostErrorV2> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    let text = value
+        .to_str()
+        .ok_or(AssetLaneCustodyProofHostErrorV2::ProverConfiguration)?;
+    if text.is_empty() || text.eq_ignore_ascii_case("ipc") {
+        Ok(())
+    } else {
+        Err(AssetLaneCustodyProofHostErrorV2::ProverConfiguration)
+    }
+}
+
 #[cfg(any(feature = "compiled-guest", test))]
 fn build_asset_lane_custody_executor_env_v2(
     frame: &[u8],
@@ -201,6 +231,7 @@ pub fn prove_asset_lane_custody_succinct_v2(
     require_compiled_custody_method_v2()?;
     let statement = prepare_asset_lane_custody_statement_v2(frame)?;
     let env = build_asset_lane_custody_executor_env_v2(frame)?;
+    require_external_ipc_prover_v2(std::env::var_os("RISC0_PROVER").as_deref())?;
     let prove_info = default_prover()
         .prove_with_opts(
             env,
@@ -343,6 +374,43 @@ mod tests {
                 value
             ))));
         }
+    }
+
+    #[test]
+    fn default_and_explicit_ipc_prover_selections_are_accepted() {
+        assert_eq!(require_external_ipc_prover_v2(None), Ok(()));
+        for value in ["", "ipc", "IPC", "Ipc"] {
+            assert_eq!(
+                require_external_ipc_prover_v2(Some(std::ffi::OsStr::new(value))),
+                Ok(()),
+                "selector {value:?} must resolve to the external IPC prover"
+            );
+        }
+    }
+
+    #[test]
+    fn non_ipc_prover_selectors_are_rejected_as_prover_configuration() {
+        for value in [
+            "actor", "ACTOR", "local", "bonsai", "unknown", " ipc", "ipc ", "ipc\n", " ",
+        ] {
+            assert_eq!(
+                require_external_ipc_prover_v2(Some(std::ffi::OsStr::new(value))),
+                Err(AssetLaneCustodyProofHostErrorV2::ProverConfiguration),
+                "selector {value:?} must be refused"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_unicode_prover_selector_is_rejected_as_prover_configuration() {
+        use std::os::unix::ffi::OsStrExt;
+        let value = std::ffi::OsStr::from_bytes(&[b'i', b'p', b'c', 0xff]);
+        assert!(value.to_str().is_none());
+        assert_eq!(
+            require_external_ipc_prover_v2(Some(value)),
+            Err(AssetLaneCustodyProofHostErrorV2::ProverConfiguration)
+        );
     }
 
     #[test]
