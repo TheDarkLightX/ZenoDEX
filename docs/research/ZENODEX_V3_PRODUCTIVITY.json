@@ -1646,6 +1646,647 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260912-admission-permission-probe-aux",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "verification",
+      "status": "completed",
+      "task_kind": "auxiliary-provider-call-for-permission-probe",
+      "risk": "standard",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 945,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/0/input_tokens"
+        },
+        "output_tokens": {
+          "value": 12,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/0/output_tokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-permission-probe-main",
+      "model_id": "claude-opus-5",
+      "role": "verification",
+      "status": "completed",
+      "task_kind": "permission-probe",
+      "risk": "standard",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 7269,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/1/input_tokens"
+        },
+        "output_tokens": {
+          "value": 208,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/1/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 4195,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/1/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-opus-admission-aux",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "auxiliary-provider-call-for-opus-admission",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 1275,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/2/input_tokens"
+        },
+        "output_tokens": {
+          "value": 22,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/2/output_tokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-opus-admission-main",
+      "model_id": "claude-opus-5",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "opus-admission",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 2227706,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/3/input_tokens"
+        },
+        "output_tokens": {
+          "value": 81562,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/3/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 876662,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/3/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-coordinator-outcome-aux",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "auxiliary-provider-call-for-coordinator_outcome",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 8066,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/4/input_tokens"
+        },
+        "output_tokens": {
+          "value": 13,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/4/output_tokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-coordinator-outcome-main",
+      "model_id": "claude-fable-5-1",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "coordinator_outcome",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 835873,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/5/input_tokens"
+        },
+        "output_tokens": {
+          "value": 90464,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/5/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 988917,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/5/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-source-binding-controls-aux",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "auxiliary-provider-call-for-source_binding_controls",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 8017,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/6/input_tokens"
+        },
+        "output_tokens": {
+          "value": 16,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/6/output_tokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-source-binding-controls-main",
+      "model_id": "claude-fable-5-1",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "source_binding_controls",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 592656,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/7/input_tokens"
+        },
+        "output_tokens": {
+          "value": 84873,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/7/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 915975,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/7/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-constructor-admission-aux",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "auxiliary-provider-call-for-constructor_admission",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 7970,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/8/input_tokens"
+        },
+        "output_tokens": {
+          "value": 12,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/8/output_tokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-constructor-admission-main",
+      "model_id": "claude-fable-5-1",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "constructor_admission",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 779589,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/9/input_tokens"
+        },
+        "output_tokens": {
+          "value": 85620,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/9/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 942477,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/9/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-math-minimality-review-aux",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "auxiliary-provider-call-for-math_minimality_review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 7992,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/10/input_tokens"
+        },
+        "output_tokens": {
+          "value": 14,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/10/output_tokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-math-minimality-review-main",
+      "model_id": "claude-fable-5-1",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "math_minimality_review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 2733396,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/11/input_tokens"
+        },
+        "output_tokens": {
+          "value": 95342,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/11/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 1093448,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/11/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-custody-end-to-end-review-aux",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "auxiliary-provider-call-for-custody_end_to_end_review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 7997,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/12/input_tokens"
+        },
+        "output_tokens": {
+          "value": 16,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/12/output_tokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-custody-end-to-end-review-main",
+      "model_id": "claude-fable-5-1",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "custody_end_to_end_review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+        "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 1470889,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/13/input_tokens"
+        },
+        "output_tokens": {
+          "value": 67221,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/13/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 742725,
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_worker_usage_20260912.json",
+            "sha256": "293f985fe64a378385f765bbe8e2eaf61092fa3ed48bc95432e9ff7cab1226a2"
+          },
+          "json_pointer": "/runs/13/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-root",
+      "model_id": null,
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "constructor-admission-runtime-repair-integration-and-rework",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+        "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "custody-security-repair-controls-mutants-and-independent-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+        "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-gpt6-witness-review",
+      "model_id": null,
+      "role": "verification",
+      "status": "completed",
+      "task_kind": "inhabited-constructor-actions-critical-math-and-fixed-rubric-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+        "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-luna-fixtures",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "current-V2-golden-source-metadata-regeneration",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+        "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260912-admission-luna-harness",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "unvalidated-admission-harness-draft-replaced-after-checkpoint",
+      "risk": "critical",
+      "provenance": {
+        "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+        "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+        "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -2664,6 +3305,195 @@
           "commit": "aa3c2bcfd39b78a93d1e568fc8eb3e86fa1f4fe3",
           "path": "tests/evidence/custody_complete_projection_v2_20260912.json",
           "sha256": "671b5db1c04f08bc4ebbeb0e9136104db99540b7ff92256426c22e4b20ea7ee7"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-complete-accounting-tail",
+      "before_commit": "4fdeeb2ddf73fc01a88ee17dd4b72bb2e3580b3c",
+      "after_commit": "5e1e5a9e84b162ebfa3c0e00fcf78aef6968d38a",
+      "kind": "support",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-custody-complete-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Prior productivity-manifest tail:199 lines. The manual account already included this support interval; record it here once. No new product credit.",
+        "evidence": {
+          "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+          "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+          "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-custody-constructor-and-command-binding",
+      "before_commit": "5e1e5a9e84b162ebfa3c0e00fcf78aef6968d38a",
+      "after_commit": "0f14e8dc294df181c9ffc40de7136449f118d452",
+      "kind": "repair",
+      "obligation_ids": [
+        "W04",
+        "W06",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-admission-permission-probe-aux",
+        "V3-20260912-admission-permission-probe-main",
+        "V3-20260912-admission-opus-admission-aux",
+        "V3-20260912-admission-opus-admission-main",
+        "V3-20260912-admission-coordinator-outcome-aux",
+        "V3-20260912-admission-coordinator-outcome-main",
+        "V3-20260912-admission-source-binding-controls-aux",
+        "V3-20260912-admission-source-binding-controls-main",
+        "V3-20260912-admission-constructor-admission-aux",
+        "V3-20260912-admission-constructor-admission-main",
+        "V3-20260912-admission-math-minimality-review-aux",
+        "V3-20260912-admission-math-minimality-review-main",
+        "V3-20260912-admission-custody-end-to-end-review-aux",
+        "V3-20260912-admission-custody-end-to-end-review-main",
+        "V3-20260912-admission-root",
+        "V3-20260912-admission-daybreak",
+        "V3-20260912-admission-gpt6-witness-review",
+        "V3-20260912-admission-luna-fixtures",
+        "V3-20260912-admission-luna-harness"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Repairs actual Python/Rust command-asset conservation and proves finite complete constructor admission with inhabited transfer/issue/burn cases. Four fresh Lean tests, targeted runtime suites, archived4 Python mutants, compiled Rust mutant and2 compiling Lean predicate mutants pass within recorded scopes.2,091 additions/20 removals; preceding checkpoint to implementation commit is1h34m11s elapsed, not exclusive development time. All failed Fable attempts, parent permission/review/test mistakes and discarded Luna harness are retained. Source journal/effect and ordered outcome refinement remain next.",
+        "evidence": {
+          "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+          "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+          "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+          "path": "tests/evidence/v3_custody_admission_assessment_before_20260912.json",
+          "sha256": "56aa6507bfef53395cc2e26c8dd413bec9a9cef0913f411fe6ca87f82e9acc13"
+        },
+        "after": {
+          "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+          "path": "tests/evidence/v3_custody_admission_assessment_after_20260912.json",
+          "sha256": "badb8b5477e1dbfab36e89f17d921f76aa27c1f78d2e3bd905d87b57fe3b02ae"
+        },
+        "review": {
+          "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+          "path": "tests/evidence/custody_admission_guard_review_20260912.md",
+          "sha256": "62db8760f20ca784ff6eb17f706a3d5f2bb56ac5218ff846d050cdaf1d3d3961"
+        }
+      },
+      "findings": [
+        {
+          "id": "CUSTODY-ERASED-METADATA-ADMISSION-GAP",
+          "status": "repaired",
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+            "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+          }
+        },
+        {
+          "id": "CUSTODY-COMMAND-ASSET-CONSERVATION",
+          "status": "repaired",
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+            "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+          }
+        },
+        {
+          "id": "CUSTODY-CONSTRUCTOR-ORDER-AND-ZERO-SENTINEL",
+          "status": "repaired",
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+            "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+          }
+        },
+        {
+          "id": "CUSTODY-TEST-CIRCULAR-POLICY-COMMITMENT",
+          "status": "repaired",
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+            "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+          }
+        },
+        {
+          "id": "CUSTODY-FLEET-WRITE-PERMISSION",
+          "status": "repaired",
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+            "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+          }
+        },
+        {
+          "id": "CUSTODY-ADMISSION-HARNESS-ELABORATION",
+          "status": "repaired",
+          "evidence": {
+            "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+            "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+            "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260912-custody-admission-evidence",
+      "before_commit": "0f14e8dc294df181c9ffc40de7136449f118d452",
+      "after_commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+      "kind": "support",
+      "obligation_ids": [
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-admission-permission-probe-aux",
+        "V3-20260912-admission-permission-probe-main",
+        "V3-20260912-admission-opus-admission-aux",
+        "V3-20260912-admission-opus-admission-main",
+        "V3-20260912-admission-coordinator-outcome-aux",
+        "V3-20260912-admission-coordinator-outcome-main",
+        "V3-20260912-admission-source-binding-controls-aux",
+        "V3-20260912-admission-source-binding-controls-main",
+        "V3-20260912-admission-constructor-admission-aux",
+        "V3-20260912-admission-constructor-admission-main",
+        "V3-20260912-admission-math-minimality-review-aux",
+        "V3-20260912-admission-math-minimality-review-main",
+        "V3-20260912-admission-custody-end-to-end-review-aux",
+        "V3-20260912-admission-custody-end-to-end-review-main",
+        "V3-20260912-admission-root",
+        "V3-20260912-admission-daybreak",
+        "V3-20260912-admission-gpt6-witness-review",
+        "V3-20260912-admission-luna-fixtures",
+        "V3-20260912-admission-luna-harness"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Pins actual delivery, failed worker attempts, source-reported usage, independent review and a narrow fixed-rubric amendment.3,344 additions/4 removals at interval endpoints. Scalar assessment rows use the existing compact representation; initial expanded formatting was corrected without changing parsed JSON or scores. No extra implementation credit; model list-price counters are not actual billed cost.",
+        "evidence": {
+          "commit": "e648560f11e67fd45ea56f2164f705d2bccc9b2f",
+          "path": "tests/evidence/custody_admission_guard_v2_20260912.json",
+          "sha256": "46c1fcabe1d95ccb8d22a03b9647a669c84f3ebf8f9f5dd7ca192fedb6d37b63"
         }
       },
       "assessment": {

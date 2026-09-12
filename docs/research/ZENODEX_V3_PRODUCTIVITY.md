@@ -187,3 +187,37 @@ reporter; no reporting tool or runtime framework was added.
 ```bash
 python3 tools/v3_productivity_report.py docs/research/ZENODEX_V3_PRODUCTIVITY.json --baseline-manifest-commit ff9112b9970e4f510fcf198f7baafe149b98265a
 ```
+
+## September 12 constructor and command-binding delivery
+
+The manifest now records 93 source-declared contributions across 24 active
+batches. The new delivery interval is `5e1e5a9` through `0f14e8d`: 2,091 additions,
+20 removals and a reviewed formal-core delta of +0.009 percentage points. V3 is
+unchanged. Preceding-checkpoint to implementation-commit elapsed time is 1h34m11s;
+through the evidence/formatting checkpoint `e648560f` it is 1h49m10s. These are
+Git checkpoint intervals, not exclusive measured development time.
+
+The 19 added contribution records include five Fable main calls, their auxiliary
+calls, the Opus permission probe and implementation with auxiliary calls, and
+five native/root task records. Failed and discarded implementation attempts
+remain in the account. Five Fable workers delivered zero accepted implementation
+files; useful review findings are described separately. The provider usage file
+contains only sanitized counters and outcome descriptions, not private reasoning.
+Actual billed cost is unknown. A following Opus coordinator bundle is in flight
+and earns no delivery credit here.
+
+Validation against manifest commit `5e1e5a9e84b162ebfa3c0e00fcf78aef6968d38a`
+preserves the full earlier prefix, verifies all 235 referenced blob occurrences
+and 65 integer JSON-pointer observations, and counts the new shared score delta
+once. Fourteen provider records have input/output observations; seven have elapsed
+observations. Native/root resources for this batch remain unknown. The prior
+199-line manifest tail is accounted once as support. Review/usage/assessment
+support through `e648560f` adds 3,344 lines and removes four, with no extra score.
+The current manifest/report append is a further support tail, to be counted at
+the next committed delivery interval.
+
+The next batch consolidates ordered coordinator outcomes, journal/effect binding,
+aggregate resource/reprojection and runtime correspondence. Its implementation,
+adversarial controls and proof review proceed concurrently on disjoint files.
+No launch, documentation volume, individual lemma or repeated check increments
+completion credit.
