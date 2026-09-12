@@ -60,6 +60,37 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 12: actual finite custody histories and aggregate boundaries
+
+Source `2706a9316fb8b8996e30a699fe18bacfe69ad15a` adds the
+[finite-history and boundary evidence](../tests/evidence/custody_finite_trace_bounds_v2_20260912.json).
+Actual finite leaf verdicts now drive the Lean history proof: selected policies
+come from finite acceptance, rejection is exact no-op, and one initial row
+admission plus policy and input command shapes suffice for every prefix.
+The theorem preserves complete modeled rows and the immutable custody frame.
+It does not prove the outer coordinator's constructor, resource, provenance or
+receipt checks. Reuse this trace and the prior recomposition/effect-plan lemmas.
+
+Python now compares the exact reconstructed leaf state, matching Rust. A
+retained mocked equal-root regression catches a changed immutable policy.
+Natural Python/Rust limits distinguish a leaf that accepts from a complete
+state that exceeds 4096 account rows or 1048576 canonical bytes. Boundary and
+rejection-priority controls require exact no-op and all six empty effect lists.
+Fresh Lean replay, targeted runtime/publication and Rust parity checks passed;
+the archived hash-only mutant was killed. Exact commands and bounds are linked.
+
+This batch is `NOT_RESCORED`. The last adopted planning estimates remain formal
+core 21.081% and V3 23.869%; no lane or value-safety gate closed. Missing rescore
+is not a measured zero gain. Next, close exact complete-to-leaf projection and
+materialized complete-state byte/resource correspondence, then the coordinator
+outcome contract. Do not introduce an opaque admission Boolean that assumes the
+answer. Complete origin fields and canonical runtime refinement remain open.
+The genuine guest/receipt condition below still requires suitable compute.
+
+A historical derivatives checker restoration was withdrawn when its CLOSED
+matrix contradicted current disputed claims and absent evidence. Preserve that
+finding; do not restore the old matrix or claim completion to clear the gate.
+
 ## September 12: custody formal construction checkpoint
 
 The [custody completion evidence](../tests/evidence/custody_recomposition_effect_plan_v2_20260912.json)

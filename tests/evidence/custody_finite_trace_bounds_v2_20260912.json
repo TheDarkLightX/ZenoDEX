@@ -1,0 +1,279 @@
+{
+  "schema": "zenodex/custody-finite-trace-bounds-evidence/v1",
+  "baseline_commit": "55e5f3ad66ec580b207bffcf43fdf8fdc10a626a",
+  "subject_commit": "2706a9316fb8b8996e30a699fe18bacfe69ad15a",
+  "authority": "NONE",
+  "claim_ceiling": "Finite Lean row/frame trace preservation, exact leaf-state reprojection repair and bounded runtime aggregate resource evidence. No lane, workstream or whole-runtime qualification.",
+  "source_pins": {
+    "docs/research/ZENODEX_V3_ACCEPTANCE.json": "ba8f19c56eb49450ce425fd96a29bd7e9d3a423554e97efe37335ef8f63830f0",
+    "lean-mathlib/Proofs/AssetLaneCustodyFiniteTraceV2.lean": "5c603db143f8a981a3747a9f6501e53a9b27eea6e6be60fe378d2a673412465a",
+    "src/core/asset_lane_custody_coordinator_v2.py": "db218292c2ab32b152db2575a5fcb8c575e4eb49fe54920d624592b470bdd10c",
+    "tests/core/test_asset_lane_custody_bounds_v2.py": "4e4a181178c79015388e26d5c2303587554fd9be34f052b8b9d91d6c31c95731",
+    "tests/data/asset_lane_custody_statement_v2_golden.json": "d9978dca0494a31aa8504d13ca1926f27bd567c356929db801583292d2501e1e",
+    "tests/data/asset_lane_custody_v2_golden.json": "6f2830868ace35ff5af280d102c00d66d08b68b1938a10d65d3f9893c4af9ced",
+    "tests/evidence/test_hygiene/THV1-20260912-custody-finite-trace-bounds-v2.json": "4c67bada32ffffc61bf45ef01984458fcd1a51745fb47242b02c282ab88a1cb7",
+    "tests/formal/asset_lane_custody_finite_trace_v2_controls.lean": "2a0e01f595d5e6813032205567d61948ad8e1d7b51ea6987708be8c1e23edeaa",
+    "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py": "ce071f1d49ccaf5f5a426423d839965833efc8aaa28a6777bc77fdb58d8b7950",
+    "tests/formal/test_lean_asset_lane_custody_finite_trace_v2.py": "de0d35f4ccb41128a6f5124f310d291259d9b484d6357f1c7e0eabb6907a6d73",
+    "tools/v3_acceptance.py": "ff94c505da14606e6bc3df59dd0d335fdbffaf386d8e1b8630f7ba6d887c5207",
+    "zk/global_settlement_abi_v2/tests/asset_lane_custody.rs": "99adebd44516094eb05a3b4f8948bd6ee54138b924411fccfe6d7b1df4366813"
+  },
+  "accepted_obligations": [
+    {
+      "id": "CUSTODY-FINITE-INITIAL-ONLY-TRACE",
+      "workstreams": [
+        "W07",
+        "W09"
+      ],
+      "before": "Prior trace construction required a selected scalar policy and accepted-case premises per step.",
+      "after": "Actual finite transfer/managed verdicts choose the selected policy or exact no-op. One initial RowsRepresentable and immutable policy-shape premises plus input command shapes suffice for all reached prefixes.",
+      "conclusions": "Exact accepted leaf-post materialization; full modeled custody/policy/release/registry frame; physical balanced rows for each prefix, including unknown-asset rejection.",
+      "limits": "RowsRepresentable is not full constructor admission. No aggregate resources, complete origin metadata, canonical order/tokens, authenticated roots, journal/receipt or runtime refinement. Trace carries no effect object."
+    },
+    {
+      "id": "CUSTODY-EXACT-LEAF-REPROJECTION",
+      "workstreams": [
+        "W09"
+      ],
+      "before": "Python compared projected leaf root to candidate leaf root; Rust compared complete typed states.",
+      "after": "Python compares the exact typed states too. A coherent changed immutable managed policy under mocked equal hashes is rejected as PROJECTION_MISMATCH with all six effect collections empty.",
+      "failing_control": "The new retained test failed against the old guard: 1 failed in 0.70s. A genuine accepted control under the same mocked hashing still accepts.",
+      "limits": "Fault injection models process-local hash/code faults. It does not demonstrate a practical SHA-256 collision or value theft. Economic roots/wire/fees/rounding unchanged for ordinary execution."
+    },
+    {
+      "id": "CUSTODY-AGGREGATE-RESOURCE-NOOP",
+      "workstreams": [
+        "W07",
+        "W09"
+      ],
+      "after": "Independent Python/Rust literal row and byte controls distinguish finite leaf admission from complete custody construction. Exact 4096 account rows and 1048576 canonical bytes accept; +1 rejects as coordinator STATE_RESOURCE_LIMIT without effects or input mutation.",
+      "byte_control": {
+        "pre_sizes": [
+          1048344,
+          1048345
+        ],
+        "accepted_managed_leaf_post_bytes": 933,
+        "complete_post_sizes": [
+          1048576,
+          1048577
+        ]
+      },
+      "limits": "Bounded executable evidence, not universal constructor or serializer refinement. Byte controls call the actual leaf directly; Rust aggregate-row route demonstrates leaf passage through the public coordinator."
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_finite_trace_v2.py",
+      "outcome": "6 passed in 96.84s; final bytes compiled fresh with Lean 4.27.0 standard-library source closure.",
+      "detail": "Nine exact theorem signatures and standard-axiom audits; one independent complete-table Lean history; three well-typed semantic mutations compile before their contracts reject; one actual seven-asset Python history."
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_asset_lane_custody_bounds_v2.py tests/core/test_asset_lane_custody_v2.py tests/core/test_asset_lane_custody_golden_v2.py tests/core/test_asset_lane_custody_global_v2.py tests/core/test_asset_lane_custody_statement_parity_v2.py tests/core/test_asset_lane_custody_frame_v2.py tests/integration/test_isolated_custody_publisher_v2.py tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py -k \"not contract_surface and not accepted_transfer_issue and not mutant\"",
+      "outcome": "99 passed, 12 deselected in 63.66s. Six deselections were unchanged old Lean gates; six relevant runtime mutants were replayed separately below."
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_asset_lane_custody_global_v2.py::test_semantic_mutants_cannot_pass_the_global_consumer tests/tools/test_v3_acceptance.py",
+      "outcome": "18 passed in 1.23s: 6 global runtime mutants + 12 acceptance-tool tests. Distinct targeted runtime/publication total for the two commands: 105; no repeat-run summation."
+    },
+    {
+      "command": "cargo +1.87.0 test --offline --locked --manifest-path zk/global_settlement_abi_v2/Cargo.toml --test asset_lane_custody --test asset_lane_custody_golden",
+      "outcome": "16 custody tests plus 1 ten-vector Python/Rust golden test passed on final files; cached host test build only."
+    },
+    {
+      "command": "cargo +1.87.0 fmt --manifest-path zk/global_settlement_abi_v2/Cargo.toml -- --check",
+      "outcome": "PASS"
+    },
+    {
+      "command": "python3 -m mypy src/core/asset_lane_custody_coordinator_v2.py tests/core/test_asset_lane_custody_bounds_v2.py tests/formal/test_lean_asset_lane_custody_finite_trace_v2.py",
+      "outcome": "Success: no issues found in 3 source files."
+    },
+    {
+      "command": "python3 -m ruff check src/core/asset_lane_custody_coordinator_v2.py tests/core/test_asset_lane_custody_bounds_v2.py tests/formal/test_lean_asset_lane_custody_finite_trace_v2.py tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py tools/v3_acceptance.py",
+      "outcome": "All checks passed."
+    },
+    {
+      "command": "python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260912-custody-finite-trace-bounds-v2 --rev 2706a9316fb8b8996e30a699fe18bacfe69ad15a",
+      "outcome": "Archived control passed; restoring hash-only comparison killed 1/1 mechanical mutants; zero survivors/errors.",
+      "report": {
+        "path": "tests/evidence/custody_finite_trace_bounds_v2_mutation_20260912.json",
+        "sha256": "cd6624f12af810cae964fb91575c17a8db9f2deaec9990f1450afdbbb2056651"
+      }
+    },
+    {
+      "command": "python3 tools/check_test_hygiene_v1.py --changed-file <each of the 12 subject paths, with A/M status> --json",
+      "outcome": "PASS; all 7 changed critical paths covered by THV1-20260912-custody-finite-trace-bounds-v2. Exact subject path list in source_pins."
+    },
+    {
+      "command": "python3 tools/v3_acceptance.py --validate",
+      "outcome": "PASS structural inventory, not obligation closure."
+    },
+    {
+      "command": "python3 tools/check_whole_program_plan_v3.py; python3 tools/check_production_boundary.py --json",
+      "outcome": "Both PASS within declared checks; 0 closed value gates, authority NONE, release_ready false. Boundary scan is not deployment-complete no-bypass."
+    },
+    {
+      "command": "git diff --check",
+      "outcome": "PASS; no new placeholders/axioms or redflag findings."
+    }
+  ],
+  "regeneration": {
+    "commands": [
+      "python3 tools/render_asset_lane_custody_v2_golden.py",
+      "python3 tools/render_asset_lane_custody_statement_v2_golden.py"
+    ],
+    "checks": "Both --check commands passed: 10 custody vectors and 5 statement disclosures. All non-source-pin JSON data unchanged.",
+    "changed_pins": "Only coordinator source SHA and the already-stale unchanged test_asset_lane_custody_v2.py SHA changed in each fixture. Formal fixture SHA and acceptance index/layout SHA recomputed from exact current bytes. No test node, mapping, score or authority change."
+  },
+  "contributors": [
+    {
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "work": "Runtime repair, fresh proof harness and controls review, differential checks, integration, pin refresh, mutation replay and accounting."
+    },
+    {
+      "model_id": null,
+      "model_family": "Codex on GPT-6; provider ID unavailable",
+      "role": "implementation",
+      "work": "Finite trace module and independent complete-table Lean control appendix."
+    },
+    {
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "work": "Found exact-state comparison gap; implemented Python boundary regression; independently reviewed final trace source SHA with no blocking finding."
+    },
+    {
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "work": "Rust aggregate row/byte tests. Earlier attempted derivatives checker restoration was withdrawn after falsification."
+    }
+  ],
+  "rework": [
+    "Lean initial draft needed ordinary tactic/type fixes; final 312-line module and all final tests passed a fresh combined replay.",
+    "Exact-type Python checks did not narrow imported union under repo MyPy settings; explicit casts corrected this without new ignores.",
+    "Rust initial byte fixture used a longer owner and wrong release literal; corrected fixture to Python labels and measured bytes. Admission ceilings unchanged.",
+    "Regeneration initially expected one source pin change; inspection exposed the inherited stale test pin. The refreshed fixtures change exactly the two named pins, with all economic outputs unchanged."
+  ],
+  "rejected_support_candidate": {
+    "model_id": "gpt-5.6-luna",
+    "status": "withdrawn_after_falsification",
+    "subject": "Historical derivatives authorization checker/matrix at fda433cb5beef0eb159737c0ee0871bc54dbc144",
+    "reason": "Current claims include disputed production integration; the old matrix claims 27/27 CLOSED and five complete areas. Focused restoration replay: 1 failed, 2 passed. Removed only the worker-created hash-matched untracked files.",
+    "remaining": "claims[123] still references missing tools/check_derivatives_authorization_matrix.py; additional inherited FIRE/derivative/perps evidence paths are absent. No historical CLOSED matrix or claim promotion restored.",
+    "product_credit": false
+  },
+  "line_changes": [
+    {
+      "path": "docs/research/ZENODEX_V3_ACCEPTANCE.json",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyFiniteTraceV2.lean",
+      "added": 312,
+      "removed": 0
+    },
+    {
+      "path": "src/core/asset_lane_custody_coordinator_v2.py",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_bounds_v2.py",
+      "added": 199,
+      "removed": 10
+    },
+    {
+      "path": "tests/data/asset_lane_custody_statement_v2_golden.json",
+      "added": 2,
+      "removed": 2
+    },
+    {
+      "path": "tests/data/asset_lane_custody_v2_golden.json",
+      "added": 2,
+      "removed": 2
+    },
+    {
+      "path": "tests/evidence/test_hygiene/THV1-20260912-custody-finite-trace-bounds-v2.json",
+      "added": 159,
+      "removed": 0
+    },
+    {
+      "path": "tests/formal/asset_lane_custody_finite_trace_v2_controls.lean",
+      "added": 202,
+      "removed": 0
+    },
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_finite_trace_v2.py",
+      "added": 271,
+      "removed": 0
+    },
+    {
+      "path": "tools/v3_acceptance.py",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/tests/asset_lane_custody.rs",
+      "added": 428,
+      "removed": 12
+    }
+  ],
+  "line_totals": {
+    "runtime": {
+      "added": 1,
+      "removed": 1
+    },
+    "proof": {
+      "added": 312,
+      "removed": 0
+    },
+    "tests": {
+      "added": 1101,
+      "removed": 23
+    },
+    "tooling": {
+      "added": 1,
+      "removed": 1
+    },
+    "data": {
+      "added": 164,
+      "removed": 5
+    },
+    "total": {
+      "added": 1579,
+      "removed": 30
+    }
+  },
+  "dependencies_added": 0,
+  "resource_observations": {
+    "local_free_bytes_approx": 2900000000,
+    "heavy_builds": false,
+    "runpod_available": false,
+    "total_elapsed_ms": null,
+    "provider_tokens": null,
+    "cost": null
+  },
+  "assessment": {
+    "delta": "NOT_RESCORED",
+    "last_adopted_formal_core_percent": 21.081,
+    "last_adopted_v3_percent": 23.869,
+    "qualified_value_gates": 0,
+    "total_value_gates": 12,
+    "meaning": "Carried advisory estimates only; no new quantitative reassessment. Review does not justify a further proof tier from 0.75 before outer/full runtime refinement. Missing rescore is not a measured zero gain."
+  },
+  "unrun": [
+    "full mathlib build",
+    "ESSO",
+    "Kani",
+    "genuine custody RISC0 guest build/proving",
+    "full critical-quality/release suite",
+    "hosted CI",
+    "live activation/migration"
+  ],
+  "next_acceptance": "Outer coordinator finite outcomes over actual complete post, exact re-projection, source binding and derived aggregate canonical-byte/row checks; then connect complete origin/serializer/effect/journal refinement. Genuine receipt qualification still requires suitable offline compute."
+}

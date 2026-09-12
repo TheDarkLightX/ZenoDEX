@@ -1,0 +1,27 @@
+{
+  "errors": 0,
+  "killed": 1,
+  "legacy": 0,
+  "mechanical": 1,
+  "narrative": 0,
+  "packet": "THV1-20260912-custody-finite-trace-bounds-v2",
+  "rows": [
+    {
+      "description": "Restore hash-only leaf reprojection. The coherent altered managed policy under equal mocked roots must fail the retained exact-rejection test.",
+      "exit": 1,
+      "killer": "tests/core/test_asset_lane_custody_bounds_v2.py::test_complete_managed_projection_requires_exact_leaf_state_even_when_roots_match",
+      "mutant_sha256": "f34dd59aeb8952a42c81edecbcda183bb5d866ddf754d6e755f6de9c502bea88",
+      "mutation": {
+        "needle_first_line": "        projected != accepted.post_state",
+        "needle_sha256": "cb53c2103e828ed0d50c38083f09b7ad06ef3ad5dc016849514fa98c83729ef1",
+        "path": "src/core/asset_lane_custody_coordinator_v2.py",
+        "replacement_sha256": "e11b8c1b3dd872a43704ace56c9d950d09e3a107b8e5d5f708a14490b8d70a35"
+      },
+      "seconds": 1.656,
+      "verdict": "KILLED"
+    }
+  ],
+  "schema": "zenodex/thv1-mutation-ledger/v1",
+  "subject_commit": "2706a9316fb8b8996e30a699fe18bacfe69ad15a",
+  "survived": 0
+}
