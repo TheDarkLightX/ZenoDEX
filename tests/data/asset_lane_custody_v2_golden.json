@@ -2107,12 +2107,12 @@
   "nonclaim": "Listed-source bounded runtime parity; no signature, proof guest, publication or migration qualification.",
   "schema": "zenodex/asset-lane-custody-v2-golden/v1",
   "source_sha256": {
-    "src/core/asset_lane_custody_coordinator_v2.py": "f34dd59aeb8952a42c81edecbcda183bb5d866ddf754d6e755f6de9c502bea88",
+    "src/core/asset_lane_custody_coordinator_v2.py": "db218292c2ab32b152db2575a5fcb8c575e4eb49fe54920d624592b470bdd10c",
     "src/core/asset_lane_custody_state_v2.py": "4fbc66a705b686acd3a64c92ce054571e6955567568ba755549fa0eeae06f88a",
     "src/core/asset_transfer_module_v2.py": "b18030eb4e5631e6315e5d483b4cca3f0f601af4747ac18c2e3b94d8b3f96cf3",
     "src/core/managed_asset_lifecycle_module_v2.py": "16f68aec399ef620e9e665ccdcd67a3dbd5a5255fde554e420d31213b4abf1eb",
     "tests/core/test_asset_lane_coordinator_v2.py": "04e9e2adacfd603ad0b4a6bf6b97818a5331b6ec0e1e164898358200aa3f1cea",
-    "tests/core/test_asset_lane_custody_v2.py": "b42da5ca3e13a925ad830370e9e06bc426e62a7efdfaca83e23594da430e9c32",
+    "tests/core/test_asset_lane_custody_v2.py": "4d5804119fd80a3086d2bbfa5eeb0f313edc8446199185adb2b6616ac941f2fc",
     "tools/render_asset_lane_custody_v2_golden.py": "5f0e83fd9e1b8ce22b1dc5c80da573a1f2c07e7cc65a112780fda34655fbeef8"
   }
 }

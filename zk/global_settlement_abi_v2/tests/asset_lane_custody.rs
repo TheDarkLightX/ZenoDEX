@@ -3,18 +3,20 @@ mod support;
 
 use zenodex_global_settlement_abi_v2::{
     asset_transfer_policy_root_v2, canonical_bytes_v2, decode_canonical_v2, hash_global_v2,
-    managed_asset_policy_root_v2, transition_asset_lane_custody_v2, AbiErrorV2, AssetClassV2,
-    AssetLaneCommandV2, AssetLaneContextV2, AssetLaneCoordinatorRejectCodeV2,
-    AssetLaneCustodyAcceptedV2, AssetLaneCustodyResultV2, AssetLaneCustodyStateV2,
-    AssetLaneRejectCodeV2, AssetLaneResultV2, AssetLaneRouteV2, AssetLaneStateV2,
-    AssetOriginKindV2, AssetOriginRecordV2, AssetOriginRegistrationPolicyV2,
-    AssetOriginRegistryStateV2, AssetSupplyV2, AssetTransferCommandV2, AssetTransferPolicyV2,
-    AssetTransferRejectCodeV2, AssetTransferStateV2, EconomicAmountV2,
-    ManagedAssetLifecycleCommandV2, ManagedAssetLifecyclePolicyV2,
-    ManagedAssetLifecycleRejectCodeV2, RootV2, ACCOUNT_CUSTODY_DOMAIN_V2, ASSET_ATOM_DECIMALS_V2,
-    ASSET_LANE_CUSTODY_STATE_SCHEMA_V2, ASSET_ORIGIN_REGISTRY_SCHEMA_V2,
-    ASSET_TRANSFER_MODULE_SCHEMA_V2, MANAGED_ASSET_BURN_COMMAND_KIND_V2,
-    MANAGED_ASSET_ISSUE_COMMAND_KIND_V2, MAX_ASSET_LANE_CUSTODY_ROWS_V2,
+    managed_asset_policy_root_v2, transition_asset_lane_custody_v2,
+    transition_managed_asset_lifecycle_v2, AbiErrorV2, AssetClassV2, AssetLaneCommandV2,
+    AssetLaneContextV2, AssetLaneCoordinatorRejectCodeV2, AssetLaneCustodyAcceptedV2,
+    AssetLaneCustodyResultV2, AssetLaneCustodyStateV2, AssetLaneRejectCodeV2, AssetLaneResultV2,
+    AssetLaneRouteV2, AssetLaneStateV2, AssetOriginKindV2, AssetOriginRecordV2,
+    AssetOriginRegistrationPolicyV2, AssetOriginRegistryStateV2, AssetSupplyV2,
+    AssetTransferCommandV2, AssetTransferPolicyV2, AssetTransferRejectCodeV2, AssetTransferStateV2,
+    EconomicAmountV2, ManagedAssetLifecycleCommandV2, ManagedAssetLifecyclePolicyV2,
+    ManagedAssetLifecycleRejectCodeV2, ManagedAssetLifecycleResultV2, RootV2,
+    ACCOUNT_CUSTODY_DOMAIN_V2, ASSET_ATOM_DECIMALS_V2, ASSET_LANE_CUSTODY_STATE_SCHEMA_V2,
+    ASSET_ORIGIN_REGISTRY_SCHEMA_V2, ASSET_TRANSFER_MODULE_SCHEMA_V2,
+    MANAGED_ASSET_BURN_COMMAND_KIND_V2, MANAGED_ASSET_ISSUE_COMMAND_KIND_V2,
+    MAX_ASSET_LANE_BALANCE_ROWS_V2, MAX_ASSET_LANE_CUSTODY_ROWS_V2,
+    MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2, MAX_TOKEN_BYTES_V2,
 };
 
 fn account_row(owner: &str, amount_atoms: u128) -> EconomicAmountV2 {
@@ -129,6 +131,7 @@ fn managed_subject(
 
 const MULTIASSET_ASSETS: [&str; 7] = ["AUD", "EUR", "GBP", "JPY", "USD", "VND", "ZZZ"];
 const MULTIASSET_MANAGED_ASSETS: [&str; 2] = ["GBP", "USD"];
+const BYTE_BOUNDARY_CUSTODY_ROWS_V2: usize = 2_724;
 
 fn multiasset_root(label: &str) -> RootV2 {
     hash_global_v2(
@@ -257,6 +260,137 @@ fn multiasset_state() -> AssetLaneCustodyStateV2 {
             amount_atoms: 2,
         }],
     }
+}
+
+fn multiasset_row_limit_state(account_rows: usize) -> AssetLaneCustodyStateV2 {
+    let mut state = multiasset_state();
+    state.transfer_state.balances = (0..account_rows)
+        .map(|index| EconomicAmountV2 {
+            owner: format!("holder{index:04}"),
+            asset: "EUR".to_owned(),
+            custody_domain: ACCOUNT_CUSTODY_DOMAIN_V2.to_owned(),
+            amount_atoms: 1,
+        })
+        .collect();
+    state.transfer_state.supplies = multiasset_supply_rows(&[
+        ("AUD", 0),
+        ("EUR", account_rows as u128 + 2),
+        ("GBP", 0),
+        ("JPY", 0),
+        ("USD", 0),
+        ("VND", 0),
+        ("ZZZ", 0),
+    ]);
+    state.validate().expect("row-limit source is valid");
+    state
+}
+
+fn byte_boundary_transfer_policy(asset: &str) -> AssetTransferPolicyV2 {
+    AssetTransferPolicyV2 {
+        asset: asset.to_owned(),
+        fee_owner: "treasury".to_owned(),
+        transfer_fee_atoms: 2,
+        enabled: true,
+        asset_class: AssetClassV2::RegisteredOrdinaryToken,
+        asset_origin_root: Some(multiasset_root(&format!("origin:{asset}"))),
+        atom_decimals: ASSET_ATOM_DECIMALS_V2,
+    }
+}
+
+fn byte_boundary_state(last_domain_bytes: usize) -> AssetLaneCustodyStateV2 {
+    assert!(matches!(last_domain_bytes, 53 | 54));
+    let module_release_id = multiasset_root("module-release");
+    let policies = vec![
+        byte_boundary_transfer_policy("EUR"),
+        byte_boundary_transfer_policy("USD"),
+    ];
+    let managed_policies = vec![multiasset_managed_policy("USD")];
+    let origin_registry = AssetOriginRegistryStateV2 {
+        schema: ASSET_ORIGIN_REGISTRY_SCHEMA_V2.to_owned(),
+        module_release_id: module_release_id.clone(),
+        policy: AssetOriginRegistrationPolicyV2 {
+            authority_subject: "governance".to_owned(),
+            authority_grant_root: multiasset_root("governance-grant"),
+            allow_native: true,
+            allow_tau_originated: true,
+        },
+        assets: policies
+            .iter()
+            .map(|policy| {
+                let issue_policy_root = managed_policies
+                    .iter()
+                    .find(|managed| managed.asset == policy.asset)
+                    .map(|managed| managed_asset_policy_root_v2(managed).expect("managed root"))
+                    .unwrap_or_else(RootV2::zero);
+                AssetOriginRecordV2 {
+                    asset: policy.asset.clone(),
+                    origin_kind: AssetOriginKindV2::TAU_ORIGINATED,
+                    origin_root: policy
+                        .asset_origin_root
+                        .clone()
+                        .expect("ordinary asset origin"),
+                    transfer_policy_root: asset_transfer_policy_root_v2(policy)
+                        .expect("transfer root"),
+                    issue_policy_root,
+                    decimals: u64::from(policy.atom_decimals),
+                    asset_class: policy.asset_class,
+                }
+            })
+            .collect(),
+    };
+    let transfer_state = AssetTransferStateV2 {
+        schema: ASSET_TRANSFER_MODULE_SCHEMA_V2.to_owned(),
+        module_release_id,
+        policies,
+        balances: vec![EconomicAmountV2 {
+            owner: "alice".to_owned(),
+            asset: "USD".to_owned(),
+            custody_domain: ACCOUNT_CUSTODY_DOMAIN_V2.to_owned(),
+            amount_atoms: 80,
+        }],
+        supplies: vec![
+            AssetSupplyV2 {
+                asset: "EUR".to_owned(),
+                amount_atoms: BYTE_BOUNDARY_CUSTODY_ROWS_V2 as u128,
+            },
+            AssetSupplyV2 {
+                asset: "USD".to_owned(),
+                amount_atoms: 100,
+            },
+        ],
+    };
+
+    let mut custody = Vec::with_capacity(BYTE_BOUNDARY_CUSTODY_ROWS_V2 + 1);
+    for index in 0..BYTE_BOUNDARY_CUSTODY_ROWS_V2 {
+        let prefix = format!("v{index:04}");
+        let owner = format!("{prefix}{}", "x".repeat(MAX_TOKEN_BYTES_V2 - prefix.len()));
+        let domain_bytes = if index + 1 == BYTE_BOUNDARY_CUSTODY_ROWS_V2 {
+            last_domain_bytes
+        } else {
+            MAX_TOKEN_BYTES_V2
+        };
+        custody.push(EconomicAmountV2 {
+            owner,
+            asset: "EUR".to_owned(),
+            custody_domain: "e".repeat(domain_bytes),
+            amount_atoms: 1,
+        });
+    }
+    custody.push(EconomicAmountV2 {
+        owner: "vault".to_owned(),
+        asset: "USD".to_owned(),
+        custody_domain: "escrow".to_owned(),
+        amount_atoms: 20,
+    });
+    let state = AssetLaneCustodyStateV2 {
+        schema: ASSET_LANE_CUSTODY_STATE_SCHEMA_V2.to_owned(),
+        transfer_state,
+        origin_registry,
+        managed_policies,
+        custody,
+    };
+    state.validate().expect("byte-boundary source is valid");
+    state
 }
 
 fn multiasset_managed_subject(
@@ -494,6 +628,288 @@ fn managed_multiasset_history_keeps_complete_rows_and_rejects_unauthorized_burn(
         ]),
     );
     assert_source_unchanged(&burned_source, &burned_source_bytes, &burned_source_root);
+}
+
+#[test]
+fn managed_custody_aggregate_row_limit_rejects_4097_account_rows_as_exact_noop() {
+    assert_eq!(MAX_ASSET_LANE_BALANCE_ROWS_V2, 4_096);
+    let source = multiasset_row_limit_state(MAX_ASSET_LANE_BALANCE_ROWS_V2);
+    assert_eq!(source.transfer_state.balances.len(), 4_096);
+    assert_eq!(source.transfer_state.balances.len() + 1, 4_097);
+    let source_bytes = canonical_bytes_v2(&source).expect("source bytes");
+    let source_root = source.state_root().expect("source root");
+
+    let managed_leaf = source.managed_leaf_state();
+    managed_leaf
+        .validate()
+        .expect("managed leaf remains within its row limit");
+    assert_eq!(managed_leaf.balances.len(), 0);
+    assert_eq!(managed_leaf.balances.len() + 1, 1);
+    assert!(managed_leaf.balances.len() + 1 <= MAX_ASSET_LANE_BALANCE_ROWS_V2);
+
+    let (context, command) = multiasset_managed_subject(
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V2,
+        "alice",
+        1,
+        "issuer",
+        10,
+    );
+    let AssetLaneCustodyResultV2::Rejected(rejected) =
+        transition_asset_lane_custody_v2(&context, &source, &command)
+            .expect("aggregate row overflow is a typed rejection")
+    else {
+        panic!("aggregate row overflow unexpectedly accepted")
+    };
+    assert_eq!(rejected.route(), AssetLaneRouteV2::COORDINATOR);
+    assert_eq!(
+        rejected.code(),
+        AssetLaneRejectCodeV2::Coordinator(AssetLaneCoordinatorRejectCodeV2::STATE_RESOURCE_LIMIT,)
+    );
+    assert_eq!(rejected.pre_state_root(), &source_root);
+    assert_eq!(rejected.post_state_root(), &source_root);
+    assert!(rejected.effects().is_empty());
+    assert!(rejected.effects().rows.is_empty());
+    assert!(rejected.effects().asset_conservation.is_empty());
+    assert!(rejected.effects().fee_conservation.is_empty());
+    assert!(rejected.effects().lane_writes.is_empty());
+    assert!(rejected.effects().occurrence_consumptions.is_empty());
+    assert!(rejected.effects().external_outbox_enqueue.is_empty());
+    assert_eq!(rejected.production_authority(), "NONE");
+    assert_eq!(rejected.profile_authentication(), "SHADOW");
+    rejected.validate().expect("typed no-op remains valid");
+    assert_source_unchanged(&source, &source_bytes, &source_root);
+}
+
+#[test]
+fn managed_custody_aggregate_row_limit_accepts_4096_account_rows_at_boundary() {
+    let source = multiasset_row_limit_state(MAX_ASSET_LANE_BALANCE_ROWS_V2 - 1);
+    assert_eq!(source.transfer_state.balances.len(), 4_095);
+    let source_bytes = canonical_bytes_v2(&source).expect("source bytes");
+    let source_root = source.state_root().expect("source root");
+    let (context, command) = multiasset_managed_subject(
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V2,
+        "alice",
+        1,
+        "issuer",
+        11,
+    );
+    let accepted = expect_accepted(
+        transition_asset_lane_custody_v2(&context, &source, &command)
+            .expect("4095-to-4096 aggregate row boundary is accepted"),
+    );
+    let post = accepted.post_state();
+    assert_eq!(accepted.route(), AssetLaneRouteV2::MANAGED_LIFECYCLE);
+    assert_eq!(post.transfer_state.balances.len(), 4_096);
+    assert_eq!(
+        &post.transfer_state.balances[..4_095],
+        source.transfer_state.balances.as_slice()
+    );
+    assert_eq!(
+        post.transfer_state.balances[4_095],
+        EconomicAmountV2 {
+            owner: "alice".to_owned(),
+            asset: "USD".to_owned(),
+            custody_domain: ACCOUNT_CUSTODY_DOMAIN_V2.to_owned(),
+            amount_atoms: 1,
+        }
+    );
+    assert_eq!(
+        post.transfer_state.supplies,
+        multiasset_supply_rows(&[
+            ("AUD", 0),
+            ("EUR", 4_097),
+            ("GBP", 0),
+            ("JPY", 0),
+            ("USD", 1),
+            ("VND", 0),
+            ("ZZZ", 0),
+        ])
+    );
+    assert_eq!(post.transfer_state.policies, source.transfer_state.policies);
+    assert_eq!(post.origin_registry, source.origin_registry);
+    assert_eq!(post.managed_policies, source.managed_policies);
+    assert_eq!(
+        post.custody,
+        vec![EconomicAmountV2 {
+            owner: "vault".to_owned(),
+            asset: "EUR".to_owned(),
+            custody_domain: "escrow".to_owned(),
+            amount_atoms: 2,
+        }]
+    );
+    assert_eq!(accepted.module_journal().pre_lane_root, source_root);
+    assert_eq!(
+        accepted.module_journal().post_lane_root,
+        post.state_root().expect("post root")
+    );
+    let conservation = &accepted.effects().asset_conservation;
+    assert_eq!(conservation.len(), 1);
+    assert_eq!(conservation[0].owned_and_custodied_pre_atoms, 0);
+    assert_eq!(conservation[0].owned_and_custodied_post_atoms, 1);
+    assert_eq!(conservation[0].supply_pre_atoms, 0);
+    assert_eq!(conservation[0].supply_post_atoms, 1);
+    assert_eq!(conservation[0].authorized_issue_atoms, 1);
+    assert_eq!(conservation[0].authorized_burn_atoms, 0);
+    assert_eq!(accepted.production_authority(), "NONE");
+    assert_eq!(accepted.profile_authentication(), "SHADOW");
+    accepted
+        .validate()
+        .expect("boundary acceptance remains valid");
+    assert_source_unchanged(&source, &source_bytes, &source_root);
+}
+
+#[test]
+fn managed_custody_complete_canonical_byte_boundary_after_leaf_acceptance() {
+    assert_eq!(MAX_ASSET_LANE_BALANCE_ROWS_V2, 4_096);
+    assert_eq!(MAX_ASSET_LANE_CUSTODY_ROWS_V2, 4_096);
+    assert_eq!(MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2, 1_048_576);
+    for (last_domain_bytes, pre_headroom, post_excess) in
+        [(53_usize, 232_usize, 0_usize), (54, 231, 1)]
+    {
+        let source = byte_boundary_state(last_domain_bytes);
+        let source_bytes = canonical_bytes_v2(&source).expect("source bytes");
+        let source_root = source.state_root().expect("source root");
+        assert_eq!(source.custody.len(), 2_725);
+        assert!(source.custody.len() <= MAX_ASSET_LANE_CUSTODY_ROWS_V2);
+        assert_eq!(source.custody[2_723].owner.len(), MAX_TOKEN_BYTES_V2);
+        assert_eq!(
+            source.custody[2_723].custody_domain.len(),
+            last_domain_bytes
+        );
+        assert_eq!(source.custody[2_724].owner, "vault");
+        assert_eq!(
+            source.transfer_state.supplies,
+            multiasset_supply_rows(&[("EUR", 2_724), ("USD", 100)])
+        );
+        assert_eq!(
+            source_bytes.len(),
+            MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2 - pre_headroom
+        );
+
+        let issue_owner = "i".repeat(MAX_TOKEN_BYTES_V2);
+        let (context, command) = multiasset_managed_subject(
+            MANAGED_ASSET_ISSUE_COMMAND_KIND_V2,
+            &issue_owner,
+            1,
+            "issuer",
+            1,
+        );
+        let occurrence_id = context
+            .occurrence
+            .as_ref()
+            .expect("boundary occurrence")
+            .occurrence_id()
+            .expect("boundary occurrence id");
+        let leaf_result = transition_managed_asset_lifecycle_v2(
+            &context.managed_context(),
+            &source.managed_leaf_state(),
+            match &command {
+                AssetLaneCommandV2::ManagedLifecycle(command) => command,
+                AssetLaneCommandV2::Transfer(_) => panic!("boundary command is managed"),
+            },
+        )
+        .expect("managed leaf remains below its canonical byte ceiling");
+        let ManagedAssetLifecycleResultV2::Accepted(leaf) = leaf_result else {
+            panic!("managed leaf boundary control unexpectedly rejected: {leaf_result:?}")
+        };
+        leaf.validate().expect("managed leaf acceptance is valid");
+        assert_eq!(leaf.post_state.balances.len(), 2);
+        assert_eq!(leaf.post_state.balances[1].owner, issue_owner);
+        assert_eq!(
+            leaf.post_state.supplies,
+            multiasset_supply_rows(&[("USD", 101)])
+        );
+        assert_eq!(
+            canonical_bytes_v2(&leaf.post_state)
+                .expect("managed leaf bytes")
+                .len(),
+            933
+        );
+
+        let mut expected_supplies = vec![source.transfer_state.supplies[0].clone()];
+        expected_supplies.extend(leaf.post_state.supplies.iter().cloned());
+        let expected_transfer = AssetTransferStateV2 {
+            schema: source.transfer_state.schema.clone(),
+            module_release_id: source.transfer_state.module_release_id.clone(),
+            policies: source.transfer_state.policies.clone(),
+            balances: leaf.post_state.balances.clone(),
+            supplies: expected_supplies,
+        };
+        assert_eq!(expected_transfer.balances.len(), 2);
+        assert!(expected_transfer.balances.len() <= MAX_ASSET_LANE_BALANCE_ROWS_V2);
+        let expected_post = AssetLaneCustodyStateV2 {
+            schema: source.schema.clone(),
+            transfer_state: expected_transfer.clone(),
+            origin_registry: source.origin_registry.clone(),
+            managed_policies: source.managed_policies.clone(),
+            custody: source.custody.clone(),
+        };
+        let expected_post_bytes =
+            canonical_bytes_v2(&expected_post).expect("expected post-state bytes");
+        assert_eq!(
+            expected_post_bytes.len(),
+            MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2 + post_excess
+        );
+
+        let result = transition_asset_lane_custody_v2(&context, &source, &command)
+            .expect("complete byte boundary must be a typed result");
+        if post_excess == 0 {
+            let accepted = expect_accepted(result);
+            let post_bytes = canonical_bytes_v2(accepted.post_state()).expect("post-state bytes");
+            assert_eq!(accepted.post_state().transfer_state, expected_transfer);
+            assert_eq!(post_bytes, expected_post_bytes);
+            assert_eq!(
+                post_bytes.len(),
+                MAX_ROOTABLE_ASSET_STATE_CANONICAL_BYTES_V2
+            );
+            assert_eq!(accepted.route(), AssetLaneRouteV2::MANAGED_LIFECYCLE);
+            assert_eq!(
+                accepted.effects().occurrence_consumptions,
+                vec![occurrence_id.clone()]
+            );
+            assert_eq!(
+                accepted.module_journal().command_occurrence_id,
+                occurrence_id
+            );
+            assert_eq!(accepted.module_journal().pre_lane_root, source_root);
+            assert_eq!(
+                accepted.module_journal().post_lane_root,
+                expected_post
+                    .state_root()
+                    .expect("expected post-state root")
+            );
+            assert_eq!(accepted.production_authority(), "NONE");
+            assert_eq!(accepted.profile_authentication(), "SHADOW");
+            accepted
+                .validate()
+                .expect("exact byte acceptance remains valid");
+        } else {
+            assert_eq!(post_excess, 1);
+            let AssetLaneCustodyResultV2::Rejected(rejected) = result else {
+                panic!("one-byte-over complete state unexpectedly accepted")
+            };
+            assert_eq!(rejected.route(), AssetLaneRouteV2::COORDINATOR);
+            assert_eq!(
+                rejected.code(),
+                AssetLaneRejectCodeV2::Coordinator(
+                    AssetLaneCoordinatorRejectCodeV2::STATE_RESOURCE_LIMIT,
+                )
+            );
+            assert_eq!(rejected.pre_state_root(), &source_root);
+            assert_eq!(rejected.post_state_root(), &source_root);
+            assert!(rejected.effects().is_empty());
+            assert!(rejected.effects().rows.is_empty());
+            assert!(rejected.effects().asset_conservation.is_empty());
+            assert!(rejected.effects().fee_conservation.is_empty());
+            assert!(rejected.effects().lane_writes.is_empty());
+            assert!(rejected.effects().occurrence_consumptions.is_empty());
+            assert!(rejected.effects().external_outbox_enqueue.is_empty());
+            assert_eq!(rejected.production_authority(), "NONE");
+            assert_eq!(rejected.profile_authentication(), "SHADOW");
+            rejected.validate().expect("byte-limit no-op remains valid");
+        }
+        assert_source_unchanged(&source, &source_bytes, &source_root);
+    }
 }
 
 #[test]

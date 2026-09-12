@@ -344,7 +344,7 @@ def transition_asset_lane_custody_v2(
         post.transfer_state if route is AssetLaneRouteV2.TRANSFER else post.managed_leaf_state()
     )
     if (
-        projected.state_root != accepted.post_state.state_root
+        projected != accepted.post_state
         or post.transfer_state.policies != pre.transfer_state.policies
     ):
         return _reject(

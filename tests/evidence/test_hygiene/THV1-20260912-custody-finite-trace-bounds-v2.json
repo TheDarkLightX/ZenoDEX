@@ -1,0 +1,159 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260912-custody-finite-trace-bounds-v2",
+  "created_date": "2026-09-12",
+  "claim_scope": "Exact typed leaf reprojection, finite Lean history row/frame preservation, and bounded Python/Rust aggregate row/byte admission. Rust and Lean replay are separate commands. No whole-runtime or publication qualification.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-EXACT-LEAF-REPROJECTION",
+    "CUSTODY-FINITE-INITIAL-ONLY-TRACE",
+    "CUSTODY-AGGREGATE-RESOURCE-NOOP"
+  ],
+  "failure_modes": [
+    "Equal leaf hashes hide a changed immutable policy in the reconstructed managed state.",
+    "Finite acceptance or rejection loses complete custody rows or managed/unmanaged complements.",
+    "A leaf accepts while complete state exceeds its row or canonical-byte ceiling.",
+    "An unknown or unmanaged requested asset corrupts the next valid command input."
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/asset_lane_custody_coordinator_v2.py",
+      "sha256": "db218292c2ab32b152db2575a5fcb8c575e4eb49fe54920d624592b470bdd10c"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AssetLaneCustodyFiniteTraceV2.lean",
+      "sha256": "5c603db143f8a981a3747a9f6501e53a9b27eea6e6be60fe378d2a673412465a"
+    },
+    {
+      "path": "tests/formal/asset_lane_custody_finite_trace_v2_controls.lean",
+      "sha256": "2a0e01f595d5e6813032205567d61948ad8e1d7b51ea6987708be8c1e23edeaa"
+    },
+    {
+      "path": "zk/global_settlement_abi_v2/tests/asset_lane_custody.rs",
+      "sha256": "99adebd44516094eb05a3b4f8948bd6ee54138b924411fccfe6d7b1df4366813"
+    },
+    {
+      "path": "tests/data/asset_lane_custody_v2_golden.json",
+      "sha256": "6f2830868ace35ff5af280d102c00d66d08b68b1938a10d65d3f9893c4af9ced"
+    },
+    {
+      "path": "tests/data/asset_lane_custody_statement_v2_golden.json",
+      "sha256": "d9978dca0494a31aa8504d13ca1926f27bd567c356929db801583292d2501e1e"
+    },
+    {
+      "path": "tools/v3_acceptance.py",
+      "sha256": "ff94c505da14606e6bc3df59dd0d335fdbffaf386d8e1b8630f7ba6d887c5207"
+    },
+    {
+      "path": "docs/research/ZENODEX_V3_ACCEPTANCE.json",
+      "sha256": "ba8f19c56eb49450ce425fd96a29bd7e9d3a423554e97efe37335ef8f63830f0"
+    }
+  ],
+  "test_pins": [
+    {
+      "path": "tests/core/test_asset_lane_custody_bounds_v2.py",
+      "sha256": "4e4a181178c79015388e26d5c2303587554fd9be34f052b8b9d91d6c31c95731",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_bounds_v2.py::test_aggregate_row_growth_is_noop_and_corrupt_projection_has_prior_rejection",
+        "tests/core/test_asset_lane_custody_bounds_v2.py::test_complete_managed_projection_requires_exact_leaf_state_even_when_roots_match",
+        "tests/core/test_asset_lane_custody_bounds_v2.py::test_complete_canonical_byte_boundary_after_finite_leaf_acceptance"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_finite_trace_v2.py",
+      "sha256": "de0d35f4ccb41128a6f5124f310d291259d9b484d6357f1c7e0eabb6907a6d73",
+      "node_ids": [
+        "tests/formal/test_lean_asset_lane_custody_finite_trace_v2.py::test_initial_only_admission_contracts_and_standard_axioms",
+        "tests/formal/test_lean_asset_lane_custody_finite_trace_v2.py::test_finite_policy_lookup_history_matches_independent_complete_tables",
+        "tests/formal/test_lean_asset_lane_custody_finite_trace_v2.py::test_well_typed_state_mutants_fail_the_complete_history_contract",
+        "tests/formal/test_lean_asset_lane_custody_finite_trace_v2.py::test_unknown_policy_attempts_do_not_change_the_following_valid_history"
+      ]
+    },
+    {
+      "path": "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py",
+      "sha256": "ce071f1d49ccaf5f5a426423d839965833efc8aaa28a6777bc77fdb58d8b7950",
+      "node_ids": [
+        "tests/formal/test_lean_asset_lane_custody_effect_plan_v2.py::test_ten_golden_outcomes_refine_actual_leaf_effects_by_exact_completion"
+      ]
+    },
+    {
+      "path": "tests/tools/test_v3_acceptance.py",
+      "sha256": "9d01bb7d8d0ae8719f48b5dc4c88cb1abc22061b5a9e54ca2aad849f7f53d9f6",
+      "node_ids": [
+        "tests/tools/test_v3_acceptance.py::test_structural_inventory_is_distinct_from_bindings_replay_and_conformance",
+        "tests/tools/test_v3_acceptance.py::test_stale_component_or_test_binding_rejects"
+      ]
+    }
+  ],
+  "removed_paths": [],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "mutation",
+    "formal",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Genuine leaf acceptance precedes one controlled fault; exact independently listed tables and literal row/byte boundaries reveal the outcome."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Exact rejection type, COORDINATOR route when applicable, equal roots, all six empty effect collections, and unchanged complete input bytes are asserted. Pure APIs have no effect sink."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "projection",
+      "points": [
+        "genuine accepted leaf",
+        "changed enabled policy under mocked equal root",
+        "complete typed equality"
+      ]
+    },
+    {
+      "name": "resources",
+      "points": [
+        "4096 versus 4097 combined account rows",
+        "1048576 versus 1048577 complete canonical bytes",
+        "accepted finite leaf within its own limits"
+      ]
+    },
+    {
+      "name": "history",
+      "points": [
+        "issue transfer burn",
+        "unknown asset",
+        "known transfer asset without managed policy",
+        "unauthorized subject",
+        "dormant identity",
+        "nonzero custody",
+        "every finite prefix"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Restore hash-only leaf reprojection. The coherent altered managed policy under equal mocked roots must fail the retained exact-rejection test.",
+      "killed_by": "tests/core/test_asset_lane_custody_bounds_v2.py::test_complete_managed_projection_requires_exact_leaf_state_even_when_roots_match",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_coordinator_v2.py",
+        "needle_lines": [
+          "        projected != accepted.post_state"
+        ],
+        "replacement_lines": [
+          "        projected.state_root != accepted.post_state.state_root"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Packet validation checks source/test linkage. It does not run or replace Lean, Cargo, or archived mutation replay.",
+    "The equal-root regression is process-local hash/code fault injection, not evidence of a practical SHA-256 collision attack.",
+    "The Lean trace preserves RowsRepresentable and fixed frame. It excludes outer coordinator binding/resource rejection, canonical ordering/tokens, complete runtime origin fields, authentic roots, journals and receipts.",
+    "Finite leaf resource admission does not imply complete custody admission. Natural runtime byte/row boundary controls are bounded evidence only.",
+    "No new dependency, wire format, rounding rule, authority activation, live migration, genuine receipt qualification or whole-plan completion."
+  ]
+}
