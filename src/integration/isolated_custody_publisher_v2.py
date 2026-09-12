@@ -1,0 +1,761 @@
+"""Single-store custody publication for a fresh, isolated ABI V2 deployment.
+
+Trusted genesis/configuration and an honest publisher/SQLite/filesystem are
+premises. This adapter has no live effect mount, migration, external monotonic
+anchor or production activation. Recovery replays economics and bindings;
+cryptographic success remains a publication-time premise.
+"""
+
+from __future__ import annotations
+
+import fcntl
+import os
+import sqlite3
+import stat
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from threading import Lock
+from typing import cast
+
+from ..core.asset_lane_coordinator_v2 import _route_and_owned_command_v2
+from ..core.asset_lane_coordinator_values_v2 import AssetLaneCommandV2, AssetLaneRejectedV2
+from ..core.asset_lane_custody_codec_v2 import decode_asset_lane_custody_state_v2
+from ..core.asset_lane_custody_global_v2 import _require_complete_projection
+from ..core.asset_lane_custody_guest_role_v2 import (
+    AssetLaneCustodyGuestRoleBindingV2,
+    snapshot_asset_lane_custody_guest_role_binding_v2,
+)
+from ..core.asset_lane_custody_input_v2 import prepare_asset_lane_custody_global_prover_input_v2
+from ..core.asset_lane_custody_profile_binding_v2 import _require_global_predecessor_binding_v2
+from ..core.asset_lane_custody_state_v2 import AssetLaneCustodyStateV2
+from ..core.asset_lane_state_v2 import AssetLaneContextV2, _snapshot_asset_lane_context_v2
+from ..core.economic_command_authentication_types_v2 import EconomicCommandAuthenticationCandidateV2
+from ..core.economic_command_authentication_v2 import (
+    prepare_isolated_economic_command_authentication_v2,
+)
+from ..core.economic_command_signature_verifier_deployment_v1 import (
+    EconomicCommandSignatureVerifierEvidenceManifestV1,
+    _snapshot_signature_verifier_manifest_v1,
+)
+from ..core.global_economic_authority_head_v2 import (
+    GlobalEconomicAuthorityHeadV2,
+    GlobalEconomicAuthorityStatusV2,
+    decode_global_economic_authority_head_v2,
+)
+from ..core.global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
+from ..core.global_economic_state_v2 import GlobalEconomicStateV2
+from ..core.global_settlement_primitives_v2 import canonical_global_bytes_v2, hash_global_v2
+from ..core.global_settlement_types_v1 import EconomicProfileSnapshotV1, ProfileStatusV1
+from .custody_publication_record_v2 import (
+    CustodyPublicationRecordV2,
+    custody_request_id_v2,
+    decode_custody_global_state_v2,
+    raw_root_v2,
+    replay_custody_publication_frame_v2,
+)
+from .global_receipt_verifier_v1 import MAX_RECEIPT_BYTES_V1
+from .profiled_asset_lane_custody_receipt_v2 import (
+    verify_isolated_profiled_asset_lane_custody_receipt_v2,
+)
+
+# Operational bounds for this reference store, not protocol population limits.
+MAX_CUSTODY_PUBLICATIONS_V2 = 64
+MAX_CUSTODY_HISTORY_BYTES_V2 = 64 * 1024 * 1024
+_MINT = object()
+_TABLES = {
+    "genesis": "CREATE TABLE genesis (singleton INTEGER PRIMARY KEY CHECK(singleton=1), global_bytes BLOB NOT NULL, lane_bytes BLOB NOT NULL, authority_bytes BLOB NOT NULL) STRICT",
+    "authority_history": "CREATE TABLE authority_history (generation INTEGER PRIMARY KEY, authority_bytes BLOB NOT NULL UNIQUE) STRICT",
+    "publications": "CREATE TABLE publications (sequence INTEGER PRIMARY KEY, publication_id TEXT NOT NULL UNIQUE, request_id TEXT NOT NULL UNIQUE, source_publication_id TEXT NOT NULL, authority_root TEXT NOT NULL, frame BLOB NOT NULL, statement BLOB NOT NULL, authentication_message BLOB NOT NULL, signature BLOB NOT NULL, receipt BLOB NOT NULL) STRICT",
+    "heads": "CREATE TABLE heads (singleton INTEGER PRIMARY KEY CHECK(singleton=1), publication_id TEXT NOT NULL, sequence INTEGER NOT NULL, authority_generation INTEGER NOT NULL) STRICT",
+}
+
+
+class CustodyPublicationStatusV2(str, Enum):
+    COMMITTED = "COMMITTED"
+    ALREADY_COMMITTED = "ALREADY_COMMITTED"
+    STALE_HEAD = "STALE_HEAD"
+    AUTHORITY_STALE = "AUTHORITY_STALE"
+    CAPACITY_EXCEEDED = "CAPACITY_EXCEEDED"
+
+
+class CustodyPublicationIndeterminateV2(RuntimeError):
+    """A commit was attempted; retry or retained history must resolve knowledge."""
+
+
+@dataclass(frozen=True, slots=True)
+class CustodyPublicationConfigurationV2:
+    profile: EconomicProfileSnapshotV1
+    guest_role_binding: AssetLaneCustodyGuestRoleBindingV2
+    signature_manifest: EconomicCommandSignatureVerifierEvidenceManifestV1
+    receipt_executable_path: str
+    signature_artifact_path: Path
+    receipt_timeout_ms: int = 5_000
+    signature_timeout_ms: int = 5_000
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "profile", snapshot_economic_profile_v1(self.profile))
+        object.__setattr__(
+            self,
+            "guest_role_binding",
+            snapshot_asset_lane_custody_guest_role_binding_v2(self.guest_role_binding),
+        )
+        object.__setattr__(
+            self,
+            "signature_manifest",
+            _snapshot_signature_verifier_manifest_v1(self.signature_manifest),
+        )
+        if type(self.receipt_executable_path) is not str or type(
+            self.signature_artifact_path
+        ) is not type(Path()):
+            raise TypeError("custody verifier paths must be exact str and platform Path")
+        if self.profile.status is not ProfileStatusV1.ACTIVE:
+            raise ValueError("isolated custody configuration requires ACTIVE profile")
+        if (self.guest_role_binding.profile_root, self.guest_role_binding.authority_epoch) != (
+            self.profile.profile_id,
+            self.profile.authority_epoch,
+        ):
+            raise ValueError("custody configuration role and profile mismatch")
+        for timeout in (self.receipt_timeout_ms, self.signature_timeout_ms):
+            if type(timeout) is not int or not 1 <= timeout <= 60_000:
+                raise ValueError("custody verifier timeout is outside the bound")
+
+
+@dataclass(frozen=True, slots=True)
+class CustodyPublicationSnapshotV2:
+    publication_id: str
+    sequence: int
+    authority: GlobalEconomicAuthorityHeadV2
+    global_state: GlobalEconomicStateV2
+    custody_state: AssetLaneCustodyStateV2
+
+
+@dataclass(frozen=True, slots=True)
+class CustodyPublicationOutcomeV2:
+    status: CustodyPublicationStatusV2
+    head: CustodyPublicationSnapshotV2
+    committed_publication_id: str | None = None
+
+
+def _private_inode(path: Path, expected_links: int = 1) -> os.stat_result:
+    metadata = path.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid():
+        raise PermissionError("custody store requires a process-owned regular file")
+    if stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_nlink != expected_links:
+        raise PermissionError("custody store mode or exact link count is invalid")
+    if metadata.st_size > 96 * 1024 * 1024:
+        raise ValueError("custody store file exceeds its operational byte bound")
+    for suffix in ("-wal", "-shm"):
+        if os.path.lexists(str(path) + suffix):
+            raise ValueError("custody store WAL or SHM artifact is unsupported")
+    return metadata
+
+
+def _configuration_copy(
+    value: CustodyPublicationConfigurationV2,
+) -> CustodyPublicationConfigurationV2:
+    if type(value) is not CustodyPublicationConfigurationV2:
+        raise TypeError("custody publication configuration must have the exact type")
+    return CustodyPublicationConfigurationV2(
+        value.profile,
+        value.guest_role_binding,
+        value.signature_manifest,
+        value.receipt_executable_path,
+        value.signature_artifact_path,
+        value.receipt_timeout_ms,
+        value.signature_timeout_ms,
+    )
+
+
+class IsolatedCustodyPublisherV2:
+    """Own admission and the sole write path of one isolated custody ledger."""
+
+    def __init__(
+        self,
+        mint: object,
+        path: Path,
+        global_raw: bytes,
+        lane_raw: bytes,
+        configuration: CustodyPublicationConfigurationV2,
+    ) -> None:
+        if mint is not _MINT:
+            raise TypeError("custody publisher requires create/open admission")
+        self._path = path
+        self._configuration = _configuration_copy(configuration)
+        self._global_raw, self._lane_raw = global_raw, lane_raw
+        global_state = decode_custody_global_state_v2(global_raw)
+        lane_state = decode_asset_lane_custody_state_v2(lane_raw)
+        _require_complete_projection(lane_state, global_state)
+        _require_global_predecessor_binding_v2(global_state, self._configuration.profile)
+        self._genesis_id = hash_global_v2(
+            "isolated-custody-genesis-v2",
+            {
+                "global_state": raw_root_v2(global_raw),
+                "custody_state": raw_root_v2(lane_raw),
+            },
+        )
+        self._expected_authority = GlobalEconomicAuthorityHeadV2(
+            generation=0,
+            genesis_id=self._genesis_id,
+            chain_id=global_state.chain_id,
+            deployment_root=global_state.deployment_root,
+            epoch_store_root=hash_global_v2("isolated-custody-store-v2", {"file_name": path.name}),
+            profile_root=global_state.profile_root,
+            writer_epoch=global_state.writer_epoch,
+            guest_role_binding_root=self._configuration.guest_role_binding.binding_root,
+            signature_manifest_root=self._configuration.signature_manifest.manifest_root,
+            status=GlobalEconomicAuthorityStatusV2.ACTIVE,
+        )
+        self._lock = Lock()
+        self._closed = False
+
+    @classmethod
+    def create(
+        cls,
+        path: str | Path,
+        global_state: GlobalEconomicStateV2,
+        custody_state: AssetLaneCustodyStateV2,
+        configuration: CustodyPublicationConfigurationV2,
+    ) -> IsolatedCustodyPublisherV2:
+        publisher = cls._prepare(path, global_state, custody_state, configuration)
+        try:
+            _install_genesis_v2(publisher)
+        finally:
+            publisher.close()
+        return cls.open(path, global_state, custody_state, configuration)
+
+    @classmethod
+    def open(
+        cls,
+        path: str | Path,
+        global_state: GlobalEconomicStateV2,
+        custody_state: AssetLaneCustodyStateV2,
+        configuration: CustodyPublicationConfigurationV2,
+    ) -> IsolatedCustodyPublisherV2:
+        publisher = cls._prepare(path, global_state, custody_state, configuration)
+        try:
+            publisher._connect()
+            head = publisher.snapshot()
+            if head.authority != publisher._expected_authority:
+                raise PermissionError("custody writer authority is no longer current")
+            return publisher
+        except BaseException:
+            publisher.close()
+            raise
+
+    @classmethod
+    def _prepare(
+        cls,
+        path: str | Path,
+        global_state: GlobalEconomicStateV2,
+        custody_state: AssetLaneCustodyStateV2,
+        configuration: CustodyPublicationConfigurationV2,
+    ) -> IsolatedCustodyPublisherV2:
+        if cls is not IsolatedCustodyPublisherV2:
+            raise TypeError("custody publisher class must be exact")
+        if type(path) is not str and type(path) is not type(Path()):
+            raise TypeError("custody store path must be exact str or platform Path")
+        normalized = Path(path).absolute()
+        if not normalized.name or not normalized.parent.is_dir():
+            raise ValueError("custody store requires an existing parent directory")
+        if (
+            type(global_state) is not GlobalEconomicStateV2
+            or type(custody_state) is not AssetLaneCustodyStateV2
+        ):
+            raise TypeError("custody genesis requires both exact state types")
+        return cls(
+            _MINT,
+            normalized,
+            canonical_global_bytes_v2(global_state),
+            canonical_global_bytes_v2(custody_state),
+            configuration,
+        )
+
+    def _connect(self, storage_path: Path | None = None, expected_links: int = 1) -> None:
+        self._storage_path = self._path if storage_path is None else storage_path
+        self._expected_links = expected_links
+        self._inode = _private_inode(self._storage_path, expected_links)
+        self._identity_fd = os.open(self._storage_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        self._connection = sqlite3.connect(
+            self._storage_path.as_uri() + "?mode=rw",
+            uri=True,
+            isolation_level=None,
+            check_same_thread=False,
+        )
+        if self._connection.execute("PRAGMA journal_mode").fetchone() != ("delete",):
+            raise ValueError("custody store requires DELETE journal mode")
+        self._connection.execute("PRAGMA synchronous=FULL")
+        self._connection.execute("PRAGMA trusted_schema=OFF")
+        self._connection.execute("PRAGMA foreign_keys=ON")
+        self._require_identity()
+
+    def _require_identity(self) -> None:
+        if self._closed:
+            raise RuntimeError("custody publisher is closed")
+        current = _private_inode(self._storage_path, self._expected_links)
+        descriptor = os.fstat(self._identity_fd)
+        expected = (self._inode.st_dev, self._inode.st_ino)
+        if (current.st_dev, current.st_ino) != expected or (
+            descriptor.st_dev,
+            descriptor.st_ino,
+        ) != expected:
+            raise PermissionError("custody store identity changed")
+
+    def close(self) -> None:
+        with self._lock:
+            if not self._closed:
+                connection = getattr(self, "_connection", None)
+                if connection is not None:
+                    connection.close()
+                identity = getattr(self, "_identity_fd", None)
+                if identity is not None:
+                    os.close(identity)
+                self._closed = True
+
+    def __enter__(self) -> IsolatedCustodyPublisherV2:
+        self._require_identity()
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        self.close()
+
+    def _validate(
+        self,
+    ) -> tuple[CustodyPublicationSnapshotV2, tuple[CustodyPublicationRecordV2, ...]]:
+        self._require_identity()
+        connection = self._connection
+        schema = connection.execute(
+            "SELECT name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name"
+        ).fetchall()
+        if schema != sorted(_TABLES.items()):
+            raise ValueError("custody store schema is not exact")
+        lengths = connection.execute(
+            "SELECT singleton, length(global_bytes), length(lane_bytes), length(authority_bytes) FROM genesis"
+        ).fetchall()
+        if lengths != [
+            (
+                1,
+                len(self._global_raw),
+                len(self._lane_raw),
+                len(self._expected_authority.canonical_bytes),
+            )
+        ]:
+            raise ValueError("custody genesis size differs from selected configuration")
+        genesis = connection.execute(
+            "SELECT singleton, global_bytes, lane_bytes, authority_bytes FROM genesis"
+        ).fetchall()
+        if genesis != [
+            (1, self._global_raw, self._lane_raw, self._expected_authority.canonical_bytes)
+        ]:
+            raise ValueError("custody genesis or independently selected configuration mismatch")
+        count, maximum = connection.execute(
+            "SELECT COUNT(*), MAX(length(authority_bytes)) FROM authority_history"
+        ).fetchone()
+        if count not in (1, 2) or maximum > 4096:
+            raise ValueError("custody authority history exceeds its bound")
+        authority_rows = connection.execute(
+            "SELECT generation, authority_bytes FROM authority_history ORDER BY generation"
+        ).fetchall()
+        expected = [(0, self._expected_authority.canonical_bytes)]
+        if len(authority_rows) == 2:
+            expected.append((1, self._expected_authority.revoked_successor().canonical_bytes))
+        if authority_rows != expected:
+            raise ValueError("custody authority history is invalid")
+        authority = decode_global_economic_authority_head_v2(authority_rows[-1][1])
+        count, size = connection.execute(
+            "SELECT COUNT(*), COALESCE(SUM(length(frame)+length(statement)+length(authentication_message)+length(signature)+length(receipt)),0) FROM publications"
+        ).fetchone()
+        if count > MAX_CUSTODY_PUBLICATIONS_V2 or size > MAX_CUSTODY_HISTORY_BYTES_V2:
+            raise ValueError("custody stored history exceeds operational capacity")
+        identifiers = connection.execute(
+            "SELECT COUNT(*) FROM publications WHERE length(publication_id)!=66 OR length(request_id)!=66 OR length(source_publication_id)!=66 OR length(authority_root)!=66"
+        ).fetchone()
+        if identifiers != (0,):
+            raise ValueError("custody history identifier length is invalid")
+        if connection.execute("SELECT singleton, length(publication_id) FROM heads").fetchall() != [
+            (1, 66)
+        ]:
+            raise ValueError("custody current head exceeds its shape bound")
+        initial = CustodyPublicationSnapshotV2(
+            self._genesis_id,
+            0,
+            authority,
+            decode_custody_global_state_v2(self._global_raw),
+            decode_asset_lane_custody_state_v2(self._lane_raw),
+        )
+        head, records = self._validate_history(initial)
+        if connection.execute(
+            "SELECT singleton, publication_id, sequence, authority_generation FROM heads"
+        ).fetchall() != [(1, head.publication_id, head.sequence, authority.generation)]:
+            raise ValueError("custody head does not match complete history")
+        self._require_identity()
+        return head, records
+
+    def _validate_history(
+        self, head: CustodyPublicationSnapshotV2
+    ) -> tuple[CustodyPublicationSnapshotV2, tuple[CustodyPublicationRecordV2, ...]]:
+        rows = self._connection.execute(
+            "SELECT sequence, publication_id, request_id, source_publication_id, authority_root, frame, statement, authentication_message, signature, receipt FROM publications ORDER BY sequence"
+        ).fetchall()
+        records = []
+        for row in rows:
+            record = CustodyPublicationRecordV2(row[0], *row[3:])
+            replay = record.replay()
+            if (
+                row[1],
+                row[2],
+                record.sequence,
+                record.source_publication_id,
+                record.authority_root,
+            ) != (
+                record.publication_id,
+                record.request_id,
+                head.sequence + 1,
+                head.publication_id,
+                self._expected_authority.authority_root,
+            ):
+                raise ValueError("custody record lineage or identity mismatch")
+            if canonical_global_bytes_v2(replay.global_pre) != canonical_global_bytes_v2(
+                head.global_state
+            ) or canonical_global_bytes_v2(replay.lane_pre) != canonical_global_bytes_v2(
+                head.custody_state
+            ):
+                raise ValueError("custody record predecessor is not the complete committed source")
+            head = CustodyPublicationSnapshotV2(
+                record.publication_id,
+                record.sequence,
+                head.authority,
+                replay.global_post,
+                replay.lane_post,
+            )
+            records.append(record)
+        return head, tuple(records)
+
+    def _read(self) -> tuple[CustodyPublicationSnapshotV2, tuple[CustodyPublicationRecordV2, ...]]:
+        with self._lock:
+            self._require_identity()
+            self._connection.execute("BEGIN")
+            try:
+                result = self._validate()
+                self._connection.execute("COMMIT")
+                return result
+            finally:
+                if self._connection.in_transaction:
+                    self._connection.execute("ROLLBACK")
+
+    def snapshot(self) -> CustodyPublicationSnapshotV2:
+        return self._read()[0]
+
+    def publish(
+        self,
+        candidate: EconomicCommandAuthenticationCandidateV2,
+        context: AssetLaneContextV2,
+        command: AssetLaneCommandV2,
+        *,
+        receipt_bytes: bytes,
+    ) -> CustodyPublicationOutcomeV2 | AssetLaneRejectedV2:
+        owned, _, message = prepare_isolated_economic_command_authentication_v2(candidate)
+        owned_context = _snapshot_asset_lane_context_v2(context)
+        _, owned_command = _route_and_owned_command_v2(command)
+        if type(receipt_bytes) is not bytes:
+            raise TypeError("custody publication receipt must be exact bytes")
+        if len(receipt_bytes) > MAX_RECEIPT_BYTES_V1:
+            raise ValueError("custody publication receipt exceeds the byte bound")
+        config = self._configuration
+        if canonical_global_bytes_v2(owned.profile) != canonical_global_bytes_v2(config.profile):
+            raise ValueError("custody request profile differs from selected configuration")
+        request_parts = (
+            canonical_global_bytes_v2(owned_context),
+            canonical_global_bytes_v2(owned_command),
+            message,
+            owned.envelope.signature_bytes,
+            receipt_bytes,
+        )
+        request_id = custody_request_id_v2(*request_parts)
+        head, records = self._read()
+        expected = (
+            head.publication_id,
+            head.sequence,
+            head.authority.authority_root,
+            head.authority.generation,
+        )
+        for prior in records:
+            if prior.request_id == request_id:
+                if prior.request_parts != request_parts:
+                    raise ValueError("custody retry bytes differ from committed request")
+                return CustodyPublicationOutcomeV2(
+                    CustodyPublicationStatusV2.ALREADY_COMMITTED, head, prior.publication_id
+                )
+        if head.authority != self._expected_authority:
+            return CustodyPublicationOutcomeV2(CustodyPublicationStatusV2.AUTHORITY_STALE, head)
+        if owned_context.global_pre_state_root != head.global_state.state_root:
+            return CustodyPublicationOutcomeV2(CustodyPublicationStatusV2.STALE_HEAD, head)
+        frame = prepare_asset_lane_custody_global_prover_input_v2(
+            owned_context, head.custody_state, owned_command, head.global_state
+        )
+        post = head.global_state
+        if type(frame) is bytes:
+            post = replay_custody_publication_frame_v2(frame).global_post
+        statement = verify_isolated_profiled_asset_lane_custody_receipt_v2(
+            owned,
+            owned_context,
+            head.custody_state,
+            owned_command,
+            head.global_state,
+            post,
+            guest_role_binding=config.guest_role_binding,
+            expected_guest_role_binding_root=config.guest_role_binding.binding_root,
+            receipt_executable_path=config.receipt_executable_path,
+            receipt_timeout_ms=config.receipt_timeout_ms,
+            signature_artifact_path=config.signature_artifact_path,
+            signature_evidence_manifest=config.signature_manifest,
+            signature_timeout_ms=config.signature_timeout_ms,
+            receipt_bytes=receipt_bytes,
+        )
+        if type(statement) is AssetLaneRejectedV2:
+            return statement
+        if type(frame) is not bytes:
+            raise ValueError("custody accepted statement lacks its frame")
+        record = CustodyPublicationRecordV2(
+            head.sequence + 1,
+            head.publication_id,
+            head.authority.authority_root,
+            frame,
+            cast(bytes, statement),
+            message,
+            owned.envelope.signature_bytes,
+            receipt_bytes,
+        )
+
+        # Keep the only economic write closure local to this verified occurrence.
+        # It cannot accept a caller-created record or escape as a reusable capability.
+        def commit_verified() -> CustodyPublicationOutcomeV2:
+            with self._lock:
+                self._require_identity()
+                connection = self._connection
+                connection.execute("BEGIN IMMEDIATE")
+                commit_attempted = False
+                try:
+                    head, records = self._validate()
+                    for prior in records:
+                        if prior.request_id == record.request_id:
+                            if prior != record:
+                                raise ValueError("custody retry bytes differ from committed bundle")
+                            return CustodyPublicationOutcomeV2(
+                                CustodyPublicationStatusV2.ALREADY_COMMITTED,
+                                head,
+                                prior.publication_id,
+                            )
+                    if head.authority != self._expected_authority or expected[2:] != (
+                        head.authority.authority_root,
+                        head.authority.generation,
+                    ):
+                        return CustodyPublicationOutcomeV2(
+                            CustodyPublicationStatusV2.AUTHORITY_STALE, head
+                        )
+                    if expected[:2] != (head.publication_id, head.sequence) or (
+                        record.source_publication_id,
+                        record.sequence,
+                    ) != (head.publication_id, head.sequence + 1):
+                        return CustodyPublicationOutcomeV2(
+                            CustodyPublicationStatusV2.STALE_HEAD, head
+                        )
+                    replay = record.replay()
+                    if (
+                        record.authority_root != head.authority.authority_root
+                        or canonical_global_bytes_v2(replay.global_pre)
+                        != canonical_global_bytes_v2(head.global_state)
+                        or canonical_global_bytes_v2(replay.lane_pre)
+                        != canonical_global_bytes_v2(head.custody_state)
+                    ):
+                        raise ValueError(
+                            "custody record source or authority differs from acquired snapshot"
+                        )
+                    if (
+                        len(records) >= MAX_CUSTODY_PUBLICATIONS_V2
+                        or sum(row.byte_count for row in records) + record.byte_count
+                        > MAX_CUSTODY_HISTORY_BYTES_V2
+                    ):
+                        return CustodyPublicationOutcomeV2(
+                            CustodyPublicationStatusV2.CAPACITY_EXCEEDED, head
+                        )
+                    self._require_identity()
+                    connection.execute(
+                        "INSERT INTO publications VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (
+                            record.sequence,
+                            record.publication_id,
+                            record.request_id,
+                            record.source_publication_id,
+                            record.authority_root,
+                            record.frame,
+                            record.statement,
+                            record.authentication_message,
+                            record.signature,
+                            record.receipt,
+                        ),
+                    )
+                    cursor = connection.execute(
+                        "UPDATE heads SET publication_id=?, sequence=? WHERE singleton=1 AND publication_id=? AND sequence=? AND authority_generation=?",
+                        (
+                            record.publication_id,
+                            record.sequence,
+                            head.publication_id,
+                            head.sequence,
+                            head.authority.generation,
+                        ),
+                    )
+                    if cursor.rowcount != 1:
+                        raise RuntimeError("custody head CAS failed within transaction")
+                    self._require_identity()
+                    commit_attempted = True
+                    connection.execute("COMMIT")
+                    self._require_identity()
+                    post = CustodyPublicationSnapshotV2(
+                        record.publication_id,
+                        record.sequence,
+                        head.authority,
+                        replay.global_post,
+                        replay.lane_post,
+                    )
+                    return CustodyPublicationOutcomeV2(
+                        CustodyPublicationStatusV2.COMMITTED, post, record.publication_id
+                    )
+                except (OSError, sqlite3.Error, RuntimeError, ValueError) as exc:
+                    if commit_attempted:
+                        raise CustodyPublicationIndeterminateV2(
+                            "custody commit acknowledgment is indeterminate"
+                        ) from exc
+                    raise
+                finally:
+                    _rollback_or_indeterminate_v2(connection)
+
+        return commit_verified()
+
+    def revoke(self) -> GlobalEconomicAuthorityHeadV2:
+        """Terminal local operator revocation; this is no governance authority."""
+        with self._lock:
+            self._require_identity()
+            self._connection.execute("BEGIN IMMEDIATE")
+            commit_attempted = False
+            try:
+                head, _ = self._validate()
+                if head.authority.status is GlobalEconomicAuthorityStatusV2.REVOKED:
+                    return head.authority
+                successor = head.authority.revoked_successor()
+                self._connection.execute(
+                    "INSERT INTO authority_history VALUES (?,?)",
+                    (successor.generation, successor.canonical_bytes),
+                )
+                self._connection.execute(
+                    "UPDATE heads SET authority_generation=? WHERE singleton=1",
+                    (successor.generation,),
+                )
+                self._require_identity()
+                commit_attempted = True
+                self._connection.execute("COMMIT")
+                self._require_identity()
+                return successor
+            except (OSError, sqlite3.Error, RuntimeError, ValueError) as exc:
+                if commit_attempted:
+                    raise CustodyPublicationIndeterminateV2(
+                        "custody authority acknowledgment is indeterminate"
+                    ) from exc
+                raise
+            finally:
+                _rollback_or_indeterminate_v2(self._connection)
+
+
+def _rollback_or_indeterminate_v2(connection: sqlite3.Connection) -> None:
+    try:
+        if connection.in_transaction:
+            connection.execute("ROLLBACK")
+    except sqlite3.Error as exc:
+        raise CustodyPublicationIndeterminateV2(
+            "custody transaction rollback is unresolved"
+        ) from exc
+
+
+def _initialize_genesis_v2(publisher: IsolatedCustodyPublisherV2) -> None:
+    connection = publisher._connection
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        for sql in _TABLES.values():
+            connection.execute(sql)
+        authority = publisher._expected_authority.canonical_bytes
+        connection.execute(
+            "INSERT INTO genesis VALUES (1, ?, ?, ?)",
+            (
+                publisher._global_raw,
+                publisher._lane_raw,
+                authority,
+            ),
+        )
+        connection.execute("INSERT INTO authority_history VALUES (0, ?)", (authority,))
+        connection.execute("INSERT INTO heads VALUES (1, ?, 0, 0)", (publisher._genesis_id,))
+        publisher._require_identity()
+        connection.execute("COMMIT")
+    finally:
+        if connection.in_transaction:
+            connection.execute("ROLLBACK")
+
+
+def _same_bootstrap_inode_v2(
+    publisher: IsolatedCustodyPublisherV2, candidate: Path, links: int
+) -> None:
+    descriptor = os.fstat(publisher._identity_fd)
+    expected = (descriptor.st_dev, descriptor.st_ino)
+    for path in (candidate, publisher._path):
+        metadata = _private_inode(path, links)
+        if (metadata.st_dev, metadata.st_ino) != expected:
+            raise PermissionError("custody bootstrap inode changed")
+
+
+def _install_genesis_v2(publisher: IsolatedCustodyPublisherV2) -> None:
+    """Install only a validated genesis; resume our candidate or exact link pair.
+
+    A failed candidate remains available for validation on retry. Foreign or
+    mismatched files are never removed, and the final name is never replaced.
+    """
+    path = publisher._path
+    candidate = path.with_name("." + path.name + ".custody-bootstrap-v2")
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        linked = os.path.lexists(path)
+        if linked:
+            if not os.path.lexists(candidate):
+                raise FileExistsError(
+                    "custody store already exists; use open with its configuration"
+                )
+            left, right = _private_inode(path, 2), _private_inode(candidate, 2)
+            if (left.st_dev, left.st_ino) != (right.st_dev, right.st_ino):
+                raise PermissionError("custody bootstrap names do not share one inode")
+        elif not os.path.lexists(candidate):
+            descriptor = os.open(
+                candidate, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+            )
+            os.close(descriptor)
+        publisher._connect(candidate, 2 if linked else 1)
+        # SQLite rolls an interrupted initialization back to the empty schema.
+        schema = publisher._connection.execute("SELECT name FROM sqlite_master").fetchall()
+        if not schema:
+            if linked:
+                raise ValueError("an empty custody candidate was linked before validation")
+            _initialize_genesis_v2(publisher)
+        head = publisher.snapshot()
+        if head.sequence != 0 or head.authority != publisher._expected_authority:
+            raise ValueError("custody bootstrap candidate is not the selected genesis")
+        if not linked:
+            publisher._require_identity()
+            os.link(candidate, path, follow_symlinks=False)
+        _same_bootstrap_inode_v2(publisher, candidate, 2)
+        os.fsync(directory)
+        _same_bootstrap_inode_v2(publisher, candidate, 2)
+        candidate.unlink()
+        os.fsync(directory)
+        publisher._storage_path = path
+        publisher._expected_links = 1
+        publisher._require_identity()
+    finally:
+        os.close(directory)

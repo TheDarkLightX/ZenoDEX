@@ -66,9 +66,42 @@ def encode_asset_lane_custody_global_frame_v2(
     return ASSET_LANE_CUSTODY_GLOBAL_FRAME_MAGIC_V2 + bytes((route_tag,)) + b"".join(components)
 
 
+def decode_asset_lane_custody_global_frame_v2(
+    raw: bytes,
+) -> tuple[AssetLaneRouteV2, bytes, bytes, bytes, bytes, bytes]:
+    """Read the existing five-component frame, without interpreting its bytes."""
+    if type(raw) is not bytes or len(raw) > MAX_ASSET_LANE_CUSTODY_GLOBAL_FRAME_BYTES_V2:
+        raise GlobalSettlementCodecErrorV2("custody global frame exceeds its type or byte bound")
+    magic_size = len(ASSET_LANE_CUSTODY_GLOBAL_FRAME_MAGIC_V2)
+    if not raw.startswith(ASSET_LANE_CUSTODY_GLOBAL_FRAME_MAGIC_V2) or len(raw) <= magic_size:
+        raise GlobalSettlementCodecErrorV2("custody global frame magic or route is absent")
+    routes = (AssetLaneRouteV2.TRANSFER, AssetLaneRouteV2.MANAGED_LIFECYCLE)
+    tag = raw[magic_size]
+    if tag >= len(routes):
+        raise GlobalSettlementCodecErrorV2("custody global frame route is unknown")
+    cursor = magic_size + 1
+    components: list[bytes] = []
+    for _ in range(5):
+        if cursor + 4 > len(raw):
+            raise GlobalSettlementCodecErrorV2("custody global frame length is truncated")
+        size = int.from_bytes(raw[cursor : cursor + 4], "little")
+        cursor += 4
+        if not 1 <= size <= MAX_ASSET_LANE_CUSTODY_GLOBAL_FRAME_COMPONENT_BYTES_V2:
+            raise GlobalSettlementCodecErrorV2("custody global frame component exceeds its bound")
+        end = cursor + size
+        if end > len(raw):
+            raise GlobalSettlementCodecErrorV2("custody global frame component is truncated")
+        components.append(raw[cursor:end])
+        cursor = end
+    if cursor != len(raw):
+        raise GlobalSettlementCodecErrorV2("custody global frame has trailing bytes")
+    return routes[tag], components[0], components[1], components[2], components[3], components[4]
+
+
 __all__ = [
     "ASSET_LANE_CUSTODY_GLOBAL_FRAME_MAGIC_V2",
     "MAX_ASSET_LANE_CUSTODY_GLOBAL_FRAME_COMPONENT_BYTES_V2",
     "MAX_ASSET_LANE_CUSTODY_GLOBAL_FRAME_BYTES_V2",
+    "decode_asset_lane_custody_global_frame_v2",
     "encode_asset_lane_custody_global_frame_v2",
 ]

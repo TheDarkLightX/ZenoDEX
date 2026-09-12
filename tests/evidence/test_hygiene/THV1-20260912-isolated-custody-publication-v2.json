@@ -1,0 +1,269 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260912-isolated-custody-publication-v2",
+  "created_date": "2026-09-12",
+  "claim_scope": "Fresh isolated V2 custody publication with complete state acquisition, same-call profiled signature/receipt verification, SQLite authority and head CAS, exact retries and bounded recovery. Protocol receipt fixtures do not qualify cryptographic guest builds.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-V2-COMPLETE-COMMITTED-SOURCE",
+    "CUSTODY-V2-VERIFIED-ONLY-COMMIT",
+    "CUSTODY-V2-CURRENT-AUTHORITY-CAS",
+    "CUSTODY-V2-EXACT-RETRY",
+    "CUSTODY-V2-ATOMIC-RECOVERY",
+    "CUSTODY-V2-RESTART-SELECTION"
+  ],
+  "failure_modes": [
+    "Raw commit entry publishes unverified signature and receipt.",
+    "Restart revives a revoked writer or changes selected genesis/verifiers.",
+    "Competing source or in-flight revocation commits a stale state.",
+    "Partial record/head/replay appears after failure.",
+    "Lost acknowledgment is mistaken for economic rejection.",
+    "Malformed or misattributed durable inputs pass recovery.",
+    "Bootstrap installs an empty final file or deletes a foreign candidate."
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_economic_authority_head_v2.py",
+      "sha256": "a2e1324f52c5ae08f5a37d69c352c0261579ea26835d107313d77e4633aeb772"
+    },
+    {
+      "path": "src/core/asset_lane_custody_frame_v2.py",
+      "sha256": "7b8538c7e854b5ea9c3c8b02e483f26ea49e1ebdc499efaca997a08dd0cb4862"
+    },
+    {
+      "path": "src/integration/custody_publication_record_v2.py",
+      "sha256": "6dc65574151a6b9739d73f024e10f3b4351a3ce69915fb138875a9fdf245ec1c"
+    },
+    {
+      "path": "src/integration/isolated_custody_publisher_v2.py",
+      "sha256": "f63ed84fc34bf2353e02d1e7e4987d67074debf595c0e0ea9039c4d0f73404ba"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_economic_authority_head_v2.py",
+      "sha256": "bef95269ee726cfbc071b2a0df0e62ab09cd08c23edce1bfaae81e8ddf474df7",
+      "node_ids": [
+        "tests/core/test_global_economic_authority_head_v2.py::test_active_head_roundtrips_with_exact_bytes_and_root",
+        "tests/core/test_global_economic_authority_head_v2.py::test_authority_root_uses_independent_literal_canonical_record",
+        "tests/core/test_global_economic_authority_head_v2.py::test_each_authority_coordinate_changes_the_content_root",
+        "tests/core/test_global_economic_authority_head_v2.py::test_revoked_successor_is_adjacent_coordinate_preserving_and_terminal",
+        "tests/core/test_global_economic_authority_head_v2.py::test_constructor_rejects_invalid_scalar_types_and_ranges",
+        "tests/core/test_global_economic_authority_head_v2.py::test_decoder_rejects_invalid_scalars_schema_and_closed_fields",
+        "tests/core/test_global_economic_authority_head_v2.py::test_decoder_rejects_missing_fields_noncanonical_bytes_and_duplicate_keys",
+        "tests/core/test_global_economic_authority_head_v2.py::test_decoder_rejects_wrong_input_type_size_and_deep_nesting",
+        "tests/core/test_global_economic_authority_head_v2.py::test_revocation_rejects_coordinate_changes",
+        "tests/core/test_global_economic_authority_head_v2.py::test_successor_requires_adjacent_revocation_and_exact_types",
+        "tests/core/test_global_economic_authority_head_v2.py::test_schema_and_abi_literals_are_versioned"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_custody_frame_decode_v2.py",
+      "sha256": "d50bcbe27d36cb791a8613bece17c6534cc41842a6ae19c6141bf730aa9aca62",
+      "node_ids": [
+        "tests/core/test_asset_lane_custody_frame_decode_v2.py::test_decoder_matches_independent_literal_layout_for_both_leaf_routes",
+        "tests/core/test_asset_lane_custody_frame_decode_v2.py::test_encoder_decoder_roundtrip_preserves_all_arbitrary_component_bytes",
+        "tests/core/test_asset_lane_custody_frame_decode_v2.py::test_decoder_rejects_every_truncation_of_a_small_valid_frame",
+        "tests/core/test_asset_lane_custody_frame_decode_v2.py::test_decoder_rejects_wrong_magic_and_all_unsupported_route_tags",
+        "tests/core/test_asset_lane_custody_frame_decode_v2.py::test_decoder_rejects_zero_or_oversized_length_for_each_component",
+        "tests/core/test_asset_lane_custody_frame_decode_v2.py::test_decoder_accepts_exact_maximum_component_and_declared_frame_bound",
+        "tests/core/test_asset_lane_custody_frame_decode_v2.py::test_decoder_rejects_trailing_bytes_nonexact_input_and_oversized_frame"
+      ]
+    },
+    {
+      "path": "tests/integration/test_custody_publication_record_v2.py",
+      "sha256": "d10aed98fc30e46c0cda1aa6fa247e191586f6ccd16cc53c76fc27613f081af0",
+      "node_ids": [
+        "tests/integration/test_custody_publication_record_v2.py::test_admitted_vector_replays_complete_pre_post_pair_and_exact_statement",
+        "tests/integration/test_custody_publication_record_v2.py::test_publication_id_matches_independent_canonical_commitment",
+        "tests/integration/test_custody_publication_record_v2.py::test_publication_id_changes_for_each_committed_coordinate",
+        "tests/integration/test_custody_publication_record_v2.py::test_record_request_parts_and_byte_count_are_exact",
+        "tests/integration/test_custody_publication_record_v2.py::test_rejected_economics_cannot_become_a_durable_record",
+        "tests/integration/test_custody_publication_record_v2.py::test_authentication_domain_fields_and_occurrence_mutations_reject",
+        "tests/integration/test_custody_publication_record_v2.py::test_altered_statement_or_frame_cannot_replay",
+        "tests/integration/test_custody_publication_record_v2.py::test_record_components_accept_exact_ceiling_and_reject_next_byte",
+        "tests/integration/test_custody_publication_record_v2.py::test_record_components_require_nonempty_exact_bytes",
+        "tests/integration/test_custody_publication_record_v2.py::test_sequence_requires_positive_unsigned_64_bit_integer",
+        "tests/integration/test_custody_publication_record_v2.py::test_sequence_accepts_unsigned_64_bit_ceiling",
+        "tests/integration/test_custody_publication_record_v2.py::test_record_identity_roots_require_nonzero_canonical_lowercase_roots"
+      ]
+    },
+    {
+      "path": "tests/integration/test_isolated_custody_publisher_v2.py",
+      "sha256": "44cb569f18dea153b65956f0f249205215e67c7695cceb0e976690aba756eea4",
+      "node_ids": [
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_authenticated_transfer_when_reopened_then_complete_post_and_exact_retry",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_revocation_when_new_request_then_no_economic_change",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_supported_custody_command_when_committed_then_fixed_economic_result",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_rejected_request_when_processed_then_every_durable_table_is_unchanged",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_commit_then_revocation_when_exact_retry_then_acknowledge_only_old_commit",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_verification_in_flight_when_another_connection_revokes_then_commit_is_noop",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_two_writers_from_same_source_when_competing_then_exactly_one_complete_commit",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_restart_when_expected_subject_changes_then_refuse_without_writes",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_interruption_when_recovered_then_complete_pre_or_post",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_corrupt_history_when_reopening_then_fail_closed",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_capacity_exhaustion_when_revoked_then_fencing_remains_available",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_existing_store_when_create_retried_then_no_replace",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_unqualified_filesystem_identity_when_opening_then_refuse",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_unverified_material_has_no_direct_mint_or_raw_commit_entry",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_bootstrap_interruption_when_retried_then_install_exact_genesis",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_foreign_bootstrap_candidate_when_create_then_preserve_it",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_revocation_response_loss_when_retried_then_resolve_terminal_authority",
+        "tests/integration/test_isolated_custody_publisher_v2.py::test_given_failed_rollback_when_closing_then_indeterminate_and_recover_pre"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "metamorphic",
+    "stateful",
+    "replay",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Fixed economic rows and byte commitments provide independent observations; explicit SQL interruption and writer interleavings exercise complete state histories. Literal AAA comments would add no oracle independence."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Rejected attempts compare every persisted table or the complete head/history after a concurrent revocation/winner. Ephemeral database housekeeping and committed competitors are outside logical no-effect. Post-COMMIT response loss is indeterminate."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "canonical bytes and arithmetic",
+      "points": [
+        "exact u64 and overflow",
+        "zero/maximum/oversize frame components",
+        "every short-frame truncation",
+        "duplicate/unknown message fields",
+        "exact state and statement bindings"
+      ]
+    },
+    {
+      "name": "authority and recovery",
+      "points": [
+        "fresh/current/revoked writer",
+        "changed genesis and verifier selection",
+        "same-source competing commits",
+        "receipt/signature mutation on retry",
+        "before/after COMMIT interruption",
+        "empty/complete/two-link bootstrap candidate",
+        "foreign candidate preserved",
+        "capacity leaves revocation available"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Remove exact frame EOF requirement.",
+      "killed_by": "tests/core/test_asset_lane_custody_frame_decode_v2.py::test_decoder_rejects_trailing_bytes_nonexact_input_and_oversized_frame",
+      "mutant": {
+        "path": "src/core/asset_lane_custody_frame_v2.py",
+        "needle_lines": [
+          "    if cursor != len(raw):",
+          "        raise GlobalSettlementCodecErrorV2(\"custody global frame has trailing bytes\")"
+        ],
+        "replacement_lines": [
+          "    pass"
+        ]
+      }
+    },
+    {
+      "description": "Allow a revoked authority to create another successor.",
+      "killed_by": "tests/core/test_global_economic_authority_head_v2.py::test_revoked_successor_is_adjacent_coordinate_preserving_and_terminal",
+      "mutant": {
+        "path": "src/core/global_economic_authority_head_v2.py",
+        "needle_lines": [
+          "        if self.status is not GlobalEconomicAuthorityStatusV2.ACTIVE:",
+          "            raise ValueError(\"global economic authority is already revoked\")"
+        ],
+        "replacement_lines": [
+          "        pass"
+        ]
+      }
+    },
+    {
+      "description": "Omit exact statement comparison after pure replay.",
+      "killed_by": "tests/integration/test_custody_publication_record_v2.py::test_altered_statement_or_frame_cannot_replay",
+      "mutant": {
+        "path": "src/integration/custody_publication_record_v2.py",
+        "needle_lines": [
+          "        if replay.statement != self.statement:",
+          "            raise ValueError(\"custody publication statement differs from pure replay\")"
+        ],
+        "replacement_lines": [
+          "        pass"
+        ]
+      }
+    },
+    {
+      "description": "Return a writer on restart after its authority was revoked.",
+      "killed_by": "tests/integration/test_isolated_custody_publisher_v2.py::test_given_revocation_when_new_request_then_no_economic_change",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "            if head.authority != publisher._expected_authority:",
+          "                raise PermissionError(\"custody writer authority is no longer current\")"
+        ],
+        "replacement_lines": [
+          "            pass"
+        ]
+      }
+    },
+    {
+      "description": "Replace selected cryptographic admission with pure statement preparation.",
+      "killed_by": "tests/integration/test_isolated_custody_publisher_v2.py::test_given_rejected_request_when_processed_then_every_durable_table_is_unchanged",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "        statement = verify_isolated_profiled_asset_lane_custody_receipt_v2(",
+          "            owned,",
+          "            owned_context,",
+          "            head.custody_state,",
+          "            owned_command,",
+          "            head.global_state,",
+          "            post,",
+          "            guest_role_binding=config.guest_role_binding,",
+          "            expected_guest_role_binding_root=config.guest_role_binding.binding_root,",
+          "            receipt_executable_path=config.receipt_executable_path,",
+          "            receipt_timeout_ms=config.receipt_timeout_ms,",
+          "            signature_artifact_path=config.signature_artifact_path,",
+          "            signature_evidence_manifest=config.signature_manifest,",
+          "            signature_timeout_ms=config.signature_timeout_ms,",
+          "            receipt_bytes=receipt_bytes,",
+          "        )"
+        ],
+        "replacement_lines": [
+          "        statement = replay_custody_publication_frame_v2(frame).statement"
+        ]
+      }
+    },
+    {
+      "description": "Misclassify response loss after commit as an ordinary exception.",
+      "killed_by": "tests/integration/test_isolated_custody_publisher_v2.py::test_given_interruption_when_recovered_then_complete_pre_or_post",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "                    commit_attempted = True",
+          "                    connection.execute(\"COMMIT\")"
+        ],
+        "replacement_lines": [
+          "                    commit_attempted = False",
+          "                    connection.execute(\"COMMIT\")"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "No genuine RISC0 guest/image/receipt, Lean, Kani or ESSO qualification.",
+    "Signature/receipt IPC in publisher tests is a protocol fixture; recovery does not reverify crypto or reselect historical registries.",
+    "Trusted publisher process, selected configuration, SQLite and honest filesystem remain assumptions; no compromised-process defense or hostile same-user filesystem qualification.",
+    "No external monotonic anchor, rollback resistance, live effect mount, migration, production authority or whole-core completion.",
+    "Operational storage limits are not new economic population or amount policy.",
+    "Mechanical mutants count only after control and mutant executions."
+  ]
+}
