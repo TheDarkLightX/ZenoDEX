@@ -60,6 +60,30 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 12: exact custody reconstruction and complete-state bytes
+
+Source `e2224617a092380d21ac6028d889a511cfc00e74` closes exact accepted leaf
+reprojection in the finite model and adds the complete four-payload state and
+encoder. See [evidence](../tests/evidence/custody_complete_projection_v2_20260912.json)
+and [independent review](../tests/evidence/custody_complete_projection_review_20260912.md).
+Nine new tests pass, including 18 encodings, all ten transaction vectors and the
+1 MiB / 1 MiB + 1 boundary. Two compiling model mutants fail the intended
+semantic assertions. No economic runtime or wire behavior changed in this batch.
+
+The [fixed-rubric amendment](../tests/evidence/v3_custody_complete_projection_assessment_after_20260912.json)
+changes the formal-core estimate from 21.081% to 21.094% (+0.013 percentage points).
+V3 remains 23.869%; qualification remains 0/12. This is a small partial refinement
+advance. Unchanged capability scores are inherited, not newly reassessed.
+
+Next close modeled constructor metadata and policy-origin admission using the
+existing FullState, then the actual ordered coordinator outcome and source
+journal/effect relation. CompleteState.step materializes a finite candidate;
+it does not enforce outer admission. Universal runtime refinement and genuine
+receipt/publication qualification remain open. Five distinct Fable tasks are
+prepared with frozen copies and output-only writes; their private-source
+transfer to Anthropic still awaits the specific approval required after the
+automatic-review rejection. No external worker launch is claimed.
+
 ## September 12: complete structural closure of finite custody histories
 
 The [structural closure evidence](../tests/evidence/custody_structural_v2_20260912.json)

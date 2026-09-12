@@ -1,0 +1,186 @@
+{
+  "schema": "zenodex/custody-complete-projection-evidence/v1",
+  "baseline_commit": "be2693fcd5da816c8e723853b92d3fbe47754bc7",
+  "subject_commit": "e2224617a092380d21ac6028d889a511cfc00e74",
+  "authority": "NONE",
+  "obligation": "W09: exact finite custody reprojection and complete metadata/byte/resource representation",
+  "before": "Structural closure supplied both finite leaf inputs at every prefix. Exact accepted leaf equality and full origin metadata/bytes were not represented by that proof.",
+  "after": "Four exact reprojection theorems retain full managed siblings and zero supplies. A four-payload complete model derives registry keys, encodes actual nested fields, and proves erasure/step/metadata/byte-length relations. Runtime metadata counterexamples and complete-state byte/resource controls mark the remaining admission boundary.",
+  "claim_ceiling": "Finite model theorems plus bounded concrete Python/Lean evidence. CompleteState.step is materialization before outer admission; Resources is not invariant. No universal Python/Rust refinement, authentic roots, receipts, publication or product completion.",
+  "source_pins": {
+    "lean-mathlib/Proofs/AssetLaneCustodyExactProjectionV2.lean": "9486eb80bc01d6eb26c3ae0f86ba94c74c6e4b5ddeba6adc4538306459dce03b",
+    "lean-mathlib/Proofs/AssetLaneCustodyCompleteStateV2.lean": "f7101c17778fe4bff9ca2481f184b2176307e4366141961ee8ac79fa9c7f1802",
+    "tests/formal/asset_lane_custody_exact_projection_v2_controls.lean": "bf9f385e2add6b76e0596291731ce82e147e4c1284308ba11f51f5990052c528",
+    "tests/formal/test_lean_asset_lane_custody_exact_projection_v2.py": "203c7ef85552575e2cde4e2b896341688755bbf2aa33bab6c3a22eea53105a9f",
+    "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py": "1f5ffe6ebba80d9a020572e83e187395d00c2a8ff8ca1e7dc2b3a70e2b9fa9ab",
+    "tests/core/test_asset_lane_custody_metadata_v2.py": "02699c80cba2bc74075cd222545dc5b3754e1278e4e93832e05250a6900cdf8f",
+    "tests/evidence/test_hygiene/THV1-20260912-custody-complete-projection-v2.json": "7bf7efb2bd9a8742970be834278e04c45022aa8cf3974f949bb3cd98e87b09b4"
+  },
+  "verification": [
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_exact_projection_v2.py",
+      "outcome": "2 passed in 133.73s; fresh pinned Lean 4.27.0 closure; four exact signatures and standard axiom checks plus independent control tables."
+    },
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_asset_lane_custody_complete_state_v2.py --junitxml=PATH",
+      "outcome": "4 passed in 133.17s on final frozen test 1f5ffe; five exact contracts,18 complete encodings,10 actual steps and full one-byte boundary. PATH is an external scratch JUnit destination; XML records 133.150s.",
+      "junit_sha256": "085787ad8948793997d0544821038e0df5229384cfe1b37d5f0d595ca6d2fb8f"
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_asset_lane_custody_metadata_v2.py",
+      "outcome": "3 passed in 0.63s; exact constructor failures and registry-before-leaf rejection with six empty effect fields and unchanged pre-state."
+    },
+    {
+      "command": "python3 -m mypy --follow-imports=silent tests/formal/test_lean_asset_lane_custody_exact_projection_v2.py tests/formal/test_lean_asset_lane_custody_complete_state_v2.py tests/core/test_asset_lane_custody_metadata_v2.py",
+      "outcome": "Success: no issues found in 3 source files; same paths pass Ruff."
+    },
+    {
+      "command": "python3 tools/check_test_hygiene_v1.py with six A:path arguments from this packet, --json",
+      "outcome": "ok:true; all 6 critical paths covered,9 pytest nodes."
+    },
+    {
+      "command": "Targeted repository redflags scan and git diff --check",
+      "outcome": "Zero findings; no whitespace errors."
+    },
+    {
+      "command": "python3 tools/check_whole_program_plan_v3.py --json",
+      "outcome": "ok:true, requirements floor 103/12/4/4, production_authority:NONE,0 closed value gates; no new workstream qualification."
+    }
+  ],
+  "controls": [
+    "Exact ORD issue, AUD issue from zero, AUD burn back to zero, positive ORD transfer; full expected leaf and complete tables preserve sibling EUR and nonzero custody.",
+    "18 runtime-admitted encodings include empty state, dormant supply, multiple assets, quote/backslash strings, registration-policy variation, native origin and nullable policy fields. All enum strings match runtime.",
+    "All 10 pinned golden transitions replay Python first: 7 accepted and 3 rejected. Lean actual step yields exact expected complete bytes; all cases included.",
+    "Actual managed leaf accepts two inputs. Complete post at 1048576 bytes is accepted; 1048577 bytes is exact COORDINATOR/STATE_RESOURCE_LIMIT with no effects or pre-state change. Lean compares full lengths, unchanged metadata, transfer bytes and Resources; no embedded one-MiB byte equality claim.",
+    "Three runtime counterexamples distinguish erased rows from exact managed issue-root coverage, transfer/managed identity, and registry policy binding before an independent leaf failure."
+  ],
+  "semantic_mutants": {
+    "kind": "deliberate Lean model mutations; source-pin fixture intentionally bypassed to test semantic assertions",
+    "summary_receipt_sha256": "be72d1e326cacaa4a0e1259eb5c983f4d901b1aa714091737f3e167165153943",
+    "mutants": [
+      {
+        "name": "issue_policy_encoding",
+        "mutation": "B.quoted record.issuePolicyRoot -> B.quoted record.transferPolicyRoot",
+        "needle_count_before": 1,
+        "needle_count_after": 0,
+        "replacement_count_after": 2,
+        "source_sha256": "fa4aec30ff6ca38a77f73de69ef6a192f30f3729c1445beb627368e2f70e5880",
+        "olean_sha256": "390ce1005bfccbf803088222750107e89c4957034a29b065c67ec458300e1cd6",
+        "compile_exit": 0,
+        "compile_stdout_bytes": 0,
+        "compile_stderr_bytes": 0,
+        "target_test": "test_actual_full_canonical_bytes_and_runtime_enum_codes",
+        "pytest_exit": 1,
+        "failures": 1,
+        "errors": 0,
+        "assertion": "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py:265",
+        "observation": "base equal=false at the actual canonical-byte comparison; byte length remained 1807",
+        "classification": "semantic_mutant_killed"
+      },
+      {
+        "name": "full_state_resource_guard",
+        "mutation": "(stateBytes state).length <= 1048576 -> True",
+        "needle_count_before": 1,
+        "needle_count_after": 0,
+        "replacement_count_after": 1,
+        "source_sha256": "897a6e558fff4146d1906af6db4da1e80816dbece1e329cdc3b5e3fac274115d",
+        "olean_sha256": "1cde20ebbac41e879b120832bcb202994e0b0d331408c399d7ab0a3e1537402b",
+        "compile_exit": 0,
+        "compile_stdout_bytes": 0,
+        "compile_stderr_bytes": 0,
+        "target_test": "test_exact_complete_state_resource_boundary",
+        "pytest_exit": 1,
+        "failures": 1,
+        "errors": 0,
+        "assertion": "tests/formal/test_lean_asset_lane_custody_complete_state_v2.py:408",
+        "observation": "last=54 reported post Resources=true at 1048577 bytes instead of false; the accepted-leaf and other four observations remained true",
+        "classification": "semantic_mutant_killed"
+      }
+    ],
+    "source_and_test_pins": [
+      "f7101c17778fe4bff9ca2481f184b2176307e4366141961ee8ac79fa9c7f1802",
+      "1f5ffe6ebba80d9a020572e83e187395d00c2a8ff8ca1e7dc2b3a70e2b9fa9ab"
+    ],
+    "dependency_note": "pytest-1822 was removed by concurrent pytest cleanup after the initial successful run; the retained final run uses a frozen pytest-1823 dependency library whose available Lean sources were checked byte-for-byte against the same repository subject.",
+    "nonclaim": "Cached mutation evidence; no runtime-mutation campaign. Positive proof gates separately rebuilt the pinned project closure."
+  },
+  "contributors": [
+    {
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "work": "Reviewed and integrated proofs/controls, repaired test generators and typing, ran final gates, and accepted fixed-rubric assessment."
+    },
+    {
+      "model_id": null,
+      "model_family": "Codex on GPT-6; provider ID unavailable",
+      "role": "implementation and independent advisory review",
+      "work": "Two proof modules, exact signature audits, and narrow score review. Later read-only admission preparation made no repository edits."
+    },
+    {
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "work": "Exact projection value controls and10golden actual-step appendix; parent repaired typing and removed unused/exclusion machinery."
+    },
+    {
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "security review and evidence",
+      "work": "Metadata gap controls, full one-byte resource control, two semantic mutant kills and next-admission architecture review."
+    }
+  ],
+  "rework": [
+    "Lean JSON product output is nested; changed test output to named JSON fields.",
+    "Lean exported enum aliases required typed list constructor inference.",
+    "Native-origin test input needed the native asset class and TAU namespace; corrected before final gate.",
+    "Combined MyPy found 3 redundant casts in metadata controls and 9 union-flow errors in the step appendix; repaired without changing expected behavior.",
+    "Mutation replay caught test-file drift and concurrent pytest cache cleanup; froze final tests and source-checked dependency copies. Final proof suite replayed once more after freezing."
+  ],
+  "code_value": {
+    "added": 1880,
+    "removed": 0,
+    "net": 1880,
+    "categories_follow_productivity_tool": {
+      "runtime": 0,
+      "proof": 892,
+      "tests": 874,
+      "data": 114
+    },
+    "note": "Proof includes 420 Lean control lines; no runtime code changed. Evidence/report/assessment additions are a separate support interval.",
+    "assessment_status": "REVIEWED_NARROW_AMENDMENT",
+    "before_formal_core": 21.081,
+    "after_formal_core": 21.094,
+    "formal_delta_percentage_points": 0.013,
+    "before_v3": 23.869,
+    "after_v3": 23.869,
+    "v3_delta_percentage_points": 0.0,
+    "review": "tests/evidence/custody_complete_projection_review_20260912.md",
+    "before_assessment": "tests/evidence/v3_custody_completion_assessment_after_20260912.json",
+    "after_assessment": "tests/evidence/v3_custody_complete_projection_assessment_after_20260912.json",
+    "interpretation": "Small judgment-based refinement increment for 3 capabilities; no completion percentage inferred from code, proof or test counts."
+  },
+  "external_fleet": {
+    "status": "prepared_waiting_specific_source_transfer_approval",
+    "worker_invocations": 0,
+    "source_exported": false,
+    "prepared_workers": 5,
+    "requested_model": "Fable 5.1 through observed fable alias",
+    "effort": "max",
+    "ultracode": "not verified in installed CLI",
+    "source_files_per_worker": 75,
+    "source_bytes_per_worker": 1213310,
+    "source_manifest_sha256": "8029cc40e8ca6d3d927b20a5ed5983aec16f92c0b7b46dbe5cd419fbfd3fe1a9",
+    "reason": "Previous launch rejected by automatic approval review for private data transfer to Anthropic. New precise approval question pending; this is preparation, not a model contribution."
+  },
+  "not_run": [
+    "Full Lake build",
+    "Full repository Python/Rust suites",
+    "New ESSO/Kani campaign",
+    "Genuine custody guest proof/receipt qualification",
+    "Hosted/deployment/production gates"
+  ],
+  "residual": [
+    "Modeled constructor metadata, policy-origin binding and first-error outer outcome relation remain open.",
+    "Resources admits only count/byte facts; full constructor and canonical hashing remain separate.",
+    "Source journal/effect correspondence, authenticated initialization, profile and receipt qualification, global publication/recovery and cross-lane lifecycles remain incomplete."
+  ],
+  "next_acceptance": "Reuse FullState and existing metadata predicates for constructor admission and retained policy bindings, then carry actual source-journal fields through the coordinator outcome. No opaque acceptance Boolean or redundant stored key lists."
+}
