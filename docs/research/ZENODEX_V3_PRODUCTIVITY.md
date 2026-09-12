@@ -299,3 +299,19 @@ records and 26 active batches. The shared reviewed gain counts once. The 1,611
 lines of evidence/assessment/continuity support in `26057f38…` receive no extra
 credit; this final manifest/report append is a further support tail for the next
 committed interval.
+
+## September 12: complete perps market delivery
+
+New implementation `321d4d032`→`7386fa2ea`: +638/−17, with proofs +385/−4,
+tests +253/−13 and no economic runtime changes. Root Astra implemented and
+integrated the proof; Luna Max implemented bounded full-market tests; native
+Astra reviewed mathematical scope and scores. The attempted Daybreak follow-up
+hit the thread limit and produced no verdict. Native token/cost/exclusive elapsed
+counters remain unavailable; no remote or external-model job ran.
+
+One shared reviewed gain: formal +.078 points, V3 +.100. Source-bound final
+evidence includes ten fresh passing tests, seven killed semantic mutants and
+three required admitted-state witnesses. Failed drafts/setup and assessment
+cache repairs are retained in the delivery evidence. The existing after-input
+is revised with a Git-pinned predecessor instead of duplicating 1,199 lines.
+Support and carried metadata count once, with no automatic product credit.

@@ -1,0 +1,185 @@
+{
+  "schema": "zenodex/perps-margin-market-evidence/v1",
+  "subject": "7386fa2ea2488999aa453b701e3b666e32ee2d85",
+  "implementation_base": "321d4d0325e0f0c8f8304e1ff67678084814b1e4",
+  "release_authority": "NONE",
+  "value_movement_gates_closed": 0,
+  "predecessor": {
+    "commit": "26057f389ac5da283988e1fa8f05186226a05b1e",
+    "path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json",
+    "sha256": "1c8f90538fbdd2ded734cc816abc8ddbacd9808246ee49cfb5df29c534cec755"
+  },
+  "claim": "Complete-market structural/numeric preservation in Lean, with finite full-state correspondence to the existing Python/Rust margin transition.",
+  "normative_source": "docs/research/PERPS_MARGIN_GLOBAL_SETTLEMENT_SHADOW_V1.md (settled margin rules); M6 WF-10/BDD-042 account-drain fragment, not full market closeout.",
+  "source_sha256": {
+    "lean-mathlib/Proofs/PerpsMarginTransitionV1.lean": "1598aa39d0a27e514d88595f7b06b072722c512aab3caf135d9e9a3282a1c743",
+    "tests/formal/test_lean_perps_margin_transition_v1.py": "de6dd16554ec9994d87b6d440849f359336d1fa25c85656ccb6240b7f60021d5",
+    "zk/global_settlement_abi_v1/examples/perps_margin_outcomes_v1.rs": "7a6adbfcb95a1c97f09a07f8ce91ed2c4cde81d72d6ce90f41bac00af674a940",
+    "tests/core/test_perps_margin_lane_coordinator_v1.py": "e2446a0309292fa5e27d16bb19cf302335efaddaad175d52d23308732190f1cb",
+    "src/core/perps_margin_module_v1.py": "482f6158a9cf4ad42c3d2994e13f6f70e2a5f3d64abfd78d4430b5c138f6dbb2",
+    "src/core/perps_margin_types_v1.py": "30061112b5239934c6b8c192ac893078a2a092d8e2310f7fa50ab9a1314882a9",
+    "zk/global_settlement_abi_v1/src/perps_margin.rs": "ba88c7269bf01f8a8a90572a81f7d9b51a8cd20b01c612f881e7d797abff94f6",
+    "zk/global_settlement_abi_v1/src/perps_margin_types.rs": "bd11416d4f48dcb59a584a07edc02c8e558f9caa9f7939871d7cea1aaf5709f0",
+    "tests/core/test_perps_margin_module_v1.py": "66a070589c506269866a7fb54d7325f0b5868d2fd2f4ba65f0edc188d87565a9",
+    "tests/formal/lean_stdlib_gate_v1.py": "09ad16acbe682dab10742550d5d4ca460d1b55e9487d3796c2ae8d6b28493142"
+  },
+  "proved": [
+    "Owned account list derives lookup and count; accepted ordered upsert preserves exact selected owner and every other-key lookup.",
+    "Accepted transitions preserve strict ID order, capacity, asymmetric i128 position bounds, u128 entry/collateral bounds, u64 nonces and account shape/index constraints.",
+    "Positive and negative gross positions are each exactly unchanged; both u128 bounds and balance survive.",
+    "Market risk-envelope admission covers every account maintenance numerator without u128 overflow.",
+    "Arbitrary multi-account accepted/rejected histories preserve structural/numeric admission; closed accounts survive later commands to any account.",
+    "Concrete empty, 64-account and balanced i128-minimum markets satisfy the full admission predicate."
+  ],
+  "fresh_gate": {
+    "command": "python3 -m pytest -q tests/formal/test_lean_perps_margin_transition_v1.py --basetemp=/tmp/zenodex-perps-market-20260912/finalgate1 --junitxml=/tmp/zenodex-perps-market-20260912/finalgate1.xml",
+    "result": "10 passed",
+    "seconds": 61.52,
+    "lean_version": "4.27.0",
+    "rust_version": "1.87.0",
+    "theorem_consumers": 12,
+    "standard_axioms_only": true,
+    "static_cases": 43,
+    "static_accepted": 15,
+    "history_attempts": [
+      7,
+      12
+    ],
+    "constructive_admission_witnesses": [
+      "empty",
+      "64 accounts",
+      "-2^127 balanced by maxDelta and 1"
+    ],
+    "semantic_mutants": [
+      "tombstone",
+      "sibling",
+      "subject",
+      "rounding",
+      "nonce",
+      "claimant",
+      "target_materialization"
+    ],
+    "mutant_contract": "Each single-site mutant imports and returns typed Accepted before an independent assertion rejects its result."
+  },
+  "additional_commands": [
+    {
+      "command": "python3 -m ruff check tests/formal/test_lean_perps_margin_transition_v1.py",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 -m mypy tests/formal/test_lean_perps_margin_transition_v1.py --follow-imports=silent",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tools/v3_acceptance.py --validate",
+      "result": "STRUCTURAL_INVENTORY=PASS; CASE_SOURCES=PINNED; acceptance unestablished"
+    },
+    {
+      "command": "python3 tools/v3_progress_assessment_calc.py tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+      "result": "PASS; formal21.297, V3 24.169"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    },
+    {
+      "command": "zenodex-style-map which_style.py for touched Lean/test paths; security redflags.py on touched Python test",
+      "result": "Classified; zero redflags"
+    }
+  ],
+  "review": {
+    "reviewer": "native Astra",
+    "subject_sha256": "1598aa39d0a27e514d88595f7b06b072722c512aab3caf135d9e9a3282a1c743",
+    "verdict": "SCOPED_ACCEPTANCE",
+    "independent_build": false,
+    "score_condition": "Final exact-source gate plus all three admission witnesses; satisfied."
+  },
+  "findings": [
+    {
+      "id": "PERPS-POST-ACCOUNT-OPEN-PREMISE",
+      "status": "repaired",
+      "detail": "Standalone post-account preservation needs open pre-account; the full step derives it from prepareAccount, adding no public post-state premise."
+    },
+    {
+      "id": "PERPS-I128-MIN-REPRESENTABILITY",
+      "status": "confirmed",
+      "detail": "Signed minimum is admitted when separately bounded gross sides balance. The retained runtime/Lean witness prevents a symmetric abs<=maxDelta restriction."
+    }
+  ],
+  "failed_attempts": [
+    "Initial Lean drafts required explicit String order/Std arithmetic lemmas and correction of the standalone open-account premise; final source is placeholder-free and all public consumers compile.",
+    "Initial admission-witness probe needed OrderedAccounts unfolded for its decidable instance; corrected witness compiles without additional assumptions.",
+    "Initial assessment replay rejected stale cached aggregates; cache regeneration first passed a list instead of the required tuple; corrected unchanged calculator validates final values.",
+    "Daybreak follow-up could not start because the native harness thread limit was reached; no Daybreak verdict or implementation credit is claimed."
+  ],
+  "line_changes": {
+    "proofs": {
+      "added": 385,
+      "removed": 4
+    },
+    "tests": {
+      "added": 253,
+      "removed": 13
+    },
+    "economic_runtime": {
+      "added": 0,
+      "removed": 0
+    },
+    "total": {
+      "added": 638,
+      "removed": 17
+    }
+  },
+  "contributors": [
+    {
+      "id": "root",
+      "model": "gpt-6-astra",
+      "role": "implementation",
+      "output": "Proof, integration, concrete witnesses, exact theorem consumers and replay.",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "cost_microusd": null
+    },
+    {
+      "id": "perps_market_test_impl",
+      "model": "gpt-5.6-luna",
+      "role": "implementation",
+      "output": "Full market corpus projection, insertion/frame/i128 cases, interleaved histories and seventh mutant.",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "cost_microusd": null
+    },
+    {
+      "id": "custody_successor_security_review",
+      "model": "gpt-6-astra",
+      "role": "review",
+      "output": "Independent runtime admission, theorem, nonvacuity and scoped score review.",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "cost_microusd": null
+    }
+  ],
+  "resources": {
+    "remote_proof_jobs": 0,
+    "new_external_model_jobs": 0,
+    "worker_static_gate_seconds": 48.57,
+    "native_counters": "unavailable"
+  },
+  "not_run": [
+    "Full repository suites",
+    "ESSO",
+    "Kani",
+    "RISC0 guest build or proving",
+    "production or live activation gates"
+  ],
+  "nonclaims": [
+    "No universal Python/Rust, codec, hash or cryptographic refinement.",
+    "Token/root syntax, schema decoding, effects/journals and authentication remain outside MarketAdmitted.",
+    "The predicate establishes structural/numeric admission, not initial economic solvency.",
+    "Funding, matching, liquidation, insurance, whole-market shutdown and production qualification remain open."
+  ],
+  "next_acceptance": "Bind concrete margin effect/terminal rows to the proved complete market transition and existing coordinator; retain exact occurrence, owner and custody deltas. Genuine custody guest/receipt publication still needs proof infrastructure."
+}

@@ -38,9 +38,9 @@
   },
   "full_v3": {
     "denominator_weight": 100,
-    "central_percent": 24.069,
-    "lower_percent": 16.813,
-    "upper_percent": 32.147,
+    "central_percent": 24.169,
+    "lower_percent": 16.913,
+    "upper_percent": 32.247,
     "covers_workstreams": ["W00", "W01", "W02", "W03", "W04", "W05", "W06", "W07", "W08", "W09", "W10", "W11", "W12", "W13"],
     "rows": [
       {
@@ -579,9 +579,9 @@
         "id": "W09",
         "kind": "workstream",
         "weight": 10,
-        "low": 0.24,
-        "central": 0.32,
-        "high": 0.42,
+        "low": 0.25,
+        "central": 0.33,
+        "high": 0.43,
         "evidence": [
           {"path": "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "lean-mathlib/Proofs/GlobalEconomicRefinementTraceV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -599,7 +599,7 @@
           {"path": "lean-mathlib/Proofs/AssetLaneCustodyCoordinatorTraceV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "tests/formal/test_lean_asset_lane_custody_coordinator_outcome_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "tests/evidence/custody_coordinator_bundle_v2_20260912.json", "class": "VERIFIED_SOURCE_INSPECTION"},
-          {"path": "tests/evidence/perps_margin_lifecycle_v1_20260912.json", "class": "VERIFIED_SOURCE_INSPECTION"}
+          {"path": "tests/evidence/perps_margin_market_v1_20260912.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "credit_rationale": "Bounded formal/runtime coordinator correspondence and complete finite outcome preservation. No W07, F-GLOBAL, F-REFINE or qualification credit is duplicated."
       },
@@ -733,9 +733,9 @@
   },
   "formal_core": {
     "denominator_weight": 140,
-    "central_percent": 21.219,
-    "lower_percent": 15.389,
-    "upper_percent": 27.304,
+    "central_percent": 21.297,
+    "lower_percent": 15.468,
+    "upper_percent": 27.383,
     "rows": [
       {
         "id": "FC:ASSET_TRANSFER",
@@ -891,9 +891,9 @@
         "id": "FC:PERPS_MARKET",
         "kind": "lane",
         "weight": 11,
-        "low": 0.1752,
-        "central": 0.2388,
-        "high": 0.297,
+        "low": 0.1852,
+        "central": 0.2488,
+        "high": 0.307,
         "evidence": [
           {"path": "src/core/perps_margin_module_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "lean-mathlib/Proofs/PerpEpochSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -905,8 +905,8 @@
           {"path": "tests/formal/test_lean_perps_margin_transition_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {"id": "margin_deposit", "sem": 0.5, "prf": 0.35, "ref": 0.4, "unc": "H", "increment_rationale": "Current selected-account Lean transition and finite full Python/Rust outcome refinement; no complete-market or publication claim."},
-          {"id": "margin_withdraw", "sem": 0.5, "prf": 0.35, "ref": 0.4, "unc": "H", "increment_rationale": "Current selected-account Lean transition and finite full Python/Rust outcome refinement; no complete-market or publication claim."},
+          {"id": "margin_deposit", "sem": 0.5, "prf": 0.45, "ref": 0.45, "unc": "H", "increment_rationale": "Complete-market structural/numeric preservation and finite complete Lean/Python/Rust state outcomes; canonical decoding, effects and publication remain outside the universal proof."},
+          {"id": "margin_withdraw", "sem": 0.5, "prf": 0.45, "ref": 0.45, "unc": "H", "increment_rationale": "Complete-market structural/numeric preservation and finite complete Lean/Python/Rust state outcomes; canonical decoding, effects and publication remain outside the universal proof."},
           {"id": "position_open", "sem": 0.3, "prf": 0.3, "ref": 0.1, "unc": "V", "legacy_only": true},
           {"id": "position_adjust", "sem": 0.25, "prf": 0.25, "ref": 0.08, "unc": "V", "legacy_only": true},
           {"id": "funding_accrual", "sem": 0.3, "prf": 0.35, "ref": 0.1, "unc": "H", "legacy_only": true},
@@ -1194,6 +1194,6 @@
       }
     ]
   },
-  "assessment_basis": {"kind": "SCOPED_REVIEWED_AMENDMENT", "inherited_subject": "244c50ebcbed2a3fbb332d5853ce7260d989a5e2", "inherited_assessment": "tests/evidence/v3_custody_coordinator_assessment_after_20260912.json", "inherited_assessment_sha256": "c5ae99a580e4cfd84c25eff95a1eed70946882d51d0abff5fed505e4a277a172", "scope": "Only PERPS_MARKET margin_deposit and margin_withdraw proof/refinement components and W09; all other scores and uncertainty labels are inherited, not reassessed.", "review_evidence": "tests/evidence/perps_margin_lifecycle_review_20260912.md"},
-  "subject": "88c9f27d992cb57664870887542e379f91c1e0fa"
+  "assessment_basis": {"kind": "SCOPED_REVIEWED_AMENDMENT", "inherited_subject": "88c9f27d992cb57664870887542e379f91c1e0fa", "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json", "inherited_assessment_sha256": "b3f53d40a500d83c965c3d9b181aa316c378f45d93a2467f87e596ea3f075627", "scope": "Only PERPS_MARKET margin_deposit and margin_withdraw proof/refinement components and W09; all other scores and uncertainty labels are inherited, not reassessed.", "review_evidence": "tests/evidence/perps_margin_market_review_20260912.md", "inherited_storage_commit": "26057f389ac5da283988e1fa8f05186226a05b1e"},
+  "subject": "7386fa2ea2488999aa453b701e3b666e32ee2d85"
 }

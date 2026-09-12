@@ -472,3 +472,24 @@ exclusive elapsed time are unavailable; test durations are retained as tests.
 Remaining acceptance: complete market selection/reconstruction and numeric
 admission refinement, then broader market obligations and real publication.
 No full formal core, lane, route or production completion follows.
+
+## September 12 amendment: full perps market preservation
+
+Implementation `321d4d032`→`7386fa2ea` adds **638/removes 17**: proofs 385/4,
+tests 253/13, economic runtime 0/0. The full model now derives selection/count,
+preserves siblings, order, capacity, exact numeric/gross bounds and arbitrary
+multi-account histories. [Evidence](../../tests/evidence/perps_margin_market_v1_20260912.json)
+and [review](../../tests/evidence/perps_margin_market_review_20260912.md) retain
+sources, commands, contributors, failed drafts and remaining exclusions.
+
+Formal **21.219%→21.297%** (+.078 points); V3 **24.069%→24.169%** (+.100).
+Judgment bounds are formal 15.468–27.383%, V3 16.913–32.247%. Only margin
+deposit/withdraw proof/refinement and W09 change. The existing after-input was
+revised with its earlier bytes pinned at `26057f389…`, avoiding another complete
+1,199-line snapshot. The unchanged calculator validates all derived row/section
+caches. Other scores are inherited; no lane, route or safety gate closes.
+
+Fresh gate: ten tests, 43 states, 19 history attempts, seven mutants, twelve exact
+theorem consumers and three constructive admission witnesses. Next: concrete
+effect/terminal projection and coordinator binding, universal runtime/decoding
+refinement and genuine publication. Support metadata receives no separate credit.
