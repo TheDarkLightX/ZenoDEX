@@ -1,3 +1,9 @@
+"""Legacy JSON attestation port with bounded pipes and same-group lifetime.
+
+Requires waitid/WNOWAIT and exclusive child reaping. Configured commands retain
+host filesystem/network access; the host and cleanup operations remain trusted.
+"""
+
 from __future__ import annotations
 
 import json
@@ -5,12 +11,14 @@ import os
 import select
 import signal
 import subprocess
+import sys
 import time
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import IO, Any, Mapping, Optional, Sequence
 
 from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes
+from ._verifier_process import wait_for_unreaped_exit
 from .confidential_attestation import (
     VerifiedConfidentialAttestation,
     make_confidential_extension_receipt_from_verified_attestation,
@@ -66,8 +74,11 @@ class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier)
     ) -> None:
         if not cmd:
             raise ValueError("cmd must be non-empty")
-        if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
-            raise ValueError("timeout_s must be positive")
+        if (
+            isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float))
+            or not 0 < timeout_s <= sys.float_info.max
+        ):
+            raise ValueError("timeout_s must be positive and finite")
         if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes <= 0:
             raise ValueError("max_bytes must be positive")
         if isinstance(max_stdout_bytes, bool) or not isinstance(max_stdout_bytes, int) or max_stdout_bytes <= 0:
@@ -83,6 +94,8 @@ class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier)
     def verify(self, payload: object) -> tuple[VerifiedConfidentialAttestation | None, Optional[str]]:
         if not isinstance(payload, Mapping):
             return None, "payload must be an object"
+        if not callable(getattr(os, "waitid", None)) or not hasattr(os, "WNOWAIT"):
+            return None, "confidential attestation verifier requires waitid with WNOWAIT"
         request_bytes, err = _payload_bytes(payload, max_bytes=self._max_bytes)
         if err is not None:
             return None, err
@@ -102,12 +115,6 @@ class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier)
             )
         except (OSError, ValueError) as exc:
             return None, f"confidential attestation verifier error: {exc}"
-
-        if proc.stdin is None or proc.stdout is None or proc.stderr is None:
-            # Cleanup is best-effort only; the fail-closed decision is the returned error.
-            with suppress(Exception):
-                proc.kill()
-            return None, "confidential attestation verifier misconfigured (subprocess pipes unavailable)"
 
         try:
             streams = _pipe_streams(proc)
@@ -136,7 +143,7 @@ class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier)
                 return None, f"confidential attestation verifier failed (exit {rc}): {err_text or 'no stderr'}"
             return _parse_verified_attestation(stdout_buf)
         finally:
-            # Cleanup is best-effort only; verification has already accepted or rejected.
+            # The unreaped leader reserves its group ID until group cleanup.
             with suppress(Exception):
                 if proc.returncode is None:
                     _kill_proc_group(proc)
@@ -346,23 +353,11 @@ def _read_ready_streams(
 
 
 def _wait_for_exit(proc: subprocess.Popen[bytes], *, deadline: float) -> tuple[int, Optional[str]]:
-    rc = proc.poll()
-    if rc is not None:
-        return rc, None
-    remaining = deadline - time.monotonic()
-    if remaining <= 0:
-        _kill_proc_group(proc)
-        _wait_after_kill(proc)
-        return -1, "confidential attestation verification timed out"
     try:
-        return proc.wait(timeout=remaining), None
+        return wait_for_unreaped_exit(proc, deadline=deadline), None
     except subprocess.TimeoutExpired:
-        _kill_proc_group(proc)
-        _wait_after_kill(proc)
         return -1, "confidential attestation verification timed out"
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
-        _kill_proc_group(proc)
-        _wait_after_kill(proc)
         return -1, "confidential attestation verifier did not exit"
 
 

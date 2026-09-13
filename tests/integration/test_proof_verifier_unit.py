@@ -9,6 +9,7 @@ from collections.abc import Sequence
 import pytest
 
 import src.integration.proof_verifier as proof_verifier
+from src.integration import _verifier_process as lifecycle
 from src.integration.proof_verifier import (
     DisabledProofVerifier,
     MisconfiguredProofVerifier,
@@ -69,6 +70,7 @@ class _FakeProc:
         wait_results: Sequence[object] = (),
     ) -> None:
         self.pid = 4321
+        self.args = ["fake"]
         self.stdin = stdin or _FakeStream("stdin")
         self.stdout = stdout or _FakeStream("stdout")
         self.stderr = stderr or _FakeStream("stderr")
@@ -76,13 +78,13 @@ class _FakeProc:
         self._poll_results = list(poll_results)
         self._wait_results = list(wait_results)
 
-    def poll(self) -> object:
+    def observe_exit(self) -> object:
         if self._poll_results:
             item = self._poll_results.pop(0)
-            if item is not None:
-                self.returncode = int(item)
+            if isinstance(item, BaseException):
+                raise item
             return item
-        return self.returncode
+        return 0
 
     def wait(self, timeout: float | None = None) -> int:
         del timeout
@@ -112,6 +114,7 @@ def _patch_fake_process(
     monkeypatch.setattr(proof_verifier.subprocess, "Popen", lambda *args, **kwargs: proc)
     monkeypatch.setattr(proof_verifier.os, "set_blocking", lambda fd, blocking: None)
     monkeypatch.setattr(proof_verifier.os, "killpg", lambda pid, sig: (_ for _ in ()).throw(ProcessLookupError()))
+    monkeypatch.setattr(lifecycle, "unreaped_exit_status", lambda pid: proc.observe_exit())
 
     ready = list(schedule)
 
@@ -541,8 +544,8 @@ def test_subprocess_verifier_rejects_wait_timeout_and_exit_failure(monkeypatch: 
         stdin=_FakeStream("stdin", writes=[len(proof_bytes)]),
         stdout=_FakeStream("stdout", reads=[b""]),
         stderr=_FakeStream("stderr", reads=[b""]),
-        poll_results=[None],
-        wait_results=[proof_verifier.subprocess.TimeoutExpired(cmd=["fake"], timeout=0.1), 0],
+        poll_results=[proof_verifier.subprocess.TimeoutExpired(cmd=["fake"], timeout=0.1)],
+        wait_results=[0],
     )
     _patch_fake_process(
         monkeypatch,
@@ -567,8 +570,8 @@ def test_subprocess_verifier_rejects_wait_timeout_and_exit_failure(monkeypatch: 
         stdin=_FakeStream("stdin", writes=[len(proof_bytes)]),
         stdout=_FakeStream("stdout", reads=[b""]),
         stderr=_FakeStream("stderr", reads=[b""]),
-        poll_results=[None],
-        wait_results=[RuntimeError("did not exit"), 0],
+        poll_results=[RuntimeError("did not exit")],
+        wait_results=[0],
     )
     _patch_fake_process(
         monkeypatch,
@@ -654,7 +657,7 @@ def test_subprocess_verifier_covers_kill_fallback_wait_deadline_and_finally_clea
     assert verifier.verify({"ok": True}) == (False, "proof verification timed out")
 
     class _PollZeroCleanupWaitProc(_FakeProc):
-        def poll(self) -> object:
+        def observe_exit(self) -> object:
             return 0
 
         def wait(self, timeout: float | None = None) -> int:

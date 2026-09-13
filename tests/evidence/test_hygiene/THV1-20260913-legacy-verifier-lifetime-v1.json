@@ -1,0 +1,184 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260913-legacy-verifier-lifetime-v1",
+  "created_date": "2026-09-13",
+  "claim_scope": "Both legacy JSON verifier ports require finite timeouts, pre-deadline exit observation without reaping, and same-group cleanup before reap. Shared measured-verifier observation semantics are preserved. No cryptographic or deployment qualification.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "AS07-LEGACY-VERIFIER-FINITE-DEADLINE",
+    "AS07-LEGACY-VERIFIER-GROUP-CLEANUP"
+  ],
+  "failure_modes": [
+    "Non-finite deadline disables bounded verification.",
+    "Early reaping leaves descendants running.",
+    "Late observed output accepts.",
+    "Unsupported lifetime API still launches a command."
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/proof_verifier.py",
+      "sha256": "8d027b092159f84c69e10773771bf101f21e553dcbf70fcf8fce9bbe13c61c1d"
+    },
+    {
+      "path": "src/integration/confidential_attestation_verifier.py",
+      "sha256": "4abb97b76fa52e073928faa9b14e82ff7ff22a0adbf918f5f7f15e7c7854f404"
+    },
+    {
+      "path": "src/integration/_verifier_process.py",
+      "sha256": "e400110133f4837fab80daa3f5c4b3cc0c48bbc66184d39704891961cccaf443"
+    },
+    {
+      "path": "src/integration/global_receipt_verifier_v1.py",
+      "sha256": "c3bc1790a29e24936abc0725833b824ea442f7645138046044223d67adc65789"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_legacy_verifier_process_lifecycle.py",
+      "sha256": "fe6ab0daf90ff0b5a0cec36138e2dd42e4ce220684341e1b8f25158c90a3a8cb",
+      "node_ids": [
+        "tests/integration/test_legacy_verifier_process_lifecycle.py::test_nonfinite_timeout_cannot_construct_a_verifier",
+        "tests/integration/test_legacy_verifier_process_lifecycle.py::test_completed_verifier_cannot_leave_a_same_group_descendant_running",
+        "tests/integration/test_legacy_verifier_process_lifecycle.py::test_completion_obeys_deadline",
+        "tests/integration/test_legacy_verifier_process_lifecycle.py::test_unavailable_unreaped_wait_rejects_before_launch",
+        "tests/integration/test_legacy_verifier_process_lifecycle.py::test_exit_observation_error_rejects",
+        "tests/integration/test_legacy_verifier_process_lifecycle.py::test_closed_pipes_do_not_hide_a_running_verifier",
+        "tests/integration/test_legacy_verifier_process_lifecycle.py::test_missing_pipe_still_terminates_and_reaps_child"
+      ]
+    },
+    {
+      "path": "tests/integration/test_proof_verifier_unit.py",
+      "sha256": "9d8fbb44186792b95d5c03ac5d314f9cc3d97f54dc409c5de8c817b489601ad4",
+      "node_ids": [
+        "tests/integration/test_proof_verifier_unit.py::test_subprocess_verifier_rejects_wait_timeout_and_exit_failure",
+        "tests/integration/test_proof_verifier_unit.py::test_subprocess_verifier_rejects_wait_deadline_expiry_and_cleanup_wait_error",
+        "tests/integration/test_proof_verifier_unit.py::test_subprocess_verifier_covers_kill_fallback_wait_deadline_and_finally_cleanup"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Test-owned real processes provide valid JSON controls; an independent inherited pipe observes descendant survival. A controlled monotonic clock establishes exact deadline neighbors. Existing protocol/fuzz tests preserve success and rejection behavior."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "These verification-only ports have no economic publisher. Missing wait capabilities reject before Popen; invalid limits reject construction. Tests observe child reaping and pipe closure. This does not establish containment of host file/network effects by legacy commands."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "timeout-and-exit",
+      "points": [
+        "NaN, positive/negative infinity, unrepresentable integer timeout",
+        "just before, exactly at and after deadline",
+        "zero, nonzero and signalled exit",
+        "closed pipes with live child",
+        "missing pipe and unavailable wait API"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Admit non-finite timeouts in proof_verifier",
+      "killed_by": "tests/integration/test_legacy_verifier_process_lifecycle.py::test_nonfinite_timeout_cannot_construct_a_verifier",
+      "mutant": {
+        "path": "src/integration/proof_verifier.py",
+        "needle_lines": [
+          "            or not 0 < timeout_s <= sys.float_info.max"
+        ],
+        "replacement_lines": [
+          "            or timeout_s <= 0"
+        ]
+      }
+    },
+    {
+      "description": "Reap before group cleanup in proof_verifier",
+      "killed_by": "tests/integration/test_legacy_verifier_process_lifecycle.py::test_completed_verifier_cannot_leave_a_same_group_descendant_running",
+      "mutant": {
+        "path": "src/integration/proof_verifier.py",
+        "needle_lines": [
+          "                rc = wait_for_unreaped_exit(proc, deadline=deadline)"
+        ],
+        "replacement_lines": [
+          "                rc = proc.wait(timeout=1)"
+        ]
+      }
+    },
+    {
+      "description": "Launch without required wait API in proof_verifier",
+      "killed_by": "tests/integration/test_legacy_verifier_process_lifecycle.py::test_unavailable_unreaped_wait_rejects_before_launch",
+      "mutant": {
+        "path": "src/integration/proof_verifier.py",
+        "needle_lines": [
+          "        if not callable(getattr(os, \"waitid\", None)) or not hasattr(os, \"WNOWAIT\"):"
+        ],
+        "replacement_lines": [
+          "        if False:"
+        ]
+      }
+    },
+    {
+      "description": "Admit non-finite timeouts in confidential_attestation_verifier",
+      "killed_by": "tests/integration/test_legacy_verifier_process_lifecycle.py::test_nonfinite_timeout_cannot_construct_a_verifier",
+      "mutant": {
+        "path": "src/integration/confidential_attestation_verifier.py",
+        "needle_lines": [
+          "            or not 0 < timeout_s <= sys.float_info.max"
+        ],
+        "replacement_lines": [
+          "            or timeout_s <= 0"
+        ]
+      }
+    },
+    {
+      "description": "Reap before group cleanup in confidential_attestation_verifier",
+      "killed_by": "tests/integration/test_legacy_verifier_process_lifecycle.py::test_completed_verifier_cannot_leave_a_same_group_descendant_running",
+      "mutant": {
+        "path": "src/integration/confidential_attestation_verifier.py",
+        "needle_lines": [
+          "        return wait_for_unreaped_exit(proc, deadline=deadline), None"
+        ],
+        "replacement_lines": [
+          "        return proc.wait(timeout=1), None"
+        ]
+      }
+    },
+    {
+      "description": "Launch without required wait API in confidential_attestation_verifier",
+      "killed_by": "tests/integration/test_legacy_verifier_process_lifecycle.py::test_unavailable_unreaped_wait_rejects_before_launch",
+      "mutant": {
+        "path": "src/integration/confidential_attestation_verifier.py",
+        "needle_lines": [
+          "        if not callable(getattr(os, \"waitid\", None)) or not hasattr(os, \"WNOWAIT\"):"
+        ],
+        "replacement_lines": [
+          "        if False:"
+        ]
+      }
+    },
+    {
+      "description": "Accept exit observation at the deadline",
+      "killed_by": "tests/integration/test_legacy_verifier_process_lifecycle.py::test_completion_obeys_deadline",
+      "mutant": {
+        "path": "src/integration/_verifier_process.py",
+        "needle_lines": [
+          "        if remaining <= 0:"
+        ],
+        "replacement_lines": [
+          "        if remaining < 0:"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Configured legacy commands retain host authority and can change process groups or sessions. Namespace containment applies only to the measured adapter.",
+    "Exclusive child reaping, OS signal/wait correctness and trusted publisher remain assumptions.",
+    "No new proof, finite-width economic theorem, finality or whole-program closure. Protocol fixtures are not receipts."
+  ]
+}

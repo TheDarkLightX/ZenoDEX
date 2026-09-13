@@ -38,6 +38,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Iterator
 
+from ._verifier_process import unreaped_exit_status as _unreaped_exit_status_v1
+
 MAX_RECEIPT_BYTES_V1 = 16 * 1024 * 1024
 MAX_JOURNAL_BYTES_V1 = 1024 * 1024
 MAX_EXECUTABLE_BYTES_V1 = 128 * 1024 * 1024
@@ -286,14 +288,6 @@ def _read_output_chunk_v1(
         raise GlobalReceiptVerifierErrorV1(GlobalReceiptVerifierRejectV1.OUTPUT_LIMIT)
     if not chunk:
         selector.unregister(descriptor)
-
-
-def _unreaped_exit_status_v1(process_id: int) -> int | None:
-    # Retain the leader's PID until cleanup has signalled its process group.
-    result = os.waitid(os.P_PID, process_id, os.WEXITED | os.WNOHANG | os.WNOWAIT)
-    if result is None:
-        return None
-    return result.si_status if result.si_code == os.CLD_EXITED else -result.si_status
 
 
 def _exchange_v1(

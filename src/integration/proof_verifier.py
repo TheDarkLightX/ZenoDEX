@@ -13,6 +13,9 @@ IMPORTANT:
 - This module invokes an external process and uses wall-clock timeouts.
 - Do not make consensus-critical accept/reject decisions based on it unless
   every validator runs the same verifier deterministically.
+- Requires waitid/WNOWAIT and exclusive ownership of child reaping. Configured
+  commands retain host filesystem/network access; this port bounds pipes and
+  same-process-group lifetime under the trusted host's cleanup behavior.
 """
 
 from __future__ import annotations
@@ -22,11 +25,13 @@ import os
 import select
 import signal
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from typing import Mapping, Optional, Sequence, Tuple
 
 from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes
+from ._verifier_process import wait_for_unreaped_exit
 
 
 @dataclass(frozen=True)
@@ -93,8 +98,11 @@ class SubprocessProofVerifier(ProofVerifier):
     ) -> None:
         if not cmd:
             raise ValueError("cmd must be non-empty")
-        if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
-            raise ValueError("timeout_s must be positive")
+        if (
+            isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float))
+            or not 0 < timeout_s <= sys.float_info.max
+        ):
+            raise ValueError("timeout_s must be positive and finite")
         if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes <= 0:
             raise ValueError("max_bytes must be positive")
         if isinstance(max_stdout_bytes, bool) or not isinstance(max_stdout_bytes, int) or max_stdout_bytes <= 0:
@@ -110,6 +118,8 @@ class SubprocessProofVerifier(ProofVerifier):
     def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         if not isinstance(payload, Mapping):
             return False, "payload must be an object"
+        if not callable(getattr(os, "waitid", None)) or not hasattr(os, "WNOWAIT"):
+            return False, "proof verifier requires waitid with WNOWAIT"
 
         def _kill_proc_group() -> None:
             # start_new_session=True makes the child its own process group leader.
@@ -150,13 +160,9 @@ class SubprocessProofVerifier(ProofVerifier):
         except Exception as exc:
             return False, f"proof verifier error: {exc}"
 
-        if proc.stdin is None or proc.stdout is None or proc.stderr is None:
-            try:
-                proc.kill()
-            except Exception:
-                pass
-            return False, "proof verifier misconfigured (subprocess pipes unavailable)"
         try:
+            if proc.stdin is None or proc.stdout is None or proc.stderr is None:
+                return False, "proof verifier misconfigured (subprocess pipes unavailable)"
             for stream in (proc.stdin, proc.stdout, proc.stderr):
                 try:
                     os.set_blocking(stream.fileno(), False)
@@ -283,23 +289,12 @@ class SubprocessProofVerifier(ProofVerifier):
                 if not stdout_open and not stderr_open and (not stdin_open):
                     break
 
-            rc = proc.poll()
-            if rc is None:
-                try:
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        _kill_proc_group()
-                        _wait_after_kill()
-                        return False, "proof verification timed out"
-                    rc = proc.wait(timeout=remaining)
-                except subprocess.TimeoutExpired:
-                    _kill_proc_group()
-                    _wait_after_kill()
-                    return False, "proof verification timed out"
-                except Exception:
-                    _kill_proc_group()
-                    _wait_after_kill()
-                    return False, "proof verifier did not exit"
+            try:
+                rc = wait_for_unreaped_exit(proc, deadline=deadline)
+            except subprocess.TimeoutExpired:
+                return False, "proof verification timed out"
+            except Exception:
+                return False, "proof verifier did not exit"
 
             if rc != 0:
                 err = stderr_buf.decode("utf-8", errors="replace").strip()
@@ -324,7 +319,7 @@ class SubprocessProofVerifier(ProofVerifier):
 
             return False, "invalid verifier output (missing ok)"
         finally:
-            # Ensure the child is not left as a zombie, even if we returned early.
+            # The unreaped leader reserves its group ID until group cleanup.
             try:
                 if proc.returncode is None:
                     _kill_proc_group()
