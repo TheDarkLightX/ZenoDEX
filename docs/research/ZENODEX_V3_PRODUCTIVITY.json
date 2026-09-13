@@ -3321,6 +3321,44 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-legacy-verifier-lifetime-root",
+      "model_id": null,
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "legacy-verifier-lifetime-repair-and-combined-verification",
+      "risk": "critical",
+      "provenance": {
+        "commit": "2ee3bb45dca4594040c917a19a1ccf0aad05bb39",
+        "path": "tests/evidence/legacy_verifier_lifetime_v1_20260913.json",
+        "sha256": "e54c2284516451c07e625a44e8852a6e27678f139a92273e3d320b8d5ffea906"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-legacy-verifier-lifetime-review",
+      "model_id": null,
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-security-review-of-legacy-verifier-lifetime",
+      "risk": "critical",
+      "provenance": {
+        "commit": "2ee3bb45dca4594040c917a19a1ccf0aad05bb39",
+        "path": "tests/evidence/legacy_verifier_lifetime_v1_20260913.json",
+        "sha256": "e54c2284516451c07e625a44e8852a6e27678f139a92273e3d320b8d5ffea906"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -5663,6 +5701,134 @@
           }
         }
       ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-verifier-isolation-accounting",
+      "before_commit": "5fd40f6a0562f7a6ca8c29596bd7e093063b870f",
+      "after_commit": "d8041717fed97d6f63a77f38f06a7160644af6bd",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-verifier-isolation-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry previous evidence/account append once: +410/-1 support, no new delivery credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-legacy-verifier-lifetime",
+      "before_commit": "d8041717fed97d6f63a77f38f06a7160644af6bd",
+      "after_commit": "0e13f0e3715c0a7241e1d821790bc501189ab4bb",
+      "kind": "repair",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-legacy-verifier-lifetime-root"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Both legacy verifier ports now enforce finite deadlines and unreaped exit observation before group cleanup.83 focused and102 native/integration passes,2 genuine-proof skips,7/7 mutants killed,critical433+852 and boundary gates pass.475/65 total lines;71/56 runtime. Economic transitions/formal proofs unchanged. NOT_RESCORED; genuine margin proof host and independent finality/delivery remain pending.",
+        "evidence": {
+          "commit": "2ee3bb45dca4594040c917a19a1ccf0aad05bb39",
+          "path": "tests/evidence/legacy_verifier_lifetime_v1_20260913.json",
+          "sha256": "e54c2284516451c07e625a44e8852a6e27678f139a92273e3d320b8d5ffea906"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "AS07-LEGACY-VERIFIER-FINITE-DEADLINE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "2ee3bb45dca4594040c917a19a1ccf0aad05bb39",
+            "path": "tests/evidence/legacy_verifier_lifetime_v1_20260913.json",
+            "sha256": "e54c2284516451c07e625a44e8852a6e27678f139a92273e3d320b8d5ffea906"
+          }
+        },
+        {
+          "id": "AS07-LEGACY-VERIFIER-GROUP-CLEANUP",
+          "status": "repaired",
+          "evidence": {
+            "commit": "2ee3bb45dca4594040c917a19a1ccf0aad05bb39",
+            "path": "tests/evidence/legacy_verifier_lifetime_v1_20260913.json",
+            "sha256": "e54c2284516451c07e625a44e8852a6e27678f139a92273e3d320b8d5ffea906"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-legacy-verifier-security-review",
+      "before_commit": "0e13f0e3715c0a7241e1d821790bc501189ab4bb",
+      "after_commit": "0e13f0e3715c0a7241e1d821790bc501189ab4bb",
+      "kind": "review",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-legacy-verifier-lifetime-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Independent Codex/GPT-6-family review passes with30 lifecycle tests in1.28s and matching pins. Exact serving model unavailable. No duplicated broad gate or implementation credit.",
+        "evidence": {
+          "commit": "2ee3bb45dca4594040c917a19a1ccf0aad05bb39",
+          "path": "tests/evidence/legacy_verifier_lifetime_v1_20260913.json",
+          "sha256": "e54c2284516451c07e625a44e8852a6e27678f139a92273e3d320b8d5ffea906"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-legacy-verifier-evidence",
+      "before_commit": "0e13f0e3715c0a7241e1d821790bc501189ab4bb",
+      "after_commit": "2ee3bb45dca4594040c917a19a1ccf0aad05bb39",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-legacy-verifier-lifetime-root",
+        "V3-20260913-legacy-verifier-lifetime-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Persist scoped review, replay evidence and continuity once:144 added documentation/evidence lines. No extra delivery credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
       "supersedes": null
     }
   ]

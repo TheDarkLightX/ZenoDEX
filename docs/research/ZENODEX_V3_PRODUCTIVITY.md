@@ -2,6 +2,25 @@
 
 Status: advisory engineering account. No completion or publication authority.
 
+Latest recorded repair: `d8041717…` → `0e13f0e37…`, bounded lifetime in
+both legacy JSON verifier ports. [Scoped evidence](../../tests/evidence/legacy_verifier_lifetime_v1_20260913.json)
+records the reproduced failures, 83 focused/102 native passes (two proof skips),
+seven killed mutants and passing critical/boundary gates. Independent review
+passed 30 lifecycle tests and found no blocker. Root and reviewer are recorded
+separately; exact serving-model identifiers and resource totals are unavailable.
+Both operate as Codex/GPT-6-family agents. No Fable model request was sent.
+
+The implementation is +475/−65: runtime +71/−56, tests +220/−9, and
+required test evidence +184/−0. The preceding +410/−1 account update and
+the following 144-line evidence/continuity record count once as support.
+Source correspondence uses the evidence's explicit candidate commit. The
+assessment remains **NOT_RESCORED**; this repair changes no economic transition
+or formal proof. Full AS07, genuine margin receipts and independent
+finality/delivery remain open. This manifest append itself receives no product
+credit and should be carried as support in the next batch.
+The reporter passes against baseline manifest `d8041717…`, preserves its
+existing entries and matches this repair/review evidence to `0e13f0e37…`.
+
 The [contribution manifest](ZENODEX_V3_PRODUCTIVITY.json) connects committed
 changes to existing obligations, documented contributors, review findings and
 resource records. The report measures recorded work; it cannot prove that
