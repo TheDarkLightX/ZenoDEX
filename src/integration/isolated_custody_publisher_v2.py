@@ -47,10 +47,23 @@ from ..core.global_economic_profile_snapshot_v1 import snapshot_economic_profile
 from ..core.global_economic_state_v2 import GlobalEconomicStateV2
 from ..core.global_settlement_primitives_v2 import canonical_global_bytes_v2, hash_global_v2
 from ..core.global_settlement_types_v1 import EconomicProfileSnapshotV1, ProfileStatusV1
+from ..core.global_settlement_types_v2 import LaneIdV2
+from ..core.perps_margin_claims_v2 import require_margin_claim_projection_v2
+from ..core.perps_margin_global_v2 import PerpsMarginGlobalRejectedV2
+from ..core.perps_margin_guest_role_v2 import PerpsMarginGuestRoleBindingV2
+from ..core.perps_margin_receipt_v2 import encode_perps_margin_frame_v2
+from ..core.perps_margin_state_v2 import PerpsMarginStateV2
+from ..core.perps_margin_types_v1 import PerpsMarginCommandV1
+from ..core.perps_margin_wire_v2 import PerpsMarginRequestV2
 from .custody_publication_record_v2 import (
     CustodyPublicationRecordV2,
+    CustodyPublicationReplayV2,
     custody_request_id_v2,
     decode_custody_global_state_v2,
+    decode_joint_margin_genesis_v2,
+    encode_joint_margin_genesis_v2,
+    frame_joint_margin_publication_v2,
+    joint_margin_request_id_v2,
     raw_root_v2,
     replay_custody_publication_frame_v2,
 )
@@ -58,6 +71,7 @@ from .global_receipt_verifier_v1 import MAX_RECEIPT_BYTES_V1
 from .profiled_asset_lane_custody_receipt_v2 import (
     verify_isolated_profiled_asset_lane_custody_receipt_v2,
 )
+from .profiled_perps_margin_receipt_v2 import verify_isolated_profiled_perps_margin_receipt_v2
 
 # Operational bounds for this reference store, not protocol population limits.
 MAX_CUSTODY_PUBLICATIONS_V2 = 64
@@ -122,12 +136,48 @@ class CustodyPublicationConfigurationV2:
 
 
 @dataclass(frozen=True, slots=True)
+class JointMarginPublicationConfigurationV2:
+    """Independently selected fixed pair of custody and margin receipt roles."""
+
+    custody: CustodyPublicationConfigurationV2
+    margin_role: PerpsMarginGuestRoleBindingV2
+    margin_receipt_executable_path: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "custody", _configuration_copy(self.custody))
+        if type(self.margin_role) is not PerpsMarginGuestRoleBindingV2:
+            raise TypeError("joint margin role must be exact")
+        role = PerpsMarginGuestRoleBindingV2(
+            self.margin_role.profile_root, self.margin_role.authority_epoch,
+            self.margin_role.evidence_manifest,
+        )
+        object.__setattr__(self, "margin_role", role)
+        if (role.profile_root, role.authority_epoch) != (
+            self.custody.profile.profile_id, self.custody.profile.authority_epoch,
+        ):
+            raise ValueError("joint margin role and custody profile differ")
+        if type(self.margin_receipt_executable_path) is not str:
+            raise TypeError("margin receipt executable path must be exact str")
+
+    @property
+    def binding_root(self) -> str:
+        return hash_global_v2("isolated-joint-margin-roles-v2", {
+            "custody": self.custody.guest_role_binding.binding_root,
+            "margin": self.margin_role.binding_root,
+        })
+
+
+PublicationConfigurationV2 = CustodyPublicationConfigurationV2 | JointMarginPublicationConfigurationV2
+
+
+@dataclass(frozen=True, slots=True)
 class CustodyPublicationSnapshotV2:
     publication_id: str
     sequence: int
     authority: GlobalEconomicAuthorityHeadV2
     global_state: GlobalEconomicStateV2
     custody_state: AssetLaneCustodyStateV2
+    margin_state: PerpsMarginStateV2 | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +217,17 @@ def _configuration_copy(
     )
 
 
+def _complete_predecessor_matches_v2(
+    replay: CustodyPublicationReplayV2, head: CustodyPublicationSnapshotV2,
+) -> bool:
+    return all(canonical_global_bytes_v2(before) == canonical_global_bytes_v2(current)
+               for before, current in (
+                   (replay.global_pre, head.global_state),
+                   (replay.lane_pre, head.custody_state),
+                   (replay.margin_pre, head.margin_state),
+               ))
+
+
 class IsolatedCustodyPublisherV2:
     """Own admission and the sole write path of one isolated custody ledger."""
 
@@ -176,19 +237,41 @@ class IsolatedCustodyPublisherV2:
         path: Path,
         global_raw: bytes,
         lane_raw: bytes,
-        configuration: CustodyPublicationConfigurationV2,
+        configuration: PublicationConfigurationV2,
     ) -> None:
         if mint is not _MINT:
             raise TypeError("custody publisher requires create/open admission")
         self._path = path
-        self._configuration = _configuration_copy(configuration)
+        self._joint_configuration: JointMarginPublicationConfigurationV2 | None = None
+        if type(configuration) is JointMarginPublicationConfigurationV2:
+            self._joint_configuration = JointMarginPublicationConfigurationV2(
+                configuration.custody, configuration.margin_role,
+                configuration.margin_receipt_executable_path,
+            )
+            self._configuration = self._joint_configuration.custody
+        elif type(configuration) is CustodyPublicationConfigurationV2:
+            self._configuration = _configuration_copy(configuration)
+        else:
+            raise TypeError("publication configuration must have an exact supported type")
         self._global_raw, self._lane_raw = global_raw, lane_raw
         global_state = decode_custody_global_state_v2(global_raw)
-        lane_state = decode_asset_lane_custody_state_v2(lane_raw)
+        self._initial_margin: PerpsMarginStateV2 | None = None
+        if self._joint_configuration is not None:
+            lane_state, self._initial_margin = decode_joint_margin_genesis_v2(lane_raw)
+            require_margin_claim_projection_v2(self._initial_margin, global_state)
+            if {row.lane_id for row in global_state.lane_roots if row.enabled} != {
+                LaneIdV2.ASSET_TRANSFER, LaneIdV2.PERPS_MARKET,
+            }:
+                raise ValueError("joint isolated genesis supports exactly custody and margin lanes")
+            if any(account.position_base != 0 for account in self._initial_margin.economic_state.accounts):
+                raise ValueError("joint isolated genesis requires flat margin accounts")
+        else:
+            lane_state = decode_asset_lane_custody_state_v2(lane_raw)
         _require_complete_projection(lane_state, global_state)
         _require_global_predecessor_binding_v2(global_state, self._configuration.profile)
         self._genesis_id = hash_global_v2(
-            "isolated-custody-genesis-v2",
+            "isolated-joint-margin-genesis-v2" if self._joint_configuration is not None
+            else "isolated-custody-genesis-v2",
             {
                 "global_state": raw_root_v2(global_raw),
                 "custody_state": raw_root_v2(lane_raw),
@@ -202,7 +285,9 @@ class IsolatedCustodyPublisherV2:
             epoch_store_root=hash_global_v2("isolated-custody-store-v2", {"file_name": path.name}),
             profile_root=global_state.profile_root,
             writer_epoch=global_state.writer_epoch,
-            guest_role_binding_root=self._configuration.guest_role_binding.binding_root,
+            guest_role_binding_root=(self._joint_configuration.binding_root
+                                     if self._joint_configuration is not None
+                                     else self._configuration.guest_role_binding.binding_root),
             signature_manifest_root=self._configuration.signature_manifest.manifest_root,
             status=GlobalEconomicAuthorityStatusV2.ACTIVE,
         )
@@ -215,14 +300,16 @@ class IsolatedCustodyPublisherV2:
         path: str | Path,
         global_state: GlobalEconomicStateV2,
         custody_state: AssetLaneCustodyStateV2,
-        configuration: CustodyPublicationConfigurationV2,
+        configuration: PublicationConfigurationV2,
+        *,
+        margin_state: PerpsMarginStateV2 | None = None,
     ) -> IsolatedCustodyPublisherV2:
-        publisher = cls._prepare(path, global_state, custody_state, configuration)
+        publisher = cls._prepare(path, global_state, custody_state, configuration, margin_state)
         try:
             _install_genesis_v2(publisher)
         finally:
             publisher.close()
-        return cls.open(path, global_state, custody_state, configuration)
+        return cls.open(path, global_state, custody_state, configuration, margin_state=margin_state)
 
     @classmethod
     def open(
@@ -230,9 +317,11 @@ class IsolatedCustodyPublisherV2:
         path: str | Path,
         global_state: GlobalEconomicStateV2,
         custody_state: AssetLaneCustodyStateV2,
-        configuration: CustodyPublicationConfigurationV2,
+        configuration: PublicationConfigurationV2,
+        *,
+        margin_state: PerpsMarginStateV2 | None = None,
     ) -> IsolatedCustodyPublisherV2:
-        publisher = cls._prepare(path, global_state, custody_state, configuration)
+        publisher = cls._prepare(path, global_state, custody_state, configuration, margin_state)
         try:
             publisher._connect()
             head = publisher.snapshot()
@@ -249,7 +338,8 @@ class IsolatedCustodyPublisherV2:
         path: str | Path,
         global_state: GlobalEconomicStateV2,
         custody_state: AssetLaneCustodyStateV2,
-        configuration: CustodyPublicationConfigurationV2,
+        configuration: PublicationConfigurationV2,
+        margin_state: PerpsMarginStateV2 | None,
     ) -> IsolatedCustodyPublisherV2:
         if cls is not IsolatedCustodyPublisherV2:
             raise TypeError("custody publisher class must be exact")
@@ -263,11 +353,18 @@ class IsolatedCustodyPublisherV2:
             or type(custody_state) is not AssetLaneCustodyStateV2
         ):
             raise TypeError("custody genesis requires both exact state types")
+        joint = type(configuration) is JointMarginPublicationConfigurationV2
+        if joint != (type(margin_state) is PerpsMarginStateV2):
+            raise TypeError("joint configuration requires the complete margin genesis")
+        if not joint and margin_state is not None:
+            raise TypeError("custody-only configuration cannot take margin state")
+        lane_raw = (encode_joint_margin_genesis_v2(custody_state, margin_state)
+                    if joint and margin_state is not None else canonical_global_bytes_v2(custody_state))
         return cls(
             _MINT,
             normalized,
             canonical_global_bytes_v2(global_state),
-            canonical_global_bytes_v2(custody_state),
+            lane_raw,
             configuration,
         )
 
@@ -376,12 +473,17 @@ class IsolatedCustodyPublisherV2:
             (1, 66)
         ]:
             raise ValueError("custody current head exceeds its shape bound")
+        if self._joint_configuration is None:
+            assets, margin = decode_asset_lane_custody_state_v2(self._lane_raw), None
+        else:
+            assets, margin = decode_joint_margin_genesis_v2(self._lane_raw)
         initial = CustodyPublicationSnapshotV2(
             self._genesis_id,
             0,
             authority,
             decode_custody_global_state_v2(self._global_raw),
-            decode_asset_lane_custody_state_v2(self._lane_raw),
+            assets,
+            margin,
         )
         head, records = self._validate_history(initial)
         if connection.execute(
@@ -400,6 +502,8 @@ class IsolatedCustodyPublisherV2:
         records = []
         for row in rows:
             record = CustodyPublicationRecordV2(row[0], *row[3:])
+            if record.is_joint_margin != (self._joint_configuration is not None):
+                raise ValueError("custody record frame does not match the selected deployment")
             replay = record.replay()
             if (
                 row[1],
@@ -415,11 +519,7 @@ class IsolatedCustodyPublisherV2:
                 self._expected_authority.authority_root,
             ):
                 raise ValueError("custody record lineage or identity mismatch")
-            if canonical_global_bytes_v2(replay.global_pre) != canonical_global_bytes_v2(
-                head.global_state
-            ) or canonical_global_bytes_v2(replay.lane_pre) != canonical_global_bytes_v2(
-                head.custody_state
-            ):
+            if not _complete_predecessor_matches_v2(replay, head):
                 raise ValueError("custody record predecessor is not the complete committed source")
             head = CustodyPublicationSnapshotV2(
                 record.publication_id,
@@ -427,6 +527,7 @@ class IsolatedCustodyPublisherV2:
                 head.authority,
                 replay.global_post,
                 replay.lane_post,
+                replay.margin_post,
             )
             records.append(record)
         return head, tuple(records)
@@ -449,14 +550,26 @@ class IsolatedCustodyPublisherV2:
     def publish(
         self,
         candidate: EconomicCommandAuthenticationCandidateV2,
-        context: AssetLaneContextV2,
-        command: AssetLaneCommandV2,
+        context: AssetLaneContextV2 | PerpsMarginRequestV2,
+        command: AssetLaneCommandV2 | None = None,
         *,
         receipt_bytes: bytes,
-    ) -> CustodyPublicationOutcomeV2 | AssetLaneRejectedV2:
+    ) -> CustodyPublicationOutcomeV2 | AssetLaneRejectedV2 | PerpsMarginGlobalRejectedV2:
         owned, _, message = prepare_isolated_economic_command_authentication_v2(candidate)
-        owned_context = _snapshot_asset_lane_context_v2(context)
-        _, owned_command = _route_and_owned_command_v2(command)
+        owned_context: AssetLaneContextV2 | PerpsMarginRequestV2
+        owned_command: AssetLaneCommandV2 | PerpsMarginCommandV1
+        if type(context) is PerpsMarginRequestV2:
+            if command is not None or self._joint_configuration is None:
+                raise TypeError("margin publication needs a joint deployment and one owned request")
+            owned_context = PerpsMarginRequestV2(context.command, context.occurrence, context.oracle)
+            owned_command = owned_context.command
+            requested_pre_root = owned_context.occurrence.pre_state_root
+        elif type(context) is AssetLaneContextV2 and command is not None:
+            owned_context = _snapshot_asset_lane_context_v2(context)
+            _, owned_command = _route_and_owned_command_v2(command)
+            requested_pre_root = owned_context.global_pre_state_root
+        else:
+            raise TypeError("publication request must have its exact route-owned type")
         if type(receipt_bytes) is not bytes:
             raise TypeError("custody publication receipt must be exact bytes")
         if len(receipt_bytes) > MAX_RECEIPT_BYTES_V1:
@@ -471,7 +584,8 @@ class IsolatedCustodyPublisherV2:
             owned.envelope.signature_bytes,
             receipt_bytes,
         )
-        request_id = custody_request_id_v2(*request_parts)
+        identify = joint_margin_request_id_v2 if self._joint_configuration is not None else custody_request_id_v2
+        request_id = identify(*request_parts)
         head, records = self._read()
         expected = (
             head.publication_id,
@@ -488,31 +602,12 @@ class IsolatedCustodyPublisherV2:
                 )
         if head.authority != self._expected_authority:
             return CustodyPublicationOutcomeV2(CustodyPublicationStatusV2.AUTHORITY_STALE, head)
-        if owned_context.global_pre_state_root != head.global_state.state_root:
+        if requested_pre_root != head.global_state.state_root:
             return CustodyPublicationOutcomeV2(CustodyPublicationStatusV2.STALE_HEAD, head)
-        frame = prepare_asset_lane_custody_global_prover_input_v2(
-            owned_context, head.custody_state, owned_command, head.global_state
-        )
-        post = head.global_state
-        if type(frame) is bytes:
-            post = replay_custody_publication_frame_v2(frame).global_post
-        statement = verify_isolated_profiled_asset_lane_custody_receipt_v2(
-            owned,
-            owned_context,
-            head.custody_state,
-            owned_command,
-            head.global_state,
-            post,
-            guest_role_binding=config.guest_role_binding,
-            expected_guest_role_binding_root=config.guest_role_binding.binding_root,
-            receipt_executable_path=config.receipt_executable_path,
-            receipt_timeout_ms=config.receipt_timeout_ms,
-            signature_artifact_path=config.signature_artifact_path,
-            signature_evidence_manifest=config.signature_manifest,
-            signature_timeout_ms=config.signature_timeout_ms,
-            receipt_bytes=receipt_bytes,
-        )
+        frame, statement = self._verify_request_v2(owned, owned_context, owned_command, head, receipt_bytes)
         if type(statement) is AssetLaneRejectedV2:
+            return statement
+        if type(statement) is PerpsMarginGlobalRejectedV2:
             return statement
         if type(frame) is not bytes:
             raise ValueError("custody accepted statement lacks its frame")
@@ -563,10 +658,8 @@ class IsolatedCustodyPublisherV2:
                     replay = record.replay()
                     if (
                         record.authority_root != head.authority.authority_root
-                        or canonical_global_bytes_v2(replay.global_pre)
-                        != canonical_global_bytes_v2(head.global_state)
-                        or canonical_global_bytes_v2(replay.lane_pre)
-                        != canonical_global_bytes_v2(head.custody_state)
+                        or record.is_joint_margin != (self._joint_configuration is not None)
+                        or not _complete_predecessor_matches_v2(replay, head)
                     ):
                         raise ValueError(
                             "custody record source or authority differs from acquired snapshot"
@@ -617,6 +710,7 @@ class IsolatedCustodyPublisherV2:
                         head.authority,
                         replay.global_post,
                         replay.lane_post,
+                        replay.margin_post,
                     )
                     return CustodyPublicationOutcomeV2(
                         CustodyPublicationStatusV2.COMMITTED, post, record.publication_id
@@ -631,6 +725,54 @@ class IsolatedCustodyPublisherV2:
                     _rollback_or_indeterminate_v2(connection)
 
         return commit_verified()
+
+    def _verify_request_v2(
+        self, candidate: EconomicCommandAuthenticationCandidateV2,
+        context: AssetLaneContextV2 | PerpsMarginRequestV2,
+        command: AssetLaneCommandV2 | PerpsMarginCommandV1,
+        head: CustodyPublicationSnapshotV2, receipt: bytes,
+    ) -> tuple[bytes | AssetLaneRejectedV2, bytes | AssetLaneRejectedV2 | PerpsMarginGlobalRejectedV2]:
+        """Select one fixed verifier path; all economic writes stay in publish()."""
+        config = self._configuration
+        if type(context) is PerpsMarginRequestV2:
+            joint = self._joint_configuration
+            if joint is None or head.margin_state is None:
+                raise ValueError("margin publication requires complete store-owned margin state")
+            frame = encode_perps_margin_frame_v2(head.custody_state, head.margin_state, head.global_state, context)
+            statement = verify_isolated_profiled_perps_margin_receipt_v2(
+                candidate, head.custody_state, head.margin_state, head.global_state, context,
+                guest_role_binding=joint.margin_role,
+                expected_guest_role_binding_root=joint.margin_role.binding_root,
+                receipt_executable_path=joint.margin_receipt_executable_path,
+                receipt_timeout_ms=config.receipt_timeout_ms,
+                signature_artifact_path=config.signature_artifact_path,
+                signature_evidence_manifest=config.signature_manifest,
+                signature_timeout_ms=config.signature_timeout_ms,
+                receipt_bytes=receipt,
+            )
+            return frame_joint_margin_publication_v2(frame, None), statement
+        asset_context = cast(AssetLaneContextV2, context)
+        asset_command = cast(AssetLaneCommandV2, command)
+        custody_frame = prepare_asset_lane_custody_global_prover_input_v2(
+            asset_context, head.custody_state, asset_command, head.global_state,
+        )
+        post = head.global_state
+        if type(custody_frame) is bytes:
+            post = replay_custody_publication_frame_v2(custody_frame).global_post
+        custody_statement = verify_isolated_profiled_asset_lane_custody_receipt_v2(
+            candidate, asset_context, head.custody_state, asset_command, head.global_state, post,
+            guest_role_binding=config.guest_role_binding,
+            expected_guest_role_binding_root=config.guest_role_binding.binding_root,
+            receipt_executable_path=config.receipt_executable_path,
+            receipt_timeout_ms=config.receipt_timeout_ms,
+            signature_artifact_path=config.signature_artifact_path,
+            signature_evidence_manifest=config.signature_manifest,
+            signature_timeout_ms=config.signature_timeout_ms,
+            receipt_bytes=receipt,
+        )
+        if type(custody_frame) is bytes and head.margin_state is not None:
+            custody_frame = frame_joint_margin_publication_v2(custody_frame, head.margin_state)
+        return custody_frame, custody_statement
 
     def revoke(self) -> GlobalEconomicAuthorityHeadV2:
         """Terminal local operator revocation; this is no governance authority."""

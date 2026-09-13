@@ -1209,6 +1209,14 @@
       }
     ]
   },
-  "assessment_basis": {"kind": "SCOPED_REVIEWED_AMENDMENT", "inherited_subject": "417ec94ad39389c8e2beceee69ceabe565828302", "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json", "inherited_assessment_sha256": "f0ed52c2fb37eb66a50736149a755213b67fe683cf5cb3c05d42f26e62738ebd", "inherited_storage_commit": "e95e897c9288b6c58500c5c9426e932f29e82967", "scope": "Only margin_deposit and margin_withdraw refinement .50 to .55; every other score and all qualification counts inherited.", "review_evidence": "tests/evidence/perps_margin_rust_v2_20260913.json"},
-  "subject": "22e330b4e4190cd97c022ea3b6fbf1eba1aaaa39"
+  "assessment_basis": {
+    "kind": "SCOPED_CARRIED_FORWARD_BASELINE",
+    "inherited_subject": "22e330b4e4190cd97c022ea3b6fbf1eba1aaaa39",
+    "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+    "inherited_assessment_sha256": "57317f8ca68072458aa59ef6f4cb878e96381f50466b88b91bee55062a6aae36",
+    "inherited_storage_commit": "51cb8e8a264a0e39564964823dbf40d21078df2c",
+    "scope": "Numerical scores and evidence inherited unchanged. No src, zk or lean-mathlib changes between the prior assessed subject and this integration base; intervening upstream handoff/review work earns no automatic product credit. Not a fresh lane-wide rescore.",
+    "review_evidence": "tests/evidence/perps_margin_publication_v2_20260913.json"
+  },
+  "subject": "51cb8e8a264a0e39564964823dbf40d21078df2c"
 }

@@ -53,14 +53,25 @@ from ..core.global_settlement_primitives_v2 import (
     _require_root_v2,
     _require_token_v2,
     canonical_economic_command_body_bytes_v2,
+    canonical_global_bytes_v2,
     hash_global_v2,
 )
 from ..core.global_settlement_wire_codec_v2 import (
     _decode_global_state_object_v2,
     _load_canonical_object_v2,
 )
+from ..core.perps_margin_claims_v2 import require_margin_claim_projection_v2
+from ..core.perps_margin_receipt_v2 import replay_perps_margin_frame_v2
+from ..core.perps_margin_state_v2 import PerpsMarginStateV2
+from ..core.perps_margin_types_v1 import PerpsMarginCommandV1
+from ..core.perps_margin_wire_v2 import PerpsMarginRequestV2, decode_perps_margin_state_v2
 from ..state.canonical import domain_sep_bytes
 from .global_receipt_verifier_v1 import MAX_JOURNAL_BYTES_V1, MAX_RECEIPT_BYTES_V1
+
+JOINT_MARGIN_FRAME_MAGIC_V2 = b"ZDJM2\x00"
+MAX_JOINT_MARGIN_FRAME_BYTES_V2 = (
+    MAX_ASSET_LANE_CUSTODY_GLOBAL_FRAME_BYTES_V2 + 1_048_576 + 11
+)
 
 
 def raw_root_v2(raw: bytes) -> str:
@@ -73,13 +84,15 @@ def decode_custody_global_state_v2(raw: bytes) -> GlobalEconomicStateV2:
 
 @dataclass(frozen=True, slots=True)
 class CustodyPublicationReplayV2:
-    context: AssetLaneContextV2
-    command: AssetLaneCommandV2
+    context: AssetLaneContextV2 | PerpsMarginRequestV2
+    command: AssetLaneCommandV2 | PerpsMarginCommandV1
     global_pre: GlobalEconomicStateV2
     lane_pre: AssetLaneCustodyStateV2
     global_post: GlobalEconomicStateV2
     lane_post: AssetLaneCustodyStateV2
     statement: bytes
+    margin_pre: PerpsMarginStateV2 | None = None
+    margin_post: PerpsMarginStateV2 | None = None
 
 
 def replay_custody_publication_frame_v2(frame: bytes) -> CustodyPublicationReplayV2:
@@ -162,6 +175,12 @@ def custody_request_id_v2(
     )
 
 
+def joint_margin_request_id_v2(*parts: bytes) -> str:
+    return hash_global_v2(
+        "isolated-joint-margin-request-v2", {"request_root": custody_request_id_v2(*parts)}
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class CustodyPublicationRecordV2:
     sequence: int
@@ -180,7 +199,8 @@ class CustodyPublicationRecordV2:
         _require_root_v2(self.source_publication_id, name="custody publication predecessor")
         _require_root_v2(self.authority_root, name="custody publication authority")
         for raw, limit in (
-            (self.frame, MAX_ASSET_LANE_CUSTODY_GLOBAL_FRAME_BYTES_V2),
+            (self.frame, MAX_JOINT_MARGIN_FRAME_BYTES_V2 if self.is_joint_margin
+             else MAX_ASSET_LANE_CUSTODY_GLOBAL_FRAME_BYTES_V2),
             (self.statement, MAX_JOURNAL_BYTES_V1),
             (self.authentication_message, MAX_JOURNAL_BYTES_V1),
             (self.signature, MAX_COMMAND_SIGNATURE_BYTES_V1),
@@ -190,7 +210,10 @@ class CustodyPublicationRecordV2:
                 raise ValueError("custody publication component exceeds its type or byte bound")
 
     def replay(self) -> CustodyPublicationReplayV2:
-        replay = replay_custody_publication_frame_v2(self.frame)
+        if self.is_joint_margin:
+            replay = replay_joint_margin_publication_v2(self.frame)
+        else:
+            replay = replay_custody_publication_frame_v2(self.frame)
         if replay.statement != self.statement:
             raise ValueError("custody publication statement differs from pure replay")
         _require_authentication_transcript_v2(self.authentication_message, replay)
@@ -198,10 +221,11 @@ class CustodyPublicationRecordV2:
 
     @property
     def publication_id(self) -> str:
+        domain = "isolated-joint-margin-publication-v2" if self.is_joint_margin else "isolated-custody-publication-v2"
         return hash_global_v2(
-            "isolated-custody-publication-v2",
+            domain,
             {
-                "schema": "isolated-custody-publication-v2",
+                "schema": domain,
                 "abi": GLOBAL_SETTLEMENT_ABI_V2,
                 "sequence": self.sequence,
                 "source_publication_id": self.source_publication_id,
@@ -216,10 +240,21 @@ class CustodyPublicationRecordV2:
 
     @property
     def request_id(self) -> str:
-        return custody_request_id_v2(*self.request_parts)
+        identify = joint_margin_request_id_v2 if self.is_joint_margin else custody_request_id_v2
+        return identify(*self.request_parts)
+
+    @property
+    def is_joint_margin(self) -> bool:
+        return type(self.frame) is bytes and self.frame.startswith(JOINT_MARGIN_FRAME_MAGIC_V2)
 
     @property
     def request_parts(self) -> tuple[bytes, bytes, bytes, bytes, bytes]:
+        if self.is_joint_margin:
+            replay = self.replay()
+            return (
+                canonical_global_bytes_v2(replay.context), canonical_global_bytes_v2(replay.command),
+                self.authentication_message, self.signature, self.receipt,
+            )
         _, context, _, command, _, _ = decode_asset_lane_custody_global_frame_v2(self.frame)
         return context, command, self.authentication_message, self.signature, self.receipt
 
@@ -237,3 +272,92 @@ class CustodyPublicationRecordV2:
                 ),
             )
         )
+
+
+JOINT_MARGIN_GENESIS_MAGIC_V2 = b"ZDJG2\x00"
+_MARGIN_BYTES_LIMIT = 1_048_576
+
+
+def encode_joint_margin_genesis_v2(
+    assets: AssetLaneCustodyStateV2, margin: PerpsMarginStateV2,
+) -> bytes:
+    components = (canonical_global_bytes_v2(assets), canonical_global_bytes_v2(margin))
+    if any(not 1 <= len(raw) <= _MARGIN_BYTES_LIMIT for raw in components):
+        raise ValueError("joint margin genesis component exceeds its byte bound")
+    return JOINT_MARGIN_GENESIS_MAGIC_V2 + b"".join(
+        len(raw).to_bytes(4, "little") + raw for raw in components
+    )
+
+
+def decode_joint_margin_genesis_v2(raw: bytes) -> tuple[AssetLaneCustodyStateV2, PerpsMarginStateV2]:
+    cursor = len(JOINT_MARGIN_GENESIS_MAGIC_V2)
+    if type(raw) is not bytes or len(raw) > cursor + 2 * (_MARGIN_BYTES_LIMIT + 4):
+        raise ValueError("joint margin genesis exceeds its type or byte bound")
+    if not raw.startswith(JOINT_MARGIN_GENESIS_MAGIC_V2):
+        raise ValueError("joint margin genesis discriminator mismatch")
+    components = []
+    for _ in range(2):
+        if cursor + 4 > len(raw):
+            raise ValueError("joint margin genesis length is truncated")
+        size = int.from_bytes(raw[cursor:cursor + 4], "little")
+        cursor += 4
+        if not 1 <= size <= _MARGIN_BYTES_LIMIT or cursor + size > len(raw):
+            raise ValueError("joint margin genesis component is invalid")
+        components.append(raw[cursor:cursor + size])
+        cursor += size
+    if cursor != len(raw):
+        raise ValueError("joint margin genesis has trailing bytes")
+    assets = decode_asset_lane_custody_state_v2(components[0])
+    margin = decode_perps_margin_state_v2(components[1])
+    if encode_joint_margin_genesis_v2(assets, margin) != raw:
+        raise ValueError("joint margin genesis must be canonical")
+    return assets, margin
+
+
+def frame_joint_margin_publication_v2(frame: bytes, margin: PerpsMarginStateV2 | None) -> bytes:
+    """Tag a margin frame, or retain the unchanged margin beside a custody frame."""
+    if type(frame) is not bytes:
+        raise TypeError("joint publication frame must be exact bytes")
+    if margin is None:
+        result = JOINT_MARGIN_FRAME_MAGIC_V2 + b"\x01" + frame
+    else:
+        raw = canonical_global_bytes_v2(margin)
+        if not 1 <= len(raw) <= _MARGIN_BYTES_LIMIT:
+            raise ValueError("joint publication margin exceeds its byte bound")
+        result = JOINT_MARGIN_FRAME_MAGIC_V2 + b"\x00" + len(raw).to_bytes(4, "little") + raw + frame
+    if len(result) > MAX_JOINT_MARGIN_FRAME_BYTES_V2:
+        raise ValueError("joint publication frame exceeds its byte bound")
+    return result
+
+
+def replay_joint_margin_publication_v2(raw: bytes) -> CustodyPublicationReplayV2:
+    if type(raw) is not bytes or len(raw) > MAX_JOINT_MARGIN_FRAME_BYTES_V2:
+        raise ValueError("joint publication frame exceeds its type or byte bound")
+    cursor = len(JOINT_MARGIN_FRAME_MAGIC_V2)
+    if not raw.startswith(JOINT_MARGIN_FRAME_MAGIC_V2) or len(raw) <= cursor:
+        raise ValueError("joint publication frame discriminator is absent")
+    tag, cursor = raw[cursor], cursor + 1
+    if tag == 1:
+        margin_replay = replay_perps_margin_frame_v2(raw[cursor:])
+        if margin_replay.request.oracle is not None:
+            raise ValueError("joint publication cannot authenticate oracle candidate data")
+        return CustodyPublicationReplayV2(
+            margin_replay.request, margin_replay.request.command,
+            margin_replay.global_pre, margin_replay.assets_pre,
+            margin_replay.result.post_state, margin_replay.result.post_assets, margin_replay.statement,
+            margin_replay.margin_pre, margin_replay.result.post_margin,
+        )
+    if tag != 0 or cursor + 4 > len(raw):
+        raise ValueError("joint publication route or margin length is invalid")
+    size = int.from_bytes(raw[cursor:cursor + 4], "little")
+    cursor += 4
+    if not 1 <= size <= _MARGIN_BYTES_LIMIT or cursor + size >= len(raw):
+        raise ValueError("joint publication margin component is invalid")
+    margin = decode_perps_margin_state_v2(raw[cursor:cursor + size])
+    replay = replay_custody_publication_frame_v2(raw[cursor + size:])
+    require_margin_claim_projection_v2(margin, replay.global_pre)
+    require_margin_claim_projection_v2(margin, replay.global_post)
+    return CustodyPublicationReplayV2(
+        replay.context, replay.command, replay.global_pre, replay.lane_pre,
+        replay.global_post, replay.lane_post, replay.statement, margin, margin,
+    )
