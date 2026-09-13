@@ -1,0 +1,221 @@
+{
+  "schema": "zenodex/v3-scoped-assessment-review/v1",
+  "subject": "e05f293e3eab020b5790252007fe43316167bb39",
+  "baseline_subject": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
+  "status": "ADOPTED_SCOPED_ADVISORY_AMENDMENT",
+  "authority": "NONE",
+  "baseline_assessment": {
+    "kind": "SCOPED_REVIEWED_AMENDMENT",
+    "inherited_subject": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
+    "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+    "inherited_assessment_sha256": "5178bdfebd9a892b4db6a1f9bed30204e048ccb162f035cc54cfa69890eabe1a",
+    "inherited_storage_commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+    "scope": "Only W03,W06,W10,W11 change; Fable independent source review plus root review. All 103 capability scores, formal rows, weights and qualification flags are inherited. Current uncommitted resource-quota tests receive no credit.",
+    "review_evidence": "tests/evidence/v3_attack_surface_assessment_review_20260913.json"
+  },
+  "review": {
+    "model_id": "claude-fable-5-1",
+    "model_identity_basis": "CLI declaration; serving identity not independently attested",
+    "result": "Completed independent read-only source and evidence review; root accepts four row edits and unchanged formal scores.",
+    "session_id": "c809f0d0-335b-4e0b-8cb3-e22e8dbbfd06",
+    "raw_output_sha256": "1ad726e87f19580a14f3ce67a57a20404b1d8f11788c219bfd23506e4f69f567",
+    "report_text_sha256": "da8687b94f1e6e71eeb345c252645fe53c5515e152838dd5baa08d297328134a",
+    "fresh_tests_or_builds": false,
+    "subagents_spawned": 0,
+    "resources": {
+      "input_tokens": 226,
+      "cache_creation_input_tokens": 134626,
+      "cache_read_input_tokens": 430452,
+      "output_tokens": 26959,
+      "elapsed_ms": 361216,
+      "list_price_cost_microusd": 4150343
+    },
+    "resource_note": "CLI source-recorded usage, not independently verified billing. Input field excludes cache writes/reads, retained separately. CLI also reports a small Haiku helper; root resources are unavailable."
+  },
+  "row_changes": [
+    {
+      "row": "W03",
+      "weight": 4,
+      "before": [
+        0.45,
+        0.55,
+        0.65
+      ],
+      "after": [
+        0.48,
+        0.58,
+        0.68
+      ],
+      "rationale": "The measured margin verifier and real negative controls now exercise the Python boundary. Bounded failure and lifetime behavior is repaired; genuine matching margin receipt success is still unqualified."
+    },
+    {
+      "row": "W06",
+      "weight": 5,
+      "before": [
+        0.5,
+        0.6,
+        0.7
+      ],
+      "after": [
+        0.52,
+        0.62,
+        0.72
+      ],
+      "rationale": "Real BLS authentication and native malformed-receipt rejection reach the isolated publisher with logical no-op evidence. The prior .55 margin publication capability credit is unchanged; genuine matching receipts remain pending."
+    },
+    {
+      "row": "W10",
+      "weight": 6,
+      "before": [
+        0.12,
+        0.2,
+        0.3
+      ],
+      "after": [
+        0.14,
+        0.23,
+        0.33
+      ],
+      "rationale": "The new joint margin/global guest compiles, has a rebuilt image guard, and executes connected histories and in-guest rejects. Execution is preparation for proof qualification; no new receipt, coordinator, route or epoch proof is qualified."
+    },
+    {
+      "row": "W11",
+      "weight": 8,
+      "before": [
+        0.15,
+        0.22,
+        0.3
+      ],
+      "after": [
+        0.17,
+        0.24,
+        0.32
+      ],
+      "rationale": "Retained histories can be independently reauthenticated against supplied checkpoints; the measured endpoint has host-data and namespace containment. Checkpoint provenance, deployment mediation and aggregate resources remain open."
+    }
+  ],
+  "calculator_command": "python3 tools/v3_progress_assessment_calc.py tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+  "scores_before": {
+    "full_v3": {
+      "total_weight": 99.9999,
+      "row_count": 32,
+      "kinds": {
+        "workstream": 12,
+        "lane": 12,
+        "route": 4,
+        "exclusion": 4
+      },
+      "low_percent": 17.012,
+      "central_percent": 24.268,
+      "high_percent": 32.346,
+      "unknown_as_low_percent": 23.788,
+      "legacy_zero_percent": 22.596,
+      "unverified_only_weight_share_percent": 6.0
+    },
+    "formal_core": {
+      "total_weight": 140.0,
+      "row_count": 21,
+      "kinds": {
+        "lane": 12,
+        "route": 4,
+        "cross": 5
+      },
+      "low_percent": 15.611,
+      "central_percent": 21.44,
+      "high_percent": 27.526,
+      "unknown_as_low_percent": 21.44,
+      "legacy_zero_percent": 15.882,
+      "unverified_only_weight_share_percent": 0.0
+    }
+  },
+  "scores_after": {
+    "full_v3": {
+      "total_weight": 99.9999,
+      "row_count": 32,
+      "kinds": {
+        "workstream": 12,
+        "lane": 12,
+        "route": 4,
+        "exclusion": 4
+      },
+      "low_percent": 17.512,
+      "central_percent": 24.828,
+      "high_percent": 32.906,
+      "unknown_as_low_percent": 24.828,
+      "legacy_zero_percent": 23.156,
+      "unverified_only_weight_share_percent": 0.0
+    },
+    "formal_core": {
+      "total_weight": 140.0,
+      "row_count": 21,
+      "kinds": {
+        "lane": 12,
+        "route": 4,
+        "cross": 5
+      },
+      "low_percent": 15.611,
+      "central_percent": 21.44,
+      "high_percent": 27.526,
+      "unknown_as_low_percent": 21.44,
+      "legacy_zero_percent": 15.882,
+      "unverified_only_weight_share_percent": 0.0
+    }
+  },
+  "completed_range_line_changes": {
+    "runtime": {
+      "added": 938,
+      "removed": 59
+    },
+    "proof": {
+      "added": 0,
+      "removed": 0
+    },
+    "tests": {
+      "added": 1488,
+      "removed": 32
+    },
+    "tooling": {
+      "added": 254,
+      "removed": 0
+    },
+    "config": {
+      "added": 76,
+      "removed": 3
+    },
+    "data": {
+      "added": 3339,
+      "removed": 16
+    },
+    "docs": {
+      "added": 914,
+      "removed": 1
+    },
+    "lockfile": {
+      "added": 2724,
+      "removed": 0
+    },
+    "other": {
+      "added": 0,
+      "removed": 0
+    }
+  },
+  "root_review": [
+    "W03 credits measured endpoint and negative-control qualification; W06 credits rejection purity through actual native boundaries; W10 credits compiled guest preparation; W11 credits audit/containment. Neither test counts nor line counts determine scores.",
+    "No W09, formal capability or F-REFINE change: the guest reruns the previously parity-tested Rust transition and adds no universal implementation theorem.",
+    "ABSENT labels inherited on other W10 workspace names are stale evidence labels, not a semantic meaning of unbuilt. They are retained as historical baseline entries without credit; the new inspected joint guest is added explicitly. The coarse unknown-only sensitivity drops once a row has one inspected code path, so its equality to the central score is not complete evidence coverage.",
+    "The path classifier treats inline Rust tests/examples as runtime; lockfiles are a separate category. The reviewer statement that the ledger counted lockfiles as runtime is corrected by the actual classifier output.",
+    "The uncommitted quota probe/tests are excluded. No complete AS exit, value-safety gate or live activation is achieved."
+  ],
+  "remaining": [
+    "Three genuine margin Succinct receipts through exact-current-store publication and fresh-process audit.",
+    "Universal runtime refinement, remaining lane lifecycles and four cross-lane routes.",
+    "Independent checkpoint/finality and effect-destination enforcement, availability, exit capacity and aggregate resource bounds.",
+    "Inherited claims-registry reference to absent tools/check_derivatives_authorization_matrix.py."
+  ],
+  "qualification": {
+    "formal_core_complete": false,
+    "full_v3_complete": false,
+    "closed_value_movement_gates": 0,
+    "total_value_movement_gates": 12
+  }
+}

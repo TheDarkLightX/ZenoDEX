@@ -2,6 +2,11 @@
 
 Status: advisory planning baseline. No completion or promotion authority.
 
+Latest scoped amendment: **V3 24.828%; formal core 21.440%**, subject
+`e05f293e3…`. The September 13 assessment below records the +0.560/0.000
+percentage-point change since the previous adopted subject. Historical tables
+retain their original subjects and must not be presented as current rescoring.
+
 Both reviewers inspected committed source at `70f9157ef097384c6b48db22c254d8134f19f8f5`.
 Fable used `claude-fable-5-1` at Max; Opus used `claude-opus-5` at Max.
 A subsequent compact Opus cross-review used High. The independent initial
@@ -735,3 +740,54 @@ formal proofs are unchanged. W06/W11 receive scoped operator evidence; this
 batch is **NOT_RESCORED** and closes no full AS exit. Genuine margin receipts,
 checkpoint provenance/finality and independent writer/effect enforcement remain
 pending. Carry the preceding 185-line accounting append once as support.
+
+### September 13: independent assessment of completed attack-surface work
+
+Fable (`claude-fable-5-1`, CLI-declared) independently reviewed committed source
+from `6a4a806db…` through `e05f293e3…`; root inspected the decisive guest,
+verifier, audit and accounting evidence. The [review record](../../tests/evidence/v3_attack_surface_assessment_review_20260913.json)
+pins the comparison, judgments, CLI resource observations and corrections.
+No fresh broad test or proof run was needed for this assessment.
+
+| Existing workstream | Old low/central/high | Adopted low/central/high | V3 central gain |
+| --- | --- | --- | ---: |
+| W03, receipt verification | .45/.55/.65 | .48/.58/.68 | +0.120 pp |
+| W06, isolated publication | .50/.60/.70 | .52/.62/.72 | +0.100 pp |
+| W10, proof-system execution | .12/.20/.30 | .14/.23/.33 | +0.180 pp |
+| W11, shell and lifecycle | .15/.22/.30 | .17/.24/.32 | +0.160 pp |
+
+The resulting **V3 24.268% → 24.828% (+0.560 pp)** has judgment scenarios
+**17.512–32.906%**. Formal core stays **21.440%**, scenarios **15.611–27.526%**.
+All 103 capability scores, 12 lanes, four routes, four exclusions and weights
+are preserved. No complete AS exit or value-safety gate closes; the latter
+remains **0/12**. The margin publication capability was already credited.
+
+New credit covers the measured margin verifier's negative controls, logical
+no-op through native rejection, a built and executed joint margin guest, and
+history reauthentication plus verifier containment. W09 and formal refinement
+do not rise: the guest reruns the existing Rust transition without a new
+universal refinement theorem or genuine margin receipt. The three prepared
+receipts through current-store publication and fresh-process audit remain the
+next integrated qualification blocker.
+
+Across the completed comparison, Git reports runtime **+938/−59**, tests
+**+1,488/−32**, tooling **+254/−0**, formal proofs **0/0**, configuration
+**+76/−3**, data **+3,339/−16**, docs **+914/−1** and lockfiles **+2,724/−0**.
+These are retained diff totals, not generated-token counts or independent
+delivery credit. Inline Rust tests/examples are classified as runtime; lockfiles
+are separate. Root corrected the reviewer's claim that lockfiles were counted
+as runtime. This reassessment's metadata and the uncommitted resource probes
+receive no additional credit.
+
+Removing legacy-only capability credit lowers V3 to **23.156%** and formal core
+to **15.882%**. The coarse unknown-only sensitivity now equals the central
+scores because the new guest supplies one inspected W10 code path. That does
+not establish complete evidence coverage; other inherited W10 ABSENT labels
+are stale historical entries. No weight or metric was changed to hide them.
+
+The current input reuses the existing assessment path; its previous bytes are
+pinned at `301a438967c9a1cd6bf23e1747025481ffc23fff`. Recompute with:
+
+```bash
+python3 tools/v3_progress_assessment_calc.py tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json
+```

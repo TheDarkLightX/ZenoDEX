@@ -38,9 +38,9 @@
   },
   "full_v3": {
     "denominator_weight": 100,
-    "central_percent": 24.268,
-    "lower_percent": 17.012,
-    "upper_percent": 32.346,
+    "central_percent": 24.828,
+    "lower_percent": 17.512,
+    "upper_percent": 32.906,
     "covers_workstreams": ["W00", "W01", "W02", "W03", "W04", "W05", "W06", "W07", "W08", "W09", "W10", "W11", "W12", "W13"],
     "rows": [
       {
@@ -99,9 +99,9 @@
         "id": "W03",
         "kind": "workstream",
         "weight": 4,
-        "low": 0.45,
-        "central": 0.55,
-        "high": 0.65,
+        "low": 0.48,
+        "central": 0.58,
+        "high": 0.68,
         "evidence": [
           {"path": "src/integration/global_receipt_verifier_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/integration/sealed_bls_command_verifier_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -111,8 +111,12 @@
           {"path": "docs/research/ZENODEX_V3_COMPLETION_FOLLOWUP_20260905.md", "class": "HISTORICAL_RECORDED"},
           {"path": "zk/economic_command_bls_verifier_v1", "class": "ABSENT"},
           {"path": "zk/global_economic_epoch_risc0/host/src/bin/verify_receipt_v1.rs", "class": "ABSENT"},
-          {"path": "tests/integration/test_global_receipt_verifier_v1.py", "class": "UNKNOWN"}
-        ]
+          {"path": "tests/integration/test_global_receipt_verifier_v1.py", "class": "UNKNOWN"},
+          {"path": "zk/perps_margin_global_risc0/host/src/bin/verify_margin_receipt_v2.rs", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/perps_margin_guest_execution_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/legacy_verifier_lifetime_v1_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
+        ],
+        "credit_rationale": "The measured margin verifier and real negative controls now exercise the Python boundary. Bounded failure and lifetime behavior is repaired; genuine matching margin receipt success is still unqualified."
       },
       {
         "id": "W04",
@@ -149,9 +153,9 @@
         "id": "W06",
         "kind": "workstream",
         "weight": 5,
-        "low": 0.5,
-        "central": 0.6,
-        "high": 0.7,
+        "low": 0.52,
+        "central": 0.62,
+        "high": 0.72,
         "evidence": [
           {"path": "src/integration/global_economic_durable_publisher_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/integration/global_economic_epoch_journal_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -165,9 +169,11 @@
           {"path": "src/integration/custody_publication_record_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/core/global_economic_authority_head_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "tests/integration/test_isolated_custody_publisher_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
-          {"path": "tests/evidence/test_hygiene/THV1-20260912-isolated-custody-publication-v2.json", "class": "VERIFIED_SOURCE_INSPECTION"}
+          {"path": "tests/evidence/test_hygiene/THV1-20260912-isolated-custody-publication-v2.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/integration/test_margin_receipt_qualification_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/margin_proving_workload_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
-        "credit_rationale": "Prior V1 publication mechanics already had credit. The complete current V2 global/custody consumer adds store-owned admission, exact lineage and restart/recovery evidence. No repeated W07 capability or formal-core credit.",
+        "credit_rationale": "Real BLS authentication and native malformed-receipt rejection reach the isolated publisher with logical no-op evidence. The prior .55 margin publication capability credit is unchanged; genuine matching receipts remain pending.",
         "remaining_acceptance_work": "Genuine matching RISC0 receipt and selected build; multi-occurrence epoch evidence; complete W06 prerequisites and concrete runtime/store refinement. Fixture-backed isolated tests grant no production authority."
       },
       {
@@ -614,9 +620,9 @@
         "id": "W10",
         "kind": "workstream",
         "weight": 6,
-        "low": 0.12,
-        "central": 0.2,
-        "high": 0.3,
+        "low": 0.14,
+        "central": 0.23,
+        "high": 0.33,
         "evidence": [
           {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_FINAL_RECEIPT_QUALIFICATION.md", "class": "HISTORICAL_RECORDED"},
           {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_COMMON_CHAIN_REVIEW.md", "class": "HISTORICAL_RECORDED"},
@@ -625,16 +631,19 @@
           {"path": "zk/asset_transfer_route_composer_risc0", "class": "ABSENT"},
           {"path": "zk/asset_lane_coordinator_risc0", "class": "ABSENT"},
           {"path": "zk/perps_margin_lane_coordinator_risc0", "class": "ABSENT"},
-          {"path": "zk/zdex_tokenomics_lane_coordinator_risc0", "class": "ABSENT"}
-        ]
+          {"path": "zk/zdex_tokenomics_lane_coordinator_risc0", "class": "ABSENT"},
+          {"path": "zk/perps_margin_global_risc0/methods/guest/src/main.rs", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/perps_margin_guest_execution_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
+        ],
+        "credit_rationale": "The new joint margin/global guest compiles, has a rebuilt image guard, and executes connected histories and in-guest rejects. Execution is preparation for proof qualification; no new receipt, coordinator, route or epoch proof is qualified."
       },
       {
         "id": "W11",
         "kind": "workstream",
         "weight": 8,
-        "low": 0.15,
-        "central": 0.22,
-        "high": 0.3,
+        "low": 0.17,
+        "central": 0.24,
+        "high": 0.32,
         "evidence": [
           {"path": "src/integration/global_economic_epoch_journal_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/integration/global_economic_authority_journal_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -644,8 +653,13 @@
           {"path": "docs/research/ZENODEX_WRITER_AUTHORITY_IDENTITY_20260905.md", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "docs/research/ZENODEX_LIVE_WRITER_STORE_PAIR_20260906.md", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "docs/research/ZENODEX_SPARSE_AUTHORIZATION_AND_CUSTODY_RESTART_20260906.md", "class": "VERIFIED_SOURCE_INSPECTION"},
-          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"}
-        ]
+          {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_AUTHORITY_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/integration/isolated_custody_publisher_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tools/qualify_margin_receipts_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/independent_margin_audit_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/verifier_process_isolation_v1_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
+        ],
+        "credit_rationale": "Retained histories can be independently reauthenticated against supplied checkpoints; the measured endpoint has host-data and namespace containment. Checkpoint provenance, deployment mediation and aggregate resources remain open."
       },
       {
         "id": "W12",
@@ -1212,12 +1226,12 @@
   },
   "assessment_basis": {
     "kind": "SCOPED_REVIEWED_AMENDMENT",
-    "inherited_subject": "51cb8e8a264a0e39564964823dbf40d21078df2c",
+    "inherited_subject": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
     "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
-    "inherited_assessment_sha256": "7de2712a134f627440945573afb96aa65eb6f43e5f5ecdc5dcba13481010272a",
-    "inherited_storage_commit": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
-    "scope": "Only margin_deposit and margin_withdraw implementation .50 to .55. All formal scores, other rows, uncertainty H, denominators and qualification counts inherited unchanged.",
-    "review_evidence": "tests/evidence/perps_margin_publication_v2_20260913.json"
+    "inherited_assessment_sha256": "5178bdfebd9a892b4db6a1f9bed30204e048ccb162f035cc54cfa69890eabe1a",
+    "inherited_storage_commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+    "scope": "Only W03,W06,W10,W11 change; Fable independent source review plus root review. All 103 capability scores, formal rows, weights and qualification flags are inherited. Current uncommitted resource-quota tests receive no credit.",
+    "review_evidence": "tests/evidence/v3_attack_surface_assessment_review_20260913.json"
   },
-  "subject": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b"
+  "subject": "e05f293e3eab020b5790252007fe43316167bb39"
 }

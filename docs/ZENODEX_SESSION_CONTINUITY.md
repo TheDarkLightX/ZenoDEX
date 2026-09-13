@@ -3,6 +3,24 @@
 This is the durable entry point for a resumed session. It selects work and
 evidence; it grants no release, migration, or publication authority.
 
+Latest adopted assessment: Fable's independent review and root review of
+`6a4a806db…` through `e05f293e3…` raise V3 **24.268% → 24.828% (+0.560 pp)**;
+formal core remains **21.440%**, with **0/12** value-safety gates closed. See
+[scoped assessment](../tests/evidence/v3_attack_surface_assessment_review_20260913.json)
+and the current scored input at
+`tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json`.
+Only W03/W06/W10/W11 change; all capability/formal scores and denominators stay
+fixed. Earlier NOT_RESCORED entries remain historical records of those batches.
+This is a partial judgment estimate, not release qualification.
+
+Current uncommitted AS07 quota probes are draft work, excluded from that subject.
+The repaired probe compiles; three retained controls reproduce missing cgroup
+limits, 24 concurrent children and 576 MiB aggregate child allocation. One
+environment control passes. No quota runtime change has been made. Continue
+the single invocation resource-bound obligation before claiming its acceptance.
+Fable usage refreshed to 0% on September 13 at 22:05 UTC before the completed
+six-minute assessment; the post-review usage percentage has not been queried.
+
 Latest completed implementation: `394ddbf22` exposes a standalone read-only
 margin history audit using caller-retained publication and authority roots. See
 [scoped evidence](../tests/evidence/independent_margin_audit_v2_20260913.json):
