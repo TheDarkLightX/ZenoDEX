@@ -1,0 +1,117 @@
+{
+  "schema": "zenodex/legacy-verifier-lifetime-evidence/v1",
+  "subject_commit": "0e13f0e3715c0a7241e1d821790bc501189ab4bb",
+  "baseline_commit": "d8041717fed97d6f63a77f38f06a7160644af6bd",
+  "status": "IMPLEMENTED_TESTED_REVIEWED_SCOPED",
+  "formal_core_complete": false,
+  "production_authority": false,
+  "assessment_delta": "NOT_RESCORED",
+  "test_contract": {
+    "path": "tests/evidence/test_hygiene/THV1-20260913-legacy-verifier-lifetime-v1.json",
+    "sha256": "326c825bba7f4266bd16342d878cce3b1a0863fcfcf771bb710370bc95a56cf9"
+  },
+  "before": {
+    "failed": 12,
+    "passed": 2,
+    "scope": "Initial real-process regressions reproduced non-finite timeout admission, surviving same-group children and late observation acceptance in both legacy adapters. The final suite adds further boundary controls.",
+    "log_sha256": "80896217a2c3f2494bb45133ca81ee0249eb35b61d1883d682a128853c8ddcfc"
+  },
+  "after": {
+    "scope": "Finite representable timeout; unsupported wait API rejects before launch; exit observed before deadline without reaping; group cleanup precedes leader reaping. Missing pipes now use the same cleanup. Legacy JSON protocols and economic transitions are unchanged.",
+    "focused": {
+      "passed": 83,
+      "seconds": 5.83,
+      "log_sha256": "acb96ae7e104fe8c2044e782df7206fd20330b7e2a871e378e41707a0859bf6e"
+    },
+    "native_integration": {
+      "passed": 102,
+      "skipped": 2,
+      "seconds": 67.52,
+      "log_sha256": "9e743d1b1b535a062ca1d470161658d07c3072dcf218aeb91173ff311aea80e8",
+      "skip_reason": "Genuine margin receipts require the still-unavailable proof host."
+    },
+    "critical": {
+      "tcb_passed": 433,
+      "critical_passed": 852,
+      "tcb_seconds": 17.74,
+      "critical_seconds": 74.14,
+      "log_sha256": "cb026462e3c46c5c0d4fdba80f4ed1793e9e3aaeab987f8547a468ef09fafbe0"
+    },
+    "lint_types_hygiene": "Changed-file Ruff, mypy over four runtime modules, configured mypy and test hygiene pass; 310 packets, six changed critical paths.",
+    "production_boundary": {
+      "ok": true,
+      "report_sha256": "3e63df25d274f0fc3f0dc13c3d991968de4796cf58ffc95e5e6830afc3958d06"
+    },
+    "mutation": {
+      "killed": 7,
+      "survived": 0,
+      "errors": 0,
+      "controls": "Every declared killer passes on the unmodified archived candidate.",
+      "report_sha256": "44292184c27cca8eee035b60e8b657ec9a3b3bf1751803a51b76b4a1e9fbd9b6",
+      "temporary_copies_removed": true
+    }
+  },
+  "replay_commands": [
+    "python3 -m pytest -q tests/integration/test_legacy_verifier_process_lifecycle.py tests/integration/test_proof_verifier_unit.py tests/integration/test_proof_verifier.py tests/integration/test_proof_verifier_fuzz.py tests/integration/test_confidential_attestation_verifier.py tests/integration/test_confidential_attestation_verifier_boundaries.py",
+    "ZENODEX_TEST_NATIVE_VERIFIER_ISOLATION=1 ZENODEX_BLS_VERIFIER_TEST_BINARY=\"$BLS\" ZENODEX_MARGIN_EXECUTOR=\"$MARGIN_EXECUTOR\" ZENODEX_MARGIN_R0VM=\"$R0VM\" python3 -m pytest -q tests/integration/test_verifier_process_isolation_v1.py tests/integration/test_global_receipt_verifier_v1.py tests/integration/test_sealed_bls_command_verifier_v1.py tests/integration/test_margin_receipt_qualification_v2.py tests/integration/test_isolated_custody_history_audit_v2.py tests/integration/test_sealed_bls_command_verifier_deployment_v1.py tests/integration/test_global_economic_sealed_bls_pipeline_v1.py",
+    "PYTHON=\"$DEV_VENV/bin/python\" bash tools/run_critical_quality_gate.sh",
+    "python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260913-legacy-verifier-lifetime-v1 --rev 0e13f0e3715c0a7241e1d821790bc501189ab4bb --workdir \"$MUTATION_WORK\"",
+    "python3 tools/check_production_boundary.py --json",
+    "python3 tools/permissionless_assurance.py status"
+  ],
+  "line_changes": {
+    "runtime": {
+      "added": 71,
+      "removed": 56
+    },
+    "tests": {
+      "added": 220,
+      "removed": 9
+    },
+    "evidence": {
+      "added": 184,
+      "removed": 0
+    },
+    "formal_proof": {
+      "added": 0,
+      "removed": 0
+    },
+    "total": {
+      "added": 475,
+      "removed": 65
+    }
+  },
+  "review": {
+    "reviewer": "attack_surface_review",
+    "model_id": null,
+    "disclosed_family": "Codex based on GPT-6; precise serving model unavailable",
+    "subject_commit": "0e13f0e3715c0a7241e1d821790bc501189ab4bb",
+    "verdict": "PASS",
+    "findings": [],
+    "independent_tests": "30 lifecycle tests passed in 1.28 seconds; diff whitespace and every packet hash checked. Broad gates were not duplicated.",
+    "claim_limit": "Advisory review; no proof of global minimality or whole-program safety."
+  },
+  "rework": [
+    "Seven fake-process unit failures were corrected by modeling unreaped observation instead of Popen.poll; one remaining test double needed its real Popen args attribute. Existing outcome assertions remain.",
+    "The initial Git permission review timed out without a safety verdict; the permitted narrow retry committed only the seven owned paths."
+  ],
+  "claude_usage": {
+    "date": "2026-09-13",
+    "cli_version": "2.1.270",
+    "selected_model_display": "Fable 5.1",
+    "all_models_week_used_percent": 63,
+    "fable_week_used_percent": 100,
+    "usage_credits_enabled": false,
+    "model_requests_sent": 0,
+    "host_refresh_succeeded": true,
+    "displayed_fable_reset": "September 13, 2026 17:59 America/New_York",
+    "note": "Sandbox query could not refresh; an authorized host CLI query refreshed successfully. No reset is inferred from the displayed schedule."
+  },
+  "nonclaims": [
+    "Configured legacy commands retain host authority and can change process groups or sessions. Namespace containment applies only to the measured adapter.",
+    "Exclusive child reaping, OS signal/wait correctness and trusted publisher remain assumptions.",
+    "No new proof, finite-width economic theorem, finality or whole-program closure. Protocol fixtures are not receipts.",
+    "No full AS01-AS08 exit or value-safety gate closes. Genuine margin receipts and independently enforced finality/delivery remain pending.",
+    "The production-boundary audit is scoped repository evidence, not a deployed writer census. No heavy proof build, Runpod use, live migration or activation occurred."
+  ]
+}

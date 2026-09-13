@@ -3,6 +3,16 @@
 This is the durable entry point for a resumed session. It selects work and
 evidence; it grants no release, migration, or publication authority.
 
+Latest completed repair: `0e13f0e37` extends bounded exit observation and
+cleanup to both legacy JSON verifier adapters. See the
+[scoped evidence](../tests/evidence/legacy_verifier_lifetime_v1_20260913.json):
+83 focused and 102 native/integration tests pass, two genuine-proof cases skip,
+seven source mutants are killed, and independent review passes. Legacy commands
+still retain host access and session escape; this does not close full AS07.
+AS02's three genuine margin receipts remain pending a proof host. Runpod is
+offline. A refreshed September 13 host CLI usage query still reports Fable at
+100% weekly usage and all models at 63%; confirm counters before delegating.
+
 ## Recover the subject before editing
 
 1. Locate branch `codex/whole-program-v3-20260904` using `git worktree list`.

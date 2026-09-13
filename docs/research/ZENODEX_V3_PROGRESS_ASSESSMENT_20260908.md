@@ -705,3 +705,20 @@ W03/W11 containment advances without closing full AS07, independent enforcement
 or genuine margin proof qualification. Assessment **NOT_RESCORED**; historical
 V3 24.268%/formal 21.440% estimates remain unrefreshed. The source-bound reporter
 checks the existing contribution ledger; metadata receives no duplicate credit.
+
+### September 13: legacy verifier lifetime repair
+
+`d8041717…` → `0e13f0e37…` repairs reproduced non-finite timeout admission,
+surviving same-group descendants and late exit acceptance in both legacy JSON
+ports. [Evidence](../../tests/evidence/legacy_verifier_lifetime_v1_20260913.json)
+records 83 focused passes, 102 native/integration passes with two genuine-proof
+skips, seven killed source mutants and passing critical/boundary gates. An
+independent Codex reviewer ran the 30 lifecycle regressions and found no blocker;
+its exact serving-model identifier was unavailable.
+
+Growth is +475/−65: runtime +71/−56 (net 15), tests +220/−9 and required
+test evidence +184/−0. Economic transitions and formal proofs are unchanged.
+W03/W11 receive scoped repair evidence; assessment remains **NOT_RESCORED**.
+The previous V3 24.268%/formal 21.440% figures remain historical estimates.
+Full AS07, genuine margin receipts, and independent finality/delivery remain
+open. Record the previous +410/−1 evidence/account append once as support.
