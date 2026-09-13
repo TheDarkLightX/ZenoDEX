@@ -493,3 +493,31 @@ Fresh gate: ten tests, 43 states, 19 history attempts, seven mutants, twelve exa
 theorem consumers and three constructive admission witnesses. Next: concrete
 effect/terminal projection and coordinator binding, universal runtime/decoding
 refinement and genuine publication. Support metadata receives no separate credit.
+
+## September 13 amendment: connected margin V2 successor
+
+`2f1c0e055`→`417ec94ad` adds 2,567 lines across ten files: runtime 685,
+proof 411, tests 1,350, specification 121; no deletions. The [evidence](../../tests/evidence/perps_margin_global_v2_20260913.json)
+and [review](../../tests/evidence/perps_margin_global_review_20260913.md) tie this
+growth to a previously failing connected behavior: withdrawal/refill now respects
+V2 terminal history and synchronizes the asset frame so ordinary transfers remain
+usable. Unsupported consumed objects and accepted-result aliases were repaired.
+
+The new model proves episode availability, exact claim correspondence and V2
+lifecycle/frame/history preservation. Its 115-case Python bridge and eleven typed
+theorem consumers pass. Runtime qualification here is a pure candidate for one
+market with a reserve-free asset frame. No receipt or publication authority follows.
+
+Reviewed estimates: formal **21.297%→21.419%** (+.122 points); V3
+**24.169%→24.239%** (+.070). Judgment ranges: 15.589–27.505% and
+16.983–32.317%. Only the two margin capabilities change. Uncertainty H, all other
+rows and the 0/12 qualification count remain fixed; no separate W09 credit.
+The existing after-input is revised with its previous bytes pinned at `2f1c0e055`.
+The in-progress Rust successor receives no credit yet. Evidence/assessment
+metadata is support work and is counted separately in the contribution report.
+
+Root contributed 1,086 source lines, Luna 694 and the Astra proof worker 787.
+Root reviewed both workers; Astra independently reviewed runtime and the score
+amendment. Exclusive model time, native token usage and actual cost are unknown.
+Recorded test durations are not substituted for work time. The next acceptance
+is Rust/Python successor correspondence and then real admission/publication.

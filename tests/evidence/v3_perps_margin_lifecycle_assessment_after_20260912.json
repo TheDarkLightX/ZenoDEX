@@ -38,9 +38,9 @@
   },
   "full_v3": {
     "denominator_weight": 100,
-    "central_percent": 24.169,
-    "lower_percent": 16.913,
-    "upper_percent": 32.247,
+    "central_percent": 24.239,
+    "lower_percent": 16.983,
+    "upper_percent": 32.317,
     "covers_workstreams": ["W00", "W01", "W02", "W03", "W04", "W05", "W06", "W07", "W08", "W09", "W10", "W11", "W12", "W13"],
     "rows": [
       {
@@ -326,9 +326,9 @@
         "id": "W07:PERPS_MARKET",
         "kind": "lane",
         "weight": 3.2039,
-        "low": 0.1091,
-        "central": 0.1682,
-        "high": 0.2236,
+        "low": 0.1309,
+        "central": 0.19,
+        "high": 0.2455,
         "evidence": [
           {"path": "src/core/perps_margin_module_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/core/perps_market_policy_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -339,11 +339,17 @@
           {"path": "lean-mathlib/Proofs/PerpProtocolSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "docs/research/PERPS_MARGIN_GLOBAL_SETTLEMENT_SHADOW_V1.md", "class": "UNKNOWN"},
-          {"path": "zk/perps_margin_module_risc0", "class": "ABSENT"}
+          {"path": "zk/perps_margin_module_risc0", "class": "ABSENT"},
+          {"path": "docs/specifications/PERPS_MARGIN_GLOBAL_SUCCESSOR_V2.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/perps_margin_global_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/perps_margin_claims_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpsMarginClaimsV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_perps_margin_claims_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/perps_margin_global_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {"id": "margin_deposit", "c": 0.38, "unc": "H", "note": "typed V1 core with recorded Rust/guest and receipt binding tests"},
-          {"id": "margin_withdraw", "c": 0.38, "unc": "H", "note": "as margin_deposit"},
+          {"id": "margin_deposit", "c": 0.5, "unc": "H", "note": "Usable joint pure V2 margin/asset/global lifecycle, including transfer/refill/close, exact attribution and no-op rejects; unmounted, no new Rust/receipt qualification."},
+          {"id": "margin_withdraw", "c": 0.5, "unc": "H", "note": "Usable joint pure V2 margin/asset/global lifecycle, including transfer/refill/close, exact attribution and no-op rejects; unmounted, no new Rust/receipt qualification."},
           {"id": "position_open", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy engines only"},
           {"id": "position_adjust", "c": 0.12, "unc": "V", "legacy_only": true, "note": "legacy"},
           {"id": "funding_accrual", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy funding market; command disabled; disputed evidence"},
@@ -733,9 +739,9 @@
   },
   "formal_core": {
     "denominator_weight": 140,
-    "central_percent": 21.297,
-    "lower_percent": 15.468,
-    "upper_percent": 27.383,
+    "central_percent": 21.419,
+    "lower_percent": 15.589,
+    "upper_percent": 27.505,
     "rows": [
       {
         "id": "FC:ASSET_TRANSFER",
@@ -891,9 +897,9 @@
         "id": "FC:PERPS_MARKET",
         "kind": "lane",
         "weight": 11,
-        "low": 0.1852,
-        "central": 0.2488,
-        "high": 0.307,
+        "low": 0.2006,
+        "central": 0.2643,
+        "high": 0.3225,
         "evidence": [
           {"path": "src/core/perps_margin_module_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "lean-mathlib/Proofs/PerpEpochSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -902,11 +908,17 @@
           {"path": "docs/research/ZENODEX_DERIVATIVE_CLAIM_RECONCILIATION_20260908.md", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "lean-mathlib/Proofs/PerpIntegerBridge.lean", "class": "UNKNOWN"},
           {"path": "lean-mathlib/Proofs/PerpsMarginTransitionV1.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
-          {"path": "tests/formal/test_lean_perps_margin_transition_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"}
+          {"path": "tests/formal/test_lean_perps_margin_transition_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "docs/specifications/PERPS_MARGIN_GLOBAL_SUCCESSOR_V2.md", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/perps_margin_global_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/perps_margin_claims_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpsMarginClaimsV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_perps_margin_claims_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/perps_margin_global_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {"id": "margin_deposit", "sem": 0.5, "prf": 0.45, "ref": 0.45, "unc": "H", "increment_rationale": "Complete-market structural/numeric preservation and finite complete Lean/Python/Rust state outcomes; canonical decoding, effects and publication remain outside the universal proof."},
-          {"id": "margin_withdraw", "sem": 0.5, "prf": 0.45, "ref": 0.45, "unc": "H", "increment_rationale": "Complete-market structural/numeric preservation and finite complete Lean/Python/Rust state outcomes; canonical decoding, effects and publication remain outside the universal proof."},
+          {"id": "margin_deposit", "sem": 0.6, "prf": 0.55, "ref": 0.5, "unc": "H", "increment_rationale": "Explicit V2 claim episodes, modeled availability/preservation/history/lifecycle theorem and finite complete-output Python correspondence. Rust successor, universal runtime and publication remain open."},
+          {"id": "margin_withdraw", "sem": 0.6, "prf": 0.55, "ref": 0.5, "unc": "H", "increment_rationale": "Explicit V2 claim episodes, modeled availability/preservation/history/lifecycle theorem and finite complete-output Python correspondence. Rust successor, universal runtime and publication remain open."},
           {"id": "position_open", "sem": 0.3, "prf": 0.3, "ref": 0.1, "unc": "V", "legacy_only": true},
           {"id": "position_adjust", "sem": 0.25, "prf": 0.25, "ref": 0.08, "unc": "V", "legacy_only": true},
           {"id": "funding_accrual", "sem": 0.3, "prf": 0.35, "ref": 0.1, "unc": "H", "legacy_only": true},
@@ -1194,6 +1206,6 @@
       }
     ]
   },
-  "assessment_basis": {"kind": "SCOPED_REVIEWED_AMENDMENT", "inherited_subject": "88c9f27d992cb57664870887542e379f91c1e0fa", "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json", "inherited_assessment_sha256": "b3f53d40a500d83c965c3d9b181aa316c378f45d93a2467f87e596ea3f075627", "scope": "Only PERPS_MARKET margin_deposit and margin_withdraw proof/refinement components and W09; all other scores and uncertainty labels are inherited, not reassessed.", "review_evidence": "tests/evidence/perps_margin_market_review_20260912.md", "inherited_storage_commit": "26057f389ac5da283988e1fa8f05186226a05b1e"},
-  "subject": "7386fa2ea2488999aa453b701e3b666e32ee2d85"
+  "assessment_basis": {"kind": "SCOPED_REVIEWED_AMENDMENT", "inherited_subject": "7386fa2ea2488999aa453b701e3b666e32ee2d85", "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json", "inherited_assessment_sha256": "507f3ce08554847e97638c07992b13e27112d741545657cdc280f02367a16256", "inherited_storage_commit": "2f1c0e0557edd5669413ead35bfaa2cd5773aac6", "scope": "Only margin_deposit and margin_withdraw implementation/semantics/proof/refinement; H uncertainty, all other capabilities/workstreams and qualification are inherited. No Rust twin credit.", "review_evidence": "tests/evidence/perps_margin_global_review_20260913.md"},
+  "subject": "417ec94ad39389c8e2beceee69ceabe565828302"
 }

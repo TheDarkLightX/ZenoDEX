@@ -60,6 +60,36 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 13: connected V2 margin claims and asset frame
+
+Implementation `417ec94ad39389c8e2beceee69ceabe565828302` adds the pure joint
+V2 margin/asset/global successor. The [contract](specifications/PERPS_MARGIN_GLOBAL_SUCCESSOR_V2.md),
+[evidence](../tests/evidence/perps_margin_global_v2_20260913.json) and
+[review](../tests/evidence/perps_margin_global_review_20260913.md) pin the result.
+Deposit, partial withdrawal, drain, ordinary transfer, refill, drain and close
+compose through the V2 checker. Claims drain permanently; refill creates a new
+claim, and both lane roots stay synchronized. Historical V1 bytes remain intact.
+
+The new Lean episode model proves availability, exact claim correspondence,
+frame/history preservation and V2 terminal lifecycle admission. Its finite
+Python bridge passed 115 cases with 11 typed theorem consumers and four output
+corruption controls. Final new-core suite: 53 tests. Broad critical gate: 433
+TCB and 852 critical tests. No full formal-core or production claim follows.
+
+The reviewed fixed-rubric amendment moves formal **21.297%→21.419%** and V3
+**24.169%→24.239%**. Only margin deposit/withdrawal change; 0/12 value-safety
+gates remain closed. Earlier assessment bytes are pinned at `2f1c0e0557edd5669413ead35bfaa2cd5773aac6`.
+
+**Current acceptance:** qualify complete Rust/Python correspondence for this
+successor, then its versioned receipt/route and isolated store consumer. Luna
+owns the new `zk/perps_margin_global_v2/` crate and
+`tests/core/test_perps_margin_global_rust_v2.py` while root owns integration;
+uncommitted Rust work receives no score. Preserve the one-market/reserve-free
+profile limit and explicit capacity nonclaims. Do not repeat the completed
+episode proofs or substitute historical V1 receipts. Fable's live probe was
+out of credits; new external Opus disclosure was blocked by automatic approval
+review. Native reviews and local verification continue.
+
 ## September 12: complete perps market reconstruction
 
 Implementation `7386fa2ea2488999aa453b701e3b666e32ee2d85` extends the selected-account model
@@ -82,7 +112,7 @@ The existing after-assessment file has a new Git revision; its earlier input
 remains pinned at `26057f389ac5da283988e1fa8f05186226a05b1e`. Do not add a
 duplicate full score snapshot or treat inherited rows as newly reviewed.
 
-**Next formal acceptance:** connect concrete margin effect and terminal rows to
+**Then-next formal acceptance (advanced by the September 13 entry):** connect concrete margin effect and terminal rows to
 the proved complete pre/post state and existing coordinator. Derive exact owner,
 occurrence and custody changes from the actual transition; the old algebraic
 opposite-delta helpers alone do not close this. Canonical decoding and universal

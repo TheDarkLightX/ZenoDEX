@@ -1,0 +1,191 @@
+{
+  "schema": "zenodex/perps-margin-global-v2-delivery/1",
+  "subject": "417ec94ad39389c8e2beceee69ceabe565828302",
+  "implementation_base": "2f1c0e0557edd5669413ead35bfaa2cd5773aac6",
+  "release_authority": "NONE",
+  "value_movement_gates_closed": 0,
+  "claim": "Pure joint asset/margin V2 candidate with exact claim episodes; universal modeled episode preservation and finite Python correspondence.",
+  "before": "V1 projector retained obsolete terminal rows; corrected rows also violated its immutable-terminal relation. This required an explicit V2 successor, not weakening historical V1 checks.",
+  "after": "Deposit, partial withdrawal, drain, ordinary asset transfer, refill, drain and account closure compose through existing V2 refinement with synchronized lane roots and retained terminal history.",
+  "normative_source": "docs/specifications/PERPS_MARGIN_GLOBAL_SUCCESSOR_V2.md",
+  "source_sha256": {
+    "src/core/perps_margin_state_v2.py": "202caa812ddddec8729c168a12263a735912fb302879b689e9b9f2b548a47588",
+    "src/core/perps_margin_claims_v2.py": "dccafcad2a519090f175d8c9ac267c9e04dbeab729c2595fcd66c5c6c9b3c00a",
+    "src/core/perps_margin_global_v2.py": "f9b9f0e675ff4fdc63dd6ccede1cb77fa9b6fd27abb28cb568bc01306e7fe5bd",
+    "lean-mathlib/Proofs/PerpsMarginClaimsV2.lean": "20a836d13e763014f03de7f1e1f4213585240e97b727bd26d8ba05aa27c77485",
+    "tests/formal/test_lean_perps_margin_claims_v2.py": "2856fb7f2cb5ee032dde28e991f2aed374887adf9d8e529790cbe1bbb96f62e1",
+    "tests/core/test_perps_margin_state_v2.py": "a8c747d9d776b532cfab3861837ab9fe4e8de07586c9e2c5cd9f75084bdea9f6",
+    "tests/core/test_perps_margin_global_v2.py": "fe87f261807910d7403485195d96f0a438d3a255345ebd04f231230e75edb81a",
+    "tests/core/test_perps_margin_global_authority_v2.py": "e99ef6d3f9d58b06749265b800cbb5ff486b3ee2051172ab6e1524b24284260d",
+    "tests/core/test_perps_margin_global_bounds_v2.py": "d7744acb2797d3b832e85eaffb5042652f887d3de0f85a4543ee80cd2f4f7126",
+    "docs/specifications/PERPS_MARGIN_GLOBAL_SUCCESSOR_V2.md": "7cdaed0d86dd3c65156871e0ee2ff89b926a31be7890b7d564908b52755ec914",
+    "src/core/perps_margin_module_v1.py": "482f6158a9cf4ad42c3d2994e13f6f70e2a5f3d64abfd78d4430b5c138f6dbb2",
+    "src/core/global_economic_state_effect_refinement_v2.py": "c40b90311f32b304b5c73b6f382e2f7e790312147d9072c91faa9104dac319df",
+    "src/core/global_economic_lifecycle_plan_v2.py": "030a355332e7e27ff5ffdacc2bd1a3d9f6a6fdcda2fb5b55655cdf633700dca3",
+    "src/core/asset_lane_custody_global_v2.py": "f84c91c8c434bb383356baf949f501ea774d037d55042108a55d43f86707bb4a",
+    "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean": "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1",
+    "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean": "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4",
+    "lean-mathlib/Proofs/PerpsMarginTransitionV1.lean": "1598aa39d0a27e514d88595f7b06b072722c512aab3caf135d9e9a3282a1c743"
+  },
+  "formal": {
+    "compiler": "Lean 4.27.0",
+    "compiled_source_modules": 4,
+    "independently_typed_theorem_references": 11,
+    "python_lean_cases": 115,
+    "output_corruption_controls": 4,
+    "proved": [
+      "Modeled valid-step availability under freshness on creation.",
+      "Arbitrary-state exact active-account/claim correspondence preservation.",
+      "Sibling frame, complete terminal-key retention and inactive-history immutability.",
+      "Drain retains the last positive amount; refill requires a previously absent terminal ID.",
+      "Changed terminals satisfy the existing V2 lifecycle predicate.",
+      "Constructive same-owner two-account drain/refill history."
+    ]
+  },
+  "fresh_gates": [
+    {
+      "command": "python3 -m pytest -q tests/formal/test_lean_perps_margin_claims_v2.py",
+      "result": "3 passed",
+      "seconds": 101.44,
+      "executor": "astra-formal-worker; root reviewed complete source and checked all captured-source hashes"
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_perps_margin_global_v2.py tests/core/test_perps_margin_global_authority_v2.py tests/core/test_perps_margin_state_v2.py tests/core/test_perps_margin_module_v1.py tests/core/test_perps_margin_lane_coordinator_v1.py tests/core/test_asset_lane_custody_global_v2.py tests/core/test_asset_lane_custody_global_successor_v2.py tests/core/test_global_economic_state_effect_refinement_v2.py",
+      "result": "144 passed",
+      "seconds": 28.39
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_perps_margin_global_bounds_v2.py",
+      "result": "11 passed",
+      "seconds": 5.52
+    },
+    {
+      "command": "python3 -m pytest -q tests/core/test_perps_margin_global_authority_v2.py",
+      "result": "18 passed after two additional collateral cases",
+      "seconds": 1.68
+    },
+    {
+      "command": "pytest with branch coverage over the four new core test files",
+      "result": "53 passed; 92.43 percent combined statement/branch coverage on three new production modules",
+      "seconds": 34.28
+    },
+    {
+      "command": "PYTHON=<existing development environment> bash tools/run_critical_quality_gate.sh",
+      "result": "PASS: Ruff, shell syntax, mypy, test hygiene, BVA inventory, 433 TCB tests and 852 critical tests; TCB coverage 87.4 percent against 79 percent floor.",
+      "critical_pytest_seconds": 75.36,
+      "tcb_pytest_seconds": 16.88
+    },
+    {
+      "command": "python3 tools/check_production_boundary.py --json",
+      "result": "PASS: 14 checks, 8 requirements; retains unmounted/research boundaries."
+    },
+    {
+      "command": "python3 -m mypy --follow-imports=silent <three new core modules>; python3 -m ruff check <new Python sources/tests>; git diff --check",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tools/v3_acceptance.py",
+      "result": "Structural inventory only; mapped tests partial; full conformance unestablished. First retained inventory gap: ASSET_TRANSFER tau_originated_asset_registration."
+    }
+  ],
+  "bounds": {
+    "margin_account_limit": 64,
+    "actual_asset_balance_rows_tested": 4096,
+    "production_replay_limit": 65536,
+    "production_terminal_limit": 65536,
+    "replay_test_seam": 1,
+    "terminal_test_seam": 2,
+    "maximum_replay_terminal_rootability_qualified": false,
+    "history_campaign": "16 deterministic Hypothesis examples, up to 16 generated attempts after a required deposit/drain prefix."
+  },
+  "review": "tests/evidence/perps_margin_global_review_20260913.md",
+  "findings": [
+    {
+      "id": "MARGIN-V2-UNSUPPORTED-CONSUMPTION",
+      "status": "repaired",
+      "evidence": "One-atom deposit carrying unowned-object now gives OCCURRENCE_COMMAND_MISMATCH, identical roots and empty plans; the valid attempt remains usable."
+    },
+    {
+      "id": "MARGIN-V2-RESULT-ALIAS",
+      "status": "repaired",
+      "evidence": "Constructor inputs and getter snapshots detach complete graphs; borrowed state/effects mutations cannot change the retained result/refinement roots."
+    }
+  ],
+  "failed_attempts": [
+    "Initial integration test collection failed before the producer existed.",
+    "One property-test draft used the effect-row field principal on an amount row; repaired to owner. Runtime unchanged.",
+    "Initial broad gate used an interpreter missing pytest_cov; the existing development environment completed the gate without dependency installation.",
+    "Daybreak review launch hit native thread limit; no worker ran.",
+    "New Opus source review launch was rejected by automatic approval review for private payload authorization; no source packet was sent.",
+    "Live Fable availability probe returned rate_limit/out-of-usage; no model output or model usage was recorded."
+  ],
+  "line_changes": {
+    "files": 10,
+    "added": 2567,
+    "removed": 0,
+    "runtime_added": 685,
+    "proof_added": 411,
+    "tests_added": 1350,
+    "docs_added": 121,
+    "metadata_credit": "Support metadata is separate; receives no product credit."
+  },
+  "contributors": [
+    {
+      "id": "root",
+      "model": "gpt-6-astra",
+      "role": "integration",
+      "output": "Runtime producer and claims, critical integration/ownership/history tests, specification, mathematical review and final verification.",
+      "source_lines_added": 1086
+    },
+    {
+      "id": "luna",
+      "model": "gpt-5.6-luna",
+      "role": "implementation",
+      "output": "Owned margin state, state-contract tests and resource/lifecycle tests.",
+      "source_lines_added": 694
+    },
+    {
+      "id": "astra-review-and-proof",
+      "model": "gpt-6-astra",
+      "role": "review",
+      "output": "Independent runtime review found both repaired defects; implemented Lean episode proof/bridge, reviewed by root.",
+      "source_lines_added": 787
+    },
+    {
+      "id": "opus-predecessor-review",
+      "model": "claude-opus-5",
+      "role": "review",
+      "output": "Earlier read-only architecture review identified stale terminal projection; root corrected its V1-only suggestion against the actual V2 contract. No new runtime verdict.",
+      "source_lines_added": 0,
+      "provider_duration_ms": 432107,
+      "provider_uncached_input_tokens": 32,
+      "provider_output_tokens": 33055,
+      "provider_cache_creation_input_tokens": 83425,
+      "provider_cache_read_input_tokens": 639265
+    }
+  ],
+  "resources": {
+    "exclusive_model_elapsed_ms": null,
+    "root_or_native_worker_tokens": null,
+    "actual_cost": null,
+    "note": "Test durations are execution observations, not total work time. Git-parent timestamp gaps are not charged as agent work. Provider usage is declared, not billing verification.",
+    "fable_availability_duration_ms": 5656
+  },
+  "not_run": [
+    "Full Lake/mathlib build",
+    "ESSO/Tau release gate (not available in this checkout)",
+    "New Rust twin and RISC0 guest/real receipt qualification",
+    "Live migration, deployment or activation"
+  ],
+  "nonclaims": [
+    "One margin market and existing reserve-free asset frame only; complete multi-market/reserve-bearing composition remains open.",
+    "No universal Python/Rust or canonical decoding/hash refinement.",
+    "Helper correspondence assumes valid preprojection and one owner-preserving account replacement; malformed missing-active-record behavior is outside that bridge.",
+    "No authenticity of supplied snapshots, occurrence, grant or oracle data.",
+    "No admission of historical V1 receipts as V2 evidence.",
+    "No publisher mount, data-store/recovery qualification or production authority.",
+    "No completion of matching, funding, liquidation, insurance or whole-market shutdown.",
+    "No maximum-size replay/terminal performance or guaranteed-exit qualification."
+  ],
+  "next_acceptance": "Qualify complete Rust/Python successor correspondence; then versioned receipt/route admission and isolated current-store publication with the same claims and synchronized physical frame."
+}
