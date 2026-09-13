@@ -70,7 +70,8 @@ AS01 authority discovery and confirmed AS07 repairs can proceed alongside it.
 Every AS01-AS08 exit condition is initially open; the goal must not be marked
 complete after a local cleanup fix or an uncompiled guest scaffold.
 
-Root reproduced and repaired two shared verifier failures: a reaped leader
+Commit `b5c55c18d` and its [repair evidence](../tests/evidence/attack_surface_repairs_20260913.json)
+record two reproduced and repaired shared verifier failures: a reaped leader
 left a same-process-group descendant running, and exact protocol completion
 at the deadline could accept. The retained real-process cases test normal,
 nonzero and signalled exit plus deadline neighbors. Cleanup now observes exit

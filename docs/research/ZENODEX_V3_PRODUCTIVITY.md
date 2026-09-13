@@ -476,3 +476,29 @@ contribution attempts for this delivery, including the failed spawn. Prior
 review bookkeeping and this delivery's evidence are separate support batches.
 This manifest append follows the accounted `301a4389` evidence commit and must
 be carried once into the next code-value range.
+
+
+## September 13: attack-surface goal and verifier lifetime repair
+
+The approved [plan](../ZENODEX_ATTACK_SURFACE_REDUCTION_PLAN.md) is an active
+V3 workstream with no token cap. [Repair evidence](../../tests/evidence/attack_surface_repairs_20260913.json)
+pins `be7dcd006` → `b5c55c18d`: runtime +17/−2, tests +84/−0, plan/continuity
++151/−0. Root Astra implemented/integrated; Daybreak Max independently reviewed.
+Provider tokens, billing and exclusive model time are unavailable. Terra Max's
+separate ongoing guest task has no accepted delivery credit in this repair.
+
+Two retained counterexamples now pass: a verifier leader could leave a child
+running after return, and exact protocol completion at the deadline could
+accept. The six final boundary/lifecycle cases, 41 focused tests, 108 integration
+tests, 433 TCB tests and 852 critical tests pass. The existing production-boundary
+posture check passes; the inherited missing derivatives checker still fails its
+claims registry. An extra test handshake proposed by review was rejected after
+both reviewers established the existing pipe already enforces the ordering.
+
+This is NOT_RESCORED security repair. All full AS01-AS08 exits remain open;
+no formal-core, lane or production gate credit is assigned. Group/session escape,
+same-UID access and compromised hosts remain outside the repaired guarantee.
+No build, proof generation, remote compute, cleanup or dependency installation
+was performed for this repair. Initial 3.3 GiB availability declined to 1.9 GiB
+while the batch ran; these are observations, not attribution to this batch.
+The earlier `301a4389` → `be7dcd006` metadata is counted once as support.

@@ -1,0 +1,123 @@
+{
+  "schema": "zenodex/attack-surface-repair-evidence/v1",
+  "subject": "b5c55c18d2ab7f9eef65fdf656c0c96d61a65909",
+  "implementation_base": "be7dcd00639b08996d8c282d1360b72d0509d732",
+  "authority": "NONE",
+  "plan": "docs/ZENODEX_ATTACK_SURFACE_REDUCTION_PLAN.md",
+  "obligations": [
+    "AS07",
+    "W03",
+    "W11"
+  ],
+  "full_plan_complete": false,
+  "source_sha256": {
+    "src/integration/global_receipt_verifier_v1.py": "4100ffb98e6faeafb41e221514a189c47400cba740d996dfd4b11b704953296b",
+    "tests/integration/test_global_receipt_verifier_v1.py": "a56b2d059ee80b8ce2c6705be1a6ca38af2e1a05a92b451e0126672aa0fd4537",
+    "docs/ZENODEX_ATTACK_SURFACE_REDUCTION_PLAN.md": "e0f32572b02af85fb04e7eae4d8e066a5b4b3c149ea3365d5cb914a2e6bc02c3"
+  },
+  "findings": [
+    {
+      "id": "VERIFIER-DESCENDANT-AFTER-REAP",
+      "status": "repaired",
+      "before": "The leader was reaped before cleanup; a same-process-group descendant retained execution after the verifier call returned.",
+      "after": "WNOWAIT observes exit; cleanup signals the owned group before reaping its leader.",
+      "falsifier": "Three real-process cases at exit0,exit2,SIGTERM failed at the independent pipe EOF assertion before repair (6.48s); all pass after repair.",
+      "oracle": "Independent retained pipe writer; no RISC0 cryptography is simulated as genuine."
+    },
+    {
+      "id": "VERIFIER-LATE-COMPLETION",
+      "status": "repaired",
+      "before": "Exact completed output returned without a final deadline check.",
+      "after": "Exit observation is followed by the deadline check before acceptance.",
+      "falsifier": "At-deadline observation failed DID NOT RAISE before repair (0.35s);1ns-before/exact/1ns-after neighbors now pass.",
+      "oracle": "Real protocol process with explicitly controlled monotonic observation time."
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest -q tests/integration/test_global_receipt_verifier_v1.py",
+      "result": "41 passed",
+      "seconds": 1.86
+    },
+    {
+      "command": "python3 -m pytest -q tests/integration/test_global_receipt_verifier_v1.py tests/integration/test_asset_lane_custody_receipt_verification_v2.py tests/integration/test_profiled_asset_lane_custody_receipt_v2.py tests/integration/test_profiled_perps_margin_receipt_v2.py tests/integration/test_isolated_joint_margin_publisher_v2.py",
+      "result": "108 passed",
+      "seconds": 148.15
+    },
+    {
+      "command": "PYTHON=<existing development venv>/bin/python bash tools/run_critical_quality_gate.sh",
+      "result": "PASS;433 acceptance TCB tests in17.30s;852 critical tests in72.74s;configured lint,type,hygiene,BVA and coverage gates pass"
+    },
+    {
+      "command": "python3 -m ruff check src/integration/global_receipt_verifier_v1.py tests/integration/test_global_receipt_verifier_v1.py",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 -m mypy src/integration/global_receipt_verifier_v1.py",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tools/check_production_boundary.py --json",
+      "result": "ok=true;posture check only"
+    },
+    {
+      "command": "python3 tools/check_claims_registry.py",
+      "result": "FAIL inherited claims[123].evidence.files missing tools/check_derivatives_authorization_matrix.py"
+    },
+    {
+      "command": "redflags.py src/integration/global_receipt_verifier_v1.py",
+      "result": "0 findings"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "review": {
+    "model": "gpt-daybreak-blue-latest",
+    "effort": "max",
+    "task": "attack_surface_review",
+    "result": "Accepted bounded cleanup/deadline repair;independently replayed final six regression cases (0.62s).",
+    "correction": "Reviewer retracted proposed extra handshake after confirming pipe EOF already orders child readiness before cleanup;no redundant handshake added."
+  },
+  "implementation_lines": {
+    "runtime": {
+      "added": 17,
+      "removed": 2
+    },
+    "tests": {
+      "added": 84,
+      "removed": 0
+    },
+    "plan_and_continuity": {
+      "added": 151,
+      "removed": 0
+    }
+  },
+  "assessment": "NOT_RESCORED;no lane,formal-core or production qualification credit assigned",
+  "remaining": [
+    "AS01-AS08 full exit conditions remain open",
+    "No containment of setsid/setpgid escape or same-UID filesystem/network access",
+    "Exclusive child reaping and honest publisher/OS remain premises",
+    "No demonstrated verifier exploit from an attacker-controlled cryptographic receipt",
+    "Genuine margin V2 guest/receipt/current-store qualification is pending",
+    "Independent finality and effect-destination consumer remain unmounted"
+  ],
+  "contributors": [
+    {
+      "model": "gpt-6-astra",
+      "role": "integration,implementation,verification",
+      "resources": "provider/exclusive model time and token data unavailable"
+    },
+    {
+      "model": "gpt-daybreak-blue-latest",
+      "role": "independent security review",
+      "resources": "provider/exclusive model time and token data unavailable"
+    }
+  ],
+  "resource_observations": [
+    "Initial df approximately3.3GiB;later1.9GiB while no compiler/prover was run by this batch",
+    "RISC0 1.94.1 toolchain and cargo-risczero3.0.6 exist;system default alone gave a corrected false absence",
+    "No heavy build,remote run,cleanup or dependency installation"
+  ]
+}

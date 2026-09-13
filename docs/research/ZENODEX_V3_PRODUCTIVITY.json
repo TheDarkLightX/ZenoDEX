@@ -3169,6 +3169,44 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-attack-surface-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "attack-surface-plan-repair-and-combined-verification",
+      "risk": "critical",
+      "provenance": {
+        "commit": "b5c55c18d2ab7f9eef65fdf656c0c96d61a65909",
+        "path": "tests/integration/test_global_receipt_verifier_v1.py",
+        "sha256": "a56b2d059ee80b8ce2c6705be1a6ca38af2e1a05a92b451e0126672aa0fd4537"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-attack-surface-daybreak",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "max-independent-authority-cleanup-and-deadline-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "b5c55c18d2ab7f9eef65fdf656c0c96d61a65909",
+        "path": "tests/integration/test_global_receipt_verifier_v1.py",
+        "sha256": "a56b2d059ee80b8ce2c6705be1a6ca38af2e1a05a92b451e0126672aa0fd4537"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -5177,6 +5215,80 @@
         "review": null
       },
       "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-margin-publication-accounting",
+      "before_commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+      "after_commit": "be7dcd00639b08996d8c282d1360b72d0509d732",
+      "kind": "support",
+      "obligation_ids": [
+        "W06",
+        "W07"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-publication-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry the preceding contribution-account append once. Git range contains metadata only; no new implementation or additional delivery credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-attack-surface-verifier-repair",
+      "before_commit": "be7dcd00639b08996d8c282d1360b72d0509d732",
+      "after_commit": "b5c55c18d2ab7f9eef65fdf656c0c96d61a65909",
+      "kind": "repair",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-attack-surface-root",
+        "V3-20260913-attack-surface-daybreak"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "17/2 runtime,84/0 tests,151/0 plan and continuity lines. Same-group verifier descendants are signalled before leader reaping; late exact protocol completion rejects.41 focused and108 integration tests pass plus433 TCB/852 critical. AS01-AS08 full exits remain open;NOT_RESCORED. Pin identifies executable regression source; execution/review details are recorded in attack_surface_repairs_20260913.json.",
+        "evidence": {
+          "commit": "b5c55c18d2ab7f9eef65fdf656c0c96d61a65909",
+          "path": "tests/integration/test_global_receipt_verifier_v1.py",
+          "sha256": "a56b2d059ee80b8ce2c6705be1a6ca38af2e1a05a92b451e0126672aa0fd4537"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "VERIFIER-DESCENDANT-AFTER-REAP",
+          "status": "repaired",
+          "evidence": {
+            "commit": "b5c55c18d2ab7f9eef65fdf656c0c96d61a65909",
+            "path": "tests/integration/test_global_receipt_verifier_v1.py",
+            "sha256": "a56b2d059ee80b8ce2c6705be1a6ca38af2e1a05a92b451e0126672aa0fd4537"
+          }
+        },
+        {
+          "id": "VERIFIER-LATE-COMPLETION",
+          "status": "repaired",
+          "evidence": {
+            "commit": "b5c55c18d2ab7f9eef65fdf656c0c96d61a65909",
+            "path": "tests/integration/test_global_receipt_verifier_v1.py",
+            "sha256": "a56b2d059ee80b8ce2c6705be1a6ca38af2e1a05a92b451e0126672aa0fd4537"
+          }
+        }
+      ],
       "supersedes": null
     }
   ]

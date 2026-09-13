@@ -620,3 +620,18 @@ test durations are not billed or exclusive model time. The next delivery value
 is genuine current-guest receipt qualification, followed by authenticated
 nonflat workflows and production finality/recovery. The recording added after
 this implementation commit is separate support work and earns no extra score.
+
+
+### September 13: verifier attack-surface repair
+
+Range `be7dcd00639b08996d8c282d1360b72d0509d732` →
+`b5c55c18d2ab7f9eef65fdf656c0c96d61a65909`: runtime +17/−2, tests +84/−0,
+plan/continuity +151/−0. [Source-bound evidence](../../tests/evidence/attack_surface_repairs_20260913.json)
+records two reproduced failures and their repaired process/deadline outcomes,
+41 focused and 108 integration tests, the broad gates and independent Daybreak
+review. This advances W03/W11 containment under explicit publisher/OS premises.
+It adds no dependency, proof or new economic workflow. The change is
+**NOT_RESCORED**; the previous 24.268% V3 and 21.440% formal estimates have not
+been refreshed. Full AS07 and all production gates remain open. The next
+integrated acceptance remains genuine margin V2 receipt qualification through
+the current-store publisher, pending build capacity and its guest implementation.
