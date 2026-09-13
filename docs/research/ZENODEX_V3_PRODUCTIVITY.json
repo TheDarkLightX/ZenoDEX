@@ -3036,6 +3036,44 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-taufold-v2-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "independent-delivery-replay-and-deadline-repair-proposal",
+      "risk": "critical",
+      "provenance": {
+        "commit": "fd1776504e57b04332698764cd9f3a3c98f89829",
+        "path": "docs/research/TAUFOLD_V2_FOUNDATION_REVIEW_20260913.md",
+        "sha256": "d5efdc8fe69766e5baf2899167f960b65d7fe64792c85b43f3fe79bcd66d667e"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-taufold-v2-review",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-u256-guest-host-and-reservation-binding-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "fd1776504e57b04332698764cd9f3a3c98f89829",
+        "path": "docs/research/TAUFOLD_V2_FOUNDATION_REVIEW_20260913.md",
+        "sha256": "d5efdc8fe69766e5baf2899167f960b65d7fe64792c85b43f3fe79bcd66d667e"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -4868,6 +4906,46 @@
             "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
             "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
             "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-taufold-v2-review",
+      "before_commit": "fbcfc7a04067d5f00bbb05ef1a568ec347093d67",
+      "after_commit": "fd1776504e57b04332698764cd9f3a3c98f89829",
+      "kind": "review",
+      "obligation_ids": [
+        "W03",
+        "W06"
+      ],
+      "run_ids": [
+        "V3-20260913-taufold-v2-root",
+        "V3-20260913-taufold-v2-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "178 added review/regression/patch lines retain a confirmed deadline regression and +4/-1 upstream repair proposal. Fresh Python/SMT checks pass; no live source changed and original crypto/native/browser evidence is not relabeled as fresh.",
+        "evidence": {
+          "commit": "fd1776504e57b04332698764cd9f3a3c98f89829",
+          "path": "docs/research/TAUFOLD_V2_FOUNDATION_REVIEW_20260913.md",
+          "sha256": "d5efdc8fe69766e5baf2899167f960b65d7fe64792c85b43f3fe79bcd66d667e"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "V3-20260913-taufold-late-completion-admission",
+          "status": "reopened",
+          "evidence": {
+            "commit": "fd1776504e57b04332698764cd9f3a3c98f89829",
+            "path": "docs/research/TAUFOLD_V2_FOUNDATION_REVIEW_20260913.md",
+            "sha256": "d5efdc8fe69766e5baf2899167f960b65d7fe64792c85b43f3fe79bcd66d667e"
           }
         }
       ],

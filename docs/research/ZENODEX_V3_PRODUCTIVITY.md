@@ -432,7 +432,7 @@ records and one unscored support batch, preserving the manifest prefix at
 manifest and fresh evidence. Root Astra replayed 86 source pins, 12 external
 pins, eight core groups/8,480 Python vectors and SMT/generated-source checks;
 a separate Astra agent reviewed the core, guest, host and reservation adapter.
-No additional model calls, builds or provider resource observations were made.
+No external-model calls, builds or provider resource observations were made.
 Native per-model time/tokens remain unknown; 69.045 seconds is test runtime.
 
 Root found a reintroduced deadline failure in the successor transport and
@@ -442,3 +442,10 @@ source-owner's real-receipt/process gates remain required. Verifier binary
 location is pending, so original Rust/native/browser/receipt results were not
 reclassified as fresh replays. This is `NOT_RESCORED` review/repair support;
 no ZenoDEX economic runtime changed and no V3 score or gate credit follows.
+
+Review commit `fd1776504…` adds 178 lines: 56 executable regression lines
+and 122 review/patch/account lines. The upstream candidate itself is +4/−1;
+packaging is not a second implementation. Two native Astra contributions and
+one unscored review batch are appended. The deadline finding is reopened for
+the newly delivered implementation until its owner integrates and qualifies
+the repair; the earlier subject's retained passing result remains historical.
