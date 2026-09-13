@@ -1,0 +1,309 @@
+{
+  "schema": "taufold-verifier-handoff-v1",
+  "status": "REVIEWED_ISOLATED_CANDIDATE",
+  "source_candidate": "55ec8821ccc6bf7ff95ab9726136764963513206",
+  "source_archive_sha256": "065a4fb34ed36cf0e3f2d2f97fc4b042f5f35cc71e5d78e3b3ec50acc4fdc259",
+  "zenodex_base": "4247e6194ac404e91429f3445654574cb4238d87",
+  "files": {
+    "zkvm/adapters/python/taufold_adapters/verifier.py": {
+      "before_sha256": "ed62d9e65fc47f9a54728f2c5276ab61499ab30064a78ec1ffe7a2555fe455ea",
+      "after_sha256": "2091d7493e1e5b2f42747612052f294f8988da35fc26af435f224e216bc1824a"
+    },
+    "zkvm/adapters/python/taufold_adapters/_process.py": {
+      "before_sha256": null,
+      "after_sha256": "d9f46028a18029714642fbe6de08ca428e3bc12c2c08d893ed75c8c3c7098ac0"
+    },
+    "zkvm/tests/test_native_verifier_snapshot.py": {
+      "before_sha256": null,
+      "after_sha256": "230591e7bc55f157722325173f7bd9f74778c363502788d6bcb5a0f84f1ce579"
+    },
+    "zkvm/tests/test_native_verifier_io.py": {
+      "before_sha256": null,
+      "after_sha256": "0c0548e3d8cb51959b3d339d89eeb5e6d5135cd0202306aab167cd9acfba8b3a"
+    }
+  },
+  "line_changes": {
+    "zkvm/adapters/python/taufold_adapters/verifier.py": {
+      "added": 157,
+      "removed": 17
+    },
+    "zkvm/adapters/python/taufold_adapters/_process.py": {
+      "added": 139,
+      "removed": 0
+    },
+    "zkvm/tests/test_native_verifier_snapshot.py": {
+      "added": 247,
+      "removed": 0
+    },
+    "zkvm/tests/test_native_verifier_io.py": {
+      "added": 326,
+      "removed": 0
+    }
+  },
+  "patch_sha256": "2f9e6c4dc8d9443196657935b470d04c739d7030b78e965a0ba95374255ae062",
+  "replay_scripts": {
+    "qualify_boundary.py": "63400b3d23fd0e5900ebab6705e686788b66388c05d748beb841c8e6fd427d3b",
+    "qualify_io.py": "c12fa1f3b8cde6c8bb6e8484c66ff94f258365ac5d8d5f40ee0580bc9c730d7e"
+  },
+  "verifier_sha256": "1b1d558af7f5a09f38f6e76ecae8a1dbb0d653269c2d41e5dd64b34db981635e",
+  "guard_bundle_sha256": "738d64641d610e98c7720cc19008ab0f7829a7e0f20db1aa82c68286c2d86e3a",
+  "evidence": {
+    "unit_tests": {
+      "passed": 27,
+      "failed": 0,
+      "command": "python3 -m unittest discover -s zkvm/tests -p 'test_native_verifier_*.py' -v"
+    },
+    "lint": {
+      "passed": true,
+      "scope": [
+        "zkvm/adapters/python/taufold_adapters/verifier.py",
+        "zkvm/adapters/python/taufold_adapters/_process.py",
+        "zkvm/tests/test_native_verifier_snapshot.py",
+        "zkvm/tests/test_native_verifier_io.py"
+      ]
+    },
+    "genuine_adapter_replay": {
+      "status": "passed",
+      "real_receipts": 4,
+      "rejected_cases": 49,
+      "zenodex_real_intent": true,
+      "orbit_real_checker_and_runtime": true,
+      "state_changes": 0,
+      "external_effects": 0
+    },
+    "independent_boundary": {
+      "passed": true,
+      "cases": [
+        {
+          "name": "genuine_receipt_actual_swap_intent_and_exact_retry",
+          "passed": true
+        },
+        {
+          "name": "counterfeit_receipt_rejected_without_path_attack",
+          "passed": true
+        },
+        {
+          "name": "wrong_recipient_rejected",
+          "passed": true
+        },
+        {
+          "name": "changed_deployment_rejected",
+          "passed": true
+        },
+        {
+          "name": "changed_pre_state_rejected",
+          "passed": true
+        },
+        {
+          "name": "changed_nonce_rejected",
+          "passed": true
+        },
+        {
+          "name": "changed_budget_rejected",
+          "passed": true
+        },
+        {
+          "name": "changed_input_commitment_rejected",
+          "passed": true
+        },
+        {
+          "name": "path_replacement_cannot_admit_counterfeit_proof",
+          "passed": true
+        },
+        {
+          "name": "in_place_mutation_cannot_admit_counterfeit_proof",
+          "passed": true
+        }
+      ]
+    },
+    "independent_transport": {
+      "passed": true,
+      "cryptographic_evidence": false,
+      "cases": [
+        {
+          "name": "valid_complete_response_preserves_negative_business_result",
+          "passed": true,
+          "status": "accepted",
+          "child_reached_after_limit_marker": false,
+          "output": 0
+        },
+        {
+          "name": "stdout_limit_stops_child_before_post_flood_marker",
+          "passed": true,
+          "status": "typed_rejection",
+          "child_reached_after_limit_marker": false,
+          "output": null
+        },
+        {
+          "name": "stderr_limit_stops_child_before_post_flood_marker",
+          "passed": true,
+          "status": "typed_rejection",
+          "child_reached_after_limit_marker": false,
+          "output": null
+        },
+        {
+          "name": "boolean_byte_alias_rejected",
+          "passed": true,
+          "status": "typed_rejection",
+          "child_reached_after_limit_marker": false,
+          "output": null
+        },
+        {
+          "name": "floating_step_count_rejected",
+          "passed": true,
+          "status": "typed_rejection",
+          "child_reached_after_limit_marker": false,
+          "output": null
+        },
+        {
+          "name": "unknown_field_rejected",
+          "passed": true,
+          "status": "typed_rejection",
+          "child_reached_after_limit_marker": false,
+          "output": null
+        },
+        {
+          "name": "duplicate_status_rejected",
+          "passed": true,
+          "status": "typed_rejection",
+          "child_reached_after_limit_marker": false,
+          "output": null
+        },
+        {
+          "name": "malformed_hash_typed_rejection",
+          "passed": true,
+          "status": "typed_rejection",
+          "child_reached_after_limit_marker": false,
+          "output": null
+        },
+        {
+          "name": "deep_json_typed_rejection",
+          "passed": true,
+          "status": "typed_rejection",
+          "child_reached_after_limit_marker": false,
+          "output": null
+        }
+      ]
+    },
+    "local_report_sha256": {
+      "baseline-boundary.json": "ee3738a1ddf786e824a72cb2176221eeb874154506eafc34a79adb56e318e91b",
+      "baseline-io-framed.json": "fcae7ca86da9bc0c03dfc1ebfc4ad8669f05683d169a5dd60171ed17339426ed",
+      "final-boundary-reviewed.json": "ba26d69c20cc2a32d0f3e71211e07348bf5c678f13b7fff88742d569cb2ec9ea",
+      "final-io-host.json": "82e86095951be545a43a80b0d0c69ab69919fd0336ff3353a8e99b7fac47e9ad",
+      "final-adapters-reviewed.json": "f77c2a5278414dd87266340d03a5b931ea4bf1bfc54163c416f3c1135c035526"
+    },
+    "baseline_failures": [
+      "mutable path replacement and in-place executable mutation admitted a counterfeit response",
+      "stdout bound checked after collecting flood; stderr flood accepted",
+      "Boolean byte alias, floating step, unknown and duplicate fields accepted; bad hash raised raw ValueError"
+    ],
+    "review_repairs": [
+      "Empty transport request raised KeyError before repair; retained direct control now passes",
+      "Completion observed after deadline was accepted before repair; retained real-pidfd clock control now rejects"
+    ],
+    "verification_limitations": [
+      "Sandbox rejected sealed ELF and env-shebang execution; final real and independent controls passed in approved host replays",
+      "Initial independent transport fixture omitted native newline; corrected and replayed baseline and final candidate",
+      "Inherited ZenoDEX claims registry fails on missing tools/check_derivatives_authorization_matrix.py; unrelated gate not changed"
+    ],
+    "patch_replay": {
+      "apply_check": true,
+      "applied_to_fresh_baseline_copy": true,
+      "all_four_result_hashes_match_reviewed_subject": true
+    }
+  },
+  "independent_review": {
+    "model_id": "gpt-6-astra",
+    "status": "NO_BLOCKER_IN_DECLARED_SCOPE",
+    "subject": "after_sha256 pins above",
+    "checks": [
+      "sealed snapshot AST preserves previously reviewed implementation",
+      "deadline, empty request, descriptor cleanup and strict schema",
+      "no SIGCHLD auto-reap or external reaper assumed"
+    ],
+    "daybreak_review": false
+  },
+  "runs": [
+    {
+      "id": "max-attempt",
+      "model_id": "claude-opus-5",
+      "effort": "max",
+      "status": "failed",
+      "launcher_elapsed_ms": 1854925,
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "cost_microusd": null,
+      "reason": "Two output-token-limit continuations with no implementation artifacts; stopped failed attempt, then narrowed task. No arbitrary timed cutoff."
+    },
+    {
+      "id": "snapshot",
+      "model_id": "claude-opus-5",
+      "effort": "high",
+      "status": "completed",
+      "launcher_elapsed_ms": 286947,
+      "input_tokens": 20,
+      "output_tokens": 23171,
+      "elapsed_ms": 285109,
+      "cost_microusd": null,
+      "cache_creation_input_tokens": 31778,
+      "cache_read_input_tokens": 200952,
+      "provider_list_price_usd": "0.997631",
+      "cost_basis": "provider list-price estimate, not actual billed cost",
+      "reported_auxiliary": {
+        "model_id": "claude-haiku-4-5-20251001",
+        "input_tokens": 1567,
+        "output_tokens": 16,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "io-parser",
+      "model_id": "claude-opus-5",
+      "effort": "high",
+      "status": "completed",
+      "launcher_elapsed_ms": 609899,
+      "input_tokens": 42,
+      "output_tokens": 49056,
+      "elapsed_ms": 608181,
+      "cost_microusd": null,
+      "cache_creation_input_tokens": 77966,
+      "cache_read_input_tokens": 933521,
+      "provider_list_price_usd": "2.4730304999999997",
+      "cost_basis": "provider list-price estimate, not actual billed cost",
+      "reported_auxiliary": {
+        "model_id": "claude-haiku-4-5-20251001",
+        "input_tokens": 1795,
+        "output_tokens": 19,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    }
+  ],
+  "native_contributors": [
+    {
+      "model_id": "gpt-6-astra",
+      "role": "architecture, integration, independent probes and review repairs",
+      "resources": "unknown"
+    },
+    {
+      "model_id": "gpt-6-astra",
+      "role": "independent architecture, snapshot and transport review",
+      "resources": "unknown"
+    }
+  ],
+  "assumptions": [
+    "trusted host-selected executable digest, parent process, kernel, loader and libraries",
+    "Linux executable memfd sealing, proc fd execution and pidfd support",
+    "sole child reaper; no SIGCHLD auto-reaping or external waitpid handler",
+    "pinned child does not escape its process group; kernel and filesystem remain responsive"
+  ],
+  "nonclaims": [
+    "not mounted in ZenoDEX or live TauFold",
+    "no authenticated live input/state linkage or publication qualification",
+    "no new guest proof, compiler theorem, Lean, ESSO, Kani or second proof backend",
+    "no production profile, economic lane or value-safety gate closed",
+    "V3/formal assessment NOT_RESCORED; patch support gets no automatic credit"
+  ]
+}

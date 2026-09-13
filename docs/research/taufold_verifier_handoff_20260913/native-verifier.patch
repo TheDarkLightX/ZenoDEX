@@ -1,0 +1,938 @@
+diff --git a/zkvm/adapters/python/taufold_adapters/verifier.py b/zkvm/adapters/python/taufold_adapters/verifier.py
+--- a/zkvm/adapters/python/taufold_adapters/verifier.py
++++ b/zkvm/adapters/python/taufold_adapters/verifier.py
+@@ -1,15 +1,154 @@
+ """Small process boundary to the pinned Rust cryptographic verifier."""
+ from __future__ import annotations
++
++import errno
++import json
++import os
++import stat
++import subprocess
++from contextlib import suppress
+ from dataclasses import dataclass
+ from hashlib import sha256
+-import json
+ from pathlib import Path
+-import subprocess
++
++from . import _process
+ from .context import BoundRequest, canonical, digest
++
++try:
++    import fcntl
++except ImportError:
++    fcntl = None
++
++VERIFIER_LIMIT = 128 << 20
++CHILD_SECONDS = 60
++RESPONSE_LIMIT = 65536
++_MFD_EXEC = 0x0010
++# Existing VM bounds of the Rust VerifiedApplication response.
++_U32 = 0xffffffff
++_PUBLIC_MEMORY = 16
++_MAX_STEPS = 512
++_HASHES = ('input_commitment', 'program_sha256', 'specification_sha256', 'receipt_sha256')
++_FIELDS = frozenset(('status', 'output', 'public_memory', 'steps', 'guest_image_id') + _HASHES)
+
+
+ class VerificationRejected(ValueError):
+     """No computation evidence was admitted. No effects were performed."""
++
++
++def _unique_object(pairs):
++    value = {}
++    for key, item in pairs:
++        if key in value:
++            raise VerificationRejected('verifier response has duplicate fields')
++        value[key] = item
++    return value
++
++
++def _non_integer(_):
++    raise VerificationRejected('verifier response has non-integer numbers')
++
++
++def _integer(value, low, high, name):
++    if type(value) is not int or not low <= value <= high:  # excludes Boolean aliases
++        raise VerificationRejected(f'invalid verifier {name}')
++    return value
++
++
++def _integers(value, lengths, high, name):
++    if type(value) is not list or len(value) not in lengths:
++        raise VerificationRejected(f'invalid verifier {name}')
++    return [_integer(item, 0, high, name) for item in value]
++
++
++def _response(raw, input_commitment):
++    """Parse the native JSON object and reject malformed fields."""
++    body = raw[:-1]
++    if not raw.endswith(b'\n') or body.strip() != body:
++        raise VerificationRejected('verifier response is malformed')
++    try:
++        value = json.loads(body.decode('utf-8'), object_pairs_hook=_unique_object,
++                           parse_float=_non_integer, parse_constant=_non_integer)
++    except VerificationRejected:
++        raise
++    except (ValueError, RecursionError):  # invalid UTF-8, malformed or too deep JSON
++        raise VerificationRejected('verifier response is malformed') from None
++    if type(value) is not dict or value.keys() != _FIELDS:
++        raise VerificationRejected('verifier response fields differ from the schema')
++    if value['status'] != 'verified':
++        raise VerificationRejected('verifier response is not verified')
++    output = _integer(value['output'], 0, _U32, 'output')
++    _integers(value['public_memory'], range(_PUBLIC_MEMORY + 1), _U32, 'public memory')
++    _integer(value['steps'], 1, _MAX_STEPS, 'steps')
++    _integers(value['guest_image_id'], (8,), _U32, 'image')
++    hashes = {name: bytes(_integers(value[name], (32,), 0xff, name)) for name in _HASHES}
++    if hashes['input_commitment'] != input_commitment:
++        raise VerificationRejected('verifier response differs from the expected commitment')
++    return output, hashes['program_sha256'], hashes['receipt_sha256']
++
++
++def _sealed_snapshot(path, expected):
++    """Return an owned memfd holding exactly the pinned bytes, sealed against change.
++
++    The caller must close the descriptor. The mutable path is never executed.
++    """
++    names = ('F_ADD_SEALS', 'F_GET_SEALS', 'F_SEAL_SEAL', 'F_SEAL_SHRINK', 'F_SEAL_GROW', 'F_SEAL_WRITE')
++    if (fcntl is None or not all(hasattr(fcntl, name) for name in names)
++            or not all(hasattr(os, name) for name in ('memfd_create', 'MFD_CLOEXEC', 'MFD_ALLOW_SEALING', 'readv', 'pread'))):
++        raise VerificationRejected('sealed verifier execution is unsupported on this platform')
++    source = memfd = -1
++    try:
++        source = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_NOCTTY)
++        info = os.fstat(source)
++        if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= VERIFIER_LIMIT:
++            raise VerificationRejected('configured verifier is not a bounded regular file')
++        size = info.st_size
++        image = memoryview(bytearray(size + 1))
++        total = 0
++        while total <= size:
++            count = os.readv(source, [image[total:]])
++            if count <= 0:
++                break
++            total += count
++        if total != size:
++            raise VerificationRejected('configured verifier changed size while it was read')
++        image = image[:size]
++        if sha256(image).digest() != expected:
++            raise VerificationRejected('configured verifier binary differs from its trusted pin')
++        flags = os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING
++        try:
++            memfd = os.memfd_create('taufold-verifier', flags | _MFD_EXEC)
++        except OSError as error:
++            if error.errno != errno.EINVAL:  # kernels before MFD_EXEC existed
++                raise
++            memfd = os.memfd_create('taufold-verifier', flags)
++        written = 0
++        while written < size:
++            count = os.write(memfd, image[written:])
++            if count <= 0:
++                raise VerificationRejected('verifier snapshot write was short')
++            written += count
++        required = fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE
++        fcntl.fcntl(memfd, fcntl.F_ADD_SEALS, required)
++        if fcntl.fcntl(memfd, fcntl.F_GET_SEALS) & required != required or os.fstat(memfd).st_size != size:
++            raise VerificationRejected('verifier snapshot is not sealed')
++        check, offset = sha256(), 0
++        while offset < size:
++            chunk = os.pread(memfd, min(1 << 20, size - offset), offset)
++            if not chunk:
++                raise VerificationRejected('verifier snapshot read was short')
++            check.update(chunk)
++            offset += len(chunk)
++        if check.digest() != expected:
++            raise VerificationRejected('sealed verifier snapshot differs from its trusted pin')
++        owned, memfd = memfd, -1
++        return owned
++    except OSError as error:
++        raise VerificationRejected('verifier snapshot could not be acquired') from error
++    finally:
++        for descriptor in (source, memfd):
++            if descriptor >= 0:
++                with suppress(OSError):
++                    os.close(descriptor)
+
+
+ @dataclass(frozen=True, slots=True)
+@@ -30,34 +169,35 @@
+ class NativeVerifier:
+     """The host configures and pins this executable, independently of proof data."""
+     def __init__(self, executable, expected_sha256):
+-        self._path = Path(executable).resolve(strict=True)
++        try:
++            self._path = Path(executable).resolve(strict=True)
++        except (OSError, RuntimeError) as error:  # missing file or symlink loop
++            raise VerificationRejected('configured verifier could not be acquired') from error
+         self._digest = digest(expected_sha256, 'verifier binary hash')
+         self._check_binary()
+
+     def _check_binary(self):
+-        if not self._path.is_file() or sha256(self._path.read_bytes()).digest() != self._digest:
+-            raise VerificationRejected('configured verifier binary differs from its trusted pin')
++        os.close(_sealed_snapshot(self._path, self._digest))
+
+     def verify(self, request, bundle):
+         if type(request) is not BoundRequest or type(bundle) is not bytes or len(bundle) > 2 << 20:
+             raise VerificationRejected('expected a bounded immutable request and proof bundle')
+-        self._check_binary()
++        # Execute the sealed pinned snapshot, never the replaceable path.
++        executable = _sealed_snapshot(self._path, self._digest)
+         # Only the Rust verifier interprets the untrusted bundle. It rejects
+         # duplicate fields, foreign images, fake proofs and mismatched rules.
+         try:
+             payload = json.dumps({'app': request.app, 'public': request.public_json.decode('ascii'),
+                                   'bundle': bundle.decode('utf-8'),
+                                   'expected_input_commitment': list(request.input_commitment)}, separators=(',', ':')).encode()
+-            result = subprocess.run([str(self._path)], input=payload, capture_output=True, timeout=60)
+-            if result.returncode or len(result.stdout) > 65536:
+-                raise VerificationRejected('proof or caller expectations rejected')
+-            value = json.loads(result.stdout)
+-            if value['status'] != 'verified' or bytes(value['input_commitment']) != request.input_commitment:
+-                raise VerificationRejected('verifier response differs from the expected commitment')
+-            output = value['output']
+-            if type(output) is not int or not 0 <= output <= 0xffffffff:
+-                raise VerificationRejected('invalid verifier output')
++            raw = _process.exchange([f'/proc/self/fd/{executable}'], payload, pass_fds=(executable,),
++                                    seconds=CHILD_SECONDS, limit=RESPONSE_LIMIT)
++            output, program, receipt = _response(raw, request.input_commitment)
+             return Evidence(request.invocation.project, request.invocation.digest(), request.input_commitment,
+-                            digest(bytes(value['program_sha256']), 'program'), digest(bytes(value['receipt_sha256']), 'receipt'), output)
+-        except (OSError, UnicodeError, KeyError, TypeError, subprocess.TimeoutExpired, json.JSONDecodeError) as error:
++                            program, receipt, output)
++        except _process.ChildRejected as error:
++            raise VerificationRejected(f'proof or caller expectations rejected: {error}') from None
++        except (OSError, UnicodeError, subprocess.SubprocessError) as error:
+             raise VerificationRejected('proof verification could not complete') from error
++        finally:
++            os.close(executable)
+diff --git a/zkvm/adapters/python/taufold_adapters/_process.py b/zkvm/adapters/python/taufold_adapters/_process.py
+new file mode 100644
+--- /dev/null
++++ b/zkvm/adapters/python/taufold_adapters/_process.py
+@@ -0,0 +1,139 @@
++"""Bounded, deadlock-free request/response exchange with one trusted child process.
++
++The kernel, process machinery, dynamic loader and libraries are trusted. Every
++rejection kills the child's process group, reaps the child and closes every
++stream and descriptor. Rejection messages are fixed and never quote child output.
++"""
++from __future__ import annotations
++
++import math
++import os
++import select
++import signal
++import subprocess
++import time
++from contextlib import suppress
++
++_clock = time.monotonic  # replaced by deterministic tests
++_CHUNK = 1 << 16
++
++
++class ChildRejected(Exception):
++    """The child did not complete a clean, bounded exchange."""
++
++
++def _supported():
++    return (hasattr(os, 'pidfd_open') and hasattr(os, 'set_blocking') and hasattr(os, 'killpg')
++            and hasattr(select, 'poll') and hasattr(signal, 'pidfd_send_signal'))
++
++
++def _read(descriptor, size):
++    """Return bytes, b'' at end of stream, or None when nothing is ready."""
++    try:
++        return os.read(descriptor, size)
++    except BlockingIOError:
++        return None
++
++
++def exchange(args, request, *, pass_fds, seconds, limit):
++    """Deliver all of request, then return at most limit bytes of stdout.
++
++    Rejects timeouts, undelivered requests, any stderr byte, oversized stdout
++    and any exit other than status zero.
++    """
++    if not _supported():
++        raise ChildRejected('bounded verifier execution is unsupported on this platform')
++    process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
++                               bufsize=0, pass_fds=pass_fds, start_new_session=True)
++    pidfd = -1
++    try:
++        deadline = _clock() + seconds
++        pidfd = os.pidfd_open(process.pid)
++        output = _collect(process, pidfd, memoryview(request), deadline, limit)
++    finally:
++        _reap(process, pidfd)
++    if process.returncode != 0:
++        raise ChildRejected('verifier exited unsuccessfully')
++    return output
++
++
++def _collect(process, pidfd, request, deadline, limit):
++    stdin, stdout, stderr = process.stdin.fileno(), process.stdout.fileno(), process.stderr.fileno()
++    for descriptor in (stdin, stdout, stderr):
++        os.set_blocking(descriptor, False)
++    poller = select.poll()
++    for descriptor in (stdout, stderr, pidfd):
++        poller.register(descriptor, select.POLLIN)
++    readers, output, written = {stdout, stderr}, bytearray(), 0
++
++    def finish_request():
++        poller.unregister(stdin)
++        process.stdin.close()
++
++    def receive(descriptor):
++        """Consume one ready chunk; return False once nothing more is ready."""
++        if descriptor == stderr:
++            chunk = _read(stderr, 1)
++            if chunk:
++                raise ChildRejected('verifier wrote diagnostics')
++        else:
++            chunk = _read(stdout, limit + 1 - len(output))
++            if chunk:
++                output.extend(chunk)
++                if len(output) > limit:
++                    raise ChildRejected('verifier response exceeds its size limit')
++        if chunk == b'':
++            poller.unregister(descriptor)
++            readers.discard(descriptor)
++        return bool(chunk)
++
++    if request:
++        poller.register(stdin, select.POLLOUT)
++    else:
++        process.stdin.close()
++    exited = False
++    while not exited:
++        remaining = deadline - _clock()
++        if remaining <= 0:
++            raise ChildRejected('verifier exceeded its lifetime')
++        events = poller.poll(math.ceil(remaining * 1000))
++        if _clock() >= deadline:
++            raise ChildRejected('verifier exceeded its lifetime')
++        for descriptor, _ in events:
++            if descriptor == pidfd:
++                exited = True
++            elif descriptor == stdin and not process.stdin.closed:
++                try:
++                    written += os.write(stdin, request[written:written + _CHUNK])
++                except BlockingIOError:
++                    continue
++                except BrokenPipeError:
++                    raise ChildRejected('verifier exited before reading the request') from None
++                if written == len(request):
++                    finish_request()
++            elif descriptor in readers:
++                receive(descriptor)
++    if not process.stdin.closed:
++        raise ChildRejected('verifier exited before reading the request')
++    # The child has exited, so everything it wrote is already buffered.
++    for descriptor in (stderr, stdout):
++        while descriptor in readers and receive(descriptor):
++            pass
++    if _clock() >= deadline:
++        raise ChildRejected('verifier exceeded its lifetime')
++    return bytes(output)
++
++
++def _reap(process, pidfd):
++    if process.returncode is None:
++        if pidfd >= 0:
++            with suppress(OSError):
++                signal.pidfd_send_signal(pidfd, signal.SIGKILL)
++        with suppress(OSError):
++            os.killpg(process.pid, signal.SIGKILL)
++        process.wait()
++    for stream in (process.stdin, process.stdout, process.stderr):
++        with suppress(OSError):
++            stream.close()
++    if pidfd >= 0:
++        os.close(pidfd)
+diff --git a/zkvm/tests/test_native_verifier_snapshot.py b/zkvm/tests/test_native_verifier_snapshot.py
+new file mode 100644
+--- /dev/null
++++ b/zkvm/tests/test_native_verifier_snapshot.py
+@@ -0,0 +1,247 @@
++"""NativeVerifier executes a sealed snapshot of exactly the pinned verifier bytes.
++
++The child scripts below are synthetic transport controls, not cryptographic
++verifiers. They only decide whether a forged "verified" response reaches the
++adapter.
++"""
++import errno
++import itertools
++import json
++import os
++import subprocess
++import sys
++import tempfile
++import unittest
++from hashlib import sha256
++from pathlib import Path
++from unittest import mock
++
++ROOT = Path(__file__).resolve().parents[1]
++sys.path[:0] = [str(ROOT/'adapters/python')]
++from taufold_adapters import verifier
++from taufold_adapters.context import BoundRequest, Invocation
++from taufold_adapters.verifier import (
++    Evidence,
++    NativeVerifier,
++    VerificationRejected,
++)
++
++REAL_RUN = subprocess.run
++REAL_POPEN = subprocess.Popen
++REJECTING = f'#!{sys.executable}\nimport sys\nsys.stdin.buffer.read()\nsys.exit(1)\n'.encode()
++ACCEPTING = (f'#!{sys.executable}\nimport json, sys\nr = json.load(sys.stdin)\n'
++             "print(json.dumps({'status': 'verified', 'output': OUTPUT, 'public_memory': [], 'steps': 1,"
++             " 'guest_image_id': [0] * 8, 'input_commitment': r['expected_input_commitment'],"
++             " 'program_sha256': [1] * 32, 'specification_sha256': [3] * 32, 'receipt_sha256': [2] * 32},"
++             " separators=(',', ':')))\n")
++HONEST = ACCEPTING.replace('OUTPUT', '0').encode()
++FORGER = ACCEPTING.replace('OUTPUT', '7').encode()
++
++
++def bound_request():
++    invocation = Invocation('demo', 'snapshot-test', b'\1' * 32, b'\2' * 32, b'\3' * 32, 0)
++    request = object.__new__(BoundRequest)  # transport control; rule validation is out of scope here
++    fields = {'app': 'demo', 'public_json': b'{}', 'invocation': invocation, 'input_commitment': b'\4' * 32}
++    for name, value in fields.items():
++        object.__setattr__(request, name, value)
++    return request
++
++
++def open_fds():
++    return set(os.listdir('/proc/self/fd'))
++
++
++@unittest.skipUnless(sys.platform.startswith('linux'), 'sealed memfd execution is Linux-only')
++class NativeVerifierSnapshotTest(unittest.TestCase):
++    def setUp(self):
++        self.fds = open_fds()
++        self.tmp = tempfile.TemporaryDirectory(dir=Path(__file__).parent)
++        self.path = Path(self.tmp.name) / 'verifier'
++        self.request = bound_request()
++
++    def tearDown(self):
++        self.tmp.cleanup()
++        self.assertEqual(open_fds(), self.fds, 'owned descriptors leaked')
++
++    def install(self, content, path=None):
++        path = path or self.path
++        path.write_bytes(content)
++        path.chmod(0o755)
++        return path
++
++    def replace_path(self, spawn, *args, **kwargs):
++        os.replace(self.install(FORGER, self.path.with_name('forger')), self.path)
++        return spawn(*args, **kwargs)
++
++    def mutate_in_place(self, spawn, *args, **kwargs):
++        with open(self.path, 'r+b') as handle:  # same inode, new contents
++            handle.write(FORGER)
++            handle.truncate()
++        return spawn(*args, **kwargs)
++
++    def admits(self, result):
++        value = json.loads(result.stdout) if result.returncode == 0 else {}
++        return value.get('status') == 'verified'
++
++    def test_old_hash_then_exec_admits_forgery_after_measurement(self):
++        for mutate in (self.replace_path, self.mutate_in_place):
++            with self.subTest(mutate=mutate.__name__):
++                pin = sha256(self.install(REJECTING).read_bytes()).digest()
++                self.assertEqual(sha256(self.path.read_bytes()).digest(), pin)  # legacy measurement
++                try:
++                    legacy = mutate(REAL_RUN, [str(self.path)], input=b'{"expected_input_commitment":[]}',
++                                    capture_output=True, timeout=60)
++                except PermissionError:
++                    self.skipTest('temporary directory does not permit path execution')
++                self.assertTrue(self.admits(legacy), 'control: mutable path runs the forger')
++
++    def test_path_replacement_and_in_place_mutation_run_the_sealed_snapshot(self):
++        for mutate in (self.replace_path, self.mutate_in_place):
++            with self.subTest(mutate=mutate.__name__):
++                native = NativeVerifier(self.install(REJECTING), sha256(REJECTING).digest())
++                with mock.patch.object(verifier.subprocess, 'Popen',
++                                       side_effect=lambda *a, mutate=mutate, **k: mutate(REAL_POPEN, *a, **k)) as popen, \
++                        self.assertRaises(VerificationRejected):
++                    native.verify(self.request, b'counterfeit')
++                self.assertEqual(popen.call_count, 1)
++                self.assertEqual(self.path.read_bytes(), FORGER)
++
++    def test_honest_snapshot_executes_through_proc_fd_with_output_zero(self):
++        native = NativeVerifier(self.install(HONEST), sha256(HONEST).digest())
++        seen = []
++        real_exchange = verifier._process.exchange
++
++        def exchange(args, payload, **kwargs):
++            self.assertEqual((kwargs['seconds'], kwargs['limit']), (60, 65536))
++            return real_exchange(args, payload, **kwargs)
++
++        def popen(args, **kwargs):
++            (descriptor,) = kwargs['pass_fds']
++            self.assertEqual(args, [f'/proc/self/fd/{descriptor}'])
++            self.assertTrue(os.readlink(args[0]).startswith('/memfd:taufold-verifier'))
++            seen.append(descriptor)
++            os.replace(self.install(FORGER, self.path.with_name('forger')), self.path)
++            return REAL_POPEN(args, **kwargs)
++
++        with mock.patch.object(verifier._process, 'exchange', side_effect=exchange), \
++                mock.patch.object(verifier.subprocess, 'Popen', side_effect=popen):
++            evidence = native.verify(self.request, b'bundle')
++        self.assertEqual(evidence, Evidence('demo', self.request.invocation.digest(), b'\4' * 32, b'\1' * 32, b'\2' * 32, 0))
++        self.assertEqual(len(seen), 1)
++
++    def test_snapshot_has_required_seals(self):
++        descriptor = verifier._sealed_snapshot(self.install(HONEST), sha256(HONEST).digest())
++        try:
++            required = (verifier.fcntl.F_SEAL_SEAL | verifier.fcntl.F_SEAL_SHRINK
++                        | verifier.fcntl.F_SEAL_GROW | verifier.fcntl.F_SEAL_WRITE)
++            self.assertEqual(verifier.fcntl.fcntl(descriptor, verifier.fcntl.F_GET_SEALS) & required, required)
++            self.assertEqual(os.pread(descriptor, len(HONEST) + 1, 0), HONEST)
++            for change in (lambda: os.pwrite(descriptor, b'x', 0), lambda: os.ftruncate(descriptor, 1),
++                           lambda: os.ftruncate(descriptor, len(HONEST) + 1),
++                           lambda: verifier.fcntl.fcntl(descriptor, verifier.fcntl.F_ADD_SEALS, 0)):
++                with self.assertRaises(PermissionError):
++                    change()
++            self.install(FORGER)
++            self.assertEqual(os.pread(descriptor, len(HONEST) + 1, 0), HONEST)
++        finally:
++            os.close(descriptor)
++
++    def test_pin_mismatch_rejects_without_execution(self):
++        with self.assertRaises(VerificationRejected):
++            NativeVerifier(self.install(FORGER), sha256(HONEST).digest())
++        native = NativeVerifier(self.install(HONEST), sha256(HONEST).digest())
++        self.install(FORGER)
++        with mock.patch.object(verifier.subprocess, 'Popen') as run, self.assertRaises(VerificationRejected):
++            native.verify(self.request, b'bundle')
++        run.assert_not_called()
++
++    def test_resource_bound_and_nonregular_inputs_reject_without_execution(self):
++        native = NativeVerifier(self.install(HONEST), sha256(HONEST).digest())
++        self.assertEqual(verifier.VERIFIER_LIMIT, 128 << 20)
++
++        def fifo():
++            self.path.unlink(missing_ok=True); os.mkfifo(self.path)
++
++        def directory():
++            self.path.unlink(missing_ok=True); self.path.mkdir()
++
++        def symlink():
++            self.install(HONEST, self.path.with_name('target')); self.path.unlink(missing_ok=True); self.path.symlink_to('target')
++
++        def empty():
++            self.path.unlink(missing_ok=True); self.install(b'')
++
++        with mock.patch.object(verifier.subprocess, 'Popen') as run:
++            with mock.patch.object(verifier, 'VERIFIER_LIMIT', len(HONEST) - 1), self.assertRaises(VerificationRejected):
++                native.verify(self.request, b'bundle')
++            for change in (fifo, directory, symlink, empty):
++                with self.subTest(change=change.__name__):
++                    change()
++                    with self.assertRaises(VerificationRejected):
++                        native.verify(self.request, b'bundle')
++                    for leftover in (self.path, self.path.with_name('target')):
++                        if leftover.is_dir() and not leftover.is_symlink():
++                            leftover.rmdir()
++                        elif leftover.exists() or leftover.is_symlink():
++                            leftover.unlink()
++            run.assert_not_called()
++
++    def test_short_io_growth_and_unsupported_sealing_reject_without_execution(self):
++        native = NativeVerifier(self.install(HONEST), sha256(HONEST).digest())
++        real_readv, real_fcntl = os.readv, verifier.fcntl.fcntl
++
++        def short_read(descriptor, buffers):
++            short_read.calls += 1
++            return real_readv(descriptor, [buffers[0][:5]]) if short_read.calls == 1 else 0
++
++        def growing_read(descriptor, buffers):
++            with open(self.path, 'ab') as handle:
++                handle.write(b'#')
++            return real_readv(descriptor, buffers)
++
++        def unreported_seals(descriptor, command, *args):
++            return 0 if command == verifier.fcntl.F_GET_SEALS else real_fcntl(descriptor, command, *args)
++
++        failures = {
++            'short read': mock.patch.object(verifier.os, 'readv', side_effect=short_read),
++            'growth': mock.patch.object(verifier.os, 'readv', side_effect=growing_read),
++            'short write': mock.patch.object(verifier.os, 'write', return_value=0),
++            'write error': mock.patch.object(verifier.os, 'write', side_effect=OSError(errno.ENOSPC, 'full')),
++            'memfd unsupported': mock.patch.object(verifier.os, 'memfd_create', side_effect=OSError(errno.ENOSYS, 'no')),
++            'sealing unsupported': mock.patch.object(verifier.fcntl, 'fcntl', side_effect=OSError(errno.EINVAL, 'no')),
++            'seals unreported': mock.patch.object(verifier.fcntl, 'fcntl', side_effect=unreported_seals),
++            'no fcntl module': mock.patch.object(verifier, 'fcntl', None),
++        }
++        with mock.patch.object(verifier.subprocess, 'Popen') as run:
++            for name, failure in failures.items():
++                with self.subTest(failure=name):
++                    self.install(HONEST)
++                    short_read.calls = 0
++                    with failure, self.assertRaises(VerificationRejected):
++                        native.verify(self.request, b'bundle')
++            run.assert_not_called()
++
++    def test_execution_failure_rejects_and_closes_snapshot(self):
++        native = NativeVerifier(self.install(HONEST), sha256(HONEST).digest())
++        closed = []
++        real_close = os.close
++
++        def close(descriptor):
++            closed.append(descriptor)
++            real_close(descriptor)
++
++        for error in (PermissionError(errno.EACCES, 'noexec'), 'timeout'):
++            with self.subTest(error=error if error == 'timeout' else type(error).__name__):
++                closed.clear()
++                spawn = REAL_POPEN if error == 'timeout' else error
++                # Deterministic clock: the deadline is read at 0 s, every later check at 61 s.
++                clock = itertools.chain([0.0], itertools.repeat(61.0))
++                with mock.patch.object(verifier.subprocess, 'Popen', side_effect=spawn) as run, \
++                        mock.patch.object(verifier._process, '_clock', side_effect=clock), \
++                        mock.patch.object(verifier.os, 'close', side_effect=close), self.assertRaises(VerificationRejected):
++                    native.verify(self.request, b'bundle')
++                self.assertIn(run.call_args.kwargs['pass_fds'][0], closed)
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/zkvm/tests/test_native_verifier_io.py b/zkvm/tests/test_native_verifier_io.py
+new file mode 100644
+--- /dev/null
++++ b/zkvm/tests/test_native_verifier_io.py
+@@ -0,0 +1,326 @@
++"""Bounded child I/O and total response parsing for NativeVerifier.
++
++TRANSPORT-ONLY: every child program below is a synthetic Python script. None
++is a cryptographic verifier and nothing here is real proof evidence; the tests
++only decide how the adapter transports a request and admits a response.
++"""
++import dataclasses
++import os
++import signal
++import sys
++import tempfile
++import unittest
++from hashlib import sha256
++from pathlib import Path
++from unittest import mock
++
++ROOT = Path(__file__).resolve().parents[1]
++sys.path[:0] = [str(ROOT/'adapters/python'), str(ROOT/'tests')]
++from taufold_adapters import verifier
++from taufold_adapters.verifier import (
++    Evidence,
++    NativeVerifier,
++    VerificationRejected,
++)
++from test_native_verifier_snapshot import (
++    FORGER,
++    REAL_POPEN,
++    bound_request,
++    open_fds,
++)
++
++
++def words(*values):
++    return b'[' + b','.join(str(value).encode() for value in values) + b']'
++
++
++# Fixed expected values, written out independently of the implementation.
++IMAGE = words(759081298, 2527243487, 3748687001, 4282500226, 2292234474, 3493081789, 4125183123, 838037657)
++RESPONSE = (b'{"status":"verified","output":0,"public_memory":[0,4294967295],"steps":512,'
++            b'"guest_image_id":' + IMAGE + b',"input_commitment":' + words(*[4] * 32)
++            + b',"program_sha256":' + words(*[1] * 32) + b',"specification_sha256":' + words(*[3] * 32)
++            + b',"receipt_sha256":' + words(*[2] * 32) + b'}\n')
++LARGE = b'a' * (2 << 20)
++
++
++def request_bytes(bundle):
++    return (b'{"app":"demo","public":"{}","bundle":"' + bundle + b'","expected_input_commitment":'
++            + words(*[4] * 32) + b'}')
++
++
++def child(body):
++    return f'#!{sys.executable}\nimport fcntl, hashlib, os, signal, sys\n{body}\n'.encode()
++
++
++def exact_request(bundle, then):
++    """Synthetic child: exit 1 unless stdin is exactly the framed request, then run `then`."""
++    return child(f'data = sys.stdin.buffer.read()\n'
++                 f'if hashlib.sha256(data).hexdigest() != {sha256(request_bytes(bundle)).hexdigest()!r}: sys.exit(1)\n'
++                 f'{then}')
++
++
++def respond(raw):
++    return f'sys.stdout.buffer.write({raw!r})'
++
++
++@unittest.skipUnless(sys.platform.startswith('linux'), 'sealed memfd execution is Linux-only')
++class NativeVerifierIoTest(unittest.TestCase):
++    def setUp(self):
++        self.fds = open_fds()
++        self.tmp = tempfile.TemporaryDirectory(dir=Path(__file__).parent)
++        self.path = Path(self.tmp.name) / 'verifier'
++        self.request = bound_request()
++        self.processes = []
++
++        def spawn(*args, **kwargs):
++            process = REAL_POPEN(*args, **kwargs)
++            self.processes.append(process)
++            return process
++
++        for patch in (mock.patch.object(verifier.subprocess, 'Popen', side_effect=spawn),
++                      mock.patch.object(verifier._process.os, 'killpg', wraps=os.killpg)):
++            patch.start()
++            self.addCleanup(patch.stop)
++
++    def tearDown(self):
++        self.tmp.cleanup()
++        self.assertEqual(open_fds(), self.fds, 'owned descriptors leaked')
++
++    def native(self, content):
++        self.path.write_bytes(content)
++        self.path.chmod(0o755)
++        return NativeVerifier(self.path, sha256(content).digest())
++
++    def expected(self, output=0):
++        return Evidence('demo', self.request.invocation.digest(), b'\4' * 32, b'\1' * 32, b'\2' * 32, output)
++
++    def assert_cleaned(self, killed):
++        """killed: True (child still ran at rejection), False (exited 0 itself), 'either' (racy by nature)."""
++        (process,) = self.processes
++        allowed = {True: {-signal.SIGKILL}, False: {0}, 'either': {0, -signal.SIGKILL}}[killed]
++        self.assertIn(process.returncode, allowed)
++        self.assertTrue(process.stdin.closed and process.stdout.closed and process.stderr.closed)
++        with self.assertRaises(ChildProcessError):  # already reaped
++            os.waitpid(process.pid, os.WNOHANG)
++        os.killpg.assert_called_with(process.pid, signal.SIGKILL)
++
++    def assert_rejected(self, native, bundle, reason, killed=None):
++        with self.assertRaisesRegex(VerificationRejected, reason) as caught:
++            native.verify(self.request, bundle)
++        self.assertNotIn('SECRET', str(caught.exception))
++        self.assertIsNone(caught.exception.__cause__)
++        if killed is not None:
++            self.assert_cleaned(killed)
++        return caught.exception
++
++    def test_exact_request_and_complete_response_with_output_zero(self):
++        native = self.native(exact_request(b'bundle', 'assert os.getpgid(0) == os.getpid()\n' + respond(RESPONSE)))
++        self.assertEqual(native.verify(self.request, b'bundle'), self.expected(0))
++        self.assert_cleaned(killed=False)
++        self.assertEqual([field.name for field in dataclasses.fields(Evidence)],
++                         ['project', 'context', 'input_commitment', 'program', 'receipt', 'output'])
++        self.assertTrue(Evidence.__dataclass_params__.frozen)
++        self.assertEqual((verifier.CHILD_SECONDS, verifier.RESPONSE_LIMIT), (60, 65536))
++
++    def test_empty_transport_request_closes_stdin_and_reaps_child(self):
++        # NativeVerifier always frames a nonempty JSON request, but the narrow
++        # exchange helper must close stdin correctly at its zero-byte boundary.
++        self.path.write_bytes(child('if sys.stdin.buffer.read(): sys.exit(1)\n' + respond(RESPONSE)))
++        self.path.chmod(0o755)
++        result = verifier._process.exchange([str(self.path)], b'', pass_fds=(), seconds=60, limit=65536)
++        self.assertEqual(result, RESPONSE)
++        self.assert_cleaned(killed=False)
++
++    def test_large_request_is_drained_in_small_reads(self):
++        body = ('data = b""\nwhile chunk := os.read(0, 4096): data += chunk\n'
++                f'if hashlib.sha256(data).hexdigest() != {sha256(request_bytes(LARGE)).hexdigest()!r}: sys.exit(1)\n'
++                + respond(RESPONSE))
++        self.assertEqual(self.native(child(body)).verify(self.request, LARGE), self.expected(0))
++        self.assert_cleaned(killed=False)
++
++    def test_bidirectional_backpressure_at_the_response_limit_does_not_deadlock(self):
++        # stdout is shrunk to one page and filled before stdin is read. Exit 0 and the
++        # parse-stage reason prove full delivery and inclusive acceptance of 65536 bytes.
++        body = ('fcntl.fcntl(1, fcntl.F_SETPIPE_SZ, 4096)\nos.write(1, b"x" * 65536)\n'
++                f'if hashlib.sha256(sys.stdin.buffer.read()).hexdigest() != {sha256(request_bytes(LARGE)).hexdigest()!r}:'
++                ' sys.exit(1)')
++        self.assert_rejected(self.native(child(body)), LARGE, 'response is malformed', killed=False)
++
++    def test_finite_stdout_overflow_rejects(self):
++        native = self.native(exact_request(b'bundle', 'sys.stdout.buffer.write(b"SECRET" + b"x" * 65531)'))
++        self.assert_rejected(native, b'bundle', 'response exceeds its size limit', killed='either')
++
++    def test_endless_stdout_flood_rejects_and_kills(self):
++        native = self.native(child('while True: os.write(1, b"SECRET" * 4096)'))
++        self.assert_rejected(native, b'bundle', 'response exceeds its size limit', killed=True)
++
++    def test_any_stderr_rejects(self):
++        native = self.native(exact_request(b'bundle', respond(RESPONSE) + '\nsys.stderr.buffer.write(b"SECRET")'))
++        self.assert_rejected(native, b'bundle', 'verifier wrote diagnostics', killed='either')
++
++    def test_stderr_flood_before_reading_large_request_rejects_and_kills(self):
++        native = self.native(child('while True: os.write(2, b"SECRET" * 4096)'))
++        self.assert_rejected(native, LARGE, 'verifier wrote diagnostics', killed=True)
++
++    def test_child_exiting_before_reading_large_request_rejects(self):
++        native = self.native(child(respond(RESPONSE)))
++        self.assert_rejected(native, LARGE, 'exited before reading the request', killed=False)
++
++    def test_child_closing_stdin_then_hanging_rejects_and_kills(self):
++        native = self.native(child('os.close(0)\nsignal.pause()'))
++        self.assert_rejected(native, LARGE, 'exited before reading the request', killed=True)
++
++    def test_nonzero_exit_rejects_even_with_valid_response(self):
++        native = self.native(exact_request(b'bundle', respond(RESPONSE) + '\nsys.stdout.flush()\nos._exit(3)'))
++        self.assert_rejected(native, b'bundle', 'exited unsuccessfully')
++        self.assertEqual(self.processes[0].returncode, 3)
++        self.assertTrue(self.processes[0].stdout.closed)
++
++    def test_timeout_after_delivery_rejects_and_kills(self):
++        native = self.native(exact_request(b'bundle', 'signal.pause()'))
++
++        def clock():  # deterministic: time passes the 60 s lifetime once the request is delivered
++            return 61.0 if self.processes[0].stdin.closed else 0.0
++
++        with mock.patch.object(verifier._process, '_clock', side_effect=clock):
++            self.assert_rejected(native, b'bundle', 'exceeded its lifetime', killed=True)
++
++    def test_completion_observed_after_deadline_rejects(self):
++        native = self.native(exact_request(b'bundle', respond(RESPONSE)))
++        state = {'now': 0.0, 'pidfd': None}
++        real_poll = verifier._process.select.poll
++        real_pidfd_open = os.pidfd_open
++
++        def open_pidfd(pid):
++            state['pidfd'] = real_pidfd_open(pid)
++            return state['pidfd']
++
++        class LateCompletion:
++            def __init__(self):
++                self.poller = real_poll()
++
++            def __getattr__(self, name):
++                return getattr(self.poller, name)
++
++            def poll(self, milliseconds):
++                events = self.poller.poll(milliseconds)
++                if any(fd == state['pidfd'] for fd, _ in events):
++                    state['now'] = 61.0
++                return events
++
++        with mock.patch.object(verifier._process, '_clock', side_effect=lambda: state['now']), \
++                mock.patch.object(verifier._process.os, 'pidfd_open', side_effect=open_pidfd), \
++                mock.patch.object(verifier._process.select, 'poll', LateCompletion):
++            self.assert_rejected(native, b'bundle', 'exceeded its lifetime', killed=False)
++
++    def test_unsupported_platform_rejects_without_execution(self):
++        native = self.native(child(respond(RESPONSE)))
++        with mock.patch.object(verifier._process, '_supported', return_value=False):
++            self.assert_rejected(native, b'bundle', 'unsupported on this platform')
++        verifier.subprocess.Popen.assert_not_called()
++
++    def test_invalid_calls_and_missing_executable_reject_without_execution(self):
++        native = self.native(child(respond(RESPONSE)))
++        for request, bundle in ((object(), b'bundle'), (self.request, 'bundle'), (self.request, bytearray(b'b')),
++                                (self.request, b'a' * ((2 << 20) + 1))):
++            with self.assertRaises(VerificationRejected):
++                native.verify(request, bundle)
++        with self.assertRaisesRegex(VerificationRejected, 'could not be acquired'):
++            NativeVerifier(self.path.with_name('missing'), sha256(b'').digest())
++        loop = self.path.with_name('loop')
++        loop.symlink_to('loop')
++        with self.assertRaisesRegex(VerificationRejected, 'could not be acquired'):
++            NativeVerifier(loop, sha256(b'').digest())
++        verifier.subprocess.Popen.assert_not_called()
++
++    def test_malformed_response_through_child_hides_output(self):
++        native = self.native(exact_request(b'bundle', respond(b'{"SECRET":\xff}\n')))
++        self.assert_rejected(native, b'bundle', 'response is malformed', killed=False)
++
++    def test_replacement_attack_payload_is_schema_valid(self):
++        # The forger used by the snapshot attacks would be admitted if it were what ran,
++        # so its rejection there is due to the sealed snapshot, not to response parsing.
++        self.assertEqual(self.native(FORGER).verify(self.request, b'bundle'), self.expected(7))
++
++
++class ResponseSchemaTest(unittest.TestCase):
++    commitment = b'\4' * 32
++
++    def parse(self, raw):
++        return verifier._response(raw, self.commitment)
++
++    def test_complete_response_boundaries(self):
++        self.assertEqual(self.parse(RESPONSE), (0, b'\1' * 32, b'\2' * 32))
++        edges = {b'"output":0': b'"output":4294967295', b'"steps":512': b'"steps":1',
++                 b'"public_memory":[0,4294967295]': b'"public_memory":' + words(*[7] * 16)}
++        for old, new in edges.items():
++            with self.subTest(new=new):
++                self.assertEqual(RESPONSE.count(old), 1)
++                self.assertEqual(len(self.parse(RESPONSE.replace(old, new))), 3)
++        self.assertEqual(self.parse(RESPONSE.replace(b'"public_memory":[0,4294967295]', b'"public_memory":[]'))[0], 0)
++
++    def test_invalid_responses_reject_precisely(self):
++        output, memory, steps = b'"output":0', b'"public_memory":[0,4294967295]', b'"steps":512'
++        image, program = b'"guest_image_id":' + IMAGE, b'"program_sha256":' + words(*[1] * 32)
++        cases = [
++            # framing, encoding and JSON syntax
++            (b'"verified"', b'"verified\xff"', 'malformed'),
++            (b'}\n', b'}', 'malformed'),
++            (b'}\n', b'}\n\n', 'malformed'),
++            (b'}\n', b'} \n', 'malformed'),
++            (b'{"status"', b' {"status"', 'malformed'),
++            (b'}\n', b'}}\n', 'malformed'),
++            (b'}\n', b',\n', 'malformed'),
++            (output, b'"output":1' + b'0' * 5000, 'malformed'),
++            (memory, b'"public_memory":' + b'[' * 30000 + b']' * 30000, 'malformed'),
++            # object shape
++            (output, output + b',"output":0', 'duplicate fields'),
++            (output, output + b',"extra":0', 'differ from the schema'),
++            (steps + b',', b'', 'differ from the schema'),
++            (b'"status":"verified",', b'', 'differ from the schema'),
++            (b'"verified"', b'"rejected"', 'not verified'),
++            (b'"verified"', b'true', 'not verified'),
++            # numbers and aliases
++            (output, b'"output":false', 'invalid verifier output'),
++            (output, b'"output":true', 'invalid verifier output'),
++            (output, b'"output":"0"', 'invalid verifier output'),
++            (output, b'"output":null', 'invalid verifier output'),
++            (output, b'"output":-1', 'invalid verifier output'),
++            (output, b'"output":4294967296', 'invalid verifier output'),
++            (output, b'"output":0.0', 'non-integer numbers'),
++            (output, b'"output":0e0', 'non-integer numbers'),
++            (output, b'"output":NaN', 'non-integer numbers'),
++            (output, b'"output":-Infinity', 'non-integer numbers'),
++            (memory, b'"public_memory":' + words(*[0] * 17), 'invalid verifier public memory'),
++            (memory, b'"public_memory":[4294967296]', 'invalid verifier public memory'),
++            (memory, b'"public_memory":[true]', 'invalid verifier public memory'),
++            (memory, b'"public_memory":{}', 'invalid verifier public memory'),
++            (memory, b'"public_memory":0', 'invalid verifier public memory'),
++            (steps, b'"steps":0', 'invalid verifier steps'),
++            (steps, b'"steps":513', 'invalid verifier steps'),
++            (steps, b'"steps":true', 'invalid verifier steps'),
++            (image, b'"guest_image_id":' + words(*[0] * 7), 'invalid verifier image'),
++            (image, b'"guest_image_id":' + words(*[0] * 9), 'invalid verifier image'),
++            (image, b'"guest_image_id":' + words(*[0] * 7, -1), 'invalid verifier image'),
++            (program, b'"program_sha256":' + words(*[1] * 31), 'invalid verifier program_sha256'),
++            (program, b'"program_sha256":' + words(*[1] * 33), 'invalid verifier program_sha256'),
++            (program, b'"program_sha256":' + words(*[1] * 31, 256), 'invalid verifier program_sha256'),
++            (program, b'"program_sha256":[true' + b',1' * 31 + b']', 'invalid verifier program_sha256'),
++            (program, b'"program_sha256":"' + b'01' * 32 + b'"', 'invalid verifier program_sha256'),
++            (b'"specification_sha256":[3,', b'"specification_sha256":[', 'invalid verifier specification_sha256'),
++            (b'"receipt_sha256":[2,', b'"receipt_sha256":[-2,', 'invalid verifier receipt_sha256'),
++            (b'"input_commitment":[4,', b'"input_commitment":[', 'invalid verifier input_commitment'),
++            (b'"input_commitment":[4,', b'"input_commitment":[5,', 'differs from the expected commitment'),
++        ]
++        for old, new, reason in cases:
++            with self.subTest(new=new[:60], reason=reason):
++                self.assertIn(old, RESPONSE)
++                with self.assertRaisesRegex(VerificationRejected, reason):
++                    self.parse(RESPONSE.replace(old, new, 1))
++        for raw in (b'', b'\n', b'[]\n', b'"verified"\n', b'null\n', b'{}\n'):
++            with self.subTest(raw=raw), self.assertRaises(VerificationRejected):
++                self.parse(raw)
++
++
++if __name__ == '__main__':
++    unittest.main()

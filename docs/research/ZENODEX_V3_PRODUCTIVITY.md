@@ -390,3 +390,29 @@ against authentic current state with complete joint lane roots and claims.
 After all compiler/test processes exited, root removed only this batch's
 regeneratable incremental compilation cache (410,598,815 logical bytes).
 Compiled test/parity binaries, libraries, source and evidence logs remain.
+
+
+## September 13: TauFold upstream verifier repair and developer handoff
+
+[Exact source and evidence](taufold_verifier_handoff_20260913/verification.json)
+record a reviewed isolated upstream patch: runtime +296/−17 and tests +573/−0.
+Astra supplied architecture, independent real-proof/transport controls, integration
+and two review repairs. A separate Astra agent reviewed the final source.
+Claude Opus 5 high implemented the executable snapshot and bounded-I/O/parser
+changes. This is W03/W06 support; the ZenoDEX runtime is unchanged and the
+assessment is **NOT_RESCORED**. Shared support counts once.
+
+The initial Opus Max attempt produced no artifacts after two output-token-limit
+continuations and was stopped after 1,854,925 ms of launcher elapsed time.
+Its token/cost totals are unavailable. The two successful high runs report
+285,109 and 608,181 ms; 20 and 42 uncached input tokens; 23,171 and 49,056 output
+tokens. Cache creation/read counts and auxiliary Haiku usage remain separately
+identified in the sanitized record. Provider list-price estimates are not actual
+billed costs. Native Astra resources remain unknown. No Fable or Runpod was used.
+
+Initial tests exposed fixture cleanup errors; integration repaired empty-request
+and late-completion bugs. An independent fixture's missing native newline was
+corrected; sandbox execution denial required approved host replay. Final controls
+pass without weakening failed baselines. The inherited claims-registry missing
+file remains unresolved. The next acceptance is authenticated current-state
+input binding and existing publication integration, with full economic receipts.

@@ -545,3 +545,21 @@ range is 15.611–27.526%. All other scores and 0/12 qualified gates are unchang
 The earlier assessment remains pinned at `e95e897c…`. Support metadata receives
 no further credit. The next integration is receipt/route admission and isolated
 publication against authentic current state, with exact joint roots and claims.
+
+
+### September 13: isolated TauFold verifier support
+
+ZenoDEX parent `4247e619…`; [upstream handoff](TAUFOLD_ZENODEX_ASSURANCE_ARCHITECTURE_20260913.md)
+pins public TauFold source `55ec8821…` and the exact reviewed candidate patch.
+The upstream delta is **+869/−17**: verifier runtime +296/−17, tests +573/−0,
+proofs +0/−0. Patch packaging, independent replay probes and this account are
+additional support, not ZenoDEX economic implementation.
+
+The repair closes demonstrated executable-substitution and bounded-I/O/parser
+failures while retaining genuine receipt acceptance. Evidence: 27 focused tests,
+four real receipts/49 rejections, ten independent boundary controls and nine
+synthetic transport controls. Astra repaired two review-found process edge cases.
+Assessment **NOT_RESCORED**; carried formal 21.440% and V3 24.239% are historical,
+not a fresh zero-gain measurement. No lane or 0/12 qualification gate closes.
+Authenticated input/state linkage and actual isolated publication remain required;
+the full margin/custody receipt cannot be replaced by this small policy guard.
