@@ -563,3 +563,15 @@ Assessment **NOT_RESCORED**; carried formal 21.440% and V3 24.239% are historica
 not a fresh zero-gain measurement. No lane or 0/12 qualification gate closes.
 Authenticated input/state linkage and actual isolated publication remain required;
 the full margin/custody receipt cannot be replaced by this small policy guard.
+
+
+### September 13: TauFold V2 review correction
+
+The [new source review](TAUFOLD_V2_FOUNDATION_REVIEW_20260913.md) reproduced a
+deadline regression in the independently reimplemented transport. A +4/−1
+upstream patch fixes the retained probe in isolation; owner integration and
+real-receipt replay remain open. Eight core groups and 8,480 Python vectors/SMT
+checks passed freshly; the supplied Rust/native/browser/receipt reports remain
+historical for this review. Native Astra supplied the review and repair proposal.
+No economic implementation or proof lines changed. Record this as unscored
+support, not whole-core progress or a refreshed percentage estimate.

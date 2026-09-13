@@ -424,3 +424,21 @@ the 218 replay-probe lines runtime because they are Python; they are verificatio
 tools, not mounted economic code. The existing reporter accepts seven new run
 records and one unscored support batch, preserving the manifest prefix at
 `4247e619…`. This contribution-account append is additional unscored metadata.
+
+
+## September 13: independent TauFold V2 delivery review
+
+[The review](TAUFOLD_V2_FOUNDATION_REVIEW_20260913.md) pins the delivered
+manifest and fresh evidence. Root Astra replayed 86 source pins, 12 external
+pins, eight core groups/8,480 Python vectors and SMT/generated-source checks;
+a separate Astra agent reviewed the core, guest, host and reservation adapter.
+No additional model calls, builds or provider resource observations were made.
+Native per-model time/tokens remain unknown; 69.045 seconds is test runtime.
+
+Root found a reintroduced deadline failure in the successor transport and
+retained a failing regression plus an unapplied +4/−1 upstream repair candidate.
+Late completion rejects after repair and an ordinary exchange succeeds. The
+source-owner's real-receipt/process gates remain required. Verifier binary
+location is pending, so original Rust/native/browser/receipt results were not
+reclassified as fresh replays. This is `NOT_RESCORED` review/repair support;
+no ZenoDEX economic runtime changed and no V3 score or gate credit follows.

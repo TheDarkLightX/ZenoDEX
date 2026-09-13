@@ -1,0 +1,13 @@
+--- a/zkvm/adapters/python/taufold_adapters/process.py
++++ b/zkvm/adapters/python/taufold_adapters/process.py
+@@ -107,3 +107,5 @@
+         while selector.get_map():
+-            for key, _ in selector.select(min(_remaining(deadline), 0.05)):
++            events = selector.select(min(_remaining(deadline), 0.05))
++            _remaining(deadline)
++            for key, _ in events:
+                 try:
+@@ -132,2 +134,3 @@
+             time.sleep(min(_remaining(deadline), 0.01))
++    _remaining(deadline)
+     return bytes(output['stdout']), bytes(output['stderr'])
