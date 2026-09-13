@@ -1,3 +1,4 @@
+use serde::Serialize;
 use zenodex_global_settlement_abi_v1::{
     PerpsMarginAccountStatusV1, PerpsMarginCommandV1, PerpsMarginMarketStatusV1,
     PerpsMarginRejectCodeV1, PerpsMarginStateV1, RootV1, PERPS_MARGIN_MODULE_SCHEMA_V1,
@@ -12,9 +13,11 @@ use zenodex_global_settlement_abi_v2::{
     ASSET_TRANSFER_MODULE_SCHEMA_V2, GLOBAL_SETTLEMENT_ABI_V2,
 };
 use zenodex_perps_margin_global_v2::{
-    margin_claim_id_v2, transition_perps_margin_global_v2, PerpsMarginClaimBindingV2,
+    margin_claim_id_v2, prepare_perps_margin_global_from_frame_v2,
+    transition_perps_margin_global_v2, PerpsMarginClaimBindingV2, PerpsMarginGlobalFrameErrorV2,
     PerpsMarginGlobalRejectCodeV2, PerpsMarginGlobalRejectKindV2, PerpsMarginGlobalResultV2,
-    PerpsMarginStateV2,
+    PerpsMarginStateV2, PERPS_MARGIN_FRAME_MAGIC_V2, PERPS_MARGIN_GLOBAL_STATEMENT_SCHEMA_V2,
+    PERPS_MARGIN_REQUEST_SCHEMA_V2,
 };
 
 const MARKET: &str = "perp-btc-usd";
@@ -227,6 +230,42 @@ fn make_occurrence(
         pre_state_root: state.state_root().expect("state root"),
         consumed_object_ids: Vec::new(),
     }
+}
+
+#[derive(Serialize)]
+struct ExactPerpsMarginRequestV2<'a> {
+    schema: &'static str,
+    command: &'a PerpsMarginCommandV1,
+    occurrence: &'a EconomicCommandOccurrenceV2,
+    oracle: Option<()>,
+}
+
+fn exact_zdpm2_frame(
+    assets: &AssetLaneCustodyStateV2,
+    margin: &PerpsMarginStateV2,
+    state: &GlobalEconomicStateV2,
+    command: &PerpsMarginCommandV1,
+    occurrence: &EconomicCommandOccurrenceV2,
+) -> Vec<u8> {
+    let components = [
+        zenodex_global_settlement_abi_v2::canonical_bytes_v2(assets).expect("asset bytes"),
+        margin.canonical_bytes().expect("margin bytes"),
+        zenodex_global_settlement_abi_v2::canonical_bytes_v2(state).expect("state bytes"),
+        zenodex_global_settlement_abi_v2::canonical_bytes_v2(&ExactPerpsMarginRequestV2 {
+            schema: PERPS_MARGIN_REQUEST_SCHEMA_V2,
+            command,
+            occurrence,
+            oracle: None,
+        })
+        .expect("request bytes"),
+    ];
+    let mut frame = PERPS_MARGIN_FRAME_MAGIC_V2.to_vec();
+    for component in components {
+        let length = u32::try_from(component.len()).expect("bounded test component");
+        frame.extend_from_slice(&length.to_le_bytes());
+        frame.extend_from_slice(&component);
+    }
+    frame
 }
 
 fn step(
@@ -501,4 +540,62 @@ fn maximum_height_rejects_without_effects_before_replay_or_body_checks() {
         assert!(rejected.terminal_plan().deltas.is_empty());
         assert!(rejected.oracle_plan().deltas.is_empty());
     }
+}
+
+#[test]
+fn exact_zdpm2_bridge_commits_only_the_existing_two_root_statement() {
+    let assets = asset_frame(100, 0);
+    let margin = margin_state(Vec::new());
+    let state = global_state(&assets, &margin);
+    let deposit = command("perps_margin_deposit", "margin-a", 40, 1);
+    let occurrence = make_occurrence(&state, &deposit, 1);
+    let frame = exact_zdpm2_frame(&assets, &margin, &state, &deposit, &occurrence);
+
+    let prepared = prepare_perps_margin_global_from_frame_v2(&frame).expect("accepted frame");
+    let result =
+        transition_perps_margin_global_v2(&assets, &margin, &state, &deposit, &occurrence, None)
+            .expect("typed transition");
+    let PerpsMarginGlobalResultV2::Accepted(accepted) = result else {
+        panic!("expected accepted deposit");
+    };
+    let expected_journal = format!(
+        "{{\"input_root\":\"{}\",\"refinement_root\":\"{}\",\"schema\":\"{PERPS_MARGIN_GLOBAL_STATEMENT_SCHEMA_V2}\"}}",
+        accepted.statement_root().as_str(),
+        accepted.refinement().refinement_root().expect("refinement root").as_str(),
+    )
+    .into_bytes();
+    assert_eq!(prepared, expected_journal);
+
+    let mut noncanonical_assets = frame.clone();
+    let length_offset = PERPS_MARGIN_FRAME_MAGIC_V2.len();
+    let asset_start = length_offset + 4;
+    noncanonical_assets.insert(asset_start, b' ');
+    let original_length = u32::from_le_bytes(
+        noncanonical_assets[length_offset..asset_start]
+            .try_into()
+            .expect("asset length"),
+    );
+    noncanonical_assets[length_offset..asset_start]
+        .copy_from_slice(&(original_length + 1).to_le_bytes());
+    assert_eq!(
+        prepare_perps_margin_global_from_frame_v2(&noncanonical_assets),
+        Err(PerpsMarginGlobalFrameErrorV2::Assets)
+    );
+
+    let mut trailing = frame.clone();
+    trailing.push(0);
+    assert_eq!(
+        prepare_perps_margin_global_from_frame_v2(&trailing),
+        Err(PerpsMarginGlobalFrameErrorV2::FrameTrailingBytes)
+    );
+
+    let zero_command = command("perps_margin_deposit", "margin-a", 0, 1);
+    let zero_occurrence = make_occurrence(&state, &zero_command, 1);
+    let zero_frame = exact_zdpm2_frame(&assets, &margin, &state, &zero_command, &zero_occurrence);
+    assert_eq!(
+        prepare_perps_margin_global_from_frame_v2(&zero_frame),
+        Err(PerpsMarginGlobalFrameErrorV2::Rejected(
+            PerpsMarginGlobalRejectCodeV2::Margin(PerpsMarginRejectCodeV1::ZERO_AMOUNT)
+        ))
+    );
 }

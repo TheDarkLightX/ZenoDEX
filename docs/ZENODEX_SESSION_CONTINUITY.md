@@ -82,9 +82,34 @@ outside its guarantee. The full AS07 exit remains open.
 
 The RISC0 toolchain is installed under the existing `risc0` toolchain alias;
 the system default compiler alone is not a sufficient availability check.
-Margin V2 still needs a strict native frame bridge and a real guest/host build.
-Runpod is unavailable and local disk is below the retained 4 GiB native-build
-guard. Do not weaken that guard or relabel source-only work as a genuine receipt.
+The strict margin V2 frame bridge and real guest/host now build. The
+[execution workspace](../zk/perps_margin_global_risc0/README.md) reruns the same
+joint transition and commits the unchanged two-root journal. Its image guard
+requires a guest build and is independent of expensive proving. The actual
+guest/executable suite passed 9 tests: six connected lifecycle steps, seven
+inner-frame/economic rejections and real measured Python verifier launch with
+correct/foreign-image controls. No genuine margin receipt was produced.
+
+Native frame/parity/capacity checks passed 44 tests; the pure Rust crate passed
+7 tests; the compiled guest/host workspace passed 12 tests. Both Clippy checks
+pass. The host uses the pinned IPC prover explicitly, and all external lockfile
+versions match the existing custody workspace. Host Clippy's wrapper is removed
+only inside the nested guest build because its sysroot has no zkVM standard
+library; native targets still run Clippy.
+
+Runpod remains unavailable. The bounded builds used a task-owned RAM filesystem;
+the native fixture now checks its actual target filesystem with the same 4 GiB
+free-space requirement and 1 GiB target ceiling. No large disk worktree or local
+proof generation was needed. The latest user instruction is to implement this
+work directly, so the earlier Terra implementation and Astra review were stopped.
+Record their partial/cancelled contributions and root repairs without assigning
+independent-review or duplicated delivery credit.
+
+**Next AS02 acceptance:** produce genuine Succinct receipts for the rebuilt
+margin guest against the isolated publisher's exact profile/state/command
+coordinates, and qualify them through the actual measured verifier and atomic
+store with the retained negative controls. Native execution, a compiled prover
+CLI and negative-only receipt tests do not close this condition.
 The security repairs are NOT_RESCORED; last reviewed V3/formal estimates below
 remain historical until an evidence-backed assessment is adopted.
 

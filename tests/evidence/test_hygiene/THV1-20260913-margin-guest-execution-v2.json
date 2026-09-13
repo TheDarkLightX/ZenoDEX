@@ -1,0 +1,184 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260913-margin-guest-execution-v2",
+  "created_date": "2026-09-13",
+  "claim_scope": "Strict margin V2 frame correspondence, actual guest execution and negative measured-verifier launch. No genuine receipt, publication, universal refinement or whole-lane qualification.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "MARGIN-V2-EXACT-FRAME",
+    "MARGIN-V2-GUEST-REEXECUTION",
+    "MARGIN-V2-REJECT-NO-JOURNAL",
+    "MARGIN-V2-SUCCESSOR-BYTE-CLOSURE",
+    "MARGIN-V2-EXACT-IMAGE-AND-RECEIPT"
+  ],
+  "failure_modes": [
+    "Noncanonical or ambiguous frames alias accepted bytes.",
+    "A rejected or unauthorized command commits a journal.",
+    "A successor cannot fit its next input.",
+    "A kind tag substitutes for cryptographic verification.",
+    "A different compiled image reaches receipt decoding."
+  ],
+  "source_pins": [
+    {
+      "path": "zk/perps_margin_global_risc0/host/examples/execute_margin_frame_v2.rs",
+      "sha256": "9ad260e4f11afe629870efe73699f360b273d6f53ca4c21f5eb8e3bebdd55f27"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/host/src/bin/prove_margin_receipt_v2.rs",
+      "sha256": "e9447b0a98b45c70d85f08f3f4e01bfbff2ca0a4c0adc052a2db4898be754328"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/host/src/bin/verify_margin_receipt_v2.rs",
+      "sha256": "28f2e89388c6fad904c3cb14a15701d01d4b86614d3333a521126d39f2f2160c"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/host/src/lib.rs",
+      "sha256": "3847598727d9f8cea867c3fd40e895b15260dc74ca12fdfc3ee253ce8c6c5025"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/methods/build.rs",
+      "sha256": "a2c87002765705b725a6e9925a9a544568c478c6f3a9e8951e2310e1b7fec550"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/methods/guest/src/lib.rs",
+      "sha256": "794f298d1c761eecd4c76ed88773d54e68652b21a83a052569d11eecdae92508"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/methods/guest/src/main.rs",
+      "sha256": "d7f6f2f504ff8a684bcadffeacd53ed2955b3e1841def7f12da263a7bfe02cd2"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/perps_margin_global_v2/examples/receipt_frame.rs",
+      "sha256": "2b25245a40bc0fd45734ba31c885ef766c51eba5d9638113368a493f3423fc21"
+    },
+    {
+      "path": "zk/perps_margin_global_v2/src/frame.rs",
+      "sha256": "7c20435de174714aa35dbdef0e05974b6459a1c6aac9a7dbeed4e1700f6b85c6"
+    },
+    {
+      "path": "zk/perps_margin_global_v2/src/lib.rs",
+      "sha256": "b2920896143226d5edf16f9b3d8dce7f6d1ca7d32854c885e91c7b7c922c513d"
+    },
+    {
+      "path": "zk/perps_margin_global_v2/tests/lifecycle.rs",
+      "sha256": "a5ec5198c5d448b1057d00eb4f808e5c0d647fafcdc5e957cc5a45bb289130fc"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/Cargo.lock",
+      "sha256": "b775de0d35111a3f2d5cfc7686502507b1510c3e5d2c15a828d0fe2c4cae849d"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/Cargo.toml",
+      "sha256": "af3df1bd3505adfc22107fa71526a24226958ac475be7a5c6cf0143d5f02c15f"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/host/Cargo.toml",
+      "sha256": "5072c2c9b0d35baa65765378e890d32d485469c1420e6164258816eae59fc922"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/methods/Cargo.toml",
+      "sha256": "d65a300ffd82b2dfc9454401a5cd21e13c644951f2607fc351fc0a172a2bd00d"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/methods/guest/Cargo.toml",
+      "sha256": "5acdf0c264289e0ce3c12c337c1ddb0d33cbd35d9c0d3feba634e4775c9fecb4"
+    },
+    {
+      "path": "zk/perps_margin_global_v2/Cargo.toml",
+      "sha256": "dd3f34533950d89d596a61a3ce4bebd6caad3dacd502d8abca2d2c028603ea96"
+    },
+    {
+      "path": "zk/perps_margin_global_risc0/README.md",
+      "sha256": "2b2ac1712c6e9bca7ccb0d4c810b71dd58058c135c1090228ead67eb700fcabf"
+    },
+    {
+      "path": "zk/perps_margin_global_v2/README.md",
+      "sha256": "af1994e30ba7a38f59475a4a93b5720ad53b41bc80c3907c98c992343523c8d7"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_perps_margin_global_rust_v2.py",
+      "sha256": "96f58fc38d50e5a5f84d78eaa856cde44cba96f6478f41e3e81421f58b7424de",
+      "node_ids": [
+        "tests/core/test_perps_margin_global_rust_v2.py::test_python_rust_connected_margin_transfer_refill_and_close",
+        "tests/core/test_perps_margin_global_rust_v2.py::test_python_rust_same_owner_accounts_and_exact_replay",
+        "tests/core/test_perps_margin_global_rust_v2.py::test_python_rust_ordered_rejections_and_finite_width_edges",
+        "tests/core/test_perps_margin_global_rust_v2.py::test_python_rust_exact_frame_rejects_noncanonical_components",
+        "tests/core/test_perps_margin_global_rust_v2.py::test_python_rust_frame_bounds_and_scalar_types",
+        "tests/core/test_perps_margin_global_rust_v2.py::test_python_rust_frame_successor_byte_closure_and_terminal_neighbor"
+      ]
+    },
+    {
+      "path": "tests/integration/test_perps_margin_real_guest_v2.py",
+      "sha256": "31f876178fe211e7311f6906b8ae51c28b63992dcecbe0d758506042f1c7504f",
+      "node_ids": [
+        "tests/integration/test_perps_margin_real_guest_v2.py::test_actual_guest_connected_deposit_drain_refill_close",
+        "tests/integration/test_perps_margin_real_guest_v2.py::test_actual_guest_rejects_without_committing_a_journal",
+        "tests/integration/test_perps_margin_real_guest_v2.py::test_actual_verifier_image_binding_and_measured_python_launch"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "differential",
+    "boundary",
+    "stateful",
+    "negative_regression",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Reuse retained economic fixtures; independently execute the native Rust decoder and real guest against Python journals. Both successful and rejected paths are exercised. The configured execution test has no emulator fallback."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Native rejected transitions preserve existing no-op observations. Strict frame and actual guest rejection yield no journal. No test grants store, replay, outbox or publication authority."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "canonical-frame",
+      "points": [
+        "empty, truncated and trailing frames",
+        "zero, maximum-plus-one and u32-max component lengths",
+        "duplicate fields, unknown fields, V1 schema and whitespace",
+        "bool, float, exponent, negative and u128 overflow amounts"
+      ]
+    },
+    {
+      "name": "lifecycle",
+      "points": [
+        "deposit, drain, refill and close",
+        "same owner independent accounts",
+        "zero and overdrawn amount",
+        "stale context, command body, wrong subject and replay",
+        "2251-history deposit/drain succeeds;2252-history deposit exceeds successor byte cap"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Drop exact frame consumption; the trailing-input case would commit.",
+      "killed_by": "tests/integration/test_perps_margin_real_guest_v2.py::test_actual_guest_rejects_without_committing_a_journal",
+      "narrative": true
+    },
+    {
+      "description": "Remove successor byte closure; the 2252-history input would return a journal.",
+      "killed_by": "tests/core/test_perps_margin_global_rust_v2.py::test_python_rust_frame_successor_byte_closure_and_terminal_neighbor",
+      "narrative": true
+    }
+  ],
+  "nonclaims": [
+    "Mutation rows name falsifiers; no source-mutant campaign is claimed. Input mutation tests were executed.",
+    "Opt-in guest tests skipped without configuration supply no execution evidence. Actual configured run passed nine tests.",
+    "Native image pin and receipt codec tests do not prove real receipt acceptance.",
+    "The provisional cycle cap does not prove that every valid maximum state fits.",
+    "Publisher, operating system, compiler, SDK and IPC execution premises remain explicit. No independent release review or promotion is supplied."
+  ]
+}

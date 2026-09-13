@@ -1,8 +1,8 @@
 """Actual Python/Rust output correspondence for the pure joint margin successor.
 
-The Rust JSON-lines example is bounded test transport, not a production decoder.
-Both implementations consume the same complete typed states; accepted successor
-states feed the next attempt. No proof, receipt or publication authority follows.
+The JSON-lines transport checks typed transitions; the separate frame executable
+uses the strict ZDPM2 decoder intended for the guest. Accepted successor states
+feed the next attempt. No cryptographic receipt or publication authority follows.
 """
 
 from __future__ import annotations
@@ -36,8 +36,15 @@ from src.core.perps_margin_global_v2 import (
     PerpsMarginOracleV2,
     transition_perps_margin_global_v2,
 )
+from src.core.perps_margin_receipt_v2 import (
+    MAX_PERPS_MARGIN_FRAME_BYTES_V2,
+    MAX_PERPS_MARGIN_FRAME_COMPONENT_BYTES_V2,
+    encode_perps_margin_frame_v2,
+    replay_perps_margin_frame_v2,
+)
 from src.core.perps_margin_state_v2 import PerpsMarginStateV2
 from src.core.perps_margin_types_v1 import PerpsMarginMarketStatusV1
+from src.core.perps_margin_wire_v2 import PerpsMarginRequestV2
 from tests.core.test_asset_lane_coordinator_v2 import _root, _transfer_command
 from tests.core.test_perps_margin_global_bounds_v2 import (
     _full_asset_balance_inputs,
@@ -51,23 +58,26 @@ from tests.core.test_perps_margin_global_v2 import (
     _initial,
     _occurrence,
 )
+from tests.core.test_perps_margin_receipt_v2 import _frame_from_parts, _frame_parts
+from tests.integration.test_joint_margin_capacity_v2 import _inputs_with_terminal_history
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "zk" / "perps_margin_global_v2" / "Cargo.toml"
 TARGET = Path(tempfile.gettempdir()) / "zenodex-perps-margin-global-v2-target"
 MIN_FREE_BYTES = 4 * 1024**3
 MAX_TARGET_BYTES = 1024**3
-Case = tuple[str, dict[str, object], dict[str, object]]
+Case = tuple[str, dict[str, object], dict[str, object], bytes | None]
 
 
 @pytest.fixture(scope="module")
 def rust_margin_binary() -> Path:
-    if shutil.disk_usage("/").free < MIN_FREE_BYTES:
+    # The build target follows TMPDIR, which can be a separate filesystem.
+    if shutil.disk_usage(TARGET.parent).free < MIN_FREE_BYTES:
         pytest.skip("disk guard: bounded native build requires four GiB free; parity unqualified")
     environment = {**os.environ, "CARGO_TARGET_DIR": str(TARGET)}
     result = subprocess.run(
         ["cargo", "build", "--offline", "--locked", "--manifest-path", str(MANIFEST),
-         "--example", "parity"],
+         "--examples"],
         cwd=ROOT, env=environment, capture_output=True, text=True, timeout=180, check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -137,7 +147,8 @@ def _margin_case(cases, label, inputs, command, outer_nonce, code=None, *, occur
         assert result.pre_state_root == result.post_state_root == state.state_root
         assert result.effects.is_empty and not result.terminal_plan.deltas and not result.oracle_plan.deltas
         successor = inputs
-    cases.append((label, wire, _observe(result)))
+    frame = encode_perps_margin_frame_v2(*inputs, PerpsMarginRequestV2(command, occurrence, oracle))
+    cases.append((label, wire, _observe(result), frame))
     return successor
 
 
@@ -164,19 +175,35 @@ def _transfer_case(cases, inputs):
                         "asset_state_root": result.post_state.state_root,
                         "state_root": post.state_root, "effect_plan_root": result.effects.effect_plan_root,
                     })
-    cases.append(("ordinary-transfer-between-margin-episodes", wire, expected))
+    cases.append(("ordinary-transfer-between-margin-episodes", wire, expected, None))
     return result.post_state, margin, post
 
 
 def _compare(binary, cases):
-    payload = "".join(json.dumps(wire, separators=(",", ":")) + "\n" for _, wire, _ in cases)
+    payload = "".join(json.dumps(wire, separators=(",", ":")) + "\n" for _, wire, _, _ in cases)
     completed = subprocess.run([str(binary)], input=payload, capture_output=True, text=True,
                                timeout=60, check=False)
     assert completed.returncode == 0, completed.stderr
     outputs = [json.loads(line) for line in completed.stdout.splitlines()]
     assert len(outputs) == len(cases)
-    for (label, _, expected), actual in zip(cases, outputs, strict=True):
+    for (label, _, expected, frame), actual in zip(cases, outputs, strict=True):
         _assert_same_observation(actual, expected, label)
+        if frame is not None:
+            _compare_frame(binary, frame, expected["kind"] == "accepted", label)
+
+
+def _compare_frame(binary, frame, accepted, label):
+    result = subprocess.run([str(binary.with_name("receipt_frame"))], input=frame,
+                            capture_output=True, timeout=15, check=False)
+    if accepted:
+        assert result.returncode == 0 and not result.stderr, (label, result.stderr)
+        assert result.stdout == replay_perps_margin_frame_v2(frame).statement, label
+    else:
+        with pytest.raises(ValueError):
+            replay_perps_margin_frame_v2(frame)
+        assert result.returncode == 2 and not result.stdout, (label, result)
+        assert result.stderr.startswith(b"perps margin global frame rejected:"), label
+    return result
 
 
 def _assert_same_observation(actual, expected, label):
@@ -303,3 +330,69 @@ def test_parity_transport_rejects_unknown_outer_fields_and_oversized_lines(rust_
                                 text=True, timeout=15, check=False)
         output = json.loads(result.stdout)
         assert output["kind"] == "error"
+
+
+@pytest.mark.parametrize("part_index", range(4))
+@pytest.mark.parametrize("mutation", ("whitespace", "unknown", "duplicate", "v1-schema"))
+def test_python_rust_exact_frame_rejects_noncanonical_components(rust_margin_binary, part_index, mutation):
+    inputs = _initial()
+    command = _command(DEPOSIT, 1, 1)
+    request = PerpsMarginRequestV2(command, _occurrence(inputs[2], command, 1))
+    frame = encode_perps_margin_frame_v2(*inputs, request)
+    parts = list(_frame_parts(frame))
+    payload = json.loads(parts[part_index])
+    if mutation == "whitespace":
+        parts[part_index] += b" "
+    elif mutation == "duplicate":
+        key = next(iter(payload))
+        duplicate = canonical_global_bytes_v2({key: payload[key]})[1:-1]
+        parts[part_index] = parts[part_index][:-1] + b"," + duplicate + b"}"
+    else:
+        if mutation == "unknown":
+            payload["extra"] = 1
+        else:
+            payload["schema"] = payload["schema"].replace("/v2", "/v1")
+        parts[part_index] = canonical_global_bytes_v2(payload)
+    _compare_frame(rust_margin_binary, _frame_from_parts(tuple(parts)), False, (part_index, mutation))
+
+
+def test_python_rust_frame_bounds_and_scalar_types(rust_margin_binary):
+    inputs = _initial()
+    command = _command(DEPOSIT, 1, 1)
+    request = PerpsMarginRequestV2(command, _occurrence(inputs[2], command, 1))
+    frame = encode_perps_margin_frame_v2(*inputs, request)
+    malformed = [b"", frame[:6], frame[:-1], frame + b"x", b"ZDPM1\0" + frame[6:],
+                 b"x" * (MAX_PERPS_MARGIN_FRAME_BYTES_V2 + 1)]
+    for size in (0, MAX_PERPS_MARGIN_FRAME_COMPONENT_BYTES_V2 + 1, 2**32 - 1):
+        malformed.append(frame[:6] + size.to_bytes(4, "little") + frame[10:])
+    parts = _frame_parts(frame)
+    for value in (True, -1, 2**128):
+        payload = json.loads(parts[3])
+        payload["command"]["amount_atoms"] = value
+        malformed.append(_frame_from_parts((*parts[:3], canonical_global_bytes_v2(payload))))
+    for raw_value in (b"1.0", b"1e0"):
+        raw = parts[3].replace(b'"amount_atoms":1', b'"amount_atoms":' + raw_value, 1)
+        malformed.append(_frame_from_parts((*parts[:3], raw)))
+    payload = json.loads(parts[3])
+    del payload["oracle"]
+    malformed.append(_frame_from_parts((*parts[:3], canonical_global_bytes_v2(payload))))
+    for index, value in enumerate(malformed):
+        _compare_frame(rust_margin_binary, value, False, index)
+
+
+@pytest.mark.parametrize("history_count", (2251, 2252))
+def test_python_rust_frame_successor_byte_closure_and_terminal_neighbor(rust_margin_binary, history_count):
+    inputs = _inputs_with_terminal_history(history_count)
+    command = _command(DEPOSIT, 1, 1)
+    request = PerpsMarginRequestV2(command, _occurrence(inputs[2], command, 1))
+    frame = encode_perps_margin_frame_v2(*inputs, request)
+    accepted = history_count == 2251
+    result = _compare_frame(rust_margin_binary, frame, accepted, history_count)
+    if not accepted:
+        assert result.stderr.endswith(b"SuccessorTooLarge\n")
+        return
+    deposited = replay_perps_margin_frame_v2(frame).result
+    inputs = deposited.post_assets, deposited.post_margin, deposited.post_state
+    command = _command(WITHDRAW, 1, 2)
+    request = PerpsMarginRequestV2(command, _occurrence(inputs[2], command, 2))
+    _compare_frame(rust_margin_binary, encode_perps_margin_frame_v2(*inputs, request), True, "terminal-neighbor")

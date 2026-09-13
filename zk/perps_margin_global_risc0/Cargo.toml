@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = ["methods", "methods/guest", "host"]
+default-members = ["host", "methods/guest"]
+
+[profile.release]
+lto = true
+opt-level = 3

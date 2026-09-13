@@ -12,6 +12,15 @@ no-op reject codes.  It accepts at most four MiB per line and closes the outer
 operation fields; nested records use the ABI's closed serde shapes.  It is not
 a production JSON decoder.
 
+`prepare_perps_margin_global_from_frame_v2` is the strict, bounded `ZDPM2\0`
+boundary used by the separate margin V2 guest. It admits exactly four canonical
+components (assets, margin, global state, request), reruns the joint transition,
+checks that each successor fits the next input bound, and returns the existing
+two-root statement journal. Rejected frames produce a typed error and no journal.
+`examples/receipt_frame.rs` exposes this function as a bounded native test tool.
+The Python/Rust suite sends the same lifecycle and rejection cases through both
+the typed transport and this strict frame boundary.
+
 Run the bounded checks offline with:
 
 ```text

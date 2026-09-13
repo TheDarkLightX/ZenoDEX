@@ -1,11 +1,18 @@
 #![forbid(unsafe_code)]
 
 mod claims;
+mod frame;
 mod global;
 mod state;
 
 pub use claims::{
     advance_margin_claims_v2, derive_terminal_plan_v2, require_margin_claim_projection_v2,
+};
+pub use frame::{
+    prepare_perps_margin_global_from_frame_v2, PerpsMarginGlobalFrameErrorV2,
+    MAX_PERPS_MARGIN_FRAME_BYTES_V2, MAX_PERPS_MARGIN_FRAME_COMPONENT_BYTES_V2,
+    PERPS_MARGIN_FRAME_MAGIC_V2, PERPS_MARGIN_GLOBAL_STATEMENT_SCHEMA_V2,
+    PERPS_MARGIN_REQUEST_SCHEMA_V2,
 };
 pub use global::{
     transition_perps_margin_global_v2, PerpsMarginGlobalAcceptedV2, PerpsMarginGlobalRejectCodeV2,

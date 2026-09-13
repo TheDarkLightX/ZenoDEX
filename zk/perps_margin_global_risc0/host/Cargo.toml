@@ -1,0 +1,34 @@
+[package]
+name = "zenodex-perps-margin-global-risc0-host"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[features]
+default = []
+compiled-guest = ["dep:zenodex-perps-margin-global-risc0-methods", "risc0-zkvm/client"]
+
+[[bin]]
+name = "verify_margin_receipt_v2"
+path = "src/bin/verify_margin_receipt_v2.rs"
+required-features = ["compiled-guest"]
+
+[[bin]]
+name = "prove_margin_receipt_v2"
+path = "src/bin/prove_margin_receipt_v2.rs"
+required-features = ["compiled-guest"]
+
+[[example]]
+name = "execute_margin_frame_v2"
+required-features = ["compiled-guest"]
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.6", default-features = false, features = ["std", "disable-dev-mode"] }
+serde_json = "=1.0.148"
+zenodex-perps-margin-global-v2 = { path = "../../perps_margin_global_v2" }
+zenodex-perps-margin-global-guest = { path = "../methods/guest" }
+zenodex-perps-margin-global-risc0-methods = { path = "../methods", optional = true }
+
+[lints.rust]
+unsafe_code = "forbid"

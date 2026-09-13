@@ -8,11 +8,9 @@ readme = "README.md"
 
 [dependencies]
 serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "=1.0.148", features = ["arbitrary_precision"] }
 zenodex-global-settlement-abi-v1 = { path = "../global_settlement_abi_v1" }
 zenodex-global-settlement-abi-v2 = { path = "../global_settlement_abi_v2" }
-
-[dev-dependencies]
-serde_json = { version = "=1.0.148", features = ["arbitrary_precision"] }
 
 [lints.rust]
 unsafe_code = "forbid"
