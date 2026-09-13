@@ -642,3 +642,24 @@ tokens, exclusive root duration and billing remain unknown. This batch is
 independent finality/publication enforcement remain open; AS02 still needs the
 prepared remote receipts. The preceding 327-line audit-account append is carried
 once as support. This new evidence/account append receives no additional credit.
+
+## September 13: standalone margin audit
+
+`02f9729a…` → `394ddbf22…`: +308/−15, split as tooling 47/11,
+tests 120/1, docs 25/3 and required test evidence 116/0. Runtime and formal
+proofs are unchanged. [Evidence](../../tests/evidence/independent_margin_audit_v2_20260913.json)
+records 43 passing integration cases, two genuine-proof skips, three killed
+mutants and passing boundary/hygiene checks. Independent review passes; it
+also rejected an unmounted fixed-quorum proposal. Root implemented directly.
+The first hygiene draft needed exact parameterized killer pins; the corrected
+packet passes. No heavy build or external-model request occurred. Model serving
+IDs, billed resources and exclusive work duration remain unknown.
+
+This is **NOT_RESCORED**. The command mounts existing read-only verification;
+trusted checkpoint provenance/freshness, independent enforcement and the three
+genuine margin receipts remain outstanding. The claims registry has an unchanged
+missing-file failure. The prior 185-line accounting append and this 129/9-line
+evidence append are carried once as support, with no extra delivery credit.
+
+The existing reporter passes against baseline `02f9729a…`: its manifest prefix
+is preserved, all 376 referenced blobs match, and categorized line totals agree.

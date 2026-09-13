@@ -3359,6 +3359,44 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-independent-margin-audit-root",
+      "model_id": null,
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "standalone-margin-audit-and-verification",
+      "risk": "critical",
+      "provenance": {
+        "commit": "75f19052fad82a2931e54c1c5cb9facbec03f1a9",
+        "path": "tests/evidence/independent_margin_audit_v2_20260913.json",
+        "sha256": "87c7785cb5925dfe56e18ac69aad71b2f9de836a1cdb2b3351581ef5014f44d3"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-independent-margin-audit-review",
+      "model_id": null,
+      "role": "review",
+      "status": "completed",
+      "task_kind": "scope-selection-and-audit-authority-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "75f19052fad82a2931e54c1c5cb9facbec03f1a9",
+        "path": "tests/evidence/independent_margin_audit_v2_20260913.json",
+        "sha256": "87c7785cb5925dfe56e18ac69aad71b2f9de836a1cdb2b3351581ef5014f44d3"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -5821,6 +5859,115 @@
       "outcome": {
         "disposition": "support_only",
         "summary": "Persist scoped review, replay evidence and continuity once:144 added documentation/evidence lines. No extra delivery credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-legacy-verifier-accounting",
+      "before_commit": "2ee3bb45dca4594040c917a19a1ccf0aad05bb39",
+      "after_commit": "02f9729a9534e52af3d653fd7d652427041fa695",
+      "kind": "support",
+      "obligation_ids": [
+        "W06",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-legacy-verifier-lifetime-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry the previous 185-line accounting append once; no delivery credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-independent-margin-audit",
+      "before_commit": "02f9729a9534e52af3d653fd7d652427041fa695",
+      "after_commit": "394ddbf224b93e4eadbf1670928ef5285f4b4489",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W06",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-independent-margin-audit-root"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Expose fixed-workload read-only audit with externally selected publication and authority roots. 43 integration passes, 2 genuine-proof skips, 3 source mutants killed, boundary passes, independent review PASS. 308/15 lines, including tooling 47/11; runtime and proof unchanged. NOT_RESCORED. Existing claims-registry missing file remains open.",
+        "evidence": {
+          "commit": "75f19052fad82a2931e54c1c5cb9facbec03f1a9",
+          "path": "tests/evidence/independent_margin_audit_v2_20260913.json",
+          "sha256": "87c7785cb5925dfe56e18ac69aad71b2f9de836a1cdb2b3351581ef5014f44d3"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-independent-margin-audit-review",
+      "before_commit": "394ddbf224b93e4eadbf1670928ef5285f4b4489",
+      "after_commit": "394ddbf224b93e4eadbf1670928ef5285f4b4489",
+      "kind": "review",
+      "obligation_ids": [
+        "W06",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-independent-margin-audit-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Reviewer rejects unmounted universal 5-of-7 work, then passes the bounded audit candidate. Notes undocumented options-before-operation compatibility edge. No duplicated broad test run or implementation credit.",
+        "evidence": {
+          "commit": "75f19052fad82a2931e54c1c5cb9facbec03f1a9",
+          "path": "tests/evidence/independent_margin_audit_v2_20260913.json",
+          "sha256": "87c7785cb5925dfe56e18ac69aad71b2f9de836a1cdb2b3351581ef5014f44d3"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-independent-margin-audit-evidence",
+      "before_commit": "394ddbf224b93e4eadbf1670928ef5285f4b4489",
+      "after_commit": "75f19052fad82a2931e54c1c5cb9facbec03f1a9",
+      "kind": "support",
+      "obligation_ids": [
+        "W06",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-independent-margin-audit-root",
+        "V3-20260913-independent-margin-audit-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Persist exact scoped evidence, continuity and code-value account: 129 added/9 removed documentation and evidence lines. No duplicate delivery credit.",
         "evidence": null
       },
       "assessment": {
