@@ -1,6 +1,7 @@
 """Exact publisher workload; real-receipt success requires explicit artifacts."""
 
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -146,9 +147,127 @@ def test_genuine_receipts_commit_complete_lifecycle_and_survive_restart(measured
     if configured is None:
         pytest.skip("genuine margin receipts unavailable; publication remains unqualified")
     signature, receipt, _, _ = measured_paths
-    result = qualification.publish(signature, receipt, Path(configured), tmp_path / "qualified.sqlite")
+    database = tmp_path / "qualified.sqlite"
+    result = qualification.publish(signature, receipt, Path(configured), database)
     assert result["committed"] == 3 and result["production_authority"] is False
     assert result["retained_evidence_reverified"] is True
+    before = database.read_bytes(), _logical_store(database)
+    checked = subprocess.run([
+        sys.executable, str(Path(qualification.__file__)), "audit",
+        "--signature-verifier", str(signature), "--receipt-verifier", str(receipt),
+        "--database", str(database), "--expected-publication-id", result["publication_id"],
+        "--expected-authority-root", result["authority_root"],
+    ], capture_output=True, timeout=120)
+    assert checked.returncode == 0, checked.stderr
+    audited = json.loads(checked.stdout)
+    assert audited["publication_id"] == result["publication_id"]
+    assert audited["authority_root"] == result["authority_root"]
+    assert audited["post_state_root"] == result["post_state_root"]
+    assert audited["verified_publications"] == 3 and audited["production_authority"] is False
+    assert (database.read_bytes(), _logical_store(database)) == before
+
+
+@pytest.fixture
+def closed_qualification_history(measured_paths, tmp_path, monkeypatch):
+    """Real BLS and complete economics; fabricated receipt acceptance only."""
+    from src.integration import global_receipt_verifier_v1 as transport
+
+    signature, receipt, _, _ = measured_paths
+    configuration, cases = qualification.build_workload(signature, receipt)
+    base = cases[0]
+    database = tmp_path / "audit.sqlite"
+
+    def fabricated_success(descriptor, request, timeout):
+        return b"ZDXRV1OK" + hashlib.sha256(request).digest() + request[8:40], b"", 0
+
+    with monkeypatch.context() as compromised:
+        compromised.setattr(transport, "_invoke_v1", fabricated_success)
+        with IsolatedCustodyPublisherV2.create(
+            database, base.global_pre, base.assets, configuration, margin_state=base.margin,
+        ) as publisher:
+            for case in cases:
+                outcome = publisher.publish(case.candidate, case.request, receipt_bytes=b"{}")
+                assert outcome.status is CustodyPublicationStatusV2.COMMITTED
+                if publisher.snapshot().sequence == 1:
+                    earlier = database.read_bytes()
+            final = publisher.snapshot()
+    return signature, receipt, database, final, earlier, fabricated_success
+
+
+def test_given_closed_history_when_audit_cli_runs_then_use_read_only_external_checkpoint(
+    closed_qualification_history, monkeypatch, capsys,
+):
+    from src.integration import global_receipt_verifier_v1 as transport
+
+    signature, receipt, database, final, _, fixture_receipt_verifier = closed_qualification_history
+    # Only the receipt result is a double; BLS and the audit/store path run normally.
+    monkeypatch.setattr(transport, "_invoke_v1", fixture_receipt_verifier)
+    connect = IsolatedCustodyPublisherV2._connect
+
+    def read_only_connection(self, *args, **kwargs):
+        assert kwargs.get("access") == "ro", "audit attempted to acquire a writer"
+        return connect(self, *args, **kwargs)
+
+    monkeypatch.setattr(IsolatedCustodyPublisherV2, "_connect", read_only_connection)
+    monkeypatch.setattr(sys, "argv", [
+        "qualify_margin_receipts_v2.py", "audit", "--signature-verifier", str(signature),
+        "--receipt-verifier", str(receipt), "--database", str(database),
+        "--expected-publication-id", final.publication_id,
+        "--expected-authority-root", final.authority.authority_root,
+    ])
+    before = database.read_bytes(), database.stat().st_mtime_ns, _logical_store(database)
+    qualification.main()
+    result = json.loads(capsys.readouterr().out)
+    assert result["publication_id"] == final.publication_id
+    assert result["authority_root"] == final.authority.authority_root
+    assert result["post_state_root"] == final.global_state.state_root
+    assert result["verified_publications"] == 3
+    assert result["retained_evidence_reverified"] is True
+    assert result["production_authority"] is False
+    assert (database.read_bytes(), database.stat().st_mtime_ns, _logical_store(database)) == before
+
+
+@pytest.mark.parametrize("substitution", (
+    "older_database", "publication_checkpoint", "authority_checkpoint", "fabricated_receipt",
+))
+def test_given_substituted_history_when_independently_audited_then_reject_without_changes(
+    closed_qualification_history, substitution,
+):
+    signature, receipt, database, final, earlier, _ = closed_qualification_history
+    publication = final.publication_id
+    authority = final.authority.authority_root
+    if substitution == "older_database":
+        database.write_bytes(earlier)
+    elif substitution == "authority_checkpoint":
+        authority = "0x" + "ff" * 32
+    elif substitution == "publication_checkpoint":
+        publication = "0x" + "ff" * 32
+    before = database.read_bytes(), database.stat().st_mtime_ns, _logical_store(database)
+    expected_error = GlobalReceiptVerifierErrorV1 if substitution == "fabricated_receipt" else ValueError
+    with pytest.raises(expected_error) as failure:
+        qualification.audit(
+            signature, receipt, database, expected_publication_id=publication,
+            expected_authority_root=authority,
+        )
+    if substitution == "fabricated_receipt":
+        assert failure.value.reason.value == "VERIFICATION_REJECTED"
+    else:
+        assert str(failure.value) == "audit history differs from independently selected checkpoint"
+    assert (database.read_bytes(), database.stat().st_mtime_ns, _logical_store(database)) == before
+
+
+@pytest.mark.parametrize("missing", ("--database", "--expected-publication-id", "--expected-authority-root"))
+def test_audit_cli_requires_database_and_both_independent_checkpoint_roots(missing, monkeypatch, capsys):
+    arguments = {"--signature-verifier": "sig", "--receipt-verifier": "receipt", "--database": "db",
+                 "--expected-publication-id": "0x" + "aa" * 32, "--expected-authority-root": "0x" + "bb" * 32}
+    del arguments[missing]
+    monkeypatch.setattr(sys, "argv", ["qualify_margin_receipts_v2.py", "audit"] + [
+        value for item in arguments.items() for value in item
+    ])
+    with pytest.raises(SystemExit) as failure:
+        qualification.main()
+    assert failure.value.code == 2
+    assert f"required: {missing}" in capsys.readouterr().err
 
 
 def test_actual_receipt_verifier_rejects_fabricated_but_consistent_history(measured_paths, tmp_path, monkeypatch):

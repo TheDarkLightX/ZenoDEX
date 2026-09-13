@@ -54,9 +54,31 @@ python3 tools/qualify_margin_receipts_v2.py publish \
 
 The runner checks complete successor state, restart and exact retries, then
 reverifies the retained signatures and receipts through the read-only history
-audit. Its checkpoint is selected from the freshly qualified local run; this
-does not qualify an independent finality source or separate verification host. Commands
-commit individually; a failed run may retain an earlier successfully committed
+audit. Its report includes `publication_id` and `authority_root`; retain these
+separately from the database. Checkpoint authenticity and freshness require an
+independently qualified source. The local report does not establish finality.
+
+After the publisher has closed, a separate process can audit that database:
+
+```bash
+python3 tools/qualify_margin_receipts_v2.py audit \
+  --signature-verifier "$BLS_VERIFIER" --receipt-verifier "$MARGIN_VERIFIER" \
+  --database "$ISOLATED_DATABASE" \
+  --expected-publication-id "$RETAINED_PUBLICATION_ID" \
+  --expected-authority-root "$RETAINED_AUTHORITY_ROOT"
+```
+
+Select both expected roots outside the database being checked. The command
+opens it read-only, checks the checkpoint and complete economic history, then
+reverifies retained signatures and receipts after closing its reader. It
+rebuilds the fixed three-command workload and historical policy witnesses from
+locally pinned source and verifier artifacts; it accepts no prover configuration
+or new publication request. Retained messages contain policy registry hashes,
+which cannot reconstruct the underlying policy records. This command is limited
+to the public test workload and does not establish a separate verification
+host's integrity, a current finality checkpoint, or production authority.
+
+Publication commands commit individually; a failed run may retain an earlier successfully committed
 prefix in its isolated database. Its successful report alone does not close AS02:
 replay the configured integration tests and required genuine-proof substitutions
 before independent qualification. Set `ZENODEX_BLS_VERIFIER_TEST_BINARY`,

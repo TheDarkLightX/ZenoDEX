@@ -1,0 +1,116 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260913-independent-margin-audit-v2",
+  "created_date": "2026-09-13",
+  "claim_scope": "A separate fixed-workload audit command uses externally supplied publication and authority roots, read-only history acquisition and existing measured verification. Genuine proof success awaits receipts.",
+  "change_kind": "behavior_change",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "AS03-INDEPENDENT-MARGIN-HISTORY-AUDIT"
+  ],
+  "failure_modes": [
+    "Self-selected checkpoint masks database rollback.",
+    "Audit acquires writer authority.",
+    "Retained fake receipts bypass reauthentication."
+  ],
+  "source_pins": [
+    {
+      "path": "tools/qualify_margin_receipts_v2.py",
+      "sha256": "8a59cc5a0ae6c375c344d614a277ef0fc2686f38ce800dbc74b89123434dd535"
+    },
+    {
+      "path": "src/integration/isolated_custody_publisher_v2.py",
+      "sha256": "efa69676f3313d4c865396a5714de1e94570e9b3dbd0268cf1e5f08f1e3880fa"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_margin_receipt_qualification_v2.py",
+      "sha256": "283f7d8f0b507d9af8d12c67b0a0e8486577a6a82372c0cc4068dcfd8ff36069",
+      "node_ids": [
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_given_closed_history_when_audit_cli_runs_then_use_read_only_external_checkpoint",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_given_substituted_history_when_independently_audited_then_reject_without_changes",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_audit_cli_requires_database_and_both_independent_checkpoint_roots",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_genuine_receipts_commit_complete_lifecycle_and_survive_restart",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_given_substituted_history_when_independently_audited_then_reject_without_changes[publication_checkpoint]",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_given_substituted_history_when_independently_audited_then_reject_without_changes[fabricated_receipt]"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "stateful",
+    "negative_regression",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Real BLS and linked deposit, withdrawal and close create a history under explicitly fabricated receipt acceptance. Retain newer roots externally; substitute old database or a root. Restore the actual receipt verifier for fake-proof rejection."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Success and each rejection preserve complete database bytes, modification time and logical tables; the CLI positive control rejects any writer connection."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "checkpoint and history",
+      "points": [
+        "matching closed three-step history",
+        "old one-step database with newer checkpoint",
+        "wrong publication root",
+        "wrong authority root",
+        "fabricated retained receipt",
+        "each required CLI argument absent"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Ignore externally selected publication root.",
+      "killed_by": "tests/integration/test_margin_receipt_qualification_v2.py::test_given_substituted_history_when_independently_audited_then_reject_without_changes[publication_checkpoint]",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "            expected_publication_id, expected_authority_root,",
+          "        ):"
+        ],
+        "replacement_lines": [
+          "            head.publication_id, expected_authority_root,",
+          "        ):"
+        ]
+      }
+    },
+    {
+      "description": "Acquire a writer during standalone audit.",
+      "killed_by": "tests/integration/test_margin_receipt_qualification_v2.py::test_given_closed_history_when_audit_cli_runs_then_use_read_only_external_checkpoint",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "            reader._connect(access=\"ro\")"
+        ],
+        "replacement_lines": [
+          "            reader._connect(access=\"rw\")"
+        ]
+      }
+    },
+    {
+      "description": "Skip retained receipt reauthentication.",
+      "killed_by": "tests/integration/test_margin_receipt_qualification_v2.py::test_given_substituted_history_when_independently_audited_then_reject_without_changes[fabricated_receipt]",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "        reader._audit_records(records, candidates)"
+        ],
+        "replacement_lines": [
+          "        pass"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "The positive local audit path uses a receipt-verifier double; real BLS and negative cryptographic receipt checks do not qualify genuine margin publication.",
+    "No checkpoint authenticity/freshness/finality source, separate host integrity, restart writer restoration, economic exit policy, production authority or full AS closure.",
+    "Policy witnesses are locally reconstructed only for the fixed public test workload."
+  ]
+}

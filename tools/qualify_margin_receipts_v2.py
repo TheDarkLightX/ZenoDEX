@@ -191,26 +191,62 @@ def publish(signature_path: Path, receipt_path: Path, receipts: Path, database: 
         raise ValueError("qualification read-only history audit changed the expected result")
     return {"schema": "zenodex/isolated-margin-receipt-publication/v2",
             "profile_root": base.profile.profile_id, "committed": final.sequence,
+            "publication_id": final.publication_id, "authority_root": final.authority.authority_root,
             "retained_evidence_reverified": True,
             "post_state_root": final.global_state.state_root, "production_authority": False}
 
 
+def audit(
+    signature_path: Path, receipt_path: Path, database: Path, *,
+    expected_publication_id: str, expected_authority_root: str,
+) -> dict[str, object]:
+    """Reverify the closed fixed workload against caller-retained checkpoints.
+
+    Rebuild policy witnesses from the locally pinned workload. Never derive
+    either expected checkpoint from the database being checked. Checkpoint
+    authenticity, freshness and finality require an independently qualified source.
+    """
+    configuration, cases = build_workload(signature_path, receipt_path)
+    base = cases[0]
+    head = IsolatedCustodyPublisherV2.audit(
+        database, base.global_pre, base.assets, configuration, margin_state=base.margin,
+        authentication_candidates=tuple(case.candidate for case in cases),
+        expected_publication_id=expected_publication_id,
+        expected_authority_root=expected_authority_root,
+    )
+    return {"schema": "zenodex/isolated-margin-history-audit/v2",
+            "profile_root": base.profile.profile_id, "verified_publications": head.sequence,
+            "publication_id": head.publication_id, "authority_root": head.authority.authority_root,
+            "post_state_root": head.global_state.state_root,
+            "retained_evidence_reverified": True, "production_authority": False}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("prepare", "publish"))
-    parser.add_argument("--signature-verifier", required=True, type=Path)
-    parser.add_argument("--receipt-verifier", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path, help="new packet directory or fresh isolated database")
-    parser.add_argument("--receipts", type=Path)
+    operations = parser.add_subparsers(dest="operation", required=True)
+    for name in ("prepare", "publish", "audit"):
+        command = operations.add_parser(name)
+        command.add_argument("--signature-verifier", required=True, type=Path)
+        command.add_argument("--receipt-verifier", required=True, type=Path)
+        if name == "audit":
+            command.add_argument("--database", required=True, type=Path)
+            command.add_argument("--expected-publication-id", required=True)
+            command.add_argument("--expected-authority-root", required=True)
+        else:
+            command.add_argument("--output", required=True, type=Path,
+                                 help="new packet directory or fresh isolated database")
+        if name == "publish":
+            command.add_argument("--receipts", required=True, type=Path)
     args = parser.parse_args()
+    signature, receipt = args.signature_verifier.resolve(), args.receipt_verifier.resolve()
     if args.operation == "prepare":
-        if args.receipts is not None:
-            parser.error("prepare does not accept returned receipts")
-        result = prepare(args.signature_verifier.resolve(), args.receipt_verifier.resolve(), args.output)
+        result = prepare(signature, receipt, args.output)
+    elif args.operation == "publish":
+        result = publish(signature, receipt, args.receipts, args.output)
     else:
-        if args.receipts is None:
-            parser.error("publish requires --receipts")
-        result = publish(args.signature_verifier.resolve(), args.receipt_verifier.resolve(), args.receipts, args.output)
+        result = audit(signature, receipt, args.database,
+                       expected_publication_id=args.expected_publication_id,
+                       expected_authority_root=args.expected_authority_root)
     print(json.dumps(result, sort_keys=True))
 
 
