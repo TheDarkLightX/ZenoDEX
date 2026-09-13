@@ -80,15 +80,22 @@ The reviewed fixed-rubric amendment moves formal **21.297%→21.419%** and V3
 **24.169%→24.239%**. Only margin deposit/withdrawal change; 0/12 value-safety
 gates remain closed. Earlier assessment bytes are pinned at `2f1c0e0557edd5669413ead35bfaa2cd5773aac6`.
 
-**Current acceptance:** qualify complete Rust/Python correspondence for this
-successor, then its versioned receipt/route and isolated store consumer. Luna
-owns the new `zk/perps_margin_global_v2/` crate and
-`tests/core/test_perps_margin_global_rust_v2.py` while root owns integration;
-uncommitted Rust work receives no score. Preserve the one-market/reserve-free
-profile limit and explicit capacity nonclaims. Do not repeat the completed
-episode proofs or substitute historical V1 receipts. Fable's live probe was
-out of credits; new external Opus disclosure was blocked by automatic approval
-review. Native reviews and local verification continue.
+**Current acceptance (updated after Rust qualification):** implementation
+`22e330b4e4190cd97c022ea3b6fbf1eba1aaaa39` now supplies the standalone Rust
+counterpart. [Its source-bound evidence](../tests/evidence/perps_margin_rust_v2_20260913.json)
+records 37 complete typed Python/Rust cases, 60 combined Python tests, six native
+Rust tests and strict lint. Max-height rejection and two test-observer defects
+were repaired. No worker retains ownership of these committed files.
+
+Only margin refinement `.50→.55` changes: formal **21.440%**, V3 **24.239%**,
+and 0/12 qualified gates. No new universal theorem or mounted workflow follows.
+Next qualify versioned receipt/route admission and the isolated current-store
+consumer, preserving authenticated context, exact claims and both lane roots.
+Keep one-market/reserve-free limits and resource/decoder nonclaims. Do not
+repeat the completed episode proofs or substitute historical V1 receipts.
+Runpod remains unavailable; no heavy local proof build under disk pressure.
+Fable's live probe was out of credits; new external Opus disclosure was blocked
+by automatic approval review. Native reviews and local verification continue.
 
 ## September 12: complete perps market reconstruction
 

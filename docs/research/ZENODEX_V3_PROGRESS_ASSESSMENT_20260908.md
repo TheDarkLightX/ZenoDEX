@@ -521,3 +521,27 @@ Root reviewed both workers; Astra independently reviewed runtime and the score
 amendment. Exclusive model time, native token usage and actual cost are unknown.
 Recorded test durations are not substituted for work time. The next acceptance
 is Rust/Python successor correspondence and then real admission/publication.
+
+### September 13: Rust counterpart of the connected margin path
+
+`e95e897c…` → `22e330b4…` adds 2,764/removes zero lines: 1,331 runtime,
+1,174 tests including the JSON transport, 18 configuration, 218 lockfile and
+23 documentation. No proof lines were added. Luna implemented the Rust
+counterpart; root repaired a finite-width rejection mismatch and completed
+actual Python comparison; Astra independently reviewed both runtime and evidence.
+The [source-bound account](../../tests/evidence/perps_margin_rust_v2_20260913.json)
+retains the findings, commands, contributors and limits.
+
+Sixty combined Python tests and six native Rust tests passed; 37 shared cases
+compare complete typed observations across the joined lifecycle. Two observer
+corruption controls are distinct from executed Rust mutants. Strict Clippy,
+Ruff, mypy and formatting pass. The inherited missing claims-registry file
+remains a failed gate. No full proof build or new receipt was produced.
+
+The reviewed amendment changes only margin deposit/withdrawal refinement
+`.50→.55`. Formal core **21.419%→21.440%**, a **+0.021-point** rounded gain;
+V3 remains **24.239%**, with no newly mounted workflow. Formal uncertainty
+range is 15.611–27.526%. All other scores and 0/12 qualified gates are unchanged.
+The earlier assessment remains pinned at `e95e897c…`. Support metadata receives
+no further credit. The next integration is receipt/route admission and isolated
+publication against authentic current state, with exact joint roots and claims.

@@ -1,0 +1,157 @@
+{
+  "schema": "zenodex/perps-margin-rust-v2-delivery/1",
+  "subject": "22e330b4e4190cd97c022ea3b6fbf1eba1aaaa39",
+  "implementation_base": "e95e897c9288b6c58500c5c9426e932f29e82967",
+  "release_authority": "NONE",
+  "value_movement_gates_closed": 0,
+  "before": "Only the Python joint V2 margin/asset/global candidate existed; Rust counterpart and cross-language correspondence were missing.",
+  "after": "Standalone Rust counterpart reuses V1 economics and V2 checker;37 shared typed inputs compare complete canonical observations across connected margin/ordinary-transfer/claim histories.",
+  "normative_source": "docs/specifications/PERPS_MARGIN_GLOBAL_SUCCESSOR_V2.md",
+  "source_sha256": {
+    "zk/perps_margin_global_v2/Cargo.lock": "0f38fa5f4188db98881d948aa578ae37460648a742e093f562239f3af7e6ae26",
+    "zk/perps_margin_global_v2/Cargo.toml": "7f1a2cce51428ff8d7c22f7586729a72da00dedb00801db3f11f9e8dbb7e56f4",
+    "zk/perps_margin_global_v2/README.md": "fd9e4f3bed48e2f9906e2ab46e970b57190540e36ac557654491d70843cc36d3",
+    "zk/perps_margin_global_v2/examples/parity.rs": "47ff21f897f4897ba58dc30c41adc57c51bf561f7f4ab873286b7a0d7228d90b",
+    "zk/perps_margin_global_v2/src/claims.rs": "d430fb7b75ef8b063eab0e77cff44078dc0943932dae3655b619709243aff7fa",
+    "zk/perps_margin_global_v2/src/global.rs": "5fa358c563502ee22289e5cd2eaefaf33dfa51c344a7af03c6a840ad09ae89ae",
+    "zk/perps_margin_global_v2/src/lib.rs": "f756802a9794d5362bed9477cdb1365c4227c1433ff8ee6195da8ebd15cda065",
+    "zk/perps_margin_global_v2/src/state.rs": "b0ee0f7fafd73478984d79612bfe469387334c2ab510c5c91dc0cf8a63f26a16",
+    "zk/perps_margin_global_v2/tests/lifecycle.rs": "68f7ac8271b8c467e3607a088689eb71d3117ac9650451362a0158bf689a7f1e",
+    "tests/core/test_perps_margin_global_rust_v2.py": "fcb1d62be1f7798a3e861bc375e7e151eb39867bee05684418ff831eefcf89d4",
+    "src/core/perps_margin_global_v2.py": "f9b9f0e675ff4fdc63dd6ccede1cb77fa9b6fd27abb28cb568bc01306e7fe5bd",
+    "src/core/perps_margin_state_v2.py": "202caa812ddddec8729c168a12263a735912fb302879b689e9b9f2b548a47588",
+    "src/core/perps_margin_claims_v2.py": "dccafcad2a519090f175d8c9ac267c9e04dbeab729c2595fcd66c5c6c9b3c00a"
+  },
+  "fresh_gates": [
+    {
+      "command": "python3 -m pytest -q tests/core/test_perps_margin_global_rust_v2.py tests/core/test_perps_margin_global_v2.py tests/core/test_perps_margin_global_authority_v2.py tests/core/test_perps_margin_global_bounds_v2.py tests/core/test_perps_margin_state_v2.py",
+      "result": "60 passed",
+      "seconds": 18.26
+    },
+    {
+      "command": "CARGO_TARGET_DIR=<shared bounded target> cargo test --offline --locked --manifest-path zk/perps_margin_global_v2/Cargo.toml",
+      "result": "6 native tests passed;0 doc tests",
+      "native_test_seconds": 0.07
+    },
+    {
+      "command": "CARGO_TARGET_DIR=<shared bounded target> cargo clippy --offline --locked --manifest-path zk/perps_margin_global_v2/Cargo.toml --all-targets --no-deps -- -D warnings",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo fmt --manifest-path zk/perps_margin_global_v2/Cargo.toml -- --check",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 -m ruff check tests/core/test_perps_margin_global_rust_v2.py",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 -m mypy tests/core/test_perps_margin_global_rust_v2.py",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tools/check_test_hygiene_v1.py",
+      "result": "PASS;structural hygiene evidence only"
+    },
+    {
+      "command": "python3 tools/bva/check_critical_surface_coverage.py",
+      "result": "PASS;all eight surfaces remain incomplete;production_complete=false"
+    },
+    {
+      "command": "python3 tools/check_claims_registry.py",
+      "result": "FAIL: inherited claims[123] missing tools/check_derivatives_authorization_matrix.py"
+    }
+  ],
+  "correspondence": {
+    "shared_complete_output_cases": 37,
+    "case_groups": {
+      "margin_transfer_refill_close": 8,
+      "same_owner_and_replay": 6,
+      "ordered_and_finite_width_resource": 15,
+      "oracle_maintenance_and_market_status": 8
+    },
+    "observations": "Complete returned asset/margin/global states, effects, terminals, refinement and statement roots; actual pre/post rejection roots and empty plans. Canonical comparison preserves JSON scalar types.",
+    "trace_scope": "Python successor states feed later shared inputs; every complete Rust successor is checked equal. Ordinary transfer uses the existing asset-lane consumer.",
+    "output_corruption_controls": 2,
+    "transport_negative_cases": 2,
+    "actual_resource_boundary": "4096 balance rows;no maximum replay/terminal table qualification"
+  },
+  "findings": [
+    {
+      "id": "MARGIN-RUST-U64-HEIGHT-OUTCOME",
+      "status": "repaired",
+      "evidence": "Valid u64::MAX state escaped as outer InvalidBounds; independent Rust/Python probes and failing native regression retained. Now typed context rejection at 0, MAX-1, MAX occurrence heights, even with wrong body; no effects."
+    },
+    {
+      "id": "MARGIN-RUST-REJECT-ROOT-OBSERVER",
+      "status": "repaired",
+      "evidence": "Test transport originally synthesized postroot from preroot. It now reads both actual rejection fields."
+    },
+    {
+      "id": "MARGIN-RUST-JSON-SCALAR-OBSERVER",
+      "status": "repaired",
+      "evidence": "Original comparison accepted True or 1.0 for integer height 1. Canonical byte comparison plus positive control and two output-corruption regressions reject both; these are not executed Rust mutants."
+    }
+  ],
+  "review": {
+    "reviewer": "native gpt-6-astra independent of Luna runtime and root comparison implementation",
+    "verdict": "ACCEPTED_BOUNDED_CORRESPONDENCE",
+    "scope": "Reviewed all new runtime modules, small repair, transport and final cases; independently reproduced height mismatch/fix and one canonical state/claim comparison. Root reviewed worker changes and ran integration gates.",
+    "simplification": "Existing economic kernel and shared global checker are reused. Small local terminal delta derivation is needed because no public Rust helper exists. Same-owner test now uses actual returned predecessor instead of rebuilding equivalent rows.",
+    "scanner_disposition": "RS-UNCHECKED-ARITH on delta as u128 is guarded by delta>=0;checked_add bounds result. Negative branch uses unsigned_abs and checked_sub. No new unsafe code.",
+    "score_change": "Only margin_deposit/withdraw refinement .50 to .55; implementation .50, semantics .60, proof .55, H remain. All wide and qualification rows unchanged.",
+    "formal_before_percent": 21.419,
+    "formal_after_percent": 21.44,
+    "formal_delta_pp": 0.021,
+    "v3_before_percent": 24.239,
+    "v3_after_percent": 24.239,
+    "v3_delta_pp": 0
+  },
+  "line_changes": {
+    "files": 10,
+    "added": 2764,
+    "removed": 0,
+    "runtime_added": 1331,
+    "proof_added": 0,
+    "tests_including_transport_added": 1174,
+    "config_added": 18,
+    "lockfile_added": 218,
+    "docs_added": 23
+  },
+  "contributors": [
+    {
+      "id": "root",
+      "model": "gpt-6-astra",
+      "role": "integration",
+      "output": "Critical integration; maxheight repair and native regression; complete Python comparison and scalar-observer repair; final gates and evidence."
+    },
+    {
+      "id": "luna",
+      "model": "gpt-5.6-luna",
+      "role": "implementation",
+      "output": "Rust runtime/native tests, bounded JSON transport and pinned dependency/docs setup. Initial pytest Cargo wrapper did not fulfill parity and was replaced by root."
+    },
+    {
+      "id": "astra-review",
+      "model": "gpt-6-astra",
+      "role": "review",
+      "output": "Independent runtime, transport, observer and fixed-rubric review. Reproduced maxheight and scalar-alias defects. No duplicate Cargo build."
+    }
+  ],
+  "resources": {
+    "exclusive_model_elapsed_ms": null,
+    "input_tokens": null,
+    "output_tokens": null,
+    "actual_cost": null,
+    "note": "Execution durations are not exclusive model work or billed time. Existing Cargo target was reused; no network or new large worktree."
+  },
+  "nonclaims": [
+    "Finite typed-input correspondence, not universal Rust/Python execution or parser refinement.",
+    "No new preservation theorem or proof generation; earlier Lean episode proof remains separately pinned.",
+    "One margin market and existing reserve-free asset frame only;other shared-table lanes and multiple markets need compatible projections.",
+    "Test transport has a 4 MiB line bound and closed fields;does not reject duplicate JSON keys before Value parsing and is not a production decoder.",
+    "No authentication,real receipts, route/profile admission, publisher mount, migration or live authority.",
+    "Full rejection/resource coverage, maximum replay/terminal sizes and guaranteed exits remain unqualified."
+  ],
+  "next_acceptance": "Qualify versioned margin receipts and route admission through isolated current-store publication with the same claims, joint lane roots, authenticated occurrence and predecessor. No historical V1 receipt substitution."
+}

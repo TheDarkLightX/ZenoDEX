@@ -348,8 +348,8 @@
           {"path": "tests/evidence/perps_margin_global_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {"id": "margin_deposit", "c": 0.5, "unc": "H", "note": "Usable joint pure V2 margin/asset/global lifecycle, including transfer/refill/close, exact attribution and no-op rejects; unmounted, no new Rust/receipt qualification."},
-          {"id": "margin_withdraw", "c": 0.5, "unc": "H", "note": "Usable joint pure V2 margin/asset/global lifecycle, including transfer/refill/close, exact attribution and no-op rejects; unmounted, no new Rust/receipt qualification."},
+          {"id": "margin_deposit", "c": 0.5, "unc": "H", "note": "Usable joint pure V2 margin/asset/global lifecycle; bounded Rust/Python correspondence now qualified. Still unmounted with no genuine receipt/publication qualification."},
+          {"id": "margin_withdraw", "c": 0.5, "unc": "H", "note": "Usable joint pure V2 margin/asset/global lifecycle; bounded Rust/Python correspondence now qualified. Still unmounted with no genuine receipt/publication qualification."},
           {"id": "position_open", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy engines only"},
           {"id": "position_adjust", "c": 0.12, "unc": "V", "legacy_only": true, "note": "legacy"},
           {"id": "funding_accrual", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy funding market; command disabled; disputed evidence"},
@@ -739,9 +739,9 @@
   },
   "formal_core": {
     "denominator_weight": 140,
-    "central_percent": 21.419,
-    "lower_percent": 15.589,
-    "upper_percent": 27.505,
+    "central_percent": 21.44,
+    "lower_percent": 15.611,
+    "upper_percent": 27.526,
     "rows": [
       {
         "id": "FC:ASSET_TRANSFER",
@@ -897,9 +897,9 @@
         "id": "FC:PERPS_MARKET",
         "kind": "lane",
         "weight": 11,
-        "low": 0.2006,
-        "central": 0.2643,
-        "high": 0.3225,
+        "low": 0.203364,
+        "central": 0.267,
+        "high": 0.325182,
         "evidence": [
           {"path": "src/core/perps_margin_module_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "lean-mathlib/Proofs/PerpEpochSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -914,11 +914,14 @@
           {"path": "src/core/perps_margin_claims_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "lean-mathlib/Proofs/PerpsMarginClaimsV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "tests/formal/test_lean_perps_margin_claims_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
-          {"path": "tests/evidence/perps_margin_global_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
+          {"path": "tests/evidence/perps_margin_global_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "zk/perps_margin_global_v2/src/global.rs", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/core/test_perps_margin_global_rust_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/perps_margin_rust_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {"id": "margin_deposit", "sem": 0.6, "prf": 0.55, "ref": 0.5, "unc": "H", "increment_rationale": "Explicit V2 claim episodes, modeled availability/preservation/history/lifecycle theorem and finite complete-output Python correspondence. Rust successor, universal runtime and publication remain open."},
-          {"id": "margin_withdraw", "sem": 0.6, "prf": 0.55, "ref": 0.5, "unc": "H", "increment_rationale": "Explicit V2 claim episodes, modeled availability/preservation/history/lifecycle theorem and finite complete-output Python correspondence. Rust successor, universal runtime and publication remain open."},
+          {"id": "margin_deposit", "sem": 0.6, "prf": 0.55, "ref": 0.55, "unc": "H", "increment_rationale": "Prior episode proof plus37actual complete-output Python/Rust cases through the joint V2 successor, including ordinary transfer and exact typed rejections. Universal refinement, receipt admission and publication remain open."},
+          {"id": "margin_withdraw", "sem": 0.6, "prf": 0.55, "ref": 0.55, "unc": "H", "increment_rationale": "Prior episode proof plus37actual complete-output Python/Rust cases through the joint V2 successor, including ordinary transfer and exact typed rejections. Universal refinement, receipt admission and publication remain open."},
           {"id": "position_open", "sem": 0.3, "prf": 0.3, "ref": 0.1, "unc": "V", "legacy_only": true},
           {"id": "position_adjust", "sem": 0.25, "prf": 0.25, "ref": 0.08, "unc": "V", "legacy_only": true},
           {"id": "funding_accrual", "sem": 0.3, "prf": 0.35, "ref": 0.1, "unc": "H", "legacy_only": true},
@@ -1206,6 +1209,6 @@
       }
     ]
   },
-  "assessment_basis": {"kind": "SCOPED_REVIEWED_AMENDMENT", "inherited_subject": "7386fa2ea2488999aa453b701e3b666e32ee2d85", "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json", "inherited_assessment_sha256": "507f3ce08554847e97638c07992b13e27112d741545657cdc280f02367a16256", "inherited_storage_commit": "2f1c0e0557edd5669413ead35bfaa2cd5773aac6", "scope": "Only margin_deposit and margin_withdraw implementation/semantics/proof/refinement; H uncertainty, all other capabilities/workstreams and qualification are inherited. No Rust twin credit.", "review_evidence": "tests/evidence/perps_margin_global_review_20260913.md"},
-  "subject": "417ec94ad39389c8e2beceee69ceabe565828302"
+  "assessment_basis": {"kind": "SCOPED_REVIEWED_AMENDMENT", "inherited_subject": "417ec94ad39389c8e2beceee69ceabe565828302", "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json", "inherited_assessment_sha256": "f0ed52c2fb37eb66a50736149a755213b67fe683cf5cb3c05d42f26e62738ebd", "inherited_storage_commit": "e95e897c9288b6c58500c5c9426e932f29e82967", "scope": "Only margin_deposit and margin_withdraw refinement .50 to .55; every other score and all qualification counts inherited.", "review_evidence": "tests/evidence/perps_margin_rust_v2_20260913.json"},
+  "subject": "22e330b4e4190cd97c022ea3b6fbf1eba1aaaa39"
 }
