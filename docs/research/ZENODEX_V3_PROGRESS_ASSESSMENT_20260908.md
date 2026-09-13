@@ -635,3 +635,21 @@ It adds no dependency, proof or new economic workflow. The change is
 been refreshed. Full AS07 and all production gates remain open. The next
 integrated acceptance remains genuine margin V2 receipt qualification through
 the current-store publisher, pending build capacity and its guest implementation.
+
+### September 13: margin guest execution foundation
+
+`cb20c16a…` → `bb56ec4c…` supplies the missing compiled guest, bounded canonical
+frame decoding and measured verifier/prover tools. [Execution evidence](../../tests/evidence/perps_margin_guest_execution_v2_20260913.json)
+retains exact artifact hashes, actual lifecycle execution, negative measured
+verifier launch, native correspondence and byte-capacity cases. All final
+focused tests, formatting, Clippy, configured mypy and hygiene checks pass.
+Cryptographic positive receipts and publication qualification remain open.
+
+Growth is +4,150/−18: runtime +743/−0, tests +312/−12, configuration +76/−3,
+evidence +184/−0, documentation +111/−3 and existing-dependency lockfile +2,724/−0.
+There are no new formal-proof lines. Root completed implementation after two
+workers were stopped; no independent review verdict is claimed for this batch.
+Assessment **NOT_RESCORED**: the historical 24.268% V3 and 21.440% formal
+estimates are unchanged inputs, not a measured zero gain. No full AS exit or
+value-safety gate closes. The next acceptance is genuine receipts through the
+existing isolated publisher under its exact profile, predecessor and authority.

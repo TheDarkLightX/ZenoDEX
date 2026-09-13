@@ -1,0 +1,176 @@
+{
+  "schema": "zenodex/perps-margin-guest-execution-evidence/v1",
+  "subject": "bb56ec4c76c0140be9fec7522f157efa213b34bd",
+  "implementation_base": "cb20c16a54ade99435a31c93c33cf01ad40b8ed6",
+  "authority": "NONE",
+  "obligations": [
+    "AS02",
+    "W03",
+    "W09",
+    "W10"
+  ],
+  "claim": "Measured compiled margin V2 guest reruns the existing joint transition and matches the Python journal over retained connected executions. Native frame and negative receipt checks pass.",
+  "full_plan_complete": false,
+  "genuine_receipt_produced": false,
+  "publication_qualified": false,
+  "source_manifest": {
+    "commit": "bb56ec4c76c0140be9fec7522f157efa213b34bd",
+    "path": "tests/evidence/test_hygiene/THV1-20260913-margin-guest-execution-v2.json",
+    "sha256": "082118583ac28cb8e0bfeed4ef08e44be3092e2810b72004a7c2b16444420c74"
+  },
+  "execution_source": {
+    "commit": "bb56ec4c76c0140be9fec7522f157efa213b34bd",
+    "path": "tests/integration/test_perps_margin_real_guest_v2.py",
+    "sha256": "31f876178fe211e7311f6906b8ae51c28b63992dcecbe0d758506042f1c7504f"
+  },
+  "artifacts": {
+    "image_words": [
+      2623568652,
+      651265610,
+      1043979988,
+      1361420132,
+      2865992097,
+      3697114616,
+      2674229025,
+      75673820
+    ],
+    "image_id": "0x0c7b609c4a86d126d4de393e649f2551a191d3aaf87d5ddc217f659fdcb08204",
+    "artifacts": {
+      "margin_guest.bin": {
+        "sha256": "83221c4e3b85ba2e976526052219e8fa1ea8c05f35bcce837aa2f0380e2c9750",
+        "bytes": 1429132
+      },
+      "execute_margin_frame_v2": {
+        "sha256": "4902c01d3c379130b7c4a63f7ba38de2d8f0197c2ba41c0360aa2483ba73f52c",
+        "bytes": 10105704
+      },
+      "verify_margin_receipt_v2": {
+        "sha256": "3b05e75d587d14f5b3f1ff3b6c0d0ba941710c423e5b899f36232e8f5be5ec56",
+        "bytes": 9481472
+      },
+      "prove_margin_receipt_v2": {
+        "sha256": "852cb3c455c16dc3a7da02c434c314a2c116996a57a6dc4c9cd28de6ee93cc8d",
+        "bytes": 23000184
+      },
+      "r0vm-3.0.6": {
+        "sha256": "751b9b188d341e8bec5e02060086b7b1dc3f7289e90f726c38589bb6735dd6d7",
+        "bytes": 108165720
+      }
+    },
+    "host_toolchain": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+    "guest_toolchain": "rustc 1.94.1-dev (06e01cb0d 2026-04-09)"
+  },
+  "verification": [
+    {
+      "replay_command": "python3 -m pytest -q tests/core/test_perps_margin_global_rust_v2.py tests/core/test_perps_margin_receipt_v2.py tests/integration/test_joint_margin_capacity_v2.py",
+      "result": "44 passed; complete shared cases and next-input byte boundaries",
+      "log_sha256": "b3fa1f46948ece49516fbf7c199685fab35c479e5f75cbdeccaea868de9b9166",
+      "test_seconds": 110.11
+    },
+    {
+      "replay_command": "cargo +1.97.1 test --offline --locked --manifest-path zk/perps_margin_global_v2/Cargo.toml",
+      "result": "7 passed; doctests passed",
+      "log_sha256": "995b17e189d1e3fffd81c7422a69f2e786f42ae67b9239c3507d7893d6cedddc"
+    },
+    {
+      "replay_command": "RISC0_BUILD_LOCKED=1 cargo +1.97.1 test --offline --locked --manifest-path zk/perps_margin_global_risc0/Cargo.toml --features compiled-guest",
+      "result": "12 passed; actual guest image assertion ran; doctests passed",
+      "log_sha256": "94f2f0c45c7a794ae36f1c6e1a9b7bf9f7a57f0e539daa1c23194395f0e26c75"
+    },
+    {
+      "replay_command": "cargo +1.97.1 clippy --offline --locked --manifest-path zk/perps_margin_global_v2/Cargo.toml --all-targets -- -D warnings",
+      "result": "PASS",
+      "log_sha256": "4118c49c4bcb16d0235dc2f0ead1a31a6ef67d3d5d5f5bad0cd7053eacf5655d"
+    },
+    {
+      "replay_command": "RISC0_BUILD_LOCKED=1 cargo +1.97.1 clippy --offline --locked --manifest-path zk/perps_margin_global_risc0/Cargo.toml --all-targets --features compiled-guest -- -D warnings",
+      "result": "PASS; native targets linted, guest built with pinned SDK compiler",
+      "log_sha256": "ee8688a2a2be053a13499d3994889273a95e152ce5e8bdef77c95ab052d71c32"
+    },
+    {
+      "replay_command": "ZENODEX_MARGIN_EXECUTOR=<built execution example> ZENODEX_MARGIN_R0VM=<pinned r0vm> python3 -m pytest -q tests/integration/test_perps_margin_real_guest_v2.py",
+      "result": "9 passed; six connected guest executions, seven negative guest cases and measured Python verifier launch",
+      "log_sha256": "73fbb5a4e6f1a80c71ff65f9732ab88d57fa09627e82f5a0b8761431a10d5ee3",
+      "test_seconds": 17.79
+    },
+    {
+      "replay_command": "RISC0_SKIP_BUILD=1 cargo +1.97.1 test --offline --locked --manifest-path zk/perps_margin_global_risc0/Cargo.toml --features compiled-guest",
+      "result": "Expected exit 101: guest build skipping rejected; ordinary build subsequently passed",
+      "log_sha256": "ac41752c81570486825285b44e2d3f0fb0b218bb9f5a20a298b6a00e2dda177d"
+    }
+  ],
+  "additional_checks": [
+    "Ruff on both changed Python tests: PASS",
+    "Configured mypy: 25 source files PASS",
+    "Rust formatting: PASS",
+    "Owned-file test-hygiene check: 24 changed paths, 22 critical paths, PASS",
+    "Production boundary posture: ok=true; no release qualification"
+  ],
+  "limits": {
+    "component_bytes": 1048576,
+    "provisional_session_cycles": 16777216,
+    "required_successor_components_must_fit_next_input": true,
+    "maximum_state_execution_cycles_qualified": false
+  },
+  "corrections": [
+    "Cancelled Terra draft shadowed a command helper and expected noncanonical journal key order; repaired before acceptance.",
+    "Root removed redundant prepared-root and frame-encoding APIs; reused existing typed transitions and shared scenario fixtures.",
+    "Initial custom-toolchain doctest invocation lacked rustdoc; native 1.97.1 test and doctest replay passed.",
+    "Initial generated lockfile drifted external versions; final lockfile reuses the custody workspace exact external package set.",
+    "Host Clippy wrapper selected a sysroot without zkVM standard libraries. Nested guest build now uses the SDK compiler; native Clippy and compiled-image guard pass."
+  ],
+  "line_changes": {
+    "runtime": {
+      "added": 743,
+      "removed": 0
+    },
+    "tests": {
+      "added": 312,
+      "removed": 12
+    },
+    "config": {
+      "added": 76,
+      "removed": 3
+    },
+    "data": {
+      "added": 184,
+      "removed": 0
+    },
+    "docs": {
+      "added": 111,
+      "removed": 3
+    },
+    "lockfile": {
+      "added": 2724,
+      "removed": 0
+    }
+  },
+  "line_classification_note": "Existing path-based classifier counts Rust examples and inline tests as runtime. The 2724 lockfile lines pin dependencies already present in the custody workspace; they are not economic logic or proof code.",
+  "contributors": [
+    {
+      "model": "gpt-6-astra",
+      "role": "direct implementation, simplification, integration and verification",
+      "status": "completed"
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "role": "partial native frame draft; stopped at user request",
+      "status": "cancelled"
+    },
+    {
+      "model": "gpt-6-astra",
+      "role": "independent frame review; stopped at user request before verdict",
+      "status": "cancelled"
+    }
+  ],
+  "resource_account": "Provider tokens, exclusive model duration and actual cost unavailable. Test timings measure execution only. No Runpod or full proof-generation run.",
+  "assessment": "NOT_RESCORED; previous V3 24.268% and formal 21.440% remain historical; 0/12 qualified gates.",
+  "remaining": [
+    "Genuine Succinct receipts for the rebuilt guest against the isolated publisher exact profile/state/command coordinates.",
+    "End-to-end measured verifier and actual publication with wrong-context, stale-head, malformed, unavailable and committed-retry controls.",
+    "Independent review of this implementation and all AS01-AS08 complete exits.",
+    "Universal runtime refinement, full admitted-state cycle capacity, finality, committed-effect destination enforcement and compromised-host protection.",
+    "Lean, ESSO, Kani and full production gates were not rerun in this batch.",
+    "The inherited claims-registry missing derivatives-authorization checker remains unresolved."
+  ]
+}

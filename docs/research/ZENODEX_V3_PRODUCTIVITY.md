@@ -502,3 +502,35 @@ No build, proof generation, remote compute, cleanup or dependency installation
 was performed for this repair. Initial 3.3 GiB availability declined to 1.9 GiB
 while the batch ran; these are observations, not attribution to this batch.
 The earlier `301a4389` → `be7dcd006` metadata is counted once as support.
+
+## September 13: compiled margin guest and actual execution
+
+Implementation `cb20c16a…` → `bb56ec4c…` adds 4,150/removes 18 lines:
+743/0 runtime, 312/12 tests, 76/3 configuration, 184/0 evidence,
+111/3 documentation and 2,724/0 lockfile. The existing classifier counts Rust
+examples and inline tests as runtime. Lockfile entries reuse the custody
+workspace's external versions; these lines are dependency pins, not new proofs.
+
+[Execution evidence](../../tests/evidence/perps_margin_guest_execution_v2_20260913.json)
+records 44 native Python cases, seven pure Rust tests, twelve compiled workspace
+tests and nine actual guest/verifier tests. The unchanged two-root journal now
+comes from the measured guest over connected deposit, drain, refill and close.
+Malformed/unauthorized guest inputs produce no journal. Actual measured Python
+verifier launch rejects invalid receipts. No genuine receipt was produced.
+
+Root implemented, simplified, repaired and verified directly after the user
+stopped delegation. Terra's partial draft and Astra's unfinished review are
+recorded as cancelled; neither receives independent-review credit. Draft compile,
+canonical-order, doctest, lockfile and nested Clippy issues were repaired with
+passing final gates. Provider tokens, exclusive model duration and billing are
+unknown; test times do not measure model work. Shared delivery counts once.
+
+The batch is **NOT_RESCORED**. AS02 next requires genuine receipts for the
+publisher's exact selected context and current-store admission. The preceding
+repair-accounting interval is carried once as support. This evidence/report
+append earns no further product credit.
+
+Manifest replay against `cb20c16a54ade99435a31c93c33cf01ad40b8ed6` passes with
+the prior prefix preserved. Execution source pins, complete hygiene pins and
+the external lockfile package-set comparison pass. The inherited claims-registry
+failure remains: missing `tools/check_derivatives_authorization_matrix.py`.

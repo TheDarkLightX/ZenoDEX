@@ -3207,6 +3207,63 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-margin-guest-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "direct-margin-frame-guest-build-execution-and-verifier-negative-controls",
+      "risk": "critical",
+      "provenance": {
+        "commit": "bb56ec4c76c0140be9fec7522f157efa213b34bd",
+        "path": "tests/integration/test_perps_margin_real_guest_v2.py",
+        "sha256": "31f876178fe211e7311f6906b8ae51c28b63992dcecbe0d758506042f1c7504f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-guest-terra",
+      "model_id": "gpt-5.6-terra",
+      "role": "implementation",
+      "status": "cancelled",
+      "task_kind": "partial-native-frame-draft-stopped-at-user-request",
+      "risk": "critical",
+      "provenance": {
+        "commit": "bb56ec4c76c0140be9fec7522f157efa213b34bd",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "de522ca55ab031b36979d99e7b240834df29c50a24ead83c6b83546e953b833c"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-guest-astra-review",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "cancelled",
+      "task_kind": "frame-review-stopped-at-user-request-no-independent-verdict",
+      "risk": "critical",
+      "provenance": {
+        "commit": "bb56ec4c76c0140be9fec7522f157efa213b34bd",
+        "path": "docs/ZENODEX_SESSION_CONTINUITY.md",
+        "sha256": "de522ca55ab031b36979d99e7b240834df29c50a24ead83c6b83546e953b833c"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -5289,6 +5346,63 @@
           }
         }
       ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-attack-surface-accounting",
+      "before_commit": "b5c55c18d2ab7f9eef65fdf656c0c96d61a65909",
+      "after_commit": "cb20c16a54ade99435a31c93c33cf01ad40b8ed6",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-attack-surface-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry prior repair evidence and contribution recording once; no additional implementation or score credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-margin-guest-execution",
+      "before_commit": "cb20c16a54ade99435a31c93c33cf01ad40b8ed6",
+      "after_commit": "bb56ec4c76c0140be9fec7522f157efa213b34bd",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W03",
+        "W09",
+        "W10"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-guest-root",
+        "V3-20260913-margin-guest-terra",
+        "V3-20260913-margin-guest-astra-review"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Compiled strict margin V2 guest and measured verifier/prover tools. 44 native Python cases, 7 pure Rust tests, 12 compiled workspace tests and 9 actual guest/verifier tests pass. No genuine receipt or publisher qualification; AS02 remains open. NOT_RESCORED. Source-bound details: perps_margin_guest_execution_v2_20260913.json.",
+        "evidence": {
+          "commit": "bb56ec4c76c0140be9fec7522f157efa213b34bd",
+          "path": "tests/integration/test_perps_margin_real_guest_v2.py",
+          "sha256": "31f876178fe211e7311f6906b8ae51c28b63992dcecbe0d758506042f1c7504f"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
       "supersedes": null
     }
   ]
