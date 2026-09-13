@@ -3074,6 +3074,101 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-margin-publication-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "joint-margin-current-store-integration-and-verification",
+      "risk": "critical",
+      "provenance": {
+        "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+        "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+        "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-publication-wire-worker",
+      "model_id": null,
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "strict-margin-wire-statement-and-replay",
+      "risk": "critical",
+      "provenance": {
+        "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+        "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+        "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-publication-role-worker",
+      "model_id": null,
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "selected-margin-role-and-authenticated-verifier",
+      "risk": "critical",
+      "provenance": {
+        "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+        "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+        "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-publication-astra-review",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-authority-capacity-and-fixed-rubric-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+        "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+        "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-publication-terra-spawn",
+      "model_id": null,
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "requested-terra-max-spawn-refused-by-harness-thread-limit",
+      "risk": "critical",
+      "provenance": {
+        "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+        "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+        "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -4949,6 +5044,139 @@
           }
         }
       ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-taufold-v2-bookkeeping",
+      "before_commit": "fd1776504e57b04332698764cd9f3a3c98f89829",
+      "after_commit": "51cb8e8a264a0e39564964823dbf40d21078df2c",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W06"
+      ],
+      "run_ids": [
+        "V3-20260913-taufold-v2-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry the preceding review contribution and reopened-finding bookkeeping once. No ZenoDEX runtime/proof or product-credit change.",
+        "evidence": {
+          "commit": "51cb8e8a264a0e39564964823dbf40d21078df2c",
+          "path": "docs/research/ZENODEX_V3_PRODUCTIVITY.md",
+          "sha256": "00ffd22160e02d789bfd1280052e706e6f8bf37b7ad09fe3d79ff5d3a057922b"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-margin-publication-delivery",
+      "before_commit": "51cb8e8a264a0e39564964823dbf40d21078df2c",
+      "after_commit": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W03",
+        "W06",
+        "W07"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-publication-root",
+        "V3-20260913-margin-publication-wire-worker",
+        "V3-20260913-margin-publication-role-worker",
+        "V3-20260913-margin-publication-astra-review",
+        "V3-20260913-margin-publication-terra-spawn"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "3246 added/67 removed:1442/58 runtime,1719/0 tests,75/7 spec,10/2 inherited baseline metadata.195 focused tests and broad gates pass;connected margin/transfer/retry/recovery now mounted in the isolated store with protocol receipt fixtures. New type/capacity defects repaired;real guest and production qualification remain.",
+        "evidence": {
+          "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+          "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+          "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "7de2712a134f627440945573afb96aa65eb6f43e5f5ecdc5dcba13481010272a"
+        },
+        "after": {
+          "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "5178bdfebd9a892b4db6a1f9bed30204e048ccb162f035cc54cfa69890eabe1a"
+        },
+        "review": {
+          "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+          "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+          "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+        }
+      },
+      "findings": [
+        {
+          "id": "JOINT-MARGIN-GENESIS-CAPACITY",
+          "status": "repaired",
+          "evidence": {
+            "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+            "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+            "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+          }
+        },
+        {
+          "id": "MARGIN-FOREIGN-GETTER-ADMISSION",
+          "status": "repaired",
+          "evidence": {
+            "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+            "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+            "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+          }
+        },
+        {
+          "id": "MARGIN-SUCCESSOR-WIRE-CAPACITY",
+          "status": "repaired",
+          "evidence": {
+            "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+            "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+            "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-margin-publication-recording",
+      "before_commit": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
+      "after_commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+      "kind": "support",
+      "obligation_ids": [
+        "W06",
+        "W07"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-publication-root",
+        "V3-20260913-margin-publication-astra-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Source-pinned evidence,reviewed assessment and continuity account for the completed implementation. No runtime changes and no additional progress credit.",
+        "evidence": {
+          "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+          "path": "tests/evidence/perps_margin_publication_v2_20260913.json",
+          "sha256": "fac0cace3ebd1688fb3cc8055ea3dbb730c40b2bdb5d7d3574b2e8e15d8a46e3"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
       "supersedes": null
     }
   ]

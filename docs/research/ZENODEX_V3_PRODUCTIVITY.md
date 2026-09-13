@@ -470,3 +470,9 @@ produced no code. Initial fixture errors, root test-observer corrections and
 one redundant worker legacy gate are retained in the account. Provider token,
 exclusive time and billing records remain unavailable. Shared delivery counts
 once. The follow-up evidence and reporting edits receive no additional credit.
+
+The append-only manifest replay against `51cb8e8a` passes and records five
+contribution attempts for this delivery, including the failed spawn. Prior
+review bookkeeping and this delivery's evidence are separate support batches.
+This manifest append follows the accounted `301a4389` evidence commit and must
+be carried once into the next code-value range.
