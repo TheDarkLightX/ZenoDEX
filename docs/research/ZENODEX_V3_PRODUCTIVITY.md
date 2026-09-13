@@ -360,3 +360,33 @@ its 83,425 cache-creation and 639,265 cache-read tokens remain separately named
 in the source evidence. Fable's generic probe lasted 5,656 ms and returned a
 quota error without running a model. Other per-model time, tokens and actual
 cost remain unknown. Test durations are not charged as exclusive model work.
+
+## September 13: Rust margin counterpart and actual correspondence
+
+Implementation `e95e897c…` → `22e330b4…` adds **2,764 lines** with no deletions:
+1,331 runtime, 1,174 tests including transport, 18 configuration, 218 lockfile
+and 23 documentation. The automatic report classifies the 365-line Rust example
+as runtime by path/suffix; the manual split labels its actual test-only role.
+[Evidence and independent review](../../tests/evidence/perps_margin_rust_v2_20260913.json)
+pin 37 shared complete-output cases, 60 combined Python tests and six Rust tests.
+
+Luna implemented the Rust counterpart and transport. Root supplied critical
+integration, the height repair and actual Python comparison. Astra independently
+reviewed implementation and evidence. The initial Cargo-only pytest wrapper
+was insufficient and was replaced. Review repaired a maximum-height rejection
+mismatch, a synthesized rejection-root observation and boolean/float integer
+aliases in the comparison. Those corrections are recorded with the delivery;
+there is no extra repair credit. Native per-model resources remain unknown.
+
+The reviewed refinement-only gain is **formal +0.021 percentage points**, reaching
+**21.440%**; V3 stays **24.239%**. No new mounted workflow or proof theorem was
+added. The scored interval starts at the previous assessed `417ec94a…` and
+supersedes its evidence-only batch, carrying prior support once. Evidence commit
+`22b459867…` adds 213/removes 22 and earns no extra credit. The reporter checks
+append-only continuity against `e95e897c…`; all shared model gains count once.
+The next acceptance is versioned receipt/route admission and isolated publication
+against authentic current state with complete joint lane roots and claims.
+
+After all compiler/test processes exited, root removed only this batch's
+regeneratable incremental compilation cache (410,598,815 logical bytes).
+Compiled test/parity binaries, libraries, source and evidence logs remain.

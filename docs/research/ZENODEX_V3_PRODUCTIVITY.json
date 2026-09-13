@@ -2758,6 +2758,63 @@
         },
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-margin-rust-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "rust-review-height-repair-complete-parity-and-observer-regressions",
+      "risk": "critical",
+      "provenance": {
+        "commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+        "path": "tests/evidence/perps_margin_rust_v2_20260913.json",
+        "sha256": "6a545ff5f08a6d1884af78b9fac7fa85abea3a3ffb0f704038c42fd4d47849a1"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-rust-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "rust-runtime-native-tests-and-bounded-transport-parent-completed-pytest-parity",
+      "risk": "critical",
+      "provenance": {
+        "commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+        "path": "tests/evidence/perps_margin_rust_v2_20260913.json",
+        "sha256": "6a545ff5f08a6d1884af78b9fac7fa85abea3a3ffb0f704038c42fd4d47849a1"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-rust-astra-review",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-rust-semantics-parity-observer-and-refinement-score-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+        "path": "tests/evidence/perps_margin_rust_v2_20260913.json",
+        "sha256": "6a545ff5f08a6d1884af78b9fac7fa85abea3a3ffb0f704038c42fd4d47849a1"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -4393,6 +4450,117 @@
           "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
           "path": "tests/evidence/perps_margin_global_v2_20260913.json",
           "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-margin-rust-delivery",
+      "before_commit": "417ec94ad39389c8e2beceee69ceabe565828302",
+      "after_commit": "22e330b4e4190cd97c022ea3b6fbf1eba1aaaa39",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W04",
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-global-root",
+        "V3-20260913-margin-global-luna",
+        "V3-20260913-margin-global-astra-review-proof",
+        "V3-20260913-margin-global-opus-predecessor",
+        "V3-20260913-margin-global-daybreak-request",
+        "V3-20260913-margin-global-opus-request",
+        "V3-20260913-margin-global-fable-probe",
+        "V3-20260913-margin-rust-root",
+        "V3-20260913-margin-rust-luna",
+        "V3-20260913-margin-rust-astra-review"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "New Rust counterpart and actual complete-output Python comparison: e95e897c..22e330b4 adds 2764/removes zero. 37 shared cases cover joined margin/ordinary-transfer histories and selected rejects/bounds. Root repaired max-height error classification and observer gaps. Longer scored interval carries prior support once; no newly mounted workflow or universal refinement theorem.",
+        "evidence": {
+          "commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+          "path": "tests/evidence/perps_margin_rust_v2_20260913.json",
+          "sha256": "6a545ff5f08a6d1884af78b9fac7fa85abea3a3ffb0f704038c42fd4d47849a1"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "e95e897c9288b6c58500c5c9426e932f29e82967",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "f0ed52c2fb37eb66a50736149a755213b67fe683cf5cb3c05d42f26e62738ebd"
+        },
+        "after": {
+          "commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "57317f8ca68072458aa59ef6f4cb878e96381f50466b88b91bee55062a6aae36"
+        },
+        "review": {
+          "commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+          "path": "tests/evidence/perps_margin_rust_v2_20260913.json",
+          "sha256": "6a545ff5f08a6d1884af78b9fac7fa85abea3a3ffb0f704038c42fd4d47849a1"
+        }
+      },
+      "findings": [
+        {
+          "id": "MARGIN-RUST-U64-HEIGHT-OUTCOME",
+          "status": "repaired",
+          "evidence": {
+            "commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+            "path": "tests/evidence/perps_margin_rust_v2_20260913.json",
+            "sha256": "6a545ff5f08a6d1884af78b9fac7fa85abea3a3ffb0f704038c42fd4d47849a1"
+          }
+        },
+        {
+          "id": "MARGIN-RUST-REJECT-ROOT-OBSERVER",
+          "status": "repaired",
+          "evidence": {
+            "commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+            "path": "tests/evidence/perps_margin_rust_v2_20260913.json",
+            "sha256": "6a545ff5f08a6d1884af78b9fac7fa85abea3a3ffb0f704038c42fd4d47849a1"
+          }
+        },
+        {
+          "id": "MARGIN-RUST-JSON-SCALAR-OBSERVER",
+          "status": "repaired",
+          "evidence": {
+            "commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+            "path": "tests/evidence/perps_margin_rust_v2_20260913.json",
+            "sha256": "6a545ff5f08a6d1884af78b9fac7fa85abea3a3ffb0f704038c42fd4d47849a1"
+          }
+        }
+      ],
+      "supersedes": "V3-20260913-margin-global-evidence"
+    },
+    {
+      "id": "V3-20260913-margin-rust-evidence",
+      "before_commit": "22e330b4e4190cd97c022ea3b6fbf1eba1aaaa39",
+      "after_commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+      "kind": "support",
+      "obligation_ids": [
+        "W04",
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-rust-root",
+        "V3-20260913-margin-rust-luna",
+        "V3-20260913-margin-rust-astra-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "213 additions/22 deletions retain source-bound Rust/parity review, the narrow refinement amendment and next integration acceptance. No additional product credit.",
+        "evidence": {
+          "commit": "22b459867df294e0ce1e165fe3c3a0e01b264141",
+          "path": "tests/evidence/perps_margin_rust_v2_20260913.json",
+          "sha256": "6a545ff5f08a6d1884af78b9fac7fa85abea3a3ffb0f704038c42fd4d47849a1"
         }
       },
       "assessment": {
