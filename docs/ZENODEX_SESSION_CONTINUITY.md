@@ -753,3 +753,15 @@ unsupported SDK selection, and the current checkpoint adds isolated publication.
 The genuine rebuilt receipt and remaining production/refinement obligations are
 still open. Keep aggregate progress `NOT_RESCORED` until the existing assessment
 is deliberately rerun.
+
+
+## September 13: TauFold developer handoff
+
+Commit `157533341…` preserves the [architecture advice and reviewed upstream
+verifier patch](research/TAUFOLD_ZENODEX_ASSURANCE_ARCHITECTURE_20260913.md).
+Claude Opus 5 implemented the Python boundary; root and an independent Astra
+reviewer qualified the corrected candidate with real receipts and adversarial
+controls. The patch is not applied to the live TauFold checkout or mounted in
+ZenoDEX. No second backend, new guest proof or economic gate was qualified.
+Treat this as W03/W06 support, `NOT_RESCORED`, and retain the integrated margin
+receipt/current-store publication obligation above as the next V3 acceptance.

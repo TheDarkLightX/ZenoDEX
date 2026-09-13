@@ -416,3 +416,11 @@ corrected; sandbox execution denial required approved host replay. Final control
 pass without weakening failed baselines. The inherited claims-registry missing
 file remains unresolved. The next acceptance is authenticated current-state
 input binding and existing publication integration, with full economic receipts.
+
+Handoff commit `157533341…` adds 1,733 packaged artifact/probe/documentation
+lines. Its 938-line patch represents the upstream source delta above; those
+counts must not be added as two implementations. The automatic classifier calls
+the 218 replay-probe lines runtime because they are Python; they are verification
+tools, not mounted economic code. The existing reporter accepts seven new run
+records and one unscored support batch, preserving the manifest prefix at
+`4247e619…`. This contribution-account append is additional unscored metadata.

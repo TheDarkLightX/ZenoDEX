@@ -2815,6 +2815,227 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-taufold-max-attempt",
+      "model_id": "claude-opus-5",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "upstream-native-verifier-max-attempt-max",
+      "risk": "critical",
+      "provenance": {
+        "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+        "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+        "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": {
+          "value": 1854925,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/0/launcher_elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-taufold-snapshot",
+      "model_id": "claude-opus-5",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "upstream-native-verifier-snapshot-high",
+      "risk": "critical",
+      "provenance": {
+        "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+        "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+        "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 20,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/1/input_tokens"
+        },
+        "output_tokens": {
+          "value": 23171,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/1/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 285109,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/1/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-taufold-snapshot-auxiliary",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "cli-reported-auxiliary-operation-unspecified",
+      "risk": "critical",
+      "provenance": {
+        "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+        "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+        "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 1567,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/1/reported_auxiliary/input_tokens"
+        },
+        "output_tokens": {
+          "value": 16,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/1/reported_auxiliary/output_tokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-taufold-io-parser",
+      "model_id": "claude-opus-5",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "upstream-native-verifier-io-parser-high",
+      "risk": "critical",
+      "provenance": {
+        "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+        "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+        "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 42,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/2/input_tokens"
+        },
+        "output_tokens": {
+          "value": 49056,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/2/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 608181,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/2/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-taufold-io-parser-auxiliary",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "cli-reported-auxiliary-operation-unspecified",
+      "risk": "critical",
+      "provenance": {
+        "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+        "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+        "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 1795,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/2/reported_auxiliary/input_tokens"
+        },
+        "output_tokens": {
+          "value": 19,
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          },
+          "json_pointer": "/runs/2/reported_auxiliary/output_tokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-taufold-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "architecture-independent-replay-and-review-repairs",
+      "risk": "critical",
+      "provenance": {
+        "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+        "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+        "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-taufold-astra-review",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-snapshot-transport-parser-and-architecture-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+        "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+        "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -4569,6 +4790,87 @@
         "review": null
       },
       "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-taufold-handoff",
+      "before_commit": "4247e6194ac404e91429f3445654574cb4238d87",
+      "after_commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W06"
+      ],
+      "run_ids": [
+        "V3-20260913-taufold-max-attempt",
+        "V3-20260913-taufold-snapshot",
+        "V3-20260913-taufold-snapshot-auxiliary",
+        "V3-20260913-taufold-io-parser",
+        "V3-20260913-taufold-io-parser-auxiliary",
+        "V3-20260913-taufold-root",
+        "V3-20260913-taufold-astra-review"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "1733 added artifact/documentation/probe lines package an upstream runtime +296/-17 and test +573/-0 repair. Real receipts remain accepted while executable substitution and bounded-I/O/parser attacks reject. ZenoDEX economic runtime unmodified; no automatic product credit.",
+        "evidence": {
+          "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+          "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+          "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "V3-20260913-taufold-measured-executable-race",
+          "status": "repaired",
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          }
+        },
+        {
+          "id": "V3-20260913-taufold-streaming-output-bounds",
+          "status": "repaired",
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          }
+        },
+        {
+          "id": "V3-20260913-taufold-strict-response-fields",
+          "status": "repaired",
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          }
+        },
+        {
+          "id": "V3-20260913-taufold-empty-transport-request",
+          "status": "repaired",
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          }
+        },
+        {
+          "id": "V3-20260913-taufold-late-completion-admission",
+          "status": "repaired",
+          "evidence": {
+            "commit": "15753334123a5e33d91dc40f32d4d90ba51c4ce9",
+            "path": "docs/research/taufold_verifier_handoff_20260913/verification.json",
+            "sha256": "8459234b13a76b053d860e76da04a0332162bff4f0454b5552b407c2a7b164c8"
+          }
+        }
+      ],
       "supersedes": null
     }
   ]
