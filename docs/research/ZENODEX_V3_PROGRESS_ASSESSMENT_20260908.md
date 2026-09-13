@@ -653,3 +653,20 @@ Assessment **NOT_RESCORED**: the historical 24.268% V3 and 21.440% formal
 estimates are unchanged inputs, not a measured zero gain. No full AS exit or
 value-safety gate closes. The next acceptance is genuine receipts through the
 existing isolated publisher under its exact profile, predecessor and authority.
+
+### September 13: exact proof job and native publisher rejection
+
+`ac54d54d…` → `0786c161…` prepares the actual selected publisher's deposit,
+withdrawal and close inputs. [Evidence](../../tests/evidence/margin_proving_workload_v2_20260913.json)
+pins real BLS checks, three measured guest executions, exact default-fixture
+preservation and complete logical-store no-op on real endpoint rejection.
+Seven focused tests pass, two genuine-proof tests skip and 30 existing tests
+pass. Root repaired the draft FIFO/link acquisition defects by reusing the
+existing reader. There is no independent release review for this batch.
+
+Growth is +605/−10: tooling +209/−0, tests +197/−10, evidence +107/−0 and
+documentation +92/−0; economic runtime and formal-proof changes are zero.
+Assessment **NOT_RESCORED**; historical V3 24.268% and formal 21.440% remain
+unrefreshed. The concrete remaining AS02 action is remote proving of the frozen
+22,750,173-cycle workload and local genuine-receipt publication/substitution
+replay. The associated evidence/accounting receives no additional credit.

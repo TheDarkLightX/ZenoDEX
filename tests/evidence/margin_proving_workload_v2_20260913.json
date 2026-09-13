@@ -1,0 +1,149 @@
+{
+  "schema": "zenodex/margin-proving-workload-evidence/v2",
+  "subject": "0786c161ec9c0eea598fdd9758e5c6bb338b2d93",
+  "implementation_base": "ac54d54d80e8f88519b04372c288bff8dd780e7e",
+  "obligations": [
+    "AS02",
+    "AS07",
+    "W03",
+    "W06"
+  ],
+  "source_manifest": {
+    "commit": "0786c161ec9c0eea598fdd9758e5c6bb338b2d93",
+    "path": "tests/evidence/test_hygiene/THV1-20260913-margin-proof-workload-v2.json",
+    "sha256": "2ed4366d60b2b798f603989fc8ef3c4991100ffdb813021807f72e058df300d2"
+  },
+  "claim": "Prepared exact isolated publisher inputs with genuine BLS checks and actual measured guest execution; actual native signature/receipt rejection preserves the complete logical store.",
+  "genuine_receipts_available": false,
+  "full_AS02_qualified": false,
+  "production_authority": false,
+  "packet": {
+    "schema": "zenodex/isolated-margin-proving-workload/v2",
+    "profile_root": "0xaa4e6f70868a163f674cd21e89dde0beb6ef0674f3cfc5a7057c0113f431f861",
+    "image_id": "0x0c7b609c4a86d126d4de393e649f2551a191d3aaf87d5ddc217f659fdcb08204",
+    "guest_role_binding_root": "0x17c73129122680b6f7f6569f61b4c3c60713168d56dea222304fd22a0523f8e3",
+    "steps": [
+      {
+        "name": "01",
+        "command": "perps_margin_deposit",
+        "input_sha256": "045ebcc14d4e18005cedc4182620d38b2c68ff63bd66685f90352ce46ec237ee",
+        "journal_sha256": "3f15b6a72afcb8d552e4bc2b3dcaa5d43ab27c42271f32dd2fb095d18eac26ad"
+      },
+      {
+        "name": "02",
+        "command": "perps_margin_withdraw",
+        "input_sha256": "d3a5de0b88d48fba6781d9fe14dc4edcc554c8c02af6c23e45adb0ca75a3af49",
+        "journal_sha256": "6615b26daad96341e466e7befe0221512c98af107fa1c49decf68c78a352c70b"
+      },
+      {
+        "name": "03",
+        "command": "perps_margin_close",
+        "input_sha256": "5d39795e55f11bd82ede046524b210ddc9f2a64472a773d6d8d8a0f8ce5697a9",
+        "journal_sha256": "5ae5e9e9edfcf1e6c34204c3dae8bf045aed1122beeb9073d9ccf9e4324710f9"
+      }
+    ],
+    "actual_signature_checks": 3,
+    "public_test_genesis_and_key": true,
+    "genuine_receipts_produced": false,
+    "economic_release_and_evidence_status_labels": "isolated fixture assumptions",
+    "production_authority": false
+  },
+  "actual_guest_execution": [
+    {
+      "name": "01",
+      "input_bytes": 6295,
+      "input_sha256": "045ebcc14d4e18005cedc4182620d38b2c68ff63bd66685f90352ce46ec237ee",
+      "journal_sha256": "3f15b6a72afcb8d552e4bc2b3dcaa5d43ab27c42271f32dd2fb095d18eac26ad",
+      "execution": "execution only; user cycles: 7658512",
+      "seconds": 0.47
+    },
+    {
+      "name": "02",
+      "input_bytes": 7159,
+      "input_sha256": "d3a5de0b88d48fba6781d9fe14dc4edcc554c8c02af6c23e45adb0ca75a3af49",
+      "journal_sha256": "6615b26daad96341e466e7befe0221512c98af107fa1c49decf68c78a352c70b",
+      "execution": "execution only; user cycles: 7907114",
+      "seconds": 0.477
+    },
+    {
+      "name": "03",
+      "input_bytes": 6965,
+      "input_sha256": "5d39795e55f11bd82ede046524b210ddc9f2a64472a773d6d8d8a0f8ce5697a9",
+      "journal_sha256": "5ae5e9e9edfcf1e6c34204c3dae8bf045aed1122beeb9073d9ccf9e4324710f9",
+      "execution": "execution only; user cycles: 7184547",
+      "seconds": 0.507
+    }
+  ],
+  "verification": [
+    {
+      "command": "Configured python3 -m pytest -q tests/integration/test_margin_receipt_qualification_v2.py",
+      "result": "7 passed, 2 skipped",
+      "seconds": 13.52,
+      "log_sha256": "4a194a95fba29e23179fea07732e5e3d4a410e0ad9f7f3ca41ae01ec271205c1"
+    },
+    {
+      "command": "python3 -m pytest -q tests/integration/test_profiled_perps_margin_receipt_v2.py tests/integration/test_isolated_joint_margin_publisher_v2.py",
+      "result": "30 passed",
+      "seconds": 120.89,
+      "log_sha256": "f78ad0ab5cd54e9fc549f76b3fabfa11625d3376bceb4427460425c3ab2b655f"
+    },
+    {
+      "command": "Direct old/current default fixture comparison from Git base",
+      "result": "All three command families retain byte-identical frames, signatures and manifest/role roots"
+    },
+    {
+      "command": "prepare CLI plus actual execution of each exported outer frame",
+      "result": "PASS; exact input/journal hashes and 22750173 total user cycles"
+    },
+    {
+      "command": "Ruff, configured mypy, focused tool mypy, source pins, test hygiene, production-boundary posture, git diff --check",
+      "result": "PASS; posture is not qualification"
+    }
+  ],
+  "findings": [
+    {
+      "id": "DRAFT-MARGIN-RECEIPT-FIFO",
+      "status": "repaired before first implementation commit",
+      "before": "Draft reader blocks opening a returned FIFO; regression hit its 10-second observation timeout.",
+      "after": "Reused existing O_NONBLOCK/O_NOFOLLOW regular-file acquisition; retained case rejects immediately."
+    },
+    {
+      "id": "DRAFT-MARGIN-RECEIPT-LINK",
+      "status": "repaired before first implementation commit",
+      "before": "Draft reader followed a final symlink; retained expected rejection failed.",
+      "after": "Existing regular-file reader rejects final symlinks and retains size/stability checks."
+    }
+  ],
+  "failed_draft_evidence": {
+    "fixture_missing_artifact_parameter": "a11f11b71bcdb1f844287ee3b961cf7fc2b3efce8de16e22cebb8471ada4e1e4",
+    "reader_before": "e17edd0c21919a04678f062eee278518b90969bdd56bceb7d4cd7e9b0f288529",
+    "reader_after": "fcd310585d275ea6ec5c3aa786023aaba8ea581107a46f59ccf4dea73706de00"
+  },
+  "line_changes": {
+    "tests": {
+      "added": 197,
+      "removed": 10
+    },
+    "tooling": {
+      "added": 209,
+      "removed": 0
+    },
+    "data": {
+      "added": 107,
+      "removed": 0
+    },
+    "documentation": {
+      "added": 92,
+      "removed": 0
+    }
+  },
+  "contribution": "Root Astra implemented and reviewed directly. No external model, independent review, proof generation, build or remote expenditure in this batch. Provider tokens, exclusive model time and actual cost are unavailable.",
+  "assessment": "NOT_RESCORED; no production or formal-core gate closes.",
+  "remaining": [
+    "Run the three real Succinct proofs on an authorized proof host.",
+    "Run the two currently skipped genuine publication/substitution tests and complete required proof-negative controls.",
+    "Independent review, all AS01-AS08 exits and production/finality/effect-destination qualification remain open.",
+    "No new Lean/ESSO/Kani theorem or universal refinement result.",
+    "Inherited claims-registry missing derivatives-authorization checker remains unresolved."
+  ]
+}

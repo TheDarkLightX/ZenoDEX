@@ -534,3 +534,36 @@ Manifest replay against `cb20c16a54ade99435a31c93c33cf01ad40b8ed6` passes with
 the prior prefix preserved. Execution source pins, complete hygiene pins and
 the external lockfile package-set comparison pass. The inherited claims-registry
 failure remains: missing `tools/check_derivatives_authorization_matrix.py`.
+
+## September 13: exact margin proving workload
+
+`ac54d54d…` → `0786c161…` adds 605/removes 10 lines: 209 tooling, 197/10
+tests, 107 evidence and 92 documentation. No economic runtime or formal-proof
+code changes. [Source-bound evidence](../../tests/evidence/margin_proving_workload_v2_20260913.json)
+pins the three exported inputs, measured execution and native boundary cases.
+Root implemented and reviewed directly; no independent-model verdict is claimed.
+
+The packet rebuilds profile/state/signature roots around the measured BLS
+endpoint and uses the rebuilt margin guest. Seven focused tests pass; two
+genuine-receipt tests explicitly skip. Thirty existing publisher/role tests pass;
+all three old default command frames and signatures remain byte-identical.
+Review reproduced a FIFO hang and symlink acceptance in the draft acquisition
+helper. Reuse of the existing bounded regular-file reader repairs both; the
+failed and passing observations are retained. These repairs receive no separate
+delivery credit. The ordinary formatter repair is also included in the batch.
+
+Actual guest execution totals 22,750,173 user cycles over three inputs totaling
+20,419 bytes. These are execution measurements, not proof runtime, memory,
+exclusive model duration or billed resources. No proof generation, new build,
+remote expenditure or external model call occurred. Provider counters remain
+unknown. A proof host has been requested for the frozen job.
+
+This is **NOT_RESCORED**. AS02 still needs genuine proofs and publication replay;
+all full AS exits remain open. The preceding 340-line evidence/account append
+is carried once as support. This new record earns no extra product credit.
+
+The existing reporter passes against baseline
+`ac54d54d80e8f88519b04372c288bff8dd780e7e`, preserving its manifest prefix.
+Current and committed source pins, changed-file hygiene and production-boundary
+posture checks pass. These checks do not turn the two skipped proof tests into
+evidence of successful publication.

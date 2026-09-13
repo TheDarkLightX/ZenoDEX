@@ -3264,6 +3264,25 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-margin-proving-workload-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "exact-margin-proof-workload-native-boundary-tests-and-file-reader-repair",
+      "risk": "critical",
+      "provenance": {
+        "commit": "0786c161ec9c0eea598fdd9758e5c6bb338b2d93",
+        "path": "tests/integration/test_margin_receipt_qualification_v2.py",
+        "sha256": "6d3a83d4de4820bd4bc3055a77cd9e5a2035ec039fc3bbc2f149f42ed801cf6a"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -5403,6 +5422,80 @@
         "review": null
       },
       "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-margin-guest-accounting",
+      "before_commit": "bb56ec4c76c0140be9fec7522f157efa213b34bd",
+      "after_commit": "ac54d54d80e8f88519b04372c288bff8dd780e7e",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W09",
+        "W10"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-guest-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry previous guest execution evidence and contribution-account append once; metadata only, no extra delivery credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-margin-proving-workload",
+      "before_commit": "ac54d54d80e8f88519b04372c288bff8dd780e7e",
+      "after_commit": "0786c161ec9c0eea598fdd9758e5c6bb338b2d93",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W03",
+        "W06"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-proving-workload-root"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Exact three-command workload, measured BLS/guest replay, actual invalid signature/receipt no-op and frozen native replay CLI.7 tests pass,2 genuine-proof tests skip;30 existing tests pass. Draft FIFO/link defects repaired with existing reader.605/10 lines; no economic runtime or formal proof changes. NOT_RESCORED. Details in margin_proving_workload_v2_20260913.json.",
+        "evidence": {
+          "commit": "0786c161ec9c0eea598fdd9758e5c6bb338b2d93",
+          "path": "tests/integration/test_margin_receipt_qualification_v2.py",
+          "sha256": "6d3a83d4de4820bd4bc3055a77cd9e5a2035ec039fc3bbc2f149f42ed801cf6a"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "DRAFT-MARGIN-RECEIPT-FIFO",
+          "status": "repaired",
+          "evidence": {
+            "commit": "0786c161ec9c0eea598fdd9758e5c6bb338b2d93",
+            "path": "tests/integration/test_margin_receipt_qualification_v2.py",
+            "sha256": "6d3a83d4de4820bd4bc3055a77cd9e5a2035ec039fc3bbc2f149f42ed801cf6a"
+          }
+        },
+        {
+          "id": "DRAFT-MARGIN-RECEIPT-LINK",
+          "status": "repaired",
+          "evidence": {
+            "commit": "0786c161ec9c0eea598fdd9758e5c6bb338b2d93",
+            "path": "tests/integration/test_margin_receipt_qualification_v2.py",
+            "sha256": "6d3a83d4de4820bd4bc3055a77cd9e5a2035ec039fc3bbc2f149f42ed801cf6a"
+          }
+        }
+      ],
       "supersedes": null
     }
   ]
