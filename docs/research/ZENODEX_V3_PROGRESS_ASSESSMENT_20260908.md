@@ -688,3 +688,20 @@ Assessment **NOT_RESCORED**; historical V3 24.268%/formal 21.440% estimates
 remain unrefreshed. This advances W01/W06/W11 historical verification, with no
 full AS exit or value-safety gate closure. Genuine margin proofs and independent
 finality/destination qualification remain the delivery blockers.
+
+### September 13: verifier capability containment
+
+`26da460e…` → `5fd40f6a…` replaces the shared direct verifier launch with a
+fixed Linux namespace policy and four-library runtime. Actual host-file/socket
+access is denied and descendants cannot retain execution after timeout by
+changing sessions. [Evidence](../../tests/evidence/verifier_process_isolation_v1_20260913.json)
+records 102 native/integration passes, two genuine-proof skips, five killed
+source mutants, and passing critical/boundary gates. No independent-model
+verdict is claimed.
+
+Growth is +488/−6: runtime +31/−5, tests +216/−1, documentation +44/−0
+and evidence +197/−0. Economic transition and formal-proof changes are zero.
+W03/W11 containment advances without closing full AS07, independent enforcement
+or genuine margin proof qualification. Assessment **NOT_RESCORED**; historical
+V3 24.268%/formal 21.440% estimates remain unrefreshed. The source-bound reporter
+checks the existing contribution ledger; metadata receives no duplicate credit.

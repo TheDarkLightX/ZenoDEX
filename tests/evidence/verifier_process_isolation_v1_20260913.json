@@ -1,0 +1,266 @@
+{
+  "schema": "zenodex/verifier-process-isolation-evidence/v1",
+  "subject_commit": "5fd40f6a0562f7a6ca8c29596bd7e093063b870f",
+  "baseline_commit": "26da460ed1886a43d179c3c718818ddc8407051e",
+  "status": "IMPLEMENTED_TESTED_ISOLATED",
+  "formal_core_complete": false,
+  "production_authority": false,
+  "assessment_delta": "NOT_RESCORED",
+  "invariants": [
+    "AS07-VERIFIER-HOST-AUTHORITY-DENIED",
+    "AS07-VERIFIER-DESCENDANT-CLOSURE",
+    "AS07-VERIFIER-NO-UNSANDBOXED-FALLBACK"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/global_receipt_verifier_v1.py",
+      "sha256": "162b302544e6aa20c82901f1fc25f2578f68016cfd8341afbe1b489d638d276b"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_v1.py",
+      "sha256": "56cb70b822a20cc7cc7b3a3bd10aa8098f2ae145484f532a785d015465a3f08b"
+    },
+    {
+      "path": "tests/integration/fixtures/verifier_isolation_probe_v1.c",
+      "sha256": "2e32baed65d14dc34913103dc0a5044d540d255c77ad5ae1d49fe91e4a603d37"
+    }
+  ],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_verifier_process_isolation_v1.py",
+      "sha256": "22b22b5829cb51e47aa1e7dcfea761d741a28ca590fc20aea209608d71872e33"
+    },
+    {
+      "path": "tests/integration/test_global_receipt_verifier_v1.py",
+      "sha256": "04ce03e821c8ff5ccdf66dfca9bdc041f976f0bc6c72d15295f945faa6960b95"
+    },
+    {
+      "path": "tests/integration/test_sealed_bls_command_verifier_v1.py",
+      "sha256": "5ef978c1637d56d5010bd1e00e5d02696c5f957235f755f4c14d34fe2452320a"
+    }
+  ],
+  "baseline_observation": {
+    "failed": 6,
+    "meaning": "Before containment, native probes can read/write test-owned host files, connect to a test-owned host abstract socket, create a nested user namespace, and retain a new-session child after timeout. The missing-isolator launch contract also fails. Later absent-mount cases extend the final suite.",
+    "log": {
+      "label": "before",
+      "sha256": "b43545d0765c38f3e9f8c4eadea65dfa9da5b6abd0992aa2a2efaca5acb3af20"
+    }
+  },
+  "verification": {
+    "native_and_integration": {
+      "passed": 102,
+      "skipped": 2,
+      "seconds": 67.6,
+      "log": {
+        "label": "final",
+        "sha256": "8ca597640ac702326d9da4cd6160ea43cf46faacee57ddbe75f9999c7e50d341"
+      },
+      "command": "ZENODEX_TEST_NATIVE_VERIFIER_ISOLATION=1 ZENODEX_BLS_VERIFIER_TEST_BINARY=\"$BLS\" ZENODEX_MARGIN_EXECUTOR=\"$MARGIN_EXECUTOR\" ZENODEX_MARGIN_R0VM=\"$R0VM\" python3 -m pytest -q tests/integration/test_verifier_process_isolation_v1.py tests/integration/test_global_receipt_verifier_v1.py tests/integration/test_sealed_bls_command_verifier_v1.py tests/integration/test_margin_receipt_qualification_v2.py tests/integration/test_isolated_custody_history_audit_v2.py tests/integration/test_sealed_bls_command_verifier_deployment_v1.py tests/integration/test_global_economic_sealed_bls_pipeline_v1.py"
+    },
+    "critical_gate": {
+      "tcb_passed": 433,
+      "critical_passed": 852,
+      "tcb_seconds": 16.57,
+      "critical_seconds": 72.71,
+      "log": {
+        "label": "critical",
+        "sha256": "ed317ef57b2c9fd2ee5e15bdf41deb8aca0f2fdc87e20ea1df2f7bed5eec9b77"
+      },
+      "command": "PYTHON=\"$DEV_VENV/bin/python\" bash tools/run_critical_quality_gate.sh"
+    },
+    "lint_and_types": "Ruff changed Python modules; mypy changed runtime module and all 25 configured modules pass.",
+    "hygiene": {
+      "packets": 309,
+      "changed_critical_paths": 4,
+      "log": {
+        "label": "hygiene",
+        "sha256": "9852dbd8a4a2a60604442d3222e8204196255bbeea18af8ef50e66cbe7269060"
+      }
+    },
+    "production_boundary": {
+      "ok": true,
+      "report_sha256": "3e63df25d274f0fc3f0dc13c3d991968de4796cf58ffc95e5e6830afc3958d06",
+      "command": "python3 tools/check_production_boundary.py --json"
+    },
+    "mutation": {
+      "errors": 0,
+      "killed": 5,
+      "legacy": 0,
+      "mechanical": 5,
+      "narrative": 0,
+      "packet": "THV1-20260913-verifier-process-isolation-v1",
+      "rows": [
+        {
+          "description": "Allow nested user namespaces.",
+          "exit": 1,
+          "killer": "tests/integration/test_verifier_process_isolation_v1.py::test_verifier_has_no_privilege_or_nested_user_namespace_authority",
+          "mutant_sha256": "3210640ffe501a1e0046e3f91fa666fda0e12232fb787740c97b48b72d091ba1",
+          "mutation": {
+            "needle_first_line": "        \"--disable-userns\", \"--cap-drop\", \"ALL\", \"--new-session\", \"--die-with-parent\",",
+            "needle_sha256": "98c06142f1dc1e7437726bb3976cf79e5a05b5636cf99008d4d3dd7b48dccbe0",
+            "path": "src/integration/global_receipt_verifier_v1.py",
+            "replacement_sha256": "caf2ae7f410b55a65b15074d87ae6c0d4fd90bfdb432eaffa2b037d943c29783"
+          },
+          "seconds": 0.728,
+          "verdict": "KILLED"
+        },
+        {
+          "description": "Expose procfs to the verifier.",
+          "exit": 1,
+          "killer": "tests/integration/test_verifier_process_isolation_v1.py::test_verifier_runtime_does_not_mount_proc_devices_or_host_configuration",
+          "mutant_sha256": "d154de339e0493d0cb3ecf609ec6dad1fda771ccfef27967248f9e59c6babfb8",
+          "mutation": {
+            "needle_first_line": "        \"--remount-ro\", \"/\",",
+            "needle_sha256": "9932b71c66626ed301c3f070fc3e79a31da83bc8851113f5dd480e91b153709f",
+            "path": "src/integration/global_receipt_verifier_v1.py",
+            "replacement_sha256": "210f15e408129dc7aa7943dc48bf7f07f85df38cf0c347fcab85ccf758dc4e7b"
+          },
+          "seconds": 0.785,
+          "verdict": "KILLED"
+        },
+        {
+          "description": "Omit PID namespace confinement.",
+          "exit": 1,
+          "killer": "tests/integration/test_verifier_process_isolation_v1.py::test_timeout_terminates_descendant_even_after_it_creates_a_new_session",
+          "mutant_sha256": "c13faa19e379b74794657a3bf814ff48b3bcb8bdf13e6d852abf5acb0735b142",
+          "mutation": {
+            "needle_first_line": "        \"--unshare-user\", \"--unshare-pid\", \"--unshare-net\", \"--unshare-ipc\", \"--unshare-uts\",",
+            "needle_sha256": "a1d67519e1076394541b09a33ea90343847b554f1e95e67cec81a98b34358db0",
+            "path": "src/integration/global_receipt_verifier_v1.py",
+            "replacement_sha256": "74be144a9c3b80b5faa78e974553513d2d0bf74792a6804e1c97a16177751989"
+          },
+          "seconds": 2.897,
+          "verdict": "KILLED"
+        },
+        {
+          "description": "Run the endpoint without isolation.",
+          "exit": 1,
+          "killer": "tests/integration/test_verifier_process_isolation_v1.py::test_given_host_state_when_verifier_opens_it_then_access_is_denied_without_change",
+          "mutant_sha256": "0ae46b75ad9934595f0e4217d59720a15bdd08707d21c271ed5b3d0183e0f0c2",
+          "mutation": {
+            "needle_first_line": "            _sandbox_command_v1(executable_fd),",
+            "needle_sha256": "6f8c274fb515cdf5e765cf08d030385e3a3b8ed412813f78fbe5dadb7ff28587",
+            "path": "src/integration/global_receipt_verifier_v1.py",
+            "replacement_sha256": "11fb002b2a9ad15aa2fd6eb4b55067ac97af89c0aac0753a546a89e14d30ef9a"
+          },
+          "seconds": 0.612,
+          "verdict": "KILLED"
+        },
+        {
+          "description": "Share the host network namespace.",
+          "exit": 1,
+          "killer": "tests/integration/test_verifier_process_isolation_v1.py::test_given_host_abstract_socket_when_verifier_connects_then_access_is_denied",
+          "mutant_sha256": "272744f96f71d4d033d50300c6395f5aa677b0cbcc9cbbcf6a7099d84858f347",
+          "mutation": {
+            "needle_first_line": "        \"--unshare-user\", \"--unshare-pid\", \"--unshare-net\", \"--unshare-ipc\", \"--unshare-uts\",",
+            "needle_sha256": "a1d67519e1076394541b09a33ea90343847b554f1e95e67cec81a98b34358db0",
+            "path": "src/integration/global_receipt_verifier_v1.py",
+            "replacement_sha256": "efb3585b8f7df57ceaf77e60c9ad8f71c49a36fe0f375b422fa370cdd16b72f5"
+          },
+          "seconds": 0.69,
+          "verdict": "KILLED"
+        }
+      ],
+      "schema": "zenodex/thv1-mutation-ledger/v1",
+      "subject_commit": "5fd40f6a0562f7a6ca8c29596bd7e093063b870f",
+      "survived": 0
+    },
+    "mutation_command": "ZENODEX_TEST_NATIVE_VERIFIER_ISOLATION=1 python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260913-verifier-process-isolation-v1 --rev 5fd40f6a0562f7a6ca8c29596bd7e093063b870f --workdir \"$MUTATION_WORK\"",
+    "mutation_controls": "Every declared killer passed against the unmodified committed subject before mutation.",
+    "temporary_mutation_copies_removed": true
+  },
+  "native_host_observation": {
+    "kernel": "7.0.0-28-generic",
+    "architecture": "x86_64",
+    "dependencies": [
+      {
+        "path": "/usr/bin/bwrap",
+        "bytes": 72160,
+        "sha256": "52231e1caf55bcbc667b269f49c63599a6f7db4767ae6a039580d0ff853db712"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libc.so.6",
+        "bytes": 2125328,
+        "sha256": "8db37cf3f2169f59a0f07ef1fea308c35656668c64c8ff294e1860f4121eb161"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+        "bytes": 183024,
+        "sha256": "d93224d2b0dab4247598be683adca02f5cf00586f99c187579cd7e92058fb7cb"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libm.so.6",
+        "bytes": 952616,
+        "sha256": "e9c4b28d340e415b8137480ec442662f981e1399386c5931dae0e886e3639e91"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "bytes": 236616,
+        "sha256": "cd4df4f3c7b83673d61189bf2eaebd33ca4f2853ab9772b8a25e025ef99b1e81"
+      }
+    ]
+  },
+  "line_changes": {
+    "runtime": {
+      "added": 31,
+      "removed": 5
+    },
+    "proof": {
+      "added": 0,
+      "removed": 0
+    },
+    "tests": {
+      "added": 216,
+      "removed": 1
+    },
+    "tooling": {
+      "added": 0,
+      "removed": 0
+    },
+    "docs": {
+      "added": 44,
+      "removed": 0
+    },
+    "evidence": {
+      "added": 197,
+      "removed": 0
+    },
+    "total": {
+      "added": 488,
+      "removed": 6
+    }
+  },
+  "review": {
+    "owner": "root direct implementation and review",
+    "independent_model_review": "NOT_RUN",
+    "repaired_draft_issues": [
+      "File-descriptor bind and implicit interpreter probes did not launch in this environment; selected explicit loader plus immutable descriptor copy qualified successfully.",
+      "Procfs was removed from the final policy; the actual native/integration suite was rerun.",
+      "Initial hygiene invocation omitted required STATUS prefixes; corrected invocation passed.",
+      "A production-boundary audit rejected HEAD_CHANGED during the implementation commit; stable-subject replay passed."
+    ]
+  },
+  "claude_usage_observation": {
+    "observed_at_utc": "2026-09-13T19:46:01Z",
+    "cli_version": "2.1.269",
+    "selected_model_display": "Fable 5.1",
+    "session_used_percent": 0,
+    "all_models_week_used_percent": 63,
+    "fable_week_used_percent": 100,
+    "displayed_week_reset": "September 13, 2026 17:59 America/New_York",
+    "usage_credits_enabled": false,
+    "model_requests_sent": 0,
+    "refreshed": false,
+    "meaning": "Interactive /usage counters after refresh; reset schedule is not evidence of a completed reset."
+  },
+  "nonclaims": [
+    "Explicit ZENODEX_TEST_NATIVE_VERIFIER_ISOLATION=1 is required for native tests; ordinary skips do not qualify a host.",
+    "Kernel, publisher, installed Bubblewrap and runtime libraries remain trusted; their exact deployment must be qualified.",
+    "No aggregate CPU/memory/process quota, concurrent-request admission, prover/SHADOW sandbox, independent finality or publication enforcement is established.",
+    "Probe binaries and protocol fixtures are not proofs. Genuine margin receipt success remains pending a remote proof host.",
+    "The retained source mutations cover only their declared protections; no universal sandbox or maximum attack-surface claim.",
+    "No guest, wire bytes, economic transition or formal proof changed. All full AS exits remain open; the remote three-receipt job is still pending.",
+    "Observed dependency hashes describe this tested host; they are not automatic deployment attestation or runtime measurement of all trusted OS components."
+  ]
+}

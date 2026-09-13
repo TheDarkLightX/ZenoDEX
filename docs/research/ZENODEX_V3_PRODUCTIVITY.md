@@ -597,3 +597,29 @@ The existing reporter passes against baseline
 `5254febf8d7cf326f63b1231404346be97075770`, preserving the earlier manifest
 prefix and confirming the categorized line changes. Source and hygiene pins
 match the tested implementation. Mutation replay removed its temporary copies.
+
+## September 13: native verifier containment
+
+`26da460e…` → `5fd40f6a…` adds 488/removes 6 lines: runtime 31/5,
+tests 216/1, documentation 44/0 and evidence 197/0. No economic transition,
+formal proof, guest or wire format changed. The shared receipt/BLS launcher now
+requires a read-only namespace containing its measured executable and four
+runtime libraries. Retained native probes demonstrate denied host-file/socket
+access and termination of a child that changes sessions.
+
+[Evidence](../../tests/evidence/verifier_process_isolation_v1_20260913.json)
+records 102 passing native/integration cases, two genuine-margin-proof skips,
+five killed source mutants with passing controls, and the critical gate's
+433 TCB plus 852 critical tests. Root implemented and reviewed directly;
+independent-model review was not run. Draft launcher probes needed explicit
+loader execution; the final policy removes procfs. An audit correctly rejected
+a mid-run commit and passed when replayed on the stable subject. Temporary
+mutation copies were removed. No heavy build or remote proving was performed.
+
+The Claude usage check sent no model request: Fable's live weekly counter was
+100%, all models 63%, and the new CLI session reported zero tokens. Provider
+tokens, exclusive root duration and billing remain unknown. This batch is
+**NOT_RESCORED**. Aggregate resource quotas, prover/observer containment and
+independent finality/publication enforcement remain open; AS02 still needs the
+prepared remote receipts. The preceding 327-line audit-account append is carried
+once as support. This new evidence/account append receives no additional credit.

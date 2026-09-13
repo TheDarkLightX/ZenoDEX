@@ -3302,6 +3302,25 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-verifier-isolation-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "measured-verifier-native-capability-containment-and-integration",
+      "risk": "critical",
+      "provenance": {
+        "commit": "5fd40f6a0562f7a6ca8c29596bd7e093063b870f",
+        "path": "tests/integration/test_verifier_process_isolation_v1.py",
+        "sha256": "22b22b5829cb51e47aa1e7dcfea761d741a28ca590fc20aea209608d71872e33"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -5570,6 +5589,80 @@
         "review": null
       },
       "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-custody-audit-accounting",
+      "before_commit": "b97d2f7584516499266c846d6571161208adbce8",
+      "after_commit": "26da460ed1886a43d179c3c718818ddc8407051e",
+      "kind": "support",
+      "obligation_ids": [
+        "W01",
+        "W06",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-custody-history-audit-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry prior327-line custody-audit evidence/account append once; no additional delivery credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-verifier-process-isolation",
+      "before_commit": "26da460ed1886a43d179c3c718818ddc8407051e",
+      "after_commit": "5fd40f6a0562f7a6ca8c29596bd7e093063b870f",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-verifier-isolation-root"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Mandatory fixed namespace launch for the measured BLS/receipt endpoints.102 native/integration pass,2 genuine-proof skip;5/5 source mutants killed;critical gate433+852 passes.488/6 total lines,31/5 runtime; no economic or formal-proof changes. NOT_RESCORED. Aggregate resource quotas and independently enforced finality/publication remain open.",
+        "evidence": {
+          "commit": "5fd40f6a0562f7a6ca8c29596bd7e093063b870f",
+          "path": "tests/integration/test_verifier_process_isolation_v1.py",
+          "sha256": "22b22b5829cb51e47aa1e7dcfea761d741a28ca590fc20aea209608d71872e33"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "AS07-VERIFIER-HOST-AUTHORITY-DENIED",
+          "status": "repaired",
+          "evidence": {
+            "commit": "5fd40f6a0562f7a6ca8c29596bd7e093063b870f",
+            "path": "tests/integration/test_verifier_process_isolation_v1.py",
+            "sha256": "22b22b5829cb51e47aa1e7dcfea761d741a28ca590fc20aea209608d71872e33"
+          }
+        },
+        {
+          "id": "AS07-VERIFIER-DESCENDANT-CLOSURE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "5fd40f6a0562f7a6ca8c29596bd7e093063b870f",
+            "path": "tests/integration/test_verifier_process_isolation_v1.py",
+            "sha256": "22b22b5829cb51e47aa1e7dcfea761d741a28ca590fc20aea209608d71872e33"
+          }
+        }
+      ],
       "supersedes": null
     }
   ]

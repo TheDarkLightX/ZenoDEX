@@ -139,7 +139,7 @@ source mutants killed and the passing critical gate. Mutation copies were
 removed after replay. The contribution reporter preserves the earlier manifest
 prefix; no assessment rescore or independent-model verdict is claimed.
 
-The next AS07 batch changes the shared receipt/BLS launch to a mandatory
+AS07 implementation `5fd40f6a0…` changes the shared receipt/BLS launch to a mandatory
 Bubblewrap namespace with a fixed four-library runtime, read-only root and no
 host data, device or procfs mounts. Native adversarial controls cover host-file
 and abstract-socket access, nested privileges and session-escaping descendants;
@@ -148,6 +148,13 @@ the explicit `ZENODEX_TEST_NATIVE_VERIFIER_ISOLATION=1` host qualification gate.
 No direct-execution fallback is permitted. This does not close aggregate host
 resource limits or independent publication/finality enforcement. AS02 still
 awaits the three genuine receipts from the prepared remote job.
+Its [native evidence](../tests/evidence/verifier_process_isolation_v1_20260913.json)
+records 102 passing integration/native tests, two genuine-proof skips, all five
+source mutants killed, and the passing critical and stable-subject boundary
+gates. The earlier boundary attempt rejected a concurrent HEAD change. The
+contribution is NOT_RESCORED; independent-model review was not run. Actual
+Fable usage on September 13 at 19:46 UTC was 100% weekly, all models 63%; do not
+infer a reset from the displayed future reset time.
 
 ## September 13: isolated joint margin publication
 
