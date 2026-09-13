@@ -3,9 +3,11 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/capability.h>
+#include <pthread.h>
 #include <sched.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/prctl.h>
 #include <sys/socket.h>
@@ -13,6 +15,11 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+static void *wait_for_release(void *argument) {
+    char byte;
+    return read(*(int *)argument, &byte, 1) == 0 ? NULL : (void *)1;
+}
 
 int main(void) {
     char mode[16], argument[1024];
@@ -59,6 +66,98 @@ int main(void) {
             _exit(0);
         }
         return waitpid(child, NULL, 0) < 0 ? 3 : 0;
+    } else if (!strcmp(mode, "hold")) {
+        puts("READY");
+        fflush(stdout);
+        char byte;
+        if (read(STDIN_FILENO, &byte, 1) != 1) return 3;
+        puts("DONE");
+    } else if (!strcmp(mode, "environment")) {
+        printf("%d %d %d %s %s\n", getenv("XDG_RUNTIME_DIR") != NULL,
+            getenv("INVOCATION_ID") != NULL, getenv("DBUS_SESSION_BUS_ADDRESS") != NULL,
+            getenv("RISC0_DEV_MODE"), getenv("LC_ALL"));
+    } else if (!strcmp(mode, "cpu")) {
+        for (int index = 0; index < 4; index++) {
+            pid_t child = fork();
+            if (child < 0) return 3;
+            if (child == 0) {
+                volatile unsigned long total = 0;
+                for (unsigned long step = 0; step < 100000000UL; step++) total += step;
+                _exit(0);
+            }
+        }
+        while (wait(NULL) > 0) {}
+        puts("READY");
+        fflush(stdout);
+        char byte;
+        if (read(STDIN_FILENO, &byte, 1) != 1) return 3;
+        puts("DONE");
+    } else if (!strcmp(mode, "memory")) {
+        /* At most 576 MiB across three children, even without containment. */
+        int barrier[2], ready[2];
+        if (pipe(barrier) || pipe(ready)) return 3;
+        for (int index = 0; index < 3; index++) {
+            pid_t child = fork();
+            if (child < 0) return 3;
+            if (child == 0) {
+                close(barrier[1]);
+                close(ready[0]);
+                size_t size = 192UL * 1024UL * 1024UL;
+                volatile char *memory = malloc(size);
+                if (!memory) _exit(4);
+                for (size_t page = 0; page < size; page += 4096) memory[page] = 1;
+                /* All three allocations remain live until the parent releases them. */
+                if (write(ready[1], "x", 1) != 1) _exit(3);
+                close(ready[1]);
+                char byte;
+                if (read(barrier[0], &byte, 1) != 0) _exit(3);
+                _exit(0);
+            }
+        }
+        close(barrier[0]);
+        close(ready[1]);
+        for (int index = 0; index < 3; index++) {
+            char byte;
+            if (read(ready[0], &byte, 1) != 1) return 3;
+        }
+        close(ready[0]);
+        close(barrier[1]);
+        while (wait(NULL) > 0) {}
+        puts("ALLOCATED");
+    } else if (!strcmp(mode, "threads")) {
+        pthread_t workers[24];
+        int barrier[2];
+        if (pipe(barrier)) return 3;
+        int spawned = 0;
+        for (; spawned < 24; spawned++) {
+            if (pthread_create(&workers[spawned], NULL, wait_for_release, &barrier[0])) break;
+        }
+        close(barrier[1]);
+        for (int index = 0; index < spawned; index++) {
+            void *result;
+            if (pthread_join(workers[index], &result) || result) return 3;
+        }
+        close(barrier[0]);
+        printf("%d\n", spawned);
+    } else if (!strcmp(mode, "tasks")) {
+        /* A bounded fork probe, not an unbounded process bomb. */
+        int barrier[2];
+        if (pipe(barrier)) return 3;
+        int spawned = 0;
+        for (; spawned < 24; spawned++) {
+            pid_t child = fork();
+            if (child < 0) break;
+            if (child == 0) {
+                close(barrier[1]);
+                char byte;
+                if (read(barrier[0], &byte, 1) != 0) _exit(3);
+                _exit(0);
+            }
+        }
+        close(barrier[0]);
+        close(barrier[1]);
+        while (wait(NULL) > 0) {}
+        printf("%d\n", spawned);
     } else {
         return 2;
     }

@@ -53,11 +53,15 @@ def install_protocol_process(
     """
     original_popen = subprocess.Popen
     started: list[subprocess.Popen[bytes]] = []
+    # Protocol fixtures do not qualify the host's manager or cgroup delegation.
+    fixture_environment = {"RISC0_DEV_MODE": "0", "LC_ALL": "C", "XDG_RUNTIME_DIR": "/fixture"}
+    monkeypatch.setattr(bridge, "_sandbox_environment_v1", lambda: dict(fixture_environment))
 
     def launch(command: tuple[str, ...], **kwargs: object) -> subprocess.Popen[bytes]:
-        assert kwargs["env"] == {"RISC0_DEV_MODE": "0", "LC_ALL": "C"}
+        assert kwargs["env"] == fixture_environment
         assert kwargs["start_new_session"] is True
-        assert command[0] == "/usr/bin/bwrap"
+        assert command[0] == "/usr/bin/systemd-run"
+        assert "/usr/bin/bwrap" in command
         assert command[-1] == "/verifier"
         kwargs["pass_fds"] = (*kwargs["pass_fds"], *inherited_descriptors)  # type: ignore[misc]
         process = original_popen((sys.executable, "-c", code), **kwargs)  # type: ignore[call-overload]

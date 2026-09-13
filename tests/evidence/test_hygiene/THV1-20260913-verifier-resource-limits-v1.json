@@ -1,0 +1,187 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260913-verifier-resource-limits-v1",
+  "created_date": "2026-09-13",
+  "claim_scope": "On the qualified Linux/systemd host, every measured receipt/BLS invocation enters a limited cgroup before endpoint execution. All descendants share memory, CPU and task budgets; missing setup rejects. No concurrency, compromised-host, economic or genuine-margin proof qualification.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "AS07-VERIFIER-AGGREGATE-INVOCATION-RESOURCES",
+    "AS07-VERIFIER-RESOURCE-FAIL-CLOSED",
+    "AS07-VERIFIER-CONTROL-ENVIRONMENT"
+  ],
+  "failure_modes": [
+    "Forks/threads multiply resource consumption outside the proposed per-invocation budget.",
+    "A stalled transport leaves an endpoint running indefinitely.",
+    "Missing controller delegation silently permits execution.",
+    "Manager environment leaks to the endpoint."
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/global_receipt_verifier_v1.py",
+      "sha256": "9ac982b4631986ff41a2b3d21aeacb7ca086029ffc59cb14ddfe195cb76ffd4d"
+    },
+    {
+      "path": "tests/integration/fixtures/verifier_isolation_probe_v1.c",
+      "sha256": "93e0f45959f3f25b0456bb97c9ec16dde1dfcd68be9979f94700831d039b0712"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_v1.py",
+      "sha256": "56cb70b822a20cc7cc7b3a3bd10aa8098f2ae145484f532a785d015465a3f08b"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_verifier_process_isolation_v1.py",
+      "sha256": "d8332620bd0ece22e0f7d7c6e29c65aefad32ef7be69742a684834b855537ec6",
+      "node_ids": [
+        "tests/integration/test_verifier_process_isolation_v1.py::test_limits_are_installed_before_endpoint_work_and_scope_is_empty_after_exit",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_descendants_share_one_process_quota",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_children_cannot_multiply_the_memory_quota",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_scope_backstop_terminates_a_session_escape_when_transport_deadline_is_lost",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_unqualified_resource_host_rejects_before_process_creation",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_resource_manager_environment_does_not_reach_the_endpoint",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_missing_user_manager_rejects_without_an_unbounded_fallback",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_interrupted_launcher_has_no_endpoint_holding_its_protocol_pipes",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_timeout_terminates_descendant_even_after_it_creates_a_new_session",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_missing_isolator_never_falls_back_to_direct_execution"
+      ]
+    },
+    {
+      "path": "tests/integration/test_global_receipt_verifier_v1.py",
+      "sha256": "b37289d8c3dbc84e08ce48872d3ba785161c26c5c5f6506abb18ec4049500e73",
+      "node_ids": [
+        "tests/integration/test_global_receipt_verifier_v1.py::test_given_protocol_fixture_when_exact_response_then_transport_accepts",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_unbound_response_or_resource_failure_has_typed_rejection"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "stateful"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Native kernel counters, cgroup values, bounded fork/thread/allocation probes and pipe lifetime are independent of the Python command builder (oracle grade 3). Before repair the same controls expose24 children and576MiB successful allocation; fixed limits make those attempts reject. CPU counters confirm throttle activity. These probes are not cryptography."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Unavailable host rejects before Popen; missing manager and startup interruption reject without a fallback or endpoint-held pipe. Existing host-write denial, real BLS and native invalid-receipt publisher tests retain complete database comparison. No economic transition or publication authority is added."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "resource-ownership",
+      "points": [
+        "forks and threads share16 tasks",
+        "three192MiB allocations exceed512MiB together",
+        "four CPU workers share one CPU quota",
+        "memory swap disabled",
+        "qualified and missing controllers",
+        "owner/type/permission failure before process creation"
+      ]
+    },
+    {
+      "name": "lifecycle",
+      "points": [
+        "normal exit leaves an empty or removed scope",
+        "startup interruption",
+        "child creates another session",
+        "transport deadline lost but manager backstop active",
+        "manager unavailable",
+        "exact endpoint environment",
+        "genuine retained module/lane receipts and real BLS positive controls"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Raise the memory ceiling above the bounded aggregate child allocation.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_children_cannot_multiply_the_memory_quota",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "        \"--property=MemoryMax=536870912\", \"--property=MemorySwapMax=0\","
+        ],
+        "replacement_lines": [
+          "        \"--property=MemoryMax=1073741824\", \"--property=MemorySwapMax=0\","
+        ]
+      }
+    },
+    {
+      "description": "Permit more tasks than the shared process and thread ceiling.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_descendants_share_one_process_quota",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "        \"--property=TasksMax=16\", \"--property=CPUQuota=100%\", \"--property=OOMPolicy=kill\","
+        ],
+        "replacement_lines": [
+          "        \"--property=TasksMax=64\", \"--property=CPUQuota=100%\", \"--property=OOMPolicy=kill\","
+        ]
+      }
+    },
+    {
+      "description": "Permit two CPUs of work per invocation.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_limits_are_installed_before_endpoint_work_and_scope_is_empty_after_exit",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "        \"--property=TasksMax=16\", \"--property=CPUQuota=100%\", \"--property=OOMPolicy=kill\","
+        ],
+        "replacement_lines": [
+          "        \"--property=TasksMax=16\", \"--property=CPUQuota=200%\", \"--property=OOMPolicy=kill\","
+        ]
+      }
+    },
+    {
+      "description": "Remove the timely independent manager deadline.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_scope_backstop_terminates_a_session_escape_when_transport_deadline_is_lost",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "        f\"--property=RuntimeMaxSec={timeout_ms + 1000}ms\","
+        ],
+        "replacement_lines": [
+          "        \"--property=RuntimeMaxSec=60000ms\","
+        ]
+      }
+    },
+    {
+      "description": "Leak manager environment into the measured endpoint.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_resource_manager_environment_does_not_reach_the_endpoint",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "        \"--clearenv\", \"--setenv\", \"RISC0_DEV_MODE\", \"0\", \"--setenv\", \"LC_ALL\", \"C\","
+        ],
+        "replacement_lines": [
+          "        \"--setenv\", \"RISC0_DEV_MODE\", \"0\", \"--setenv\", \"LC_ALL\", \"C\","
+        ]
+      }
+    },
+    {
+      "description": "Allow missing delegated controllers.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_unqualified_resource_host_rejects_before_process_creation",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "        if not {b\"cpu\", b\"memory\", b\"pids\"}.issubset(source.read(4096).split()):"
+        ],
+        "replacement_lines": [
+          "        if False and not {b\"cpu\", b\"memory\", b\"pids\"}.issubset(source.read(4096).split()):"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Explicit native qualification environment is required; skipped probes are no host qualification.",
+    "Systemd manager/launcher/dependencies, kernel and publisher remain trusted; only a stable qualified controller setup is covered.",
+    "Per-invocation limits do not bound concurrent invocations, pre-launch snapshots, provers or SHADOW.",
+    "Historical genuine module/lane proofs are success controls for this launcher; new margin receipts and maximum-state proof/resource qualification remain pending.",
+    "No whole-AS07, formal-core, finality or production promotion follows."
+  ]
+}

@@ -3,14 +3,14 @@
 The configured SHA-256 identifies reviewed ELF bytes. Every call copies those
 bytes into a sealed memfd and executes that immutable snapshot. Release selection,
 journal semantics, current-head admission, and publication remain separate gates.
-The publisher, Linux kernel, installed /usr/bin/bwrap and four selected GNU/Linux
-x86-64 runtime libraries remain trusted. The endpoint sees a read-only private
+The publisher, Linux kernel, systemd user manager and launchers, and selected
+GNU/Linux x86-64 runtime libraries remain trusted. The endpoint sees a read-only private
 root and its own PID/network/IPC/user namespaces. Ledger/home directories,
 host sockets, devices and procfs are not mounted.
 The PID namespace contains descendants even when they change sessions. Startup
 failure rejects; there is no direct-execution fallback. This does not establish
-that an arbitrarily configured binary is honest, or bound aggregate host memory,
-CPU or process consumption across concurrent requests.
+that an arbitrarily configured binary is honest. A cgroup bounds each invocation
+and all its descendants; admission across concurrent requests remains separate.
 The publisher must retain exclusive ownership of reaping its verifier child.
 
 Protocol V1: ``ZDXRV1RQ | image[32] | journal_len:u32le | receipt_len:u32le |
@@ -208,7 +208,28 @@ def _kill_and_reap_v1(process: subprocess.Popen[bytes]) -> None:
     process.wait()
 
 
-def _sandbox_command_v1(executable_fd: int) -> tuple[str, ...]:
+def _sandbox_environment_v1() -> dict[str, str]:
+    # This execution policy supports a delegated systemd user manager only.
+    # Caller environment cannot select another manager or controller hierarchy.
+    uid = os.geteuid()
+    runtime = f"/run/user/{uid}"
+    metadata = os.stat(runtime, follow_symlinks=False)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != uid
+        or stat.S_IMODE(metadata.st_mode) & 0o077
+    ):
+        raise OSError("unqualified verifier runtime directory")
+    controller_path = (
+        f"/sys/fs/cgroup/user.slice/user-{uid}.slice/user@{uid}.service/cgroup.subtree_control"
+    )
+    with open(controller_path, "rb") as source:
+        if not {b"cpu", b"memory", b"pids"}.issubset(source.read(4096).split()):
+            raise OSError("required verifier controllers are not delegated")
+    return {"RISC0_DEV_MODE": "0", "LC_ALL": "C", "XDG_RUNTIME_DIR": runtime}
+
+
+def _sandbox_command_v1(executable_fd: int, timeout_ms: int) -> tuple[str, ...]:
     # Fixed runtime closure, not caller-controlled directories or PATH lookup.
     # The selected distro image must qualify bwrap and these library bytes.
     libraries = ("libc.so.6", "libgcc_s.so.1", "libm.so.6", "ld-linux-x86-64.so.2")
@@ -218,9 +239,18 @@ def _sandbox_command_v1(executable_fd: int) -> tuple[str, ...]:
         for argument in ("--ro-bind", f"/lib/x86_64-linux-gnu/{library}", f"/runtime/{library}")
     )
     return (
+        # systemd registers its own PID in the scope, waits for installation,
+        # then execs bwrap. No endpoint executes before the limits are active.
+        "/usr/bin/systemd-run", "--user", "--scope", "--quiet", "--collect",
+        "--no-ask-password", "--expand-environment=no", "--slice=-.slice",
+        "--property=MemoryMax=536870912", "--property=MemorySwapMax=0",
+        "--property=TasksMax=16", "--property=CPUQuota=100%", "--property=OOMPolicy=kill",
+        f"--property=RuntimeMaxSec={timeout_ms + 1000}ms",
+        "--property=KillMode=control-group", "--property=KillSignal=SIGKILL",
         "/usr/bin/bwrap",
         "--unshare-user", "--unshare-pid", "--unshare-net", "--unshare-ipc", "--unshare-uts",
         "--disable-userns", "--cap-drop", "ALL", "--new-session", "--die-with-parent",
+        "--clearenv", "--setenv", "RISC0_DEV_MODE", "0", "--setenv", "LC_ALL", "C",
         *bindings,
         # bwrap owns this descriptor, copies the sealed bytes and closes it.
         "--perms", "0500", "--ro-bind-data", str(executable_fd), "/verifier",
@@ -233,11 +263,11 @@ def _sandbox_command_v1(executable_fd: int) -> tuple[str, ...]:
 def _invoke_v1(executable_fd: int, request: bytes, timeout_ms: int) -> tuple[bytes, bytes, int]:
     try:
         process = subprocess.Popen(
-            _sandbox_command_v1(executable_fd),
+            _sandbox_command_v1(executable_fd, timeout_ms),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env={"RISC0_DEV_MODE": "0", "LC_ALL": "C"},
+            env=_sandbox_environment_v1(),
             pass_fds=(executable_fd,),
             start_new_session=True,
             bufsize=0,

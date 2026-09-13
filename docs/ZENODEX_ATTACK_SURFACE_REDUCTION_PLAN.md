@@ -125,8 +125,8 @@ and authority activation remain outside this isolated integration.
 
 ## AS07 verifier execution policy
 
-The shared receipt/BLS transport now requires a fixed Linux x86-64 GNU runtime
-and `/usr/bin/bwrap`. The selected executable is still measured and sealed before
+The shared receipt/BLS transport now requires a fixed Linux x86-64 GNU runtime,
+`/usr/bin/bwrap`, and a delegated systemd user manager. The selected executable is still measured and sealed before
 launch. Bubblewrap copies that immutable descriptor into a read-only private
 root; only `libc.so.6`, `libgcc_s.so.1`, `libm.so.6` and
 `ld-linux-x86-64.so.2` are bound from `/lib/x86_64-linux-gnu` into `/runtime`.
@@ -153,6 +153,36 @@ are not cryptographic verifiers. Existing measured BLS and margin qualification
 tests remain the cryptographic/integration controls; genuine margin success
 still requires the prepared remote receipts.
 
-Aggregate CPU/memory/process quotas, concurrent-request admission, prover and
-SHADOW containment, kernel compromise and independent publication/finality
-enforcement remain open. AS07 and the full plan are not complete.
+Each invocation and all its descendants share a transient cgroup: 512 MiB
+memory, zero swap, 16 tasks including threads, and one CPU of aggregate quota.
+OOM kills the whole group. A manager-enforced maximum runtime is the transport
+deadline plus 1000 ms; the transport still enforces its earlier deadline and
+owns normal cleanup. `/usr/bin/systemd-run --user --scope` installs the
+properties on its own PID before executing Bubblewrap. The scope is collected
+after exit. The private `/run/user/<euid>` directory must belong to that UID,
+and its fixed manager hierarchy must delegate CPU, memory and PID controllers.
+Unsupported setup rejects; no direct or unlimited fallback exists.
+
+The launcher receives only the two verifier settings and the derived manager
+directory. Bubblewrap clears that environment, including manager-added fields,
+and supplies only `RISC0_DEV_MODE=0` and `LC_ALL=C` to the endpoint. The chosen
+manager slice is fixed. Native probes inspect installed limits, actual process
+and thread ceilings, aggregate allocation failure, CPU throttling, startup
+interruption, scope cleanup and a lost-transport-deadline backstop.
+
+This uses installed systemd 255.4-1ubuntu8.17 and kernel cgroup v2. Systemd's
+[scope launch code](https://github.com/systemd/systemd/blob/v255/src/run/run.c)
+and [resource controls](https://github.com/systemd/systemd/blob/v255/man/systemd.resource-control.xml)
+are part of the host contract. The LGPL-2.1-or-later launcher, user manager and
+their installed library dependencies join the trusted host software; no new
+Python/Cargo dependency or daemon is installed. Exact deployment qualification
+must retain those bytes and controller configuration. Using the existing
+manager avoids a custom privileged cgroup helper and a post-launch limit race.
+Removing it requires an equivalently qualified enforcing launcher.
+
+These are per-invocation limits, not a bound across concurrent requests or on
+the publisher's pre-launch work. The budget is exercised by retained genuine
+module/lane receipts and measured BLS checks; maximum supported margin states
+still need genuine receipt qualification. Concurrent-request admission, prover
+and SHADOW containment, kernel/publisher compromise and independent finality or
+effect enforcement remain open. AS07 and the full plan are not complete.
