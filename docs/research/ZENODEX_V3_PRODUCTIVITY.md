@@ -449,3 +449,24 @@ packaging is not a second implementation. Two native Astra contributions and
 one unscored review batch are appended. The deadline finding is reopened for
 the newly delivered implementation until its owner integrates and qualifies
 the repair; the earlier subject's retained passing result remains historical.
+
+## September 13 joint margin publication
+
+The [source-bound delivery](../../tests/evidence/perps_margin_publication_v2_20260913.json)
+records implementation `51cb8e8a` → `6a4a806db`: **+3,246/−67**, including
+**+1,442/−58 runtime**, **+1,719 tests**, **+75/−7 specification** and **+10/−2
+inherited-baseline metadata**. No proof or dependency source was added.
+
+One fixed isolated store now processes the connected margin/transfer lifecycle,
+with claim continuity, current authority, exact retries and PRE/POST recovery.
+The reviewed score gain is **+0.029 V3 percentage points** and **0 formal
+points**. All new receipt evidence uses protocol fixtures; no production gate
+closed. The final suite passed 195 focused tests plus the existing broad gates.
+
+Contributors: root integration, two reused native implementation workers and
+independent Astra review. Exact identities for the two inherited workers are
+unknown. A requested Terra Max spawn failed at the harness thread limit and
+produced no code. Initial fixture errors, root test-observer corrections and
+one redundant worker legacy gate are retained in the account. Provider token,
+exclusive time and billing records remain unavailable. Shared delivery counts
+once. The follow-up evidence and reporting edits receive no additional credit.

@@ -60,6 +60,39 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 13: isolated joint margin publication
+
+Implementation `6a4a806dbf0a3d1e987d8199a1e88387669f4c8b` connects the existing
+pure V2 margin successor to strict wire decoding, its distinct receipt role and
+the existing isolated SQLite publisher. The [delivery evidence](../tests/evidence/perps_margin_publication_v2_20260913.json)
+pins all six runtime modules and five test modules. One fixed profile supports
+margin deposits, withdrawals and close interleaved with ordinary transfers.
+Both lane states, claim history and the global predecessor persist together.
+
+The final combined gate passed **195 tests**, including 14 same-store cases;
+the broad critical gate passed 433 TCB and 852 critical tests. Independent
+review found and closed foreign-object getter admission and a successor that
+exceeded the next input's decoder capacity. The original combined genesis
+capacity defect is also repaired. Real SQLite and BLS math are exercised;
+signature/receipt executable exchanges use protocol fixtures. No new guest,
+genuine RISC0 receipt or production authority is qualified.
+
+Only margin deposit/withdrawal implementation scores change `.50→.55`:
+**V3 24.268%, formal core 21.440%, 0/12 value-safety gates closed**. All formal
+scores and other rows remain inherited. Code growth is +1,442/−58 runtime,
++1,719 tests, +75/−7 specification and +10/−2 baseline assessment metadata.
+Two existing native implementation workers and independent Astra review
+contributed; the harness did not expose those workers' exact model identities.
+
+**Next acceptance:** build the actual margin V2 Rust guest for this exact
+two-root journal and qualify genuine receipts through the new current-store
+path. Do not repeat the completed pure episode proofs, wire scaffolding or
+isolated publisher implementation. One-market, flat-account, reserve-free,
+decoder and finite-history limits remain explicit. Nonflat accounts need an
+authenticated oracle route; production needs its own finality, recovery,
+delivery and no-bypass qualification. Runpod remains unavailable and local
+free space is about 3.4 GiB; no heavy build was started.
+
 ## September 13: connected V2 margin claims and asset frame
 
 Implementation `417ec94ad39389c8e2beceee69ceabe565828302` adds the pure joint
@@ -80,7 +113,7 @@ The reviewed fixed-rubric amendment moves formal **21.297%→21.419%** and V3
 **24.169%→24.239%**. Only margin deposit/withdrawal change; 0/12 value-safety
 gates remain closed. Earlier assessment bytes are pinned at `2f1c0e0557edd5669413ead35bfaa2cd5773aac6`.
 
-**Current acceptance (updated after Rust qualification):** implementation
+**Then-current acceptance (advanced by isolated publication above):** implementation
 `22e330b4e4190cd97c022ea3b6fbf1eba1aaaa39` now supplies the standalone Rust
 counterpart. [Its source-bound evidence](../tests/evidence/perps_margin_rust_v2_20260913.json)
 records 37 complete typed Python/Rust cases, 60 combined Python tests, six native

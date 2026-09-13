@@ -1,0 +1,181 @@
+{
+  "schema": "zenodex/perps-margin-publication-v2-delivery/1",
+  "subject": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
+  "implementation_base": "51cb8e8a264a0e39564964823dbf40d21078df2c",
+  "release_authority": "NONE",
+  "value_movement_gates_closed": 0,
+  "before": "Pure joint V2 margin/asset/global candidates had no V2 receipt role, strict wire or current-store publisher consumer.",
+  "after": "One fixed isolated profile admits signed margin and asset commands into the existing SQLite commit closure. Complete joint predecessors, terminal history, replay, signatures, receipts and both selected roles survive connected histories and restart.",
+  "normative_source": "docs/specifications/PERPS_MARGIN_GLOBAL_SUCCESSOR_V2.md",
+  "source_sha256": {
+    "docs/specifications/PERPS_MARGIN_GLOBAL_SUCCESSOR_V2.md": "b3cb327ea8df7d0f615cb737065a2cd979a6c73c3d5d477ee4392592aeceb347",
+    "src/core/perps_margin_guest_role_v2.py": "b3167a036e81243fe8a78cab57d167c8580e62d18bb6b06f9b9d980cc90558b3",
+    "src/core/perps_margin_receipt_v2.py": "378e64de6342499422a44cc1582a2c71cb2e611650ee7a07a3a4336737bbf32a",
+    "src/core/perps_margin_wire_v2.py": "03af6d36b8fba1e6b4cf82de928b70df2646c65d264989bae91d5637d75f1ab6",
+    "src/integration/custody_publication_record_v2.py": "5946cd5788422c0d93c5b6b06ca04e9f0bbecfbce986c3ebcb5353fff3d2f18e",
+    "src/integration/isolated_custody_publisher_v2.py": "0909eb31baab38e2fae144f4fe0a0a0ead67523c7adb68e0ca8f33f5c9cc5e78",
+    "src/integration/profiled_perps_margin_receipt_v2.py": "5567e33afce32c7f0af2ff06b55b3c088261b168e405a597549623c419d10d5f",
+    "tests/core/test_perps_margin_receipt_v2.py": "09653842e03aead79716bb3013cc5b0ac687ed188ad3e76c50d527cff2c8cdf9",
+    "tests/integration/test_isolated_joint_margin_publisher_v2.py": "133a0cf8eeafafea12e514cf04f7521fc98c2e571e84efb9168c921786f35a4f",
+    "tests/integration/test_joint_margin_capacity_v2.py": "8758b7b702f3315a2e7d10a28c5eaa54b54128ddec653a0de914191d9463caed",
+    "tests/integration/test_joint_margin_publication_record_v2.py": "c3f96a2d881f9cdb70da2cc043a1c39014f79de52f9a2c9bff6be90699c3eea6",
+    "tests/integration/test_profiled_perps_margin_receipt_v2.py": "2d687682cc40b97a22082da51e1d63fd22983561e715b9fe99460b2941a5fe3f"
+  },
+  "fresh_gates": [
+    {
+      "command": "python3 -m pytest -q tests/core/test_perps_margin_receipt_v2.py tests/core/test_perps_margin_global_v2.py tests/core/test_perps_margin_global_authority_v2.py tests/core/test_perps_margin_global_bounds_v2.py tests/core/test_perps_margin_state_v2.py tests/integration/test_profiled_perps_margin_receipt_v2.py tests/integration/test_joint_margin_publication_record_v2.py tests/integration/test_joint_margin_capacity_v2.py tests/integration/test_isolated_joint_margin_publisher_v2.py tests/integration/test_custody_publication_record_v2.py tests/integration/test_isolated_custody_publisher_v2.py",
+      "result": "195 passed",
+      "seconds": 230.07
+    },
+    {
+      "command": "PYTHON=<existing development venv>/bin/python bash tools/run_critical_quality_gate.sh",
+      "result": "PASS;433 TCB tests in17.26s;852 critical tests in79.82s;configured lint, type, hygiene and coverage checks passed. First system-Python attempt lacked pytest_cov; reused installed development environment, no dependency installation."
+    },
+    {
+      "command": "python3 -m ruff check <six changed runtime modules and five new test modules>",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 -m mypy <six changed runtime modules>",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tools/check_production_boundary.py --json",
+      "result": "PASS;research-only/unmounted production posture remains;no value gate promotion"
+    },
+    {
+      "command": "python3 tools/permissionless_assurance.py status",
+      "result": "Status command PASS;missing ESSO/Tau environment remains;historical assurance snapshot is not a current full release replay"
+    },
+    {
+      "command": "python3 tools/check_claims_registry.py",
+      "result": "FAIL inherited claims[123] missing tools/check_derivatives_authorization_matrix.py"
+    },
+    {
+      "command": "redflags.py <six changed runtime modules>",
+      "result": "0 findings;scanner silence is not proof"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "acceptance": {
+    "same_store_cases": 14,
+    "connected_commands": 10,
+    "trace": "Alice deposits30 into A and30 into B with independent account nonce1; withdraws10 then20 from A; transfers5 to Bob with existing treasury fee2; refills A20; drains A and B; closes both. Final Alice93/Bob5/treasury2,zero custody/liability,three distinct permanently DRAINED claims.",
+    "boundaries": "Exact retries including after revocation; closed-account/no-balance/no-signature/stale-head/artifact-substitution rejections; proof refusal and foreign-image response no-op; in-flight revocation and competing winner; real SQL interruption at insert, head update and commit; changed-role and revoked restart refusal.",
+    "oracle_grade": "Direct balance, custody, liability and terminal-history observations use independent integer expectations. BLS math is performed by the shared Python fixture; signature and receipt executable transport are fixtures. No genuine new RISC0 receipt or native BLS replay is claimed.",
+    "wire": "Closed canonical V2 request/state decoding, exact framing/reencoding, bounded components; original custody-only bytes/domains retained."
+  },
+  "findings": [
+    {
+      "id": "JOINT-MARGIN-GENESIS-CAPACITY",
+      "status": "repaired",
+      "evidence": "Combined JSON rejected a valid1048479-byte asset frame plus8091-byte margin frame. Separate bounded ZDJG2 components preserve representability; malformed lengths/truncation/trailing bytes reject."
+    },
+    {
+      "id": "MARGIN-FOREIGN-GETTER-ADMISSION",
+      "status": "repaired",
+      "evidence": "Two public boundaries read foreign margin properties before exact type admission. Both now reject before getters; retained hostile-property tests."
+    },
+    {
+      "id": "MARGIN-SUCCESSOR-WIRE-CAPACITY",
+      "status": "repaired",
+      "evidence": "2252 DRAINED terminals: valid global pre1048155 bytes,economic post1048696 bytes. The shared check returns typed SUCCESSOR_REJECTED; preparation exposes it and replay refuses the frame before receipt IO/store mutation.2251-row positive neighbor deposits and drains. Independent reviewer executed an in-process guard-omission control; it failed at the intended typed-rejection assertion."
+    }
+  ],
+  "review": {
+    "reviewer": "native independent Astra review task margin_v2_contract_review;root reviews both implementation workers",
+    "verdict": "ACCEPTED_ISOLATED_IMPLEMENTATION_WITH_PROTOCOL_FIXTURES",
+    "scope": "All six runtime source hashes and final connected tests reviewed. No additional command/auth/refinement/ownership/commit blocker found after repairs.",
+    "simplification": "Reused existing commit closure, signature boundary, measured receipt endpoint and custody frame. Removed draft separate joint helper module. Reused one fixed test profile and registry helper. No new dependencies. Existing publish function shrank185 to178 physical lines,local commit closure100 to99;remaining long closure intentionally keeps write capability local.",
+    "score_change": "Only margin_deposit and margin_withdraw c=.50 to.55,H unchanged;all sem/prf/ref and other rows unchanged. Existing W06 machinery receives no duplicate credit.",
+    "formal_before_percent": 21.44,
+    "formal_after_percent": 21.44,
+    "formal_delta_pp": 0,
+    "v3_before_percent": 24.239,
+    "v3_after_percent": 24.268,
+    "v3_delta_pp": 0.029,
+    "baseline": "Scores explicitly carried forward to51cb8e8;git diff22e330b4..51cb8e8 --src zk lean-mathlib is empty. All other evidence remains inherited,not freshly rescored."
+  },
+  "retained_native_reference": {
+    "binary_sha256": "ae43de6cfe8c6a2462b672a7eaad80669c93179b634c94aa54c00ad704885f7f",
+    "source_evidence": "tests/evidence/perps_margin_rust_v2_20260913.json",
+    "source_pins_rechecked": 13,
+    "source_pin_mismatches": 0,
+    "input": "tests.core.test_perps_margin_global_v2._initial(),one-atom deposit,account nonce1,outer nonce1,oracle=None",
+    "input_root": "0x385b48ccb7af76e0c3541ee8ad59891d6a6239728b49a4a91bb1cf2f7536a419",
+    "refinement_root": "0x344718acf97d9b8d721dd081c07799eb7b3a86078aa2a3055d187059125ca3a2",
+    "scope": "Fresh replay of an existing native executable and fixed expected-output regression;no fresh Rust build,universal refinement or receipt generation."
+  },
+  "line_changes": {
+    "docs": {
+      "added": 75,
+      "removed": 7,
+      "files": 1
+    },
+    "runtime": {
+      "added": 1442,
+      "removed": 58,
+      "files": 6
+    },
+    "tests": {
+      "added": 1719,
+      "removed": 0,
+      "files": 5
+    },
+    "data": {
+      "added": 10,
+      "removed": 2,
+      "files": 1
+    }
+  },
+  "contributors": [
+    {
+      "id": "root",
+      "model": "gpt-6-astra",
+      "role": "integration",
+      "output": "Shared publisher/record integration,capacity repair,connected store tests,source review,combined gates and delivery records."
+    },
+    {
+      "id": "rc3_scope_recovery",
+      "model": null,
+      "role": "implementation",
+      "output": "Pure request/statement/wire/framing and16 tests. Inherited harness did not expose exact model identity;do not label as Terra/Luna."
+    },
+    {
+      "id": "authority_v2_impl",
+      "model": null,
+      "role": "implementation",
+      "output": "Fixed guest role,authenticated selected verifier and16 tests;repaired route/profile fixture construction and duplicate registry setup. Exact inherited model identity unavailable."
+    },
+    {
+      "id": "margin_v2_contract_review",
+      "model": "gpt-6-astra",
+      "role": "review",
+      "output": "Independent integration and fixed-rubric review;identified both type/capacity defects,owned two capacity regressions and omission control."
+    },
+    {
+      "id": "terra_max_spawn_attempt",
+      "model": null,
+      "role": "implementation",
+      "output": "Requested Terra Max task could not spawn: harness thread limit reached. No implementation and no delivery credit;existing workers reused."
+    }
+  ],
+  "resources": {
+    "exclusive_model_elapsed_ms": null,
+    "input_tokens": null,
+    "output_tokens": null,
+    "actual_cost": null,
+    "note": "Test durations are elapsed execution,not exclusive model time or billing. Codec worker redundantly reran82 legacy publisher tests;counted once in final acceptance. Root corrected test fee/field assumptions without changing economic policy. No heavy build,remote compute,new worktree or cleanup."
+  },
+  "nonclaims": [
+    "No genuine current margin V2 guest receipt,guest-image build qualification or production activation.",
+    "One market,flat accounts and reserve-free complete asset frame only;oracle candidates refused. Position/funding/liquidation and multi-market workflows remain.",
+    "No new Lean/ESSO/Kani/TLA proof or universal parser/runtime refinement. Full formal core remains incomplete.",
+    "Trusted configuration,publisher,OS,SQLite and retained history remain premises. No external rollback anchor,finality,delivery ancestry or production no-bypass qualification.",
+    "Finite resource checks prevent an undecodable successor;publication/replay/history limits still require a guaranteed-exit policy."
+  ],
+  "next_acceptance": "Build and qualify the actual margin V2 Rust guest/image and real receipts for this exact two-root journal and current-store path. Preserve source pins and historical V1 separation. Runpod unavailable;no heavy local build under present disk pressure."
+}

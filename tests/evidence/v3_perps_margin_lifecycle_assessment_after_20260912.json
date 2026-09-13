@@ -38,9 +38,9 @@
   },
   "full_v3": {
     "denominator_weight": 100,
-    "central_percent": 24.239,
-    "lower_percent": 16.983,
-    "upper_percent": 32.317,
+    "central_percent": 24.268,
+    "lower_percent": 17.012,
+    "upper_percent": 32.346,
     "covers_workstreams": ["W00", "W01", "W02", "W03", "W04", "W05", "W06", "W07", "W08", "W09", "W10", "W11", "W12", "W13"],
     "rows": [
       {
@@ -326,10 +326,11 @@
         "id": "W07:PERPS_MARKET",
         "kind": "lane",
         "weight": 3.2039,
-        "low": 0.1309,
-        "central": 0.19,
-        "high": 0.2455,
+        "low": 0.14,
+        "central": 0.199091,
+        "high": 0.254545,
         "evidence": [
+          {"path": "tests/evidence/perps_margin_publication_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/core/perps_margin_module_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/core/perps_market_policy_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/integration/perp_engine.py", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -348,8 +349,8 @@
           {"path": "tests/evidence/perps_margin_global_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {"id": "margin_deposit", "c": 0.5, "unc": "H", "note": "Usable joint pure V2 margin/asset/global lifecycle; bounded Rust/Python correspondence now qualified. Still unmounted with no genuine receipt/publication qualification."},
-          {"id": "margin_withdraw", "c": 0.5, "unc": "H", "note": "Usable joint pure V2 margin/asset/global lifecycle; bounded Rust/Python correspondence now qualified. Still unmounted with no genuine receipt/publication qualification."},
+          {"id": "margin_deposit", "c": 0.55, "unc": "H", "note": "Fixed-profile isolated joint publisher tested across deposit/withdrawal, ordinary transfer, distinct claims, restart, exact retries and competing commits. Receipt IPC remains synthetic; genuine V2 guest receipts, nonflat accounts and production qualification remain open."},
+          {"id": "margin_withdraw", "c": 0.55, "unc": "H", "note": "Fixed-profile isolated joint publisher tested across deposit/withdrawal, ordinary transfer, distinct claims, restart, exact retries and competing commits. Receipt IPC remains synthetic; genuine V2 guest receipts, nonflat accounts and production qualification remain open."},
           {"id": "position_open", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy engines only"},
           {"id": "position_adjust", "c": 0.12, "unc": "V", "legacy_only": true, "note": "legacy"},
           {"id": "funding_accrual", "c": 0.15, "unc": "V", "legacy_only": true, "note": "legacy funding market; command disabled; disputed evidence"},
@@ -920,8 +921,8 @@
           {"path": "tests/evidence/perps_margin_rust_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {"id": "margin_deposit", "sem": 0.6, "prf": 0.55, "ref": 0.55, "unc": "H", "increment_rationale": "Prior episode proof plus37actual complete-output Python/Rust cases through the joint V2 successor, including ordinary transfer and exact typed rejections. Universal refinement, receipt admission and publication remain open."},
-          {"id": "margin_withdraw", "sem": 0.6, "prf": 0.55, "ref": 0.55, "unc": "H", "increment_rationale": "Prior episode proof plus37actual complete-output Python/Rust cases through the joint V2 successor, including ordinary transfer and exact typed rejections. Universal refinement, receipt admission and publication remain open."},
+          {"id": "margin_deposit", "sem": 0.6, "prf": 0.55, "ref": 0.55, "unc": "H", "increment_rationale": "Prior episode proof plus37actual complete-output Python/Rust cases through the joint V2 successor, including ordinary transfer and exact typed rejections. Universal refinement and genuine receipt/production qualification remain open. The later isolated admission/store tests add no formal credit."},
+          {"id": "margin_withdraw", "sem": 0.6, "prf": 0.55, "ref": 0.55, "unc": "H", "increment_rationale": "Prior episode proof plus37actual complete-output Python/Rust cases through the joint V2 successor, including ordinary transfer and exact typed rejections. Universal refinement and genuine receipt/production qualification remain open. The later isolated admission/store tests add no formal credit."},
           {"id": "position_open", "sem": 0.3, "prf": 0.3, "ref": 0.1, "unc": "V", "legacy_only": true},
           {"id": "position_adjust", "sem": 0.25, "prf": 0.25, "ref": 0.08, "unc": "V", "legacy_only": true},
           {"id": "funding_accrual", "sem": 0.3, "prf": 0.35, "ref": 0.1, "unc": "H", "legacy_only": true},
@@ -1210,13 +1211,13 @@
     ]
   },
   "assessment_basis": {
-    "kind": "SCOPED_CARRIED_FORWARD_BASELINE",
-    "inherited_subject": "22e330b4e4190cd97c022ea3b6fbf1eba1aaaa39",
+    "kind": "SCOPED_REVIEWED_AMENDMENT",
+    "inherited_subject": "51cb8e8a264a0e39564964823dbf40d21078df2c",
     "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
-    "inherited_assessment_sha256": "57317f8ca68072458aa59ef6f4cb878e96381f50466b88b91bee55062a6aae36",
-    "inherited_storage_commit": "51cb8e8a264a0e39564964823dbf40d21078df2c",
-    "scope": "Numerical scores and evidence inherited unchanged. No src, zk or lean-mathlib changes between the prior assessed subject and this integration base; intervening upstream handoff/review work earns no automatic product credit. Not a fresh lane-wide rescore.",
+    "inherited_assessment_sha256": "7de2712a134f627440945573afb96aa65eb6f43e5f5ecdc5dcba13481010272a",
+    "inherited_storage_commit": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
+    "scope": "Only margin_deposit and margin_withdraw implementation .50 to .55. All formal scores, other rows, uncertainty H, denominators and qualification counts inherited unchanged.",
     "review_evidence": "tests/evidence/perps_margin_publication_v2_20260913.json"
   },
-  "subject": "51cb8e8a264a0e39564964823dbf40d21078df2c"
+  "subject": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b"
 }

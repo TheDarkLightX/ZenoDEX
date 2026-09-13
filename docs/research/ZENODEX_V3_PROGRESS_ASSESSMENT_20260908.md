@@ -575,3 +575,48 @@ checks passed freshly; the supplied Rust/native/browser/receipt reports remain
 historical for this review. Native Astra supplied the review and repair proposal.
 No economic implementation or proof lines changed. Record this as unscored
 support, not whole-core progress or a refreshed percentage estimate.
+
+### September 13: joint margin admission and isolated publication
+
+Reviewed implementation range `51cb8e8a264a0e39564964823dbf40d21078df2c` →
+`6a4a806dbf0a3d1e987d8199a1e88387669f4c8b`. The [delivery evidence](../../tests/evidence/perps_margin_publication_v2_20260913.json)
+pins the subject, six runtime modules, five test modules and independent review.
+A ten-command same-store history now composes margin deposit, partial/draining
+withdrawal, fee-paying ordinary transfer, refill and closure with exact retry,
+restart and competing-writer controls. Before this batch the pure successor had
+no selected V2 receipt/current-store consumer. Receipt execution remains a
+protocol fixture; the genuine guest and production path remain unqualified.
+
+| Category | Added | Removed |
+| --- | ---: | ---: |
+| Runtime | 1,442 | 58 |
+| Proof | 0 | 0 |
+| Tests | 1,719 | 0 |
+| Specification | 75 | 7 |
+| Explicit inherited-baseline metadata | 10 | 2 |
+| Total | 3,246 | 67 |
+
+The unchanged calculator and independent review adopt only `margin_deposit`
+and `margin_withdraw` implementation `.50→.55`. V3 **24.239%→24.268%**, a
+**+0.029 percentage-point** change; formal **21.440%→21.440%**. The judgment
+ranges are V3 **17.012–32.346%** and formal **15.611–27.526%**. All formal
+components, other rows, weights, uncertainty and 0/12 gate closures stay fixed.
+The prior score is explicitly carried to the integration baseline: no `src`,
+`zk` or `lean-mathlib` change occurred since the previous assessed Rust subject.
+This is a scoped amendment, with other evidence inherited.
+
+Final verification: 195 focused tests, 433 TCB tests and 852 critical tests;
+Ruff, focused/full configured mypy and production-boundary posture checks pass.
+The critical gate reused the installed development environment after the
+system interpreter lacked `pytest-cov`. No dependency installation or build.
+The inherited missing derivatives-authorization checker still blocks its claims
+gate. Review repaired independent component capacity, foreign-object getter
+admission and next-input successor capacity. The existing commit closure was
+reused; no second store, new dependency or generic write capability was added.
+
+Worker fixture/encoder corrections and the duplicated legacy test run are
+recorded without additional credit. Exact model resource use is unavailable;
+test durations are not billed or exclusive model time. The next delivery value
+is genuine current-guest receipt qualification, followed by authenticated
+nonflat workflows and production finality/recovery. The recording added after
+this implementation commit is separate support work and earns no extra score.
