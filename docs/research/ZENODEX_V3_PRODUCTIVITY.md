@@ -567,3 +567,33 @@ The existing reporter passes against baseline
 Current and committed source pins, changed-file hygiene and production-boundary
 posture checks pass. These checks do not turn the two skipped proof tests into
 evidence of successful publication.
+
+## September 13: read-only historical reauthentication
+
+`5254febf…` → `b97d2f75…` adds 690/removes 7 lines: runtime 86/6,
+tests 340/0, tooling 9/0, documentation 66/1 and evidence 189/0. No economic
+transition or formal-proof changes. [Evidence](../../tests/evidence/custody_history_audit_v2_20260913.json)
+pins the copied-history audit, original recovery trust gap, real BLS/receipt
+rejections, 21 passing focused cases with two genuine-proof skips, 108 passing
+regressions, five killed source mutants and the passing critical gate.
+
+Root implemented and reviewed directly. The draft test's incorrect successor
+call and import ordering were repaired. Native launch restrictions required the
+existing authorized host shell; the broad gate reused the installed development
+venv after system Python lacked coverage tooling. The new hygiene declaration's
+node/family errors were corrected. No new dependencies, fleet calls or remote
+proving were used. Provider tokens, exclusive model time and billing remain
+unknown; test/commit timings do not measure those resources.
+
+The API reuses existing records and verifiers, closes a read-only connection
+before external execution, and returns detached data. It qualifies no separate
+verification host, finality source or effect destination. AS02 remains pending
+the frozen remote proof job. Assessment is **NOT_RESCORED**. The preceding
+292-line accounting append is carried once as support; this evidence/account
+append earns no additional delivery credit. The inherited claims-registry
+missing-file failure remains open.
+
+The existing reporter passes against baseline
+`5254febf8d7cf326f63b1231404346be97075770`, preserving the earlier manifest
+prefix and confirming the categorized line changes. Source and hygiene pins
+match the tested implementation. Mutation replay removed its temporary copies.

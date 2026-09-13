@@ -133,6 +133,11 @@ fields or economic write primitive. Native/fixture checks passed 21 tests with
 two genuine-receipt tests skipped. This prepares independent verification but
 does not deploy a separate enforcing consumer or qualify finality. AS02 remains
 pending the prepared remote proof job; all full AS exits remain open.
+The [audit evidence](../tests/evidence/custody_history_audit_v2_20260913.json)
+binds implementation `b97d2f758…`, 108 passing regressions, all five declared
+source mutants killed and the passing critical gate. Mutation copies were
+removed after replay. The contribution reporter preserves the earlier manifest
+prefix; no assessment rescore or independent-model verdict is claimed.
 
 ## September 13: isolated joint margin publication
 

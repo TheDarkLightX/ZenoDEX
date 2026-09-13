@@ -1,0 +1,200 @@
+{
+  "schema": "zenodex/isolated-history-audit-evidence/v2",
+  "subject_commit": "b97d2f7584516499266c846d6571161208adbce8",
+  "baseline_commit": "5254febf8d7cf326f63b1231404346be97075770",
+  "scope": "Explicit read-only verification of retained custody and joint margin history. Reuses existing economic replay and measured signature/receipt admission; returns detached data, no authority.",
+  "source_pin_packet": {
+    "path": "tests/evidence/test_hygiene/THV1-20260913-custody-history-audit-v2.json",
+    "sha256": "56df4ad52aee1c26201270bcd965a658f5243547f1ff76f7015be22430d67aff"
+  },
+  "acceptance_obligation": "A self-consistent history with substituted authentication or receipt evidence must fail independent reauthentication; successful and rejected audit must leave the isolated database unchanged.",
+  "baseline": "The retained regression first establishes that normal economic recovery opens the rehashed false-signature history. The new audit API was absent: two acceptance tests failed with AttributeError. Ordinary recovery retains its documented trusted-store premise.",
+  "verification": [
+    {
+      "command": "ZENODEX_BLS_VERIFIER_TEST_BINARY=\"$BLS_VERIFIER\" ZENODEX_MARGIN_EXECUTOR=\"$MARGIN_EXECUTOR\" ZENODEX_MARGIN_R0VM=\"$R0VM\" python3 -m pytest -q tests/integration/test_isolated_custody_history_audit_v2.py tests/integration/test_margin_receipt_qualification_v2.py",
+      "result": "21 passed, 2 genuine-receipt tests skipped; 55.07s. Real BLS historical verification and real receipt-decoder rejection included; successful receipt audit cases use protocol fixtures."
+    },
+    {
+      "command": "python3 -m pytest -q tests/integration/test_isolated_custody_publisher_v2.py tests/integration/test_isolated_joint_margin_publisher_v2.py tests/integration/test_custody_publication_record_v2.py tests/integration/test_joint_margin_publication_record_v2.py",
+      "result": "108 passed in 165.91s."
+    },
+    {
+      "command": "PYTHON=\"$DEVELOPMENT_VENV/bin/python\" bash tools/run_critical_quality_gate.sh",
+      "result": "PASS:433 TCB tests in17.31s,852 critical tests in77.16s;configured lint/type/hygiene/coverage passed."
+    },
+    {
+      "command": "python3 -m ruff check src/integration/isolated_custody_publisher_v2.py tools/qualify_margin_receipts_v2.py tests/integration/test_isolated_custody_history_audit_v2.py tests/integration/test_margin_receipt_qualification_v2.py",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 -m mypy; python3 -m mypy src/integration/isolated_custody_publisher_v2.py tools/qualify_margin_receipts_v2.py",
+      "result": "PASS:25 configured files and2 touched modules."
+    },
+    {
+      "command": "python3 tools/check_test_hygiene_v1.py --changed-file M:src/integration/isolated_custody_publisher_v2.py --changed-file M:tools/qualify_margin_receipts_v2.py --changed-file A:tests/integration/test_isolated_custody_history_audit_v2.py --changed-file M:tests/integration/test_margin_receipt_qualification_v2.py --changed-file A:tests/evidence/test_hygiene/THV1-20260913-custody-history-audit-v2.json",
+      "result": "PASS: all three changed critical paths have current evidence pins; unrelated dirty paths preserved."
+    },
+    {
+      "command": "python3 tools/check_production_boundary.py --json",
+      "result": "PASS for existing posture checks; no production qualification."
+    },
+    {
+      "command": "python3 tools/check_claims_registry.py",
+      "result": "Inherited failure:claims[123].evidence.files missing tools/check_derivatives_authorization_matrix.py."
+    }
+  ],
+  "mutation_command": "python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260913-custody-history-audit-v2 --rev b97d2f7584516499266c846d6571161208adbce8",
+  "mutation_result": {
+    "errors": 0,
+    "killed": 5,
+    "legacy": 0,
+    "mechanical": 5,
+    "narrative": 0,
+    "packet": "THV1-20260913-custody-history-audit-v2",
+    "rows": [
+      {
+        "description": "Acquire a writable database while auditing.",
+        "exit": 1,
+        "killer": "tests/integration/test_isolated_custody_history_audit_v2.py::test_audit_connection_cannot_write_and_is_closed_before_external_verification",
+        "mutant_sha256": "2c61a26bf480361e0a4f13beae8b909771584389d635cd00ee33bb0d59bedbb4",
+        "mutation": {
+          "needle_first_line": "            reader._connect(access=\"ro\")",
+          "needle_sha256": "1968f29171416c6c2f82efc227016153d414ce605136476db2eef258bc7f4066",
+          "path": "src/integration/isolated_custody_publisher_v2.py",
+          "replacement_sha256": "a18c6b6a76246857ab17da25a83d61ca01d4a87e1253b47675c342f07806b475"
+        },
+        "seconds": 4.858,
+        "verdict": "KILLED"
+      },
+      {
+        "description": "Bypass retained cryptographic reauthentication.",
+        "exit": 1,
+        "killer": "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_rehashed_false_signature_when_audited_then_conserving_forgery_rejects",
+        "mutant_sha256": "f730fa7e286c2522c52d7065c0c368627dd7bfa939468544c9f40db5109bda75",
+        "mutation": {
+          "needle_first_line": "        reader._audit_records(records, candidates)",
+          "needle_sha256": "d5244e1a98f20c64d65d64068886f31ec11a9b271abddc448e5b554364628fb9",
+          "path": "src/integration/isolated_custody_publisher_v2.py",
+          "replacement_sha256": "0b35470fd90e318ed51e754d5837ebd51e1adb2bb11ee5c4d4fb7ce4345d7673"
+        },
+        "seconds": 5.746,
+        "verdict": "KILLED"
+      },
+      {
+        "description": "Defer ownership of later authentication candidates until after external execution.",
+        "exit": 1,
+        "killer": "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_interleaved_margin_and_transfer_history_when_audited_then_exact_order_and_roles",
+        "mutant_sha256": "dd72d086c6e6723cba80b3bb524cb64508683c3ef5058a7ba47317293bb11aca",
+        "mutation": {
+          "needle_first_line": "        candidates = tuple(map(snapshot_command_authentication_candidate_v2, authentication_candidates))",
+          "needle_sha256": "e5d94aec22e79398cb61e9b0f38d258fd4fa0178ef5e043a30ab6571ca19cc63",
+          "path": "src/integration/isolated_custody_publisher_v2.py",
+          "replacement_sha256": "62061a7153549cc70a59dd47a6db4abafde057ed11e6b05293739f8344ba9a00"
+        },
+        "seconds": 14.961,
+        "verdict": "KILLED"
+      },
+      {
+        "description": "Ignore the independently selected publication checkpoint.",
+        "exit": 1,
+        "killer": "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_missing_witness_or_wrong_checkpoint_when_audited_then_no_verifier_io",
+        "mutant_sha256": "8a045881fb304eef61b40a16388593b318afb28f3f14b73ef1556f6ce1a332c0",
+        "mutation": {
+          "needle_first_line": "            expected_publication_id, expected_authority_root,",
+          "needle_sha256": "adcc1e5f59fd9abdfde43f3dd6b2cd274b165f844d0d9d4fcffadfa982611764",
+          "path": "src/integration/isolated_custody_publisher_v2.py",
+          "replacement_sha256": "be341f856d9c23881e3371ef0edb19d8d0bc22e8c2d9406c500e3b0df03624d8"
+        },
+        "seconds": 5.702,
+        "verdict": "KILLED"
+      },
+      {
+        "description": "Stop binding the supplied prepared message to retained authentication bytes.",
+        "exit": 1,
+        "killer": "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_changed_retained_policy_witness_when_audited_then_no_verifier_io",
+        "mutant_sha256": "d8ef423ac2d5ff3d1d3ccd1afed992ff16db68282c49b523376aae8e62a7212c",
+        "mutation": {
+          "needle_first_line": "                or message != record.authentication_message",
+          "needle_sha256": "813b7a363848a6b909588473c91aeef88658052f712d11a5efb2cb84353a6257",
+          "path": "src/integration/isolated_custody_publisher_v2.py",
+          "replacement_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "seconds": 6.453,
+        "verdict": "KILLED"
+      }
+    ],
+    "schema": "zenodex/thv1-mutation-ledger/v1",
+    "subject_commit": "b97d2f7584516499266c846d6571161208adbce8",
+    "survived": 0
+  },
+  "repair_and_retry_history": [
+    "Fixed a draft test calling the custody successor with the wrong argument contract; no economic implementation change.",
+    "Native memfd process launch returned PROCESS_UNAVAILABLE under the restricted exec environment; the explicitly configured native suite passed in the existing authorized host shell.",
+    "System Python lacked pytest_cov; reused the installed development venv with no dependency installation.",
+    "Fixed test import ordering and new hygiene-packet parametrized-node/family declarations; final checks pass."
+  ],
+  "simplification": "Reused the existing SQLite layout, immutable record replay, selected verifier dispatch and configuration ownership. Added no export format, journal commitment, dependency, economic rule or write function. The audit opens read-only and closes before external execution.",
+  "implementation_line_changes": {
+    "runtime": {
+      "added": 86,
+      "removed": 6
+    },
+    "tests": {
+      "added": 340,
+      "removed": 0
+    },
+    "tooling": {
+      "added": 9,
+      "removed": 0
+    },
+    "documentation": {
+      "added": 66,
+      "removed": 1
+    },
+    "evidence": {
+      "added": 189,
+      "removed": 0
+    },
+    "formal_proofs": {
+      "added": 0,
+      "removed": 0
+    },
+    "total": {
+      "added": 690,
+      "removed": 7
+    }
+  },
+  "assessment": "NOT_RESCORED; historical24.268%V3/21.440%formal estimates are not refreshed by this record. No full AS exit or value-safety gate closes.",
+  "remaining": [
+    "Genuine margin receipts and full positive cryptographic publication/audit qualification need the pending remote proof job.",
+    "Independent deployment of acceptance, checkpoint authentication/finality/freshness, whole-file rollback exclusion and destination enforcement remain open.",
+    "The publisher/OS/native libraries and selected profile/verifier evidence remain assumptions. Exact-copy checks cover acquired snapshots; subsequent source writes do not invalidate the historical result.",
+    "No new Lean, ESSO, Kani or Tau proof work; no separate model review, proof generation, remote expenditure, live activation or migration."
+  ],
+  "logs": [
+    {
+      "name": "zenodex-custody-audit-before-20260913.log",
+      "sha256": "da4fad50556d66f0968533efbc499d5c5d1f5a301ea492a9de7d2a2ebc05fffa"
+    },
+    {
+      "name": "zenodex-custody-audit-native-20260913.log",
+      "sha256": "c4db4b96ff3da758ce5f55e4653696247a49a13775a12685daf3a79c498176f2"
+    },
+    {
+      "name": "zenodex-custody-audit-regressions-20260913.log",
+      "sha256": "d871a439022371a397eb68aaba59d5c5c6814cf733ee3977a6bc10b9816bc19b"
+    },
+    {
+      "name": "zenodex-custody-audit-critical-venv-20260913.log",
+      "sha256": "19a046732b156dd2b8eac9a4e69b2881f50e9c14d94b64647edba8973bac387f"
+    },
+    {
+      "name": "zenodex-custody-audit-mutations-20260913.json",
+      "sha256": "b21dceba217840752c06c511e6ae614c672bea4a0ddadd95bb41aa0a2018a5b8"
+    },
+    {
+      "name": "zenodex-custody-audit-mutations-20260913.log",
+      "sha256": "de3d5d148f18362ed355c3019164f511fc56df32a312e389580b6956d1a2f382"
+    }
+  ]
+}

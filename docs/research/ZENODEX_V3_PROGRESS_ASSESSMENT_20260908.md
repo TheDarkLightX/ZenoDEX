@@ -670,3 +670,21 @@ Assessment **NOT_RESCORED**; historical V3 24.268% and formal 21.440% remain
 unrefreshed. The concrete remaining AS02 action is remote proving of the frozen
 22,750,173-cycle workload and local genuine-receipt publication/substitution
 replay. The associated evidence/accounting receives no additional credit.
+
+### September 13: read-only retained-history audit
+
+`5254febf…` → `b97d2f75…` adds explicit historical reauthentication using the
+existing economic replay and measured admission checks. The audit rejects
+rehashed false signatures/receipts, binds external checkpoint and witness inputs,
+and can check locally revoked history without restoring writer authority.
+[Evidence](../../tests/evidence/custody_history_audit_v2_20260913.json) records
+21 focused passes/two genuine-proof skips, 108 regression passes, five killed
+source mutants and the passing critical gate. No independent-model verdict or
+deployed independent enforcement is claimed.
+
+Growth is +690/−7: runtime +86/−6, tests +340/−0, tooling +9/−0,
+documentation +66/−1 and evidence +189/−0. Formal-proof changes are zero.
+Assessment **NOT_RESCORED**; historical V3 24.268%/formal 21.440% estimates
+remain unrefreshed. This advances W01/W06/W11 historical verification, with no
+full AS exit or value-safety gate closure. Genuine margin proofs and independent
+finality/destination qualification remain the delivery blockers.

@@ -3283,6 +3283,25 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-custody-history-audit-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "authority-consumer-tracing-and-read-only-historical-cryptographic-audit",
+      "risk": "critical",
+      "provenance": {
+        "commit": "b97d2f7584516499266c846d6571161208adbce8",
+        "path": "tests/integration/test_isolated_custody_history_audit_v2.py",
+        "sha256": "c1a70845b98b40b5c07451d1e38c0b6ad4f3fc89011959c521209dd13d39978f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -5496,6 +5515,61 @@
           }
         }
       ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-margin-workload-accounting",
+      "before_commit": "0786c161ec9c0eea598fdd9758e5c6bb338b2d93",
+      "after_commit": "5254febf8d7cf326f63b1231404346be97075770",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W06"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-proving-workload-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry previous292-line margin workload evidence/account append once; no extra product credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-custody-history-audit",
+      "before_commit": "5254febf8d7cf326f63b1231404346be97075770",
+      "after_commit": "b97d2f7584516499266c846d6571161208adbce8",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W01",
+        "W06",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-custody-history-audit-root"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Explicit read-only historical reauthentication with selected checkpoint and exact witness binding.21 focused pass,2 genuine-proof skip;108 regressions pass;5/5 declared source mutants killed;critical gate passes.690/7 lines; no economic transition or formal-proof changes. NOT_RESCORED. Full independent deployment/finality and real margin proof qualification remain open.",
+        "evidence": {
+          "commit": "b97d2f7584516499266c846d6571161208adbce8",
+          "path": "tests/integration/test_isolated_custody_history_audit_v2.py",
+          "sha256": "c1a70845b98b40b5c07451d1e38c0b6ad4f3fc89011959c521209dd13d39978f"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
       "supersedes": null
     }
   ]
