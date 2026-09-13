@@ -325,3 +325,38 @@ through `8810e75e7`; this manifest/report tail is further unscored support.
 Three completed duplicate Cargo targets, 336,427,271 logical bytes, were removed
 after exact path/marker and active-process checks. Final gate artifacts and
 source/log/JUnit evidence remain available.
+
+## September 13: connected margin claim lifecycle
+
+Implementation `2f1c0e05…` → `417ec94a…` adds **2,567 lines**, removes none:
+685 runtime, 411 Lean, 1,350 tests and 121 specification. The shared delivery
+connects deposit, drain, ordinary transfer, refill and close through the V2
+checker with fresh claim episodes and synchronized margin/asset lane roots.
+Root Astra supplied 1,086 lines; Luna supplied 694; Astra's reviewer supplied
+787 proof/test lines, independently inspected by root. Counts describe retained
+source, not tokens generated or individual productivity rates.
+
+[Evidence](../../tests/evidence/perps_margin_global_v2_20260913.json) and
+[review](../../tests/evidence/perps_margin_global_review_20260913.md) retain
+53 focused tests, the broad critical gate, 11 typed theorem consumers and 115
+finite Python/Lean cases. Unsupported consumed-object IDs and mutable result
+aliases were found and repaired with retained regressions. Rust is undergoing
+separate review and receives no credit here. Universal runtime refinement,
+authenticated receipts and publication remain open.
+
+The reviewed shared gain counts once: **formal +0.122 percentage points** and
+**V3 +0.070 points**, reaching 21.419% and 24.239%. Only margin deposit and
+withdrawal change. Metadata commit `51c20a93…` adds 357/removes 21 and earns no
+additional credit. The scored interval begins at the previous assessed source
+`7386fa2e…`; it supersedes the previous evidence-only batch and includes its
+support and intervening contribution accounting once. The reporter validates
+the unchanged manifest prefix at `2f1c0e05…`.
+
+Seven new contribution records include native integration, implementation and
+review, an earlier Opus architecture review, the rejected Daybreak launch,
+blocked new Opus disclosure and failed Fable availability probe. The earlier
+Opus record reports 432,107 ms, 32 uncached input tokens and 33,055 output tokens;
+its 83,425 cache-creation and 639,265 cache-read tokens remain separately named
+in the source evidence. Fable's generic probe lasted 5,656 ms and returned a
+quota error without running a model. Other per-model time, tokens and actual
+cost remain unknown. Test durations are not charged as exclusive model work.

@@ -2593,6 +2593,171 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-margin-global-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "joint-v2-margin-producer-tests-integration-and-independent-proof-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+        "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+        "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-global-luna",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "owned-state-and-lifecycle-resource-tests",
+      "risk": "critical",
+      "provenance": {
+        "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+        "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+        "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-global-astra-review-proof",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-runtime-review-and-episode-proof-implementation-reviewed-by-root",
+      "risk": "critical",
+      "provenance": {
+        "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+        "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+        "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-global-opus-predecessor",
+      "model_id": "claude-opus-5",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "predecessor-architecture-review-v1-only-suggestion-corrected-against-v2",
+      "risk": "critical",
+      "provenance": {
+        "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+        "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+        "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 32,
+          "evidence": {
+            "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+            "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+            "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+          },
+          "json_pointer": "/contributors/3/provider_uncached_input_tokens"
+        },
+        "output_tokens": {
+          "value": 33055,
+          "evidence": {
+            "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+            "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+            "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+          },
+          "json_pointer": "/contributors/3/provider_output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 432107,
+          "evidence": {
+            "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+            "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+            "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+          },
+          "json_pointer": "/contributors/3/provider_duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-global-daybreak-request",
+      "model_id": null,
+      "role": "review",
+      "status": "failed",
+      "task_kind": "requested-daybreak-native-thread-limit-no-worker-started",
+      "risk": "critical",
+      "provenance": {
+        "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+        "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+        "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-global-opus-request",
+      "model_id": null,
+      "role": "review",
+      "status": "failed",
+      "task_kind": "source-review-auto-approval-rejected-no-process-or-disclosure",
+      "risk": "critical",
+      "provenance": {
+        "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+        "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+        "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-margin-global-fable-probe",
+      "model_id": null,
+      "role": "verification",
+      "status": "failed",
+      "task_kind": "generic-fable-availability-probe-rate-limit-no-model-ran",
+      "risk": "critical",
+      "provenance": {
+        "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+        "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+        "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": {
+          "value": 5656,
+          "evidence": {
+            "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+            "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+            "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+          },
+          "json_pointer": "/resources/fable_availability_duration_ms"
+        },
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -4121,6 +4286,113 @@
           "commit": "8810e75e78a30a5a9366b4c53fe6ec985a4f4298",
           "path": "tests/evidence/perps_margin_market_v1_20260912.json",
           "sha256": "e6566c6d280f9f91ca566d0146fbf6f945f296179afe8445513684f8c17a2c84"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-margin-global-delivery",
+      "before_commit": "7386fa2ea2488999aa453b701e3b666e32ee2d85",
+      "after_commit": "417ec94ad39389c8e2beceee69ceabe565828302",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W04",
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260912-perps-market-root",
+        "V3-20260912-perps-market-luna",
+        "V3-20260912-perps-market-astra-review",
+        "V3-20260912-perps-market-daybreak-request",
+        "V3-20260913-margin-global-root",
+        "V3-20260913-margin-global-luna",
+        "V3-20260913-margin-global-astra-review-proof",
+        "V3-20260913-margin-global-opus-predecessor",
+        "V3-20260913-margin-global-daybreak-request",
+        "V3-20260913-margin-global-opus-request",
+        "V3-20260913-margin-global-fable-probe"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "New implementation2f1c0e..417ec94 adds2567/removes0:685runtime,411proof,1350tests,121specification. Connected V2 deposit/drain/ordinary-transfer/refill/close derives fresh claim episodes and both lane roots through the shared global checker. Episode model and finite Python correspondence pass. Longer scored interval carries previous evidence/productivity support once. Rust, auth, receipt and publication remain open.",
+        "evidence": {
+          "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+          "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+          "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "2f1c0e0557edd5669413ead35bfaa2cd5773aac6",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "507f3ce08554847e97638c07992b13e27112d741545657cdc280f02367a16256"
+        },
+        "after": {
+          "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "f0ed52c2fb37eb66a50736149a755213b67fe683cf5cb3c05d42f26e62738ebd"
+        },
+        "review": {
+          "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+          "path": "tests/evidence/perps_margin_global_review_20260913.md",
+          "sha256": "bd8f7aee69943ce396d7a3e783b615ad1ec39b0fa4e6a761cd0a585e67ade94c"
+        }
+      },
+      "findings": [
+        {
+          "id": "MARGIN-V2-UNSUPPORTED-CONSUMPTION",
+          "status": "repaired",
+          "evidence": {
+            "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+            "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+            "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+          }
+        },
+        {
+          "id": "MARGIN-V2-RESULT-ALIAS",
+          "status": "repaired",
+          "evidence": {
+            "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+            "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+            "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
+          }
+        }
+      ],
+      "supersedes": "V3-20260912-perps-market-evidence"
+    },
+    {
+      "id": "V3-20260913-margin-global-evidence",
+      "before_commit": "417ec94ad39389c8e2beceee69ceabe565828302",
+      "after_commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+      "kind": "support",
+      "obligation_ids": [
+        "W04",
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-global-root",
+        "V3-20260913-margin-global-luna",
+        "V3-20260913-margin-global-astra-review-proof",
+        "V3-20260913-margin-global-opus-predecessor",
+        "V3-20260913-margin-global-daybreak-request",
+        "V3-20260913-margin-global-opus-request",
+        "V3-20260913-margin-global-fable-probe"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "357additions/21deletions retain exact source evidence, independent review, scoped existing-assessment amendment and session continuity. No additional product credit.",
+        "evidence": {
+          "commit": "51c20a93b6ff3974ea780de1830d0b5f95792a21",
+          "path": "tests/evidence/perps_margin_global_v2_20260913.json",
+          "sha256": "557d3b8f1f7ea50e01ed7c044cf0d479084303cb71312891b7a2f91dab2ebbe5"
         }
       },
       "assessment": {
