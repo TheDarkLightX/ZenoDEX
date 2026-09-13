@@ -1,0 +1,107 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260913-margin-proof-workload-v2",
+  "created_date": "2026-09-13",
+  "claim_scope": "Measured endpoint selection, fully rebound frozen margin proving inputs, real BLS/guest execution and logical no-op on actual signature/receipt rejection. Genuine receipt/publication tests are explicitly unrun without receipts.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "MARGIN-V2-MEASURED-WORKLOAD-CONTEXT",
+    "MARGIN-V2-REJECT-NO-STORE-CHANGE",
+    "MARGIN-V2-FROZEN-PROOF-INPUTS"
+  ],
+  "failure_modes": [
+    "Executable substitution changes the selected proving context.",
+    "Changing the BLS implementation leaves stale profile/state/signature roots.",
+    "A malformed receipt or unauthorized command creates a publication/history/replay effect.",
+    "A future or unrelated proof is treated as the current command receipt.",
+    "A returned FIFO blocks opening or a symlink substitutes an unpinned receipt file."
+  ],
+  "source_pins": [
+    {
+      "path": "tools/qualify_margin_receipts_v2.py",
+      "sha256": "be74cd6c73adf5193af7432563972fe44c7c6e69eb40b6637bf4a2803adfcb13"
+    },
+    {
+      "path": "tests/integration/test_profiled_perps_margin_receipt_v2.py",
+      "sha256": "eaf312f14bf9228b27fb86cb4fad3530824cb6197d15dd12813470b72ddf76cc"
+    },
+    {
+      "path": "tests/integration/test_isolated_joint_margin_publisher_v2.py",
+      "sha256": "c5829b37bee49b70628fb56d90d89958e09c8af6a81e71e677df39a703c3ed44"
+    },
+    {
+      "path": "tools/isolated_bls_evidence_v1.py",
+      "sha256": "911d5d71180e6f2ca387f3559848b6306749de9e2f8ce2e70cf9cec364f9bcfe"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_margin_receipt_qualification_v2.py",
+      "sha256": "6d3a83d4de4820bd4bc3055a77cd9e5a2035ec039fc3bbc2f149f42ed801cf6a",
+      "node_ids": [
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_measured_signature_artifact_rebinds_profile_and_authentication",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_receipt_fifo_rejects_without_waiting_for_a_writer",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_receipt_acquisition_rejects_links_empty_and_oversize_files",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_prepared_workload_is_deterministic_and_exact_guest_execution_agrees",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_substituted_executable_cannot_select_a_new_proving_context",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_actual_signature_and_receipt_rejections_leave_complete_store_unchanged",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_genuine_receipts_commit_complete_lifecycle_and_survive_restart",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_genuine_receipt_substitution_and_reordering_cannot_change_the_store"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "differential",
+    "stateful",
+    "negative_regression",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Public isolated genesis; actual measured BLS and RISC0 execution are checked against independently computed Python journals. Both executable paths must match source-selected pins."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Real signature failure, real receipt-decoder refusal and mismatched signed body leave every logical SQLite table unchanged."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "artifact-and-context",
+      "points": [
+        "one-byte BLS and receipt executable substitutions",
+        "old/default fixture frames, signatures and binding roots remain byte-identical",
+        "deposit, drain and close with linked complete predecessors",
+        "unavailable genuine receipts skip explicitly, never report publication success"
+      ]
+    },
+    {
+      "name": "bounded-regular-acquisition",
+      "points": [
+        "FIFO with no writer rejects promptly",
+        "final symlink rejects",
+        "empty, exact maximum and maximum-plus-one sizes"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Omit the selected executable digest check; the substituted artifact could select another proving context.",
+      "killed_by": "tests/integration/test_margin_receipt_qualification_v2.py::test_substituted_executable_cannot_select_a_new_proving_context",
+      "narrative": true
+    },
+    {
+      "description": "Ignore the BLS artifact when rebuilding the profile; the dependent state/signature roots remain stale.",
+      "killed_by": "tests/integration/test_margin_receipt_qualification_v2.py::test_measured_signature_artifact_rebinds_profile_and_authentication",
+      "narrative": true
+    }
+  ],
+  "nonclaims": [
+    "Source-mutant rows name falsifiers; no source-mutant execution campaign. Actual input/artifact mutation cases ran.",
+    "No genuine margin receipts are available yet. The two configured genuine receipt/publication tests remain skipped and unqualified.",
+    "The public genesis/key and economic release/evidence labels are isolated fixture assumptions; custody transfer is not qualified.",
+    "No production/finality/delivery/release authority, universal refinement or whole-plan completion."
+  ]
+}

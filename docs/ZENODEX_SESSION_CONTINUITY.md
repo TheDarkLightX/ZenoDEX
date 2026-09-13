@@ -110,6 +110,15 @@ margin guest against the isolated publisher's exact profile/state/command
 coordinates, and qualify them through the actual measured verifier and atomic
 store with the retained negative controls. Native execution, a compiled prover
 CLI and negative-only receipt tests do not close this condition.
+The [exact proving job](research/MARGIN_V2_PROVING_JOB.md) now exports three
+commands with measured BLS authentication and complete profile/state rebinding.
+Actual guest execution matches all three journals (22,750,173 user cycles
+total). The final focused suite passed seven tests with two genuine-receipt
+tests explicitly skipped; 30 existing publisher/role tests pass. Remote receipt
+generation is pending a proof host. No production or new qualification credit.
+Review also reproduced FIFO blocking and symlink admission in the new tool's
+draft reader; the retained regressions pass after reuse of the existing bounded
+regular-file reader. No new reader or economic transition was introduced.
 The security repairs are NOT_RESCORED; last reviewed V3/formal estimates below
 remain historical until an evidence-backed assessment is adopted.
 

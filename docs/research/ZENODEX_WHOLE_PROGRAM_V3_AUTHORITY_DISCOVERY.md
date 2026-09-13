@@ -277,3 +277,19 @@ and observational isolation; then connect independently qualified receipt
 verification and allocation admission to the isolated publication transaction.
 Production promotion remains closed while any discovery, policy, refinement,
 writer, migration or effect-delivery obligation above remains open.
+
+## September 13: isolated margin qualification CLI
+
+`tools/qualify_margin_receipts_v2.py` adds a development-only caller of the
+existing `IsolatedCustodyPublisherV2`. `prepare` authenticates public test
+commands and exports frozen inputs without creating a store. `publish` creates
+a fresh isolated database and submits returned receipt bytes through the same
+signed-command, selected-verifier and atomic publication checks. It accepts
+neither remote configuration nor remote post-state. Existing databases are
+refused by the publisher's exclusive-create boundary. The custody-transfer role
+and economic release labels remain fixture assumptions; the tool exercises only
+the margin role and has no production launcher or external-effect mount.
+
+This is source classification of the new caller, not refreshed deployment-wide
+writer closure. Genuine receipt publication is pending; AS01/AS03 and the
+honest publisher/OS/genesis premises remain open.

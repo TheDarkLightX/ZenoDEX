@@ -77,12 +77,12 @@ def _setup(protocol_case, receipt_path):
     return base, JointMarginPublicationConfigurationV2(custody, margin_role, str(receipt_path))
 
 
-def _signed_command(base, head, command, outer_nonce):
+def _signed_command(base, global_pre, command, outer_nonce):
     route = base.profile.route_registry.route_for_command(command.command_kind)
     body_hash = hash_economic_command_body_v2(command.command_kind, command)
     occurrence = replace(
-        base.request.occurrence, height=head.global_state.height + 1,
-        pre_state_root=head.global_state.state_root, command_kind=command.command_kind,
+        base.request.occurrence, height=global_pre.height + 1,
+        pre_state_root=global_pre.state_root, command_kind=command.command_kind,
         command_body_hash=body_hash, route_release_id=route.route_release_id, nonce=outer_nonce,
     )
     candidate = _sign(replace(
@@ -99,13 +99,13 @@ def _signed_command(base, head, command, outer_nonce):
 
 def _margin(base, head, kind, amount, account_nonce, outer_nonce, account="margin-a"):
     command = _command(kind, amount, account_nonce, account)
-    candidate, occurrence = _signed_command(base, head, command, outer_nonce)
+    candidate, occurrence = _signed_command(base, head.global_state, command, outer_nonce)
     return candidate, PerpsMarginRequestV2(command, occurrence)
 
 
 def _transfer(base, head, amount, outer_nonce):
     command = _transfer_command(amount_atoms=amount)
-    candidate, occurrence = _signed_command(base, head, command, outer_nonce)
+    candidate, occurrence = _signed_command(base, head.global_state, command, outer_nonce)
     return candidate, AssetLaneContextV2(
         head.global_state.writer_epoch, head.custody_state.transfer_state.module_release_id,
         head.global_state.state_root, occurrence,

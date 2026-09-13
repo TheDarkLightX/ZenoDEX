@@ -181,8 +181,8 @@ def _receipt_manifest() -> EconomicReceiptVerifierEvidenceManifestV1:
     )
 
 
-def _profile_case() -> PerpsMarginProfileCase:
-    base_candidate, _, signature_manifest, _ = _signed_case()
+def _profile_case(signature_artifact: bytes = _ARTIFACT) -> PerpsMarginProfileCase:
+    base_candidate, _, signature_manifest, _ = _signed_case(signature_artifact)
     base_profile = base_candidate.profile
     perps_profile = perps_support._profile()[0]
     old_asset_release = base_profile.lane_registry.release_for(LaneIdV1.ASSET_TRANSFER)
@@ -417,14 +417,15 @@ def _profile_case() -> PerpsMarginProfileCase:
     )
 
 
-def perps_margin_profile_case() -> PerpsMarginProfileCase:
+def perps_margin_profile_case(signature_artifact: bytes = _ARTIFACT) -> PerpsMarginProfileCase:
     """Return the fixed two-lane profile/state bundle for same-store tests."""
 
-    return _profile_case()
+    return _profile_case(signature_artifact)
 
 
 def perps_margin_signed_case(
     *,
+    signature_artifact: bytes = _ARTIFACT,
     command_kind: str = PERPS_MARGIN_DEPOSIT_COMMAND_KIND_V1,
     amount_atoms: int = 10,
     account_id: str = "margin-a",
@@ -434,7 +435,7 @@ def perps_margin_signed_case(
 ) -> PerpsMarginSignedCase:
     """Return one signed command against the fixed initial profile/state."""
 
-    bundle = perps_margin_profile_case()
+    bundle = perps_margin_profile_case(signature_artifact)
     base_candidate = bundle.candidate_template
     route = bundle.profile.route_registry.route_for_command(command_kind)
     command = PerpsMarginCommandV1(
