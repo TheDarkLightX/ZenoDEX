@@ -663,3 +663,26 @@ evidence append are carried once as support, with no extra delivery credit.
 
 The existing reporter passes against baseline `02f9729a…`: its manifest prefix
 is preserved, all 376 referenced blobs match, and categorized line totals agree.
+### September 13: consolidated assessment of completed attack-surface work
+
+Fable independently reviewed `6a4a806db…` through `e05f293e3…`; root accepted
+four workstream edits after source inspection and calculator validation. The
+[review record](../../tests/evidence/v3_attack_surface_assessment_review_20260913.json)
+and scored input are stored at `2a6f06a5e56a54ffc87ffb4066a717dcd26104f1`.
+Shared delivery credit is **V3 +0.560 pp**, formal core **+0.000 pp**. This
+assesses earlier implementation once; the assessment itself adds no feature.
+Per-batch and consolidated commit ranges overlap, so their line totals must
+not be summed as independent growth.
+
+Fable's CLI recorded 361,216 ms, 26,959 output tokens, 226 uncached input tokens,
+134,626 cache-creation and 430,452 cache-read input tokens. Its $4.150343
+list-price estimate is not an observed bill and is excluded from billing
+rollups. A small CLI Haiku helper is disclosed in the review; root resources
+remain unknown. No fleet or further proof build ran for this assessment.
+
+The contribution reporter passed against `e05f293e3…`: prior prefix preserved,
+385 reference occurrences/62 unique references hash-match, and 88 source
+JSON-pointer observations validate. The existing denominator and all capability
+and formal scores are unchanged. Assessment support at `e05f293e3…→2a6f06a5e…`
+is +338/−29 metadata lines; the preceding +168-line account is carried once.
+Current quota probes remain uncommitted, unscored failing acceptance evidence.

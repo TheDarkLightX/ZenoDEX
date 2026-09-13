@@ -3397,6 +3397,68 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260913-as-progress-fable",
+      "model_id": "claude-fable-5-1",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-completed-subject-progress-assessment",
+      "risk": "critical",
+      "provenance": {
+        "commit": "2a6f06a5e56a54ffc87ffb4066a717dcd26104f1",
+        "path": "tests/evidence/v3_attack_surface_assessment_review_20260913.json",
+        "sha256": "fd4f50c61db906bc66b37c665d1614f42e1b5a72244d461e2b29c7ac8db4decd"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 226,
+          "evidence": {
+            "commit": "2a6f06a5e56a54ffc87ffb4066a717dcd26104f1",
+            "path": "tests/evidence/v3_attack_surface_assessment_review_20260913.json",
+            "sha256": "fd4f50c61db906bc66b37c665d1614f42e1b5a72244d461e2b29c7ac8db4decd"
+          },
+          "json_pointer": "/review/resources/input_tokens"
+        },
+        "output_tokens": {
+          "value": 26959,
+          "evidence": {
+            "commit": "2a6f06a5e56a54ffc87ffb4066a717dcd26104f1",
+            "path": "tests/evidence/v3_attack_surface_assessment_review_20260913.json",
+            "sha256": "fd4f50c61db906bc66b37c665d1614f42e1b5a72244d461e2b29c7ac8db4decd"
+          },
+          "json_pointer": "/review/resources/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 361216,
+          "evidence": {
+            "commit": "2a6f06a5e56a54ffc87ffb4066a717dcd26104f1",
+            "path": "tests/evidence/v3_attack_surface_assessment_review_20260913.json",
+            "sha256": "fd4f50c61db906bc66b37c665d1614f42e1b5a72244d461e2b29c7ac8db4decd"
+          },
+          "json_pointer": "/review/resources/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260913-as-progress-root",
+      "model_id": null,
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "scoped-assessment-source-review-and-calculator-validation",
+      "risk": "critical",
+      "provenance": {
+        "commit": "2a6f06a5e56a54ffc87ffb4066a717dcd26104f1",
+        "path": "tests/evidence/v3_attack_surface_assessment_review_20260913.json",
+        "sha256": "fd4f50c61db906bc66b37c665d1614f42e1b5a72244d461e2b29c7ac8db4decd"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -5968,6 +6030,119 @@
       "outcome": {
         "disposition": "support_only",
         "summary": "Persist exact scoped evidence, continuity and code-value account: 129 added/9 removed documentation and evidence lines. No duplicate delivery credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-independent-margin-audit-accounting",
+      "before_commit": "75f19052fad82a2931e54c1c5cb9facbec03f1a9",
+      "after_commit": "e05f293e3eab020b5790252007fe43316167bb39",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W06",
+        "W10",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-as-progress-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry preceding +168 accounting lines once. No product credit.",
+        "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-as-completed-range-assessment",
+      "before_commit": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
+      "after_commit": "e05f293e3eab020b5790252007fe43316167bb39",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W03",
+        "W06",
+        "W10",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-margin-publication-root",
+        "V3-20260913-margin-publication-astra-review",
+        "V3-20260913-attack-surface-root",
+        "V3-20260913-attack-surface-daybreak",
+        "V3-20260913-margin-guest-root",
+        "V3-20260913-margin-guest-terra",
+        "V3-20260913-margin-guest-astra-review",
+        "V3-20260913-margin-proving-workload-root",
+        "V3-20260913-custody-history-audit-root",
+        "V3-20260913-verifier-isolation-root",
+        "V3-20260913-legacy-verifier-lifetime-root",
+        "V3-20260913-legacy-verifier-lifetime-review",
+        "V3-20260913-independent-margin-audit-root",
+        "V3-20260913-independent-margin-audit-review",
+        "V3-20260913-as-progress-fable",
+        "V3-20260913-as-progress-root"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Consolidated review of previously unrescored completed work; no new implementation in this assessment. W03/W06/W10/W11 add0.560 V3 pp; formal0.000 pp;0/12 gates. Shared gain belongs once to the delivery range, including prior worker contributions. Prior per-batch line records remain; cumulative ranges overlap and must not be summed as independent growth.",
+        "evidence": {
+          "commit": "2a6f06a5e56a54ffc87ffb4066a717dcd26104f1",
+          "path": "tests/evidence/v3_attack_surface_assessment_review_20260913.json",
+          "sha256": "fd4f50c61db906bc66b37c665d1614f42e1b5a72244d461e2b29c7ac8db4decd"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "5178bdfebd9a892b4db6a1f9bed30204e048ccb162f035cc54cfa69890eabe1a"
+        },
+        "after": {
+          "commit": "2a6f06a5e56a54ffc87ffb4066a717dcd26104f1",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "f65d9d02b20b9380578546fa0ce8bd57d7e1ef72f6d5d904ea972e4cc589cfac"
+        },
+        "review": {
+          "commit": "2a6f06a5e56a54ffc87ffb4066a717dcd26104f1",
+          "path": "tests/evidence/v3_attack_surface_assessment_review_20260913.json",
+          "sha256": "fd4f50c61db906bc66b37c665d1614f42e1b5a72244d461e2b29c7ac8db4decd"
+        }
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260913-as-assessment-evidence",
+      "before_commit": "e05f293e3eab020b5790252007fe43316167bb39",
+      "after_commit": "2a6f06a5e56a54ffc87ffb4066a717dcd26104f1",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W06",
+        "W10",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260913-as-progress-fable",
+        "V3-20260913-as-progress-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Current assessment/continuity/review metadata +338/-29. No new economic behavior, proof, or duplicate delivery credit. Uncommitted quota probes excluded.",
         "evidence": null
       },
       "assessment": {
