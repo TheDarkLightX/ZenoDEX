@@ -3,10 +3,14 @@
 The configured SHA-256 identifies reviewed ELF bytes. Every call copies those
 bytes into a sealed memfd and executes that immutable snapshot. Release selection,
 journal semantics, current-head admission, and publication remain separate gates.
-The publisher process, kernel, dynamic loader and system libraries are trusted;
-this adapter cannot establish that an arbitrarily configured binary is honest.
-Cleanup kills descendants that remain in the verifier's process group. It does
-not sandbox filesystem/network access or contain a child that changes sessions.
+The publisher, Linux kernel, installed /usr/bin/bwrap and four selected GNU/Linux
+x86-64 runtime libraries remain trusted. The endpoint sees a read-only private
+root and its own PID/network/IPC/user namespaces. Ledger/home directories,
+host sockets, devices and procfs are not mounted.
+The PID namespace contains descendants even when they change sessions. Startup
+failure rejects; there is no direct-execution fallback. This does not establish
+that an arbitrarily configured binary is honest, or bound aggregate host memory,
+CPU or process consumption across concurrent requests.
 The publisher must retain exclusive ownership of reaping its verifier child.
 
 Protocol V1: ``ZDXRV1RQ | image[32] | journal_len:u32le | receipt_len:u32le |
@@ -202,10 +206,32 @@ def _kill_and_reap_v1(process: subprocess.Popen[bytes]) -> None:
     process.wait()
 
 
+def _sandbox_command_v1(executable_fd: int) -> tuple[str, ...]:
+    # Fixed runtime closure, not caller-controlled directories or PATH lookup.
+    # The selected distro image must qualify bwrap and these library bytes.
+    libraries = ("libc.so.6", "libgcc_s.so.1", "libm.so.6", "ld-linux-x86-64.so.2")
+    bindings = tuple(
+        argument
+        for library in libraries
+        for argument in ("--ro-bind", f"/lib/x86_64-linux-gnu/{library}", f"/runtime/{library}")
+    )
+    return (
+        "/usr/bin/bwrap",
+        "--unshare-user", "--unshare-pid", "--unshare-net", "--unshare-ipc", "--unshare-uts",
+        "--disable-userns", "--cap-drop", "ALL", "--new-session", "--die-with-parent",
+        *bindings,
+        # bwrap owns this descriptor, copies the sealed bytes and closes it.
+        "--perms", "0500", "--ro-bind-data", str(executable_fd), "/verifier",
+        "--remount-ro", "/",
+        "--chdir", "/", "--", "/runtime/ld-linux-x86-64.so.2",
+        "--inhibit-cache", "--library-path", "/runtime", "/verifier",
+    )
+
+
 def _invoke_v1(executable_fd: int, request: bytes, timeout_ms: int) -> tuple[bytes, bytes, int]:
     try:
         process = subprocess.Popen(
-            (f"/proc/self/fd/{executable_fd}",),
+            _sandbox_command_v1(executable_fd),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

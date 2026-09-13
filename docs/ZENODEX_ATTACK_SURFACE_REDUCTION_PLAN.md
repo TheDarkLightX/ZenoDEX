@@ -122,3 +122,37 @@ worktrees. Preserve live work and unique receipts during any authorized cleanup.
 If exact-image proving needs compute, record the precise command/resource need
 and continue independent authorized work. Live deployment, balance migration
 and authority activation remain outside this isolated integration.
+
+## AS07 verifier execution policy
+
+The shared receipt/BLS transport now requires a fixed Linux x86-64 GNU runtime
+and `/usr/bin/bwrap`. The selected executable is still measured and sealed before
+launch. Bubblewrap copies that immutable descriptor into a read-only private
+root; only `libc.so.6`, `libgcc_s.so.1`, `libm.so.6` and
+`ld-linux-x86-64.so.2` are bound from `/lib/x86_64-linux-gnu` into `/runtime`.
+The selected loader executes the endpoint with its cache disabled. No ledger,
+home directory, host socket, device or procfs mount is supplied. Required user,
+PID, network, IPC and UTS isolation, dropped capabilities, disabled nested user
+namespaces and parent-death handling supplement existing framing/output/deadline
+bounds. Missing isolation rejects without an unsandboxed retry.
+
+This reuses the installed Bubblewrap 0.9.0 (LGPL-2+) process-isolation tool;
+there is no new Python package, guest, proof ABI or economic transition. The
+[upstream policy contract](https://github.com/containers/bubblewrap/blob/v0.9.0/README.md)
+makes the launcher arguments part of the security boundary. The release must
+qualify the OS, launcher and four library bytes together. They remain trusted;
+the measured endpoint alone does not attest them. Another platform needs a
+separately qualified execution policy. Removing Bubblewrap would require an
+equivalently enforcing OS launcher and replay of these controls.
+
+Native qualification uses `ZENODEX_TEST_NATIVE_VERIFIER_ISOLATION=1` with
+`tests/integration/test_verifier_process_isolation_v1.py`. Its small C probe
+tests actual denied host-file/socket access, absent host mounts, privilege
+restrictions and termination of a child that changes sessions. Those probes
+are not cryptographic verifiers. Existing measured BLS and margin qualification
+tests remain the cryptographic/integration controls; genuine margin success
+still requires the prepared remote receipts.
+
+Aggregate CPU/memory/process quotas, concurrent-request admission, prover and
+SHADOW containment, kernel compromise and independent publication/finality
+enforcement remain open. AS07 and the full plan are not complete.

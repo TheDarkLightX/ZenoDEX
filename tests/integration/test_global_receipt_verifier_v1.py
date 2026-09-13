@@ -57,7 +57,8 @@ def install_protocol_process(
     def launch(command: tuple[str, ...], **kwargs: object) -> subprocess.Popen[bytes]:
         assert kwargs["env"] == {"RISC0_DEV_MODE": "0", "LC_ALL": "C"}
         assert kwargs["start_new_session"] is True
-        assert command[0].startswith("/proc/self/fd/")
+        assert command[0] == "/usr/bin/bwrap"
+        assert command[-1] == "/verifier"
         kwargs["pass_fds"] = (*kwargs["pass_fds"], *inherited_descriptors)  # type: ignore[misc]
         process = original_popen((sys.executable, "-c", code), **kwargs)  # type: ignore[call-overload]
         started.append(process)

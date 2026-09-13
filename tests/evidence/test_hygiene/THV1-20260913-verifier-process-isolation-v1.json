@@ -1,0 +1,197 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260913-verifier-process-isolation-v1",
+  "created_date": "2026-09-13",
+  "claim_scope": "Mandatory, fixed Linux x86-64 verifier containment for the shared measured BLS/receipt subprocess. Native probes test denied host access and retained-descendant closure; no economic, genuine-margin-proof or production qualification claim.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "AS07-VERIFIER-HOST-AUTHORITY-DENIED",
+    "AS07-VERIFIER-DESCENDANT-CLOSURE",
+    "AS07-VERIFIER-NO-UNSANDBOXED-FALLBACK"
+  ],
+  "failure_modes": [
+    "A compromised verifier reads or modifies same-UID ledger state.",
+    "A verifier connects to an unexposed host abstract Unix socket.",
+    "A child changes session and survives timeout cleanup.",
+    "Missing containment silently enables direct execution."
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/global_receipt_verifier_v1.py",
+      "sha256": "162b302544e6aa20c82901f1fc25f2578f68016cfd8341afbe1b489d638d276b"
+    },
+    {
+      "path": "src/integration/sealed_bls_command_verifier_v1.py",
+      "sha256": "56cb70b822a20cc7cc7b3a3bd10aa8098f2ae145484f532a785d015465a3f08b"
+    },
+    {
+      "path": "tests/integration/fixtures/verifier_isolation_probe_v1.c",
+      "sha256": "2e32baed65d14dc34913103dc0a5044d540d255c77ad5ae1d49fe91e4a603d37"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_verifier_process_isolation_v1.py",
+      "sha256": "22b22b5829cb51e47aa1e7dcfea761d741a28ca590fc20aea209608d71872e33",
+      "node_ids": [
+        "tests/integration/test_verifier_process_isolation_v1.py::test_given_host_state_when_verifier_opens_it_then_access_is_denied_without_change",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_given_host_abstract_socket_when_verifier_connects_then_access_is_denied",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_verifier_has_no_privilege_or_nested_user_namespace_authority",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_verifier_runtime_does_not_mount_proc_devices_or_host_configuration",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_timeout_terminates_descendant_even_after_it_creates_a_new_session",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_missing_isolator_never_falls_back_to_direct_execution"
+      ]
+    },
+    {
+      "path": "tests/integration/test_global_receipt_verifier_v1.py",
+      "sha256": "04ce03e821c8ff5ccdf66dfca9bdc041f976f0bc6c72d15295f945faa6960b95",
+      "node_ids": [
+        "tests/integration/test_global_receipt_verifier_v1.py::test_given_protocol_fixture_when_exact_response_then_transport_accepts",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_invalid_deployment_parameters_never_construct_backend",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_request_frame_has_independent_fixed_vector",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_invalid_request_rejects_before_launch",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_unbound_response_or_resource_failure_has_typed_rejection",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_executable_digest_mismatch_rejects",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_unavailable_executable_rejects",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_unavailable_launch_is_typed_and_contains_no_backend_details",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_script_cannot_substitute_for_measured_elf",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_measured_executable_snapshot_is_sealed_against_later_writes",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_source_replacement_cannot_change_sealed_snapshot",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_timeout_rejects_and_reaps_process_without_sleep",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_exact_response_must_be_observed_before_deadline",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_reaped_process_pid_is_never_signalled",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_exited_verifier_cannot_leave_same_group_descendant_running",
+        "tests/integration/test_global_receipt_verifier_v1.py::test_exact_retry_repeats_verification_with_no_replay_consumption"
+      ]
+    },
+    {
+      "path": "tests/integration/test_sealed_bls_command_verifier_v1.py",
+      "sha256": "5ef978c1637d56d5010bd1e00e5d02696c5f957235f755f4c14d34fe2452320a",
+      "node_ids": [
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_request_fixed_vector_and_successor_identity_are_exact",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_message_boundary_frames_roundtrip_exact_response",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_invalid_request_cannot_be_qualified_by_a_matching_response_digest",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_invalid_signature_request_rejects_before_process",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_exact_response_is_bound_to_request_and_executed_snapshot_is_sealed",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_invalid_process_response_never_becomes_a_signature_verdict",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_shared_transport_failures_remain_typed_and_release_descriptor",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_acquired_bytes_survive_path_replacement_and_bad_identity_never_loads",
+        "tests/integration/test_sealed_bls_command_verifier_v1.py::test_real_measured_endpoint_matches_independent_g2basic_signatures"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "negative_regression",
+    "mutation",
+    "boundary",
+    "stateful"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The test-owned C endpoint first demonstrates host file/socket reachability without containment. The identical measured endpoint then runs through actual containment; independent filesystem, socket and kernel pidfd observations reveal violations. Real py_ecc/Rust BLS is a separate positive crypto control."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Native denied-write probes preserve complete disposable host-file bytes; missing launcher rejects once without fallback. Existing actual-signature/receipt publisher checks compare all SQLite tables on rejection. Timeout observes the escaped descendant through a host pidfd and retains cleanup even for failing mutants."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "capability-and-lifetime",
+      "points": [
+        "host file read and write",
+        "host abstract socket connect",
+        "normal completion versus timeout after setsid",
+        "missing isolator",
+        "no procfs, devices or host configuration mounts",
+        "nested user namespaces forbidden"
+      ]
+    },
+    {
+      "name": "existing-protocol",
+      "points": [
+        "unchanged exact receipt and signature frames",
+        "malformed and oversized request",
+        "output flood and deadline neighbors",
+        "measured BLS acceptance and wrong signatures",
+        "genuine margin receipts remain unavailable"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Run the endpoint without isolation.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_given_host_state_when_verifier_opens_it_then_access_is_denied_without_change",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "            _sandbox_command_v1(executable_fd),"
+        ],
+        "replacement_lines": [
+          "            (f\"/proc/self/fd/{executable_fd}\",),"
+        ]
+      }
+    },
+    {
+      "description": "Share the host network namespace.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_given_host_abstract_socket_when_verifier_connects_then_access_is_denied",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "        \"--unshare-user\", \"--unshare-pid\", \"--unshare-net\", \"--unshare-ipc\", \"--unshare-uts\","
+        ],
+        "replacement_lines": [
+          "        \"--unshare-user\", \"--unshare-pid\", \"--unshare-ipc\", \"--unshare-uts\","
+        ]
+      }
+    },
+    {
+      "description": "Omit PID namespace confinement.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_timeout_terminates_descendant_even_after_it_creates_a_new_session",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "        \"--unshare-user\", \"--unshare-pid\", \"--unshare-net\", \"--unshare-ipc\", \"--unshare-uts\","
+        ],
+        "replacement_lines": [
+          "        \"--unshare-user\", \"--unshare-net\", \"--unshare-ipc\", \"--unshare-uts\","
+        ]
+      }
+    },
+    {
+      "description": "Allow nested user namespaces.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_verifier_has_no_privilege_or_nested_user_namespace_authority",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "        \"--disable-userns\", \"--cap-drop\", \"ALL\", \"--new-session\", \"--die-with-parent\","
+        ],
+        "replacement_lines": [
+          "        \"--cap-drop\", \"ALL\", \"--new-session\", \"--die-with-parent\","
+        ]
+      }
+    },
+    {
+      "description": "Expose procfs to the verifier.",
+      "killed_by": "tests/integration/test_verifier_process_isolation_v1.py::test_verifier_runtime_does_not_mount_proc_devices_or_host_configuration",
+      "mutant": {
+        "path": "src/integration/global_receipt_verifier_v1.py",
+        "needle_lines": [
+          "        \"--remount-ro\", \"/\","
+        ],
+        "replacement_lines": [
+          "        \"--proc\", \"/proc\", \"--remount-ro\", \"/\","
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Explicit ZENODEX_TEST_NATIVE_VERIFIER_ISOLATION=1 is required for native tests; ordinary skips do not qualify a host.",
+    "Kernel, publisher, installed Bubblewrap and runtime libraries remain trusted; their exact deployment must be qualified.",
+    "No aggregate CPU/memory/process quota, concurrent-request admission, prover/SHADOW sandbox, independent finality or publication enforcement is established.",
+    "Probe binaries and protocol fixtures are not proofs. Genuine margin receipt success remains pending a remote proof host.",
+    "The retained source mutations cover only their declared protections; no universal sandbox or maximum attack-surface claim."
+  ]
+}

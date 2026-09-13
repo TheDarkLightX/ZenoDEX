@@ -139,6 +139,16 @@ source mutants killed and the passing critical gate. Mutation copies were
 removed after replay. The contribution reporter preserves the earlier manifest
 prefix; no assessment rescore or independent-model verdict is claimed.
 
+The next AS07 batch changes the shared receipt/BLS launch to a mandatory
+Bubblewrap namespace with a fixed four-library runtime, read-only root and no
+host data, device or procfs mounts. Native adversarial controls cover host-file
+and abstract-socket access, nested privileges and session-escaping descendants;
+the full policy and deployment limits are in the attack-surface plan. Preserve
+the explicit `ZENODEX_TEST_NATIVE_VERIFIER_ISOLATION=1` host qualification gate.
+No direct-execution fallback is permitted. This does not close aggregate host
+resource limits or independent publication/finality enforcement. AS02 still
+awaits the three genuine receipts from the prepared remote job.
+
 ## September 13: isolated joint margin publication
 
 Implementation `6a4a806dbf0a3d1e987d8199a1e88387669f4c8b` connects the existing
