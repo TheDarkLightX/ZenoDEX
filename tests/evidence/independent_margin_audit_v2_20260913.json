@@ -1,0 +1,106 @@
+{
+  "schema": "zenodex/independent-margin-audit-evidence/v2",
+  "subject_commit": "394ddbf224b93e4eadbf1670928ef5285f4b4489",
+  "baseline_commit": "02f9729a9534e52af3d653fd7d652427041fa695",
+  "status": "IMPLEMENTED_TESTED_REVIEWED_SCOPED",
+  "production_authority": false,
+  "formal_core_complete": false,
+  "assessment_delta": "NOT_RESCORED",
+  "test_contract": {
+    "path": "tests/evidence/test_hygiene/THV1-20260913-independent-margin-audit-v2.json",
+    "sha256": "9e72ee32fdeedf3e0a30c5bf0dce078023639045784dcc85286768662c1aaba6"
+  },
+  "before": {
+    "failed": 7,
+    "seconds": 19.76,
+    "log_sha256": "276ca4cde4cbd0af03fc65a242604e9a85af6c7a69cac6d0e50125155bbe9a0e",
+    "scope": "Standalone audit and required checkpoint CLI arguments absent. Final suite additionally tests an incorrect publication root."
+  },
+  "after": {
+    "scope": "Audit closed fixed-workload history through existing detached read-only verifier using independently supplied roots. Publication reports now expose both roots.",
+    "focused": {
+      "passed": 7,
+      "seconds": 29.85,
+      "log_sha256": "a06c370c3df6c2c00e22c1080e557d965acd42490bf88a0a5a4257280217dafc"
+    },
+    "native_integration": {
+      "passed": 43,
+      "skipped": 2,
+      "seconds": 197.73,
+      "log_sha256": "127ac7ae931c796db4b1de4e5b45ce6cdb2fccfaf25d6e159038e25ce18b6d1a",
+      "skip_reason": "Genuine margin receipts remain unavailable; separate-process positive proof replay and receipt substitution tests skip."
+    },
+    "mutation": {
+      "killed": 3,
+      "survived": 0,
+      "errors": 0,
+      "controls": "All three unmodified controls pass.",
+      "report_sha256": "39bf116beabdb7a9c7275fade76d06662220e3db31aab57150630ef7b1c92624",
+      "temporary_copies_removed": true
+    },
+    "production_boundary": {
+      "ok": true,
+      "report_sha256": "3e63df25d274f0fc3f0dc13c3d991968de4796cf58ffc95e5e6830afc3958d06"
+    },
+    "lint_types_hygiene": "Ruff, scoped mypy, diff whitespace and changed-path hygiene pass.",
+    "hygiene_sha256": "4c7780b400efd290f188233d5ada83448a2828d5cbf5c385bf631de0e65c1ed2"
+  },
+  "review": {
+    "reviewer": "attack_surface_review",
+    "model_id": null,
+    "disclosed_family": "GPT-6 based Codex; exact serving ID unavailable",
+    "subject_commit": "394ddbf224b93e4eadbf1670928ef5285f4b4489",
+    "verdict": "PASS",
+    "scope": "Read-only source and contract review; test execution owned by root.",
+    "compatibility_edge": "The parser accepts the documented operation-first syntax; previously accepted undocumented options-before-operation ordering is no longer supported."
+  },
+  "replay_commands": [
+    "ZENODEX_BLS_VERIFIER_TEST_BINARY=\"$BLS\" ZENODEX_MARGIN_EXECUTOR=\"$MARGIN_EXECUTOR\" ZENODEX_MARGIN_R0VM=\"$R0VM\" python3 -m pytest -q tests/integration/test_margin_receipt_qualification_v2.py tests/integration/test_isolated_custody_history_audit_v2.py tests/integration/test_isolated_joint_margin_publisher_v2.py",
+    "ZENODEX_BLS_VERIFIER_TEST_BINARY=\"$BLS\" ZENODEX_MARGIN_EXECUTOR=\"$MARGIN_EXECUTOR\" ZENODEX_MARGIN_R0VM=\"$R0VM\" python3 tools/thv1_mutation_ledger_v1.py --packet THV1-20260913-independent-margin-audit-v2 --rev 394ddbf224b93e4eadbf1670928ef5285f4b4489 --workdir \"$MUTATION_WORK\"",
+    "python3 -m ruff check tools/qualify_margin_receipts_v2.py tests/integration/test_margin_receipt_qualification_v2.py",
+    "python3 -m mypy tools/qualify_margin_receipts_v2.py --follow-imports=silent",
+    "python3 tools/check_test_hygiene_v1.py --changed-file M:tools/qualify_margin_receipts_v2.py --changed-file M:tests/integration/test_margin_receipt_qualification_v2.py --changed-file A:tests/evidence/test_hygiene/THV1-20260913-independent-margin-audit-v2.json --json",
+    "python3 tools/check_production_boundary.py --json",
+    "python3 tools/check_claims_registry.py"
+  ],
+  "line_changes": {
+    "runtime": {
+      "added": 0,
+      "removed": 0
+    },
+    "proof": {
+      "added": 0,
+      "removed": 0
+    },
+    "tooling": {
+      "added": 47,
+      "removed": 11
+    },
+    "tests": {
+      "added": 120,
+      "removed": 1
+    },
+    "docs": {
+      "added": 25,
+      "removed": 3
+    },
+    "evidence": {
+      "added": 116,
+      "removed": 0
+    },
+    "total": {
+      "added": 308,
+      "removed": 15
+    }
+  },
+  "rework": [
+    "The first hygiene check rejected missing exact parametrized killer pins; added those two identifiers and passed.",
+    "Read-only exploration rejected a universal 5-of-7 finality checker because policy forbids silently adopting it; capacity/SHADOW changes were not implemented."
+  ],
+  "remaining": [
+    "Claims registry still references absent tools/check_derivatives_authorization_matrix.py; absent at baseline and registry unchanged.",
+    "No new heavy proof build, Lean/Kani/SMT run or broad critical gate rerun; runtime and economic/proof sources unchanged.",
+    "Receipt double qualifies local audit wiring only. Actual BLS and fake-receipt rejection are native; genuine margin proofs need the pending proof host.",
+    "Independent checkpoint authenticity, freshness and finality, publisher/effect enforcement, history data availability, exit capacity and full AS01-AS08 closure remain open."
+  ]
+}

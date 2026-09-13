@@ -722,3 +722,16 @@ W03/W11 receive scoped repair evidence; assessment remains **NOT_RESCORED**.
 The previous V3 24.268%/formal 21.440% figures remain historical estimates.
 Full AS07, genuine margin receipts, and independent finality/delivery remain
 open. Record the previous +410/−1 evidence/account append once as support.
+
+### September 13: separate margin history audit command
+
+`02f9729a…` → `394ddbf22…` exposes the existing read-only audit as a separate
+fixed-workload command requiring both external checkpoint roots. The publication
+report exposes those roots. [Evidence](../../tests/evidence/independent_margin_audit_v2_20260913.json)
+records 43 passing integration tests, two genuine-proof skips, three killed
+source mutants and independent review. Growth is +308/−15: tooling +47/−11,
+tests +120/−1, docs +25/−3 and required test evidence +116/−0. Runtime and
+formal proofs are unchanged. W06/W11 receive scoped operator evidence; this
+batch is **NOT_RESCORED** and closes no full AS exit. Genuine margin receipts,
+checkpoint provenance/finality and independent writer/effect enforcement remain
+pending. Carry the preceding 185-line accounting append once as support.
