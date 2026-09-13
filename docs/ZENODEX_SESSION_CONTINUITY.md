@@ -60,6 +60,33 @@ evidence; it grants no release, migration, or publication authority.
   the applicable migration/activation checks. An existing publisher is not a
   reason to retain superseded economic semantics.
 
+## September 13: attack-surface reduction goal
+
+The user approved the [attack-surface reduction plan](ZENODEX_ATTACK_SURFACE_REDUCTION_PLAN.md)
+and its implementation as a goal without a token cap. It is a V3 workstream;
+it does not replace the requirements floor or authorize live activation.
+AS02 genuine margin receipt qualification remains the first integrated gate.
+AS01 authority discovery and confirmed AS07 repairs can proceed alongside it.
+Every AS01-AS08 exit condition is initially open; the goal must not be marked
+complete after a local cleanup fix or an uncompiled guest scaffold.
+
+Root reproduced and repaired two shared verifier failures: a reaped leader
+left a same-process-group descendant running, and exact protocol completion
+at the deadline could accept. The retained real-process cases test normal,
+nonzero and signalled exit plus deadline neighbors. Cleanup now observes exit
+without reaping, checks the deadline, kills the owned group and reaps the
+leader. Independent Daybreak review accepts this bounded repair. Session/group
+escape, same-UID access, external child reapers and compromised hosts remain
+outside its guarantee. The full AS07 exit remains open.
+
+The RISC0 toolchain is installed under the existing `risc0` toolchain alias;
+the system default compiler alone is not a sufficient availability check.
+Margin V2 still needs a strict native frame bridge and a real guest/host build.
+Runpod is unavailable and local disk is below the retained 4 GiB native-build
+guard. Do not weaken that guard or relabel source-only work as a genuine receipt.
+The security repairs are NOT_RESCORED; last reviewed V3/formal estimates below
+remain historical until an evidence-backed assessment is adopted.
+
 ## September 13: isolated joint margin publication
 
 Implementation `6a4a806dbf0a3d1e987d8199a1e88387669f4c8b` connects the existing

@@ -5,6 +5,9 @@ bytes into a sealed memfd and executes that immutable snapshot. Release selectio
 journal semantics, current-head admission, and publication remain separate gates.
 The publisher process, kernel, dynamic loader and system libraries are trusted;
 this adapter cannot establish that an arbitrarily configured binary is honest.
+Cleanup kills descendants that remain in the verifier's process group. It does
+not sandbox filesystem/network access or contain a child that changes sessions.
+The publisher must retain exclusive ownership of reaping its verifier child.
 
 Protocol V1: ``ZDXRV1RQ | image[32] | journal_len:u32le | receipt_len:u32le |
 journal | encoded_receipt``. The measured endpoint and its receipt-schema
@@ -259,6 +262,14 @@ def _read_output_chunk_v1(
         selector.unregister(descriptor)
 
 
+def _unreaped_exit_status_v1(process_id: int) -> int | None:
+    # Retain the leader's PID until cleanup has signalled its process group.
+    result = os.waitid(os.P_PID, process_id, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    if result is None:
+        return None
+    return result.si_status if result.si_code == os.CLD_EXITED else -result.si_status
+
+
 def _exchange_v1(
     process: subprocess.Popen[bytes],
     request: bytes,
@@ -280,13 +291,17 @@ def _exchange_v1(
             os.set_blocking(stream.fileno(), False)
             mask = selectors.EVENT_WRITE if name == "stdin" else selectors.EVENT_READ
             selector.register(stream, mask, name)
-        while selector.get_map() or process.poll() is None:
+        while True:
+            exit_status = None
+            if not selector.get_map():
+                exit_status = _unreaped_exit_status_v1(process.pid)
             remaining_ns = deadline_ns - time.monotonic_ns()
             if remaining_ns <= 0:
                 raise GlobalReceiptVerifierErrorV1(GlobalReceiptVerifierRejectV1.PROCESS_TIMEOUT)
+            if exit_status is not None:
+                return bytes(output["stdout"]), bytes(output["stderr"]), exit_status
             for key, _ in selector.select(min(remaining_ns / 1_000_000_000, 0.05)):
                 if key.data == "stdin":
                     pending = _write_request_chunk_v1(selector, key.fd, pending)
                 else:
                     _read_output_chunk_v1(selector, key.fd, output[key.data])
-    return bytes(output["stdout"]), bytes(output["stderr"]), process.wait()

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+import selectors
+import signal
 import subprocess
 import sys
 import traceback
@@ -41,6 +43,7 @@ def verify(verifier: bridge.GlobalReceiptVerifierV1, **changes: object) -> None:
 def install_protocol_process(
     monkeypatch: pytest.MonkeyPatch,
     code: str,
+    inherited_descriptors: tuple[int, ...] = (),
 ) -> list[subprocess.Popen[bytes]]:
     """Substitute the launch only; sandbox memfd execution is unavailable locally.
 
@@ -55,6 +58,7 @@ def install_protocol_process(
         assert kwargs["env"] == {"RISC0_DEV_MODE": "0", "LC_ALL": "C"}
         assert kwargs["start_new_session"] is True
         assert command[0].startswith("/proc/self/fd/")
+        kwargs["pass_fds"] = (*kwargs["pass_fds"], *inherited_descriptors)  # type: ignore[misc]
         process = original_popen((sys.executable, "-c", code), **kwargs)  # type: ignore[call-overload]
         started.append(process)
         return process
@@ -230,6 +234,33 @@ def test_timeout_rejects_and_reaps_process_without_sleep(monkeypatch: pytest.Mon
     assert len(processes) == 1 and processes[0].returncode is not None
 
 
+@pytest.mark.parametrize("deadline_offset_ns", [-1, 0, 1])
+def test_exact_response_must_be_observed_before_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+    deadline_offset_ns: int,
+) -> None:
+    processes = install_protocol_process(monkeypatch, PROTOCOL_ACCEPT)
+    elapsed_ns = 0
+    observe = bridge._unreaped_exit_status_v1
+
+    def observe_at_deadline(process_id: int) -> int | None:
+        nonlocal elapsed_ns
+        status = observe(process_id)
+        if status is not None:
+            elapsed_ns = 5_000_000_000 + deadline_offset_ns
+        return status
+
+    monkeypatch.setattr(bridge.time, "monotonic_ns", lambda: elapsed_ns)
+    monkeypatch.setattr(bridge, "_unreaped_exit_status_v1", observe_at_deadline)
+    if deadline_offset_ns < 0:
+        verify(backend())
+    else:
+        with pytest.raises(bridge.GlobalReceiptVerifierErrorV1) as error:
+            verify(backend())
+        assert error.value.reason is bridge.GlobalReceiptVerifierRejectV1.PROCESS_TIMEOUT
+    assert len(processes) == 1 and processes[0].returncode == 0
+
+
 def test_reaped_process_pid_is_never_signalled(monkeypatch: pytest.MonkeyPatch) -> None:
     process = subprocess.Popen((sys.executable, "-c", ""), start_new_session=True)
     process.wait()
@@ -239,6 +270,59 @@ def test_reaped_process_pid_is_never_signalled(monkeypatch: pytest.MonkeyPatch) 
 
     monkeypatch.setattr(bridge.os, "killpg", forbidden)
     bridge._kill_and_reap_v1(process)
+
+
+@pytest.mark.parametrize("exit_status", [0, 2, -signal.SIGTERM])
+def test_exited_verifier_cannot_leave_same_group_descendant_running(
+    monkeypatch: pytest.MonkeyPatch,
+    exit_status: int,
+) -> None:
+    # EOF on this independent pipe requires every inherited writer to close.
+    # The descendant retains its writer while blocked, even after closing stdio.
+    read_fd, write_fd = os.pipe()
+    code = f"""
+import hashlib, os, signal, sys
+request = sys.stdin.buffer.read()
+if os.fork() == 0:
+    os.write({write_fd}, b'R')
+    for descriptor in (0, 1, 2):
+        os.close(descriptor)
+    signal.pause()
+    os._exit(99)
+sys.stdout.buffer.write(b'ZDXRV1OK' + hashlib.sha256(request).digest() + request[8:40])
+sys.stdout.buffer.flush()
+if {exit_status} < 0:
+    os.kill(os.getpid(), -{exit_status})
+sys.exit({exit_status})
+"""
+    processes = install_protocol_process(monkeypatch, code, (write_fd,))
+    group_closed = False
+    try:
+        if exit_status == 0:
+            verify(backend())
+        else:
+            with pytest.raises(bridge.GlobalReceiptVerifierErrorV1) as error:
+                verify(backend())
+            assert error.value.reason is bridge.GlobalReceiptVerifierRejectV1.VERIFICATION_REJECTED
+        os.close(write_fd)
+        write_fd = -1
+        assert os.read(read_fd, 1) == b'R'
+        with selectors.DefaultSelector() as selector:
+            selector.register(read_fd, selectors.EVENT_READ)
+            assert selector.select(2), "verifier descendant retained execution after return"
+        group_closed = os.read(read_fd, 1) == b''
+        assert group_closed, "verifier descendant did not close its inherited writer"
+        assert len(processes) == 1 and processes[0].returncode == exit_status
+    finally:
+        # A failing baseline leaves the controlled child holding this PGID.
+        if not group_closed and processes:
+            try:
+                os.killpg(processes[0].pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if write_fd >= 0:
+            os.close(write_fd)
+        os.close(read_fd)
 
 
 def test_exact_retry_repeats_verification_with_no_replay_consumption(
