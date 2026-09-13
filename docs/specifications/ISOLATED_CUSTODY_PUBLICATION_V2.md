@@ -104,6 +104,39 @@ identity. Foreign candidates and final files are preserved. Ordinary open and
 commit require owned regular 0600 single-link files and reject WAL/SHM artifacts.
 SQLite uses DELETE journaling and FULL synchronization.
 
+## Read-only historical audit
+
+`IsolatedCustodyPublisherV2.audit` checks a retained database copy against
+separately selected genesis, configuration, publication ID and authority root.
+The copy must meet the existing ownership and layout checks, including the
+original basename, because that basename participates in the authority identity.
+The caller also supplies one historical authentication candidate per record.
+Those candidates are untrusted policy witnesses: their prepared messages and
+signatures must exactly equal the stored evidence and select the pinned profile.
+Missing, duplicated or reordered witnesses do not substitute for the history.
+
+The audit opens SQLite with `mode=ro`, reuses complete economic/lineage replay,
+and closes the connection before verifier execution. Each retained occurrence
+then passes the same measured signature and receipt admission used by publication.
+No new journal fields, economic rules, format or commit function are introduced.
+Success returns an ordinary detached snapshot. Revoked history remains auditable
+without restoring writer authority; ordinary `open` retains its existing rules.
+
+Checkpoint provenance remains the caller's responsibility. Recomputable local
+hashes cannot authenticate a checkpoint, prove its freshness or prove finality.
+For independent assurance, run the audit with trusted configuration and checkpoint
+selection outside the proposer's trust domain. The development qualification tool
+rechecks its fresh isolated history in the same process; it does not establish
+that deployment separation. Verifier failure propagates without an audit result.
+The audit describes the acquired snapshot, even if another writer later advances
+the source. OS, native libraries, selected verifier evidence and data availability
+remain explicit assumptions. It neither activates nor publishes anything.
+
+Replay `tests/integration/test_isolated_custody_history_audit_v2.py` for exact
+history, rehashed forgeries, checkpoint/witness failures, revoked history,
+SQLite write refusal and interleaved margin/transfer evidence. Receipt protocol
+fixtures remain distinct from real cryptographic receipt qualification.
+
 ## Bounds and nonclaims
 
 This reference store admits at most 64 publication records and 64 MiB of record

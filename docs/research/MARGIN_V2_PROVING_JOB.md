@@ -52,7 +52,10 @@ python3 tools/qualify_margin_receipts_v2.py publish \
   --receipts "$MARGIN_RECEIPTS" --output "$FRESH_ISOLATED_DATABASE"
 ```
 
-The runner checks complete successor state, restart and exact retries. Commands
+The runner checks complete successor state, restart and exact retries, then
+reverifies the retained signatures and receipts through the read-only history
+audit. Its checkpoint is selected from the freshly qualified local run; this
+does not qualify an independent finality source or separate verification host. Commands
 commit individually; a failed run may retain an earlier successfully committed
 prefix in its isolated database. Its successful report alone does not close AS02:
 replay the configured integration tests and required genuine-proof substitutions

@@ -181,8 +181,17 @@ def publish(signature_path: Path, receipt_path: Path, receipts: Path, database: 
                 raise ValueError("qualification exact retry did not identify its original commit")
         if reopened.snapshot() != final:
             raise ValueError("qualification retry changed committed state")
+    audited = IsolatedCustodyPublisherV2.audit(
+        database, base.global_pre, base.assets, configuration, margin_state=base.margin,
+        authentication_candidates=tuple(case.candidate for case in cases),
+        expected_publication_id=final.publication_id,
+        expected_authority_root=final.authority.authority_root,
+    )
+    if audited != final:
+        raise ValueError("qualification read-only history audit changed the expected result")
     return {"schema": "zenodex/isolated-margin-receipt-publication/v2",
             "profile_root": base.profile.profile_id, "committed": final.sequence,
+            "retained_evidence_reverified": True,
             "post_state_root": final.global_state.state_root, "production_authority": False}
 
 

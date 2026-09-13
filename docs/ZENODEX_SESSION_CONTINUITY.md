@@ -122,6 +122,18 @@ regular-file reader. No new reader or economic transition was introduced.
 The security repairs are NOT_RESCORED; last reviewed V3/formal estimates below
 remain historical until an evidence-backed assessment is adopted.
 
+AS01 tracing confirmed that ordinary node/local-runner writers still use the
+legacy testnet path; the V2 publisher is used by the isolated qualification tool.
+The retained database's economic replay also accepts locally rehashed false
+signatures under its stated trusted-store premise. The explicit read-only
+`IsolatedCustodyPublisherV2.audit` now rechecks every retained occurrence through
+the existing signature/receipt admission, binds separately selected checkpoint
+roots and requires exact historical authentication witnesses. It adds no journal
+fields or economic write primitive. Native/fixture checks passed 21 tests with
+two genuine-receipt tests skipped. This prepares independent verification but
+does not deploy a separate enforcing consumer or qualify finality. AS02 remains
+pending the prepared remote proof job; all full AS exits remain open.
+
 ## September 13: isolated joint margin publication
 
 Implementation `6a4a806dbf0a3d1e987d8199a1e88387669f4c8b` connects the existing

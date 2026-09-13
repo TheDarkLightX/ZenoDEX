@@ -293,3 +293,20 @@ the margin role and has no production launcher or external-effect mount.
 This is source classification of the new caller, not refreshed deployment-wide
 writer closure. Genuine receipt publication is pending; AS01/AS03 and the
 honest publisher/OS/genesis premises remain open.
+
+### Current reachable consumers and historical audit
+
+Inspection at `5254febf8d7cf326f63b1231404346be97075770` found the node's
+`append_dex_transaction_v0` and local runner still consume the legacy
+`apply_body_transactions_v0` path. The V2 publisher's only non-test caller found
+under `src` and `tools` was the isolated qualification CLI. The M6 delivery port
+retains committed-effect checks but no concrete destination transport was found
+in those paths. These source findings do not enumerate a deployed fleet.
+
+The new `IsolatedCustodyPublisherV2.audit` opens a retained copy read-only,
+reuses economic/lineage replay, closes the connection and rechecks each exact
+stored signature/receipt through existing admission. Independently selected
+genesis/configuration/checkpoint inputs and historical policy witnesses are
+required; local hashes alone establish none of those premises. The qualification
+CLI consumes the audit without acquiring a new write primitive. Deployment
+separation, finality, destination enforcement and unknown writers remain open.

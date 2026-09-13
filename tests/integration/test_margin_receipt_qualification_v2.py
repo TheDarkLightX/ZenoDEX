@@ -148,6 +148,38 @@ def test_genuine_receipts_commit_complete_lifecycle_and_survive_restart(measured
     signature, receipt, _, _ = measured_paths
     result = qualification.publish(signature, receipt, Path(configured), tmp_path / "qualified.sqlite")
     assert result["committed"] == 3 and result["production_authority"] is False
+    assert result["retained_evidence_reverified"] is True
+
+
+def test_actual_receipt_verifier_rejects_fabricated_but_consistent_history(measured_paths, tmp_path, monkeypatch):
+    from src.integration import global_receipt_verifier_v1 as transport
+
+    signature, receipt, _, _ = measured_paths
+    configuration, cases = qualification.build_workload(signature, receipt)
+    case = cases[0]
+    database = tmp_path / "forged-history.sqlite"
+    # Simulate a compromised publication-time receipt result. Real BLS is
+    # still required. The audit below restores the actual measured endpoint.
+    def fabricated_success(descriptor, request, timeout):
+        return b"ZDXRV1OK" + hashlib.sha256(request).digest() + request[8:40], b"", 0
+
+    with IsolatedCustodyPublisherV2.create(
+        database, case.global_pre, case.assets, configuration, margin_state=case.margin,
+    ) as publisher:
+        with monkeypatch.context() as compromised:
+            compromised.setattr(transport, "_invoke_v1", fabricated_success)
+            result = publisher.publish(case.candidate, case.request, receipt_bytes=b"{}")
+            assert result.status is CustodyPublicationStatusV2.COMMITTED
+        final = publisher.snapshot()
+    before = database.read_bytes(), _logical_store(database)
+    with pytest.raises(GlobalReceiptVerifierErrorV1) as failure:
+        IsolatedCustodyPublisherV2.audit(
+            database, case.global_pre, case.assets, configuration, margin_state=case.margin,
+            authentication_candidates=(case.candidate,), expected_publication_id=final.publication_id,
+            expected_authority_root=final.authority.authority_root,
+        )
+    assert failure.value.reason.value == "VERIFICATION_REJECTED"
+    assert (database.read_bytes(), _logical_store(database)) == before
 
 
 def test_genuine_receipt_substitution_and_reordering_cannot_change_the_store(measured_paths, tmp_path):

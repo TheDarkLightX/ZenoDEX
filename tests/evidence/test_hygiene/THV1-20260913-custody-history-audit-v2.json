@@ -1,0 +1,189 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260913-custody-history-audit-v2",
+  "created_date": "2026-09-13",
+  "claim_scope": "Read-only complete isolated history replay with retained-message binding and repeated selected BLS/receipt admission. Local forged histories are rejected; checkpoint provenance, independent deployment and genuine margin receipt qualification remain external obligations.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CUSTODY-V2-HISTORICAL-CRYPTO-RECHECK",
+    "CUSTODY-V2-INDEPENDENT-CHECKPOINT-BINDING",
+    "CUSTODY-V2-READ-ONLY-AUDIT"
+  ],
+  "failure_modes": [
+    "Local history hashes are recomputed around a false signature or receipt.",
+    "A valid candidate for another message substitutes for retained authentication evidence.",
+    "Missing, reversed or caller-mutated witnesses qualify a different history.",
+    "Auditing revoked history acquires a database writer or restores authority."
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/isolated_custody_publisher_v2.py",
+      "sha256": "efa69676f3313d4c865396a5714de1e94570e9b3dbd0268cf1e5f08f1e3880fa"
+    },
+    {
+      "path": "src/integration/custody_publication_record_v2.py",
+      "sha256": "5946cd5788422c0d93c5b6b06ca04e9f0bbecfbce986c3ebcb5353fff3d2f18e"
+    },
+    {
+      "path": "src/integration/profiled_asset_lane_custody_receipt_v2.py",
+      "sha256": "bfc605a408e308aab2f8f0dc61344f7eacecbd602e4e5dbe4a5dbe87e6752242"
+    },
+    {
+      "path": "src/integration/profiled_perps_margin_receipt_v2.py",
+      "sha256": "5567e33afce32c7f0af2ff06b55b3c088261b168e405a597549623c419d10d5f"
+    },
+    {
+      "path": "tools/qualify_margin_receipts_v2.py",
+      "sha256": "ed50dd25ff51aee25d038edbb153ab7cf9703fce24e0c4ce8b4c76b711a5a92f"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_isolated_custody_history_audit_v2.py",
+      "sha256": "c1a70845b98b40b5c07451d1e38c0b6ad4f3fc89011959c521209dd13d39978f",
+      "node_ids": [
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_retained_history_when_audited_then_reverify_and_leave_database_unchanged",
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_rehashed_false_signature_when_audited_then_conserving_forgery_rejects",
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_rehashed_false_receipt_when_audited_then_backend_rejection_propagates",
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_changed_retained_policy_witness_when_audited_then_no_verifier_io",
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_missing_witness_or_wrong_checkpoint_when_audited_then_no_verifier_io",
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_hostile_or_oversized_authentication_witnesses_when_audited_then_fail_before_io",
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_revoked_writer_when_audited_then_history_verifies_without_restoring_authority",
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_audit_connection_cannot_write_and_is_closed_before_external_verification",
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_empty_history_when_audited_then_no_crypto_or_writer_authority",
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_interleaved_margin_and_transfer_history_when_audited_then_exact_order_and_roles",
+        "tests/integration/test_isolated_custody_history_audit_v2.py::test_native_bls_reauthenticates_history_and_rejects_rehashed_forgery"
+      ]
+    },
+    {
+      "path": "tests/integration/test_margin_receipt_qualification_v2.py",
+      "sha256": "47a8d6f96e5e03cb94b02288ee8bc8ad45c9242292379e9e791f74b4aec5f7e3",
+      "node_ids": [
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_measured_signature_artifact_rebinds_profile_and_authentication",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_receipt_fifo_rejects_without_waiting_for_a_writer",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_receipt_acquisition_rejects_links_empty_and_oversize_files",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_prepared_workload_is_deterministic_and_exact_guest_execution_agrees",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_substituted_executable_cannot_select_a_new_proving_context",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_actual_signature_and_receipt_rejections_leave_complete_store_unchanged",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_genuine_receipts_commit_complete_lifecycle_and_survive_restart",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_actual_receipt_verifier_rejects_fabricated_but_consistent_history",
+        "tests/integration/test_margin_receipt_qualification_v2.py::test_genuine_receipt_substitution_and_reordering_cannot_change_the_store"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "bdd_scenario",
+    "stateful",
+    "negative_regression",
+    "mutation",
+    "boundary"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Arrange a committed isolated history; substitute retained evidence and recompute all local identifiers; audit against selected roots and observe cryptographic rejection. Independent py_ecc/Rust BLS and native SQLite checks supplement receipt protocol fixtures."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Compare all SQLite tables and exact file bytes for single-writer audit success and rejection. An injected SQL write must fail, and the connection must be closed before receipt execution."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "history-and-witness-shape",
+      "points": [
+        "zero, one and four records",
+        "missing and reversed witnesses",
+        "65 witnesses rejected before acquisition",
+        "foreign tuple/object shapes reject without getters"
+      ]
+    },
+    {
+      "name": "authority-and-evidence",
+      "points": [
+        "current and wrong publication/authority checkpoint",
+        "revoked history remains readable while writer open fails",
+        "rehashed signature, receipt and authorization-ID substitution",
+        "caller witness mutation during preceding verifier execution"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Bypass retained cryptographic reauthentication.",
+      "killed_by": "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_rehashed_false_signature_when_audited_then_conserving_forgery_rejects",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "        reader._audit_records(records, candidates)"
+        ],
+        "replacement_lines": [
+          "        pass"
+        ]
+      }
+    },
+    {
+      "description": "Ignore the independently selected publication checkpoint.",
+      "killed_by": "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_missing_witness_or_wrong_checkpoint_when_audited_then_no_verifier_io",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "            expected_publication_id, expected_authority_root,",
+          "        ):",
+          "            raise ValueError(\"audit history differs"
+        ],
+        "replacement_lines": [
+          "            head.publication_id, expected_authority_root,",
+          "        ):",
+          "            raise ValueError(\"audit history differs"
+        ]
+      }
+    },
+    {
+      "description": "Stop binding the supplied prepared message to retained authentication bytes.",
+      "killed_by": "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_changed_retained_policy_witness_when_audited_then_no_verifier_io",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "                or message != record.authentication_message",
+          ""
+        ],
+        "replacement_lines": [
+          ""
+        ]
+      }
+    },
+    {
+      "description": "Acquire a writable database while auditing.",
+      "killed_by": "tests/integration/test_isolated_custody_history_audit_v2.py::test_audit_connection_cannot_write_and_is_closed_before_external_verification",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "            reader._connect(access=\"ro\")"
+        ],
+        "replacement_lines": [
+          "            reader._connect(access=\"rw\")"
+        ]
+      }
+    },
+    {
+      "description": "Defer ownership of later authentication candidates until after external execution.",
+      "killed_by": "tests/integration/test_isolated_custody_history_audit_v2.py::test_given_interleaved_margin_and_transfer_history_when_audited_then_exact_order_and_roles",
+      "mutant": {
+        "path": "src/integration/isolated_custody_publisher_v2.py",
+        "needle_lines": [
+          "        candidates = tuple(map(snapshot_command_authentication_candidate_v2, authentication_candidates))"
+        ],
+        "replacement_lines": [
+          "        candidates = authentication_candidates"
+        ]
+      }
+    }
+  ],
+  "nonclaims": [
+    "Receipt protocol fixtures are not RISC0 proofs. Genuine margin publication remains skipped until the three remote receipts exist.",
+    "The two roots must come from independently selected trustworthy evidence; this API authenticates neither checkpoint finality nor freshness.",
+    "No separate host, independent finality consumer, effect destination, writer activation, production promotion, full formal/runtime refinement or maximum-history throughput qualification.",
+    "Ordinary open retains its stated publication-time cryptographic trust assumption; audit is explicit and returns only data."
+  ]
+}

@@ -3,7 +3,9 @@
 Trusted genesis/configuration and an honest publisher/SQLite/filesystem are
 premises. This adapter has no live effect mount, migration, external monotonic
 anchor or production activation. Recovery replays economics and bindings;
-cryptographic success remains a publication-time premise.
+ordinary recovery relies on publication-time cryptographic success. The
+separate read-only audit rechecks retained evidence against selected policy
+and checkpoint inputs; its result grants no writer or finality authority.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from threading import Lock
-from typing import cast
+from typing import Literal, cast
 
 from ..core.asset_lane_coordinator_v2 import _route_and_owned_command_v2
 from ..core.asset_lane_coordinator_values_v2 import AssetLaneCommandV2, AssetLaneRejectedV2
@@ -30,7 +32,10 @@ from ..core.asset_lane_custody_input_v2 import prepare_asset_lane_custody_global
 from ..core.asset_lane_custody_profile_binding_v2 import _require_global_predecessor_binding_v2
 from ..core.asset_lane_custody_state_v2 import AssetLaneCustodyStateV2
 from ..core.asset_lane_state_v2 import AssetLaneContextV2, _snapshot_asset_lane_context_v2
-from ..core.economic_command_authentication_types_v2 import EconomicCommandAuthenticationCandidateV2
+from ..core.economic_command_authentication_types_v2 import (
+    EconomicCommandAuthenticationCandidateV2,
+    snapshot_command_authentication_candidate_v2,
+)
 from ..core.economic_command_authentication_v2 import (
     prepare_isolated_economic_command_authentication_v2,
 )
@@ -45,7 +50,11 @@ from ..core.global_economic_authority_head_v2 import (
 )
 from ..core.global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from ..core.global_economic_state_v2 import GlobalEconomicStateV2
-from ..core.global_settlement_primitives_v2 import canonical_global_bytes_v2, hash_global_v2
+from ..core.global_settlement_primitives_v2 import (
+    _require_root_v2,
+    canonical_global_bytes_v2,
+    hash_global_v2,
+)
 from ..core.global_settlement_types_v1 import EconomicProfileSnapshotV1, ProfileStatusV1
 from ..core.global_settlement_types_v2 import LaneIdV2
 from ..core.perps_margin_claims_v2 import require_margin_claim_projection_v2
@@ -333,6 +342,74 @@ class IsolatedCustodyPublisherV2:
             raise
 
     @classmethod
+    def audit(
+        cls,
+        path: str | Path,
+        global_state: GlobalEconomicStateV2,
+        custody_state: AssetLaneCustodyStateV2,
+        configuration: PublicationConfigurationV2,
+        *,
+        authentication_candidates: tuple[EconomicCommandAuthenticationCandidateV2, ...],
+        expected_publication_id: str,
+        expected_authority_root: str,
+        margin_state: PerpsMarginStateV2 | None = None,
+    ) -> CustodyPublicationSnapshotV2:
+        """Reauthenticate a copied history without acquiring a writer connection.
+
+        Select genesis, configuration and both checkpoint roots independently
+        of the copy. Candidates supply the historical policy witnesses; their
+        complete prepared messages and signatures must match retained records.
+        The returned detached snapshot says nothing about subsequent writes,
+        finality, revocation provenance or freshness of the selected checkpoint.
+        """
+        _require_root_v2(expected_publication_id, name="audit publication checkpoint")
+        _require_root_v2(expected_authority_root, name="audit authority checkpoint")
+        if type(authentication_candidates) is not tuple:
+            raise TypeError("audit authentication candidates must be an exact tuple")
+        if len(authentication_candidates) > MAX_CUSTODY_PUBLICATIONS_V2:
+            raise ValueError("audit authentication candidates exceed history capacity")
+        candidates = tuple(map(snapshot_command_authentication_candidate_v2, authentication_candidates))
+        reader = cls._prepare(path, global_state, custody_state, configuration, margin_state)
+        try:
+            reader._connect(access="ro")
+            head, records = reader._read()
+        finally:
+            reader.close()
+        if (head.publication_id, head.authority.authority_root) != (
+            expected_publication_id, expected_authority_root,
+        ):
+            raise ValueError("audit history differs from independently selected checkpoint")
+        if len(candidates) != len(records):
+            raise ValueError("audit requires exactly one authentication candidate per record")
+        reader._audit_records(records, candidates)
+        return head
+
+    def _audit_records(
+        self, records: tuple[CustodyPublicationRecordV2, ...],
+        candidates: tuple[EconomicCommandAuthenticationCandidateV2, ...],
+    ) -> None:
+        # The read transaction and connection are already closed. Reuse the
+        # publication verifier on detached values, never its commit closure.
+        for record, candidate in zip(records, candidates, strict=True):
+            owned, _, message = prepare_isolated_economic_command_authentication_v2(candidate)
+            if (
+                canonical_global_bytes_v2(owned.profile) != canonical_global_bytes_v2(self._configuration.profile)
+                or message != record.authentication_message
+                or owned.envelope.signature_bytes != record.signature
+            ):
+                raise ValueError("audit authentication witness differs from retained record or profile")
+            replay = record.replay()
+            predecessor = CustodyPublicationSnapshotV2(
+                record.source_publication_id, record.sequence - 1, self._expected_authority,
+                replay.global_pre, replay.lane_pre, replay.margin_pre,
+            )
+            frame, statement = self._verify_request_v2(
+                owned, replay.context, replay.command, predecessor, record.receipt,
+            )
+            if frame != record.frame or statement != record.statement:
+                raise ValueError("audit verified statement differs from retained publication")
+
+    @classmethod
     def _prepare(
         cls,
         path: str | Path,
@@ -368,13 +445,16 @@ class IsolatedCustodyPublisherV2:
             configuration,
         )
 
-    def _connect(self, storage_path: Path | None = None, expected_links: int = 1) -> None:
+    def _connect(
+        self, storage_path: Path | None = None, expected_links: int = 1,
+        *, access: Literal["ro", "rw"] = "rw",
+    ) -> None:
         self._storage_path = self._path if storage_path is None else storage_path
         self._expected_links = expected_links
         self._inode = _private_inode(self._storage_path, expected_links)
         self._identity_fd = os.open(self._storage_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
         self._connection = sqlite3.connect(
-            self._storage_path.as_uri() + "?mode=rw",
+            self._storage_path.as_uri() + "?mode=" + access,
             uri=True,
             isolation_level=None,
             check_same_thread=False,
