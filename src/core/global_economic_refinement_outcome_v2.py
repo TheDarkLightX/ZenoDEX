@@ -20,6 +20,7 @@ from .global_economic_state_effect_refinement_v2 import (
     GlobalEconomicStateEffectRefinementV2,
     refine_global_economic_state_effects_v2,
 )
+from .global_settlement_resource_limits_v2 import StateResourceLimitExceededV2
 from .global_settlement_types_v2 import (
     ExternalOutboxEnqueueV2,
     GlobalEconomicEffectPlanV2,
@@ -224,7 +225,7 @@ def classify_global_economic_refinement_error_v2(
 ) -> GlobalEconomicRefinementRejectCodeV2:
     """Classify an exact current checker error, failing closed on message drift."""
 
-    if type(error) not in (TypeError, ValueError):
+    if type(error) not in (TypeError, ValueError, StateResourceLimitExceededV2):
         return GlobalEconomicRefinementRejectCodeV2.INTERNAL_CONTRACT_DRIFT
     return _CODE_BY_VALIDATION_MESSAGE_V2.get(
         str(error),

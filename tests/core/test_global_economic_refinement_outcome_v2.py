@@ -29,6 +29,7 @@ from src.core.global_economic_state_v2 import (
     LaneStateRootV2,
     ReplayStateV2,
 )
+from src.core.global_settlement_resource_limits_v2 import StateResourceLimitExceededV2
 from src.core.global_settlement_types_v2 import (
     ALL_LANE_IDS_V2,
     ZERO_ROOT_V2,
@@ -499,6 +500,19 @@ def test_wrapper_preserves_exact_candidate_type_boundary() -> None:
     with pytest.raises(TypeError, match="candidate must be exact"):
         refine_global_economic_state_effects_outcome_v2(
             cast(GlobalEconomicStateEffectRefinementCandidateV2, object())
+        )
+
+
+def test_resource_rejection_keeps_unknown_types_and_messages_fail_closed() -> None:
+    class ForeignResourceError(StateResourceLimitExceededV2):
+        pass
+
+    for error in (
+        ForeignResourceError("global refinement consumed occurrences exceeds its 64-item ceiling"),
+        StateResourceLimitExceededV2("unmapped resource condition"),
+    ):
+        assert classify_global_economic_refinement_error_v2(error) is (
+            GlobalEconomicRefinementRejectCodeV2.INTERNAL_CONTRACT_DRIFT
         )
 
 
