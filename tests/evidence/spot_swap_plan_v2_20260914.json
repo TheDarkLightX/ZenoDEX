@@ -1,0 +1,116 @@
+{
+  "schema": "zenodex/spot-swap-plan-review/v1",
+  "subject": "c2d0085d6186e71262fb36f2758bed1fb9459ebe",
+  "parent": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
+  "status": "SCOPED_PASS_UNMOUNTED",
+  "authority": "NONE",
+  "assessment_status": "NOT_RESCORED",
+  "source_sha256": {
+    "src/core/spot_swap_plan_v2.py": "bfbbd0ae195bce93aae7705177f7cac42d590bd270179bfa14d578f84fe538df",
+    "tests/core/test_spot_swap_plan_v2.py": "f6be52dd3ec4d3d17e365cbff65b278958ff0cbc3428c1a4d31ea99d627360ef",
+    "docs/specifications/TAUFOLD_SWAP_INTEGRATION_V2.md": "15648f7532f73f1ae4a07a5a4d83d22dba52889c527f3220f535913636a06dce",
+    "src/kernels/python/settlement_swap_runtime_v1.py": "dbb6cad959e0995cdbdf5cd3281a07f68074f049e554d929ce40bbe6dc10f468",
+    "src/state/intents.py": "7cf7e76edfb1e6c1a51d237c12923a770521d34e6e180f18a35134387d20f3cc",
+    "src/state/pools.py": "ef39554b3c4b2f877a336f47dda0b21cefce84fc49f6d7f8db7c9e4c7289f768"
+  },
+  "obligations": [
+    "W02",
+    "W06",
+    "W07",
+    "W08"
+  ],
+  "behavior": {
+    "before": "No pure owned single-pool plan for the real SwapIntent through the intended TauFold integration.",
+    "after": "An exact-input/output CPMM intent in either direction yields immutable complete pre/post pool snapshots and account balances/deltas, or a typed economic rejection without state change.",
+    "policy": "Existing timestamp deadline, ceil fee, floor output, exact-output 200 bps overdelivery ceiling and all-fee-in-pool isolated policy. No whole-product fee allocation decision.",
+    "construction": "Exact types and bounded flat intent fields are captured before invoking legacy constructors; foreign protocol hooks are not executed.",
+    "actual_spend_control": "For pool 1000/1000 at 30 bps, output 7 and maximum 10 produces gross debit 9 and fee 1. Only authenticated terminal settlement may release the unused 1."
+  },
+  "line_changes": {
+    "runtime_added": 303,
+    "tests_added": 259,
+    "docs_added": 117,
+    "removed": 0
+  },
+  "checks": [
+    {
+      "command": "python -m pytest -q tests/core/test_spot_swap_plan_v2.py tests/core/test_settlement_swap_runtime_v1.py",
+      "result": "54 passed: 42 planner and 12 existing quote tests. Includes 135 independently brute-forced exact-output cases and four killed source mutants.",
+      "seconds": 0.91,
+      "log_sha256": "918abd4ee591f0827586c7f8d33ae04fb6cd80b715bca6328a8246e2a562b6c1"
+    },
+    {
+      "command": "python -m ruff check src/core/spot_swap_plan_v2.py tests/core/test_spot_swap_plan_v2.py && python -m mypy src/core/spot_swap_plan_v2.py",
+      "result": "Passed"
+    },
+    {
+      "command": "redflags.py src/core/spot_swap_plan_v2.py tests/core/test_spot_swap_plan_v2.py",
+      "result": "0 findings; scanner silence is not assurance."
+    }
+  ],
+  "independent_review": {
+    "reviewer": "gpt-daybreak-blue-latest max, read-only; harness-selected identity",
+    "verdict": "SCOPED PASS after local forged-object capture repair; no remaining critical/major blocker in this unmounted component.",
+    "source_sha256": "bfbbd0ae195bce93aae7705177f7cac42d590bd270179bfa14d578f84fe538df",
+    "test_sha256": "f6be52dd3ec4d3d17e365cbff65b278958ff0cbc3428c1a4d31ea99d627360ef",
+    "doc_note": "Reviewer saw the preceding doc hash bab12edd1597c834ffa7acd7d48854d04602934692c3e37efc5f8a2de3ef728a. Root then added three lines explicitly retaining pool-genesis/LP-backing nonclaims; no runtime or test change.",
+    "arithmetic_replay": {
+      "artifact": "spot_swap_plan_v2_independent_oracle.py; retained private review artifact, not a mounted release gate",
+      "artifact_sha256": "c6c59e8d9cdcddd223590a7c103292820f2d24cbade8247ecedab99e8198ce52",
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 spot_swap_plan_v2_independent_oracle.py --repo CHECKOUT",
+      "root_independent_replay": "PASS",
+      "cases": 1536,
+      "exact_plans": 756,
+      "quote_rejections": 780,
+      "mismatches": 0,
+      "domain": "Both kinds/directions; input reserves 2, 9, 17, 53; output reserves 2, 11, 29, 71; fees 0, 30, 1000, 9999; six boundary amounts per combination.",
+      "log_sha256": "2050ea8c1b2627665a598be7eb3d8e44652cc3a9771d20bcf72bf4d9ee815fd8"
+    },
+    "finding": {
+      "id": "SPOT-FORGED-EXACT-INTENT-HOOK",
+      "status": "repaired",
+      "before": "Exact frozen intent with forged backing/pair or module/intent_id value invoked attacker Python hooks; missing slots escaped as AttributeError.",
+      "after": "Require exact backing and pairs before iteration/unpack, exact ordered unique keys and scalar values, top-level type checks before reconstruction, normalized missing-slot rejection.",
+      "negative_before": "8 failed/2 passed among 10 new cases. Later retained order/duplicate controls extend the family.",
+      "before_log_sha256": "1ddda3adc2e287065f8c3016b5f6802e93efd11bb3c041e3f22b6af57f55520d"
+    },
+    "low_nonblocking": "An extra empty-string key raises structural ValueError rather than UNSUPPORTED_FIELDS. No plan, mutation or authority; this is within the declared structural-rejection contract."
+  },
+  "external_lessons": {
+    "fcis_source": "3b2224d5a081e7ab3e2e282ad6704bcb177d25ac",
+    "source_level_only": "Reviewed bounded-completion and PreparedFold contracts. No FCIS 1.1 release replay, dependency upgrade or economic authority follows.",
+    "taufold_boundary": "Reservation limits delegated budget; ZenoDEX still owns funds. Preserve authenticated committed dispatch, exact BLS intent, economic receipt and single publisher. Response loss remains pending; cancellation requires a durable destination fence."
+  },
+  "failed_delegate": {
+    "model_id": "claude-fable-5-1",
+    "effort": "high",
+    "session_id": "0ae2f87e-b8a1-483b-a6a7-5f7c345602e8",
+    "status": "Provider session limit; no implementation/tool result or automatic retry.",
+    "resources": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "elapsed_ms": 1038,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    },
+    "raw_output_sha256": "50c9c3fadf119c61a3732630730ad58a1ea0eeb1d1ef01a97ba41d140572c2bc",
+    "usage_observation": "Before attempted launch: 91% session, 16% weekly all models, 32% weekly Fable. Displayed reset is not observed availability."
+  },
+  "root_resources": "Implementation and integration performed directly after user takeover instruction. Exact model resource counts/billing are unknown.",
+  "unrun": [
+    "New RISC0 proof generation",
+    "Rust twin/parity for this planner",
+    "ESSO/Kani/Tau release replay",
+    "FCIS 1.1 release gates",
+    "Authenticated end-to-end publication"
+  ],
+  "nonclaims": [
+    "Caller context/plan authority",
+    "Current head, time, nonce or source authentication",
+    "Complete LP claimant/global projection or valid pool genesis",
+    "Proof/receipt publication",
+    "Economic recovery or terminal completion",
+    "Whole lane/core/product completion"
+  ],
+  "next_acceptance": "Derive complete global/LP state from authentic current stores, admit authentic TauFold dispatch and exact economic receipt through the existing publisher, and return an authenticated idempotent terminal result."
+}

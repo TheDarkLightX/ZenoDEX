@@ -2,10 +2,10 @@
 
 Status: advisory planning baseline. No completion or promotion authority.
 
-Latest scoped amendment: **V3 24.828%; formal core 21.440%**, subject
-`e05f293e3…`. The September 13 assessment below records the +0.560/0.000
-percentage-point change since the previous adopted subject. Historical tables
-retain their original subjects and must not be presented as current rescoring.
+Latest scoped amendment: **V3 24.828%; formal core 21.547%**, subject
+`388b5f4b1…`. The September 14 connected-margin entry records formal **+0.107
+percentage points**, with other rows inherited. The later unmounted SwapIntent
+planner remains NOT_RESCORED. Historical tables retain their original subjects.
 
 Both reviewers inspected committed source at `70f9157ef097384c6b48db22c254d8134f19f8f5`.
 Fable used `claude-fable-5-1` at Max; Opus used `claude-opus-5` at Max.
@@ -808,3 +808,42 @@ The net range adds/removes runtime **37/7**, tests **346/4**, and support
 estimates of their earlier subject. Full AS07, genuine margin receipts and
 production gates remain open. Fable 5.1 now owns the connected margin proof
 bundle; delegation itself receives no delivery or formal credit.
+
+### September 14: connected margin proof and direct swap implementation
+
+`acad4d883…` → `388b5f4b1…` connects the account and claim proofs to the
+constructed joint margin/global successor. [Reviewed evidence](../../tests/evidence/perps_margin_connected_proof_v2_20260914.json)
+records all 19 shared Verified fields derived under explicit premises, 38 finite
+correspondence cases, nine killed source mutants and 14 passing final proof
+tests. Root repaired missing statement/rejection binding observations and an
+ambiguous digest-table oracle; it narrowed overstated byte, digest and capacity
+claims. Fable implemented the draft; independent Astra review and root repairs
+share this delivery once. Growth: proofs **+4,396/−0**, tests **+971/−0**.
+No economic runtime, guest, wire or publication behavior changed.
+
+Only formal margin deposit and withdrawal change: semantics stays .60, proof
+.55→.70, refinement .55→.60, uncertainty H. The unchanged calculator yields
+**21.440%→21.547% (+0.107 pp)**, with judgment scenarios **15.718–27.633%**.
+V3 remains **24.828%**, scenarios **17.512–32.906%**. Denominators, all other
+rows and qualification flags are inherited; this is not a fresh whole-program
+assessment. No full lane, workstream or value-safety gate closes. Remaining
+proof limits include universal source refinement, canonical bytes, authenticated
+frame actions and capacity exit availability. Three genuine margin receipts
+still need a proof host and current-store publication replay.
+
+`388b5f4b1…` → `c2d0085d6…` adds actual-SwapIntent economic planning for
+[the isolated TauFold integration](../specifications/TAUFOLD_SWAP_INTEGRATION_V2.md):
+runtime **+303/−0**, tests **+259/−0**, documentation **+117/−0**. Root
+implemented after Claude's immediate session-limit refusal. 54 focused tests
+and independent Daybreak review pass; forged-object callbacks were reproduced
+and repaired before commit. The planner reuses existing CPMM arithmetic and
+returns immutable account/pool deltas with the full rounded fee retained.
+It has no authentication or publication authority and is **NOT_RESCORED**.
+The required next behavior is a complete global/LP projection through the
+existing publisher, authentic source dispatch and terminal reconciliation.
+
+These implementation ranges total **+6,046/−0** lines, of which 117 are docs;
+formal credit belongs to the reviewed margin change once. Evidence and account
+updates are separate support. The older 147-line accounting tail is carried
+once. A temporary JSON pretty-print expansion was discarded; the adopted
+assessment preserves the existing layout and changes only the reviewed rows.

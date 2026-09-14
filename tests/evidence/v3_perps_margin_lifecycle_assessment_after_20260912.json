@@ -754,9 +754,9 @@
   },
   "formal_core": {
     "denominator_weight": 140,
-    "central_percent": 21.44,
-    "lower_percent": 15.611,
-    "upper_percent": 27.526,
+    "central_percent": 21.547,
+    "lower_percent": 15.718,
+    "upper_percent": 27.633,
     "rows": [
       {
         "id": "FC:ASSET_TRANSFER",
@@ -912,9 +912,9 @@
         "id": "FC:PERPS_MARKET",
         "kind": "lane",
         "weight": 11,
-        "low": 0.203364,
-        "central": 0.267,
-        "high": 0.325182,
+        "low": 0.217,
+        "central": 0.280636,
+        "high": 0.338818,
         "evidence": [
           {"path": "src/core/perps_margin_module_v1.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "lean-mathlib/Proofs/PerpEpochSafety.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -932,11 +932,14 @@
           {"path": "tests/evidence/perps_margin_global_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "zk/perps_margin_global_v2/src/global.rs", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "tests/core/test_perps_margin_global_rust_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
-          {"path": "tests/evidence/perps_margin_rust_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"}
+          {"path": "tests/evidence/perps_margin_rust_v2_20260913.json", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "lean-mathlib/Proofs/PerpsMarginGlobalV2.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/formal/test_lean_perps_margin_global_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json", "class": "VERIFIED_SOURCE_INSPECTION"}
         ],
         "capabilities": [
-          {"id": "margin_deposit", "sem": 0.6, "prf": 0.55, "ref": 0.55, "unc": "H", "increment_rationale": "Prior episode proof plus37actual complete-output Python/Rust cases through the joint V2 successor, including ordinary transfer and exact typed rejections. Universal refinement and genuine receipt/production qualification remain open. The later isolated admission/store tests add no formal credit."},
-          {"id": "margin_withdraw", "sem": 0.6, "prf": 0.55, "ref": 0.55, "unc": "H", "increment_rationale": "Prior episode proof plus37actual complete-output Python/Rust cases through the joint V2 successor, including ordinary transfer and exact typed rejections. Universal refinement and genuine receipt/production qualification remain open. The later isolated admission/store tests add no formal credit."},
+          {"id": "margin_deposit", "sem": 0.6, "prf": 0.7, "ref": 0.6, "unc": "H", "increment_rationale": "Connected Lean constructor derives all 19 shared Verified fields from account and claim transitions; bounded 38-case economic correspondence plus independent binding/frame checks and nine killed mutants. Pairwise margin-root separation remains an explicit premise. Universal source refinement, canonical byte equivalence, genuine receipts and capacity exit availability remain open."},
+          {"id": "margin_withdraw", "sem": 0.6, "prf": 0.7, "ref": 0.6, "unc": "H", "increment_rationale": "Connected Lean constructor derives all 19 shared Verified fields from account and claim transitions; bounded 38-case economic correspondence plus independent binding/frame checks and nine killed mutants. Pairwise margin-root separation remains an explicit premise. Universal source refinement, canonical byte equivalence, genuine receipts and capacity exit availability remain open."},
           {"id": "position_open", "sem": 0.3, "prf": 0.3, "ref": 0.1, "unc": "V", "legacy_only": true},
           {"id": "position_adjust", "sem": 0.25, "prf": 0.25, "ref": 0.08, "unc": "V", "legacy_only": true},
           {"id": "funding_accrual", "sem": 0.3, "prf": 0.35, "ref": 0.1, "unc": "H", "legacy_only": true},
@@ -1226,12 +1229,12 @@
   },
   "assessment_basis": {
     "kind": "SCOPED_REVIEWED_AMENDMENT",
-    "inherited_subject": "6a4a806dbf0a3d1e987d8199a1e88387669f4c8b",
+    "inherited_subject": "e05f293e3eab020b5790252007fe43316167bb39",
     "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
-    "inherited_assessment_sha256": "5178bdfebd9a892b4db6a1f9bed30204e048ccb162f035cc54cfa69890eabe1a",
-    "inherited_storage_commit": "301a438967c9a1cd6bf23e1747025481ffc23fff",
-    "scope": "Only W03,W06,W10,W11 change; Fable independent source review plus root review. All 103 capability scores, formal rows, weights and qualification flags are inherited. Current uncommitted resource-quota tests receive no credit.",
-    "review_evidence": "tests/evidence/v3_attack_surface_assessment_review_20260913.json"
+    "inherited_assessment_sha256": "f65d9d02b20b9380578546fa0ce8bd57d7e1ef72f6d5d904ea972e4cc589cfac",
+    "inherited_storage_commit": "acad4d8831066c1c87e83df3e28bd281937d8639",
+    "scope": "Only formal margin_deposit and margin_withdraw proof/refinement judgments change after independent Astra review and corrected root replay. All full V3 rows, other formal rows, denominators and qualification flags are inherited. AS07 and the separate unmounted Spot plan are not rescored.",
+    "review_evidence": "tests/evidence/perps_margin_connected_proof_v2_20260914.json"
   },
-  "subject": "e05f293e3eab020b5790252007fe43316167bb39"
+  "subject": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4"
 }

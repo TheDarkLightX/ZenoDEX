@@ -1,0 +1,237 @@
+{
+  "schema": "zenodex/connected-margin-proof-review/v1",
+  "subject": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
+  "parent": "acad4d8831066c1c87e83df3e28bd281937d8639",
+  "status": "SCOPED_PASS_AFTER_REVIEW_REPAIRS",
+  "authority": "NONE",
+  "source_sha256": {
+    "lean-mathlib/Proofs/GlobalSettlementCoreV2.lean": "2ce254367dc8e8299f82f8a93e09c1d470f3a218ed01af7efb766946a34255a4",
+    "lean-mathlib/Proofs/GlobalEconomicStateRefinementV2.lean": "c1be0fe70c2db99cb0fe0be584ef935e26079a66787e35aedb98057b5ceee1b1",
+    "lean-mathlib/Proofs/PerpsMarginTransitionV1.lean": "1598aa39d0a27e514d88595f7b06b072722c512aab3caf135d9e9a3282a1c743",
+    "lean-mathlib/Proofs/PerpsMarginClaimsV2.lean": "20a836d13e763014f03de7f1e1f4213585240e97b727bd26d8ba05aa27c77485",
+    "lean-mathlib/Proofs/PerpsMarginGlobalV2.lean": "9639af073364762a0213401d9fe9f6df9bf7434742620e29c646d9a2ff86d2a6",
+    "lean-mathlib/lean-toolchain": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb",
+    "tests/formal/test_lean_perps_margin_global_v2.py": "63564a4572ed6570641d1480862d2b4f0d30a2188a3e8bc5e421b74436236f6d",
+    "src/core/perps_margin_global_v2.py": "f9b9f0e675ff4fdc63dd6ccede1cb77fa9b6fd27abb28cb568bc01306e7fe5bd",
+    "src/core/perps_margin_claims_v2.py": "dccafcad2a519090f175d8c9ac267c9e04dbeab729c2595fcd66c5c6c9b3c00a",
+    "tests/formal/lean_stdlib_gate_v1.py": "09ad16acbe682dab10742550d5d4ca460d1b55e9487d3796c2ae8d6b28493142"
+  },
+  "implementation": {
+    "before": "Account and claim-episode proofs were separate; owner preservation and replacement bounds remained episode premises.",
+    "after": "Connected finite-table constructors derive account ownership, replacement bounds, exact custody/liability/terminal updates and all 19 fields of the shared Verified relation. Modeled margin, frame and rejected histories preserve the declared invariant.",
+    "unchanged": "Python/Rust economics, guest bytes, schemas, fee policy and publication paths.",
+    "line_changes": {
+      "formal_added": 4396,
+      "formal_removed": 0,
+      "tests_added": 971,
+      "tests_removed": 0
+    },
+    "theorem_declarations": 256,
+    "typed_consumer_statements": 23
+  },
+  "proof_contract": {
+    "entry": "ZenoDEX.PerpsMarginGlobalV2.accepted_verified",
+    "premises": [
+      "Invariant on the input finite joint state",
+      "Reference step accepts",
+      "Margin digest separates this pre/post pair"
+    ],
+    "conclusion": "GlobalEconomicStateRefinementV2.Verified for the constructed successor and complete modeled effect/terminal plans.",
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "trace_limit": "Frame steps assume balanced asset replacement; their authorization and supply constancy are not proved. Capacity results preserve counts conditional on acceptance; they do not prove exit availability."
+  },
+  "finite_bridge": {
+    "cases": 38,
+    "accepted_margin": 14,
+    "accepted_frame": 1,
+    "rejection_codes": 13,
+    "oracle": "Independent Lean economic abstraction plus Python checks of exact retained policies, outbox, pre-root and input-statement binding.",
+    "digest_limit": "Runtime opaque hashes enter as tables. Ambiguous abstract keys reject. This is not complete byte equivalence or universal source refinement."
+  },
+  "review": {
+    "reviewer": "gpt-6-astra max, independent read-only agent; harness-selected identity",
+    "verdict": "Scoped approval conditioned on final scenario-comment correction and root replay; both completed at the pinned subject.",
+    "repairs": [
+      "Narrowed byte-identical, scenario digest-injectivity and capacity-exit claims to the actual theorem/gate scope.",
+      "Retained exact rejection roots and input-statement/refinement bindings; added two source mutants that previously survived.",
+      "Rejected conflicting digest-table keys; compute command hashes from actual commands independently of supplied occurrence hashes.",
+      "Replaced the vacuous hash-length test with equality to the current checkout source after compilation."
+    ]
+  },
+  "checks": [
+    {
+      "command": "python -m pytest -q tests/formal/test_lean_perps_margin_global_v2.py",
+      "result": "14 passed",
+      "seconds": 124.13,
+      "log_sha256": "130503f3cedd08b096d837532b286a9f1de898332315766b07224c5bcaeb0f15"
+    },
+    {
+      "command": "python -m pytest -q tests/formal/test_lean_perps_margin_global_v2.py tests/core/test_perps_margin_global_v2.py tests/core/test_perps_margin_global_bounds_v2.py",
+      "result": "33 passed before final prose-only correction; final proof source replayed separately",
+      "seconds": 129.5,
+      "log_sha256": "0248d5b29ce9ac3e7ee0e7b5a34ac45cde3373a5c7a49f5b0a3e82dc996cce8d"
+    },
+    {
+      "command": "python -m ruff check tests/formal/test_lean_perps_margin_global_v2.py && python -m mypy tests/formal/test_lean_perps_margin_global_v2.py",
+      "result": "All checks passed; no issues found in 1 source file."
+    },
+    {
+      "command": "bash tools/run_critical_quality_gate.sh",
+      "result": "433 TCB and 852 critical tests passed; existing mounted contracts, not automatic coverage of the new unmounted Spot file.",
+      "log_sha256": "f2b7b5831011ee17d1bf61a5458d017d134de3210bcce5c9d197ebb4e809e7aa"
+    },
+    {
+      "command": "python3 tools/check_production_boundary.py --json",
+      "result": "ok=true",
+      "log_sha256": "3e63df25d274f0fc3f0dc13c3d991968de4796cf58ffc95e5e6830afc3958d06"
+    },
+    {
+      "command": "python3 tools/permissionless_assurance.py status",
+      "result": "Status only: ESSO and Tau binary absent in this worktree; no release replay.",
+      "log_sha256": "223ebac10ffb8a7fc49734a1fbdf66e664250ceec10bb2019927c9efefba27fd"
+    }
+  ],
+  "mutation_killers": [
+    "unauthorized_conserving_movement",
+    "omitted_owner_aggregation",
+    "reused_drained_terminal",
+    "stale_asset_root",
+    "state_change_on_rejection",
+    "foreign_equal_rejection_roots",
+    "foreign_input_statement",
+    "balance_guard_removed",
+    "u128_boundary_off_by_one"
+  ],
+  "retained_failure_evidence": {
+    "initial_root_falsifiers": "3 failed, then 3 passed after repair",
+    "before_sha256": "ade30062d4d0e9da97190ea74b2e765fb9c8e3b8cca8141f741689e5db6d3f1c",
+    "after_sha256": "3295e073da64227a7900a4aa64452a3aad59af7961442d890d3c2ce18de6e72c"
+  },
+  "assessment": {
+    "kind": "ADOPTED_SCOPED_ADVISORY_AMENDMENT",
+    "baseline_subject": "e05f293e3eab020b5790252007fe43316167bb39",
+    "changed_capabilities": [
+      "FC:PERPS_MARKET/margin_deposit",
+      "FC:PERPS_MARKET/margin_withdraw"
+    ],
+    "before_components": {
+      "sem": 0.6,
+      "prf": 0.55,
+      "ref": 0.55,
+      "unc": "H"
+    },
+    "after_components": {
+      "sem": 0.6,
+      "prf": 0.7,
+      "ref": 0.6,
+      "unc": "H"
+    },
+    "before": {
+      "full_v3": {
+        "total_weight": 99.9999,
+        "row_count": 32,
+        "kinds": {
+          "workstream": 12,
+          "lane": 12,
+          "route": 4,
+          "exclusion": 4
+        },
+        "low_percent": 17.512,
+        "central_percent": 24.828,
+        "high_percent": 32.906,
+        "unknown_as_low_percent": 24.828,
+        "legacy_zero_percent": 23.156,
+        "unverified_only_weight_share_percent": 0.0
+      },
+      "formal_core": {
+        "total_weight": 140.0,
+        "row_count": 21,
+        "kinds": {
+          "lane": 12,
+          "route": 4,
+          "cross": 5
+        },
+        "low_percent": 15.611,
+        "central_percent": 21.44,
+        "high_percent": 27.526,
+        "unknown_as_low_percent": 21.44,
+        "legacy_zero_percent": 15.882,
+        "unverified_only_weight_share_percent": 0.0
+      }
+    },
+    "after": {
+      "full_v3": {
+        "total_weight": 99.9999,
+        "row_count": 32,
+        "kinds": {
+          "workstream": 12,
+          "lane": 12,
+          "route": 4,
+          "exclusion": 4
+        },
+        "low_percent": 17.512,
+        "central_percent": 24.828,
+        "high_percent": 32.906,
+        "unknown_as_low_percent": 24.828,
+        "legacy_zero_percent": 23.156,
+        "unverified_only_weight_share_percent": 0.0
+      },
+      "formal_core": {
+        "total_weight": 140.0,
+        "row_count": 21,
+        "kinds": {
+          "lane": 12,
+          "route": 4,
+          "cross": 5
+        },
+        "low_percent": 15.718,
+        "central_percent": 21.547,
+        "high_percent": 27.633,
+        "unknown_as_low_percent": 21.547,
+        "legacy_zero_percent": 15.989,
+        "unverified_only_weight_share_percent": 0.0
+      }
+    },
+    "delta_formal_pp": 0.107,
+    "delta_v3_pp": 0,
+    "scope": "All V3 rows and other formal rows, denominators and qualification flags inherited. AS07 and new Spot planning are NOT_RESCORED. Support has no separate delivery credit.",
+    "command": "python3 tools/v3_progress_assessment_calc.py tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json"
+  },
+  "worker": {
+    "model_id": "claude-fable-5-1",
+    "effort": "max",
+    "session_id": "5d5c30fb-ca05-4121-bdb7-5e48724821fa",
+    "status": "Completed draft; root repaired it after independent review.",
+    "raw_output_sha256": "3f4c5aa57a4a4a09f8a9964691cd93cae269efcdf2d917272153c20e93969293",
+    "resources": {
+      "input_tokens": 2242,
+      "cache_creation_input_tokens": 838593,
+      "cache_read_input_tokens": 37873242,
+      "output_tokens": 466286,
+      "elapsed_ms": 6494494,
+      "list_price_cost_microusd": 49576891
+    },
+    "helper": {
+      "model_id": "claude-haiku-4-5-20251001",
+      "input_tokens": 3601,
+      "output_tokens": 19,
+      "list_price_cost_microusd": 3696
+    },
+    "resource_note": "CLI-reported totals; uncached input excludes cache reads/writes. List-price estimate is not observed billing. Root/reviewer model resources are unknown. Worker reported 889 test lines; received file actually 895 before root repair."
+  },
+  "nonclaims": [
+    "Whole formal core completion",
+    "Universal Python or Rust source refinement",
+    "Cryptographic hashing or receipt validity",
+    "Full origin-registry authority",
+    "Frame authorization or supply constancy",
+    "Capacity exit availability",
+    "New genuine margin receipts",
+    "Production publication or value-safety qualification"
+  ],
+  "next_acceptance": "Generate the three prepared genuine margin receipts and admit them through the measured verifier/current-store publisher. Complete universal source refinement separately."
+}

@@ -3,15 +3,27 @@
 This is the durable entry point for a resumed session. It selects work and
 evidence; it grants no release, migration, or publication authority.
 
-Latest adopted assessment: Fable's independent review and root review of
-`6a4a806db…` through `e05f293e3…` raise V3 **24.268% → 24.828% (+0.560 pp)**;
-formal core remains **21.440%**, with **0/12** value-safety gates closed. See
-[scoped assessment](../tests/evidence/v3_attack_surface_assessment_review_20260913.json)
-and the current scored input at
+Latest adopted assessment: independent Astra review and root replay of the
+connected margin proof at `388b5f4b1…` raise formal core **21.440% → 21.547%
+(+0.107 pp)**; V3 remains **24.828%**, with **0/12** value-safety gates closed.
+The [reviewed evidence](../tests/evidence/perps_margin_connected_proof_v2_20260914.json)
+records repaired test-binding gaps, explicit theorem premises and the 14-test
+final Lean replay. Only margin deposit/withdraw proof and refinement judgments
+change. All other rows, denominators and qualification flags are inherited.
+The existing input remains
 `tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json`.
-Only W03/W06/W10/W11 change; all capability/formal scores and denominators stay
-fixed. Earlier NOT_RESCORED entries remain historical records of those batches.
-This is a partial judgment estimate, not release qualification.
+This is a scoped partial judgment estimate, not a full rescore or qualification.
+
+Latest implementation at `c2d0085d6…` adds the pure actual-SwapIntent planner
+and [TauFold/FCIS integration contract](specifications/TAUFOLD_SWAP_INTEGRATION_V2.md).
+Root took over after Claude's session-limit rejection; no further Claude call
+is scheduled. 54 focused tests and independent security review pass after
+repairing forged-object hooks. This separate unmounted component is
+NOT_RESCORED. It retains existing CPMM rounding and timestamp deadlines;
+ordinary contexts/plans carry no authority. Next swap acceptance is complete
+asset/pool/LP/global reconciliation plus authentic dispatch and the existing
+publisher, followed by authenticated terminal settlement. No alternate economic
+writer or timeout-based reservation release is permitted.
 
 AS07 quota implementation and reviewed evidence correction end at
 `37662593250066ff4d48abde4114857858b9ef87`: **SCOPED_PASS**, NOT_RESCORED. The
@@ -25,15 +37,15 @@ control and 2/100 immediate live-helper observations remain recorded. Two
 historical genuine receipts verified under the quotas; genuine margin receipts,
 concurrent-request bounds and all full AS exits remain open.
 
-September 14 user steering assigns the connected margin formal-core proof work
-to Fable 5.1 while Astra owns review, fixes and integration. Fable's exclusive
-scope is the deposit/withdraw/close connected proof and its executable bridge;
-it must reuse the account/claim proofs and preserve runtime/guest bytes. The
-private coordination packet records exact file ownership. No formal score is
-advanced by delegation. Actual pre-run Claude usage is 2% weekly Fable and 1%
-weekly all-model usage; future reset times are not treated as observed resets.
+Fable's connected deposit/withdraw/close proof handback is now integrated after
+independent review and root repairs. Python/Rust economics and guest bytes did
+not change. The CLI recorded 6,494,494 ms and 466,286 output tokens; actual
+billing and root/reviewer resources are unknown. A subsequent usage observation
+showed 91% session, 16% all-model weekly and 32% Fable weekly. The next launch
+was refused in 1,038 ms with zero model tokens; the user directed root takeover.
+Do not infer refreshed availability from the displayed reset schedule.
 
-Latest completed implementation: `394ddbf22` exposes a standalone read-only
+Earlier completed implementation: `394ddbf22` exposes a standalone read-only
 margin history audit using caller-retained publication and authority roots. See
 [scoped evidence](../tests/evidence/independent_margin_audit_v2_20260913.json):
 43 integration tests pass, two genuine-proof tests skip, three source mutants
