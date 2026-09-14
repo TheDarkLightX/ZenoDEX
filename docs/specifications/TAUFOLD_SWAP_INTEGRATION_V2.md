@@ -1,6 +1,6 @@
 # TauFold account and ZenoDEX swap integration
 
-Status: economic planning component implemented; connected publication remains
+Status: pure joint Spot/asset/global successor implemented; connected publication remains
 open. This contract selects an isolated integration, with no live migration or
 activation. ZenoDEX V3 and existing intent, arithmetic and publication semantics
 remain authoritative.
@@ -69,6 +69,82 @@ path. It is not a verified witness or a complete SPOT lane implementation.
 In particular, retained LP supply does not establish valid pool genesis or
 claimant backing. A global consumer must establish those conditions before
 admitting even an arithmetically valid plan.
+
+## Complete pure joint successor
+
+`spot_swap_state_v2.py` commits one pool, its complete LP owner/share table,
+all four existing LP duration/churn metadata fields (including dormant owners),
+and ordered per-sender intent nonces. LP shares sum exactly to the pool supply;
+the existing minimum locked-owner position remains present. Pool identity uses
+the existing canonical parameter hash. This is a new candidate schema, not an
+importer or migration of historical state. Both owner tables reuse the existing
+4096-row ceiling and the state reuses the 1-MiB canonical-byte ceiling. Capacity
+is checked before traversing raw rows, including forged exact-type inputs.
+
+LP/nonce owners and joint swap sender/recipient must already use lowercase,
+0x-prefixed 48-byte public-key encoding, matching legacy committed state.
+Prefix/case aliases deliberately reject in this candidate profile; signed bytes
+are never rewritten. This establishes unique identity text, not BLS point
+validity or proof of possession. The all-zero minimum-lock owner remains valid.
+Historical decoding and the lower-level scalar planner remain unchanged.
+
+`spot_swap_global_v2.py::transition_spot_swap_global_v2` snapshots the complete
+asset, Spot and global inputs, binds every original intent field and occurrence,
+and derives both account amounts from that state. Physical pool holdings use
+the existing asset custody table under `spot_pool`, keyed by canonical pool ID
+and asset. Exactly two rows must equal the two reserves; a second reserve ledger
+or nominal atom claims on these same holdings are inadmissible in this profile.
+The complete asset projection and both lane roots/releases must match. Asset
+origins must validate, assets must be enabled and non-native with eight atom
+decimals. This isolated route admits zero asset transfer fees; composition with
+nonzero token-transfer fees remains unsupported rather than silently omitted.
+
+An accepted swap updates two account holdings, two pool custody holdings, both
+lane roots, height, the global replay entry and the sender's Spot intent nonce.
+The existing generic global refiner checks the complete economic tables and
+effects. Fee allocation annotates the input custody increase and is counted
+once in physical holdings. Unrelated custody, liabilities, terminal obligations,
+oracle state, history and outbox remain unchanged. Public graph getters return
+detached values; outputs and statement hashes confer no authority.
+
+LP owners, shares, supply and metadata remain unchanged during swaps. Withdrawal
+rights retain the existing floor-proportional burn rule over current reserves.
+Recomputing fixed atom entitlements per holder would introduce a new rounding
+and dust-allocation policy; this representation avoids that obligation. It
+does not implement LP mint, burn, transfer, pool closure or locked-share terminal
+disposition. These remain required lane work.
+
+The inner signed intent nonce must equal the sender's last nonce plus one, as
+the existing singleton-intent policy requires. It is independent of the outer
+occurrence nonce: asset outer1, swap inner1/outer2, asset outer3, swap inner2/outer4
+is valid. Inner reuse/gaps and outer replay reject with no consumed nonce or
+economic effects. A full nonce table permits existing owners to advance while
+rejecting a new row. The statement binds the explicit block timestamp; its
+authentication and provenance remain shell obligations.
+
+The joint successor is Python-only and unmounted. Rust refinement, a guest and
+exact journal, genuine economic receipts, admitted genesis, authenticated
+dispatch, publisher recovery and terminal delivery remain open. Existing custody
+and margin receipts cannot certify this new Spot transition.
+
+## Rust exchange patterns reused through FCIS
+
+The September 14 source comparison supports custody plus shares as the smallest
+current representation. It does not qualify any external deployment or establish
+an incident-free history.
+
+| Pinned source | Useful pattern | ZenoDEX boundary |
+| --- | --- | --- |
+| [Raydium CPMM `59fb845a9…`](https://github.com/raydium-io/raydium-cp-swap/blob/59fb845a9e5bb569c8b2f3415f13b0c0ebcc6b92/programs/cp-swap/src/states/pool.rs#L200-L220) | Bind exact vaults and LP supply; subtract separately owned fee buckets from accounted reserves. | The selected all-fees-retained profile needs no separate fee bucket. Keep ZenoDEX's explicit locked LP owner and existing rounding. |
+| [Orca `408c945fe…`](https://github.com/orca-so/whirlpools/blob/408c945fef4c49ab70def4303377cfaf8f0f3c99/programs/whirlpool/src/manager/position_manager.rs#L7-L52) | Position fee-growth checkpoints avoid updating every LP on each swap. | CPMM shares already avoid per-owner repricing. Add accumulators only for separately claimable fees; do not copy wrapping/overflow-to-zero semantics. |
+| [Astroport `ad95c2084…`](https://github.com/astroport-fi/astroport-core/blob/ad95c208468a3797ebf1c45f91e888f1d2e938c6/contracts/pair/src/contract.rs#L507-L598) | Compute proportional withdrawals and return explicit transfer/burn messages. | Reuse pure plans plus shell effects, preserving ZenoDEX's own pre-state timing and accounting. |
+
+Solana provides [atomic transaction execution](https://solana.com/docs/core/transactions)
+and token-program authority checks; Rust alone does not. The corresponding FCIS
+obligations are authenticated snapshot acquisition, complete deterministic
+transition checking, and one atomic authorized publication. Transport replay
+protection does not eliminate replay of a business intent inside a new outer
+transaction. Existing ZenoDEX nonce, fee and rejection policies remain pinned.
 
 ## Terminal reconciliation
 
