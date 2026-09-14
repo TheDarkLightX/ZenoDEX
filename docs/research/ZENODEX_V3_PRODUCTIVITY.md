@@ -2,24 +2,12 @@
 
 Status: advisory engineering account. No completion or publication authority.
 
-Latest recorded repair: `d8041717…` → `0e13f0e37…`, bounded lifetime in
-both legacy JSON verifier ports. [Scoped evidence](../../tests/evidence/legacy_verifier_lifetime_v1_20260913.json)
-records the reproduced failures, 83 focused/102 native passes (two proof skips),
-seven killed mutants and passing critical/boundary gates. Independent review
-passed 30 lifecycle tests and found no blocker. Root and reviewer are recorded
-separately; exact serving-model identifiers and resource totals are unavailable.
-Both operate as Codex/GPT-6-family agents. No Fable model request was sent.
-
-The implementation is +475/−65: runtime +71/−56, tests +220/−9, and
-required test evidence +184/−0. The preceding +410/−1 account update and
-the following 144-line evidence/continuity record count once as support.
-Source correspondence uses the evidence's explicit candidate commit. The
-assessment remains **NOT_RESCORED**; this repair changes no economic transition
-or formal proof. Full AS07, genuine margin receipts and independent
-finality/delivery remain open. This manifest append itself receives no product
-credit and should be carried as support in the next batch.
-The reporter passes against baseline manifest `d8041717…`, preserves its
-existing entries and matches this repair/review evidence to `0e13f0e37…`.
+Latest delivery: connected margin proof at `388b5f4b1…`, followed by the pure
+SwapIntent component at `c2d0085d6…`. The September 14 entry below records
+Fable's completed draft, independent reviews, root repairs/implementation and
+the refused follow-up launch. Shared reviewed gain is **formal +0.107 pp**;
+V3 stays **24.828%**. The separate unmounted swap component is NOT_RESCORED.
+The formal score is now **21.547%**; no whole lane or value-safety gate closes.
 
 The [contribution manifest](ZENODEX_V3_PRODUCTIVITY.json) connects committed
 changes to existing obligations, documented contributors, review findings and
@@ -709,3 +697,47 @@ and live CLI session are preserved. This accounting append is unscored support.
 Reporter validation passes against `3a44ff5e…`: prior prefix preserved,
 390 referenced blob occurrences / 63 unique references match, and 88 resource
 pointer observations verify. No assessment delta is assigned.
+
+## September 14: completed margin handback and root takeover
+
+The [margin evidence](../../tests/evidence/perps_margin_connected_proof_v2_20260914.json)
+pins Fable's implementation, independent Astra review and root repairs to
+`388b5f4b1…`: proofs +4,396/−0 and tests +971/−0. The connected constructor
+now derives the shared global relation from account/claim transitions under its
+explicit premises. Final Lean replay passes 14 tests; the bridge covers 38
+finite cases and kills nine source mutants. Missing rejection/statement
+observations, ambiguous abstract digest keys and overstated evidence claims
+were repaired before acceptance. Universal source refinement, capacity exit
+availability and genuine margin receipts remain open.
+
+Fable's CLI recorded **6,494,494 ms (1h 48m 14s)**, 2,242 uncached input,
+466,286 output, 838,593 cache-write and 37,873,242 cache-read tokens. These
+are provider totals, not generated source lines. Its approximately $49.58 list
+estimate is excluded from observed billing. The small CLI Haiku helper is
+recorded separately with its disclosed 3,601 input/19 output tokens; its exact
+purpose is unknown. Root and reviewer token counts and exclusive time remain
+unknown. No resource count is manufactured from Git timestamps.
+
+The [swap evidence](../../tests/evidence/spot_swap_plan_v2_20260914.json) pins
+`388b5f4b1…→c2d0085d6…`: runtime +303/−0, tests +259/−0, docs +117/−0.
+Fable's attempted follow-up was refused by the provider in 1,038 ms, with zero
+model tokens or source changes. Root implemented directly under the user's
+takeover instruction. Independent Daybreak review reproduced a forged-input
+callback flaw, accepted the retained repair, and supplied an arithmetic oracle
+that root replayed: 1,536 cases, zero mismatches. The 54 focused tests pass.
+This component grants no publication authority and remains NOT_RESCORED.
+
+The unchanged assessment calculator adopts only margin deposit/withdraw proof
+.55→.70 and refinement .55→.60: formal **21.440→21.547%**, **+0.107 pp**.
+V3 and all other formal rows are inherited. The consolidated assessment range
+starts at `e05f293e3…`; it overlaps earlier delivery ranges, so their line
+counts must not be summed. Shared delivery credit counts once. The previous
+147-line tail and this 442/35-line evidence record are support only; this
+manifest/report append is the next unaccounted support tail, with no product
+credit. No new tracking tool or assurance framework was added.
+
+The reporter passes against baseline `acad4d883…`: the existing manifest prefix
+is preserved, all 417 referenced blob occurrences/67 unique references match,
+and 96 resource-pointer observations verify. The manifest now contains 153
+recorded runs and 69 batches; these are participation records, not completion
+counts. Reproduce with the existing report command and that full baseline SHA.

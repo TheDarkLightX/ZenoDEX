@@ -3497,6 +3497,184 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260914-margin-connected-fable",
+      "model_id": "claude-fable-5-1",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "connected-margin-lean-constructor-and-finite-python-bridge",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+        "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+        "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 2242,
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+            "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+          },
+          "json_pointer": "/worker/resources/input_tokens"
+        },
+        "output_tokens": {
+          "value": 466286,
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+            "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+          },
+          "json_pointer": "/worker/resources/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 6494494,
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+            "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+          },
+          "json_pointer": "/worker/resources/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-margin-connected-cli-helper",
+      "model_id": "claude-haiku-4-5-20251001",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "formal-worker-cli-helper-purpose-not-disclosed",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+        "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+        "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 3601,
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+            "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+          },
+          "json_pointer": "/worker/helper/input_tokens"
+        },
+        "output_tokens": {
+          "value": 19,
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+            "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+          },
+          "json_pointer": "/worker/helper/output_tokens"
+        },
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-margin-connected-astra-review",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-margin-theorem-bridge-and-scoped-score-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+        "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+        "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-margin-spot-root",
+      "model_id": null,
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "margin-proof-repairs-replay-and-direct-swap-implementation",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+        "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+        "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-spot-fable-refused",
+      "model_id": "claude-fable-5-1",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "spot-planner-launch-refused-before-tools",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+        "path": "tests/evidence/spot_swap_plan_v2_20260914.json",
+        "sha256": "81e7fd86c935ab4c13f2711d61d306c826175b1b66ea17841532f04228e841a3"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 0,
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/spot_swap_plan_v2_20260914.json",
+            "sha256": "81e7fd86c935ab4c13f2711d61d306c826175b1b66ea17841532f04228e841a3"
+          },
+          "json_pointer": "/failed_delegate/resources/input_tokens"
+        },
+        "output_tokens": {
+          "value": 0,
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/spot_swap_plan_v2_20260914.json",
+            "sha256": "81e7fd86c935ab4c13f2711d61d306c826175b1b66ea17841532f04228e841a3"
+          },
+          "json_pointer": "/failed_delegate/resources/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 1038,
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/spot_swap_plan_v2_20260914.json",
+            "sha256": "81e7fd86c935ab4c13f2711d61d306c826175b1b66ea17841532f04228e841a3"
+          },
+          "json_pointer": "/failed_delegate/resources/elapsed_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-spot-daybreak-review",
+      "model_id": "gpt-daybreak-blue-latest",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-spot-structure-authority-and-integer-oracle-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+        "path": "tests/evidence/spot_swap_plan_v2_20260914.json",
+        "sha256": "81e7fd86c935ab4c13f2711d61d306c826175b1b66ea17841532f04228e841a3"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -6267,6 +6445,237 @@
           "commit": "db48f597726b712fbbb19a1c209e5602ac91e274",
           "path": "tests/evidence/verifier_resource_limits_v1_20260914.json",
           "sha256": "413d3dd02d571a97b0a34ee52ebbb2f819294cef055785babdd5c77d692b3816"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-verifier-account-carry",
+      "before_commit": "db48f597726b712fbbb19a1c209e5602ac91e274",
+      "after_commit": "acad4d8831066c1c87e83df3e28bd281937d8639",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry the preceding147-line accounting tail once, with no new capability or score credit.",
+        "evidence": {
+          "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+          "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+          "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-margin-connected-proof",
+      "before_commit": "acad4d8831066c1c87e83df3e28bd281937d8639",
+      "after_commit": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260914-margin-connected-fable",
+        "V3-20260914-margin-connected-cli-helper",
+        "V3-20260914-margin-connected-astra-review",
+        "V3-20260914-margin-spot-root"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Connected finite-table margin proof plus economic bridge and independent binding repairs. Proof4396/test971 added lines. Shared formal credit appears once in the scoped assessment batch; Python/Rust source refinement, byte equivalence and genuine receipts remain open.",
+        "evidence": {
+          "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+          "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+          "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "MARGIN-FOREIGN-REJECTION-ROOTS",
+          "status": "repaired",
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+            "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+          }
+        },
+        {
+          "id": "MARGIN-FOREIGN-INPUT-STATEMENT",
+          "status": "repaired",
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+            "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+          }
+        },
+        {
+          "id": "MARGIN-AMBIGUOUS-DIGEST-TABLE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+            "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-refused-launch",
+      "before_commit": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
+      "after_commit": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
+      "kind": "support",
+      "obligation_ids": [
+        "W06",
+        "W07"
+      ],
+      "run_ids": [
+        "V3-20260914-spot-fable-refused"
+      ],
+      "outcome": {
+        "disposition": "rejected",
+        "summary": "Fable provider session-limit refusal in1038ms before any tools or source changes. Root takeover explicitly instructed; no automatic retry.",
+        "evidence": {
+          "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+          "path": "tests/evidence/spot_swap_plan_v2_20260914.json",
+          "sha256": "81e7fd86c935ab4c13f2711d61d306c826175b1b66ea17841532f04228e841a3"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-pure-plan",
+      "before_commit": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
+      "after_commit": "c2d0085d6186e71262fb36f2758bed1fb9459ebe",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W02",
+        "W06",
+        "W07",
+        "W08"
+      ],
+      "run_ids": [
+        "V3-20260914-margin-spot-root",
+        "V3-20260914-spot-daybreak-review"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Actual immutable SwapIntent plan, retained CPMM policy and forged-input repair. Runtime303/test259/docs117 added lines.54 focused tests and1536 independent arithmetic cases pass. Unmounted component, NOT_RESCORED; full global/LP/authenticated publication and terminal reconciliation remain open.",
+        "evidence": {
+          "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+          "path": "tests/evidence/spot_swap_plan_v2_20260914.json",
+          "sha256": "81e7fd86c935ab4c13f2711d61d306c826175b1b66ea17841532f04228e841a3"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "SPOT-FORGED-EXACT-INTENT-HOOK",
+          "status": "repaired",
+          "evidence": {
+            "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+            "path": "tests/evidence/spot_swap_plan_v2_20260914.json",
+            "sha256": "81e7fd86c935ab4c13f2711d61d306c826175b1b66ea17841532f04228e841a3"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-margin-connected-assessment",
+      "before_commit": "e05f293e3eab020b5790252007fe43316167bb39",
+      "after_commit": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
+      "kind": "review",
+      "obligation_ids": [
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260914-margin-connected-fable",
+        "V3-20260914-margin-connected-astra-review",
+        "V3-20260914-margin-spot-root"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Adopt only the independently reviewed margin deposit/withdraw formal components: proof.55 to.70, refinement.55 to.60. Formal+0.107pp; V3 unchanged. All other rows inherited, including unrescored AS07. This cumulative range overlaps earlier delivery/account batches and must not add their lines again.",
+        "evidence": {
+          "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+          "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+          "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "acad4d8831066c1c87e83df3e28bd281937d8639",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "f65d9d02b20b9380578546fa0ce8bd57d7e1ef72f6d5d904ea972e4cc589cfac"
+        },
+        "after": {
+          "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "0c3d0214481ef6c80d29f83fdcf0c17036aab5bc94c1a6745b380b58cdaa03fc"
+        },
+        "review": {
+          "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+          "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+          "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+        }
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-margin-spot-evidence",
+      "before_commit": "c2d0085d6186e71262fb36f2758bed1fb9459ebe",
+      "after_commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+      "kind": "support",
+      "obligation_ids": [
+        "W06",
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260914-margin-spot-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Retain source-pinned margin/Spot review, repaired falsifiers, exact tested subject and scoped assessment.442 added/35 removed support lines; no separate delivery credit.",
+        "evidence": {
+          "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+          "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
+          "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
         }
       },
       "assessment": {
