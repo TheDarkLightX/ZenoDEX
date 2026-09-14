@@ -32,8 +32,19 @@ LP mint/burn/transfer, multiple pools, closure and locked-share terminal policy
 remain required lane work. No alternate writer or timeout-based reservation
 release is permitted. Root owns implementation after Claude's limit refusal;
 the Luna delegation attempt hit the harness thread limit and produced no code.
-No further Claude call is scheduled. Generic-refiner repeated getter copies are
-an identified unbenchmarked performance follow-up, unchanged in this batch.
+Generic-refiner repeated getter copies are now reduced at `0a59b5c6d…`: each
+check captures validated detached values once. Full-state copies fall from
+25/60/340 to four at 1/8/64 occurrences. A separate 16/−1-line repair at
+`fff0f44c6…` restores the declared resource-limit rejection without economic
+effects. These changes receive no additional score credit. See the
+[scoped replay and timing evidence](../tests/evidence/global_refinement_local_reuse_v2_20260914.json).
+
+The user restored Claude delegation. One read-only `claude-opus-5`, xhigh,
+research task compares Rust DEX architecture and primary incident evidence.
+Its private coordination packet is `CLAUDE_RUST_DEX_DESIGN_RESEARCH_20260914.md`;
+session `83922e1c-d8fc-47af-b4d9-77d8581570c1`. Root must review the actual report
+before adoption. Observed counters were 20% all-model weekly and 39% Fable weekly,
+with current session 0%; do not infer future availability from reset estimates.
 
 The earlier connected margin proof at `388b5f4b1…` retains its reviewed
 14-test Lean replay and explicit premises; it is not rerun or recredited here.

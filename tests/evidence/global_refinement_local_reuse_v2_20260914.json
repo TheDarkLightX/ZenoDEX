@@ -1,0 +1,231 @@
+{
+  "schema": "zenodex/global-refinement-local-reuse/v1",
+  "status": "SCOPED_REPLAY_PASS",
+  "runtime_subject": "fff0f44c640ce827526f40d79b449f00c0a08e7d",
+  "performance_commit": "0a59b5c6decfdb4e84b7762a5b99420254c5eb48",
+  "baseline_commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+  "changed_source_sha256": {
+    "src/core/global_economic_state_effect_refinement_v2.py": "c873720889c73ba6c35d3bab5afaad32eaa3dfddc5e4dc37af0a63235c3b1b02",
+    "src/core/global_economic_refinement_outcome_v2.py": "28446dba8e07a8186a3abaf49f6d9cf5722b18360d7c366f012d866f17e88fb7",
+    "tests/core/test_global_economic_state_effect_refinement_v2.py": "f6e6ca0faaf1082dcf86f512436863b15f1464bd30c63e377a22e79cb0679acc",
+    "tests/core/test_global_economic_refinement_outcome_v2.py": "fd063ede44c4d7de0387c078a836ec03d97bc110a9e21a889446988b446927b8",
+    "tests/formal/test_lean_global_settlement_core_v2.py": "0a1cc19ad21876bb1aeae57d17692dc94048f4282af627ed0c20b814e30d108b",
+    "tools/benchmark_global_refinement_v2.py": "28a06b913c0d2bc08d345d326737a9db6ff614562e2d8a69d7a1fc6938a566b6"
+  },
+  "behavior": "Capture detached values after validated candidate reconstruction; retain public defensive getters, limits, rejection order, roots and authority NONE. Separately restore the known exact resource exception to its existing malformed-input rejection code.",
+  "benchmark": {
+    "schema": "zenodex/global-refinement-comparison/v1",
+    "baseline": "1fcb00c857a05cc8088464b027b1759d7785b71c",
+    "baseline_source_sha256": "c40b90311f32b304b5c73b6f382e2f7e790312147d9072c91faa9104dac319df",
+    "candidate_source_sha256": "c873720889c73ba6c35d3bab5afaad32eaa3dfddc5e4dc37af0a63235c3b1b02",
+    "parity_cases": 15,
+    "results": [
+      {
+        "occurrences": 1,
+        "before": {
+          "median_ns": 17740355,
+          "samples_ns": [
+            18605807,
+            17452424,
+            17900975,
+            19291510,
+            17518984,
+            17369433,
+            17740355
+          ],
+          "state_copies": 25
+        },
+        "after": {
+          "median_ns": 5333886,
+          "samples_ns": [
+            5963338,
+            5625388,
+            5333886,
+            5607947,
+            5191296,
+            5236946,
+            5211006
+          ],
+          "state_copies": 4
+        }
+      },
+      {
+        "occurrences": 8,
+        "before": {
+          "median_ns": 42850772,
+          "samples_ns": [
+            44149216,
+            43173333,
+            42824652,
+            42918983,
+            42850772,
+            42445601,
+            42333100
+          ],
+          "state_copies": 60
+        },
+        "after": {
+          "median_ns": 9771010,
+          "samples_ns": [
+            9813000,
+            9563240,
+            9683929,
+            9844681,
+            9455219,
+            10038351,
+            9771010
+          ],
+          "state_copies": 4
+        }
+      },
+      {
+        "occurrences": 64,
+        "before": {
+          "median_ns": 326792328,
+          "samples_ns": [
+            329898067,
+            327467560,
+            329090636,
+            326792328,
+            320531349,
+            326267358,
+            318745494
+          ],
+          "state_copies": 340
+        },
+        "after": {
+          "median_ns": 41891339,
+          "samples_ns": [
+            42501431,
+            42469832,
+            41891339,
+            41844530,
+            41603128,
+            41832909,
+            42730612
+          ],
+          "state_copies": 4
+        }
+      }
+    ],
+    "claim": "Bounded exact acceptance/root and typed rejection/message parity; local timing only. No release authority."
+  },
+  "benchmark_command": "python -m tools.benchmark_global_refinement_v2",
+  "benchmark_limits": "Seven local samples per workload; small synthetic generic-relation fixtures at 1/8/64 occurrences, not a qualified economic epoch or exchange throughput. Unrelated system work can affect timing. State-copy counts from a separate profiler pass.",
+  "verification": [
+    {
+      "command": "python -m pytest -q tests/core/test_global_economic_refinement_outcome_v2.py tests/core/test_global_economic_state_effect_refinement_v2.py tests/core/test_global_settlement_abi_v2_global_core_golden.py tests/core/test_global_settlement_abi_v2_resource_bounds.py tests/core/test_spot_swap_global_v2.py tests/core/test_perps_margin_global_v2.py --tb=short",
+      "passed": 121,
+      "seconds": 14.36
+    },
+    {
+      "command": "python -m pytest -q tests/integration/test_isolated_custody_publisher_v2.py --tb=short",
+      "passed": 37,
+      "seconds": 40.28,
+      "scope": "After performance change; before separate outcome-classification repair, which is covered by the 121-test final runtime suite."
+    },
+    {
+      "command": "python -m pytest -q tests/core/test_global_settlement_types_v2.py tests/core/test_global_accounting_allocation_certificate_v1_golden.py --tb=short",
+      "passed": 67,
+      "seconds": 2.01
+    },
+    {
+      "command": "python -m pytest -q tests/formal/test_lean_global_settlement_core_v2.py tests/formal/test_lean_global_economic_refinement_trace_v2.py --tb=short",
+      "passed": 38,
+      "seconds": 60.57,
+      "scope": "Pinned Lean compilation, existing theorems, mutation and runtime correspondence examples. No universal runtime refinement."
+    },
+    {
+      "command": "python -m ruff check src/core/global_economic_state_effect_refinement_v2.py src/core/global_economic_refinement_outcome_v2.py tests/core/test_global_economic_state_effect_refinement_v2.py tests/core/test_global_economic_refinement_outcome_v2.py tools/benchmark_global_refinement_v2.py",
+      "status": "PASS"
+    },
+    {
+      "command": "python -m mypy --follow-imports=silent src/core/global_economic_state_effect_refinement_v2.py src/core/global_economic_refinement_outcome_v2.py tools/benchmark_global_refinement_v2.py",
+      "status": "PASS"
+    }
+  ],
+  "review": {
+    "model": "gpt-6-astra",
+    "role": "independent read-only critical reviewer",
+    "status": "SCOPED_PASS",
+    "comparison_cases": 48,
+    "scope": "Exact old/current accepted roots, zero/one-occurrence cases, context/replay/height failures and controlled derived-hash failures; empty lifecycle plans in independent probe. Separate exact resource-class and hostile subclass review. Root runs full suites. No new score or authority."
+  },
+  "findings": [
+    {
+      "id": "REFINER-LAZY-ROOT",
+      "status": "repaired",
+      "before": "First optimization hashed the predecessor before foreign occurrence context rejection. Controlled hash failure changed the error.",
+      "after": "Retained three-context regression rejects before root evaluation; lazy root initialization preserves order."
+    },
+    {
+      "id": "REFINER-RESOURCE-CLASS",
+      "status": "repaired",
+      "before": "Existing exact error-class list omitted StateResourceLimitExceededV2. The 65-occurrence regression failed identically against baseline 71e578 and candidate.",
+      "after": "Admit the exact declared class into the existing closed message map. Retained logical-no-op regression passes; unknown subclass and message remain INTERNAL_CONTRACT_DRIFT."
+    },
+    {
+      "id": "REFINER-SOURCE-PROVENANCE",
+      "status": "refreshed",
+      "before": "Initial Lean replay: 37 passed and one source-pin failure already present in primitives; optimization changes the second pin.",
+      "after": "Independently reviewed only those two source changes, replayed 67 root/golden tests and refreshed the two provenance pins. Full 38-test suite passes. Theorems, historical artifacts and claim ceilings remain unchanged."
+    }
+  ],
+  "source_pin_changes": [
+    {
+      "path": "src/core/global_settlement_primitives_v2.py",
+      "expected": "11a26694357812e91b398bddc2b6bbec0a93063731ccd5b23818de1d0c0ca01e",
+      "before": "d38783c78c52f4aa21ede117b1652636cf2b8fe7ad5a7467eba63fc7ecba0785",
+      "after": "d38783c78c52f4aa21ede117b1652636cf2b8fe7ad5a7467eba63fc7ecba0785"
+    },
+    {
+      "path": "src/core/global_economic_state_effect_refinement_v2.py",
+      "expected": "c40b90311f32b304b5c73b6f382e2f7e790312147d9072c91faa9104dac319df",
+      "before": "c40b90311f32b304b5c73b6f382e2f7e790312147d9072c91faa9104dac319df",
+      "after": "c873720889c73ba6c35d3bab5afaad32eaa3dfddc5e4dc37af0a63235c3b1b02"
+    }
+  ],
+  "pin_regeneration_command": "sha256sum src/core/global_settlement_primitives_v2.py src/core/global_economic_state_effect_refinement_v2.py",
+  "contributions": [
+    {
+      "model": "gpt-6-astra",
+      "role": "implementation and integration",
+      "resources": null
+    },
+    {
+      "model": "gpt-6-astra",
+      "role": "independent review in separate turns of the existing reviewer thread",
+      "resources": null
+    }
+  ],
+  "line_changes": {
+    "performance": {
+      "runtime_added": 53,
+      "runtime_removed": 53,
+      "tests_added": 34,
+      "tests_removed": 0,
+      "tools_added": 148,
+      "tools_removed": 0
+    },
+    "rejection_repair": {
+      "runtime_added": 2,
+      "runtime_removed": 1,
+      "tests_added": 14,
+      "tests_removed": 0
+    },
+    "provenance_pins": {
+      "tests_added": 2,
+      "tests_removed": 2
+    }
+  },
+  "assessment": "NOT_RESCORED; latest adopted source remains 1fcb00c857, V3 24.906%, formal 21.569%, zero of twelve value-safety gates. No optimization credit automatically assigned.",
+  "not_run": [
+    "No new Rust/Kani/RISC0/Tau/ESSO proof or full Lean project build.",
+    "Default critical suite was not repeated for these shared-refiner changes; its earlier run and limits are retained in the Spot evidence. Touched runtime, lifecycle, publisher and formal gates above were run."
+  ],
+  "nonclaims": [
+    "No genuine receipt, new proof theorem, publication activation, full lane closure, whole-program refinement or finality qualification.",
+    "Defensive Python ownership is an API discipline, not isolation from a hostile process.",
+    "Scoped reference-source checks and finite parity do not establish universal implementation equivalence."
+  ]
+}

@@ -877,3 +877,32 @@ gate closes. Python/Rust proof correspondence and authenticated single-publisher
 admission remain the next blockers. The preceding **459/−18** accounting tail
 is carried once as support; current evidence/account changes receive no extra
 product credit. No new tracker or dependencies were added.
+
+### September 14: reduce repeated global reconstruction and repair resource rejection
+
+`71e578dcc…` → `0a59b5c6d…` replaces repeated defensive getter calls inside
+one refiner invocation with locally retained detached values. Public ownership
+checks remain. Runtime changes are **53/−53** lines; retained error-priority
+regressions add 34 test lines and the pinned comparison tool adds 148 lines.
+At 1/8/64 synthetic occurrences, full-state copies fall from 25/60/340 to four.
+Seven-sample local median checker times change **17.74→5.33**, **42.85→9.77**
+and **326.79→41.89 ms**. These fixtures and timings are not exchange throughput.
+Fifteen retained differential cases and 48 independent reviewer observations
+agree on accepted roots and exact rejection outcomes within their stated scope.
+
+`0a59b5c6d…` → `fff0f44c6…` restores the existing malformed-input code for
+the declared resource exception. The old 65-occurrence no-op regression failed
+against both baseline and optimization. The repair adds/removes **2/1 runtime**
+lines and adds **14 test** lines; unknown subclasses/messages still fail closed.
+
+[Evidence](../../tests/evidence/global_refinement_local_reuse_v2_20260914.json)
+records 121 runtime/golden/boundary passes, 37 publisher passes, 67 root/golden
+passes and 38 formal core/trace passes. The initial formal run found an inherited
+primitives source-pin mismatch. Only that inspected two-return-site change and
+the reviewed refiner optimization were rebound after independent review and
+replay; existing theorem scope and historical evidence remain unchanged.
+
+This is **NOT_RESCORED**. V3 **24.906%**, formal **21.569%** and **0/12** gates
+remain estimates/statuses of the previous adopted subject. No new proof theorem,
+guest, economic receipt or publication authority was produced. Support records
+and the two-line provenance refresh receive no automatic product credit.
