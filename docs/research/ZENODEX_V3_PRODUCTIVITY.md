@@ -2,12 +2,11 @@
 
 Status: advisory engineering account. No completion or publication authority.
 
-Latest scored delivery: complete pure Spot/asset/global successor at
-`1fcb00c857…`, including the earlier planner. The shared reviewed change is
-**V3 +0.078 pp to 24.906%** and **formal +0.022 pp to 21.569%**. No lane or
-value-safety gate closes. Subsequent global-refiner optimization and exact
-resource-rejection repair are unscored; their measured benefit is reduced
-reconstruction work and a restored rejection contract.
+Latest adopted scoring subject: native Spot correspondence at `309b1f5dd…`,
+with **V3 24.906%** and **formal 21.590%**. No lane or value-safety gate closes.
+The subsequent owned-request and shared-execution improvements remain
+**NOT_RESCORED**. Each delivery below separates its behavior gain, line changes,
+resource observations and qualification limits.
 
 The [contribution manifest](ZENODEX_V3_PRODUCTIVITY.json) connects committed
 changes to existing obligations, documented contributors, review findings and
@@ -832,3 +831,42 @@ pointers verify, and the reviewed amendment contributes one shared score change.
 The manifest contains 165 recorded runs and 81 batches. These are participation
 records, not completed-feature counts. Reproduce with the existing reporter and
 that full baseline SHA; no tracking tool was changed.
+
+## September 14: FCIS request and execution improvements
+
+`3944ccf9f…` → `6cc459a08…` derives rejection post-roots, accepts one owned
+publication request per route, and shares the Rust transition through a bounded
+candidate frame used by native replay and a guest entrypoint. Projection checks
+borrow rows; their measured timing difference is noise. No speedup is claimed.
+
+The implementation adds/removes **3,626/48** lines: runtime **509/36** including
+inline Rust tests, separate tests **358/5**, docs **126/7**, configuration **40/0**,
+and lockfile **2,593/0**. Proof-source and tooling growth are zero. The previous
+**475/0** reporting tail and this batch's **341/0** evidence append are carried
+once as support. This report/manifest append remains the next support tail.
+
+[Evidence](../../tests/evidence/fcis_design_patterns_v2_20260914.json) retains
+168 Spot passes plus four final review regressions, 54 Rust checks, one native
+transport check and five final publisher scenarios. The critical gate and the
+production-boundary audit on frozen `6cc459a08…` pass. The inherited claims-file
+and type-coverage configuration failures remain open. Genuine Spot proof,
+authentication/publication and complete formal refinement remain unqualified.
+
+Terra Max implemented the request change; Astra integrated, repaired and replayed;
+Opus supplied a source-only review. The Luna Max launch failed at the thread limit
+and returned no work. The Opus CLI recorded **12m 41s**, 100 uncached input tokens,
+53,112 output tokens, 211,021 cache-write tokens and 6,115,170 cache-read tokens.
+These are provider counters, not code tokens or exclusive team elapsed time.
+Auxiliary Haiku counters are retained with unknown task identity and no separate
+credit. Root/Terra resources and actual billing remain unknown.
+
+This batch is **NOT_RESCORED**. The prior adopted estimates remain **24.906% V3**
+and **21.590% formal**, with **0/12** qualified value-safety gates. No new score
+rows, weights, tracker or proof framework were introduced. The next executable
+acceptance is actual Spot guest/image/receipt qualification through the existing
+verifier, followed by authenticated publication and terminal recovery.
+
+The final reporter replay passes against baseline `3944ccf9f…`: the manifest
+prefix is preserved, all 76 unique source references match, and 111 resource
+pointer observations verify. It contains 169 recorded runs and 84 batches;
+those counts measure recorded participation, not completed product features.

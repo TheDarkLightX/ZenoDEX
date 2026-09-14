@@ -3999,6 +3999,106 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260914-fcis-patterns-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "Integrate derived rejection roots, shared bounded Spot execution, borrowed projections, review repairs and native evidence",
+      "risk": "critical",
+      "provenance": {
+        "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+        "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+        "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-fcis-patterns-terra",
+      "model_id": "gpt-5.6-terra",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "Max: owned custody publication request and callers, typing repair, byte identity and no-effect regressions",
+      "risk": "critical",
+      "provenance": {
+        "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+        "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+        "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-fcis-patterns-opus",
+      "model_id": "claude-opus-5",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "High: read-only Spot frame, guest boundary and publisher source review; no independent execution",
+      "risk": "critical",
+      "provenance": {
+        "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+        "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+        "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 100,
+          "evidence": {
+            "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+            "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+            "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+          },
+          "json_pointer": "/model_resources/opus/input_tokens"
+        },
+        "output_tokens": {
+          "value": 53112,
+          "evidence": {
+            "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+            "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+            "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+          },
+          "json_pointer": "/model_resources/opus/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 760628,
+          "evidence": {
+            "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+            "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+            "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+          },
+          "json_pointer": "/model_resources/opus/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-fcis-patterns-luna-attempt",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "Requested Max frame implementation; launch refused by thread limit, no code or verdict",
+      "risk": "critical",
+      "provenance": {
+        "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+        "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+        "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -7489,6 +7589,121 @@
           "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
           "path": "tests/evidence/spot_swap_native_v2_20260914.json",
           "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-fcis-patterns-prior-support",
+      "before_commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+      "after_commit": "3944ccf9f6d5d1b1d523752cd10533c8bee87720",
+      "kind": "support",
+      "obligation_ids": [
+        "W04",
+        "W06",
+        "W09",
+        "W10"
+      ],
+      "run_ids": [
+        "V3-20260914-spot-native-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry the previous native-Spot contribution reporting tail once: 475 added/0 removed support lines. No new product credit.",
+        "evidence": {
+          "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+          "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+          "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-fcis-patterns-implementation",
+      "before_commit": "3944ccf9f6d5d1b1d523752cd10533c8bee87720",
+      "after_commit": "6cc459a08d273848d1f27a1dd0a6bf0cfb5762f8",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W04",
+        "W06",
+        "W09",
+        "W10"
+      ],
+      "run_ids": [
+        "V3-20260914-fcis-patterns-root",
+        "V3-20260914-fcis-patterns-terra",
+        "V3-20260914-fcis-patterns-opus",
+        "V3-20260914-fcis-patterns-luna-attempt"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Derived rejection root, exact owned request API and shared candidate Spot frame/native replay; borrowed projection tables with no measured speedup. 3626 added/48 removed: runtime 509/36 including inline tests, separate tests 358/5, docs 126/7, config 40/0, lockfile 2593/0. NOT_RESCORED. Genuine guest/receipt/publication remain open.",
+        "evidence": {
+          "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+          "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+          "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "FCIS-FRAME-SUCCESSOR-BOUND-COVERAGE",
+          "status": "repaired",
+          "evidence": {
+            "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+            "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+            "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+          }
+        },
+        {
+          "id": "FCIS-OWNED-REQUEST-TYPE-NARROWING",
+          "status": "repaired",
+          "evidence": {
+            "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+            "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+            "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-fcis-patterns-evidence",
+      "before_commit": "6cc459a08d273848d1f27a1dd0a6bf0cfb5762f8",
+      "after_commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+      "kind": "support",
+      "obligation_ids": [
+        "W04",
+        "W06",
+        "W09",
+        "W10"
+      ],
+      "run_ids": [
+        "V3-20260914-fcis-patterns-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Retain source pins, bounded replay, independent findings, draft failures and provider counters: 341 added/0 removed lines. NOT_RESCORED; no new tracker or percentage claim.",
+        "evidence": {
+          "commit": "0f4f8eef714aeded548a0db2fc3443badfad8df8",
+          "path": "tests/evidence/fcis_design_patterns_v2_20260914.json",
+          "sha256": "fb33215ce2781d48b6e779a5a1f0929b7cac978372350f30425d287b27a2403f"
         }
       },
       "assessment": {
