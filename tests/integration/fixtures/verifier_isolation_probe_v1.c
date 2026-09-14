@@ -73,9 +73,21 @@ int main(void) {
         if (read(STDIN_FILENO, &byte, 1) != 1) return 3;
         puts("DONE");
     } else if (!strcmp(mode, "environment")) {
-        printf("%d %d %d %s %s\n", getenv("XDG_RUNTIME_DIR") != NULL,
-            getenv("INVOCATION_ID") != NULL, getenv("DBUS_SESSION_BUS_ADDRESS") != NULL,
-            getenv("RISC0_DEV_MODE"), getenv("LC_ALL"));
+        const char *expected[] = { "RISC0_DEV_MODE=0", "LC_ALL=C", "PWD=/" };
+        int seen[3] = {0}, exact = 1, count = 0;
+        for (char **entry = environ; *entry; entry++) {
+            int matched = 0;
+            for (int index = 0; index < 3; index++) {
+                if (!strcmp(*entry, expected[index]) && !seen[index]) {
+                    seen[index] = 1;
+                    matched = 1;
+                    break;
+                }
+            }
+            exact &= matched;
+            count++;
+        }
+        printf("%d\n", exact && count == 3);
     } else if (!strcmp(mode, "cpu")) {
         for (int index = 0; index < 4; index++) {
             pid_t child = fork();

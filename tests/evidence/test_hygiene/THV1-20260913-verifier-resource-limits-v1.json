@@ -23,7 +23,7 @@
     },
     {
       "path": "tests/integration/fixtures/verifier_isolation_probe_v1.c",
-      "sha256": "93e0f45959f3f25b0456bb97c9ec16dde1dfcd68be9979f94700831d039b0712"
+      "sha256": "1754ffe8437d7de155b09cca04056475ec91925cd179af2b575a3b4d925ce80b"
     },
     {
       "path": "src/integration/sealed_bls_command_verifier_v1.py",
@@ -34,7 +34,7 @@
   "test_pins": [
     {
       "path": "tests/integration/test_verifier_process_isolation_v1.py",
-      "sha256": "d8332620bd0ece22e0f7d7c6e29c65aefad32ef7be69742a684834b855537ec6",
+      "sha256": "2407eaed29d1ad020aa33e2090bfade9ccd21956a942a6557523872f0e192e77",
       "node_ids": [
         "tests/integration/test_verifier_process_isolation_v1.py::test_limits_are_installed_before_endpoint_work_and_scope_is_empty_after_exit",
         "tests/integration/test_verifier_process_isolation_v1.py::test_descendants_share_one_process_quota",
@@ -45,7 +45,8 @@
         "tests/integration/test_verifier_process_isolation_v1.py::test_missing_user_manager_rejects_without_an_unbounded_fallback",
         "tests/integration/test_verifier_process_isolation_v1.py::test_interrupted_launcher_has_no_endpoint_holding_its_protocol_pipes",
         "tests/integration/test_verifier_process_isolation_v1.py::test_timeout_terminates_descendant_even_after_it_creates_a_new_session",
-        "tests/integration/test_verifier_process_isolation_v1.py::test_missing_isolator_never_falls_back_to_direct_execution"
+        "tests/integration/test_verifier_process_isolation_v1.py::test_missing_isolator_never_falls_back_to_direct_execution",
+        "tests/integration/test_verifier_process_isolation_v1.py::test_environment_probe_checks_complete_values_and_cardinality"
       ]
     },
     {
@@ -66,7 +67,7 @@
   ],
   "aaa": {
     "status": "applied",
-    "reason": "Native kernel counters, cgroup values, bounded fork/thread/allocation probes and pipe lifetime are independent of the Python command builder (oracle grade 3). Before repair the same controls expose24 children and576MiB successful allocation; fixed limits make those attempts reject. CPU counters confirm throttle activity. These probes are not cryptography."
+    "reason": "Native kernel counters, cgroup values, bounded fork/thread/allocation probes and pipe lifetime are independent of the Python command builder (oracle grade 3). Before repair the same controls expose 24 children and 576 MiB successful allocation; fixed limits make those attempts reject. CPU counters confirm throttle activity. These probes are not cryptography."
   },
   "reject_is_noop": {
     "status": "applied",
@@ -87,12 +88,12 @@
     {
       "name": "lifecycle",
       "points": [
-        "normal exit leaves an empty or removed scope",
-        "startup interruption",
+        "normal exit reaches an empty or removed scope within a two-second notification wait",
+        "startup interruption closes child endpoints, independently observed by retained EOF/EPIPE probes",
         "child creates another session",
         "transport deadline lost but manager backstop active",
         "manager unavailable",
-        "exact endpoint environment",
+        "exact endpoint environment: RISC0_DEV_MODE=0, LC_ALL=C, PWD=/, no duplicate or extra entries",
         "genuine retained module/lane receipts and real BLS positive controls"
       ]
     }

@@ -165,10 +165,17 @@ Unsupported setup rejects; no direct or unlimited fallback exists.
 
 The launcher receives only the two verifier settings and the derived manager
 directory. Bubblewrap clears that environment, including manager-added fields,
-and supplies only `RISC0_DEV_MODE=0` and `LC_ALL=C` to the endpoint. The chosen
+and supplies `RISC0_DEV_MODE=0`, `LC_ALL=C` and its own deterministic `PWD=/`
+to the endpoint. The native probe checks exactly those three entries. The chosen
 manager slice is fixed. Native probes inspect installed limits, actual process
 and thread ceilings, aggregate allocation failure, CPU throttling, startup
 interruption, scope cleanup and a lost-transport-deadline backstop.
+
+Bubblewrap's outer monitor can report endpoint exit before its PID1 helper
+finishes reaping. The cleanup oracle waits for a scope-empty notification or
+removal within two seconds; it does not claim immediate helper disappearance.
+Startup-interruption checks retain independent pipe endpoints and require
+EOF/EPIPE after cleanup, in addition to observing parent stream closure.
 
 This uses installed systemd 255.4-1ubuntu8.17 and kernel cgroup v2. Systemd's
 [scope launch code](https://github.com/systemd/systemd/blob/v255/src/run/run.c)

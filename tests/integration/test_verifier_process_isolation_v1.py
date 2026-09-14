@@ -15,6 +15,7 @@ import signal
 import socket
 import stat
 import subprocess
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -102,6 +103,33 @@ def _scope(process: subprocess.Popen[bytes]) -> Path:
     return Path("/sys/fs/cgroup") / unified[0].lstrip("/")
 
 
+def _assert_scope_empty(scope: Path) -> None:
+    # Bubblewrap reports its endpoint's exit before its PID1 helper finishes
+    # reaping. Observe bounded completion through cgroup notification, rather
+    # than assuming that reaping the outer monitor has reaped every helper.
+    try:
+        events = (scope / "cgroup.events").open("rb", buffering=0)
+    except FileNotFoundError:
+        return
+    with events:
+        poller = select.poll()
+        poller.register(events, select.POLLPRI | select.POLLERR)
+        deadline = time.monotonic() + 2
+        while True:
+            try:
+                events.seek(0)
+                counters = events.read(4096)
+            except OSError as error:
+                if error.errno == errno.ENODEV and not scope.exists():
+                    return
+                raise
+            if b"populated 0\n" in counters or not scope.exists():
+                return
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, "verifier scope still contains a live process"
+            poller.poll(max(1, int(remaining * 1000)))
+
+
 @pytest.mark.parametrize("mode", ("hold", "cpu"))
 def test_limits_are_installed_before_endpoint_work_and_scope_is_empty_after_exit(
     native_probe: Path, monkeypatch: pytest.MonkeyPatch, mode: str,
@@ -133,12 +161,26 @@ def test_limits_are_installed_before_endpoint_work_and_scope_is_empty_after_exit
     monkeypatch.setattr(bridge, "_exchange_v1", observe_scope)
     assert _invoke(native_probe, f"{mode} unused\n".encode()) == b"DONE\n"
     assert len(scopes) == 1
-    events = scopes[0] / "cgroup.events"
-    assert not events.exists() or "populated 0" in events.read_text()
+    _assert_scope_empty(scopes[0])
 
 
 def test_resource_manager_environment_does_not_reach_the_endpoint(native_probe: Path) -> None:
-    assert _invoke(native_probe, b"environment unused\n") == b"0 0 0 0 C\n"
+    assert _invoke(native_probe, b"environment unused\n") == b"1\n"
+
+
+@pytest.mark.parametrize("change", ({}, {"EXTRA": "1"}, {"PWD": "/wrong"}, {"LC_ALL": None}))
+def test_environment_probe_checks_complete_values_and_cardinality(native_probe: Path, change) -> None:
+    environment = {"RISC0_DEV_MODE": "0", "LC_ALL": "C", "PWD": "/"}
+    for name, value in change.items():
+        if value is None:
+            environment.pop(name)
+        else:
+            environment[name] = value
+    result = subprocess.run(
+        (str(native_probe),), input=b"environment unused\n", capture_output=True,
+        check=True, env=environment, timeout=5,
+    )
+    assert result.stdout == (b"0\n" if change else b"1\n")
 
 
 @pytest.mark.parametrize("mode", ("tasks", "threads"))
@@ -239,10 +281,14 @@ def test_interrupted_launcher_has_no_endpoint_holding_its_protocol_pipes(
 ) -> None:
     start = subprocess.Popen
     processes = []
+    retained_pipes = []
 
     def interrupt(command, **kwargs):
         process = start(command, **kwargs)
         processes.append(process)
+        retained_pipes.extend(os.dup(stream.fileno()) for stream in (
+            process.stdin, process.stdout, process.stderr,
+        ))
         # Interrupt before the transport sends any input. Scope registration
         # may be pending or complete; neither case may leave an endpoint alive.
         os.killpg(process.pid, signal.SIGKILL)
@@ -253,11 +299,22 @@ def test_interrupted_launcher_has_no_endpoint_holding_its_protocol_pipes(
     backend = bridge.GlobalReceiptVerifierV1(
         str(native_probe), hashlib.sha256(native_probe.read_bytes()).hexdigest(), image, 1000,
     )
-    with pytest.raises(bridge.GlobalReceiptVerifierErrorV1) as caught:
-        backend.verify_succinct_receipt(b"fixture", expected_image_id=image, expected_journal_bytes=b"j")
-    assert caught.value.reason is bridge.GlobalReceiptVerifierRejectV1.VERIFICATION_REJECTED
-    assert len(processes) == 1 and processes[0].returncode == -signal.SIGKILL
-    assert all(stream.closed for stream in (processes[0].stdin, processes[0].stdout, processes[0].stderr))
+    try:
+        with pytest.raises(bridge.GlobalReceiptVerifierErrorV1) as caught:
+            backend.verify_succinct_receipt(b"fixture", expected_image_id=image, expected_journal_bytes=b"j")
+        assert caught.value.reason is bridge.GlobalReceiptVerifierRejectV1.VERIFICATION_REJECTED
+        assert len(processes) == 1 and processes[0].returncode == -signal.SIGKILL
+        assert all(stream.closed for stream in (processes[0].stdin, processes[0].stdout, processes[0].stderr))
+        # Independent pipe copies observe the child endpoints after the bridge
+        # closes its own objects. EOF/EPIPE cannot be supplied by parent close.
+        for descriptor in retained_pipes[1:]:
+            assert select.select([descriptor], [], [], 2)[0], "child holds a protocol writer"
+            assert os.read(descriptor, 1) == b""
+        with pytest.raises(BrokenPipeError):
+            os.write(retained_pipes[0], b"x")
+    finally:
+        for descriptor in retained_pipes:
+            os.close(descriptor)
 
 
 def _leaf_processes(parent: int) -> tuple[int, ...]:

@@ -13,13 +13,24 @@ Only W03/W06/W10/W11 change; all capability/formal scores and denominators stay
 fixed. Earlier NOT_RESCORED entries remain historical records of those batches.
 This is a partial judgment estimate, not release qualification.
 
-Current uncommitted AS07 quota probes are draft work, excluded from that subject.
-The repaired probe compiles; three retained controls reproduce missing cgroup
-limits, 24 concurrent children and 576 MiB aggregate child allocation. One
-environment control passes. No quota runtime change has been made. Continue
-the single invocation resource-bound obligation before claiming its acceptance.
-Fable usage refreshed to 0% on September 13 at 22:05 UTC before the completed
-six-minute assessment; the post-review usage percentage has not been queried.
+AS07 quota implementation `1edf4c3ca85ce1e62d19bf455d278428c6fef21d` is committed
+but not accepted or rescored. Focused native/protocol checks passed 67 tests;
+integration passed 144 with two genuine-margin-proof skips; critical checks
+passed 433 TCB and 852 critical tests. The mutation campaign has five kills and
+one CONTROL_FAILED: the immediate scope-empty assertion intermittently observes
+a still-exiting Bubblewrap PID1 helper. Independent review requires a bounded
+cleanup observation, an exact environment check including Bubblewrap's `PWD=/`,
+and stronger startup-interruption evidence. Finish these corrections and replay
+the six mutants before accepting this batch. Two retained historical genuine
+receipts verified under the quotas; genuine margin receipts remain unavailable.
+
+September 14 user steering assigns the connected margin formal-core proof work
+to Fable 5.1 while Astra owns review, fixes and integration. Fable's exclusive
+scope is the deposit/withdraw/close connected proof and its executable bridge;
+it must reuse the account/claim proofs and preserve runtime/guest bytes. The
+private coordination packet records exact file ownership. No formal score is
+advanced by delegation. Actual pre-run Claude usage is 2% weekly Fable and 1%
+weekly all-model usage; future reset times are not treated as observed resets.
 
 Latest completed implementation: `394ddbf22` exposes a standalone read-only
 margin history audit using caller-retained publication and authority roots. See
