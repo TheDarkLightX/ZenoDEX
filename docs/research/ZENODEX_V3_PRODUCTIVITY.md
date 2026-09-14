@@ -775,3 +775,60 @@ the prior prefix is preserved, all 438 referenced blob occurrences/72 unique
 references match, and 96 resource-pointer observations verify. There are 158
 recorded runs and 77 batches. The new optimization and repair remain explicitly
 NOT_RESCORED; the joint Spot assessment owns its shared gain once.
+
+## September 14: native Spot implementation and scoped correspondence
+
+`713098dbf…` → `309b1f5dd…` adds the native Rust counterpart for the complete
+single-pool Spot/asset/global successor. Fable implemented; Astra reviewed,
+repaired and integrated; three Opus runs contributed research, test review and
+final native/assessment review. Two Astra review attempts failed at the tool
+boundary and produced no verdict. All seven contributions are recorded;
+failed attempts and research do not receive separate delivery credit.
+
+The implementation adds/removes **6,597/2** lines: 3,019 runtime/inline Rust unit
+tests, 2,635 separate tests, 570 test-only transport lines and 373/2 configuration,
+lockfile and documentation. No proof-source lines were added. The **435/6**
+prior support tail and **400/56** evidence/assessment append are accounted once.
+The separate score range overlaps prior source ranges; its LOC must not be
+summed with the implementation totals.
+
+[Evidence](../../tests/evidence/spot_swap_native_v2_20260914.json) retains 148
+Python/parity and 51 native passes, 218 complete transition cases, 8,736 quote
+vectors, malformed-input controls and four compiled semantic mutant kills.
+Duplicate-key, forged number-object, empty-key and scalar-context defects were
+repaired. The frozen-HEAD production-boundary audit passes after an initial
+HEAD_CHANGED sequencing failure; the pre-existing claims-registry missing file
+remains a separate blocker. No new theorem, guest or genuine Spot receipt was
+produced, and publication authority remains NONE.
+
+The independently recommended and replayed scoped change is **formal +0.021
+percentage points (21.569→21.590%)**, **zero V3 change (24.906%)**. Only the two
+Spot refinement judgments change. Shared gain counts once; native correspondence
+is bounded and no complete lane or value-safety gate closes.
+
+| Recorded provider run | Elapsed run time | Uncached input tokens | Output tokens |
+| --- | ---: | ---: | ---: |
+| Fable implementation, xhigh | 1h 8m 30s | 962 | 381,027 |
+| Opus Rust DEX research, xhigh | 36m 8s | 168 | 87,806 |
+| Opus test review, xhigh | 15m 34s | 60 | 69,124 |
+| Opus native/score review, high | 9m 12s | 70 | 38,507 |
+
+These are source-recorded provider counters, including work beyond accepted
+source output; they are not code-line counts or exclusive team elapsed time.
+Cache-write/read counters are retained in the evidence. Runs overlap. Actual
+billing, root resources and failed-review resources remain unknown. A missed
+relative feedback path and worker writes outside its assigned paths are recorded
+as coordination defects. Native builds used a RAM-backed target; 325,493,819
+bytes of inactive task-owned mutation artifacts were removed without touching
+unrelated work.
+
+The next acceptance requires a native Spot guest/journal and genuine receipt,
+then authenticated TauFold dispatch and publisher terminal/recovery behavior.
+This manifest/report append is unscored support to carry once in the next batch.
+
+Final reporter replay passes against `713098dbf30c6d51c3e58d5b55a1b93855b86a7f`:
+the prior manifest prefix is preserved, all referenced source hashes and resource
+pointers verify, and the reviewed amendment contributes one shared score change.
+The manifest contains 165 recorded runs and 81 batches. These are participation
+records, not completed-feature counts. Reproduce with the existing reporter and
+that full baseline SHA; no tracking tool was changed.

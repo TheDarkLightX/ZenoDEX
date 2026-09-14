@@ -3770,6 +3770,235 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260914-spot-native-root",
+      "model_id": "gpt-6-astra",
+      "role": "integration",
+      "status": "completed",
+      "task_kind": "Native implementation review, custody and correspondence regressions, repairs and final replay",
+      "risk": "critical",
+      "provenance": {
+        "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+        "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+        "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-spot-native-fable",
+      "model_id": "claude-fable-5-1",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "Bounded native Spot crate implementation and decoder repairs",
+      "risk": "critical",
+      "provenance": {
+        "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+        "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+        "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 962,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/fable/input_tokens"
+        },
+        "output_tokens": {
+          "value": 381027,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/fable/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 4110292,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/fable/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-spot-native-opus-research",
+      "model_id": "claude-opus-5",
+      "role": "research",
+      "status": "completed",
+      "task_kind": "Read-only Rust DEX architecture and primary incident research",
+      "risk": "critical",
+      "provenance": {
+        "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+        "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+        "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 168,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/opus_research/input_tokens"
+        },
+        "output_tokens": {
+          "value": 87806,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/opus_research/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 2167529,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/opus_research/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-spot-native-opus-tests",
+      "model_id": "claude-opus-5",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "Independent correspondence test design and semantic-oracle review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+        "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+        "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 60,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/opus_tests/input_tokens"
+        },
+        "output_tokens": {
+          "value": 69124,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/opus_tests/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 934379,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/opus_tests/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-spot-native-opus-native",
+      "model_id": "claude-opus-5",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "Independent native arithmetic, architecture and scoped assessment review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+        "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+        "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+      },
+      "resources": {
+        "input_tokens": {
+          "value": 70,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/opus_native/input_tokens"
+        },
+        "output_tokens": {
+          "value": 38507,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/opus_native/output_tokens"
+        },
+        "elapsed_ms": {
+          "value": 551719,
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          },
+          "json_pointer": "/model_resources/opus_native/duration_ms"
+        },
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-spot-native-astra-review-attempt-1",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "failed",
+      "task_kind": "Tool cybersecurity-risk error; no review verdict or accepted work",
+      "risk": "critical",
+      "provenance": {
+        "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+        "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+        "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-spot-native-astra-review-attempt-2",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "failed",
+      "task_kind": "Second review attempt returned tool cybersecurity-risk error; no verdict",
+      "risk": "critical",
+      "provenance": {
+        "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+        "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+        "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -7071,6 +7300,195 @@
           "commit": "226a3aa1704eace0790e30cd58ea091cc0f99979",
           "path": "tests/evidence/global_refinement_local_reuse_v2_20260914.json",
           "sha256": "a900be7a123e590d6a5c88f528e3a0237a1f1c6f046cc31ff8da17a828e3ae12"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-native-prior-support-tail",
+      "before_commit": "226a3aa1704eace0790e30cd58ea091cc0f99979",
+      "after_commit": "713098dbf30c6d51c3e58d5b55a1b93855b86a7f",
+      "kind": "support",
+      "obligation_ids": [
+        "W04",
+        "W06",
+        "W07",
+        "W09",
+        "W10"
+      ],
+      "run_ids": [
+        "V3-20260914-refiner-reuse-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry previous productivity tail once: 435 added/6 removed support lines; no extra capability credit.",
+        "evidence": {
+          "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+          "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+          "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-native-implementation",
+      "before_commit": "713098dbf30c6d51c3e58d5b55a1b93855b86a7f",
+      "after_commit": "309b1f5dd86489979f50b3835dfcf0dcb1c872af",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W04",
+        "W06",
+        "W07",
+        "W09",
+        "W10"
+      ],
+      "run_ids": [
+        "V3-20260914-spot-native-root",
+        "V3-20260914-spot-native-fable",
+        "V3-20260914-spot-native-opus-research",
+        "V3-20260914-spot-native-opus-tests",
+        "V3-20260914-spot-native-opus-native",
+        "V3-20260914-spot-native-astra-review-attempt-1",
+        "V3-20260914-spot-native-astra-review-attempt-2"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Native pure Spot counterpart plus complete-state correspondence: 6597 added/2 removed lines; 148 Python/parity and 51 Rust tests pass, 218 transitions, 8736 quote vectors and four compiled mutants. Runtime count includes inline tests. Guest, receipts and authority remain open.",
+        "evidence": {
+          "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+          "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+          "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "SPOT-NATIVE-DUPLICATE-KEY",
+          "status": "repaired",
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          }
+        },
+        {
+          "id": "SPOT-NATIVE-FORGED-NUMBER-OBJECT",
+          "status": "repaired",
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          }
+        },
+        {
+          "id": "SPOT-NATIVE-EMPTY-FIELD-KEY",
+          "status": "repaired",
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          }
+        },
+        {
+          "id": "SPOT-NATIVE-SCALAR-CONTEXT",
+          "status": "repaired",
+          "evidence": {
+            "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+            "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+            "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-native-assessment",
+      "before_commit": "1fcb00c857a05cc8088464b027b1759d7785b71c",
+      "after_commit": "309b1f5dd86489979f50b3835dfcf0dcb1c872af",
+      "kind": "review",
+      "obligation_ids": [
+        "W04",
+        "W06",
+        "W07",
+        "W09",
+        "W10"
+      ],
+      "run_ids": [
+        "V3-20260914-spot-native-root",
+        "V3-20260914-spot-native-fable",
+        "V3-20260914-spot-native-opus-research",
+        "V3-20260914-spot-native-opus-tests",
+        "V3-20260914-spot-native-opus-native",
+        "V3-20260914-spot-native-astra-review-attempt-1",
+        "V3-20260914-spot-native-astra-review-attempt-2"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "One shared scoped amendment: formal +0.021 percentage points, V3 zero change. Only exact-in/out refinement judgments rise .05 after source review and replay. This range overlaps earlier delivery; do not sum its LOC with implementation ranges.",
+        "evidence": {
+          "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+          "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+          "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "713098dbf30c6d51c3e58d5b55a1b93855b86a7f",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "09ea5a5edf5d2de127e2a4f771f8f037bef229fded29b27536cb8358f8f17845"
+        },
+        "after": {
+          "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "3c315dc75083a1d5cad8dbb1efe9c145112c09c09fe58859aca5a8f5438921d0"
+        },
+        "review": {
+          "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+          "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+          "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
+        }
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-native-evidence",
+      "before_commit": "309b1f5dd86489979f50b3835dfcf0dcb1c872af",
+      "after_commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+      "kind": "support",
+      "obligation_ids": [
+        "W04",
+        "W06",
+        "W07",
+        "W09",
+        "W10"
+      ],
+      "run_ids": [
+        "V3-20260914-spot-native-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Retain source hashes, bounded replay, fixes, failed attempts, resource counters and scoped assessment: 400 added/56 removed lines. No additional capability credit. The initial HEAD_CHANGED audit was rerun against frozen source and passed.",
+        "evidence": {
+          "commit": "353ee53a74d5e4c6741d843fbe66ca40fbc576ec",
+          "path": "tests/evidence/spot_swap_native_v2_20260914.json",
+          "sha256": "ab97e4684e80ca1f39557f8672d3b64264c5984aa3c60f728782fdc702eb3eca"
         }
       },
       "assessment": {
