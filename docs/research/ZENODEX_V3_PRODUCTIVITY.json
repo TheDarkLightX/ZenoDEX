@@ -3675,6 +3675,101 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260914-spot-joint-root",
+      "model_id": "gpt-6-astra",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "Spot joint implementation and integration",
+      "risk": "critical",
+      "provenance": {
+        "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+        "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+        "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-spot-joint-peer",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "Spot architecture Rust research and critical review across one reviewer thread",
+      "risk": "critical",
+      "provenance": {
+        "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+        "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+        "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-spot-joint-luna-attempt",
+      "model_id": "gpt-5.6-luna",
+      "role": "implementation",
+      "status": "failed",
+      "task_kind": "Requested Luna Max Spot state delegation refused by harness thread limit",
+      "risk": "critical",
+      "provenance": {
+        "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+        "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+        "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-refiner-reuse-root",
+      "model_id": "gpt-6-astra",
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "Global refiner optimization, capacity rejection repair and integration",
+      "risk": "critical",
+      "provenance": {
+        "commit": "226a3aa1704eace0790e30cd58ea091cc0f99979",
+        "path": "tests/evidence/global_refinement_local_reuse_v2_20260914.json",
+        "sha256": "a900be7a123e590d6a5c88f528e3a0237a1f1c6f046cc31ff8da17a828e3ae12"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-refiner-reuse-peer",
+      "model_id": "gpt-6-astra",
+      "role": "review",
+      "status": "completed",
+      "task_kind": "Independent refiner, resource classifier and scoped provenance review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "226a3aa1704eace0790e30cd58ea091cc0f99979",
+        "path": "tests/evidence/global_refinement_local_reuse_v2_20260914.json",
+        "sha256": "a900be7a123e590d6a5c88f528e3a0237a1f1c6f046cc31ff8da17a828e3ae12"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -6676,6 +6771,306 @@
           "commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
           "path": "tests/evidence/perps_margin_connected_proof_v2_20260914.json",
           "sha256": "bedc32cad599a00334bdacad389e60619a5d46b4350175a11af73ef883a27083"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-prior-account-carry",
+      "before_commit": "6282e1fc103798f21f5fb6d0faa64a66a5094dbb",
+      "after_commit": "a075670adf3324b646966089ea9108eaf932d58e",
+      "kind": "support",
+      "obligation_ids": [
+        "W06",
+        "W07",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260914-spot-joint-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry preceding accounting tail once: 459 added/18 removed support lines; no new economic behavior or score credit.",
+        "evidence": {
+          "commit": "a075670adf3324b646966089ea9108eaf932d58e",
+          "path": "docs/research/ZENODEX_V3_PRODUCTIVITY.md",
+          "sha256": "fc29a0292fe9f71bea4562bf7a7e9f243f7b70cbb0991f0ad3e2e9896e37ddbb"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-joint-launch-refusal",
+      "before_commit": "a075670adf3324b646966089ea9108eaf932d58e",
+      "after_commit": "a075670adf3324b646966089ea9108eaf932d58e",
+      "kind": "support",
+      "obligation_ids": [
+        "W07"
+      ],
+      "run_ids": [
+        "V3-20260914-spot-joint-luna-attempt"
+      ],
+      "outcome": {
+        "disposition": "rejected",
+        "summary": "Harness agent thread limit rejected the requested Luna Max worker before it started; no code or measured model resources; root took over.",
+        "evidence": {
+          "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+          "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+          "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-joint-successor",
+      "before_commit": "a075670adf3324b646966089ea9108eaf932d58e",
+      "after_commit": "1fcb00c857a05cc8088464b027b1759d7785b71c",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W02",
+        "W06",
+        "W07"
+      ],
+      "run_ids": [
+        "V3-20260914-spot-joint-root",
+        "V3-20260914-spot-joint-peer"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Complete pure custody/LP/global successor; 445 runtime +549 tests +77/-1 docs. 171 focused/regression tests, 74 new Spot cases and four mutants pass; no publication or connected proof authority.",
+        "evidence": {
+          "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+          "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+          "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "SPOT-TERMINAL-FIELD",
+          "status": "repaired",
+          "evidence": {
+            "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+            "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+            "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+          }
+        },
+        {
+          "id": "SPOT-RAW-CAPACITY",
+          "status": "repaired",
+          "evidence": {
+            "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+            "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+            "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+          }
+        },
+        {
+          "id": "SPOT-IDENTITY-ALIAS",
+          "status": "repaired",
+          "evidence": {
+            "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+            "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+            "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-joint-assessment",
+      "before_commit": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
+      "after_commit": "1fcb00c857a05cc8088464b027b1759d7785b71c",
+      "kind": "review",
+      "obligation_ids": [
+        "W02",
+        "W06",
+        "W07"
+      ],
+      "run_ids": [
+        "V3-20260914-spot-joint-root",
+        "V3-20260914-spot-joint-peer"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "One shared scoped score transition includes the prior unscored planner and joint successor. Exact-in/out implementation .35/.35 and semantics .40/.40; other proof/refinement/rows inherited. Rounded V3 +.078pp, formal +.022pp; no gates closed.",
+        "evidence": {
+          "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+          "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+          "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+        }
+      },
+      "assessment": {
+        "before": {
+          "commit": "a075670adf3324b646966089ea9108eaf932d58e",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "0c3d0214481ef6c80d29f83fdcf0c17036aab5bc94c1a6745b380b58cdaa03fc"
+        },
+        "after": {
+          "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+          "path": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
+          "sha256": "09ea5a5edf5d2de127e2a4f771f8f037bef229fded29b27536cb8358f8f17845"
+        },
+        "review": {
+          "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+          "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+          "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+        }
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-spot-joint-evidence",
+      "before_commit": "1fcb00c857a05cc8088464b027b1759d7785b71c",
+      "after_commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+      "kind": "support",
+      "obligation_ids": [
+        "W02",
+        "W06",
+        "W07"
+      ],
+      "run_ids": [
+        "V3-20260914-spot-joint-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Retain pinned review, repaired falsifiers, source checks and scoped assessment without changing denominators. 264 added/42 removed support lines; no extra delivery credit.",
+        "evidence": {
+          "commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+          "path": "tests/evidence/spot_swap_global_v2_20260914.json",
+          "sha256": "bc63b686a36487dbfca81758004aeed8aa399beaf14c8e963be682e9fe5aa1e5"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-refiner-reuse-performance",
+      "before_commit": "71e578dcc9eb1cc510ea327df52b0b66d498d621",
+      "after_commit": "0a59b5c6decfdb4e84b7762a5b99420254c5eb48",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W06",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260914-refiner-reuse-root",
+        "V3-20260914-refiner-reuse-peer"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Reuse detached state within the checker: 25/60/340 full-state copies fall to four for 1/8/64 synthetic occurrences; 235 added/53 removed lines including regression tests and pinned benchmark. No score credit.",
+        "evidence": {
+          "commit": "226a3aa1704eace0790e30cd58ea091cc0f99979",
+          "path": "tests/evidence/global_refinement_local_reuse_v2_20260914.json",
+          "sha256": "a900be7a123e590d6a5c88f528e3a0237a1f1c6f046cc31ff8da17a828e3ae12"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "REFINER-LAZY-ROOT",
+          "status": "repaired",
+          "evidence": {
+            "commit": "226a3aa1704eace0790e30cd58ea091cc0f99979",
+            "path": "tests/evidence/global_refinement_local_reuse_v2_20260914.json",
+            "sha256": "a900be7a123e590d6a5c88f528e3a0237a1f1c6f046cc31ff8da17a828e3ae12"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-refiner-reuse-resource-repair",
+      "before_commit": "0a59b5c6decfdb4e84b7762a5b99420254c5eb48",
+      "after_commit": "fff0f44c640ce827526f40d79b449f00c0a08e7d",
+      "kind": "repair",
+      "obligation_ids": [
+        "W06",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260914-refiner-reuse-root",
+        "V3-20260914-refiner-reuse-peer"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Restore the existing exact malformed-input code for the declared resource exception; no-op regression and unknown-class/message rejection retained. 16 added/1 removed lines.",
+        "evidence": {
+          "commit": "226a3aa1704eace0790e30cd58ea091cc0f99979",
+          "path": "tests/evidence/global_refinement_local_reuse_v2_20260914.json",
+          "sha256": "a900be7a123e590d6a5c88f528e3a0237a1f1c6f046cc31ff8da17a828e3ae12"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [
+        {
+          "id": "REFINER-RESOURCE-CLASS",
+          "status": "repaired",
+          "evidence": {
+            "commit": "226a3aa1704eace0790e30cd58ea091cc0f99979",
+            "path": "tests/evidence/global_refinement_local_reuse_v2_20260914.json",
+            "sha256": "a900be7a123e590d6a5c88f528e3a0237a1f1c6f046cc31ff8da17a828e3ae12"
+          }
+        }
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-refiner-reuse-evidence",
+      "before_commit": "fff0f44c640ce827526f40d79b449f00c0a08e7d",
+      "after_commit": "226a3aa1704eace0790e30cd58ea091cc0f99979",
+      "kind": "support",
+      "obligation_ids": [
+        "W06",
+        "W09"
+      ],
+      "run_ids": [
+        "V3-20260914-refiner-reuse-root",
+        "V3-20260914-refiner-reuse-peer"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Source-bound timings, negative evidence and independent review; 121 runtime, 37 publisher, 67 root/golden, 38 formal passes. Only two reviewed provenance pins refreshed. 275 added/4 removed support lines. No new theorem, qualification or score.",
+        "evidence": {
+          "commit": "226a3aa1704eace0790e30cd58ea091cc0f99979",
+          "path": "tests/evidence/global_refinement_local_reuse_v2_20260914.json",
+          "sha256": "a900be7a123e590d6a5c88f528e3a0237a1f1c6f046cc31ff8da17a828e3ae12"
         }
       },
       "assessment": {

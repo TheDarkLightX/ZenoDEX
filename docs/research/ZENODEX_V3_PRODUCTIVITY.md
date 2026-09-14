@@ -2,12 +2,12 @@
 
 Status: advisory engineering account. No completion or publication authority.
 
-Latest delivery: connected margin proof at `388b5f4b1…`, followed by the pure
-SwapIntent component at `c2d0085d6…`. The September 14 entry below records
-Fable's completed draft, independent reviews, root repairs/implementation and
-the refused follow-up launch. Shared reviewed gain is **formal +0.107 pp**;
-V3 stays **24.828%**. The separate unmounted swap component is NOT_RESCORED.
-The formal score is now **21.547%**; no whole lane or value-safety gate closes.
+Latest scored delivery: complete pure Spot/asset/global successor at
+`1fcb00c857…`, including the earlier planner. The shared reviewed change is
+**V3 +0.078 pp to 24.906%** and **formal +0.022 pp to 21.569%**. No lane or
+value-safety gate closes. Subsequent global-refiner optimization and exact
+resource-rejection repair are unscored; their measured benefit is reduced
+reconstruction work and a restored rejection contract.
 
 The [contribution manifest](ZENODEX_V3_PRODUCTIVITY.json) connects committed
 changes to existing obligations, documented contributors, review findings and
@@ -741,3 +741,37 @@ is preserved, all 417 referenced blob occurrences/67 unique references match,
 and 96 resource-pointer observations verify. The manifest now contains 153
 recorded runs and 69 batches; these are participation records, not completion
 counts. Reproduce with the existing report command and that full baseline SHA.
+
+## September 14: joint Spot delivery and measured simplification
+
+Root implemented the complete pure Spot/asset/global successor; independent
+Astra review checked architecture, Rust donor patterns and the critical boundary.
+The attempted Luna launch was refused by the harness thread limit and produced
+no code. The joint implementation adds **445 runtime**, **549 test** and
+**77/−1 documentation** lines. Its 171 focused/regression passes and reviewed
+exact-in/out changes support the single shared **V3 +0.078 pp / formal +0.022 pp**
+transition, which also includes the earlier separately accounted planner.
+The previous **459/−18** and subsequent **264/−42** support changes are retained
+once. Model token counts, elapsed run resources and billing remain unknown.
+
+The later refiner optimization changes runtime by **53/−53** lines, adds
+34 regression-test lines and a 148-line comparison tool. It reduces full-state
+copies from 25/60/340 to four at 1/8/64 synthetic occurrences. The separate
+resource-rejection repair adds/removes **2/1 runtime** lines and adds 14 test
+lines. [The scoped record](../../tests/evidence/global_refinement_local_reuse_v2_20260914.json)
+retains timing, independent review, repaired error-order and class findings,
+121 final runtime passes, 37 publisher passes, 67 root/golden passes and 38
+formal core/trace passes. Two reviewed source pins are refreshed; proof scope
+and theorem statements are unchanged. These improvements are **NOT_RESCORED**.
+
+The user also authorized a new read-only Claude Opus 5 research comparison.
+Its result and resources remain pending and receive no delivery credit here.
+An interactive usage check observed session 0%, weekly all-model 20% and weekly
+Fable 39%; those subscription observations are not task billing or a promised
+reset. This support append itself receives no additional capability credit.
+
+Final reporter replay passes against `a075670adf3324b646966089ea9108eaf932d58e`:
+the prior prefix is preserved, all 438 referenced blob occurrences/72 unique
+references match, and 96 resource-pointer observations verify. There are 158
+recorded runs and 77 batches. The new optimization and repair remain explicitly
+NOT_RESCORED; the joint Spot assessment owns its shared gain once.
