@@ -1,0 +1,144 @@
+{
+  "schema": "zenodex/verifier-resource-qualification/v1",
+  "subject_commit": "37662593250066ff4d48abde4114857858b9ef87",
+  "baseline_commit": "3a44ff5e1a736d43547637b1af24c5c8ff8af4cc",
+  "status": "SCOPED_PASS",
+  "assessment": "NOT_RESCORED",
+  "capability": "AS07 per-invocation resource containment and fail-closed host admission; W03/W11",
+  "implemented": "All measured receipt/BLS invocations enter a systemd cgroup before Bubblewrap endpoint execution; shared 512 MiB memory, zero swap, 16 tasks, one CPU quota, deadline plus 1000 ms manager backstop.",
+  "source_sha256": {
+    "src/integration/global_receipt_verifier_v1.py": "9ac982b4631986ff41a2b3d21aeacb7ca086029ffc59cb14ddfe195cb76ffd4d",
+    "src/integration/sealed_bls_command_verifier_v1.py": "56cb70b822a20cc7cc7b3a3bd10aa8098f2ae145484f532a785d015465a3f08b",
+    "tests/integration/test_verifier_process_isolation_v1.py": "2407eaed29d1ad020aa33e2090bfade9ccd21956a942a6557523872f0e192e77",
+    "tests/integration/test_global_receipt_verifier_v1.py": "b37289d8c3dbc84e08ce48872d3ba785161c26c5c5f6506abb18ec4049500e73",
+    "tests/integration/fixtures/verifier_isolation_probe_v1.c": "1754ffe8437d7de155b09cca04056475ec91925cd179af2b575a3b4d925ce80b"
+  },
+  "line_changes": {
+    "support": {
+      "added": 248,
+      "removed": 12
+    },
+    "runtime": {
+      "added": 37,
+      "removed": 7
+    },
+    "tests": {
+      "added": 346,
+      "removed": 4
+    }
+  },
+  "verification": {
+    "focused_native_protocol": {
+      "passed": 71,
+      "elapsed_seconds": "6.25",
+      "subject": "37662593250066ff4d48abde4114857858b9ef87"
+    },
+    "integration": {
+      "passed": 144,
+      "skipped": 2,
+      "subject": "1edf4c3ca85ce1e62d19bf455d278428c6fef21d"
+    },
+    "critical": {
+      "tcb_passed": 433,
+      "critical_passed": 852,
+      "subject": "1edf4c3ca85ce1e62d19bf455d278428c6fef21d"
+    },
+    "genuine_historical_receipts": {
+      "accepted": 2,
+      "corrupt_fake_wrong_journal": "REJECTED",
+      "scope": "module/lane transport success under current quotas; no margin receipt"
+    },
+    "mutations": {
+      "mechanical": 6,
+      "killed": 6,
+      "survived": 0,
+      "errors": 0,
+      "controls": "PASS"
+    },
+    "ruff": "PASS",
+    "changed_path_hygiene": "PASS",
+    "diff_check": "PASS"
+  },
+  "retained_failures": [
+    "Before resource limits, three controls failed and one passed; bounded probes reached 24 children and 576 MiB aggregate allocation.",
+    "Initial mutation campaign: five kills and one CONTROL_FAILED; immediate populated check failed.",
+    "Diagnostic observed live teardown helper after return in 2/100 trials; populated is not a zombie or notification-lag claim.",
+    "Review corrected two-variable environment claim: Bubblewrap adds PWD=/; probe now enumerates exactly three entries.",
+    "Startup interruption initially proved only parent object closure; retained independent pipe endpoints now require EOF/EPIPE.",
+    "First hygiene CLI attempt omitted required STATUS:path syntax; corrected invocation passed."
+  ],
+  "review": {
+    "role": "independent Codex security review",
+    "model_id": null,
+    "initial_subject": "1edf4c3ca85ce1e62d19bf455d278428c6fef21d",
+    "initial_verdict": "CHANGES_REQUIRED",
+    "final_subject": "37662593250066ff4d48abde4114857858b9ef87",
+    "final_verdict": "SCOPED_PASS",
+    "duplicate_tests": false
+  },
+  "artifact_sha256": {
+    "initial_failure": {
+      "artifact_basename": "zenodex-verifier-resource-before-20260913.log",
+      "sha256": "bba33535de08d4af700ecc08c73d2fa73737effdd11d21719acaf2bda6d44e7f"
+    },
+    "initial_mutations": {
+      "artifact_basename": "zenodex-verifier-resource-mutations-initial-20260913.json",
+      "sha256": "210c4cd02b56ac5524e03ed9a153a74365890757d64642d846efcbdf9b4f6762"
+    },
+    "immediate_cleanup_diagnostic": {
+      "artifact_basename": "zenodex-verifier-resource-cleanup-observation-20260913.json",
+      "sha256": "ee4ac6379af49f2e2235c7b39e5899d4cf0c41f0b093a90898101f9c5d83f25d"
+    },
+    "focused": {
+      "artifact_basename": "zenodex-verifier-resource-review-fixes-20260914.log",
+      "sha256": "f3a8ad6cef91fbdeadc0a1385654c31e5bc80cf2fd2107451e1513f7b2a09934"
+    },
+    "integration": {
+      "artifact_basename": "zenodex-verifier-resource-integration-20260913.log",
+      "sha256": "7d99bfaa83ee371cb955a2c455961bea801175cb54126a6ae7cec29d3f94e775"
+    },
+    "critical": {
+      "artifact_basename": "zenodex-verifier-resource-critical-20260913.log",
+      "sha256": "de94ff5de7d7643cca56d1e7e8590588d6951cab74ac08a5cc505edb0022dcd3"
+    },
+    "genuine_controls": {
+      "artifact_basename": "zenodex-verifier-resource-genuine-20260913.json",
+      "sha256": "e4d4689b95ede7756fc53a9f928f6a06190d21fdaef529854d4f7b484fbf6fae"
+    },
+    "hygiene": {
+      "artifact_basename": "zenodex-verifier-resource-review-hygiene-20260914.json",
+      "sha256": "da19fe5e6f99bd59005384e84213550023db1acef51b58e3df13335bc6829397"
+    },
+    "mutations": {
+      "artifact_basename": "zenodex-verifier-resource-review-mutations-20260914.json",
+      "sha256": "73361a563314963e39cc19af9dd18fedf6c2a59f6ca0341bf580f2bbe66f6895"
+    }
+  },
+  "sources": [
+    "https://github.com/containers/bubblewrap/blob/v0.9.0/bubblewrap.c",
+    "https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#un-populated-notification",
+    "https://github.com/systemd/systemd/blob/v255/src/run/run.c"
+  ],
+  "commands_not_run": [
+    "Full local proof generation (Runpod offline).",
+    "New genuine margin receipt qualification.",
+    "Broad critical/integration rerun after test-only correction; production runtime bytes unchanged."
+  ],
+  "nonclaims": [
+    "Trusted kernel, systemd, Bubblewrap, libraries, configuration and publisher remain premises.",
+    "Per-invocation limits do not bound concurrent requests or prelaunch publisher work.",
+    "No formal proof, new economic command, whole AS07 closure, full formal core, production authority or value-safety gate closure.",
+    "Maximum supported margin-state resource qualification remains open."
+  ],
+  "contributors": [
+    {
+      "role": "root implementation, review fixes and replay",
+      "model_id": null
+    },
+    {
+      "role": "independent security review, initial findings and final acceptance",
+      "model_id": null
+    }
+  ],
+  "next": "Fable owns the separate connected margin formal proof; Astra reviews. Genuine margin receipts still require a proof host."
+}

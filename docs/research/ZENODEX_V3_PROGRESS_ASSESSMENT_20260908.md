@@ -791,3 +791,20 @@ pinned at `301a438967c9a1cd6bf23e1747025481ffc23fff`. Recompute with:
 ```bash
 python3 tools/v3_progress_assessment_calc.py tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json
 ```
+
+### September 14: verifier resource limits and review corrections
+
+`3a44ff5e…` → `376625932…` installs shared per-invocation memory, CPU, task
+and manager deadline limits before measured verifier execution. The
+[qualification evidence](../../tests/evidence/verifier_resource_limits_v1_20260914.json)
+records 71 focused passes, six source mutants killed, two historical genuine
+receipt controls and independent scoped acceptance. Review repaired an
+intermittent cleanup oracle, the environment claim and startup pipe evidence;
+the initial five-kill/one-control-error campaign remains recorded.
+
+The net range adds/removes runtime **37/7**, tests **346/4**, and support
+**248/12** lines. No economic transition or formal theorem changes. Assessment
+**NOT_RESCORED**; the last adopted V3 **24.828%** and formal **21.440%** remain
+estimates of their earlier subject. Full AS07, genuine margin receipts and
+production gates remain open. Fable 5.1 now owns the connected margin proof
+bundle; delegation itself receives no delivery or formal credit.

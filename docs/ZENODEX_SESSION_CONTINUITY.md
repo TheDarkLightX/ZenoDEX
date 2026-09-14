@@ -13,16 +13,17 @@ Only W03/W06/W10/W11 change; all capability/formal scores and denominators stay
 fixed. Earlier NOT_RESCORED entries remain historical records of those batches.
 This is a partial judgment estimate, not release qualification.
 
-AS07 quota implementation `1edf4c3ca85ce1e62d19bf455d278428c6fef21d` is committed
-but not accepted or rescored. Focused native/protocol checks passed 67 tests;
-integration passed 144 with two genuine-margin-proof skips; critical checks
-passed 433 TCB and 852 critical tests. The mutation campaign has five kills and
-one CONTROL_FAILED: the immediate scope-empty assertion intermittently observes
-a still-exiting Bubblewrap PID1 helper. Independent review requires a bounded
-cleanup observation, an exact environment check including Bubblewrap's `PWD=/`,
-and stronger startup-interruption evidence. Finish these corrections and replay
-the six mutants before accepting this batch. Two retained historical genuine
-receipts verified under the quotas; genuine margin receipts remain unavailable.
+AS07 quota implementation and reviewed evidence correction end at
+`37662593250066ff4d48abde4114857858b9ef87`: **SCOPED_PASS**, NOT_RESCORED. The
+[qualification record](../tests/evidence/verifier_resource_limits_v1_20260914.json)
+retains 71 passing focused tests and all six source mutants killed with passing
+controls. Integration/critical checks on the unchanged runtime passed 144 tests
+with two genuine-margin-proof skips, 433 TCB and 852 critical tests. Independent
+review accepts bounded scope-empty notification, the exact three-variable
+environment, and startup-interruption EOF/EPIPE evidence. The initial failed
+control and 2/100 immediate live-helper observations remain recorded. Two
+historical genuine receipts verified under the quotas; genuine margin receipts,
+concurrent-request bounds and all full AS exits remain open.
 
 September 14 user steering assigns the connected margin formal-core proof work
 to Fable 5.1 while Astra owns review, fixes and integration. Fable's exclusive
