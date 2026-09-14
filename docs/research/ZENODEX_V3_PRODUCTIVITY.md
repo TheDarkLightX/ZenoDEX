@@ -686,3 +686,26 @@ JSON-pointer observations validate. The existing denominator and all capability
 and formal scores are unchanged. Assessment support at `e05f293e3…→2a6f06a5e…`
 is +338/−29 metadata lines; the preceding +168-line account is carried once.
 Current quota probes remain uncommitted, unscored failing acceptance evidence.
+
+## September 14: verifier quotas, review repair and formal-core handoff
+
+`3a44ff5e…` → `376625932…` delivers per-invocation resource limits with
+independent scoped review: runtime 37/7, tests 346/4, support 248/12 lines.
+The [evidence](../../tests/evidence/verifier_resource_limits_v1_20260914.json)
+retains the initially failed cleanup control, the three review corrections,
+71 focused passes and all six mutations killed. Integration and critical gates
+passed on the unchanged runtime before the test-only correction. Root and the
+independent reviewer share delivery credit once; exact model/resource counts
+were unavailable. This batch is NOT_RESCORED. The prior 198-line support tail
+and the 172/10-line evidence append are carried once without product credit.
+
+Fable 5.1 is the primary implementer for the separate connected margin formal
+proof under the user's September 14 instruction; Astra owns review and fixes.
+The launch is live, with no result or formal credit recorded. Actual pre-run
+usage was 2% weekly Fable and 1% weekly all models. Final usage and accepted
+changes must be appended after its handback; the private coordination packet
+and live CLI session are preserved. This accounting append is unscored support.
+
+Reporter validation passes against `3a44ff5e…`: prior prefix preserved,
+390 referenced blob occurrences / 63 unique references match, and 88 resource
+pointer observations verify. No assessment delta is assigned.

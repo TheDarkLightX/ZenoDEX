@@ -3459,6 +3459,44 @@
         "elapsed_ms": null,
         "cost_microusd": null
       }
+    },
+    {
+      "id": "V3-20260914-verifier-resources-root",
+      "model_id": null,
+      "role": "implementation",
+      "status": "completed",
+      "task_kind": "per-invocation-quotas-review-repairs-and-native-replay",
+      "risk": "critical",
+      "provenance": {
+        "commit": "db48f597726b712fbbb19a1c209e5602ac91e274",
+        "path": "tests/evidence/verifier_resource_limits_v1_20260914.json",
+        "sha256": "413d3dd02d571a97b0a34ee52ebbb2f819294cef055785babdd5c77d692b3816"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
+    },
+    {
+      "id": "V3-20260914-verifier-resources-review",
+      "model_id": null,
+      "role": "review",
+      "status": "completed",
+      "task_kind": "independent-verifier-cgroup-lifecycle-environment-review",
+      "risk": "critical",
+      "provenance": {
+        "commit": "db48f597726b712fbbb19a1c209e5602ac91e274",
+        "path": "tests/evidence/verifier_resource_limits_v1_20260914.json",
+        "sha256": "413d3dd02d571a97b0a34ee52ebbb2f819294cef055785babdd5c77d692b3816"
+      },
+      "resources": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "elapsed_ms": null,
+        "cost_microusd": null
+      }
     }
   ],
   "batches": [
@@ -6144,6 +6182,92 @@
         "disposition": "support_only",
         "summary": "Current assessment/continuity/review metadata +338/-29. No new economic behavior, proof, or duplicate delivery credit. Uncommitted quota probes excluded.",
         "evidence": null
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-as-assessment-account-carry",
+      "before_commit": "2a6f06a5e56a54ffc87ffb4066a717dcd26104f1",
+      "after_commit": "3a44ff5e1a736d43547637b1af24c5c8ff8af4cc",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Carry the prior 198-line assessment/account append once; no delivery credit.",
+        "evidence": {
+          "commit": "db48f597726b712fbbb19a1c209e5602ac91e274",
+          "path": "tests/evidence/verifier_resource_limits_v1_20260914.json",
+          "sha256": "413d3dd02d571a97b0a34ee52ebbb2f819294cef055785babdd5c77d692b3816"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-verifier-resources",
+      "before_commit": "3a44ff5e1a736d43547637b1af24c5c8ff8af4cc",
+      "after_commit": "37662593250066ff4d48abde4114857858b9ef87",
+      "kind": "implementation",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260914-verifier-resources-root",
+        "V3-20260914-verifier-resources-review"
+      ],
+      "outcome": {
+        "disposition": "accepted_partial",
+        "summary": "Shared resource quotas installed before endpoint execution. 71 focused passes, six mutants killed, two historical genuine receipts. Initial control failure and three independent-review evidence corrections retained. Net range runtime 37/7, tests 346/4, support 248/12 lines. NOT_RESCORED; no new formal or economic capability.",
+        "evidence": {
+          "commit": "db48f597726b712fbbb19a1c209e5602ac91e274",
+          "path": "tests/evidence/verifier_resource_limits_v1_20260914.json",
+          "sha256": "413d3dd02d571a97b0a34ee52ebbb2f819294cef055785babdd5c77d692b3816"
+        }
+      },
+      "assessment": {
+        "before": null,
+        "after": null,
+        "review": null
+      },
+      "findings": [],
+      "supersedes": null
+    },
+    {
+      "id": "V3-20260914-verifier-resources-evidence",
+      "before_commit": "37662593250066ff4d48abde4114857858b9ef87",
+      "after_commit": "db48f597726b712fbbb19a1c209e5602ac91e274",
+      "kind": "support",
+      "obligation_ids": [
+        "W03",
+        "W11"
+      ],
+      "run_ids": [
+        "V3-20260914-verifier-resources-root"
+      ],
+      "outcome": {
+        "disposition": "support_only",
+        "summary": "Retain source-bound verification, initial failures, independent review and Fable implementation handoff. 172/10 lines of support; no separate credit. Fable remains live and unscored; final contribution will be recorded on handback.",
+        "evidence": {
+          "commit": "db48f597726b712fbbb19a1c209e5602ac91e274",
+          "path": "tests/evidence/verifier_resource_limits_v1_20260914.json",
+          "sha256": "413d3dd02d571a97b0a34ee52ebbb2f819294cef055785babdd5c77d692b3816"
+        }
       },
       "assessment": {
         "before": null,
