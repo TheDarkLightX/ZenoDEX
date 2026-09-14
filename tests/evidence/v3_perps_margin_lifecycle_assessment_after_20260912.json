@@ -230,8 +230,8 @@
         ],
         "capabilities": [
           {"id": "pool_create", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy create with locked LP; no V3 admission"},
-          {"id": "exact_in_swap", "c": 0.35, "unc": "V", "note": "pure complete Spot/custody/global successor; unmounted; Rust and economic receipts open"},
-          {"id": "exact_out_swap", "c": 0.35, "unc": "V", "note": "actual-intent complete joint successor with existing minimal-input quote; unmounted"},
+          {"id": "exact_in_swap", "c": 0.35, "unc": "V", "note": "Python and native Rust complete joint successor; unmounted; guest and economic receipts open"},
+          {"id": "exact_out_swap", "c": 0.35, "unc": "V", "note": "actual-intent Python/Rust joint successor with bounded correspondence; guest/receipt/admission open"},
           {"id": "governed_route", "c": 0.15, "unc": "V", "legacy_only": true, "note": "routing exists; caller-selectable donor configuration"},
           {"id": "atomic_batch", "c": 0.18, "unc": "V", "legacy_only": true, "note": "batch clearing and strong replay; legacy boundary"},
           {"id": "lp_issue", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy add-liquidity; no V3 claimant projection"},
@@ -757,9 +757,9 @@
   },
   "formal_core": {
     "denominator_weight": 140,
-    "central_percent": 21.569,
-    "lower_percent": 15.739,
-    "upper_percent": 27.654,
+    "central_percent": 21.590,
+    "lower_percent": 15.760,
+    "upper_percent": 27.676,
     "rows": [
       {
         "id": "FC:ASSET_TRANSFER",
@@ -811,10 +811,12 @@
         "id": "FC:SPOT_LIQUIDITY",
         "kind": "lane",
         "weight": 10,
-        "low": 0.1411,
-        "central": 0.1911,
-        "high": 0.2411,
+        "low": 0.1441,
+        "central": 0.1941,
+        "high": 0.2441,
         "evidence": [
+          {"path": "zk/spot_swap_global_v2/src/global.rs", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/spot_swap_native_v2_20260914.json", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/core/spot_swap_global_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/core/spot_swap_state_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "tests/evidence/spot_swap_global_v2_20260914.json", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -826,8 +828,8 @@
         ],
         "capabilities": [
           {"id": "pool_create", "sem": 0.3, "prf": 0.1, "ref": 0.1, "unc": "V", "legacy_only": true},
-          {"id": "exact_in_swap", "sem": 0.40, "prf": 0.3, "ref": 0.2, "unc": "V"},
-          {"id": "exact_out_swap", "sem": 0.40, "prf": 0.25, "ref": 0.15, "unc": "V"},
+          {"id": "exact_in_swap", "sem": 0.40, "prf": 0.3, "ref": 0.25, "unc": "V"},
+          {"id": "exact_out_swap", "sem": 0.40, "prf": 0.25, "ref": 0.20, "unc": "V"},
           {"id": "governed_route", "sem": 0.25, "prf": 0.2, "ref": 0.1, "unc": "V", "legacy_only": true},
           {"id": "atomic_batch", "sem": 0.3, "prf": 0.25, "ref": 0.15, "unc": "V", "legacy_only": true},
           {"id": "lp_issue", "sem": 0.3, "prf": 0.2, "ref": 0.15, "unc": "V", "legacy_only": true},
@@ -1235,12 +1237,12 @@
   },
   "assessment_basis": {
     "kind": "SCOPED_REVIEWED_AMENDMENT",
-    "inherited_subject": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
+    "inherited_subject": "1fcb00c857a05cc8088464b027b1759d7785b71c",
     "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
-    "inherited_assessment_sha256": "0c3d0214481ef6c80d29f83fdcf0c17036aab5bc94c1a6745b380b58cdaa03fc",
-    "inherited_storage_commit": "a075670adf3324b646966089ea9108eaf932d58e",
-    "scope": "Only exact_in_swap/exact_out_swap W07 implementation and formal semantics judgments change after independent Astra review and root replay. Proof/refinement, all other rows, denominators and qualification flags are inherited. Python-only unmounted candidate; no complete lane or release qualification.",
-    "review_evidence": "tests/evidence/spot_swap_global_v2_20260914.json"
+    "inherited_assessment_sha256": "09ea5a5edf5d2de127e2a4f771f8f037bef229fded29b27536cb8358f8f17845",
+    "inherited_storage_commit": "713098dbf30c6d51c3e58d5b55a1b93855b86a7f",
+    "scope": "Only exact_in_swap/exact_out_swap formal refinement judgments increase by .05 after independent Opus review and root replay of the native counterpart. W07 scores, semantics, theorem proof credit, all other rows, denominators and qualification flags are inherited. Unmounted candidate; no complete lane or release qualification.",
+    "review_evidence": "tests/evidence/spot_swap_native_v2_20260914.json"
   },
-  "subject": "1fcb00c857a05cc8088464b027b1759d7785b71c"
+  "subject": "309b1f5dd86489979f50b3835dfcf0dcb1c872af"
 }

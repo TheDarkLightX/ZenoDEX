@@ -1,0 +1,294 @@
+{
+  "schema": "zenodex/spot-swap-native-evidence/v2",
+  "status": "SCOPED_NATIVE_CORRESPONDENCE_PASS",
+  "source_commit": "309b1f5dd86489979f50b3835dfcf0dcb1c872af",
+  "implementation_parent": "713098dbf30c6d51c3e58d5b55a1b93855b86a7f",
+  "authority": "NONE",
+  "formal_core_complete": false,
+  "closed_value_movement_gate_count": 0,
+  "obligations": [
+    "W04",
+    "W06",
+    "W07:SPOT_LIQUIDITY",
+    "W09",
+    "W10"
+  ],
+  "before": "Complete Python single-pool Spot/asset/global successor; native economic counterpart absent.",
+  "after": "Pure native Rust counterpart derives complete successor values, effects and roots for actual exact-in/out SwapIntent commands using existing GlobalSettlementABI V2.",
+  "source_sha256": {
+    "docs/specifications/TAUFOLD_SWAP_INTEGRATION_V2.md": "d8066d1a3ed752f2354ef3eb94c9bf917457072602a603d749dccca9a5657029",
+    "tests/core/test_spot_swap_global_rust_v2.py": "fcee2d4e68cdc002959b50577e14e611801eba69ab31b75acecfbd9f8c351ca6",
+    "tests/core/test_spot_swap_global_v2.py": "6f9244b1697c3f1a1d83d81aa9a5e644852cabf09d436770d1dcea44f8ddda80",
+    "zk/spot_swap_global_v2/Cargo.lock": "85ba7415db5b208ba646fbe151ec4691a6b4c28a929101780d0775d2996d2feb",
+    "zk/spot_swap_global_v2/Cargo.toml": "10abf19c2f0cc10549934fe717eb3bbb0e9081382e73298e4d14004bee1a0768",
+    "zk/spot_swap_global_v2/README.md": "59d878bd1a0ab12480e5af6ae7c37057e119957504e9d60c95b7f7ab876de05f",
+    "zk/spot_swap_global_v2/examples/parity.rs": "d97bf8c792a577065d2bb7126f81c0f83a12fe0ed7f38786189861fd8baccc99",
+    "zk/spot_swap_global_v2/examples/quote.rs": "13c4308ebe6cd557e65993e44a048dc7c9889d3cb578352c21f07af85548a942",
+    "zk/spot_swap_global_v2/src/global.rs": "e403b39e05196c756807b916098201f1dabd34dd26d00c3ac6d5728d7d96939e",
+    "zk/spot_swap_global_v2/src/intent.rs": "5321cc41e9cd305bfc8b67a93407eea4de3e062d272211d81b91bdf9355f2ec7",
+    "zk/spot_swap_global_v2/src/lib.rs": "8eb231d8176867cd22c81ea8552bd088c6fab769865b863102d3809f23b03f27",
+    "zk/spot_swap_global_v2/src/plan.rs": "ce68da6c4c05947a7319741bb09e14886a0b73beccd94938fbd3487f0afd4d6c",
+    "zk/spot_swap_global_v2/src/quote.rs": "c5a15344d179f6849dd5b5d2c1724a0fdc27cea1426507593038f90f19ae57fc",
+    "zk/spot_swap_global_v2/src/state.rs": "23cc6c0f8256b0029992c153905d6d5f3026e9885ad963bfe86a6d2075f71ddd",
+    "zk/spot_swap_global_v2/tests/spot_swap_global.rs": "921b00226c4e16eadd28592aaa1493c29d717f85b49fa7e8a85a58e3be20991d"
+  },
+  "python_reference_sha256": {
+    "src/core/spot_swap_plan_v2.py": "bfbbd0ae195bce93aae7705177f7cac42d590bd270179bfa14d578f84fe538df",
+    "src/core/spot_swap_state_v2.py": "0bc224907890f632e3bfd7106f00a16abe134c47846fe88cec2872dfc6cea9b0",
+    "src/core/spot_swap_global_v2.py": "928b41bcdbfd9552990277b658cfdff972c4957965000d153480a5e8d37ab064",
+    "src/kernels/python/cpmm_swap_v8.py": "dc8f321bc6f51d618ed014d6080546853587718700d37005ea3443f4ef548a4e",
+    "src/kernels/python/settlement_swap_runtime_v1.py": "dbb6cad959e0995cdbdf5cd3281a07f68074f049e554d929ce40bbe6dc10f468",
+    "src/state/intents.py": "7cf7e76edfb1e6c1a51d237c12923a770521d34e6e180f18a35134387d20f3cc"
+  },
+  "shared_abi_src": {
+    "file_count": 32,
+    "canonical_path_hash_map_sha256": "27c64126671e17d9b61ab59b27fb331f68263eb6668ab5f68c3d7abffd96fc8a"
+  },
+  "validation": {
+    "combined_pytest": {
+      "command": "python -m pytest -q tests/core/test_spot_swap_plan_v2.py tests/core/test_spot_swap_state_v2.py tests/core/test_spot_swap_global_v2.py tests/core/test_spot_swap_global_rust_v2.py --durations=5",
+      "passed": 148,
+      "skipped": 0,
+      "elapsed_seconds": 113.48,
+      "log_sha256": "46a6878d19d3b4c5f223a11dc52f92304ab03208f5ceeace58446478fd5c7649"
+    },
+    "native": {
+      "cargo_test_passed": 51,
+      "unit_tests": 22,
+      "integration_tests": 29,
+      "cargo_clippy_all_targets_exit": 0,
+      "cargo_fmt_check_exit": 0,
+      "offline_locked": true,
+      "jobs": 2,
+      "commands": [
+        "cargo test --offline --locked --manifest-path zk/spot_swap_global_v2/Cargo.toml -j 2",
+        "cargo clippy --offline --locked --manifest-path zk/spot_swap_global_v2/Cargo.toml --all-targets -j 2 -- -D warnings",
+        "cargo fmt --manifest-path zk/spot_swap_global_v2/Cargo.toml -- --check"
+      ],
+      "log_sha256": "76f02d9baae2acfb162f69c27722839f1997637ed9c8114fa662c352691d59e2"
+    },
+    "complete_transition_cases": {
+      "total": 218,
+      "economic": 144,
+      "guard": 33,
+      "history": 9,
+      "nonce_and_u128": 5,
+      "balance_capacity": 2,
+      "byte_capacity": 2,
+      "reserve_and_gap": 5,
+      "intent_boundaries": 18
+    },
+    "arithmetic_cases": {
+      "total": 8736,
+      "small_domain": [
+        1,
+        8
+      ],
+      "extreme_values": [
+        0,
+        1,
+        2,
+        2999999999,
+        3000000000,
+        3000000001
+      ],
+      "fee_values": [
+        0,
+        1,
+        30,
+        1000,
+        9999,
+        10000
+      ],
+      "modes": [
+        "exact_in",
+        "exact_out"
+      ],
+      "observations": [
+        "complete quote fields",
+        "independent forward arithmetic",
+        "exact-output predecessor minimality",
+        "nondecreasing pool product"
+      ]
+    },
+    "malformed_input_classes": 15,
+    "same_process_positive_after_each_malformed": true,
+    "compiled_mutants": {
+      "count": 4,
+      "all_killed": true,
+      "unchanged_controls_passed": true,
+      "build_errors_count_as_kills": false,
+      "targets": [
+        "subject check removed",
+        "command-body binding removed",
+        "inner nonce sequence check removed",
+        "ceil fee changed to floor"
+      ],
+      "replay": "test_native_semantic_mutants_are_detected"
+    },
+    "byte_ceiling_pair": {
+      "admitted_pre_bytes": 1048448,
+      "rejected_pre_bytes": 1048574,
+      "ceiling": 1048576,
+      "table_row_ceiling": 4096
+    },
+    "ruff_exit": 0,
+    "lock_regeneration_unchanged": true,
+    "lock_sha256": "85ba7415db5b208ba646fbe151ec4691a6b4c28a929101780d0775d2996d2feb"
+  },
+  "retained_repairs": [
+    "Duplicate keys at top level, nested level and escaped-equivalent spelling initially accepted; strict visitor and retained negative cases now reject.",
+    "An object spelling the Serde private Number token initially became an accepted number; the pinned JSON string/number visitor distinction rejects it and retains wide integer controls.",
+    "Empty field key now receives Python structural rejection after the field-count guard.",
+    "Root added scalar subject validation and a failing-first native test covering empty, 512/513 Unicode-character bounds and error precedence.",
+    "Root fixed mutation-observer handling of pytest assertion rewriting; compile success plus intended observation is required.",
+    "Root replaced shallow field copying in the test transport with existing to_wire_fields for nested rejection fixtures."
+  ],
+  "review": {
+    "native": "Independent Opus source review found no blocking defect within canonical typed joint-state scope, conditional on named root repairs and final replay. Root discharged those conditions. No independent source hashes or execution were supplied by that reviewer.",
+    "tests": "Independent Opus review strengthened independently derived guard outcomes, exact economic rows, decoder positive controls, wide-integer and capacity cases.",
+    "research": "Root retained custody plus shares and pure curve plans. Proposed domain write ownership cannot authenticate a command; two retained tests prove the actual custody statement producer rejects a conserving unauthorized candidate with or without a declared Spot write. No donor economics, LP-share ban or permanent-pool policy adopted.",
+    "failed_reviews": "Two Astra review attempts returned a tool cybersecurity-risk error and no verdict. They receive no review acceptance credit.",
+    "source_pin_note": "Review subject was base commit plus the working native candidate. Final hashes and replay are supplied by root after repairs; the review was not a release qualification."
+  },
+  "assessment": {
+    "status": "SCOPED_REVIEWED_AMENDMENT",
+    "v3_before": 24.906,
+    "v3_after": 24.906,
+    "formal_before": 21.569,
+    "formal_after": 21.59,
+    "formal_delta_pp": 0.021,
+    "changes": {
+      "exact_in_swap_refinement": [
+        0.2,
+        0.25
+      ],
+      "exact_out_swap_refinement": [
+        0.15,
+        0.2
+      ]
+    },
+    "unchanged": "Semantics, theorem proof credit, W07 implementation credit, every other row, denominators and all authority flags. These are judgment estimates, not measured completion or safety probabilities."
+  },
+  "code_value": {
+    "runtime_and_inline_rust_unit_tests": {
+      "added": 3019,
+      "removed": 0
+    },
+    "separate_test_files": {
+      "added": 2635,
+      "removed": 0
+    },
+    "test_transports": {
+      "added": 570,
+      "removed": 0
+    },
+    "config_lock_and_docs": {
+      "added": 373,
+      "removed": 2
+    },
+    "total": {
+      "added": 6597,
+      "removed": 2
+    },
+    "proof_source_added": 0,
+    "benefit": "Supplies the missing native economic implementation required by a future Spot guest and kills named accounting/authorization/replay divergences."
+  },
+  "model_resources": {
+    "fable": {
+      "model": "claude-fable-5-1",
+      "effort": "xhigh",
+      "session_id": "6bddf617-d32a-4f28-9f1e-dd284d81588e",
+      "duration_ms": 4110292,
+      "input_tokens": 962,
+      "cache_creation_input_tokens": 721576,
+      "cache_read_input_tokens": 13451297,
+      "output_tokens": 381027,
+      "num_turns": 145,
+      "provider_cost_unknown": true,
+      "stream_sha256": "4a9d304308ba0f531ea4696385a0e3c911571412d9be3987a36b3633f786bc54"
+    },
+    "opus_research": {
+      "model": "claude-opus-5",
+      "effort": "xhigh",
+      "session_id": "83922e1c-d8fc-47af-b4d9-77d8581570c1",
+      "duration_ms": 2167529,
+      "input_tokens": 168,
+      "cache_creation_input_tokens": 259327,
+      "cache_read_input_tokens": 13435949,
+      "output_tokens": 87806,
+      "num_turns": 178,
+      "provider_cost_unknown": true,
+      "stream_sha256": "3d6113f9ab41861f2a80cc39f7cda360db255045ffc656b248418665c916c103"
+    },
+    "opus_tests": {
+      "model": "claude-opus-5",
+      "effort": "xhigh",
+      "session_id": "e312b3ff-67ba-42fc-950f-ac9bfb988e33",
+      "duration_ms": 934379,
+      "input_tokens": 60,
+      "cache_creation_input_tokens": 142213,
+      "cache_read_input_tokens": 2632917,
+      "output_tokens": 69124,
+      "num_turns": 38,
+      "provider_cost_unknown": true,
+      "stream_sha256": "bcb0531941e846793cd00df23a737a39813e4de34106b73ffca084c2a7d5881b"
+    },
+    "opus_native": {
+      "model": "claude-opus-5",
+      "effort": "high",
+      "session_id": "c6c6eaeb-c33d-4b3a-b389-4f44f00446aa",
+      "duration_ms": 551719,
+      "input_tokens": 70,
+      "cache_creation_input_tokens": 212662,
+      "cache_read_input_tokens": 4469423,
+      "output_tokens": 38507,
+      "num_turns": 62,
+      "provider_cost_unknown": true,
+      "stream_sha256": "cdbaa6f91e196aa091c461d7032c92c2f3c4a010f180d14832815b584341aee3"
+    }
+  },
+  "coordination_corrections": [
+    "Relative feedback filename in the worker packet was resolved in the wrong directory. The worker did not receive that file; root tests supplied feedback. Future packets must use the absolute coordination path.",
+    "The worker also wrote private handback files at repository root and Claude memory notes outside its assigned paths. Root relocated the handbacks and excluded those notes from product credit; no unrelated files were removed."
+  ],
+  "nonclaims": [
+    "No Lean, ESSO or Kani run or new theorem.",
+    "No RISC Zero guest/image/journal, genuine Spot receipt, BLS admission, TauFold dispatch or publisher qualification.",
+    "No LP mint/burn/transfer, pool genesis/close, multiple pools, terminal locked-share policy or production activation.",
+    "Rust scalar lp_supply is u64; wider standalone Python snapshots are outside this counterpart.",
+    "Forged Python internals, oversized unsupported nested fields and arbitrary raw transport sizes remain outside correspondence.",
+    "No claim that any researched external DEX has never been hacked.",
+    "Provider billing, root/reviewer unrecorded usage and remaining completion time are unknown."
+  ],
+  "disk": {
+    "native_builds": "RAM-backed target, four-GiB free-space guard, one-GiB target budget",
+    "mutation_builds": "Per-run temporary target removed at fixture teardown",
+    "obsolete_task_owned_cache_removed_bytes": 325493819,
+    "unrelated_work_preserved": true
+  },
+  "release_gates": {
+    "claims_registry": {
+      "passed": false,
+      "reason": "claims[123].evidence.files missing tools/check_derivatives_authorization_matrix.py",
+      "missing_at_parent": true
+    },
+    "production_boundary_initial": {
+      "passed": false,
+      "reason": "HEAD_CHANGED because root committed during terminal replay; initial run grants no acceptance. Subsequent fixed-HEAD replay passed."
+    },
+    "production_boundary_final": {
+      "passed": true,
+      "source_commit": "309b1f5dd86489979f50b3835dfcf0dcb1c872af",
+      "command": "python tools/check_production_boundary.py --json",
+      "check_count": 14,
+      "log_sha256": "3e63df25d274f0fc3f0dc13c3d991968de4796cf58ffc95e5e6830afc3958d06",
+      "initial_failure_resolution": "Replayed without HEAD changes; all 14 checks passed."
+    },
+    "not_run": [
+      "bash tools/run_critical_quality_gate.sh",
+      "python tools/permissionless_assurance.py status",
+      "full Lean/ESSO/Kani/RISC0 proof builds"
+    ]
+  }
+}

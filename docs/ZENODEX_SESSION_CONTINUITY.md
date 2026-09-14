@@ -3,48 +3,53 @@
 This is the durable entry point for a resumed session. It selects work and
 evidence; it grants no release, migration, or publication authority.
 
-Latest adopted assessment: independent Astra review and root replay of the
-joint Spot successor at `1fcb00c857…` move V3 **24.828% → 24.906%** and formal
-core **21.547% → 21.569%**, with **0/12** value-safety gates closed. The
-[reviewed evidence](../tests/evidence/spot_swap_global_v2_20260914.json) records
-complete custody/LP/global composition, early capacity checks and canonical
-identity guards. Only exact-in/out implementation and semantics judgments
-change; proof/refinement scores, other rows and qualification flags are inherited.
-The existing input remains
+Latest adopted assessment: the scoped native Spot amendment at
+`309b1f5dd86489979f50b3835dfcf0dcb1c872af` keeps V3 **24.906%** and moves
+formal core **21.569% → 21.590%**, with **0/12** value-safety gates closed.
+Only exact-in/out refinement judgments change (.20→.25 and .15→.20).
+All other scores, denominators and qualification flags are inherited. See the
+[source-bound evidence](../tests/evidence/spot_swap_native_v2_20260914.json).
+The existing assessment input remains
 `tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json`.
-This is a scoped partial judgment estimate, not a full rescore or qualification.
+This is a scoped advisory estimate; formal core and production qualification
+remain incomplete.
 
-Latest implementation reuses the pure actual-SwapIntent planner in a complete
-single-pool Spot/asset/global successor. It retains exact LP shares and metadata,
-uses the existing physical custody table, and binds canonical 48-byte account
-identities plus independent inner/outer nonces. See the updated
-[integration contract and Rust source comparison](specifications/TAUFOLD_SWAP_INTEGRATION_V2.md).
-Final checks pass 171 focused/regression tests, including 74 new Spot tests,
-four semantic mutants, mixed asset/swap histories and both capacity boundaries.
-Explicit typing passes; new-module statement/branch coverage is 96%. Existing
-433-TCB/852-critical tests and production-boundary audit pass under their stated
-scope. The result remains Python-only and unmounted, with authority NONE.
+The complete single-pool Spot/asset/global successor now has a pure native
+Rust counterpart using the existing GlobalSettlementABI V2. It preserves
+physical custody, LP shares and metadata, rounded fees, inner/outer nonce
+sequences, effects and canonical roots for the actual SwapIntent commands.
+See the [integration contract](specifications/TAUFOLD_SWAP_INTEGRATION_V2.md).
+The final run passes 148 Python/parity tests and 51 Rust tests, including 218
+complete transitions, 8,736 arithmetic vectors and four compiled mutants with
+passing unchanged controls. Duplicate-key, forged number-object, empty-key and
+context-boundary defects were repaired. Native Clippy, formatting, Ruff and
+the frozen-HEAD production-boundary audit pass. The claims-registry check still
+fails on the inherited missing `tools/check_derivatives_authorization_matrix.py`.
+No new theorem, guest, genuine economic receipt or publication authority exists.
 
-Next swap acceptance requires Rust/guest/journal correspondence, genuine economic
-receipts, admitted genesis/profile/time and authentic TauFold dispatch through
-the existing publisher, then authenticated terminal settlement and recovery.
+The next integrated swap acceptance is a native guest and exact journal with a
+genuine receipt, then admitted genesis/profile/time and authentic TauFold dispatch
+through the existing publisher, including terminal settlement and recovery.
 LP mint/burn/transfer, multiple pools, closure and locked-share terminal policy
 remain required lane work. No alternate writer or timeout-based reservation
-release is permitted. Root owns implementation after Claude's limit refusal;
-the Luna delegation attempt hit the harness thread limit and produced no code.
-Generic-refiner repeated getter copies are now reduced at `0a59b5c6d…`: each
-check captures validated detached values once. Full-state copies fall from
-25/60/340 to four at 1/8/64 occurrences. A separate 16/−1-line repair at
+release is permitted. Runpod remains unavailable; guest/proving work needs an
+available qualified build/proof environment.
+
+Fable 5.1 implemented the native crate; Astra reviewed, repaired and integrated
+it. Three completed Opus tasks supplied Rust DEX research, test review and final
+native/score review. The last review was source-only and conditional; root
+replayed the repaired candidate. Two Astra review attempts returned tool errors
+without verdicts. Resources and failed attempts are retained in the evidence.
+No external protocol economics or permanent-pool policy was adopted. Worker
+feedback packets must use absolute coordination paths: one relative feedback
+file was missed, and root tests supplied the corrections. Historical usage
+counters do not establish current availability.
+
+The earlier generic-refiner optimization at `0a59b5c6d…` reduces full-state
+copies from 25/60/340 to four at 1/8/64 occurrences. The separate repair at
 `fff0f44c6…` restores the declared resource-limit rejection without economic
 effects. These changes receive no additional score credit. See the
 [scoped replay and timing evidence](../tests/evidence/global_refinement_local_reuse_v2_20260914.json).
-
-The user restored Claude delegation. One read-only `claude-opus-5`, xhigh,
-research task compares Rust DEX architecture and primary incident evidence.
-Its private coordination packet is `CLAUDE_RUST_DEX_DESIGN_RESEARCH_20260914.md`;
-session `83922e1c-d8fc-47af-b4d9-77d8581570c1`. Root must review the actual report
-before adoption. Observed counters were 20% all-model weekly and 39% Fable weekly,
-with current session 0%; do not infer future availability from reset estimates.
 
 The earlier connected margin proof at `388b5f4b1…` retains its reviewed
 14-test Lean replay and explicit premises; it is not rerun or recredited here.

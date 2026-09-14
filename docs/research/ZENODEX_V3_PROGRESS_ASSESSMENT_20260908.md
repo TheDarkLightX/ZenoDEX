@@ -2,10 +2,11 @@
 
 Status: advisory planning baseline. No completion or promotion authority.
 
-Latest scoped amendment: **V3 24.906%; formal core 21.569%**, subject
-`1fcb00c857…`. The September 14 joint-Spot entry records rounded estimate gains
-of **+0.078 V3 / +0.022 formal percentage points**, with proof/refinement and
-other rows inherited. Historical tables retain their original subjects.
+Latest scoped amendment: **V3 24.906%; formal core 21.590%**, subject
+`309b1f5dd86489979f50b3835dfcf0dcb1c872af`. The September 14 native Spot entry
+records **+0.021 formal percentage points / zero V3 change** for bounded
+Python/Rust correspondence. Other rows and qualification flags are inherited.
+Historical tables retain their original subjects.
 
 Both reviewers inspected committed source at `70f9157ef097384c6b48db22c254d8134f19f8f5`.
 Fable used `claude-fable-5-1` at Max; Opus used `claude-opus-5` at Max.
@@ -906,3 +907,45 @@ This is **NOT_RESCORED**. V3 **24.906%**, formal **21.569%** and **0/12** gates
 remain estimates/statuses of the previous adopted subject. No new proof theorem,
 guest, economic receipt or publication authority was produced. Support records
 and the two-line provenance refresh receive no automatic product credit.
+
+### September 14: native Spot counterpart and complete-state correspondence
+
+`713098dbf…` → `309b1f5dd…` supplies the missing Rust implementation for
+exact-in/out SwapIntent planning and complete account/pool/custody/LP/nonce
+successors, effects and roots. Fable implemented; Astra repaired and integrated;
+Opus supplied independent source/test reviews. No shared ABI, fee direction,
+LP policy, Python runtime or publication authority changed.
+
+The implementation commit adds/removes **6,597/2** lines: **3,019/0** Rust
+runtime and inline unit tests, **2,635/0** separate test files, **570/0** test-only
+JSON transports and **373/2** configuration, lockfile and documentation. There
+are **zero new proof-source lines**. File-based productivity classifications
+must not be described as a precise count of executable runtime statements.
+The previous `226a3aa17…` → `713098dbf…` **435/6** support tail is carried once.
+Current evidence and accounting changes receive no separate product credit.
+
+[Retained evidence](../../tests/evidence/spot_swap_native_v2_20260914.json)
+records **148 Python/parity passes**, **51 Rust passes**, **218 complete
+transitions**, **8,736 arithmetic vectors**, **15 malformed-input classes** and
+**four compiled semantic mutants** killed by their intended observations with
+passing unchanged controls. It retains the duplicate-key, forged number-object,
+empty-key and context-guard repairs. Two custody regressions show why a declared
+write owner does not authenticate a conserving transfer: the actual command
+statement producer must reject the forged successor. Strict Clippy, formatting,
+Ruff and the frozen-HEAD production-boundary audit pass. The inherited missing
+claims-registry file still blocks that separate gate. Full Lean, ESSO, Kani and
+RISC0 proof builds were not run for this batch.
+
+Only exact-in/out refinement judgments change **.20→.25 / .15→.20**, following
+the independent Opus recommendation and final root replay. The unchanged
+calculator yields **formal 21.569% → 21.590% (+0.021 pp)**, with scenarios
+**15.760–27.676%**. V3 remains **24.906%**, scenarios **17.591–32.985%**.
+These judgments credit bounded native correspondence; they establish no
+universal refinement theorem. Other semantics, proof and implementation scores,
+denominators and qualification flags remain unchanged. Shared gain counts once.
+
+The next blocker is a Spot guest/journal and genuine receipt, followed by
+authenticated TauFold dispatch and publisher terminal/recovery acceptance.
+LP lifecycle, multiple pools and locked-share terminal policy also remain open.
+The pure native crate has authority NONE. No full lane or value-safety gate
+closes. No new tracker or proof framework was added.
