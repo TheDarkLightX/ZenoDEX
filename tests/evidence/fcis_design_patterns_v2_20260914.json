@@ -1,0 +1,311 @@
+{
+  "schema": "zenodex/fcis-design-patterns-evidence/v2",
+  "status": "SCOPED_NATIVE_AND_REQUEST_REPLAY_PASS",
+  "source_commit": "6cc459a08d273848d1f27a1dd0a6bf0cfb5762f8",
+  "implementation_parent": "3944ccf9f6d5d1b1d523752cd10533c8bee87720",
+  "authority": "NONE",
+  "formal_core_complete": false,
+  "closed_value_movement_gate_count": 0,
+  "obligations": [
+    "W04",
+    "W06",
+    "W09",
+    "W10"
+  ],
+  "improvements": {
+    "rejection": "One stored pre-root; post_state_root() derives the identical root. Before-removal compile_fail control compiled and failed rustdoc as expected; after-removal doctest and no-op regressions pass.",
+    "publication": "One exact owned custody or existing Perps request. Authentication preparation precedes dispatch. Defensive ownership remains; all economic writes remain inside the existing local commit closure.",
+    "execution": "Native replay and candidate guest entrypoint import one bounded canonical decoder and the existing Rust transition. Accepted-only input/refinement-root journal, exact original bytes and EOF, successor representability checked.",
+    "projection": "Borrowed iterator comparisons remove copied supply/custody tables. Complete validators and error ordering retained; no validated-state cache."
+  },
+  "compatibility": {
+    "source_api": "publish(candidate, request, *, receipt_bytes); loose custody context/command callers migrated.",
+    "unchanged": "Python economics, global ABI, fees, LP policy, intent/occurrence nonce semantics, current request/record/frame bytes and historical decoders.",
+    "golden_legacy_custody_request_id": "0x54f07f0a2a1f484fec67c310361418ee8df1a49718ec8a5fba242bad3fa84515",
+    "golden_provenance": "The authenticated custody fixture, request-id helper and authentication preparation are byte-unchanged from the implementation parent; retained request parts and fixed ID pass.",
+    "caller_review": "Six consumer files inspected. One four-argument qualification.publish call is a separate wrapper; no remaining loose publisher method call found."
+  },
+  "source_sha256": {
+    "docs/ZENODEX_SESSION_CONTINUITY.md": "b77ae34426192573e68822fc25ab9b60bb3701999d67f2ae2c1802307bffd7a4",
+    "docs/specifications/ISOLATED_CUSTODY_PUBLICATION_V2.md": "b49cd0ad5a959e60dd7c26c3d6a576469dd78e60bf1f09261b3e32c0b976117b",
+    "docs/specifications/TAUFOLD_SWAP_INTEGRATION_V2.md": "24c21e0509627011e23e5b0ae9e2e97fd2f04950138c21e5af61b98df7e0476b",
+    "src/integration/isolated_custody_publisher_v2.py": "6fff2bc910463593d0b9a6f20fca7b873a1709e775a7ef5cc9848ff51cc97152",
+    "tests/core/test_spot_swap_execution_frame_v2.py": "4646f600bf662135e72fb01415bf420c82f5cc24f7385b837fe3c4e50b191c4c",
+    "tests/integration/test_isolated_custody_history_audit_v2.py": "b34a43ea18be096e0b8f4bccfb2e012ea0c832e96ad74a490e1be111b06fff01",
+    "tests/integration/test_isolated_custody_publisher_v2.py": "ddfdca661a069f7a6aaa9f57c24023b8988e92c6815b510dd74d7c72c3210952",
+    "tests/integration/test_isolated_joint_margin_publisher_v2.py": "dab02ca3c850e3f7b41ed128c29285eef198bb7a4300d3a5f3385d5b0fc8b867",
+    "zk/spot_swap_global_risc0/Cargo.lock": "eba8d05510e626396893f337f1735ded53ef2952851570c5fcc874073364e70b",
+    "zk/spot_swap_global_risc0/Cargo.toml": "a853a94105caf4c7cc7cf9134bd877704caa35138989f289c04869fc9249f91b",
+    "zk/spot_swap_global_risc0/README.md": "f3a91fcb42a92dc0a966ff6a7b564172575655b6dc57c3c29b7ee4e72a0ebdfc",
+    "zk/spot_swap_global_risc0/methods/Cargo.toml": "471ac889d37dd74bd9b4cdff676c151145c39f70ac60d40849b54eb7d62182ac",
+    "zk/spot_swap_global_risc0/methods/build.rs": "d1bf8ecd6129ede3538ad4cc036e8d50105479b2760027693ad886ace86e3229",
+    "zk/spot_swap_global_risc0/methods/guest/Cargo.toml": "d46a8de954957a5f26bfc7af3f9cee12e4199d8498651ac8114d7c0c04e5f062",
+    "zk/spot_swap_global_risc0/methods/guest/examples/replay.rs": "214ac01a1ec298138ddc3d92b6cde601d0aad832a54a5d7ef78910f32b8920de",
+    "zk/spot_swap_global_risc0/methods/guest/src/lib.rs": "bb41dcea7b1779ef0e21ccffbc3e6341cd6b9723e105d9e57ea2ff5988648284",
+    "zk/spot_swap_global_risc0/methods/guest/src/main.rs": "b53c1450d5cfa9d04a67e2dca5e447838f4e8c26f0d7fbbdfe18026e284693af",
+    "zk/spot_swap_global_risc0/methods/src/lib.rs": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255",
+    "zk/spot_swap_global_v2/README.md": "4e19aa059a5b30e0c72c880f09b1f51501304bbfdd3ebf29372cb90a60ecfb5f",
+    "zk/spot_swap_global_v2/examples/parity.rs": "1c5fffdd090d2ecc28ae82cb49ad52aecabcc73c5c76b17267fca22f10d43ddf",
+    "zk/spot_swap_global_v2/src/frame.rs": "f519930c453dca9d7a1f08e975f43a722f350373dd89eaff00681c13cb370422",
+    "zk/spot_swap_global_v2/src/global.rs": "1fdedcbaf67654abce9ef3c77f13115075e54f733fff901e57058932054ebb3b",
+    "zk/spot_swap_global_v2/src/lib.rs": "676de29d7740a75b344e955b128a1017ae45c954eb25ba35dee1b7c9a8d80071",
+    "zk/spot_swap_global_v2/tests/spot_swap_global.rs": "b18d82d87570a0263f1de210904d52b58a2a7cc06d430f2657fe4894cac3dfeb"
+  },
+  "validation": {
+    "combined_spot": {
+      "command": "python -m pytest -q tests/core/test_spot_swap_plan_v2.py tests/core/test_spot_swap_state_v2.py tests/core/test_spot_swap_global_v2.py tests/core/test_spot_swap_global_rust_v2.py tests/core/test_spot_swap_execution_frame_v2.py",
+      "passed": 168,
+      "skipped": 0,
+      "elapsed_seconds": 186.57
+    },
+    "additional_review_regressions": {
+      "command": "python -m pytest -q tests/core/test_spot_swap_execution_frame_v2.py -k 'structurally or byte_ceiling'",
+      "passed": 4,
+      "skipped": 0,
+      "elapsed_seconds": 12.87,
+      "scope": "Nested/Boolean nonce, incomplete LP coverage, economically accepted but transport-oversized successor, and nearby success control. This is a separate run; do not claim a single 172-test run."
+    },
+    "native": {
+      "commands": [
+        "cargo test --offline --locked --manifest-path zk/spot_swap_global_v2/Cargo.toml -j 2",
+        "cargo clippy --offline --locked --manifest-path zk/spot_swap_global_v2/Cargo.toml --all-targets -j 2 -- -D warnings",
+        "cargo +1.90.0 test --offline --locked --manifest-path zk/spot_swap_global_risc0/Cargo.toml -j 2",
+        "cargo +1.90.0 clippy --offline --locked --manifest-path zk/spot_swap_global_risc0/Cargo.toml --all-targets -j 2 -- -D warnings"
+      ],
+      "core_unit_passed": 24,
+      "core_integration_passed": 29,
+      "compile_fail_doctest_passed": 1,
+      "guest_native_transport_passed": 1,
+      "clippy_exits": [
+        0,
+        0
+      ],
+      "formatting": "cargo fmt completed; changed Markdown fences balanced"
+    },
+    "differential": "218 complete cases and 8736 arithmetic vectors retained; the same 218 pass through the frame with independent Python journal roots. Four prior compiled mutants and two new frame mutants killed with successful builds and unchanged positive controls.",
+    "publisher": {
+      "broad_worker_report": "65 passed, 1 native-BLS-artifact-gated audit skip; earlier draft before final typing/test additions. Log not separately retained; do not treat as final-source full replay.",
+      "final_focused": [
+        {
+          "passed": 3,
+          "elapsed_seconds": 5.35,
+          "replay_command": "python -m pytest -q tests/integration/test_isolated_custody_publisher_v2.py -k \"legacy_custody_pair or unsupported_request or authenticated_transfer_when_reopened\""
+        },
+        {
+          "passed": 1,
+          "elapsed_seconds": 62.74,
+          "replay_command": "python -m pytest -q tests/integration/test_isolated_joint_margin_publisher_v2.py -k equal_claims"
+        },
+        {
+          "passed": 1,
+          "elapsed_seconds": 12.48,
+          "replay_command": "python -m pytest -q tests/integration/test_isolated_custody_history_audit_v2.py -k interleaved_margin"
+        }
+      ],
+      "focused_skipped": 0,
+      "negative_controls": "Forged frozen request, custody/margin subclasses, margin request in custody-only deployment; no logical table or sequence change. Existing retry, mixed lifecycle and audit replay retained.",
+      "command_provenance": "Exact worker argv is not retained in the logs; equivalent test selections are given as replay commands."
+    },
+    "quality": {
+      "critical_command": "bash tools/run_critical_quality_gate.sh",
+      "critical_exit": 0,
+      "acceptance_tcb_passed": 433,
+      "critical_passed": 852,
+      "configured_publisher_mypy_exit": 0,
+      "ruff_exit": 0,
+      "production_boundary_command": "python tools/check_production_boundary.py --json",
+      "production_boundary_ok": true,
+      "production_boundary_frozen_head": "6cc459a08d273848d1f27a1dd0a6bf0cfb5762f8"
+    },
+    "remaining_gate_failures": [
+      "type_coverage_audit.py --check: inherited 25 configured Mypy files below minimum 45; pyproject.toml and audit script unchanged from parent.",
+      "check_claims_registry.py: inherited missing tools/check_derivatives_authorization_matrix.py at claims[123].",
+      "Normal-import Mypy: no publisher diagnostics, 89 diagnostics in 30 imported files; this mode is not a passing repository-wide type check."
+    ],
+    "draft_corrections": [
+      "Initial native harness build used default Rust 1.87 instead of declared 1.90; rerun on installed 1.90 passed.",
+      "New boundary-test draft imported ReplayStateV2 from wrong module, then used a forbidden zero occurrence ID and confused structural transition errors with decoder errors. Corrected the fixture and exact expected error; no runtime rule changed.",
+      "Configured Mypy union/Any narrowing needed one private copy helper plus a typed local; redundant helper and checks were removed."
+    ],
+    "not_run": [
+      "actual zkVM target/methods/image build",
+      "genuine Spot proof or verifier admission",
+      "Spot publisher route and terminal delivery",
+      "full Lean, ESSO and Kani proofs"
+    ]
+  },
+  "projection_measurement": {
+    "rounds": 9,
+    "pairs_per_round": 200,
+    "order": "Alternating baseline/candidate; public projection functions on existing world(30) fixture; unoptimized native test profile.",
+    "baseline_median_ns_per_pair": 1118363.69,
+    "candidate_median_ns_per_pair": 1116692.085,
+    "conclusion": "No meaningful speedup; removed temporary copies only. Guest cycles/memory unmeasured.",
+    "source_sha256": "a934d37e1c29d1cfc68d717d6327762fc00c9314d4327c79dc021f0076abd05c"
+  },
+  "review": {
+    "model": "claude-opus-5",
+    "session_id": "3dd7ed5a-b4bb-4c25-9d49-d762877428a2",
+    "scope": "Read-only working-tree source review; no independent execution, no confirmed source blocker for the unadmitted candidate. Root reviewed final integration and replayed it.",
+    "resolved": [
+      "Document source API and candidate frame/journal/verifier openings.",
+      "Add successor transport-cap and structural-error controls.",
+      "Rename authentication-preparation test accurately; add forged/cross-route/subclass controls and fixed legacy request ID."
+    ],
+    "remaining": [
+      "Actual guest target/build and native/zkVM equivalence untested.",
+      "Input/output resource ceilings do not provide a production growth/terminal policy.",
+      "Closed replay parser rejects unsupported variants; no extra mock-only test for impossible audit replay type was added."
+    ]
+  },
+  "model_resources": {
+    "root": null,
+    "terra_max": null,
+    "opus": {
+      "input_tokens": 100,
+      "output_tokens": 53112,
+      "cache_creation_input_tokens": 211021,
+      "cache_read_input_tokens": 6115170,
+      "duration_ms": 760628,
+      "duration_api_ms": 758091,
+      "reported_list_cost_usd": 6.497858000000001,
+      "actual_billing": null,
+      "auxiliary_provider_models": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 1653,
+          "outputTokens": 22,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001763,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 100,
+          "outputTokens": 53112,
+          "cacheReadInputTokens": 6115170,
+          "cacheCreationInputTokens": 211021,
+          "webSearchRequests": 0,
+          "costUSD": 6.496095,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 37386,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "note": "CLI includes auxiliary Haiku usage with unknown task identity; no separate delivery credit. Provider counters are not code tokens or exclusive elapsed effort."
+    },
+    "luna_max_attempt": {
+      "status": "failed_to_launch",
+      "reason": "Agent thread limit reached; no implementation or review returned.",
+      "resources": null
+    }
+  },
+  "implementation_line_categories": {
+    "runtime": {
+      "added": 509,
+      "deleted": 36,
+      "net": 473,
+      "file_count": 10,
+      "binary_file_count": 0
+    },
+    "proof": {
+      "added": 0,
+      "deleted": 0,
+      "net": 0,
+      "file_count": 0,
+      "binary_file_count": 0
+    },
+    "tests": {
+      "added": 358,
+      "deleted": 5,
+      "net": 353,
+      "file_count": 5,
+      "binary_file_count": 0
+    },
+    "tooling": {
+      "added": 0,
+      "deleted": 0,
+      "net": 0,
+      "file_count": 0,
+      "binary_file_count": 0
+    },
+    "config": {
+      "added": 40,
+      "deleted": 0,
+      "net": 40,
+      "file_count": 3,
+      "binary_file_count": 0
+    },
+    "data": {
+      "added": 0,
+      "deleted": 0,
+      "net": 0,
+      "file_count": 0,
+      "binary_file_count": 0
+    },
+    "docs": {
+      "added": 126,
+      "deleted": 7,
+      "net": 119,
+      "file_count": 5,
+      "binary_file_count": 0
+    },
+    "lockfile": {
+      "added": 2593,
+      "deleted": 0,
+      "net": 2593,
+      "file_count": 1,
+      "binary_file_count": 0
+    },
+    "other": {
+      "added": 0,
+      "deleted": 0,
+      "net": 0,
+      "file_count": 0,
+      "binary_file_count": 0
+    }
+  },
+  "assessment": {
+    "status": "NOT_RESCORED",
+    "last_adopted_subject": "309b1f5dd86489979f50b3835dfcf0dcb1c872af",
+    "last_adopted_v3_percent": "24.906",
+    "last_adopted_formal_percent": "21.590",
+    "reviewed_percentage_point_change": null,
+    "note": "No assessment rows or weights changed; no new theorem, complete lane or release gate."
+  },
+  "log_sha256": {
+    "combined_spot": "4d451681be392ff231e8c2bd849d6aa7f9d9a0fa40a5d59e293b6020dad30b61",
+    "review_regressions": "3c68e8b9e53c3326f52b984c2d37ba7e38ff7c4100af2ba986392c7bb3df647c",
+    "native_rust": "da7cde08e05ad49756573e8a7dca18e206786c3124d32a0e698542f5d0ca30bb",
+    "native_guest_transport": "d41094df64673837e408356aa316cd0be926379b44005c6bf7142f827474bdeb",
+    "core_clippy": "5a71188c81265c5942777fa70e06c13fcdf0f31b0bc6aef583852eab97fe7512",
+    "guest_native_clippy": "b93e403425037472a03110e0a6f343a02313f7dc5ae0a3fe826b6b0b9a32ee9a",
+    "publisher_custody": "afc86d3bcbb0d467f9940339fd15d253b12632196de66af6a2a779db75a17228",
+    "publisher_joint": "18d96e294fad013ed1e9c65565829d074852c610017534bb0f695cd8dad14eb8",
+    "publisher_audit": "98952bcad40d9433f31dab230c79669703c4975a8000ab767e5d07a1dcee096e",
+    "configured_mypy": "5d4b6d285b77932e3d08212c3b4974d0a803f98ec60408ac6ccf6a063fa6c19e",
+    "ruff": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "critical": "c5787a4e09e73aef4d77308e42652564a473216a039dc4f8fe2d14ceb7bfa221",
+    "production_boundary": "3e63df25d274f0fc3f0dc13c3d991968de4796cf58ffc95e5e6830afc3958d06",
+    "type_coverage": "d232666538bcf332fe507aa407274270d0d67072a1a63b7774867daa8711397a",
+    "claims_registry": "741f6a6fc5ee3ea75c3e6384912f632988906afdf234a86c32c8d4c5cb4842d8",
+    "benchmark": "fceea91eef37dc960e8bd1d7339cfcf7afdace55fa59a854e573ee0ff8f17fc7",
+    "draft_test_import_failure": "cdeac6d6b3ce134b7ae0646500b7dac9b03b1ad2e21279ea82252557baddb83b",
+    "draft_test_oracle_failures": "dacd599e41783abe5d6b8df4a837baf20f5350904075d2de1b8d40e6fedf15ff"
+  },
+  "limits": [
+    "Frame is a separate unadmitted candidate; historical wire formats remain unchanged.",
+    "No deployment, profile activation, migration, genuine proof or new publication authority.",
+    "OS, authenticated snapshot acquisition, proof-image selection, signing, store-current authority and destinations remain separate obligations.",
+    "Local native builds used RAM targets; no heavy proof build or unrelated cleanup.",
+    "Model/source review and test counts do not establish whole-program completeness."
+  ]
+}

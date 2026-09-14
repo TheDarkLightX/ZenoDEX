@@ -949,3 +949,33 @@ authenticated TauFold dispatch and publisher terminal/recovery acceptance.
 LP lifecycle, multiple pools and locked-share terminal policy also remain open.
 The pure native crate has authority NONE. No full lane or value-safety gate
 closes. No new tracker or proof framework was added.
+
+### September 14: owned requests and shared Spot execution
+
+`3944ccf9f…` → `6cc459a08…` implements the requested FCIS improvements:
+derived rejection post-roots, one owned publication request per route, one Rust
+transition shared by native replay and a candidate guest, and borrowed projection
+comparisons. Existing economic rules and publication bytes remain unchanged.
+The candidate frame requires canonical original bytes and representable complete
+successors. Actual guest/image/receipt and Spot publication qualification remain open.
+
+The implementation adds/removes **3,626/48** lines: **509/36 runtime** (including
+inline Rust tests), **358/5 separate tests**, **126/7 docs**, **40/0 configuration**
+and **2,593/0 lockfile**. There are zero new proof-source or tooling lines.
+The previous `353ee53a7…` → `3944ccf9f…` **475/0** support tail is carried once.
+
+[Evidence](../../tests/evidence/fcis_design_patterns_v2_20260914.json) records
+168 Spot passes plus four final review regressions, 54 Rust checks including
+the compile-fail test, one native guest-transport check and five final publisher
+scenario checks. Six compiled mutants retain positive controls. The critical
+gate and frozen-HEAD production-boundary audit pass. The inherited type-coverage
+configuration mismatch and missing claims-registry file remain explicit failures.
+Draft test mistakes and the failed Luna launch are retained without delivery credit.
+Terra implemented the request refactor; Opus reviewed source; Astra integrated
+and replayed it. The projection timing difference is noise; no speedup is claimed.
+
+This batch is **NOT_RESCORED**. The last adopted V3 **24.906%** and formal
+**21.590%** estimates belong to the prior scored subject. No full lane or
+value-safety gate closes, and the formal core remains incomplete. The concrete
+gain is simpler rejection/request representation and an executable shared
+candidate frame, with authority and native/zkVM qualification still separated.
