@@ -13,7 +13,7 @@ from hostile code in the same Python process.  The result carries authority
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Final, cast
+from typing import Final
 
 from .global_economic_proof_v2 import (
     EconomicCommandOccurrenceV2,
@@ -111,7 +111,7 @@ class GlobalEconomicStateEffectRefinementCandidateV2:
         )
         if type(selected_effects) is not GlobalEconomicEffectPlanV2:
             raise TypeError("global refinement effect plan must be exact")
-        owned_effects = cast(GlobalEconomicEffectPlanV2, selected_effects)
+        owned_effects = selected_effects
         object.__setattr__(
             self,
             "_effect_plan",
@@ -131,8 +131,8 @@ class GlobalEconomicStateEffectRefinementCandidateV2:
             raise TypeError("global refinement terminal plan must be exact")
         if type(selected_oracle) is not GlobalOracleOccurrencePlanV2:
             raise TypeError("global refinement Oracle plan must be exact")
-        owned_terminal = cast(GlobalTerminalObligationPlanV2, selected_terminal)
-        owned_oracle = cast(GlobalOracleOccurrencePlanV2, selected_oracle)
+        owned_terminal = selected_terminal
+        owned_oracle = selected_oracle
         object.__setattr__(self, "_terminal_plan", replace(owned_terminal))
         object.__setattr__(self, "_oracle_plan", replace(owned_oracle))
 
@@ -277,23 +277,29 @@ def _require_lane_refinement_v2(
 
 
 def _require_replay_refinement_v2(
-    candidate: GlobalEconomicStateEffectRefinementCandidateV2,
+    pre_state: GlobalEconomicStateV2,
+    post_state: GlobalEconomicStateV2,
+    effect_plan: GlobalEconomicEffectPlanV2,
+    occurrences: tuple[EconomicCommandOccurrenceV2, ...],
 ) -> tuple[ReplayStateV2, ...]:
-    occurrences = candidate.consumed_occurrences
     occurrence_ids = tuple(item.occurrence_id for item in occurrences)
     if occurrence_ids != tuple(sorted(set(occurrence_ids))):
         raise ValueError("global refinement occurrences must be ordered and unique")
-    if candidate.effect_plan.occurrence_consumptions != occurrence_ids:
+    if effect_plan.occurrence_consumptions != occurrence_ids:
         raise ValueError("global refinement replay consumption mismatch")
-    expected = {row.replay_id: row for row in candidate.pre_state.replay_state}
+    expected = {row.replay_id: row for row in pre_state.replay_state}
     existing_occurrences = {row.occurrence_id for row in expected.values()}
+    pre_root: str | None = None
     for occurrence in occurrences:
         if (
-            occurrence.chain_id != candidate.pre_state.chain_id
-            or occurrence.deployment_root != candidate.pre_state.deployment_root
-            or occurrence.profile_root != candidate.pre_state.profile_root
-            or occurrence.pre_state_root != candidate.pre_state.state_root
+            occurrence.chain_id != pre_state.chain_id
+            or occurrence.deployment_root != pre_state.deployment_root
+            or occurrence.profile_root != pre_state.profile_root
         ):
+            raise ValueError("global refinement occurrence context mismatch")
+        if pre_root is None:
+            pre_root = pre_state.state_root
+        if occurrence.pre_state_root != pre_root:
             raise ValueError("global refinement occurrence context mismatch")
         if occurrence.replay_id in expected or occurrence.occurrence_id in existing_occurrences:
             raise ValueError("global refinement replay already consumed")
@@ -303,12 +309,12 @@ def _require_replay_refinement_v2(
         )
         existing_occurrences.add(occurrence.occurrence_id)
     expected_rows = tuple(expected[key] for key in sorted(expected))
-    if candidate.post_state.replay_state != expected_rows:
+    if post_state.replay_state != expected_rows:
         raise ValueError("global refinement replay post-state mismatch")
-    expected_height = candidate.pre_state.height + int(bool(occurrences))
-    if expected_height > MAX_U64_V2 or candidate.post_state.height != expected_height:
+    expected_height = pre_state.height + int(bool(occurrences))
+    if expected_height > MAX_U64_V2 or post_state.height != expected_height:
         raise ValueError("global refinement height progression mismatch")
-    if any(item.height != candidate.post_state.height for item in occurrences):
+    if any(item.height != post_state.height for item in occurrences):
         raise ValueError("global refinement occurrence height mismatch")
     return tuple(
         ReplayStateV2(item.replay_id, item.occurrence_id) for item in occurrences
@@ -328,55 +334,49 @@ def refine_global_economic_state_effects_v2(
         ceiling=MAX_CONSUMED_OCCURRENCES_PER_REFINEMENT_V2,
     )
     snapshot = replace(candidate)
-    if snapshot.effect_plan.external_outbox_enqueue:
+    # These detached values remain local to this check. Repeated public getter
+    # calls reconstruct entire graphs; capture once without weakening ingress
+    # validation or exposing any retained caller-owned aliases.
+    pre, post, effects = snapshot.pre_state, snapshot.post_state, snapshot.effect_plan
+    occurrences = snapshot.consumed_occurrences
+    terminal, oracle = snapshot.terminal_plan, snapshot.oracle_plan
+    if effects.external_outbox_enqueue:
         raise ValueError("global refinement external outbox requires the O-009 publisher")
-    if not snapshot.consumed_occurrences and (
-        not snapshot.effect_plan.is_empty
-        or snapshot.terminal_plan.deltas
-        or snapshot.oracle_plan.deltas
-        or snapshot.pre_state != snapshot.post_state
+    if not occurrences and (
+        not effects.is_empty
+        or terminal.deltas
+        or oracle.deltas
+        or pre != post
     ):
         raise ValueError("global refinement zero-occurrence relation must be static")
-    _require_fixed_context_v2(snapshot.pre_state, snapshot.post_state)
-    _require_lane_refinement_v2(snapshot.pre_state, snapshot.post_state, snapshot.effect_plan)
-    require_global_economic_tables_v2(
-        snapshot.pre_state,
-        snapshot.post_state,
-        snapshot.effect_plan,
-    )
-    require_global_terminal_refinement_v2(
-        snapshot.pre_state,
-        snapshot.post_state,
-        snapshot.effect_plan,
-        snapshot.terminal_plan,
-    )
-    require_global_oracle_refinement_v2(
-        snapshot.pre_state,
-        snapshot.post_state,
-        snapshot.effect_plan,
-        snapshot.oracle_plan,
-    )
-    replay_insertions = _require_replay_refinement_v2(snapshot)
+    _require_fixed_context_v2(pre, post)
+    _require_lane_refinement_v2(pre, post, effects)
+    require_global_economic_tables_v2(pre, post, effects)
+    require_global_terminal_refinement_v2(pre, post, effects, terminal)
+    require_global_oracle_refinement_v2(pre, post, effects, oracle)
+    replay_insertions = _require_replay_refinement_v2(pre, post, effects, occurrences)
+    pre_root, post_root = pre.state_root, post.state_root
+    effect_root, terminal_root, oracle_root = effects.effect_plan_root, terminal.plan_root, oracle.plan_root
     state_delta_root = hash_global_v2(
         "global-economic-state-delta-v2",
         {
-            "pre_state_root": snapshot.pre_state.state_root,
-            "post_state_root": snapshot.post_state.state_root,
-            "effect_plan_root": snapshot.effect_plan.effect_plan_root,
-            "lane_writes": snapshot.effect_plan.lane_writes,
+            "pre_state_root": pre_root,
+            "post_state_root": post_root,
+            "effect_plan_root": effect_root,
+            "lane_writes": effects.lane_writes,
             "replay_insertions": replay_insertions,
-            "terminal_plan_root": snapshot.terminal_plan.plan_root,
-            "oracle_plan_root": snapshot.oracle_plan.plan_root,
+            "terminal_plan_root": terminal_root,
+            "oracle_plan_root": oracle_root,
         },
     )
     return GlobalEconomicStateEffectRefinementV2(
         _REFINEMENT_TOKEN_V2,
         _RefinementFieldsV2(
-            pre_state_root=snapshot.pre_state.state_root,
-            post_state_root=snapshot.post_state.state_root,
-            effect_plan_root=snapshot.effect_plan.effect_plan_root,
-            terminal_plan_root=snapshot.terminal_plan.plan_root,
-            oracle_plan_root=snapshot.oracle_plan.plan_root,
+            pre_state_root=pre_root,
+            post_state_root=post_root,
+            effect_plan_root=effect_root,
+            terminal_plan_root=terminal_root,
+            oracle_plan_root=oracle_root,
             state_delta_root=state_delta_root,
         ),
     )

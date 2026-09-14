@@ -221,6 +221,40 @@ def test_asset_transfer_refines_exact_global_state_and_effects() -> None:
     assert witness.production_authority == GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_AUTHORITY_V2
 
 
+@pytest.mark.parametrize("field", ("chain_id", "deployment_root", "profile_root"))
+def test_occurrence_context_rejection_precedes_derived_root_failure(
+    field: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A foreign occurrence must reject before deriving an unused state root."""
+    candidate = _asset_transfer_candidate()
+    occurrence = replace(
+        candidate.consumed_occurrences[0],
+        **{field: "foreign-chain" if field == "chain_id" else _root(999)},
+    )
+    candidate = replace(
+        candidate,
+        consumed_occurrences=(occurrence,),
+        effect_plan=replace(
+            candidate.effect_plan,
+            occurrence_consumptions=(occurrence.occurrence_id,),
+        ),
+        post_state=replace(
+            candidate.post_state,
+            replay_state=(ReplayStateV2(occurrence.replay_id, occurrence.occurrence_id),),
+        ),
+    )
+    root_calls = []
+
+    def fail_root(_state: GlobalEconomicStateV2) -> str:
+        root_calls.append(True)
+        raise ValueError("synthetic derived-root failure")
+
+    monkeypatch.setattr(GlobalEconomicStateV2, "state_root", property(fail_root))
+    with pytest.raises(ValueError, match="^global refinement occurrence context mismatch$"):
+        refine_global_economic_state_effects_v2(candidate)
+    assert root_calls == []
+
+
 def test_refinement_candidate_getters_do_not_expose_authoritative_aliases() -> None:
     candidate = _asset_transfer_candidate()
     pre_root = candidate.pre_state.state_root
