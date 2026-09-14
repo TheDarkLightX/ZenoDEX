@@ -9,11 +9,18 @@ import pytest
 from src.core.asset_lane_coordinator_values_v2 import AssetLaneRejectedV2
 from src.core.asset_lane_custody_coordinator_v2 import transition_asset_lane_custody_v2
 from src.core.asset_lane_state_v2 import AssetLaneContextV2
+from src.core.economic_command_authentication_v2 import (
+    prepare_isolated_economic_command_authentication_v2,
+)
+from src.core.global_settlement_primitives_v2 import canonical_global_bytes_v2
+from src.core.perps_margin_wire_v2 import PerpsMarginRequestV2
 from src.integration import isolated_custody_publisher_v2 as implementation
+from src.integration.custody_publication_record_v2 import custody_request_id_v2
 from src.integration.global_receipt_verifier_v1 import GlobalReceiptVerifierErrorV1
 from src.integration.isolated_custody_publisher_v2 import (
     CustodyPublicationConfigurationV2,
     CustodyPublicationIndeterminateV2,
+    CustodyPublicationRequestV2,
     CustodyPublicationStatusV2,
     IsolatedCustodyPublisherV2,
 )
@@ -31,6 +38,9 @@ from tests.integration.test_profiled_asset_lane_custody_receipt_v2 import (
 )
 from tests.integration.test_profiled_asset_lane_custody_receipt_v2 import (
     receipt_artifact as receipt_artifact,
+)
+from tests.integration.test_profiled_perps_margin_receipt_v2 import (
+    perps_margin_signed_case,
 )
 
 
@@ -51,7 +61,11 @@ def _create(tmp_path, case, configuration):
 
 
 def _publish(publisher, case, receipt=_RECEIPT):
-    return publisher.publish(case.candidate, case.inputs[0], case.inputs[2], receipt_bytes=receipt)
+    return publisher.publish(
+        case.candidate,
+        CustodyPublicationRequestV2(case.inputs[0], case.inputs[2]),
+        receipt_bytes=receipt,
+    )
 
 
 def _logical_store(path):
@@ -60,6 +74,97 @@ def _logical_store(path):
             tuple(connection.execute(f"SELECT * FROM {table} ORDER BY 1"))
             for table in ("genesis", "authority_history", "publications", "heads")
         )
+
+
+def test_given_legacy_custody_pair_when_owned_request_is_published_then_request_bytes_are_identical(
+    tmp_path, protocol_case, receipt_artifact, monkeypatch
+):
+    _, signature_path, _ = protocol_case
+    case = _case()
+    context, command = case.inputs[0], case.inputs[2]
+    legacy_context_bytes = canonical_global_bytes_v2(context)
+    legacy_command_bytes = canonical_global_bytes_v2(command)
+    request = CustodyPublicationRequestV2(context, command)
+    assert request.context is not context
+    assert request.command is not command
+    object.__setattr__(context, "writer_epoch", context.writer_epoch + 1)
+    assert canonical_global_bytes_v2(request.context) == legacy_context_bytes
+    assert canonical_global_bytes_v2(request.command) == legacy_command_bytes
+    owned, _, message = prepare_isolated_economic_command_authentication_v2(case.candidate)
+    legacy_request_parts = (
+        legacy_context_bytes,
+        legacy_command_bytes,
+        message,
+        owned.envelope.signature_bytes,
+        _RECEIPT,
+    )
+    configuration = _configuration(case, signature_path, receipt_artifact)
+    _receipt_exchange(monkeypatch, case.expected)
+    with _create(tmp_path, case, configuration) as publisher:
+        assert publisher.publish(
+            case.candidate, request, receipt_bytes=_RECEIPT
+        ).status is CustodyPublicationStatusV2.COMMITTED
+        _, records = publisher._read()
+    assert records[0].request_parts == legacy_request_parts
+    assert records[0].request_id == custody_request_id_v2(*legacy_request_parts)
+    assert records[0].request_id == "0x54f07f0a2a1f484fec67c310361418ee8df1a49718ec8a5fba242bad3fa84515"
+
+
+def test_given_unsupported_request_after_authentication_preparation_when_published_then_tables_are_unchanged(
+    tmp_path, protocol_case, receipt_artifact, monkeypatch
+):
+    class DerivedCustodyPublicationRequestV2(CustodyPublicationRequestV2):
+        pass
+
+    class DerivedPerpsMarginRequestV2(PerpsMarginRequestV2):
+        pass
+
+    _, signature_path, _ = protocol_case
+    case = _case()
+    configuration = _configuration(case, signature_path, receipt_artifact)
+    authenticated = []
+    prepare = implementation.prepare_isolated_economic_command_authentication_v2
+
+    def record_authentication(candidate):
+        authenticated.append(candidate)
+        return prepare(candidate)
+
+    monkeypatch.setattr(
+        implementation,
+        "prepare_isolated_economic_command_authentication_v2",
+        record_authentication,
+    )
+    forged_request = CustodyPublicationRequestV2(case.inputs[0], case.inputs[2])
+    object.__setattr__(forged_request, "context", object())
+    margin_request = perps_margin_signed_case().request
+    with _create(tmp_path, case, configuration) as publisher:
+        before = _logical_store(tmp_path / "custody.sqlite")
+        for unsupported_request, error in (
+            (object(), "exact route-owned"),
+            (
+                DerivedCustodyPublicationRequestV2(case.inputs[0], case.inputs[2]),
+                "exact route-owned",
+            ),
+            (forged_request, "custody publication context"),
+            (margin_request, "margin publication needs"),
+            (
+                DerivedPerpsMarginRequestV2(
+                    margin_request.command,
+                    margin_request.occurrence,
+                    margin_request.oracle,
+                ),
+                "exact route-owned",
+            ),
+        ):
+            with pytest.raises(TypeError, match=error):
+                publisher.publish(case.candidate, unsupported_request, receipt_bytes=_RECEIPT)
+        assert authenticated == [case.candidate] * 5
+        assert _logical_store(tmp_path / "custody.sqlite") == before
+        assert publisher.snapshot().sequence == 0
+    with pytest.raises(TypeError, match="context"):
+        CustodyPublicationRequestV2(object(), case.inputs[2])
+    with pytest.raises(TypeError, match="asset lane command"):
+        CustodyPublicationRequestV2(case.inputs[0], object())
 
 
 def test_given_authenticated_transfer_when_reopened_then_complete_post_and_exact_retry(

@@ -15,7 +15,10 @@ from src.integration.global_receipt_verifier_v1 import (
     GlobalReceiptVerifierErrorV1,
     GlobalReceiptVerifierRejectV1,
 )
-from src.integration.isolated_custody_publisher_v2 import IsolatedCustodyPublisherV2
+from src.integration.isolated_custody_publisher_v2 import (
+    CustodyPublicationRequestV2,
+    IsolatedCustodyPublisherV2,
+)
 from tests.integration.test_authenticated_asset_lane_custody_receipt_v2 import (
     _RECEIPT,
     _case,
@@ -253,7 +256,11 @@ def test_given_interleaved_margin_and_transfer_history_when_audited_then_exact_o
                 successor = derive_asset_lane_custody_global_post_v2(head.custody_state, accepted, head.global_state, context.occurrence)
                 expected = prepare_asset_lane_custody_global_statement_v2(context, head.custody_state, command, head.global_state, successor)
                 calls = _receipt_exchange(monkeypatch, expected)
-                publisher.publish(candidate, context, command, receipt_bytes=_RECEIPT)
+                publisher.publish(
+                    candidate,
+                    CustodyPublicationRequestV2(context, command),
+                    receipt_bytes=_RECEIPT,
+                )
                 requests.extend(calls)
                 candidates.append(candidate)
         final = publisher.snapshot()

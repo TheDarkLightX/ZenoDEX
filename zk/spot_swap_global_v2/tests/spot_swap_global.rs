@@ -554,7 +554,7 @@ fn assert_rejected(
         };
         assert_eq!(rejected.code, expected);
         assert_eq!(rejected.pre_state_root, state_root);
-        assert_eq!(rejected.post_state_root, state_root);
+        assert_eq!(rejected.post_state_root(), &state_root);
         assert!(rejected.effects().is_empty());
     }
     assert_eq!(world.roots(), before);

@@ -123,8 +123,8 @@ rejecting a new row. The statement binds the explicit block timestamp; its
 authentication and provenance remain shell obligations.
 
 The joint successor has a native Rust counterpart and remains unmounted.
-Universal runtime refinement, a guest and
-exact journal, genuine economic receipts, admitted genesis, authenticated
+Universal runtime refinement, actual guest/image qualification,
+genuine economic receipts, admitted genesis, authenticated
 dispatch, publisher recovery and terminal delivery remain open. Existing custody
 and margin receipts cannot certify this new Spot transition.
 
@@ -136,7 +136,12 @@ and retains complete LP metadata, custody, effects and both replay scopes. The
 test transport checks duplicate keys, numeric shape, character bounds and complete
 canonical successor values. Root's independent arithmetic observations, full-state
 correspondence and compiled semantic mutants qualify their declared test cases.
-This supplies the native economic implementation for a future guest; it adds no
+The candidate guest now imports this same transition through the shared bounded
+frame decoder; native replay checks its exact accepted journal against Python.
+The [frame contract](../../zk/spot_swap_global_risc0/README.md) specifies six
+canonical components and the `input_root`/`refinement_root` openings required
+at verification. Actual zkVM execution and genuine receipt generation remain
+unrun. This adds no
 receipt profile, publisher consumer or proof of universal runtime refinement.
 The scalar Rust pool type covers the admitted joint-state domain; wider standalone
 Python LP supplies remain outside this counterpart. See the [native contract](../../zk/spot_swap_global_v2/README.md).

@@ -6,9 +6,18 @@ not qualify a guest, production ledger, migration or complete economic lane.
 
 The owning API is `IsolatedCustodyPublisherV2.create/open`, with an independently
 selected complete genesis pair and `CustodyPublicationConfigurationV2`.
-`publish(candidate, context, command, receipt_bytes=...)` acquires the current
+`publish(candidate, request, receipt_bytes=...)` acquires the current
 global and custody states itself. A caller cannot supply a replacement source
 snapshot, verified handle or raw commit bundle.
+
+`CustodyPublicationRequestV2` owns an exact context/command snapshot. The joint
+publisher also accepts the existing `PerpsMarginRequestV2`; the custody-only
+publisher rejects it. Publication defensively reconstructs each exact request
+after authentication preparation, before receipt/profile checks and store reads.
+Request construction grants no authority. The previous loose context/command
+source API is removed; canonical request parts, request IDs, receipt frames and
+retained publication records are unchanged. Historical verification remains
+available through the same decoders and reconstructed requests.
 
 ```mermaid
 flowchart LR

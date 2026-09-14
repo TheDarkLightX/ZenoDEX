@@ -37,6 +37,7 @@ from src.integration.global_receipt_verifier_v1 import GlobalReceiptVerifierErro
 from src.integration.isolated_custody_publisher_v2 import (
     CustodyPublicationConfigurationV2,
     CustodyPublicationIndeterminateV2,
+    CustodyPublicationRequestV2,
     IsolatedCustodyPublisherV2,
     JointMarginPublicationConfigurationV2,
 )
@@ -172,7 +173,11 @@ def test_given_equal_claims_when_drained_transferred_refilled_and_closed_then_on
             context, drained.custody_state, command, drained.global_state, post,
         )
         _receipt_exchange(monkeypatch, expected)
-        assert publisher.publish(candidate, context, command, receipt_bytes=_RECEIPT).status is Status.COMMITTED
+        assert publisher.publish(
+            candidate,
+            CustodyPublicationRequestV2(context, command),
+            receipt_bytes=_RECEIPT,
+        ).status is Status.COMMITTED
         transferred = publisher.snapshot()
         # The existing signed transfer includes a two-atom treasury fee.
         assert _holdings(transferred) == {"alice": 63, "bob": 5, "treasury": 2}

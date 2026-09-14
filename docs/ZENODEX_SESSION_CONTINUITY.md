@@ -14,6 +14,20 @@ The existing assessment input remains
 This is a scoped advisory estimate; formal core and production qualification
 remain incomplete.
 
+Latest implementation, **NOT_RESCORED**: rejection post-roots are derived from
+pre-roots; the isolated publisher accepts one owned request per route; and a
+shared canonical Spot frame feeds both native replay and a candidate guest
+entrypoint through the existing Rust transition. Projection comparisons borrow
+rows, retaining every validation; the local benchmark shows no meaningful speedup.
+See the [candidate execution contract](../zk/spot_swap_global_risc0/README.md).
+The 168-test Spot run passes, followed by four independent review regressions
+for structural failures and the transport's successor byte ceiling. These native
+results do not qualify the actual zkVM target, image, receipt or Spot publication.
+The type-coverage audit retains an inherited 25-configured-files versus 45-minimum
+failure. Preserve that gap and the missing claims-registry file below; do not
+expand assurance tooling to conceal either. Current publisher admission/recovery
+semantics and historical bytes remain unchanged by the source API refactor.
+
 The complete single-pool Spot/asset/global successor now has a pure native
 Rust counterpart using the existing GlobalSettlementABI V2. It preserves
 physical custody, LP shares and metadata, rounded fees, inner/outer nonce
@@ -25,9 +39,10 @@ passing unchanged controls. Duplicate-key, forged number-object, empty-key and
 context-boundary defects were repaired. Native Clippy, formatting, Ruff and
 the frozen-HEAD production-boundary audit pass. The claims-registry check still
 fails on the inherited missing `tools/check_derivatives_authorization_matrix.py`.
-No new theorem, guest, genuine economic receipt or publication authority exists.
+That native implementation batch added no theorem, guest, genuine economic receipt
+or publication authority. The subsequent guest entrypoint remains unqualified.
 
-The next integrated swap acceptance is a native guest and exact journal with a
+The next integrated swap acceptance is actual guest/image qualification with a
 genuine receipt, then admitted genesis/profile/time and authentic TauFold dispatch
 through the existing publisher, including terminal settlement and recovery.
 LP mint/burn/transfer, multiple pools, closure and locked-share terminal policy

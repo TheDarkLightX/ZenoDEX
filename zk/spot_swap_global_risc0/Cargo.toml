@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["methods", "methods/guest"]
+default-members = ["methods/guest"]
+
+[profile.release]
+overflow-checks = true

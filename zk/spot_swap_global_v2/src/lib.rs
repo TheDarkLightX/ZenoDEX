@@ -12,11 +12,18 @@
 
 #![forbid(unsafe_code)]
 
+mod frame;
 mod global;
 mod intent;
 mod plan;
 mod quote;
 mod state;
+
+pub use frame::{
+    prepare_spot_swap_global_from_frame_v2, SpotSwapGlobalFrameErrorV2,
+    MAX_SPOT_SWAP_FRAME_BYTES_V2, MAX_SPOT_SWAP_FRAME_COMPONENT_BYTES_V2, SPOT_SWAP_FRAME_MAGIC_V2,
+    SPOT_SWAP_GLOBAL_JOURNAL_SCHEMA_V2,
+};
 
 pub use global::{
     require_complete_asset_projection_v2, require_spot_swap_projection_v2,

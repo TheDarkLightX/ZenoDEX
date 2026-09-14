@@ -354,7 +354,7 @@ fn handle(value: &Value) -> Result<Value, InputError> {
             "status": "rejected",
             "code": rejected.code.as_str(),
             "pre_state_root": rejected.pre_state_root.as_str(),
-            "post_state_root": rejected.post_state_root.as_str(),
+            "post_state_root": rejected.post_state_root().as_str(),
             "effects": encoded(&rejected.effects())?,
         })),
     }

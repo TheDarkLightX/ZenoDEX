@@ -196,6 +196,21 @@ class CustodyPublicationOutcomeV2:
     committed_publication_id: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class CustodyPublicationRequestV2:
+    """One defensively owned custody context and closed asset-lane command."""
+
+    context: AssetLaneContextV2
+    command: AssetLaneCommandV2
+
+    def __post_init__(self) -> None:
+        if type(self.context) is not AssetLaneContextV2:
+            raise TypeError("custody publication context must be exact")
+        object.__setattr__(self, "context", _snapshot_asset_lane_context_v2(self.context))
+        _, command = _route_and_owned_command_v2(self.command)
+        object.__setattr__(self, "command", command)
+
+
 def _private_inode(path: Path, expected_links: int = 1) -> os.stat_result:
     metadata = path.lstat()
     if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid():
@@ -235,6 +250,25 @@ def _complete_predecessor_matches_v2(
                    (replay.lane_pre, head.custody_state),
                    (replay.margin_pre, head.margin_state),
                ))
+
+
+def _owned_perps_margin_request_v2(request: PerpsMarginRequestV2) -> PerpsMarginRequestV2:
+    """Copy a margin request already accepted by exact route dispatch."""
+    return PerpsMarginRequestV2(request.command, request.occurrence, request.oracle)
+
+
+def _owned_publication_request_v2(
+    request: CustodyPublicationRequestV2 | PerpsMarginRequestV2,
+    *,
+    joint: bool,
+) -> CustodyPublicationRequestV2 | PerpsMarginRequestV2:
+    if type(request) is CustodyPublicationRequestV2:
+        return CustodyPublicationRequestV2(request.context, request.command)
+    if type(request) is PerpsMarginRequestV2:
+        if not joint:
+            raise TypeError("margin publication needs a joint deployment and one owned request")
+        return _owned_perps_margin_request_v2(request)
+    raise TypeError("publication request must have its exact route-owned type")
 
 
 class IsolatedCustodyPublisherV2:
@@ -399,13 +433,23 @@ class IsolatedCustodyPublisherV2:
             ):
                 raise ValueError("audit authentication witness differs from retained record or profile")
             replay = record.replay()
+            request: CustodyPublicationRequestV2 | PerpsMarginRequestV2
+            if type(replay.context) is PerpsMarginRequestV2:
+                request = replay.context
+            elif type(replay.context) is AssetLaneContextV2:
+                request = CustodyPublicationRequestV2(
+                    replay.context, cast(AssetLaneCommandV2, replay.command)
+                )
+            else:
+                raise ValueError("audit replay does not have an exact publication request")
+            request = _owned_publication_request_v2(
+                request, joint=self._joint_configuration is not None
+            )
             predecessor = CustodyPublicationSnapshotV2(
                 record.source_publication_id, record.sequence - 1, self._expected_authority,
                 replay.global_pre, replay.lane_pre, replay.margin_pre,
             )
-            frame, statement = self._verify_request_v2(
-                owned, replay.context, replay.command, predecessor, record.receipt,
-            )
+            frame, statement = self._verify_request_v2(owned, request, predecessor, record.receipt)
             if frame != record.frame or statement != record.statement:
                 raise ValueError("audit verified statement differs from retained publication")
 
@@ -630,24 +674,25 @@ class IsolatedCustodyPublisherV2:
     def publish(
         self,
         candidate: EconomicCommandAuthenticationCandidateV2,
-        context: AssetLaneContextV2 | PerpsMarginRequestV2,
-        command: AssetLaneCommandV2 | None = None,
+        request: CustodyPublicationRequestV2 | PerpsMarginRequestV2,
         *,
         receipt_bytes: bytes,
     ) -> CustodyPublicationOutcomeV2 | AssetLaneRejectedV2 | PerpsMarginGlobalRejectedV2:
         owned, _, message = prepare_isolated_economic_command_authentication_v2(candidate)
+        request = _owned_publication_request_v2(
+            request, joint=self._joint_configuration is not None
+        )
         owned_context: AssetLaneContextV2 | PerpsMarginRequestV2
         owned_command: AssetLaneCommandV2 | PerpsMarginCommandV1
-        if type(context) is PerpsMarginRequestV2:
-            if command is not None or self._joint_configuration is None:
-                raise TypeError("margin publication needs a joint deployment and one owned request")
-            owned_context = PerpsMarginRequestV2(context.command, context.occurrence, context.oracle)
-            owned_command = owned_context.command
-            requested_pre_root = owned_context.occurrence.pre_state_root
-        elif type(context) is AssetLaneContextV2 and command is not None:
-            owned_context = _snapshot_asset_lane_context_v2(context)
-            _, owned_command = _route_and_owned_command_v2(command)
-            requested_pre_root = owned_context.global_pre_state_root
+        if type(request) is PerpsMarginRequestV2:
+            margin_request: PerpsMarginRequestV2 = request
+            owned_context = margin_request
+            owned_command = margin_request.command
+            requested_pre_root = margin_request.occurrence.pre_state_root
+        elif type(request) is CustodyPublicationRequestV2:
+            owned_context = request.context
+            owned_command = request.command
+            requested_pre_root = request.context.global_pre_state_root
         else:
             raise TypeError("publication request must have its exact route-owned type")
         if type(receipt_bytes) is not bytes:
@@ -684,7 +729,7 @@ class IsolatedCustodyPublisherV2:
             return CustodyPublicationOutcomeV2(CustodyPublicationStatusV2.AUTHORITY_STALE, head)
         if requested_pre_root != head.global_state.state_root:
             return CustodyPublicationOutcomeV2(CustodyPublicationStatusV2.STALE_HEAD, head)
-        frame, statement = self._verify_request_v2(owned, owned_context, owned_command, head, receipt_bytes)
+        frame, statement = self._verify_request_v2(owned, request, head, receipt_bytes)
         if type(statement) is AssetLaneRejectedV2:
             return statement
         if type(statement) is PerpsMarginGlobalRejectedV2:
@@ -808,19 +853,20 @@ class IsolatedCustodyPublisherV2:
 
     def _verify_request_v2(
         self, candidate: EconomicCommandAuthenticationCandidateV2,
-        context: AssetLaneContextV2 | PerpsMarginRequestV2,
-        command: AssetLaneCommandV2 | PerpsMarginCommandV1,
+        request: CustodyPublicationRequestV2 | PerpsMarginRequestV2,
         head: CustodyPublicationSnapshotV2, receipt: bytes,
     ) -> tuple[bytes | AssetLaneRejectedV2, bytes | AssetLaneRejectedV2 | PerpsMarginGlobalRejectedV2]:
         """Select one fixed verifier path; all economic writes stay in publish()."""
         config = self._configuration
-        if type(context) is PerpsMarginRequestV2:
+        if type(request) is PerpsMarginRequestV2:
             joint = self._joint_configuration
             if joint is None or head.margin_state is None:
                 raise ValueError("margin publication requires complete store-owned margin state")
-            frame = encode_perps_margin_frame_v2(head.custody_state, head.margin_state, head.global_state, context)
+            frame = encode_perps_margin_frame_v2(
+                head.custody_state, head.margin_state, head.global_state, request
+            )
             statement = verify_isolated_profiled_perps_margin_receipt_v2(
-                candidate, head.custody_state, head.margin_state, head.global_state, context,
+                candidate, head.custody_state, head.margin_state, head.global_state, request,
                 guest_role_binding=joint.margin_role,
                 expected_guest_role_binding_root=joint.margin_role.binding_root,
                 receipt_executable_path=joint.margin_receipt_executable_path,
@@ -831,8 +877,10 @@ class IsolatedCustodyPublisherV2:
                 receipt_bytes=receipt,
             )
             return frame_joint_margin_publication_v2(frame, None), statement
-        asset_context = cast(AssetLaneContextV2, context)
-        asset_command = cast(AssetLaneCommandV2, command)
+        if type(request) is not CustodyPublicationRequestV2:
+            raise TypeError("publication request must have its exact route-owned type")
+        asset_context = request.context
+        asset_command = request.command
         custody_frame = prepare_asset_lane_custody_global_prover_input_v2(
             asset_context, head.custody_state, asset_command, head.global_state,
         )

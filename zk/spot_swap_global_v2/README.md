@@ -6,7 +6,7 @@ pure joint Spot/asset/global successor (`src/core/spot_swap_plan_v2.py`,
 candidates with no authentication, settlement, receipt, publication or runtime
 authority. It reuses the pinned GlobalSettlementABI V2 path dependency for
 assets, global state, occurrences, effect plans and the shared refiner; it does
-not alter that crate, any guest, image or release profile.
+not alter that crate, any existing image or release profile.
 
 ## What it implements
 
@@ -28,6 +28,24 @@ not alter that crate, any guest, image or release profile.
   identity, plan, nonce, statement and successor derivation through the
   unchanged global refiner. Economic rejections carry the Python code strings;
   structural failures are `SpotSwapInputErrorV2` with stable `INPUT_*` codes.
+
+`SpotSwapGlobalRejectedV2` stores one state root. Its `post_state_root()`
+accessor returns that same pre-state root, so a rejection cannot carry a
+contradictory successor root. The parity response bytes remain unchanged.
+Projection comparisons borrow existing rows instead of allocating copied
+tables; complete validation remains in place. The local benchmark found no
+meaningful speedup, and no validation cache was introduced.
+
+## Shared execution frame
+
+`prepare_spot_swap_global_from_frame_v2` decodes a bounded canonical frame and
+calls the same pure transition. Native replay and the candidate guest import
+this function. The separate [execution workspace](../spot_swap_global_risc0/README.md)
+specifies the six components, accepted-only two-root journal and verifier
+obligations. Each input and complete successor component is limited to 1 MiB;
+this additional transport ceiling restricts the global state's larger row-bound
+domain. A successor exceeding it produces `SuccessorBounds` without a journal.
+Native replay is tested; the actual zkVM target and genuine receipt are unqualified.
 
 The Rust scalar pool representation covers the joint state's admitted domain.
 Its `u64` LP supply does not represent every standalone Python pool snapshot

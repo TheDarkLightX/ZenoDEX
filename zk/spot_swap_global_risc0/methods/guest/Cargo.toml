@@ -1,0 +1,21 @@
+[package]
+name = "zenodex-spot-swap-global-guest"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[dependencies]
+zenodex-spot-swap-global-v2 = { path = "../../../spot_swap_global_v2" }
+
+[target.'cfg(target_os = "zkvm")'.dependencies]
+risc0-zkvm = { version = "=3.0.6", default-features = false, features = ["std"] }
+
+[[bin]]
+name = "zenodex-spot-swap-global-guest"
+path = "src/main.rs"
+test = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

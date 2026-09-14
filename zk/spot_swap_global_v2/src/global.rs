@@ -137,14 +137,26 @@ impl core::fmt::Display for SpotSwapInputErrorV2 {
 impl std::error::Error for SpotSwapInputErrorV2 {}
 
 /// Exact no-op rejection bound to the submitted pre-state root.
+///
+/// The post-state root is derived, so a caller cannot assign it independently:
+///
+/// ```compile_fail
+/// use zenodex_spot_swap_global_v2::SpotSwapGlobalRejectedV2;
+/// fn replace_post_root(rejected: &mut SpotSwapGlobalRejectedV2) {
+///     rejected.post_state_root = rejected.pre_state_root.clone();
+/// }
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SpotSwapGlobalRejectedV2 {
     pub code: SpotSwapGlobalRejectCodeV2,
     pub pre_state_root: RootV2,
-    pub post_state_root: RootV2,
 }
 
 impl SpotSwapGlobalRejectedV2 {
+    pub fn post_state_root(&self) -> &RootV2 {
+        &self.pre_state_root
+    }
+
     pub fn effects(&self) -> GlobalEconomicEffectPlanV2 {
         GlobalEconomicEffectPlanV2::empty()
     }
@@ -253,15 +265,10 @@ pub fn require_complete_asset_projection_v2(
         .ok_or(AbiErrorV2::InvalidBinding(
             "custody lane/global complete projection mismatch",
         ))?;
-    let positive_supplies = assets
-        .supplies()
-        .iter()
-        .filter(|row| row.amount_atoms != 0)
-        .cloned()
-        .collect::<Vec<_>>();
+    let positive_supplies = assets.supplies().iter().filter(|row| row.amount_atoms != 0);
     if state.balances != assets.balances()
         || state.custody != assets.custody
-        || state.supplies != positive_supplies
+        || !state.supplies.iter().eq(positive_supplies)
         || !state.reserves.is_empty()
         || lane.state_root != assets.state_root()?
         || lane.module_release_id != *assets.module_release_id()
@@ -297,9 +304,28 @@ pub fn require_spot_swap_projection_v2(
         .custody
         .iter()
         .filter(|row| row.custody_domain == SPOT_POOL_CUSTODY_DOMAIN_V2)
-        .cloned()
-        .collect::<Vec<_>>();
-    if pool_rows != spot.pool_holdings() {
+        .map(
+            |EconomicAmountV2 {
+                 owner,
+                 asset,
+                 custody_domain: _,
+                 amount_atoms,
+             }| { (owner.as_str(), asset.as_str(), *amount_atoms) },
+        );
+    let pool = &spot.pool;
+    let expected_rows = [
+        (
+            pool.pool_id.as_str(),
+            pool.asset0.as_str(),
+            u128::from(pool.reserve0),
+        ),
+        (
+            pool.pool_id.as_str(),
+            pool.asset1.as_str(),
+            u128::from(pool.reserve1),
+        ),
+    ];
+    if !pool_rows.eq(expected_rows) {
         return Err(AbiErrorV2::InvalidBinding(
             "Spot pool custody must equal its two reserves exactly",
         ));
@@ -737,7 +763,6 @@ fn reject(
         SpotSwapGlobalRejectedV2 {
             code,
             pre_state_root: state_root.clone(),
-            post_state_root: state_root.clone(),
         },
     )))
 }
