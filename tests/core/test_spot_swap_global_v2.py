@@ -15,9 +15,14 @@ from src.core.asset_lane_custody_coordinator_v2 import (
 )
 from src.core.asset_lane_custody_global_v2 import derive_asset_lane_custody_global_post_v2
 from src.core.asset_lane_custody_state_v2 import AssetLaneCustodyStateV2
+from src.core.asset_lane_custody_statement_v2 import prepare_asset_lane_custody_global_statement_v2
 from src.core.asset_lane_state_v2 import AssetLaneContextV2
 from src.core.asset_transfer_types_v2 import AssetTransferStateV2
 from src.core.global_economic_proof_v2 import EconomicCommandOccurrenceV2
+from src.core.global_economic_state_effect_refinement_v2 import (
+    GlobalEconomicStateEffectRefinementCandidateV2,
+    refine_global_economic_state_effects_v2,
+)
 from src.core.global_economic_state_v2 import GlobalEconomicStateV2, LaneStateRootV2
 from src.core.global_settlement_resource_limits_v2 import StateResourceLimitExceededV2
 from src.core.global_settlement_types_v2 import (
@@ -26,7 +31,11 @@ from src.core.global_settlement_types_v2 import (
     AssetSupplyV2,
     EconomicAmountV2,
     EconomicEffectKindV2,
+    EconomicEffectRowV2,
+    GlobalOracleOccurrencePlanV2,
+    GlobalTerminalObligationPlanV2,
     LaneIdV2,
+    LaneWriteV2,
     TerminalObligationStatusV2,
     TerminalObligationV2,
     hash_economic_command_body_v2,
@@ -255,6 +264,47 @@ def test_incomplete_or_misattributed_projection_cannot_admit_a_swap(defect):
 def with_spot_root(state, spot):
     return replace(state, lane_roots=tuple(replace(row, state_root=spot.state_root)
         if row.lane_id is LaneIdV2.SPOT_LIQUIDITY else row for row in state.lane_roots))
+
+
+@pytest.mark.parametrize("declare_spot_write", [False, True])
+def test_conservation_and_declared_lane_writes_cannot_replace_custody_command_replay(declare_spot_write):
+    assets, spot, pre = initial()
+    cmd = replace(_transfer_command(amount_atoms=3, max_fee_atoms=0), asset="A",
+        asset_origin_root=_root("origin:A"), sender=ALICE, recipient=BOB)
+    occ = EconomicCommandOccurrenceV2(pre.chain_id, pre.deployment_root, pre.height + 1, 0, 0,
+        cmd.command_kind, cmd.command_body_hash, _root("asset-route"), ALICE, _root("grant"),
+        1, pre.profile_root, pre.state_root, ())
+    ctx = AssetLaneContextV2(pre.writer_epoch, assets.transfer_state.module_release_id, pre.state_root, occ)
+    accepted = transition_asset_lane_custody_v2(ctx, assets, cmd)
+    assert type(accepted) is AssetLaneCustodyAcceptedV2
+    honest = derive_asset_lane_custody_global_post_v2(assets, accepted, pre, occ)
+    assert type(prepare_asset_lane_custody_global_statement_v2(ctx, assets, cmd, pre, honest)) is bytes
+    # Mallory's candidate conserves every atom and describes matching effects.
+    # Neither those equations nor a caller-declared Spot write authorize it.
+    custody = tuple(replace(row, amount_atoms=row.amount_atoms - 1)
+        if row.owner == spot.pool.pool_id and row.asset == "A" else row for row in honest.custody)
+    balances = tuple(sorted((*honest.balances, EconomicAmountV2(MALLORY, "A", "accounts", 1)), key=lambda row: row.key))
+    post = replace(honest, custody=custody, balances=balances)
+    writes = accepted.effects.lane_writes
+    if declare_spot_write:
+        declared = _root("caller-declared-spot-post")
+        post = replace(post, lane_roots=tuple(replace(row, state_root=declared)
+            if row.lane_id is LaneIdV2.SPOT_LIQUIDITY else row for row in post.lane_roots))
+        writes = tuple(sorted((*writes, LaneWriteV2(LaneIdV2.SPOT_LIQUIDITY, spot.state_root, declared)),
+                              key=lambda row: row.lane_id.value))
+    effects = replace(accepted.effects, lane_writes=writes, rows=tuple(sorted((
+        *accepted.effects.rows,
+        EconomicEffectRowV2(EconomicEffectKindV2.CUSTODY, spot.pool.pool_id, "A", "spot_pool", -1),
+        EconomicEffectRowV2(EconomicEffectKindV2.ACCOUNT_MOVEMENT, MALLORY, "A", "accounts", 1),
+    ), key=lambda row: row.key)))
+    checked = refine_global_economic_state_effects_v2(GlobalEconomicStateEffectRefinementCandidateV2(
+        pre, post, effects, (occ,), GlobalTerminalObligationPlanV2.empty(), GlobalOracleOccurrencePlanV2.empty()))
+    assert checked.production_authority == "NONE"
+    assert checked.post_state_root == post.state_root
+    before = pre.state_root
+    with pytest.raises(ValueError, match="custody lane/global complete projection mismatch"):
+        prepare_asset_lane_custody_global_statement_v2(ctx, assets, cmd, pre, post)
+    assert pre.state_root == before
 
 
 def test_swap_preserves_unrelated_open_claim_and_its_exact_backing():

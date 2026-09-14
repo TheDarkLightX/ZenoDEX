@@ -1,0 +1,18 @@
+[package]
+name = "zenodex-spot-swap-global-v2"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.87"
+publish = false
+readme = "README.md"
+
+[dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "=1.0.148", features = ["arbitrary_precision"] }
+zenodex-global-settlement-abi-v2 = { path = "../global_settlement_abi_v2" }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+overflow-checks = true

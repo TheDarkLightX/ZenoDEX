@@ -1,6 +1,6 @@
 # TauFold account and ZenoDEX swap integration
 
-Status: pure joint Spot/asset/global successor implemented; connected publication remains
+Status: Python and native Rust joint Spot/asset/global successors implemented; connected publication remains
 open. This contract selects an isolated integration, with no live migration or
 activation. ZenoDEX V3 and existing intent, arithmetic and publication semantics
 remain authoritative.
@@ -122,12 +122,24 @@ economic effects. A full nonce table permits existing owners to advance while
 rejecting a new row. The statement binds the explicit block timestamp; its
 authentication and provenance remain shell obligations.
 
-The joint successor is Python-only and unmounted. Rust refinement, a guest and
+The joint successor has a native Rust counterpart and remains unmounted.
+Universal runtime refinement, a guest and
 exact journal, genuine economic receipts, admitted genesis, authenticated
 dispatch, publisher recovery and terminal delivery remain open. Existing custody
 and margin receipts cannot certify this new Spot transition.
 
 ## Rust exchange patterns reused through FCIS
+
+`zk/spot_swap_global_v2` implements the pure native counterpart using the existing
+GlobalSettlementABI V2 types and refiner. It reuses the current integer equations
+and retains complete LP metadata, custody, effects and both replay scopes. The
+test transport checks duplicate keys, numeric shape, character bounds and complete
+canonical successor values. Root's independent arithmetic observations, full-state
+correspondence and compiled semantic mutants qualify their declared test cases.
+This supplies the native economic implementation for a future guest; it adds no
+receipt profile, publisher consumer or proof of universal runtime refinement.
+The scalar Rust pool type covers the admitted joint-state domain; wider standalone
+Python LP supplies remain outside this counterpart. See the [native contract](../../zk/spot_swap_global_v2/README.md).
 
 The September 14 source comparison supports custody plus shares as the smallest
 current representation. It does not qualify any external deployment or establish
@@ -145,6 +157,27 @@ obligations are authenticated snapshot acquisition, complete deterministic
 transition checking, and one atomic authorized publication. Transport replay
 protection does not eliminate replay of a business intent inside a new outer
 transaction. Existing ZenoDEX nonce, fee and rejection policies remain pinned.
+
+The independent Opus research was reviewed against these boundaries. Its proposed
+domain-to-lane write map is insufficient as an authority check: the retained
+`test_conservation_and_declared_lane_writes_cannot_replace_custody_command_replay`
+constructs a one-atom pool-to-account candidate, with and without a declared
+Spot write. The generic accounting refiner returns authority `NONE`; the actual
+custody statement producer rejects both candidates through complete command
+replay/projection. The honest transfer succeeds. This establishes the scoped
+boundary and does not qualify future composition or a compromised publisher.
+
+The donor research does not authorize permanent pools, removal of locked-share
+terminal obligations, or a blanket ban on LP-share assets. Existing obligations
+and policy remain in force. Raydium's [pure curve calculations and share-value
+checks](https://github.com/raydium-io/raydium-cp-swap/blob/59fb845a9e5bb569c8b2f3415f13b0c0ebcc6b92/programs/cp-swap/src/curve/calculator.rs)
+are useful architectural references, not replacements for ZenoDEX arithmetic.
+Its [zero-amount repair](https://github.com/raydium-io/raydium-cp-swap/commit/183ddbb11550cea212710a98351779a41873258b)
+informs future LP boundary cases without changing current burn semantics.
+Phoenix's [crankless order book](https://github.com/Ellipsis-Labs/phoenix-v1/blob/5a34f7f901fd9e04057198d4fc7b7286f78b53f2/README.md)
+is a useful future matching reference. Source and third-party verification API
+observations do not establish independently verified deployment bytes or an
+incident-free history. No external DEX source is copied by this integration.
 
 ## Terminal reconciliation
 
