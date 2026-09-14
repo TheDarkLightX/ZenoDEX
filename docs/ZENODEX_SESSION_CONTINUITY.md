@@ -4,26 +4,39 @@ This is the durable entry point for a resumed session. It selects work and
 evidence; it grants no release, migration, or publication authority.
 
 Latest adopted assessment: independent Astra review and root replay of the
-connected margin proof at `388b5f4b1…` raise formal core **21.440% → 21.547%
-(+0.107 pp)**; V3 remains **24.828%**, with **0/12** value-safety gates closed.
-The [reviewed evidence](../tests/evidence/perps_margin_connected_proof_v2_20260914.json)
-records repaired test-binding gaps, explicit theorem premises and the 14-test
-final Lean replay. Only margin deposit/withdraw proof and refinement judgments
-change. All other rows, denominators and qualification flags are inherited.
+joint Spot successor at `1fcb00c857…` move V3 **24.828% → 24.906%** and formal
+core **21.547% → 21.569%**, with **0/12** value-safety gates closed. The
+[reviewed evidence](../tests/evidence/spot_swap_global_v2_20260914.json) records
+complete custody/LP/global composition, early capacity checks and canonical
+identity guards. Only exact-in/out implementation and semantics judgments
+change; proof/refinement scores, other rows and qualification flags are inherited.
 The existing input remains
 `tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json`.
 This is a scoped partial judgment estimate, not a full rescore or qualification.
 
-Latest implementation at `c2d0085d6…` adds the pure actual-SwapIntent planner
-and [TauFold/FCIS integration contract](specifications/TAUFOLD_SWAP_INTEGRATION_V2.md).
-Root took over after Claude's session-limit rejection; no further Claude call
-is scheduled. 54 focused tests and independent security review pass after
-repairing forged-object hooks. This separate unmounted component is
-NOT_RESCORED. It retains existing CPMM rounding and timestamp deadlines;
-ordinary contexts/plans carry no authority. Next swap acceptance is complete
-asset/pool/LP/global reconciliation plus authentic dispatch and the existing
-publisher, followed by authenticated terminal settlement. No alternate economic
-writer or timeout-based reservation release is permitted.
+Latest implementation reuses the pure actual-SwapIntent planner in a complete
+single-pool Spot/asset/global successor. It retains exact LP shares and metadata,
+uses the existing physical custody table, and binds canonical 48-byte account
+identities plus independent inner/outer nonces. See the updated
+[integration contract and Rust source comparison](specifications/TAUFOLD_SWAP_INTEGRATION_V2.md).
+Final checks pass 171 focused/regression tests, including 74 new Spot tests,
+four semantic mutants, mixed asset/swap histories and both capacity boundaries.
+Explicit typing passes; new-module statement/branch coverage is 96%. Existing
+433-TCB/852-critical tests and production-boundary audit pass under their stated
+scope. The result remains Python-only and unmounted, with authority NONE.
+
+Next swap acceptance requires Rust/guest/journal correspondence, genuine economic
+receipts, admitted genesis/profile/time and authentic TauFold dispatch through
+the existing publisher, then authenticated terminal settlement and recovery.
+LP mint/burn/transfer, multiple pools, closure and locked-share terminal policy
+remain required lane work. No alternate writer or timeout-based reservation
+release is permitted. Root owns implementation after Claude's limit refusal;
+the Luna delegation attempt hit the harness thread limit and produced no code.
+No further Claude call is scheduled. Generic-refiner repeated getter copies are
+an identified unbenchmarked performance follow-up, unchanged in this batch.
+
+The earlier connected margin proof at `388b5f4b1…` retains its reviewed
+14-test Lean replay and explicit premises; it is not rerun or recredited here.
 
 AS07 quota implementation and reviewed evidence correction end at
 `37662593250066ff4d48abde4114857858b9ef87`: **SCOPED_PASS**, NOT_RESCORED. The

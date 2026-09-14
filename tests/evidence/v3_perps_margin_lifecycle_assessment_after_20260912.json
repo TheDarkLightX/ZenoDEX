@@ -38,9 +38,9 @@
   },
   "full_v3": {
     "denominator_weight": 100,
-    "central_percent": 24.828,
-    "lower_percent": 17.512,
-    "upper_percent": 32.906,
+    "central_percent": 24.906,
+    "lower_percent": 17.591,
+    "upper_percent": 32.985,
     "covers_workstreams": ["W00", "W01", "W02", "W03", "W04", "W05", "W06", "W07", "W08", "W09", "W10", "W11", "W12", "W13"],
     "rows": [
       {
@@ -211,10 +211,13 @@
         "id": "W07:SPOT_LIQUIDITY",
         "kind": "lane",
         "weight": 2.9126,
-        "low": 0.107,
-        "central": 0.162,
-        "high": 0.215,
+        "low": 0.134,
+        "central": 0.189,
+        "high": 0.242,
         "evidence": [
+          {"path": "src/core/spot_swap_global_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/spot_swap_state_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/spot_swap_global_v2_20260914.json", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "src/integration/dex_engine.py", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "lean-mathlib/Proofs/CPMMInvariants.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -227,8 +230,8 @@
         ],
         "capabilities": [
           {"id": "pool_create", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy create with locked LP; no V3 admission"},
-          {"id": "exact_in_swap", "c": 0.25, "unc": "V", "note": "legacy cpmm plus typed buyback spot transition V1/V2 with Lean"},
-          {"id": "exact_out_swap", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy exact-out with minimality proofs; no V3 module"},
+          {"id": "exact_in_swap", "c": 0.35, "unc": "V", "note": "pure complete Spot/custody/global successor; unmounted; Rust and economic receipts open"},
+          {"id": "exact_out_swap", "c": 0.35, "unc": "V", "note": "actual-intent complete joint successor with existing minimal-input quote; unmounted"},
           {"id": "governed_route", "c": 0.15, "unc": "V", "legacy_only": true, "note": "routing exists; caller-selectable donor configuration"},
           {"id": "atomic_batch", "c": 0.18, "unc": "V", "legacy_only": true, "note": "batch clearing and strong replay; legacy boundary"},
           {"id": "lp_issue", "c": 0.18, "unc": "V", "legacy_only": true, "note": "legacy add-liquidity; no V3 claimant projection"},
@@ -754,9 +757,9 @@
   },
   "formal_core": {
     "denominator_weight": 140,
-    "central_percent": 21.547,
-    "lower_percent": 15.718,
-    "upper_percent": 27.633,
+    "central_percent": 21.569,
+    "lower_percent": 15.739,
+    "upper_percent": 27.654,
     "rows": [
       {
         "id": "FC:ASSET_TRANSFER",
@@ -808,10 +811,13 @@
         "id": "FC:SPOT_LIQUIDITY",
         "kind": "lane",
         "weight": 10,
-        "low": 0.1381,
-        "central": 0.1881,
-        "high": 0.2381,
+        "low": 0.1411,
+        "central": 0.1911,
+        "high": 0.2411,
         "evidence": [
+          {"path": "src/core/spot_swap_global_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "src/core/spot_swap_state_v2.py", "class": "VERIFIED_SOURCE_INSPECTION"},
+          {"path": "tests/evidence/spot_swap_global_v2_20260914.json", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "lean-mathlib/Proofs/CPMMInvariants.lean", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "docs/research/ZENODEX_WHOLE_PROGRAM_V3_SPOT_FARM_DISCOVERY.md", "class": "VERIFIED_SOURCE_INSPECTION"},
           {"path": "docs/research/ZENODEX_M6_NORMATIVE_REQUIREMENTS_V1.json", "class": "VERIFIED_SOURCE_INSPECTION"},
@@ -820,8 +826,8 @@
         ],
         "capabilities": [
           {"id": "pool_create", "sem": 0.3, "prf": 0.1, "ref": 0.1, "unc": "V", "legacy_only": true},
-          {"id": "exact_in_swap", "sem": 0.35, "prf": 0.3, "ref": 0.2, "unc": "V"},
-          {"id": "exact_out_swap", "sem": 0.35, "prf": 0.25, "ref": 0.15, "unc": "V", "legacy_only": true},
+          {"id": "exact_in_swap", "sem": 0.40, "prf": 0.3, "ref": 0.2, "unc": "V"},
+          {"id": "exact_out_swap", "sem": 0.40, "prf": 0.25, "ref": 0.15, "unc": "V"},
           {"id": "governed_route", "sem": 0.25, "prf": 0.2, "ref": 0.1, "unc": "V", "legacy_only": true},
           {"id": "atomic_batch", "sem": 0.3, "prf": 0.25, "ref": 0.15, "unc": "V", "legacy_only": true},
           {"id": "lp_issue", "sem": 0.3, "prf": 0.2, "ref": 0.15, "unc": "V", "legacy_only": true},
@@ -1229,12 +1235,12 @@
   },
   "assessment_basis": {
     "kind": "SCOPED_REVIEWED_AMENDMENT",
-    "inherited_subject": "e05f293e3eab020b5790252007fe43316167bb39",
+    "inherited_subject": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
     "inherited_assessment": "tests/evidence/v3_perps_margin_lifecycle_assessment_after_20260912.json",
-    "inherited_assessment_sha256": "f65d9d02b20b9380578546fa0ce8bd57d7e1ef72f6d5d904ea972e4cc589cfac",
-    "inherited_storage_commit": "acad4d8831066c1c87e83df3e28bd281937d8639",
-    "scope": "Only formal margin_deposit and margin_withdraw proof/refinement judgments change after independent Astra review and corrected root replay. All full V3 rows, other formal rows, denominators and qualification flags are inherited. AS07 and the separate unmounted Spot plan are not rescored.",
-    "review_evidence": "tests/evidence/perps_margin_connected_proof_v2_20260914.json"
+    "inherited_assessment_sha256": "0c3d0214481ef6c80d29f83fdcf0c17036aab5bc94c1a6745b380b58cdaa03fc",
+    "inherited_storage_commit": "a075670adf3324b646966089ea9108eaf932d58e",
+    "scope": "Only exact_in_swap/exact_out_swap W07 implementation and formal semantics judgments change after independent Astra review and root replay. Proof/refinement, all other rows, denominators and qualification flags are inherited. Python-only unmounted candidate; no complete lane or release qualification.",
+    "review_evidence": "tests/evidence/spot_swap_global_v2_20260914.json"
   },
-  "subject": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4"
+  "subject": "1fcb00c857a05cc8088464b027b1759d7785b71c"
 }

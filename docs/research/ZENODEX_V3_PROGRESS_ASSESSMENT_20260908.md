@@ -2,10 +2,10 @@
 
 Status: advisory planning baseline. No completion or promotion authority.
 
-Latest scoped amendment: **V3 24.828%; formal core 21.547%**, subject
-`388b5f4b1…`. The September 14 connected-margin entry records formal **+0.107
-percentage points**, with other rows inherited. The later unmounted SwapIntent
-planner remains NOT_RESCORED. Historical tables retain their original subjects.
+Latest scoped amendment: **V3 24.906%; formal core 21.569%**, subject
+`1fcb00c857…`. The September 14 joint-Spot entry records rounded estimate gains
+of **+0.078 V3 / +0.022 formal percentage points**, with proof/refinement and
+other rows inherited. Historical tables retain their original subjects.
 
 Both reviewers inspected committed source at `70f9157ef097384c6b48db22c254d8134f19f8f5`.
 Fable used `claude-fable-5-1` at Max; Opus used `claude-opus-5` at Max.
@@ -847,3 +847,33 @@ formal credit belongs to the reviewed margin change once. Evidence and account
 updates are separate support. The older 147-line accounting tail is carried
 once. A temporary JSON pretty-print expansion was discarded; the adopted
 assessment preserves the existing layout and changes only the reviewed rows.
+
+### September 14: complete pure Spot/asset/global successor
+
+`a075670ad…` → `1fcb00c857…` adds **445 runtime lines, 549 test lines and
+77/−1 documentation lines**. The existing asset custody frame now composes with
+an exact single-pool LP/share/nonce state and the actual SwapIntent planner.
+The generic global refiner checks complete successors and effects. This avoids
+a second ledger and per-LP atom-liability repricing while preserving the existing
+fee, LP lock and share-redemption rules. Pool/LP/nonce source and getter aliases
+are isolated; input capacity is checked before row traversal.
+
+[Pinned evidence](../../tests/evidence/spot_swap_global_v2_20260914.json) retains
+171 passing focused/regression tests, 74 new Spot tests, four semantic mutant
+kills, 96% new-module statement/branch coverage, exact type checks and the
+independent Astra review. Root repaired a terminal-field error and the reviewed
+early-capacity gap. Canonical 48-byte identity encoding closes alias histories
+for this new profile. A Luna implementation launch failed at the harness thread
+limit; it produced no code. Claude remained unused under the user's limit notice.
+
+Only exact-in/out capability judgments change: implementation **.25/.18 →
+.35/.35**, semantics **.35/.35 → .40/.40**, proof/refinement unchanged. The
+existing calculator yields **V3 24.828% → 24.906%** (scenarios **17.591–32.985%**)
+and **formal 21.547% → 21.569%** (scenarios **15.739–27.654%**). These are rounded
+advisory estimates. The score range starts at the previous scored subject
+`388b5f4b1…` and includes the prior unscored planner; implementation LOC remains
+accounted by its separate non-overlapping delivery ranges. No lane or value-safety
+gate closes. Python/Rust proof correspondence and authenticated single-publisher
+admission remain the next blockers. The preceding **459/−18** accounting tail
+is carried once as support; current evidence/account changes receive no extra
+product credit. No new tracker or dependencies were added.

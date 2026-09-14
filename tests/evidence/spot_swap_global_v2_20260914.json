@@ -1,0 +1,173 @@
+{
+  "schema": "zenodex/spot-swap-global-review/v1",
+  "subject": "1fcb00c857a05cc8088464b027b1759d7785b71c",
+  "parent": "a075670adf3324b646966089ea9108eaf932d58e",
+  "status": "SCOPED_PASS_UNMOUNTED",
+  "authority": "NONE",
+  "obligations": [
+    "W02",
+    "W06",
+    "W07"
+  ],
+  "source_sha256": {
+    "src/core/spot_swap_state_v2.py": "0bc224907890f632e3bfd7106f00a16abe134c47846fe88cec2872dfc6cea9b0",
+    "src/core/spot_swap_global_v2.py": "928b41bcdbfd9552990277b658cfdff972c4957965000d153480a5e8d37ab064",
+    "tests/core/test_spot_swap_state_v2.py": "81343ba0d743c8d692bb978cec665ca1bb6713868cc0cf758e5d7023ff754273",
+    "tests/core/test_spot_swap_global_v2.py": "440624eaca5488d35b63b31fecd1d223b1a665ce467d638b80b6f14cb0deba2e",
+    "docs/specifications/TAUFOLD_SWAP_INTEGRATION_V2.md": "714bbbe1acaa13c61811b01622f83f31fa00f443ad775c0c0fda04edd96fc571"
+  },
+  "behavior": {
+    "before": "Actual SwapIntent had a pure economic quote plan but no complete custody, LP ownership and global successor.",
+    "after": "One admitted-shape exact-in/out CPMM intent produces complete account/custody/Spot/global state, exact effects and replay updates checked by the existing global refiner, or a logical no-op.",
+    "simplification": "Reuse the existing physical custody ledger and unchanged LP shares; no per-holder atom-liability repricing, second ledger or second writer. Snapshot raw bounded fields once before copying.",
+    "policy": "Existing fee rounding, explicit minimum LP lock, floor-proportional share rights and positive-u32 exact-next intent nonce. Separate outer replay nonce. Single pool, all fees retained, zero token transfer fees, no native coin. Canonical 48-byte sender/recipient/LP/nonce text required; no cryptographic possession claim."
+  },
+  "line_changes": {
+    "runtime_added": 445,
+    "runtime_removed": 0,
+    "tests_added": 549,
+    "tests_removed": 0,
+    "docs_added": 77,
+    "docs_removed": 1
+  },
+  "checks": [
+    {
+      "command": "python -m pytest -q tests/core/test_spot_swap_state_v2.py tests/core/test_spot_swap_global_v2.py tests/core/test_spot_swap_plan_v2.py tests/core/test_settlement_swap_runtime_v1.py tests/core/test_asset_lane_custody_v2.py tests/core/test_perps_margin_global_v2.py tests/core/test_global_economic_state_effect_refinement_v2.py --tb=short",
+      "result": "171 passed",
+      "seconds": 19.47
+    },
+    {
+      "command": "python -m pytest -q tests/core/test_spot_swap_state_v2.py tests/core/test_spot_swap_global_v2.py --cov=src.core.spot_swap_state_v2 --cov=src.core.spot_swap_global_v2 --cov-branch --cov-report=term-missing:skip-covered",
+      "result": "74 passed; 96% combined statement/branch coverage; four semantic source mutants killed by exact outcome observations",
+      "seconds": 35.72
+    },
+    {
+      "command": "python -m mypy src/core/spot_swap_state_v2.py src/core/spot_swap_global_v2.py --follow-imports=silent",
+      "result": "No issues in both source files"
+    },
+    {
+      "command": "python -m ruff check src/core/spot_swap_state_v2.py src/core/spot_swap_global_v2.py tests/core/test_spot_swap_state_v2.py tests/core/test_spot_swap_global_v2.py",
+      "result": "Passed"
+    },
+    {
+      "command": "bash tools/run_critical_quality_gate.sh",
+      "result": "433 acceptance-TCB and 852 critical tests passed; default Ruff/mypy/test-hygiene/BVA/coverage checks passed. This existing gate does not collect the new Spot tests. Run preceded the canonical-owner narrowing; final Spot tests and explicit typing above cover that narrowing.",
+      "log_sha256": "20f93d0a1eced5e79323dc85a842c8c0365ce3eb4e7a7e46e21ea2b9d7c4fdc8"
+    },
+    {
+      "command": "python tools/check_production_boundary.py --json",
+      "result": "Exit 0; declared production boundary checks pass; no Spot publication or whole-runtime qualification implied"
+    },
+    {
+      "command": "python tools/permissionless_assurance.py status",
+      "result": "Exit 0; status report retains old snapshot and reports missing local ESSO and Tau environments; no release gate replay"
+    }
+  ],
+  "independent_review": {
+    "reviewer": "gpt-6-astra max; read-only architecture, source, Rust prior-art and critical review",
+    "verdict": "Scoped pass after bounded-ingress repair; canonical 48-byte identity policy reviewed against actual legacy state encoding, nonce table and BLS authentication, conditional on root replay (passed).",
+    "reviewed_pre_identity_sha256": {
+      "src/core/spot_swap_state_v2.py": "3c5e1531795204702e79a0b9cebf1a8e4ca0db920e3aa0928536ce8ff149adbb",
+      "src/core/spot_swap_global_v2.py": "0fe824db2e79e1b63b932c63f67f2ffcc975b93a4adec00c59e80da9630176af"
+    },
+    "scope_limit": "Reviewer ran bounded inline resource falsifiers and source/scanner checks, not pytest/builds; root ran all reported suites. Final identity guard implements the reviewed exact-canonical policy."
+  },
+  "repaired_findings": [
+    {
+      "id": "SPOT-TERMINAL-FIELD",
+      "origin": "root explicit mypy plus minimized runtime reproduction",
+      "before": "An unrelated nonempty terminal table raised AttributeError because custody_domain was used instead of liability_domain.",
+      "after": "Correct field and retained funded unrelated-claim regression."
+    },
+    {
+      "id": "SPOT-RAW-CAPACITY",
+      "origin": "independent Astra review",
+      "before": "Forged oversized LP/nonce backing was traversed by defensive getters before the 4096-row ceiling.",
+      "after": "Raw exact-type fields enter the bounded constructor directly; snapshot and transition tests require early StateResourceLimitExceededV2."
+    },
+    {
+      "id": "SPOT-IDENTITY-ALIAS",
+      "origin": "independent Astra compatibility review",
+      "before": "Generic ASCII nonce keys could name the same BLS identity under different text in a future host.",
+      "after": "New profile requires canonical 48-byte key text without rewriting signed data; retained sender/recipient and LP/nonce alias rejection tests."
+    }
+  ],
+  "semantic_mutants": [
+    "LP root binding removed",
+    "inner nonce ordering removed",
+    "complete command-body hash binding removed",
+    "conserved output redirected from intended recipient"
+  ],
+  "stateful_evidence": "Asset outer1 -> swap inner1/outer2 -> asset outer3 -> swap inner2/outer4; inner reuse and outer replay reject. Twelve deterministic Hypothesis histories up to eight swaps use independent integer wallet/reserve accounting.",
+  "assessment": {
+    "status": "SCOPED_REVIEWED_AMENDMENT",
+    "before_subject": "388b5f4b1b30e5af8e8dd1b5ac3ca41ef55937c4",
+    "after_subject": "1fcb00c857a05cc8088464b027b1759d7785b71c",
+    "changes": {
+      "exact_in_swap": {
+        "implementation": [
+          0.25,
+          0.35
+        ],
+        "semantics": [
+          0.35,
+          0.4
+        ],
+        "proof_and_refinement": "unchanged"
+      },
+      "exact_out_swap": {
+        "implementation": [
+          0.18,
+          0.35
+        ],
+        "semantics": [
+          0.35,
+          0.4
+        ],
+        "proof_and_refinement": "unchanged"
+      }
+    },
+    "full_v3_percent": [
+      24.828,
+      24.906
+    ],
+    "formal_core_percent": [
+      21.547,
+      21.569
+    ],
+    "rounding": "Aggregates use the existing calculator rounded to three decimals; band judgments are advisory. All other capability rows, denominator and authority flags remain inherited."
+  },
+  "runs": [
+    {
+      "id": "spot-joint-root",
+      "model": "gpt-6-astra",
+      "role": "implementation/integration",
+      "status": "completed",
+      "resources": "unknown"
+    },
+    {
+      "id": "spot-joint-peer",
+      "model": "gpt-6-astra",
+      "role": "review/research",
+      "status": "completed",
+      "resources": "unknown"
+    },
+    {
+      "id": "spot-state-luna-attempt",
+      "model": "gpt-5.6-luna max",
+      "role": "implementation",
+      "status": "failed_to_start",
+      "result": "Harness agent thread limit reached; no worker started, no code contributed, no Claude retry."
+    }
+  ],
+  "nonclaims": [
+    "No formal-core or V3 completion; 0/12 value-safety gates closed.",
+    "No connected preservation proof or Rust/global-journal correspondence added.",
+    "No genuine Spot receipt, authenticated source dispatch, qualified genesis/profile/time, publisher mount, restart or cancellation/terminal delivery qualification.",
+    "LP mint/burn/transfer, multi-pool routes, pool close and locked-share terminal disposition remain open.",
+    "No deployment or live authority changes.",
+    "Foreign Rust sources provide patterns, not assurance transfer or a never-hacked finding.",
+    "Largest remaining refiner performance opportunity is repeated full-state getter copies; it is unbenchmarked and unchanged in this batch."
+  ],
+  "next_acceptance": "Implement and qualify exact Rust/guest/journal correspondence, then authentic dispatch and the existing single publisher with complete snapshot/history/replay/outbox and authenticated terminal reconciliation. Genuine margin proving still needs an available proof host."
+}
