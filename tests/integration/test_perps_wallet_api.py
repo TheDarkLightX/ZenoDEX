@@ -4,6 +4,7 @@ import json
 import sys
 import threading
 import time
+from dataclasses import replace
 from typing import Mapping
 
 import pytest
@@ -977,8 +978,10 @@ def _state_with_market_and_balance(*, quote_asset: str) -> DexState:
     )
     assert res.ok, res.error
     assert res.state is not None
-    res.state.balances.set(ALICE, quote_asset, 5_000)
-    return res.state
+    # Committed balances are immutable: seed on a builder and commit a new state.
+    balances = res.state.balances.to_table()
+    balances.set(ALICE, quote_asset, 5_000)
+    return replace(res.state, balances=balances)
 
 
 def _apply_perps(state: DexState, ops: list[dict[str, object]], *, sender: str = OPERATOR) -> DexState:
@@ -1069,8 +1072,11 @@ def _state_after_pair_liquidation(*, quote_asset: str) -> DexState:
         state,
         [{"module": "TauPerp", "version": "1.0", "market_id": MARKET_ID, "action": "settle_epoch"}],
     )
-    state.balances.set(ALICE, quote_asset, 1000)
-    state.balances.set(BOB, quote_asset, 1000)
+    # Committed balances are immutable: seed on a builder and commit a new state.
+    balances = state.balances.to_table()
+    balances.set(ALICE, quote_asset, 1000)
+    balances.set(BOB, quote_asset, 1000)
+    state = replace(state, balances=balances)
     state = _apply_perps(
         state,
         [
@@ -1280,8 +1286,11 @@ def _fake_client_apply_stream7_payload(client: _FakeClient, payload: object) -> 
     faucet_op = json.loads(wire_ops["7"])
     mint = faucet_op["mint"]
     state = perps_wallet_api._state_from_app_state(client.app_state)
+    # Committed balances are immutable: apply the faucet mint on a builder and commit it.
+    balances = state.balances.to_table()
     for entry in mint:
-        state.balances.add(entry["pubkey"], entry["asset"], int(entry["amount"]))
+        balances.add(entry["pubkey"], entry["asset"], int(entry["amount"]))
+    state = replace(state, balances=balances)
     client.app_state = _wrapped_app_state(state)
     client.app_hash = "sha256:" + hash_v0("test_perps_wallet_app_state", client.app_state)[2:]
 
@@ -2515,7 +2524,10 @@ def test_submit_deposit_collateral_uses_sender_bound_account_and_stream_8(monkey
 def test_submit_deposit_insurance_uses_isolated_market_and_sender_balance(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     state = _state_with_isolated_liquidatable_account(quote_asset=quote_asset)
-    state.balances.set(ALICE, quote_asset, 1_000)
+    # Committed balances are immutable: seed on a builder and commit a new state.
+    balances = state.balances.to_table()
+    balances.set(ALICE, quote_asset, 1_000)
+    state = replace(state, balances=balances)
     _FakeClient.app_state = _wrapped_app_state(state)
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}

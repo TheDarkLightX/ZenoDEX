@@ -205,10 +205,16 @@ def _patch_apply_ops_happy_path(
     monkeypatch.setattr(dex_engine, "compute_settlement", lambda **kwargs: settlement)
     monkeypatch.setattr(dex_engine, "validate_operations", lambda **kwargs: validate_result)
     monkeypatch.setattr(dex_engine, "_verify_proof_if_present", lambda *args, **kwargs: verify_result)
+    # `apply_settlement_pure` returns fresh builder copies; committed DexState
+    # members are immutable snapshots, so the stub must hand back builders too.
     monkeypatch.setattr(
         dex_engine,
         "apply_settlement_pure",
-        lambda **kwargs: (kwargs["balances"], kwargs["pools"], kwargs["lp_balances"]),
+        lambda **kwargs: (
+            kwargs["balances"].to_table(),
+            kwargs["pools"].to_table(),
+            kwargs["lp_balances"].to_table(),
+        ),
     )
     monkeypatch.setattr(dex_engine, "make_proof_verifier", lambda config: _DummyVerifier((True, None)))
     return envs

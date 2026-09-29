@@ -15,12 +15,12 @@ recomputes canonical deltas/events and requires exact match.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import List, Mapping, Optional, Tuple
 
-from ..state.balances import BalanceTable, PubKey
+from ..state.balances import BalanceSnapshot, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
-from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.lp import LPSnapshot, LPTable
+from ..state.pools import PoolSnapshot, PoolState
 from .batch_clearing import validate_settlement as validate_settlement_legacy
 from .domain_limits import is_strict_int
 from .settlement import Fill, FillAction, Settlement
@@ -295,9 +295,9 @@ def validate_settlement_strong(
     *,
     settlement: Settlement,
     intents: List[Intent],
-    pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
-    pre_lp_balances: Optional[LPTable] = None,
+    pre_balances: BalanceTable | BalanceSnapshot,
+    pre_pools: Mapping[str, PoolState | PoolSnapshot],
+    pre_lp_balances: Optional[LPTable | LPSnapshot] = None,
     mode: str = _MODE_STRONG_REPLAY,
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,

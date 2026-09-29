@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, replace
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
-from ..state.balances import BalanceTable, PubKey
+from ..state.balances import BalanceSnapshot, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
-from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.lp import LPSnapshot, LPTable
+from ..state.pools import PoolSnapshot, PoolState, copy_pool_state
 from .batch_clearing_deltas import (
     _aggregate_balance_deltas_chunked,
     _aggregate_lp_deltas_chunked,
@@ -65,15 +65,16 @@ class _SettlementComputeFactories:
 
 def compute_settlement_with_factories(
     intents: List[Intent],
-    pools: Dict[str, PoolState],
-    balances: BalanceTable,
-    lp_balances: Optional[LPTable],
+    pools: Mapping[str, PoolState | PoolSnapshot],
+    balances: BalanceTable | BalanceSnapshot,
+    lp_balances: Optional[LPTable | LPSnapshot],
     *,
     policy: _SettlementPolicy,
     chunk_size: int,
     factories: _SettlementComputeFactories,
 ) -> Settlement:
-    pool_states: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
+    # Private working copies: committed pool snapshots become fresh builders.
+    pool_states: Dict[str, PoolState] = {pool_id: copy_pool_state(pool) for pool_id, pool in pools.items()}
     balances_local = factories.copy_balance_table_fn(balances)
     lp_local = factories.copy_lp_table_fn(lp_balances) if lp_balances is not None else LPTable()
     partitions = _partition_settlement_intents(intents)

@@ -13,13 +13,13 @@ IMPORTANT:
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, replace
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Mapping, Optional, Tuple
 
 from ..core.liquidity import create_pool
 from ..core.settlement import Fill, FillAction, Settlement
 from ..state.intents import Intent, IntentKind
-from ..state.pools import PoolState
+from ..state.pools import PoolSnapshot, PoolState, copy_pool_state
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
     SETTLEMENT_PRICE_RAILS_ALIGNED_V1,
@@ -120,7 +120,7 @@ def validate_settlement_swaps(
     *,
     intents: List[Intent],
     settlement: Settlement,
-    pre_pools: Dict[str, PoolState],
+    pre_pools: Mapping[str, PoolState | PoolSnapshot],
     config: TauGateConfig = DEFAULT_TAU_GATE_CONFIG,
 ) -> Tuple[bool, Optional[str]]:
     """
@@ -161,7 +161,8 @@ def validate_settlement_swaps(
             pre = pre_pools.get(pid)
             if pre is None:
                 return None
-            pool = replace(pre)
+            # Private builder copy: committed pool snapshots are never mutated.
+            pool = copy_pool_state(pre)
             pools_mut[pid] = pool
             return pool
 

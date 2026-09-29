@@ -983,12 +983,12 @@ def _check_api_server_read_only_boundary(root: Path) -> BoundaryCheck:
 
 
 def _check_retired_tau_bridge_classification(root: Path) -> BoundaryCheck:
-    from tools.check_retired_tau_bridge_closure_v3 import (
-        check_retired_tau_bridge_closure_v3,
+    from tools.check_retired_tau_bridge_closure_v4 import (
+        check_retired_tau_bridge_closure_v4,
     )
-    from tools.retired_tau_bridge_closure_v3 import CHECK_SCHEMA_V3
+    from tools.retired_tau_bridge_closure_v4 import CHECK_SCHEMA_V4, PREDECESSOR_SHA256_V4
 
-    report = check_retired_tau_bridge_closure_v3(root)
+    report = check_retired_tau_bridge_closure_v4(root)
     counts = report.get("classification_counts")
     artifact_sha256 = report.get("artifact_sha256")
     authorities_none = all(
@@ -1006,7 +1006,8 @@ def _check_retired_tau_bridge_classification(root: Path) -> BoundaryCheck:
     )
     ok = (
         report.get("ok") is True
-        and report.get("schema") == CHECK_SCHEMA_V3
+        and report.get("schema") == CHECK_SCHEMA_V4
+        and report.get("predecessor_artifact_sha256") == PREDECESSOR_SHA256_V4
         and type(artifact_sha256) is str
         and re.fullmatch(r"[0-9a-f]{64}", artifact_sha256) is not None
         and report.get("findings") == []
@@ -1022,6 +1023,7 @@ def _check_retired_tau_bridge_classification(root: Path) -> BoundaryCheck:
         evidence=json.dumps(
             {
                 "artifact_sha256": artifact_sha256,
+                "predecessor_artifact_sha256": report.get("predecessor_artifact_sha256"),
                 "classification_counts": counts,
                 "closed_value_movement_gates": report.get("closed_value_movement_gates"),
                 "current_only_import_edge_count": report.get("current_only_import_edge_count"),

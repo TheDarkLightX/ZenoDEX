@@ -173,6 +173,7 @@ def test_current_production_boundary_audit_passes() -> None:
         ("artifact_sha256", ""),
         ("findings", [{"code": "MUTANT"}]),
         ("schema", "mutant/schema"),
+        ("predecessor_artifact_sha256", "00" * 32),
     ),
 )
 def test_retired_tau_bridge_check_rejects_authority_or_scope_promotion(
@@ -194,13 +195,14 @@ def test_retired_tau_bridge_check_rejects_authority_or_scope_promotion(
         "ok": True,
         "production_authority": "NONE",
         "release_authority": "NONE",
-        "schema": "zenodex/retired-tau-bridge-closure-check/v3",
+        "schema": "zenodex/retired-tau-bridge-closure-check/v4",
+        "predecessor_artifact_sha256": "bd66f99523f904821e6417c588e41b96ef9a219f573d6cc4293d671a4c165dac",
         "settlement_authority": "NONE",
         "value_movement_authority": "NONE",
     }
     report[field] = value
     monkeypatch.setattr(
-        "tools.check_retired_tau_bridge_closure_v3.check_retired_tau_bridge_closure_v3",
+        "tools.check_retired_tau_bridge_closure_v4.check_retired_tau_bridge_closure_v4",
         lambda _root: report,
     )
 
@@ -229,12 +231,13 @@ def test_retired_tau_bridge_check_accepts_bounded_nonauthority_report(
         "ok": True,
         "production_authority": "NONE",
         "release_authority": "NONE",
-        "schema": "zenodex/retired-tau-bridge-closure-check/v3",
+        "schema": "zenodex/retired-tau-bridge-closure-check/v4",
+        "predecessor_artifact_sha256": "bd66f99523f904821e6417c588e41b96ef9a219f573d6cc4293d671a4c165dac",
         "settlement_authority": "NONE",
         "value_movement_authority": "NONE",
     }
     monkeypatch.setattr(
-        "tools.check_retired_tau_bridge_closure_v3.check_retired_tau_bridge_closure_v3",
+        "tools.check_retired_tau_bridge_closure_v4.check_retired_tau_bridge_closure_v4",
         lambda _root: report,
     )
 

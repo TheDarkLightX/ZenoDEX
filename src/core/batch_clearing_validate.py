@@ -4,14 +4,20 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
-from ..state.balances import Amount, AssetId, BalanceTable, PubKey
-from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.balances import Amount, AssetId, BalanceSnapshot, BalanceTable, PubKey
+from ..state.lp import LPSnapshot, LPTable
+from ..state.pools import PoolSnapshot, PoolState
 from .settlement import Settlement
 
 _AnyFn = Callable[..., Any]
+
+# Legacy validation only reads pre-state; committed snapshots and builders are
+# both accepted.
+_AnyBalanceTable = BalanceTable | BalanceSnapshot
+_AnyLPTable = LPTable | LPSnapshot
+_AnyPoolState = PoolState | PoolSnapshot
 
 
 @dataclass(frozen=True)
@@ -22,7 +28,7 @@ class _SettlementValidationFactories:
 
 def _created_pools_from_events(
     settlement: Settlement,
-    pre_pools: Dict[str, PoolState],
+    pre_pools: Mapping[str, _AnyPoolState],
     factories: _SettlementValidationFactories,
 ) -> Tuple[Optional[Dict[str, PoolState]], Optional[str]]:
     created_pools: Dict[str, PoolState] = {}
@@ -61,7 +67,7 @@ def _created_pools_from_events(
     return created_pools, None
 
 
-def _check_balance_nonnegative(settlement: Settlement, pre_balances: BalanceTable) -> Optional[str]:
+def _check_balance_nonnegative(settlement: Settlement, pre_balances: _AnyBalanceTable) -> Optional[str]:
     balance_net: Dict[Tuple[PubKey, AssetId], Amount] = defaultdict(int)
     for balance_delta in settlement.balance_deltas:
         balance_net[(balance_delta.pubkey, balance_delta.asset)] += balance_delta.net_delta()
@@ -74,7 +80,7 @@ def _check_balance_nonnegative(settlement: Settlement, pre_balances: BalanceTabl
 
 def _check_reserve_nonnegative(
     settlement: Settlement,
-    pools_view: Dict[str, PoolState],
+    pools_view: Mapping[str, _AnyPoolState],
 ) -> Optional[str]:
     reserve_net: Dict[Tuple[str, AssetId], Amount] = defaultdict(int)
     for reserve_delta in settlement.reserve_deltas:
@@ -94,7 +100,7 @@ def _check_reserve_nonnegative(
 
 def _check_lp_balance_nonnegative(
     settlement: Settlement,
-    lp_view: LPTable,
+    lp_view: _AnyLPTable,
 ) -> Optional[str]:
     lp_net: Dict[Tuple[PubKey, str], Amount] = defaultdict(int)
     for lp_delta in settlement.lp_deltas:
@@ -120,8 +126,8 @@ def _check_asset_conservation(settlement: Settlement) -> Optional[str]:
 
 def _check_lp_supply_nonnegative(
     settlement: Settlement,
-    pre_pools: Dict[str, PoolState],
-    pools_view: Dict[str, PoolState],
+    pre_pools: Mapping[str, _AnyPoolState],
+    pools_view: Mapping[str, _AnyPoolState],
 ) -> Optional[str]:
     supply_net: Dict[str, Amount] = defaultdict(int)
     for lp_delta in settlement.lp_deltas:
@@ -137,16 +143,16 @@ def _check_lp_supply_nonnegative(
 
 def validate_settlement_with_factories(
     settlement: Settlement,
-    pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
-    pre_lp_balances: Optional[LPTable],
+    pre_balances: _AnyBalanceTable,
+    pre_pools: Mapping[str, _AnyPoolState],
+    pre_lp_balances: Optional[_AnyLPTable],
     factories: _SettlementValidationFactories,
 ) -> Tuple[bool, Optional[str]]:
     created_pools, err = _created_pools_from_events(settlement, pre_pools, factories)
     if err is not None:
         return False, err
-    pools_view: Dict[str, PoolState] = {**pre_pools, **(created_pools or {})}
-    lp_view = pre_lp_balances or LPTable()
+    pools_view: Dict[str, _AnyPoolState] = {**pre_pools, **(created_pools or {})}
+    lp_view: _AnyLPTable = pre_lp_balances or LPTable()
 
     try:
         for check_err in (

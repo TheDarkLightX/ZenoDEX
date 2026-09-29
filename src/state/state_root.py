@@ -9,9 +9,9 @@ This is intended for:
 
 from __future__ import annotations
 
-from typing import Mapping
+from typing import Mapping, TypeAlias
 
-from .balances import BalanceTable
+from .balances import BalanceSnapshot, BalanceTable
 from .canonical import (
     domain_sep_bytes,
     encode_bytes,
@@ -19,9 +19,16 @@ from .canonical import (
     hex_to_bytes_fixed,
     sha256_hex,
 )
-from .lp import LPDurationRiskMetadata, LPTable
-from .nonces import NonceTable
-from .pools import PoolState, PoolStatus
+from .lp import LPDurationRiskMetadata, LPSnapshot, LPTable
+from .nonces import NonceSnapshot, NonceTable
+from .pools import PoolSnapshot, PoolState, PoolStatus
+
+# Root encoding reads both phases identically; committed snapshots and
+# builders with equal logical content produce byte-identical roots.
+AnyBalanceTable: TypeAlias = BalanceTable | BalanceSnapshot
+AnyLPTable: TypeAlias = LPTable | LPSnapshot
+AnyNonceTable: TypeAlias = NonceTable | NonceSnapshot
+AnyPoolState: TypeAlias = PoolState | PoolSnapshot
 
 STATE_ROOT_VERSION = 4
 
@@ -32,7 +39,7 @@ _POOL_STATUS_CODE: dict[PoolStatus, int] = {
 }
 
 
-def _sorted_balance_entries(balances: BalanceTable) -> list[tuple[bytes, bytes, int]]:
+def _sorted_balance_entries(balances: AnyBalanceTable) -> list[tuple[bytes, bytes, int]]:
     entries: list[tuple[bytes, bytes, int]] = []
     seen: set[tuple[bytes, bytes]] = set()
     for (pubkey, asset), amount in balances.get_all_balances().items():
@@ -49,7 +56,7 @@ def _sorted_balance_entries(balances: BalanceTable) -> list[tuple[bytes, bytes, 
     return entries
 
 
-def _sorted_lp_entries(lp_balances: LPTable) -> list[tuple[bytes, bytes, int]]:
+def _sorted_lp_entries(lp_balances: AnyLPTable) -> list[tuple[bytes, bytes, int]]:
     entries: list[tuple[bytes, bytes, int]] = []
     seen: set[tuple[bytes, bytes]] = set()
     for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
@@ -67,7 +74,7 @@ def _sorted_lp_entries(lp_balances: LPTable) -> list[tuple[bytes, bytes, int]]:
 
 
 def _sorted_lp_duration_risk_entries(
-    lp_balances: LPTable,
+    lp_balances: AnyLPTable,
 ) -> list[tuple[bytes, bytes, LPDurationRiskMetadata]]:
     entries: list[tuple[bytes, bytes, LPDurationRiskMetadata]] = []
     seen: set[tuple[bytes, bytes]] = set()
@@ -98,8 +105,8 @@ def _sorted_lp_duration_risk_entries(
     return entries
 
 
-def _sorted_pool_entries(pools: Mapping[str, PoolState]) -> list[tuple[bytes, PoolState]]:
-    entries: list[tuple[bytes, PoolState]] = []
+def _sorted_pool_entries(pools: Mapping[str, AnyPoolState]) -> list[tuple[bytes, AnyPoolState]]:
+    entries: list[tuple[bytes, AnyPoolState]] = []
     seen: set[bytes] = set()
     for pool_id, pool in pools.items():
         pool_b = hex_to_bytes_fixed(pool_id, nbytes=32, name="pool_id")
@@ -113,7 +120,7 @@ def _sorted_pool_entries(pools: Mapping[str, PoolState]) -> list[tuple[bytes, Po
     return entries
 
 
-def _encode_balances_section(balances: BalanceTable) -> bytes:
+def _encode_balances_section(balances: AnyBalanceTable) -> bytes:
     out = bytearray()
     entries = _sorted_balance_entries(balances)
     out += encode_uvarint(len(entries))
@@ -124,7 +131,7 @@ def _encode_balances_section(balances: BalanceTable) -> bytes:
     return bytes(out)
 
 
-def _encode_pools_section(pools: Mapping[str, PoolState]) -> bytes:
+def _encode_pools_section(pools: Mapping[str, AnyPoolState]) -> bytes:
     out = bytearray()
     entries = _sorted_pool_entries(pools)
     out += encode_uvarint(len(entries))
@@ -161,7 +168,7 @@ def _encode_pools_section(pools: Mapping[str, PoolState]) -> bytes:
     return bytes(out)
 
 
-def _encode_lp_section(lp_balances: LPTable) -> bytes:
+def _encode_lp_section(lp_balances: AnyLPTable) -> bytes:
     out = bytearray()
     entries = _sorted_lp_entries(lp_balances)
     out += encode_uvarint(len(entries))
@@ -172,7 +179,7 @@ def _encode_lp_section(lp_balances: LPTable) -> bytes:
     return bytes(out)
 
 
-def _encode_lp_duration_risk_section(lp_balances: LPTable) -> bytes:
+def _encode_lp_duration_risk_section(lp_balances: AnyLPTable) -> bytes:
     out = bytearray()
     entries = _sorted_lp_duration_risk_entries(lp_balances)
     out += encode_uvarint(len(entries))
@@ -193,7 +200,7 @@ def _encode_lp_duration_risk_section(lp_balances: LPTable) -> bytes:
     return bytes(out)
 
 
-def _encode_nonce_section(nonces: NonceTable) -> bytes:
+def _encode_nonce_section(nonces: AnyNonceTable) -> bytes:
     out = bytearray()
     entries: list[tuple[bytes, int]] = []
     seen: set[bytes] = set()
@@ -215,22 +222,23 @@ def _encode_nonce_section(nonces: NonceTable) -> bytes:
 
 def compute_state_root(
     *,
-    balances: BalanceTable,
-    pools: Mapping[str, PoolState],
-    lp_balances: LPTable,
-    nonces: NonceTable | None = None,
+    balances: AnyBalanceTable,
+    pools: Mapping[str, AnyPoolState],
+    lp_balances: AnyLPTable,
+    nonces: AnyNonceTable | None = None,
 ) -> str:
     """
     Compute a deterministic state root hash for the DEX state.
 
-    Returns a 0x-prefixed sha256 digest.
+    Accepts committed snapshots or builders for each table; the encoding is
+    identical for equal logical content. Returns a 0x-prefixed sha256 digest.
     """
-    if not isinstance(balances, BalanceTable):
+    if not isinstance(balances, (BalanceTable, BalanceSnapshot)):
         raise TypeError("balances must be a BalanceTable")
-    if not isinstance(lp_balances, LPTable):
+    if not isinstance(lp_balances, (LPTable, LPSnapshot)):
         raise TypeError("lp_balances must be an LPTable")
-    nonce_table = NonceTable() if nonces is None else nonces
-    if not isinstance(nonce_table, NonceTable):
+    nonce_table: AnyNonceTable = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, (NonceTable, NonceSnapshot)):
         raise TypeError("nonces must be a NonceTable")
 
     balances_section = _encode_balances_section(balances)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.core.dex import DexState
@@ -68,7 +70,10 @@ def test_strict_snapshot_roundtrip_enforces_lp_supply_conservation() -> None:
 def test_strict_snapshot_rejects_lp_supply_mismatch_in_both_directions() -> None:
     state = _lp_conserving_state()
     pool_id = next(iter(state.pools))
-    state.lp_balances.set("alice", pool_id, 6)
+    # Committed LP snapshots are immutable: seed the mismatch on a builder and commit it.
+    lp_builder = state.lp_balances.to_table()
+    lp_builder.set("alice", pool_id, 6)
+    state = replace(state, lp_balances=lp_builder)
 
     with pytest.raises(ValueError, match="LP supply conservation mismatch"):
         snapshot_from_state(state, require_lp_supply_conservation=True)
@@ -83,7 +88,10 @@ def test_strict_snapshot_rejects_lp_supply_mismatch_in_both_directions() -> None
 
 def test_strict_snapshot_rejects_lp_balance_for_unknown_pool() -> None:
     state = _lp_conserving_state()
-    state.lp_balances.set("mallory", "0x" + "bb" * 32, 1)
+    # Committed LP snapshots are immutable: seed the stray balance on a builder and commit it.
+    lp_builder = state.lp_balances.to_table()
+    lp_builder.set("mallory", "0x" + "bb" * 32, 1)
+    state = replace(state, lp_balances=lp_builder)
 
     with pytest.raises(ValueError, match="LP balance references unknown pool"):
         snapshot_from_state(state, require_lp_supply_conservation=True)

@@ -15,7 +15,7 @@ This supports:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Mapping, Tuple
 
 from ..core import quote_receipt_gates as _quote_receipt_gates
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
@@ -54,7 +54,7 @@ from ..core.quote_receipt_hop_replay import (
     replay_and_apply_hop as _replay_and_apply_hop_with_reserve_lookup,
 )
 from ..core.quote_receipt_limits import ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG
-from ..state.pools import PoolState
+from ..state.pools import PoolSnapshot, PoolState
 
 __all__ = [
     "attach_frontier_signature_binding_to_route_quote_receipt",
@@ -351,7 +351,7 @@ def _verify_expected_frontier_signature_binding(
 def _verify_prechecked_route_quote_receipt(
     *,
     ctx: _ReceiptBodyContext,
-    pools_by_id: Dict[str, PoolState],
+    pools_by_id: Mapping[str, PoolState | PoolSnapshot],
     expected_quote_epoch: int | None,
     expected_frontier_signature_binding: FrontierSignatureCertificatesRootBinding | None,
 ) -> Tuple[bool, str]:
@@ -402,7 +402,7 @@ def _verify_prechecked_route_quote_receipt(
 def verify_route_quote_receipt(
     receipt: object,
     *,
-    pools_by_id: Dict[str, PoolState],
+    pools_by_id: Mapping[str, PoolState | PoolSnapshot],
     expected_quote_epoch: int | None = None,
     expected_frontier_signature_binding: FrontierSignatureCertificatesRootBinding | None = None,
 ) -> Tuple[bool, str]:

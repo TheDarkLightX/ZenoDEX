@@ -243,13 +243,13 @@ from ..core.perps import (
 from ..core.perps import (
     PerpClearinghouseNpPendingIntent as _NpPendingIntent,
 )
-from ..state.balances import BalanceTable
+from ..state.balances import BalanceSnapshot, BalanceTable
 from ..state.canonical import (
     bounded_json_utf8_size,
     canonical_hex_fixed_allow_0x,
     canonical_json_bytes,
 )
-from ..state.nonces import NonceTable
+from ..state.nonces import NonceSnapshot, NonceTable
 from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
 PERP_OP_MODULE = "TauPerp"
@@ -1413,14 +1413,14 @@ def _hex_to_bytes_allow_0x(hex_str: str, *, name: str, expected_nbytes: Optional
     return out
 
 
-def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
+def _copy_balance_table(balances: BalanceTable | BalanceSnapshot) -> BalanceTable:
     copied = BalanceTable()
     for (pubkey, asset), amount in balances.get_all_balances().items():
         copied.set(pubkey, asset, int(amount))
     return copied
 
 
-def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
+def _copy_nonce_table(nonces: NonceTable | NonceSnapshot) -> NonceTable:
     copied = NonceTable()
     for pk, last in nonces.get_all().items():
         copied.set_last(pk, int(last))

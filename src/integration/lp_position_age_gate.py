@@ -14,7 +14,11 @@ from typing import Optional
 
 from ..core.settlement import Settlement
 from ..state.intents import Intent, IntentKind
-from ..state.lp import LPTable
+from ..state.lp import LPSnapshot, LPTable
+
+# Read-only gates accept the committed snapshot or a builder; the post-settlement
+# metadata update below requires a mutable builder.
+_READABLE_LP_TABLES = (LPTable, LPSnapshot)
 
 
 def _strict_non_negative_int(value: object) -> bool:
@@ -120,7 +124,7 @@ def _age_context(contexts: dict[tuple[str, str], str], key: tuple[str, str]) -> 
 
 def _validate_lp_age_for_key(
     *,
-    lp_balances: LPTable,
+    lp_balances: LPTable | LPSnapshot,
     owner: str,
     pool_id: str,
     block_timestamp: int,
@@ -153,7 +157,7 @@ def _validate_lp_age_for_key(
 
 def effective_lp_position_age_seconds(
     *,
-    lp_balances: LPTable,
+    lp_balances: LPTable | LPSnapshot,
     owner: str,
     pool_id: str,
     block_timestamp: int,
@@ -198,7 +202,7 @@ def validate_lp_position_age_gate(
         return None
     if not _strict_non_negative_int(block_timestamp):
         return "invalid block_timestamp for lp_position_age_gate"
-    if not isinstance(lp_balances, LPTable):
+    if not isinstance(lp_balances, _READABLE_LP_TABLES):
         return "invalid lp_balances for lp_position_age_gate"
 
     add_keys: set[tuple[str, str]] = set()
@@ -264,7 +268,7 @@ def validate_lp_settlement_age_gate(
         return None
     if not _strict_non_negative_int(block_timestamp):
         return "invalid block_timestamp for lp_position_age_gate"
-    if not isinstance(lp_balances, LPTable):
+    if not isinstance(lp_balances, _READABLE_LP_TABLES):
         return "invalid lp_balances for lp_position_age_gate"
     if not isinstance(settlement, Settlement):
         return "invalid settlement for lp_position_age_gate"

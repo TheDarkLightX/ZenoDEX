@@ -14,9 +14,9 @@ snapshot instead of the entire global state.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Sequence, Tuple
+from typing import Mapping, Sequence, Tuple, TypeAlias
 
-from .balances import AssetId, BalanceTable, PubKey
+from .balances import AssetId, BalanceSnapshot, BalanceTable, PubKey
 from .canonical import (
     domain_sep_bytes,
     encode_bytes,
@@ -25,9 +25,15 @@ from .canonical import (
     sha256_hex,
 )
 from .intents import Intent, IntentKind
-from .lp import LPDurationRiskMetadata, LPTable
-from .nonces import NonceTable
-from .pools import PoolState, PoolStatus, compute_pool_id, normalize_curve_config
+from .lp import LPDurationRiskMetadata, LPSnapshot, LPTable
+from .nonces import NonceSnapshot, NonceTable
+from .pools import PoolSnapshot, PoolState, PoolStatus, compute_pool_id, normalize_curve_config
+
+# Support-root encoding reads committed snapshots and builders identically.
+AnyBalanceTable: TypeAlias = BalanceTable | BalanceSnapshot
+AnyLPTable: TypeAlias = LPTable | LPSnapshot
+AnyNonceTable: TypeAlias = NonceTable | NonceSnapshot
+AnyPoolState: TypeAlias = PoolState | PoolSnapshot
 
 SUPPORT_ROOT_VERSION = 4
 
@@ -65,7 +71,7 @@ class _SupportAccumulator:
 
 @dataclass
 class _SupportDerivationContext:
-    pools: Mapping[str, PoolState]
+    pools: Mapping[str, AnyPoolState]
     created_pool_assets: Mapping[str, tuple[str, str]]
     acc: _SupportAccumulator
 
@@ -154,7 +160,7 @@ def _add_add_liquidity_support(
 def derive_batch_state_support(
     intents: Sequence[Intent],
     *,
-    pools: Mapping[str, PoolState],
+    pools: Mapping[str, AnyPoolState],
 ) -> BatchStateSupport:
     """
     Derive the batch read-set from intents (and pool metadata, when needed).
@@ -206,7 +212,7 @@ def derive_batch_state_support(
     )
 
 
-def _encode_support_balances_section(*, balances: BalanceTable, support: BatchStateSupport) -> bytes:
+def _encode_support_balances_section(*, balances: AnyBalanceTable, support: BatchStateSupport) -> bytes:
     bal_out = bytearray()
     bal_entries: list[tuple[bytes, bytes, int]] = []
     bal_seen: set[tuple[bytes, bytes]] = set()
@@ -232,9 +238,9 @@ def _encode_support_balances_section(*, balances: BalanceTable, support: BatchSt
     return bytes(bal_out)
 
 
-def _encode_support_pools_section(*, pools: Mapping[str, PoolState], support: BatchStateSupport) -> bytes:
+def _encode_support_pools_section(*, pools: Mapping[str, AnyPoolState], support: BatchStateSupport) -> bytes:
     pool_out = bytearray()
-    pool_entries: list[tuple[bytes, PoolState]] = []
+    pool_entries: list[tuple[bytes, AnyPoolState]] = []
     pool_seen: set[bytes] = set()
     for pool_id in support.pool_ids:
         pool = pools.get(pool_id)
@@ -280,7 +286,7 @@ def _encode_support_pools_section(*, pools: Mapping[str, PoolState], support: Ba
     return bytes(pool_out)
 
 
-def _encode_support_lp_balances_section(*, lp_balances: LPTable, support: BatchStateSupport) -> bytes:
+def _encode_support_lp_balances_section(*, lp_balances: AnyLPTable, support: BatchStateSupport) -> bytes:
     lp_out = bytearray()
     lp_entries: list[tuple[bytes, bytes, int]] = []
     lp_seen: set[tuple[bytes, bytes]] = set()
@@ -306,7 +312,7 @@ def _encode_support_lp_balances_section(*, lp_balances: LPTable, support: BatchS
     return bytes(lp_out)
 
 
-def _encode_support_lp_duration_section(*, lp_balances: LPTable, support: BatchStateSupport) -> bytes:
+def _encode_support_lp_duration_section(*, lp_balances: AnyLPTable, support: BatchStateSupport) -> bytes:
     lp_duration_out = bytearray()
     lp_duration_entries: list[tuple[bytes, bytes, LPDurationRiskMetadata]] = []
     lp_duration_seen: set[tuple[bytes, bytes]] = set()
@@ -360,7 +366,7 @@ def _encode_support_lp_duration_section(*, lp_balances: LPTable, support: BatchS
     return bytes(lp_duration_out)
 
 
-def _encode_support_nonces_section(*, nonce_table: NonceTable, support: BatchStateSupport) -> bytes:
+def _encode_support_nonces_section(*, nonce_table: AnyNonceTable, support: BatchStateSupport) -> bytes:
     nonce_out = bytearray()
     nonce_entries: list[tuple[bytes, int]] = []
     nonce_seen: set[bytes] = set()
@@ -383,26 +389,27 @@ def _encode_support_nonces_section(*, nonce_table: NonceTable, support: BatchSta
 
 def compute_support_state_root(
     *,
-    balances: BalanceTable,
-    pools: Mapping[str, PoolState],
-    lp_balances: LPTable,
+    balances: AnyBalanceTable,
+    pools: Mapping[str, AnyPoolState],
+    lp_balances: AnyLPTable,
     support: BatchStateSupport,
-    nonces: NonceTable | None = None,
+    nonces: AnyNonceTable | None = None,
 ) -> str:
     """
     Compute a deterministic commitment over the batch's support.
 
     Entries with zero balance / missing pools are omitted, mirroring the full
-    `compute_state_root()` sparsity behavior.
+    `compute_state_root()` sparsity behavior. Committed snapshots and builders
+    are accepted interchangeably.
     """
-    if not isinstance(balances, BalanceTable):
+    if not isinstance(balances, (BalanceTable, BalanceSnapshot)):
         raise TypeError("balances must be a BalanceTable")
-    if not isinstance(lp_balances, LPTable):
+    if not isinstance(lp_balances, (LPTable, LPSnapshot)):
         raise TypeError("lp_balances must be an LPTable")
     if not isinstance(support, BatchStateSupport):
         raise TypeError("support must be a BatchStateSupport")
-    nonce_table = NonceTable() if nonces is None else nonces
-    if not isinstance(nonce_table, NonceTable):
+    nonce_table: AnyNonceTable = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, (NonceTable, NonceSnapshot)):
         raise TypeError("nonces must be a NonceTable")
 
     payload = (
@@ -424,10 +431,10 @@ def compute_support_state_root(
 def compute_support_state_root_for_batch(
     *,
     intents: Sequence[Intent],
-    balances: BalanceTable,
-    pools: Mapping[str, PoolState],
-    lp_balances: LPTable,
-    nonces: NonceTable | None = None,
+    balances: AnyBalanceTable,
+    pools: Mapping[str, AnyPoolState],
+    lp_balances: AnyLPTable,
+    nonces: AnyNonceTable | None = None,
 ) -> str:
     support = derive_batch_state_support(intents, pools=pools)
     return compute_support_state_root(

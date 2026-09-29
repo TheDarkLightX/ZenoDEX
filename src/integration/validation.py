@@ -7,7 +7,7 @@ In production, this would call the Tau Docker container to validate operations.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Tuple
 
 from ..core.batch_clearing import apply_settlement
 from ..core.settlement import Settlement
@@ -16,10 +16,10 @@ from ..core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     validate_uniform_batch_settlement_v1,
 )
-from ..state.balances import BalanceTable
+from ..state.balances import BalanceSnapshot, BalanceTable
 from ..state.intents import Intent
-from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.lp import LPSnapshot, LPTable
+from ..state.pools import PoolSnapshot, PoolState
 from .settlement_end_to_end_certificate_packet import (
     SettlementEndToEndCertificateInputs,
     enforce_settlement_end_to_end_certificate,
@@ -35,9 +35,9 @@ if TYPE_CHECKING:
 def validate_operations(
     intents: List[Intent],
     settlement: Optional[Settlement],
-    balances: BalanceTable,
-    pools: Dict[str, PoolState],
-    lp_balances: Optional[LPTable],
+    balances: BalanceTable | BalanceSnapshot,
+    pools: Mapping[str, PoolState | PoolSnapshot],
+    lp_balances: LPTable | LPSnapshot | None,
     block_timestamp: int,
     *,
     tau_gate_config: Optional["TauGateConfig"] = None,

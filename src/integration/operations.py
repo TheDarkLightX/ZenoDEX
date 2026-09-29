@@ -15,6 +15,7 @@ from ..core.settlement import (
     LPDelta,
     ReserveDelta,
     Settlement,
+    SettlementSnapshot,
 )
 from ..state.intents import Intent, IntentKind, require_exact_intent
 
@@ -633,16 +634,18 @@ def create_signed_intent_operation(signed_intents: List[SignedIntentEnvelope]) -
     return {"2": intents_data}
 
 
-def create_settlement_operation(settlement: Settlement) -> Dict[str, Any]:
+def create_settlement_operation(settlement: Settlement | SettlementSnapshot) -> Dict[str, Any]:
     """
     Create operations["3"] structure from settlement.
     
     Args:
-        settlement: Settlement object
+        settlement: Mutable proposal or owned returned settlement
         
     Returns:
         Dictionary for operations["3"]
     """
+    if type(settlement) is SettlementSnapshot:
+        settlement = settlement.to_settlement()
     settlement_data = {
         "module": settlement.module,
         "version": settlement.version,

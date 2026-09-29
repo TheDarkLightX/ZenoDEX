@@ -57,13 +57,13 @@ from ..core.zusd_shutdown import (
     ZUSDShutdownExtensionState,
     ZUSDShutdownPhase,
 )
-from ..state.balances import NATIVE_ASSET, BalanceTable
+from ..state.balances import NATIVE_ASSET, BalanceSnapshot, BalanceTable
 from ..state.canonical import (
     bounded_json_utf8_size,
     canonical_hex_fixed_allow_0x,
     canonical_json_bytes,
 )
-from ..state.nonces import NonceTable
+from ..state.nonces import NonceSnapshot, NonceTable
 from .dex_snapshot import snapshot_from_state
 from .zeno_oracle_authorization import (
     ZUSD_COLLATERAL_QUERY_ID,
@@ -2634,14 +2634,14 @@ def _canonical_asset(value: Any, *, name: str) -> str:
     return asset
 
 
-def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
+def _copy_balance_table(balances: BalanceTable | BalanceSnapshot) -> BalanceTable:
     copied = BalanceTable()
     for (pubkey, asset), amount in balances.get_all_balances().items():
         copied.set(pubkey, asset, int(amount))
     return copied
 
 
-def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
+def _copy_nonce_table(nonces: NonceTable | NonceSnapshot) -> NonceTable:
     copied = NonceTable()
     for pk, last in nonces.get_all().items():
         copied.set_last(pk, int(last))

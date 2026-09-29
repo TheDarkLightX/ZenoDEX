@@ -6,7 +6,7 @@ from collections.abc import Iterator, Mapping
 import pytest
 
 from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
-from src.core.settlement import Fill, FillAction, Settlement
+from src.core.settlement import Fill, FillAction, Settlement, snapshot_settlement
 from src.integration.operations import (
     _parse_intent,
     create_intent_operation,
@@ -662,6 +662,22 @@ def test_settlement_operation_roundtrips_protocol_fee_paid() -> None:
     assert parsed is not None
     assert parsed.fills[0].protocol_fee_paid == 4
     assert parsed == settlement
+
+
+def test_owned_settlement_operation_preserves_json_bytes_and_detaches_events() -> None:
+    builder = Settlement(
+        module="TauSwap", version="0.1", batch_ref="batch-1",
+        included_intents=[], fills=[], balance_deltas=[], reserve_deltas=[], lp_deltas=[],
+        events=[{"type": "METADATA", "route": {"hops": [1, 2], "active": True}}],
+    )
+    snapshot = snapshot_settlement(builder)
+    expected = create_settlement_operation(builder)
+    actual = create_settlement_operation(snapshot)
+    assert json.dumps(actual, separators=(",", ":")) == json.dumps(expected, separators=(",", ":"))
+    assert canonical_json_bytes(actual) == canonical_json_bytes(expected)
+    assert parse_settlement(actual) == builder
+    actual["3"]["events"][0]["route"]["hops"].append(3)
+    assert snapshot.to_settlement() == builder
 
 
 def test_create_intent_operation_includes_salt_and_accepts_empty_fields() -> None:

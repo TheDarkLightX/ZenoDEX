@@ -30,17 +30,16 @@ Algorithm Design:
 
 from __future__ import annotations
 
-from dataclasses import replace
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_in,
     quote_cpmm_swap_exact_out,
 )
-from ..state.balances import Amount, BalanceTable, PubKey
+from ..state.balances import Amount, BalanceSnapshot, BalanceTable, PubKey
 from ..state.intents import Intent
-from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.lp import LPSnapshot, LPTable
+from ..state.pools import PoolSnapshot, PoolState, copy_pool_state
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .batch_clearing_apply import (
     _apply_filled_intent_to_locals_with_context,
@@ -153,9 +152,9 @@ _DELTA_COMPAT_EXPORTS = (
 
 def compute_settlement(
     intents: List[Intent],
-    pools: Dict[str, PoolState],
-    balances: BalanceTable,
-    lp_balances: Optional[LPTable] = None,
+    pools: Mapping[str, PoolState | PoolSnapshot],
+    balances: BalanceTable | BalanceSnapshot,
+    lp_balances: Optional[LPTable | LPSnapshot] = None,
     *,
     swap_ordering: str = _SWAP_ORDERING_GREEDY_AB_REFINED,
     protocol_fee_share_bps: int = 0,
@@ -223,14 +222,14 @@ def compute_settlement_for_request(request: ComputeSettlementRequest) -> Settlem
     )
 
 
-def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
+def _copy_balance_table(balances: BalanceTable | BalanceSnapshot) -> BalanceTable:
     copied = BalanceTable()
     for (pubkey, asset), amount in balances.get_all_balances().items():
         copied.set(pubkey, asset, amount)
     return copied
 
 
-def _copy_lp_table(lp_balances: LPTable) -> LPTable:
+def _copy_lp_table(lp_balances: LPTable | LPSnapshot) -> LPTable:
     copied = LPTable()
     for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
         copied.set(pubkey, pool_id, amount)
@@ -429,9 +428,9 @@ def _process_liquidity_intent(
 
 def validate_settlement(
     settlement: Settlement,
-    pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
-    pre_lp_balances: Optional[LPTable] = None,
+    pre_balances: BalanceTable | BalanceSnapshot,
+    pre_pools: Mapping[str, PoolState | PoolSnapshot],
+    pre_lp_balances: Optional[LPTable | LPSnapshot] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate a settlement proposal (LEGACY: conservation/non-negativity only).
@@ -486,7 +485,16 @@ def apply_settlement(
 
     Raises:
         ValueError: If settlement is invalid
+        TypeError: If a committed (immutable) table or pool value is supplied;
+            committed snapshots must go through `apply_settlement_pure`.
     """
+    if type(balances) is not BalanceTable:
+        raise TypeError("apply_settlement requires a mutable BalanceTable builder")
+    if lp_balances is not None and type(lp_balances) is not LPTable:
+        raise TypeError("apply_settlement requires a mutable LPTable builder")
+    for pool in pools.values():
+        if type(pool) is not PoolState:
+            raise TypeError("apply_settlement requires mutable PoolState builders")
     apply_settlement_with_factories(
         settlement,
         balances,
@@ -501,17 +509,19 @@ def apply_settlement(
 
 def apply_settlement_pure(
     settlement: Settlement,
-    balances: BalanceTable,
-    pools: Dict[str, PoolState],
-    lp_balances: Optional[LPTable] = None,
+    balances: BalanceTable | BalanceSnapshot,
+    pools: Mapping[str, PoolState | PoolSnapshot],
+    lp_balances: Optional[LPTable | LPSnapshot] = None,
 ) -> tuple[BalanceTable, Dict[str, PoolState], LPTable]:
     """
     Pure variant of `apply_settlement`.
 
-    Returns fresh (balances, pools, lp_balances) copies with the settlement applied.
+    Accepts committed snapshots or builders and returns fresh builder copies
+    (balances, pools, lp_balances) with the settlement applied. The inputs are
+    never mutated.
     """
     balances_copy = _copy_balance_table(balances)
-    pools_copy: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
+    pools_copy: Dict[str, PoolState] = {pool_id: copy_pool_state(pool) for pool_id, pool in pools.items()}
     lp_copy = _copy_lp_table(lp_balances) if lp_balances is not None else LPTable()
 
     apply_settlement(settlement, balances_copy, pools_copy, lp_copy)

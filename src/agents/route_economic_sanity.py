@@ -10,7 +10,7 @@ from ..kernels.python.strategy_route_economic_sanity_guard_v1_adapter import (
     StrategyRouteEconomicSanityPolicy,
     check_strategy_route_economic_sanity,
 )
-from ..state.pools import PoolState
+from ..state.pools import PoolSnapshot, PoolState
 
 ROUTE_METRIC_MAX = 0xFFFFFFFF
 ROUTE_INPUT_STRESS_EXTREME_BPS = 10_000
@@ -90,7 +90,7 @@ def _safe_ratio_bps(numerator: int, denominator: int) -> int:
 
 
 def _pool_reserves_for_direction(
-    pool: PoolState,
+    pool: PoolState | PoolSnapshot,
     *,
     asset_in: str,
     asset_out: str,
@@ -103,13 +103,13 @@ def _pool_reserves_for_direction(
 
 
 def _replace_pool_reserves_for_direction(
-    pool: PoolState,
+    pool: PoolState | PoolSnapshot,
     *,
     asset_in: str,
     asset_out: str,
     reserve_in: int,
     reserve_out: int,
-) -> PoolState:
+) -> PoolState | PoolSnapshot:
     if asset_in == pool.asset0 and asset_out == pool.asset1:
         return replace(pool, reserve0=int(reserve_in), reserve1=int(reserve_out))
     return replace(pool, reserve0=int(reserve_out), reserve1=int(reserve_in))
@@ -178,7 +178,7 @@ def _route_shape_facts(*, body: Mapping[str, Any] | None) -> RouteShapeFacts:
 def _route_stress_metrics(
     *,
     legs: tuple[object, ...],
-    pools_by_id: Mapping[str, PoolState],
+    pools_by_id: Mapping[str, PoolState | PoolSnapshot],
 ) -> RouteStressMetrics:
     max_input_stress_bps = 0
     max_output_depletion_bps = 0
@@ -193,7 +193,7 @@ def _route_stress_metrics(
     working_pools = {
         str(pool_id): pool
         for pool_id, pool in pools_by_id.items()
-        if isinstance(pool_id, str) and isinstance(pool, PoolState)
+        if isinstance(pool_id, str) and isinstance(pool, (PoolState, PoolSnapshot))
     }
     for leg in legs:
         if not isinstance(leg, Mapping):
@@ -273,7 +273,7 @@ def _route_stress_metrics(
 def build_route_economic_sanity_snapshot(
     *,
     quote_receipt: Mapping[str, Any] | None,
-    pools_by_id: Mapping[str, PoolState] | None,
+    pools_by_id: Mapping[str, PoolState | PoolSnapshot] | None,
 ) -> RouteEconomicSanitySnapshot | None:
     if not isinstance(quote_receipt, Mapping):
         return None

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import Any, Dict, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, Mapping, Tuple
 
 from ..core.quote_receipt_building import pool_state_fingerprint, receipt_hash
 from ..core.quote_receipt_gate_contract import (
@@ -21,7 +21,7 @@ from ..core.quote_receipt_limits import (
     ROUTE_QUOTE_RECEIPT_MAX_LEGS,
     ROUTE_QUOTE_RECEIPT_MAX_POOLS,
 )
-from ..state.pools import PoolState
+from ..state.pools import PoolSnapshot, PoolState, copy_pool_state
 
 
 @dataclass(frozen=True)
@@ -91,7 +91,7 @@ def _verify_canonical_route_certificate(
 def _verify_pool_snapshots(
     *,
     pools: Dict[str, Any],
-    pools_by_id: Dict[str, PoolState],
+    pools_by_id: Mapping[str, PoolState | PoolSnapshot],
 ) -> Tuple[bool, str, Dict[str, PoolState] | None]:
     pool_entries_well_formed = True
     all_pools_present = True
@@ -114,7 +114,7 @@ def _verify_pool_snapshots(
     )
     if not pool_snapshot.snapshot_ok:
         return False, route_quote_receipt_pool_snapshot_error(pool_snapshot), None
-    return True, "ok", {pid: replace(pools_by_id[pid]) for pid in pools}
+    return True, "ok", {pid: copy_pool_state(pools_by_id[pid]) for pid in pools}
 
 
 def _precheck_receipt_body(

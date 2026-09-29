@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import copy
 import json
+from dataclasses import replace
 from typing import Any
 
+import src.integration.perps_wallet_api as perps_wallet_api
+import src.integration.zusd_monetary_wallet_api as monetary_api
 from src.core.dex import DexState
 from src.core.zusd import E8, ZUSDCommand, init_state, step
 from src.integration.dex_snapshot import snapshot_from_state
@@ -17,9 +20,6 @@ from src.integration.tau_net_client import (
 from src.integration.zusd_monetary_bridge import ZUSDMonetaryState, zusd_monetary_state_to_obj
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
-import src.integration.perps_wallet_api as perps_wallet_api
-import src.integration.zusd_monetary_wallet_api as monetary_api
-
 
 CHAIN_ID = "tau-test-live-surface-network-chaos"
 ALICE_PRIVKEY = 82
@@ -102,8 +102,9 @@ def _perps_app_state() -> dict[str, object]:
     )
     assert init_result.ok, init_result.error
     assert init_result.state is not None
-    init_result.state.balances.set(ALICE, quote_asset, 5_000)
-    return _wrapped_perps_state(init_result.state)
+    balances = init_result.state.balances.to_table()
+    balances.set(ALICE, quote_asset, 5_000)
+    return _wrapped_perps_state(replace(init_result.state, balances=balances))
 
 
 def _wrapped_perps_state(state: DexState) -> dict[str, object]:

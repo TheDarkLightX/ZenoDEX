@@ -10,9 +10,10 @@ import socketserver
 import subprocess
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
-from urllib.parse import urlencode, urlparse
 from urllib.error import HTTPError
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import pytest
@@ -21,7 +22,11 @@ from src.core.dex import DexState
 from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
+from src.integration.perp_engine import (
+    PerpEngineConfig,
+    _kernel_initial_global_state,
+    apply_perp_ops,
+)
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
     PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
@@ -29,39 +34,43 @@ from src.integration.perps_wallet_authority import (
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
-    PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
     PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_SCHEMA_V1,
+    PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
+    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_device_approval_environment_policy_v1,
     build_perps_wallet_device_approval_exercise_v1,
     build_perps_wallet_device_approval_use_policy_v1,
-    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_signer_device_integration_v1,
-    build_perps_wallet_signer_prompt_capture_v1,
     build_perps_wallet_signer_execution_exercise_v1,
+    build_perps_wallet_signer_prompt_capture_v1,
     perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
     perps_wallet_signer_device_integration_hash_v1,
-    perps_wallet_signer_prompt_capture_hash_v1,
     perps_wallet_signer_execution_exercise_hash_v1,
+    perps_wallet_signer_prompt_capture_hash_v1,
 )
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
+from src.integration.tau_net_client import (
+    bls_pubkey_hex_from_privkey,
+    build_signed_tau_transaction,
+    sign_perp_op_for_engine,
+)
 from src.integration.zeno_key_manager import (
-    KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KEY_ENVIRONMENT_LOCAL_PROCESS,
+    KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KeyExecutionEnvironment,
     KeyRef,
     RecoveryGuardian,
     SocialRecoveryPolicy,
     ZenoKeyManager,
 )
-from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
-from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_key_manager_v0 import (
     BACKEND_HARDWARE_WALLET_PLACEHOLDER,
     BACKEND_OS_KEYCHAIN,
     KeyBackendDescriptor,
 )
+from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
+from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
@@ -77,7 +86,6 @@ from src.state import BalanceTable, LPTable
 from tests.chaos.conftest import requires_toxiproxy
 from tests.integration.tau_rpc_fault_proxy import TauRpcFaultProxy
 from tools.chaos.toxiproxy_harness import ToxiproxyHarness
-
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -1299,9 +1307,11 @@ def _liquidation_ready_market_state(
     )
     assert res.ok, res.error
     assert res.state is not None
-    state = res.state
-    state.balances.set(account_a_pubkey, quote_asset, 1000)
-    state.balances.set(account_b_pubkey, quote_asset, 1000)
+    # Committed balances are immutable: seed on a builder and commit a new state.
+    seeded_balances = res.state.balances.to_table()
+    seeded_balances.set(account_a_pubkey, quote_asset, 1000)
+    seeded_balances.set(account_b_pubkey, quote_asset, 1000)
+    state = replace(res.state, balances=seeded_balances)
     for sender, op in (
         (
             account_a_pubkey,
@@ -2213,7 +2223,10 @@ def test_perps_wallet_ui_accepts_external_signed_payload_without_local_signing(t
         account_b_privkey=account_b_privkey,
         oracle_pubkey=oracle_pubkey,
     )
-    dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
+    # Committed balances are immutable: seed on a builder and commit a new state.
+    dex_balances = dex_state.balances.to_table()
+    dex_balances.set(account_a_pubkey, quote_asset, 1000)
+    dex_state = replace(dex_state, balances=dex_balances)
     app_state_json = _initial_app_state_json(dex_state)
     signed_payload = build_signed_tau_transaction(
         privkey=account_a_privkey,
@@ -2365,7 +2378,10 @@ def test_perps_wallet_ui_succeeds_under_bounded_tau_send_jitter(tmp_path: Path) 
         account_b_privkey=account_b_privkey,
         oracle_pubkey=oracle_pubkey,
     )
-    dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
+    # Committed balances are immutable: seed on a builder and commit a new state.
+    dex_balances = dex_state.balances.to_table()
+    dex_balances.set(account_a_pubkey, quote_asset, 1000)
+    dex_state = replace(dex_state, balances=dex_balances)
     app_state_json = _initial_app_state_json(dex_state)
     signed_payload = build_signed_tau_transaction(
         privkey=account_a_privkey,
@@ -2517,7 +2533,10 @@ def test_perps_wallet_ui_fails_closed_on_tau_send_drop_before_response(tmp_path:
         account_b_privkey=account_b_privkey,
         oracle_pubkey=oracle_pubkey,
     )
-    dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
+    # Committed balances are immutable: seed on a builder and commit a new state.
+    dex_balances = dex_state.balances.to_table()
+    dex_balances.set(account_a_pubkey, quote_asset, 1000)
+    dex_state = replace(dex_state, balances=dex_balances)
     app_state_json = _initial_app_state_json(dex_state)
     operations = {
         "8": [
@@ -2697,7 +2716,10 @@ def test_perps_wallet_ui_fails_closed_on_truncated_proxy_sendtx_response(tmp_pat
         account_b_privkey=account_b_privkey,
         oracle_pubkey=oracle_pubkey,
     )
-    dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
+    # Committed balances are immutable: seed on a builder and commit a new state.
+    dex_balances = dex_state.balances.to_table()
+    dex_balances.set(account_a_pubkey, quote_asset, 1000)
+    dex_state = replace(dex_state, balances=dex_balances)
     app_state_json = _initial_app_state_json(dex_state)
     signed_payload = build_signed_tau_transaction(
         privkey=account_a_privkey,
@@ -2886,7 +2908,10 @@ def test_perps_wallet_ui_fails_closed_through_toxiproxy_limit_data(tmp_path: Pat
         account_b_privkey=account_b_privkey,
         oracle_pubkey=oracle_pubkey,
     )
-    dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
+    # Committed balances are immutable: seed on a builder and commit a new state.
+    dex_balances = dex_state.balances.to_table()
+    dex_balances.set(account_a_pubkey, quote_asset, 1000)
+    dex_state = replace(dex_state, balances=dex_balances)
     app_state_json = _initial_app_state_json(dex_state)
     signed_payload = build_signed_tau_transaction(
         privkey=account_a_privkey,
@@ -3059,7 +3084,10 @@ def test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout(tmp_path: Path
         account_b_privkey=account_b_privkey,
         oracle_pubkey=oracle_pubkey,
     )
-    dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
+    # Committed balances are immutable: seed on a builder and commit a new state.
+    dex_balances = dex_state.balances.to_table()
+    dex_balances.set(account_a_pubkey, quote_asset, 1000)
+    dex_state = replace(dex_state, balances=dex_balances)
     app_state_json = _initial_app_state_json(dex_state)
     operations = {
         "8": [

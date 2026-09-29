@@ -21,7 +21,13 @@ from ..kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_out,
 )
 from ..state.intents import IntentKind, SwapIntent, _require_owned_intent_fields
-from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus, canonical_pool_asset_id
+from ..state.pools import (
+    CURVE_TAG_CPMM,
+    PoolSnapshot,
+    PoolState,
+    PoolStatus,
+    canonical_pool_asset_id,
+)
 from .global_settlement_types_v2 import MAX_ATOMS_V2, MAX_U64_V2
 
 
@@ -142,12 +148,14 @@ class SpotSwapPlanV2:
                 self.post_pool.reserve1 - self.pre_pool.reserve1)
 
 
-def _snapshot_pool(pool: PoolState | SpotPoolSnapshotV2) -> SpotPoolSnapshotV2:
-    if type(pool) not in (PoolState, SpotPoolSnapshotV2):
-        raise TypeError("pool must be exact PoolState or SpotPoolSnapshotV2")
+def _snapshot_pool(pool: PoolState | PoolSnapshot | SpotPoolSnapshotV2) -> SpotPoolSnapshotV2:
+    if type(pool) not in (PoolState, PoolSnapshot, SpotPoolSnapshotV2):
+        raise TypeError("pool must be exact PoolState, PoolSnapshot or SpotPoolSnapshotV2")
     # A new legacy field must acquire an explicit representation here.
     if tuple(f.name for f in fields(PoolState)) != tuple(f.name for f in fields(SpotPoolSnapshotV2)):
         raise TypeError("complete pool field registry differs")
+    if tuple(f.name for f in fields(PoolSnapshot)) != tuple(f.name for f in fields(SpotPoolSnapshotV2)):
+        raise TypeError("committed pool field registry differs")
     return SpotPoolSnapshotV2(**{
         f.name: object.__getattribute__(pool, f.name) for f in fields(SpotPoolSnapshotV2)
     })
@@ -264,7 +272,7 @@ def _amount_reject(context: SpotSwapContextV2, intent: SwapIntent, quote: Quote)
     return None
 
 
-def plan_spot_swap_v2(context: SpotSwapContextV2, pool: PoolState | SpotPoolSnapshotV2,
+def plan_spot_swap_v2(context: SpotSwapContextV2, pool: PoolState | PoolSnapshot | SpotPoolSnapshotV2,
                       intent: SwapIntent) -> SpotSwapPlanV2 | SpotSwapRejectedV2:
     """Snapshot structural inputs, then reject without effects or return a plan.
 

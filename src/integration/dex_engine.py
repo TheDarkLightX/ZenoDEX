@@ -41,7 +41,7 @@ from ..state.canonical import (
     sha256_hex,
 )
 from ..state.intents import Intent, IntentKind
-from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
+from ..state.nonces import NonceSnapshot, NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.state_root import compute_state_root
 from ..state.support_root import compute_support_state_root_for_batch
 from .lp_position_age_gate import (
@@ -127,7 +127,7 @@ def _quote_receipt_intent_context(intent: Intent) -> dict[str, Any]:
     }
 
 
-def _validate_and_apply_nonce_batch(*, nonces: NonceTable, intents: list[Intent]) -> tuple[bool, str | None, NonceTable | None]:
+def _validate_and_apply_nonce_batch(*, nonces: NonceTable | NonceSnapshot, intents: list[Intent]) -> tuple[bool, str | None, NonceTable | None]:
     return validate_and_apply_intent_nonce_batch(
         nonces=nonces,
         intents=intents,
@@ -842,7 +842,7 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
 def _validate_quote_receipt_witnesses(
     *,
     signed_intents: List[SignedIntentEnvelope],
-    pools: Dict[str, Any],
+    pools: Mapping[str, Any],
 ) -> Optional[str]:
     grouped_by_hash: Dict[str, List[SignedIntentEnvelope]] = {}
     for env in signed_intents:

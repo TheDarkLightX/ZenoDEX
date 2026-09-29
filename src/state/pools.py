@@ -1,13 +1,23 @@
 """
 Pool state management for DEX pools.
+
+Two phases share one read API:
+
+- ``PoolState`` is the mutable builder mutated in place by batch clearing,
+  settlement replay and the Tau gate on private working copies.
+- ``PoolSnapshot`` is the immutable committed pool value and
+  ``PoolTableSnapshot`` the immutable committed pool mapping held by
+  ``DexState``. ``copy_pool_state`` returns a fresh builder from either phase.
 """
 
 from __future__ import annotations
 
 import hashlib
+from bisect import bisect_left
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from .balances import Amount, AssetId
 from .canonical import canonical_json_bytes
@@ -335,6 +345,101 @@ def compute_pool_id(
     return "0x" + hashlib.sha256(pool_id_data).hexdigest()
 
 
+_POOL_FIELD_NAMES = (
+    "pool_id",
+    "asset0",
+    "asset1",
+    "reserve0",
+    "reserve1",
+    "fee_bps",
+    "lp_supply",
+    "status",
+    "created_at",
+    "curve_tag",
+    "curve_params",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _NormalizedPoolFields:
+    asset0: AssetId
+    asset1: AssetId
+    reserve0: Amount
+    reserve1: Amount
+    fee_bps: int
+    lp_supply: Amount
+    created_at: int
+    curve_tag: str
+    curve_params: str
+
+
+def _normalize_pool_fields(
+    *,
+    pool_id: object,
+    asset0: object,
+    asset1: object,
+    reserve0: object,
+    reserve1: object,
+    fee_bps: object,
+    lp_supply: object,
+    created_at: object,
+    curve_tag: object,
+    curve_params: object,
+) -> _NormalizedPoolFields:
+    """Shared admission rules for builder and committed pool values.
+
+    Check order and messages are the historical ``PoolState`` rules.
+    """
+    if not isinstance(pool_id, str) or not pool_id:
+        raise TypeError("pool_id must be a non-empty string")
+    if not isinstance(asset0, str) or not isinstance(asset1, str):
+        raise TypeError("asset ids must be strings")
+
+    # Pool IDs hash canonical asset text, so stored state must use the same
+    # text before order checks or state-root encoders observe it.
+    asset0_c = canonical_pool_asset_id(asset0)
+    asset1_c = canonical_pool_asset_id(asset1)
+
+    # Ensure canonical ordering
+    if asset0_c >= asset1_c:
+        raise ValueError(f"Assets must be in canonical order: {asset0_c} < {asset1_c}")
+
+    reserve0_i = _require_strict_int("reserve0", reserve0)
+    reserve1_i = _require_strict_int("reserve1", reserve1)
+    fee_bps_i = _require_strict_int("fee_bps", fee_bps)
+    lp_supply_i = _require_strict_int("lp_supply", lp_supply)
+    created_at_i = _require_strict_int("created_at", created_at)
+
+    # Validate fee_bps
+    if not (0 <= fee_bps_i <= 10000):
+        raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps_i}")
+
+    # Normalize curve config (fail-closed on unknown curves).
+    tag, params = normalize_curve_config(curve_tag=curve_tag, curve_params=curve_params)
+
+    # Validate non-negative reserves
+    if reserve0_i < 0 or reserve1_i < 0:
+        raise ValueError(f"Reserves must be non-negative: ({reserve0_i}, {reserve1_i})")
+
+    # Validate non-negative LP supply
+    if lp_supply_i < 0:
+        raise ValueError(f"LP supply must be non-negative: {lp_supply_i}")
+    if created_at_i < 0:
+        raise ValueError(f"created_at must be non-negative: {created_at_i}")
+
+    return _NormalizedPoolFields(
+        asset0=asset0_c,
+        asset1=asset1_c,
+        reserve0=reserve0_i,
+        reserve1=reserve1_i,
+        fee_bps=fee_bps_i,
+        lp_supply=lp_supply_i,
+        created_at=created_at_i,
+        curve_tag=tag,
+        curve_params=params,
+    )
+
+
 @dataclass
 class PoolState:
     """
@@ -367,49 +472,28 @@ class PoolState:
     
     def __post_init__(self):
         """Validate pool state invariants."""
-        if not isinstance(self.pool_id, str) or not self.pool_id:
-            raise TypeError("pool_id must be a non-empty string")
-        if not isinstance(self.asset0, str) or not isinstance(self.asset1, str):
-            raise TypeError("asset ids must be strings")
+        normalized = _normalize_pool_fields(
+            pool_id=self.pool_id,
+            asset0=self.asset0,
+            asset1=self.asset1,
+            reserve0=self.reserve0,
+            reserve1=self.reserve1,
+            fee_bps=self.fee_bps,
+            lp_supply=self.lp_supply,
+            created_at=self.created_at,
+            curve_tag=self.curve_tag,
+            curve_params=self.curve_params,
+        )
+        self.asset0 = normalized.asset0
+        self.asset1 = normalized.asset1
+        self.reserve0 = normalized.reserve0
+        self.reserve1 = normalized.reserve1
+        self.fee_bps = normalized.fee_bps
+        self.lp_supply = normalized.lp_supply
+        self.created_at = normalized.created_at
+        self.curve_tag = normalized.curve_tag
+        self.curve_params = normalized.curve_params
 
-        # Pool IDs hash canonical asset text, so stored state must use the same
-        # text before order checks or state-root encoders observe it.
-        self.asset0 = canonical_pool_asset_id(self.asset0)
-        self.asset1 = canonical_pool_asset_id(self.asset1)
-
-        # Ensure canonical ordering
-        if self.asset0 >= self.asset1:
-            raise ValueError(
-                f"Assets must be in canonical order: {self.asset0} < {self.asset1}"
-            )
-
-        self.reserve0 = _require_strict_int("reserve0", self.reserve0)
-        self.reserve1 = _require_strict_int("reserve1", self.reserve1)
-        self.fee_bps = _require_strict_int("fee_bps", self.fee_bps)
-        self.lp_supply = _require_strict_int("lp_supply", self.lp_supply)
-        self.created_at = _require_strict_int("created_at", self.created_at)
-
-        # Validate fee_bps
-        if not (0 <= self.fee_bps <= 10000):
-            raise ValueError(f"fee_bps must be in [0, 10000]: {self.fee_bps}")
-
-        # Normalize curve config (fail-closed on unknown curves).
-        tag, params = normalize_curve_config(curve_tag=self.curve_tag, curve_params=self.curve_params)
-        self.curve_tag = tag
-        self.curve_params = params
-
-        # Validate non-negative reserves
-        if self.reserve0 < 0 or self.reserve1 < 0:
-            raise ValueError(
-                f"Reserves must be non-negative: ({self.reserve0}, {self.reserve1})"
-            )
-        
-        # Validate non-negative LP supply
-        if self.lp_supply < 0:
-            raise ValueError(f"LP supply must be non-negative: {self.lp_supply}")
-        if self.created_at < 0:
-            raise ValueError(f"created_at must be non-negative: {self.created_at}")
-    
     def get_reserve(self, asset: AssetId) -> Amount:
         """
         Get reserve for a specific asset.
@@ -459,3 +543,193 @@ class PoolState:
             f"reserves=({self.reserve0}, {self.reserve1}), "
             f"lp_supply={self.lp_supply}, status={self.status.value})"
         )
+
+
+@dataclass(frozen=True, slots=True)
+class PoolSnapshot:
+    """
+    Immutable committed pool value with the same fields and read API as
+    ``PoolState``. Construction applies the shared pool admission rules and
+    additionally requires an exact ``PoolStatus`` (the root encoders reject
+    anything else).
+    """
+
+    pool_id: str
+    asset0: AssetId
+    asset1: AssetId
+    reserve0: Amount
+    reserve1: Amount
+    fee_bps: int
+    lp_supply: Amount
+    status: PoolStatus
+    created_at: int
+    curve_tag: str = CURVE_TAG_CPMM
+    curve_params: str = ""
+
+    def __post_init__(self) -> None:
+        for name in ("pool_id", "asset0", "asset1", "curve_tag", "curve_params"):
+            if type(getattr(self, name)) is not str:
+                raise TypeError(f"{name} must be an exact str")
+        normalized = _normalize_pool_fields(
+            pool_id=self.pool_id,
+            asset0=self.asset0,
+            asset1=self.asset1,
+            reserve0=self.reserve0,
+            reserve1=self.reserve1,
+            fee_bps=self.fee_bps,
+            lp_supply=self.lp_supply,
+            created_at=self.created_at,
+            curve_tag=self.curve_tag,
+            curve_params=self.curve_params,
+        )
+        if type(self.status) is not PoolStatus:
+            raise TypeError("status must be a PoolStatus")
+        for name in (
+            "asset0",
+            "asset1",
+            "reserve0",
+            "reserve1",
+            "fee_bps",
+            "lp_supply",
+            "created_at",
+            "curve_tag",
+            "curve_params",
+        ):
+            object.__setattr__(self, name, getattr(normalized, name))
+
+    def get_reserve(self, asset: AssetId) -> Amount:
+        """Get reserve for a specific asset (raises if the asset is not pooled)."""
+        if asset == self.asset0:
+            return self.reserve0
+        if asset == self.asset1:
+            return self.reserve1
+        raise ValueError(f"Asset {asset} not in pool {self.pool_id}")
+
+    def get_constant_product(self) -> int:
+        """Compute k = reserve0 * reserve1 (CPMM constant)."""
+        return self.reserve0 * self.reserve1
+
+    def verify_invariant(self, min_k: int = 0) -> bool:
+        """Verify CPMM invariant: reserve0 * reserve1 >= min_k."""
+        return self.get_constant_product() >= min_k
+
+    def to_pool_state(self) -> PoolState:
+        """Return a fresh mutable builder holding the same pool values."""
+        return copy_pool_state(self)
+
+    def __repr__(self) -> str:
+        return (
+            f"PoolSnapshot(pool_id={self.pool_id[:16]}..., "
+            f"assets=({self.asset0[:8]}..., {self.asset1[:8]}...), "
+            f"reserves=({self.reserve0}, {self.reserve1}), "
+            f"lp_supply={self.lp_supply}, status={self.status.value})"
+        )
+
+
+def _pool_field_values(pool: PoolState | PoolSnapshot) -> dict[str, Any]:
+    return {name: getattr(pool, name) for name in _POOL_FIELD_NAMES}
+
+
+def copy_pool_state(pool: PoolState | PoolSnapshot) -> PoolState:
+    """Return a fresh mutable ``PoolState`` builder from either pool phase.
+
+    Working copies for batch clearing, replay and gates must be built with this
+    helper; ``dataclasses.replace`` on a committed ``PoolSnapshot`` would return
+    another immutable value.
+    """
+    if type(pool) is not PoolState and type(pool) is not PoolSnapshot:
+        raise TypeError("pool must be a PoolState builder or a PoolSnapshot")
+    return PoolState(**_pool_field_values(pool))
+
+
+def snapshot_pool(pool: PoolState | PoolSnapshot) -> PoolSnapshot:
+    """Admit a committed pool value from a builder or an existing snapshot."""
+    if type(pool) is PoolSnapshot:
+        return pool
+    if type(pool) is PoolState:
+        return PoolSnapshot(**_pool_field_values(pool))
+    raise TypeError("pool must be a PoolState builder or a PoolSnapshot")
+
+
+def _owned_pool_rows(
+    pools: Mapping[str, PoolState | PoolSnapshot],
+) -> tuple[tuple[str, ...], tuple[PoolSnapshot, ...]]:
+    if not isinstance(pools, Mapping):
+        raise TypeError("pools must be a mapping of pool_id -> pool state")
+    rows: list[tuple[str, PoolSnapshot]] = []
+    for pool_id, pool in pools.items():
+        if type(pool_id) is not str:
+            raise TypeError("pool ids must be str")
+        rows.append((pool_id, snapshot_pool(pool)))
+    rows.sort(key=lambda row: row[0])
+    return tuple(row[0] for row in rows), tuple(row[1] for row in rows)
+
+
+class PoolTableSnapshot(Mapping[str, PoolSnapshot]):
+    """
+    Immutable, owned committed pool mapping pool_id -> ``PoolSnapshot``.
+
+    Read-only ``Mapping``: item assignment, deletion and ``update`` do not
+    exist. ``to_table()`` returns a fresh ``dict`` of builder copies.
+    """
+
+    __slots__ = ("_pool_ids", "_pools")
+    _pool_ids: tuple[str, ...]
+    _pools: tuple[PoolSnapshot, ...]
+
+    def __init__(self, pools: Mapping[str, PoolState | PoolSnapshot] | None = None) -> None:
+        pool_ids, snapshots = _owned_pool_rows({} if pools is None else pools)
+        object.__setattr__(self, "_pool_ids", pool_ids)
+        object.__setattr__(self, "_pools", snapshots)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        del name, value
+        raise TypeError("committed pool table snapshot is immutable")
+
+    def __delattr__(self, name: str) -> None:
+        del name
+        raise TypeError("committed pool table snapshot is immutable")
+
+    def __copy__(self) -> PoolTableSnapshot:
+        return self
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> PoolTableSnapshot:
+        memo[id(self)] = self
+        return self
+
+    def __getitem__(self, pool_id: str) -> PoolSnapshot:
+        if type(pool_id) is not str:
+            raise KeyError(pool_id)
+        index = bisect_left(self._pool_ids, pool_id)
+        if index < len(self._pool_ids) and self._pool_ids[index] == pool_id:
+            return self._pools[index]
+        raise KeyError(pool_id)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._pool_ids)
+
+    def __len__(self) -> int:
+        return len(self._pool_ids)
+
+    def __eq__(self, other: object) -> bool:
+        if type(other) is PoolTableSnapshot:
+            return self._pool_ids == other._pool_ids and self._pools == other._pools
+        if isinstance(other, Mapping):
+            return dict(self.items()) == dict(other.items())
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return f"PoolTableSnapshot({len(self._pool_ids)} pools)"
+
+    def to_table(self) -> dict[str, PoolState]:
+        """Return a fresh dict of mutable builder copies keyed by pool_id."""
+        return {pool_id: copy_pool_state(pool) for pool_id, pool in zip(self._pool_ids, self._pools, strict=True)}
+
+
+def snapshot_pool_table(
+    value: Mapping[str, PoolState | PoolSnapshot] | PoolTableSnapshot,
+) -> PoolTableSnapshot:
+    """Admit a committed pool mapping from any mapping of pool values."""
+    if type(value) is PoolTableSnapshot:
+        return value
+    return PoolTableSnapshot(value)

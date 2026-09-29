@@ -21,11 +21,19 @@ Current schema:
 zenodex/production_boundary_audit/v0
 ```
 
-Current result:
+Historical result (May 17 subject only):
 
 ```text
 ok = true
 ```
+
+September 29 successor qualification uses the versioned O-003B V4 contract.
+The immutable-state repair changed two files pinned by the historical V3
+certificate. V3 remains preserved; its result does not qualify those changed
+bytes. Current acceptance requires the source-bound V4 receipt and a successful
+current gate run. Until its Stage-A/Stage-B acceptance completes, this requirement
+remains open. See
+[the requalification contract](specifications/RETIRED_TAU_BRIDGE_REQUALIFICATION_V4.md).
 
 ## Requirement Map
 
@@ -45,6 +53,13 @@ all production, release, settlement, and value-movement authority fields to
 remain `NONE`. It does not satisfy the broad safe-profile or direct-ingress
 requirements. Its static scope and later O-007B/C obligations are recorded in
 the certificate nonclaims.
+
+V4 replays the preserved V3 certificate on its historical Git subject, reruns
+the classification and finite route checks on the successor, and admits only
+the exact reviewed pinned-file delta. Its receipt binds the successor commit,
+source bytes, discovery, checker additions and predecessor identity. A later
+source change requires renewed qualification; matching a checksum alone never
+establishes the underlying claim.
 
 ## Safe Profile Evidence
 

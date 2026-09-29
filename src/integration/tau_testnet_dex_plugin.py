@@ -46,10 +46,10 @@ from ..core.zusd_generic_token_admission import (
     evaluate_generic_token_admission,
 )
 from ..core.zusd_oracle_ingress_admission import ZUSDOracleEvidenceProfile
-from ..state.balances import NATIVE_ASSET, BalanceTable
+from ..state.balances import NATIVE_ASSET, BalanceSnapshot, BalanceTable
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 from ..state.lp import LPTable
-from ..state.nonces import NonceTable
+from ..state.nonces import NonceSnapshot, NonceTable
 from .dex_engine import DexEngineConfig, apply_ops
 from .dex_snapshot import snapshot_from_state, state_from_snapshot
 from .perp_engine import PerpEngineConfig, apply_perp_ops
@@ -259,14 +259,14 @@ def _maybe_decode_custom_stream_value(value: Any) -> Any:
     return value
 
 
-def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
+def _copy_balance_table(balances: BalanceTable | BalanceSnapshot) -> BalanceTable:
     copied = BalanceTable()
     for (pubkey, asset), amount in balances.get_all_balances().items():
         copied.set(pubkey, asset, int(amount))
     return copied
 
 
-def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
+def _copy_nonce_table(nonces: NonceTable | NonceSnapshot) -> NonceTable:
     copied = NonceTable()
     for pubkey, last_nonce in nonces.get_all().items():
         copied.set_last(pubkey, int(last_nonce))

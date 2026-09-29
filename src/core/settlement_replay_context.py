@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import Dict, List, Optional
+from dataclasses import dataclass
+from typing import Dict, List, Mapping, Optional
 
-from ..state.balances import BalanceTable
-from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.balances import BalanceSnapshot, BalanceTable
+from ..state.lp import LPSnapshot, LPTable
+from ..state.pools import PoolSnapshot, PoolState, copy_pool_state
 from .settlement import BalanceDelta, LPDelta, ReserveDelta
 
 
@@ -24,19 +24,19 @@ class ReplayContext:
 
 @dataclass(frozen=True)
 class SettlementPreState:
-    balances: BalanceTable
-    pools: Dict[str, PoolState]
-    lp_balances: Optional[LPTable]
+    balances: BalanceTable | BalanceSnapshot
+    pools: Mapping[str, PoolState | PoolSnapshot]
+    lp_balances: Optional[LPTable | LPSnapshot]
 
 
-def copy_balance_table(balances: BalanceTable) -> BalanceTable:
+def copy_balance_table(balances: BalanceTable | BalanceSnapshot) -> BalanceTable:
     copied = BalanceTable()
     for (pubkey, asset), amount in balances.get_all_balances().items():
         copied.set(pubkey, asset, amount)
     return copied
 
 
-def copy_lp_table(lp_balances: LPTable) -> LPTable:
+def copy_lp_table(lp_balances: LPTable | LPSnapshot) -> LPTable:
     copied = LPTable()
     for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
         copied.set(pubkey, pool_id, amount)
@@ -48,13 +48,14 @@ def copy_lp_table(lp_balances: LPTable) -> LPTable:
 
 def build_replay_context(
     *,
-    pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
-    pre_lp_balances: Optional[LPTable],
+    pre_balances: BalanceTable | BalanceSnapshot,
+    pre_pools: Mapping[str, PoolState | PoolSnapshot],
+    pre_lp_balances: Optional[LPTable | LPSnapshot],
 ) -> ReplayContext:
+    # Replay runs on private builder copies; committed snapshots are never mutated.
     return ReplayContext(
         balances=copy_balance_table(pre_balances),
-        pools={pool_id: replace(pool) for pool_id, pool in pre_pools.items()},
+        pools={pool_id: copy_pool_state(pool) for pool_id, pool in pre_pools.items()},
         lp=copy_lp_table(pre_lp_balances) if pre_lp_balances is not None else LPTable(),
         expected_events=[],
         bal_deltas=[],
