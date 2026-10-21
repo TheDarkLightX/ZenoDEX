@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.example/schemas/zrpf_soundness_profile_v1.schema.json",
+  "title": "ZRPF Soundness Profile V1 (research-only)",
+  "description": "A fail-closed, non-authoritative ledger for pinned backend soundness models and recursive proof-event composition.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "generated_at",
+    "authority",
+    "backend",
+    "circuit_parameters",
+    "models",
+    "topology",
+    "event_ledger",
+    "composition",
+    "policy",
+    "sources",
+    "non_claims"
+  ],
+  "properties": {
+    "schema": {"const": "zenodex/zrpf_soundness_profile/v1"},
+    "status": {"const": "research_only"},
+    "generated_at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "authority": {"$ref": "#/$defs/authority"},
+    "backend": {"$ref": "#/$defs/backend"},
+    "circuit_parameters": {"$ref": "#/$defs/circuitParameters"},
+    "models": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/model"}
+    },
+    "topology": {"$ref": "#/$defs/topology"},
+    "event_ledger": {"$ref": "#/$defs/eventLedger"},
+    "composition": {"$ref": "#/$defs/composition"},
+    "policy": {"$ref": "#/$defs/policy"},
+    "sources": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 32,
+      "items": {"$ref": "#/$defs/source"}
+    },
+    "non_claims": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 32,
+      "items": {"type": "string", "minLength": 1, "maxLength": 512}
+    }
+  },
+  "$defs": {
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_claim_allowed",
+        "production_ready",
+        "admission_authority",
+        "settlement_authority",
+        "release_authority"
+      ],
+      "properties": {
+        "public_claim_allowed": {"const": false},
+        "production_ready": {"const": false},
+        "admission_authority": {"const": false},
+        "settlement_authority": {"const": false},
+        "release_authority": {"const": false}
+      }
+    },
+    "backend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "commit", "proof_kind", "zrpf_receipt_profile_id"],
+      "properties": {
+        "name": {"const": "risc0"},
+        "version": {"const": "v3.0.5"},
+        "commit": {"const": "8eb06ab020a92dc5b63ba6dd0836d432aba6d890"},
+        "proof_kind": {"const": "Succinct"},
+        "zrpf_receipt_profile_id": {"const": "risc0_succinct_poseidon2_resolve_3_0_5_v1"}
+      }
+    },
+    "globalParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "extension_degree", "fri_inverse_rate", "fri_queries", "fri_fold", "fri_min_degree"],
+      "properties": {
+        "field": {"const": "BabyBear"},
+        "extension_degree": {"const": 4},
+        "fri_inverse_rate": {"const": 4},
+        "fri_queries": {"const": 50},
+        "fri_fold": {"const": 16},
+        "fri_min_degree": {"const": 256}
+      }
+    },
+    "rv32imParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default_segment_po2", "max_accepted_segment_po2", "group_widths", "largest_combo"],
+      "properties": {
+        "default_segment_po2": {"const": 20},
+        "max_accepted_segment_po2": {"const": 22},
+        "group_widths": {
+          "type": "array",
+          "prefixItems": [{"const": 103}, {"const": 1}, {"const": 211}],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "largest_combo": {"const": 6}
+      }
+    },
+    "recursionParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trace_po2", "group_widths", "largest_combo"],
+      "properties": {
+        "trace_po2": {"const": 18},
+        "group_widths": {
+          "type": "array",
+          "prefixItems": [{"const": 12}, {"const": 23}, {"const": 128}],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "largest_combo": {"const": 6}
+      }
+    },
+    "circuitParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["global", "rv32im", "recursion"],
+      "properties": {
+        "global": {"$ref": "#/$defs/globalParameters"},
+        "rv32im": {"$ref": "#/$defs/rv32imParameters"},
+        "recursion": {"$ref": "#/$defs/recursionParameters"}
+      }
+    },
+    "rvBits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["po2_20", "po2_22"],
+      "properties": {
+        "po2_20": {"type": "number", "exclusiveMinimum": 0, "maximum": 256},
+        "po2_22": {"type": "number", "exclusiveMinimum": 0, "maximum": 256}
+      }
+    },
+    "recursionBits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["po2_18"],
+      "properties": {
+        "po2_18": {"type": "number", "exclusiveMinimum": 0, "maximum": 256}
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "assumption_class",
+        "assumption_identity",
+        "source_function",
+        "accepted_for_authority",
+        "rv32im_security_bits",
+        "recursion_security_bits"
+      ],
+      "properties": {
+        "id": {"enum": ["proven_list_decoding", "conjectured_strict", "toy_problem_conjecture"]},
+        "label": {"type": "string", "minLength": 1, "maxLength": 128},
+        "assumption_class": {"type": "string", "minLength": 1, "maxLength": 128},
+        "assumption_identity": {"type": "string", "minLength": 1, "maxLength": 512},
+        "source_function": {"enum": ["proven", "conjectured_strict", "toy_model_security"]},
+        "accepted_for_authority": {"const": false},
+        "rv32im_security_bits": {"$ref": "#/$defs/rvBits"},
+        "recursion_security_bits": {"$ref": "#/$defs/recursionBits"}
+      }
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "leaf_count", "fanout", "internal_node_count", "total_node_count", "edge_count"],
+      "properties": {
+        "kind": {"const": "full_f_ary_tree"},
+        "leaf_count": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+        "fanout": {"type": "integer", "minimum": 2, "maximum": 65536},
+        "internal_node_count": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+        "total_node_count": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+        "edge_count": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807}
+      }
+    },
+    "eventLedger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "count_basis",
+        "counts_complete",
+        "base_rv32im_events",
+        "recursion_lift_events",
+        "recursion_join_events",
+        "recursion_resolve_events",
+        "recursion_total_events",
+        "unknown_event_count"
+      ],
+      "properties": {
+        "count_basis": {"const": "illustrative_one_segment_per_node_minimum"},
+        "counts_complete": {"const": false},
+        "base_rv32im_events": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+        "recursion_lift_events": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+        "recursion_join_events": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+        "recursion_resolve_events": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+        "recursion_total_events": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+        "unknown_event_count": {"type": "null"}
+      }
+    },
+    "compositionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id",
+        "base_security_bits_used",
+        "recursion_security_bits_used",
+        "epsilon_upper_bound_if_counts_exact",
+        "effective_security_bits_if_counts_exact"
+      ],
+      "properties": {
+        "model_id": {"enum": ["proven_list_decoding", "conjectured_strict", "toy_problem_conjecture"]},
+        "base_security_bits_used": {"type": "number", "exclusiveMinimum": 0, "maximum": 256},
+        "recursion_security_bits_used": {"type": "number", "exclusiveMinimum": 0, "maximum": 256},
+        "epsilon_upper_bound_if_counts_exact": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "effective_security_bits_if_counts_exact": {"type": "number", "exclusiveMinimum": 0, "maximum": 256}
+      }
+    },
+    "composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "formula", "calculation_status", "uses_rv32im_po2", "per_model"],
+      "properties": {
+        "method": {"const": "finite_union_bound"},
+        "formula": {"const": "epsilon_total <= B*2^(-b_base) + R*2^(-b_recursion)"},
+        "calculation_status": {"const": "illustrative_only_incomplete_event_counts"},
+        "uses_rv32im_po2": {"const": 22},
+        "per_model": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {"$ref": "#/$defs/compositionResult"}
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selected_model_id", "minimum_system_security_bits", "promotion_gate_passed", "reason"],
+      "properties": {
+        "selected_model_id": {"type": "null"},
+        "minimum_system_security_bits": {"type": "null"},
+        "promotion_gate_passed": {"const": false},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 512}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source_class", "url", "relevance"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9_]+$", "minLength": 1, "maxLength": 128},
+        "source_class": {"enum": ["pinned_source", "pinned_test", "paper"]},
+        "url": {"type": "string", "pattern": "^https://", "minLength": 9, "maxLength": 512},
+        "relevance": {"type": "string", "minLength": 1, "maxLength": 512}
+      }
+    }
+  }
+}

@@ -246,6 +246,7 @@ import Proofs.ZenoPayoffLanguage
 import Proofs.ZenoPayoffPortfolioFixedPointBridge
 import Proofs.ZenoShapeDiscovery
 import Proofs.ZPLPayoffCombinators
+import Proofs.ZRPFSoundnessEnvelope
 import Proofs.ZUSDCDPThresholdGrid
 import Proofs.ZUSDCeilDivAlgebra
 import Proofs.ZUSDCollateralFlowAlgebra
