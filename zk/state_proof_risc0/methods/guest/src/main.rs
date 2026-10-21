@@ -7,7 +7,7 @@ use alloc::vec;
 use risc0_zkvm::guest::{abort, env};
 use tau_state_proof_risc0_shared::{
     execute_perps_np_transition_v1, execute_state_proof_input_v1, execute_zusd_transition_v1,
-    ZenoProofInputV1, RECURSIVE_AGGREGATE_MAX_INPUT_BYTES,
+    ZusdTransitionInputV1, ZenoProofInputV1, RECURSIVE_AGGREGATE_MAX_INPUT_BYTES,
 };
 
 risc0_zkvm::guest::entry!(main);
@@ -40,6 +40,9 @@ pub fn main() {
             commit_journal(&journal);
         }
         ZenoProofInputV1::Zusd(input) => {
+            if let Err(error) = validate_zusd_scoped_snapshot_conservation_v1(&input) {
+                abort(error);
+            }
             let journal = match execute_zusd_transition_v1(input) {
                 Ok(value) => value,
                 Err(_) => abort("zusd proof transition rejected"),
@@ -48,6 +51,36 @@ pub fn main() {
         }
         ZenoProofInputV1::Recursive(_) => abort("recursive input requires aggregate image"),
     }
+}
+
+fn validate_zusd_scoped_snapshot_conservation_v1(
+    input: &ZusdTransitionInputV1,
+) -> Result<(), &'static str> {
+    if input.pre_state.version != 1 {
+        return Err("unsupported zusd snapshot version");
+    }
+
+    let vault_debt = input.pre_state.vaults.iter().try_fold(0u128, |total, vault| {
+        total.checked_add(vault.debt_zusd_e8).ok_or("debt overflow")
+    })?;
+    if vault_debt != input.pre_state.total_debt_zusd_e8 {
+        return Err("zusd total debt mismatch");
+    }
+
+    let balance_supply = input
+        .pre_state
+        .balances
+        .iter()
+        .try_fold(0u128, |total, balance| {
+            total
+                .checked_add(balance.amount_e8)
+                .ok_or("zusd balance supply overflow")
+        })?;
+    if balance_supply != input.pre_state.total_debt_zusd_e8 {
+        return Err("zusd balance supply mismatch");
+    }
+
+    Ok(())
 }
 
 fn commit_journal<T: serde::Serialize>(journal: &T) {
