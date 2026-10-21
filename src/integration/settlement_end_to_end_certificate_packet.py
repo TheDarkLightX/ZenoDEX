@@ -8,9 +8,9 @@ from src.core.settlement_strong_validator import validate_settlement_strong
 
 from .settlement_endogenous_lp_value_packet import (
     SettlementEndogenousLPValuePacket,
+    _pool_from_dict,
     build_settlement_endogenous_lp_value_packet_from_price_attestation,
     build_settlement_endogenous_lp_value_packet_from_price_packet,
-    _pool_from_dict,
 )
 from .settlement_feature_extension_packet import (
     SettlementFeatureExtensionInputs,
@@ -32,8 +32,9 @@ from .settlement_value_packet import (
 )
 
 if TYPE_CHECKING:
-    from .settlement_price_attestation import SettlementSpotPriceAttestation
     from src.state.pools import PoolState
+
+    from .settlement_price_attestation import SettlementSpotPriceAttestation
 
 
 SETTLEMENT_END_TO_END_CERTIFICATE_PACKET_SCHEMA = "zenodex/settlement-end-to-end-certificate-packet/v1"
@@ -68,7 +69,9 @@ class SettlementEndToEndCertificateInputs:
         if self.price_packet is not None and not isinstance(self.price_packet, SettlementSpotPricePacket):
             raise TypeError("price_packet must be a SettlementSpotPricePacket")
         if self.price_attestation is not None:
-            from .settlement_price_attestation import SettlementSpotPriceAttestation as RuntimeSettlementSpotPriceAttestation
+            from .settlement_price_attestation import (
+                SettlementSpotPriceAttestation as RuntimeSettlementSpotPriceAttestation,
+            )
 
             if not isinstance(self.price_attestation, RuntimeSettlementSpotPriceAttestation):
                 raise TypeError("price_attestation must be a SettlementSpotPriceAttestation")
@@ -346,6 +349,8 @@ def enforce_settlement_end_to_end_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
 ) -> tuple[bool, str | None, SettlementEndToEndCertificatePacket | None]:
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -356,6 +361,8 @@ def enforce_settlement_end_to_end_certificate(
         mode=mode,
         allow_cow_netting=allow_cow_netting,
         allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
     if not ok:
         return False, err, None

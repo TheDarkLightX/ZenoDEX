@@ -159,6 +159,8 @@ def build_settlement_witness_lifecycle_packet(
     settlement_validation: str = "strong_replay",
     swap_ordering: str = "greedy_ab_refined",
     quote_bindings_validated: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
 ) -> SettlementWitnessLifecyclePacket:
     if not intents:
         raise ValueError("intents must be non-empty")
@@ -178,6 +180,8 @@ def build_settlement_witness_lifecycle_packet(
         mode=str(settlement_validation),
         allow_cow_netting=bool(allow_cow_netting),
         allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
     if not ok:
         return SettlementWitnessLifecyclePacket(
@@ -290,6 +294,8 @@ def verify_settlement_witness_lifecycle_packet_payload(
     settlement_validation: str = "strong_replay",
     swap_ordering: str = "greedy_ab_refined",
     quote_bindings_validated: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
 ) -> tuple[bool, str | None]:
     if not isinstance(packet_payload, Mapping):
         return False, "settlement witness lifecycle packet payload must be a dict"
@@ -307,6 +313,8 @@ def verify_settlement_witness_lifecycle_packet_payload(
             settlement_validation=settlement_validation,
             swap_ordering=swap_ordering,
             quote_bindings_validated=quote_bindings_validated,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
         )
     except Exception as exc:
         return False, str(exc)

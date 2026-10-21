@@ -23,7 +23,7 @@ import copy
 
 from src.agents.intent_signer import create_route_intent_from_quote_receipt
 from src.core.batch_clearing import compute_settlement
-from src.core.dex import DexState
+from src.core.dex import DexConfig, DexState
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop, best_route_exact_out_2hop
 from src.core.settlement import FillAction
@@ -35,12 +35,11 @@ from src.integration.operations import (
 )
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
-from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus
-
 
 SENDER = "0x" + "ab" * 48
 OTHER = "0x" + "cd" * 48
+PROTOCOL_FEE_RECIPIENT = "0x" + "ef" * 48
 
 
 def _pool(pool_id: str, *, asset0: str = "A", asset1: str = "B", r0: int = 1_000, r1: int = 1_000, fee_bps: int = 0) -> PoolState:
@@ -57,8 +56,19 @@ def _pool(pool_id: str, *, asset0: str = "A", asset1: str = "B", r0: int = 1_000
     )
 
 
-def _engine_config() -> DexEngineConfig:
-    return DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False)
+def _engine_config(
+    *,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
+) -> DexEngineConfig:
+    return DexEngineConfig(
+        allow_missing_settlement=True,
+        require_intent_signatures=False,
+        dex_config=DexConfig(
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        ),
+    )
 
 
 def _state(pools: dict, *, balances: BalanceTable) -> DexState:
@@ -86,10 +96,16 @@ def _route_intent(receipt, pools, *, sender: str = SENDER, slippage_bps: int = 0
     )
 
 
-def _apply(state: DexState, envelopes: list[SignedIntentEnvelope], *, sender: str = SENDER):
+def _apply(
+    state: DexState,
+    envelopes: list[SignedIntentEnvelope],
+    *,
+    sender: str = SENDER,
+    config: DexEngineConfig | None = None,
+):
     ops = create_signed_intent_operation(envelopes)
     return apply_ops(
-        config=_engine_config(),
+        config=config or _engine_config(),
         state=state,
         operations=ops,
         block_timestamp=0,
@@ -99,17 +115,17 @@ def _apply(state: DexState, envelopes: list[SignedIntentEnvelope], *, sender: st
 
 def _assert_asset_conservation(pre_state: DexState, post_state: DexState, assets: tuple[str, ...]) -> None:
     for asset in assets:
-        def total(state: DexState) -> int:
+        def total(state: DexState, bound_asset: str = asset) -> int:
             balance_sum = sum(
                 amount
                 for (pubkey, a), amount in state.balances.get_all_balances().items()
-                if a == asset
+                if a == bound_asset
             )
             reserve_sum = 0
             for pool in state.pools.values():
-                if pool.asset0 == asset:
+                if pool.asset0 == bound_asset:
                     reserve_sum += int(pool.reserve0)
-                if pool.asset1 == asset:
+                if pool.asset1 == bound_asset:
                     reserve_sum += int(pool.reserve1)
             return balance_sum + reserve_sum
 
@@ -243,7 +259,7 @@ def test_route_rejects_atomically_when_shared_pool_drifts_in_batch() -> None:
     )
     assert res.ok, res.error
     actions = {f.intent_id: f for f in res.settlement.fills}
-    f1, f2 = actions[i1.intent_id], actions[i2.intent_id]
+    f1 = actions[i1.intent_id]
 
     # Canonical determinism: routes clear in ascending intent_id order, so the
     # smaller intent_id MUST be the winner (it sees pristine pools) and the
@@ -620,7 +636,12 @@ def test_route_rejects_multi_hop_receipt() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _validator_fixture():
+def _validator_fixture(
+    *,
+    fee_bps: int = 0,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
+):
     """Engine-equivalent inputs for direct strong-validator calls."""
     from src.core.route_settlement import (
         resolve_route_binding_from_receipt,
@@ -628,7 +649,7 @@ def _validator_fixture():
     )
     from src.state.intents import Intent
 
-    pools, quote, receipt = _exact_in_route_setup(2, amount_in=600)
+    pools, quote, receipt = _exact_in_route_setup(2, amount_in=600, fee_bps=fee_bps)
     intent = _route_intent(receipt, pools)
     binding, err = resolve_route_binding_from_receipt(receipt)
     assert binding is not None, err
@@ -642,6 +663,8 @@ def _validator_fixture():
         balances=balances,
         lp_balances=LPTable(),
         route_bindings={intent.intent_id: binding},
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
     assert settlement.fills[0].action == FillAction.FILL
 
@@ -1378,3 +1401,135 @@ def test_validator_accepts_rejected_route_action_without_binding_fields() -> Non
         allow_snapshot_bound_quote_bindings=False,
     )
     assert ok, err
+
+
+def test_route_exact_in_captures_protocol_fee_end_to_end() -> None:
+    pools, _quote, receipt = _exact_in_route_setup(
+        2,
+        amount_in=600,
+        fee_bps=100,
+    )
+    intent = _route_intent(receipt, pools)
+    balances = BalanceTable()
+    balances.set(SENDER, "A", 10_000)
+    state = _state(pools, balances=balances)
+    pre_state = copy.deepcopy(state)
+
+    res = _apply(
+        state,
+        [SignedIntentEnvelope(intent=intent, quote_receipt=receipt)],
+        config=_engine_config(
+            protocol_fee_share_bps=5_000,
+            protocol_fee_recipient_pubkey=PROTOCOL_FEE_RECIPIENT,
+        ),
+    )
+
+    assert res.ok, res.error
+    fill = res.settlement.fills[0]
+    assert fill.protocol_fee_paid > 0
+    assert (
+        res.state.balances.get(PROTOCOL_FEE_RECIPIENT, "A")
+        == fill.protocol_fee_paid
+    )
+    reserve_credit = sum(
+        delta.delta_add
+        for delta in res.settlement.reserve_deltas
+        if delta.asset == "A"
+    )
+    assert reserve_credit + fill.protocol_fee_paid == fill.amount_in_filled
+    _assert_asset_conservation(pre_state, res.state, ("A", "B"))
+
+
+def test_route_exact_out_captures_protocol_fee_end_to_end() -> None:
+    pools = {f"p{i}": _pool(f"p{i}", fee_bps=100) for i in (1, 2)}
+    quote = best_route_exact_out_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out=400,
+    )
+    assert quote is not None
+    receipt = make_route_quote_receipt(
+        kind="exact_out",
+        quote=quote,
+        pools_by_id=pools,
+    )
+    intent = _route_intent(receipt, pools)
+    balances = BalanceTable()
+    balances.set(SENDER, "A", 10_000)
+    state = _state(pools, balances=balances)
+    pre_state = copy.deepcopy(state)
+
+    res = _apply(
+        state,
+        [SignedIntentEnvelope(intent=intent, quote_receipt=receipt)],
+        config=_engine_config(
+            protocol_fee_share_bps=5_000,
+            protocol_fee_recipient_pubkey=PROTOCOL_FEE_RECIPIENT,
+        ),
+    )
+
+    assert res.ok, res.error
+    fill = res.settlement.fills[0]
+    assert fill.protocol_fee_paid > 0
+    assert (
+        res.state.balances.get(PROTOCOL_FEE_RECIPIENT, "A")
+        == fill.protocol_fee_paid
+    )
+    reserve_credit = sum(
+        delta.delta_add
+        for delta in res.settlement.reserve_deltas
+        if delta.asset == "A"
+    )
+    assert reserve_credit + fill.protocol_fee_paid == fill.amount_in_filled
+    _assert_asset_conservation(pre_state, res.state, ("A", "B"))
+
+
+def test_validator_rejects_tampered_route_protocol_fee() -> None:
+    pools, balances, settlement, sanitized, _quote = _validator_fixture(
+        fee_bps=100,
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=PROTOCOL_FEE_RECIPIENT,
+    )
+    settlement.fills[0].protocol_fee_paid += 1
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[sanitized],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        allow_snapshot_bound_quote_bindings=True,
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=PROTOCOL_FEE_RECIPIENT,
+    )
+
+    assert not ok
+    assert "route protocol_fee_paid mismatch" in err
+
+
+def test_validator_rejects_tampered_route_reject_reason() -> None:
+    pools, balances, lo, lo_binding, hi, hi_binding = _two_route_shared_pool_fixture()
+    canonical = compute_settlement(
+        intents=[lo, hi],
+        pools=pools,
+        balances=balances,
+        lp_balances=LPTable(),
+        route_bindings={lo.intent_id: lo_binding, hi.intent_id: hi_binding},
+    )
+    rejected_fill = next(
+        fill for fill in canonical.fills if fill.action == FillAction.REJECT
+    )
+    rejected_fill.reason = "INSUFFICIENT_BALANCE"
+
+    ok, err = validate_settlement_strong(
+        settlement=canonical,
+        intents=[lo, hi],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        allow_snapshot_bound_quote_bindings=True,
+    )
+
+    assert not ok
+    assert "route reject reason mismatch" in err

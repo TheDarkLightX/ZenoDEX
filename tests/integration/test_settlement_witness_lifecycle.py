@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
-from src.integration.settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
+from src.integration.settlement_end_to_end_certificate_packet import (
+    SettlementEndToEndCertificateInputs,
+)
 from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
@@ -47,7 +49,12 @@ def _feature_extension_inputs() -> SettlementFeatureExtensionInputs:
     )
 
 
-def _settlement_context(*, deadline: int = 9_999_999_999):
+def _settlement_context(
+    *,
+    deadline: int = 9_999_999_999,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
+):
     pk = "0x" + "22" * 48
     asset0 = "0x" + "03" * 32
     asset1 = "0x" + "04" * 32
@@ -80,7 +87,14 @@ def _settlement_context(*, deadline: int = 9_999_999_999):
         )
         for idx in range(4)
     ]
-    settlement = compute_settlement(intents, {pool_id: pool}, balances, LPTable())
+    settlement = compute_settlement(
+        intents,
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -214,3 +228,43 @@ def test_settlement_witness_lifecycle_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement witness lifecycle packet payload mismatch"
+
+
+def test_witness_lifecycle_preserves_protocol_fee_policy() -> None:
+    protocol_recipient = "0x" + "ff" * 48
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context(
+        protocol_fee_share_bps=10_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert sum(fill.protocol_fee_paid for fill in settlement.fills) > 0
+
+    packet = build_settlement_witness_lifecycle_packet(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+        protocol_fee_share_bps=10_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+
+    assert packet.settled is True
+    assert packet.witness_valid is True
+
+    ok, err = verify_settlement_witness_lifecycle_packet_payload(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+        packet_payload=packet.to_dict(),
+        protocol_fee_share_bps=10_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+
+    assert ok is True
+    assert err is None

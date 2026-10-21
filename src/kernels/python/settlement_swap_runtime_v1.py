@@ -314,6 +314,29 @@ def _quote_cpmm_swap_exact_in_python(
     )
 
 
+def quote_cpmm_swap_exact_in_deterministic(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_in: int,
+    fee_bps: int,
+    protocol_fee_share_bps: int = 0,
+) -> SettlementSwapExactInQuote:
+    """Return the pure Python-kernel exact-in quote without authority-policy reads.
+
+    Functional-core callers use this entry point when hidden process-global
+    authority selection would violate deterministic replay. Cross-language
+    authority comparison remains an imperative-shell responsibility.
+    """
+    return _quote_cpmm_swap_exact_in_python(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_in=amount_in,
+        fee_bps=fee_bps,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+    )
+
+
 def quote_cpmm_swap_exact_in_for_ordering_simulation(
     *,
     reserve_in: int,
@@ -462,6 +485,26 @@ def _quote_cpmm_swap_exact_out_python(
         reserve_out_after=int(res.new_reserve_out),
         k_before=int(res.k_before),
         k_after=int(res.k_after),
+    )
+
+
+def quote_cpmm_swap_exact_out_deterministic(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+    fee_bps: int,
+    max_overdelivery_gap_bps: int = CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+    protocol_fee_share_bps: int = 0,
+) -> SettlementSwapExactOutQuote:
+    """Return the pure Python-kernel exact-out quote without authority-policy reads."""
+    return _quote_cpmm_swap_exact_out_python(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_out=amount_out,
+        fee_bps=fee_bps,
+        max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+        protocol_fee_share_bps=protocol_fee_share_bps,
     )
 
 

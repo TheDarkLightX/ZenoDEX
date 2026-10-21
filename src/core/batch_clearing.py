@@ -232,6 +232,8 @@ def compute_settlement(
             balances=balances_local,
             balance_deltas=all_balance_deltas,
             reserve_deltas=all_reserve_deltas,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
         )
         included_intents.append((intent.intent_id, fill.action))
         all_fills.append(fill)
@@ -623,6 +625,8 @@ def _clear_route_intent_against_locals(
     balances: BalanceTable,
     balance_deltas: List[BalanceDelta],
     reserve_deltas: List[ReserveDelta],
+    protocol_fee_share_bps: int,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
 ) -> Fill:
     """
     Clear one atomic route intent against the local candidate state.
@@ -646,7 +650,11 @@ def _clear_route_intent_against_locals(
     sender = intent.sender_pubkey
     recipient = intent.get_field("recipient", sender)
 
-    replay = replay_route_legs(binding=binding, pools=pool_states)
+    replay = replay_route_legs(
+        binding=binding,
+        pools=pool_states,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+    )
     if not replay.ok:
         return _reject(replay.reject_reason or ROUTE_REJECT_INVALID_PARAMS)
 
@@ -656,19 +664,41 @@ def _clear_route_intent_against_locals(
 
     if balances.get(sender, binding.asset_in) < int(replay.total_amount_in):
         return _reject(ROUTE_REJECT_INSUFFICIENT_BALANCE)
+    if replay.total_protocol_fee_paid > 0 and not protocol_fee_recipient_pubkey:
+        return _reject(ROUTE_REJECT_INVALID_PARAMS)
 
     # All legs replayed; commit to the locals.
     for leg in replay.legs:
         balances.subtract(sender, leg.asset_in, int(leg.amount_in))
         balances.add(recipient, leg.asset_out, int(leg.amount_out))
+        if leg.protocol_fee_paid:
+            balances.add(
+                protocol_fee_recipient_pubkey,
+                leg.asset_in,
+                int(leg.protocol_fee_paid),
+            )
         balance_deltas.append(
             BalanceDelta(pubkey=sender, asset=leg.asset_in, delta_add=0, delta_sub=int(leg.amount_in))
         )
         balance_deltas.append(
             BalanceDelta(pubkey=recipient, asset=leg.asset_out, delta_add=int(leg.amount_out), delta_sub=0)
         )
+        if leg.protocol_fee_paid:
+            balance_deltas.append(
+                BalanceDelta(
+                    pubkey=protocol_fee_recipient_pubkey,
+                    asset=leg.asset_in,
+                    delta_add=int(leg.protocol_fee_paid),
+                    delta_sub=0,
+                )
+            )
         reserve_deltas.append(
-            ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_in, delta_add=int(leg.amount_in), delta_sub=0)
+            ReserveDelta(
+                pool_id=leg.pool_id,
+                asset=leg.asset_in,
+                delta_add=int(leg.amount_in) - int(leg.protocol_fee_paid),
+                delta_sub=0,
+            )
         )
         reserve_deltas.append(
             ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_out, delta_add=0, delta_sub=int(leg.amount_out))
@@ -683,6 +713,7 @@ def _clear_route_intent_against_locals(
         amount_in_filled=int(replay.total_amount_in),
         amount_out_filled=int(replay.total_amount_out),
         fee_paid=int(replay.total_fee_paid),
+        protocol_fee_paid=int(replay.total_protocol_fee_paid),
     )
 
 
@@ -952,14 +983,14 @@ def clear_batch_single_pool(
                         )
                 else:  # SWAP_EXACT_OUT
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
+                        exact_out_quote = quote_cpmm_swap_exact_out(
                             reserve_in=current_reserves[0],
                             reserve_out=current_reserves[1],
                             amount_out=fill.amount_out_filled or 0,
                             fee_bps=pool_state.fee_bps,
                             protocol_fee_share_bps=protocol_fee_share_bps,
                         )
-                        new_r0, new_r1 = quote.reserve_in_after, quote.reserve_out_after
+                        new_r0, new_r1 = exact_out_quote.reserve_in_after, exact_out_quote.reserve_out_after
                     else:
                         _, (new_r0, new_r1) = swap_exact_out_for_pool(
                             pool_state,
@@ -988,14 +1019,14 @@ def clear_batch_single_pool(
                         )
                 else:  # SWAP_EXACT_OUT
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
+                        exact_out_quote = quote_cpmm_swap_exact_out(
                             reserve_in=current_reserves[1],
                             reserve_out=current_reserves[0],
                             amount_out=fill.amount_out_filled or 0,
                             fee_bps=pool_state.fee_bps,
                             protocol_fee_share_bps=protocol_fee_share_bps,
                         )
-                        new_r1, new_r0 = quote.reserve_in_after, quote.reserve_out_after
+                        new_r1, new_r0 = exact_out_quote.reserve_in_after, exact_out_quote.reserve_out_after
                     else:
                         _, (new_r1, new_r0) = swap_exact_out_for_pool(
                             pool_state,
@@ -1177,14 +1208,14 @@ def _order_swaps_optimal_ab_bounded(
                     continue
                 try:
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
+                        exact_out_quote = quote_cpmm_swap_exact_out(
                             reserve_in=r_in,
                             reserve_out=r_out,
                             amount_out=amount_out,
                             fee_bps=pool_state.fee_bps,
                         )
-                        amount_in = quote.amount_in
-                        new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
+                        amount_in = exact_out_quote.amount_in
+                        new_r_in, new_r_out = exact_out_quote.reserve_in_after, exact_out_quote.reserve_out_after
                     else:
                         amount_in, (new_r_in, new_r_out) = swap_exact_out_for_pool(
                             pool_state,
@@ -1327,16 +1358,16 @@ def _process_swap_intent(
                 return _reject("MISSING_PARAMS")
 
             if pool_state.curve_tag == CURVE_TAG_CPMM:
-                quote = quote_cpmm_swap_exact_out(
+                exact_out_quote = quote_cpmm_swap_exact_out(
                     reserve_in=reserve_in,
                     reserve_out=reserve_out,
                     amount_out=amount_out,
                     fee_bps=pool_state.fee_bps,
                     protocol_fee_share_bps=protocol_fee_share_bps,
                 )
-                amount_in = quote.amount_in
-                fee = quote.fee_paid
-                protocol_fee = quote.protocol_fee_paid
+                amount_in = exact_out_quote.amount_in
+                fee = exact_out_quote.fee_paid
+                protocol_fee = exact_out_quote.protocol_fee_paid
             else:
                 if protocol_fee_share_bps:
                     return _reject("PROTOCOL_FEE_UNSUPPORTED_CURVE")

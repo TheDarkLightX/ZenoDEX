@@ -32,8 +32,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
+from ..kernels.python.settlement_swap_runtime_v1 import (
+    quote_cpmm_swap_exact_in_deterministic,
+    quote_cpmm_swap_exact_out_deterministic,
+)
 from ..state.intents import Intent, IntentKind
-from ..state.pools import PoolState, PoolStatus
+from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .cpmm import compute_fee_total
 from .domain_limits import is_strict_int
@@ -59,6 +63,7 @@ ROUTE_REJECT_POOL_STATE_DRIFT = "ROUTE_POOL_STATE_DRIFT"
 ROUTE_REJECT_INSUFFICIENT_BALANCE = "INSUFFICIENT_BALANCE"
 ROUTE_REJECT_LEG_QUOTE_MISMATCH = "ROUTE_LEG_QUOTE_MISMATCH"
 ROUTE_REJECT_SLIPPAGE = "SLIPPAGE"
+ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED_CURVE = "PROTOCOL_FEE_UNSUPPORTED_CURVE"
 
 _ROUTE_INTENT_KINDS = (IntentKind.ROUTE_EXACT_IN, IntentKind.ROUTE_EXACT_OUT)
 
@@ -118,7 +123,7 @@ def _require_positive_int(value: Any) -> Optional[int]:
 
 
 def resolve_route_binding_from_receipt(
-    receipt: Mapping[str, Any],
+    receipt: object,
 ) -> Tuple[Optional[RouteBinding], Optional[str]]:
     """
     Resolve a RouteBinding from a VERIFIED quote receipt.
@@ -159,6 +164,7 @@ def resolve_route_binding_from_receipt(
 
     legs: List[RouteLegBinding] = []
     used_pool_ids: List[str] = []
+    seen_pool_ids: set[str] = set()
     sum_in = 0
     sum_out = 0
     for raw_leg in raw_legs:
@@ -181,6 +187,9 @@ def resolve_route_binding_from_receipt(
         amount_out = _require_positive_int(hop.get("amount_out"))
         if pool_id is None or hop_asset_in is None or hop_asset_out is None:
             return None, "route_receipt_bad_hop_fields"
+        if pool_id in seen_pool_ids:
+            return None, "route_duplicate_pool_unsupported"
+        seen_pool_ids.add(pool_id)
         if amount_in is None or amount_out is None:
             return None, "route_receipt_bad_hop_amounts"
         # Single-hop legs must span the route endpoints exactly.
@@ -421,6 +430,7 @@ class RouteLegReplay:
     amount_in: int
     amount_out: int
     fee_paid: int
+    protocol_fee_paid: int
     new_reserve0: int
     new_reserve1: int
 
@@ -433,12 +443,14 @@ class RouteReplayResult:
     total_amount_in: int = 0
     total_amount_out: int = 0
     total_fee_paid: int = 0
+    total_protocol_fee_paid: int = 0
 
 
 def replay_route_legs(
     *,
     binding: RouteBinding,
     pools: Mapping[str, PoolState],
+    protocol_fee_share_bps: int = 0,
 ) -> RouteReplayResult:
     """
     Replay every leg of the binding against the CURRENT pool states.
@@ -448,12 +460,19 @@ def replay_route_legs(
     contract: replay everything first, apply only on full success).
 
     Checks, fail-closed, first failure wins:
-      1. every referenced pool exists and is ACTIVE
-      2. every referenced pool's CURRENT fingerprint matches the binding
+      1. protocol-fee configuration is in the consensus integer domain
+      2. every referenced pool exists and is ACTIVE
+      3. protocol-fee capture is supported by every referenced curve
+      4. every referenced pool's CURRENT fingerprint matches the binding
          (snapshot binding — rejects in-batch drift deterministically)
-      3. every leg's quoted amounts replay EXACTLY under the verified kernels,
+      5. every leg's quoted amounts replay EXACTLY under the verified kernels,
          threading evolving reserves across legs that share a pool
     """
+    if not is_strict_int(protocol_fee_share_bps) or not (
+        0 <= int(protocol_fee_share_bps) <= 10_000
+    ):
+        return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_INVALID_PARAMS)
+
     # Phase 1: pool presence + status + snapshot fingerprints (vs current state).
     for pool_id in binding.pool_fingerprints:
         pool = pools.get(pool_id)
@@ -461,6 +480,11 @@ def replay_route_legs(
             return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND)
         if pool.status != PoolStatus.ACTIVE:
             return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_ACTIVE)
+        if int(protocol_fee_share_bps) > 0 and pool.curve_tag != CURVE_TAG_CPMM:
+            return RouteReplayResult(
+                ok=False,
+                reject_reason=ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED_CURVE,
+            )
         if pool_state_fingerprint(pool) != binding.pool_fingerprints[pool_id]:
             return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_STATE_DRIFT)
 
@@ -474,6 +498,7 @@ def replay_route_legs(
     sum_in = 0
     sum_out = 0
     sum_fee = 0
+    sum_protocol_fee = 0
     for leg in binding.legs:
         pool = pools.get(leg.pool_id)
         if pool is None or leg.pool_id not in scratch:
@@ -488,8 +513,48 @@ def replay_route_legs(
         else:
             return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_INVALID_PARAMS)
 
+        fee = 0
+        protocol_fee = 0
         try:
-            if binding.kind == ROUTE_KIND_EXACT_IN:
+            if int(protocol_fee_share_bps) > 0 and binding.kind == ROUTE_KIND_EXACT_IN:
+                exact_in_quote = quote_cpmm_swap_exact_in_deterministic(
+                    reserve_in=int(reserve_in),
+                    reserve_out=int(reserve_out),
+                    amount_in=int(leg.amount_in),
+                    fee_bps=int(pool.fee_bps),
+                    protocol_fee_share_bps=int(protocol_fee_share_bps),
+                )
+                quoted_out = int(exact_in_quote.amount_out)
+                new_in, new_out = (
+                    int(exact_in_quote.reserve_in_after),
+                    int(exact_in_quote.reserve_out_after),
+                )
+                fee = int(exact_in_quote.fee_paid)
+                protocol_fee = int(exact_in_quote.protocol_fee_paid)
+                if quoted_out != int(leg.amount_out):
+                    return RouteReplayResult(
+                        ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH
+                    )
+            elif int(protocol_fee_share_bps) > 0:
+                exact_out_quote = quote_cpmm_swap_exact_out_deterministic(
+                    reserve_in=int(reserve_in),
+                    reserve_out=int(reserve_out),
+                    amount_out=int(leg.amount_out),
+                    fee_bps=int(pool.fee_bps),
+                    protocol_fee_share_bps=int(protocol_fee_share_bps),
+                )
+                quoted_in = int(exact_out_quote.amount_in)
+                new_in, new_out = (
+                    int(exact_out_quote.reserve_in_after),
+                    int(exact_out_quote.reserve_out_after),
+                )
+                fee = int(exact_out_quote.fee_paid)
+                protocol_fee = int(exact_out_quote.protocol_fee_paid)
+                if quoted_in != int(leg.amount_in):
+                    return RouteReplayResult(
+                        ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH
+                    )
+            elif binding.kind == ROUTE_KIND_EXACT_IN:
                 quoted_out, (new_in, new_out) = swap_exact_in_for_pool(
                     pool,
                     reserve_in=int(reserve_in),
@@ -500,6 +565,7 @@ def replay_route_legs(
                     return RouteReplayResult(
                         ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH
                     )
+                fee = int(compute_fee_total(int(leg.amount_in), int(pool.fee_bps)))
             else:
                 quoted_in, (new_in, new_out) = swap_exact_out_for_pool(
                     pool,
@@ -511,7 +577,8 @@ def replay_route_legs(
                     return RouteReplayResult(
                         ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH
                     )
-        except Exception:
+                fee = int(compute_fee_total(int(leg.amount_in), int(pool.fee_bps)))
+        except (TypeError, ValueError):
             return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH)
 
         if dir_is_0_to_1:
@@ -520,7 +587,6 @@ def replay_route_legs(
             new_reserve0, new_reserve1 = int(new_out), int(new_in)
         scratch[leg.pool_id] = (new_reserve0, new_reserve1)
 
-        fee = int(compute_fee_total(int(leg.amount_in), int(pool.fee_bps)))
         replays.append(
             RouteLegReplay(
                 pool_id=leg.pool_id,
@@ -529,6 +595,7 @@ def replay_route_legs(
                 amount_in=int(leg.amount_in),
                 amount_out=int(leg.amount_out),
                 fee_paid=fee,
+                protocol_fee_paid=protocol_fee,
                 new_reserve0=new_reserve0,
                 new_reserve1=new_reserve1,
             )
@@ -536,6 +603,7 @@ def replay_route_legs(
         sum_in += int(leg.amount_in)
         sum_out += int(leg.amount_out)
         sum_fee += fee
+        sum_protocol_fee += protocol_fee
 
     return RouteReplayResult(
         ok=True,
@@ -543,6 +611,7 @@ def replay_route_legs(
         total_amount_in=sum_in,
         total_amount_out=sum_out,
         total_fee_paid=sum_fee,
+        total_protocol_fee_paid=sum_protocol_fee,
     )
 
 

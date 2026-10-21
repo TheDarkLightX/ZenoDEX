@@ -8,8 +8,8 @@ from typing import Any, Mapping, Optional
 from src.core.settlement import Settlement
 from src.core.settlement_normal_form import normalize_settlement_op_for_commitment
 
-from .operations import create_settlement_operation
 from ..core.settlement_strong_validator import validate_settlement_strong
+from .operations import create_settlement_operation
 from .tau_witness import (
     SETTLEMENT_MODULE_FLAG_BUNDLE_V1,
     SETTLEMENT_PRICE_RAILS_ALIGNED_V1,
@@ -520,6 +520,8 @@ def validate_settlement_strong_with_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[str] = None,
 ) -> tuple[bool, Optional[str]]:
     ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=certificate)
     if not ok:
@@ -537,6 +539,8 @@ def validate_settlement_strong_with_certificate(
         mode=mode,
         allow_cow_netting=allow_cow_netting,
         allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
 
 
@@ -552,6 +556,8 @@ def enforce_replay_bound_settlement_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[str] = None,
 ) -> tuple[bool, Optional[str], Optional[SettlementStrongCertificate]]:
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -562,6 +568,8 @@ def enforce_replay_bound_settlement_certificate(
         mode=mode,
         allow_cow_netting=allow_cow_netting,
         allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
     if not ok:
         return False, err, None

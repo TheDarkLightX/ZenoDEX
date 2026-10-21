@@ -5,8 +5,10 @@ from src.core.dex import DexState
 from src.core.liquidity import create_pool
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import parse_intents
+from src.integration.settlement_end_to_end_certificate_packet import (
+    SettlementEndToEndCertificateInputs,
+)
 from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
-from src.integration.settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
 from src.integration.settlement_price_attestation import (
     SettlementSpotPriceAttestation,
     build_settlement_spot_price_attestation,
@@ -623,3 +625,40 @@ def test_apply_ops_rejects_when_engine_requires_full_price_rails_and_history_fai
     )
     assert res.ok is False
     assert res.error == "settlement end-to-end certificate full price rails rejected"
+
+
+def test_end_to_end_certificate_gate_preserves_protocol_fee_policy() -> None:
+    intent_dicts, balances, pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
+    intents = parse_intents({"2": intent_dicts})
+    protocol_recipient = "0x" + "ff" * 48
+    settlement = compute_settlement(
+        intents=intents,
+        pools=pools,
+        balances=balances,
+        lp_balances=LPTable(),
+        protocol_fee_share_bps=10_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert sum(fill.protocol_fee_paid for fill in settlement.fills) > 0
+
+    ok, err = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+        require_settlement_end_to_end_certificate=True,
+        settlement_end_to_end_certificate_inputs=SettlementEndToEndCertificateInputs(
+            proof_flags=SettlementProofFlags.all_true(),
+            price_history=(100, 110, 120),
+            feature_extension_inputs=_feature_extension_inputs(),
+            price_packet=_spot_price_packet(asset0, asset1),
+        ),
+        protocol_fee_share_bps=10_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+
+    assert ok is True
+    assert err is None

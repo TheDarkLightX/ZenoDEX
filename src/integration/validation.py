@@ -124,6 +124,8 @@ def validate_operations(
                     mode=str(settlement_validation),
                     allow_cow_netting=bool(allow_cow_netting),
                     allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
+                    protocol_fee_share_bps=int(protocol_fee_share_bps),
+                    protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
                 )
             except Exception as exc:
                 return False, f"invalid settlement end-to-end certificate inputs: {exc}"

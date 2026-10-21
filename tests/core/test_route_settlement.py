@@ -9,12 +9,18 @@ adversarial shapes.
 
 from __future__ import annotations
 
+import copy
+
+import pytest
+
+from src.core.amm_dispatch import swap_exact_in_for_pool
 from src.core.quote_receipts import make_route_quote_receipt, pool_state_fingerprint
 from src.core.route_settlement import (
     ROUTE_REJECT_LEG_QUOTE_MISMATCH,
     ROUTE_REJECT_POOL_NOT_ACTIVE,
     ROUTE_REJECT_POOL_NOT_FOUND,
     ROUTE_REJECT_POOL_STATE_DRIFT,
+    ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED_CURVE,
     RouteBinding,
     RouteLegBinding,
     parse_route_binding_fields,
@@ -23,9 +29,9 @@ from src.core.route_settlement import (
     route_binding_to_fields,
     validate_route_intent_against_binding,
 )
-from src.core.routing import best_route_exact_in_2hop
+from src.core.routing import best_route_exact_in_2hop, best_route_exact_out_2hop
 from src.state.intents import Intent, IntentKind
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import CURVE_TAG_CUBIC_SUM_V1, PoolState, PoolStatus
 
 SENDER = "0x" + "ab" * 48
 
@@ -352,3 +358,177 @@ def test_replay_rejects_lying_leg_amounts_with_matching_fingerprint() -> None:
     replay = replay_route_legs(binding=tampered, pools=pools)
     assert not replay.ok
     assert replay.reject_reason == ROUTE_REJECT_LEG_QUOTE_MISMATCH
+
+
+def test_resolve_binding_rejects_duplicate_pool_legs() -> None:
+    pools = {"p1": _pool("p1"), "p2": _pool("p2")}
+    binding = _binding_for(pools)
+    quote = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=600,
+    )
+    assert quote is not None
+    receipt = copy.deepcopy(
+        make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools)
+    )
+    receipt["body"]["legs"][1]["hops"][0]["pool_id"] = binding.legs[0].pool_id
+
+    resolved, err = resolve_route_binding_from_receipt(receipt)
+
+    assert resolved is None
+    assert err == "route_duplicate_pool_unsupported"
+
+
+def test_replay_exact_in_captures_protocol_fee_and_conserves_each_leg() -> None:
+    pools = {
+        "p1": _pool("p1", fee_bps=100),
+        "p2": _pool("p2", fee_bps=100),
+    }
+    binding = _binding_for(pools)
+
+    replay = replay_route_legs(
+        binding=binding,
+        pools=pools,
+        protocol_fee_share_bps=5_000,
+    )
+
+    assert replay.ok, replay.reject_reason
+    assert replay.total_protocol_fee_paid > 0
+    assert replay.total_protocol_fee_paid == sum(
+        leg.protocol_fee_paid for leg in replay.legs
+    )
+    for leg in replay.legs:
+        pool = pools[leg.pool_id]
+        assert leg.amount_in == (
+            leg.new_reserve0 - int(pool.reserve0) + leg.protocol_fee_paid
+        )
+        assert leg.amount_out == int(pool.reserve1) - leg.new_reserve1
+
+
+def test_replay_exact_out_captures_protocol_fee_and_conserves_each_leg() -> None:
+    pools = {
+        "p1": _pool("p1", fee_bps=100),
+        "p2": _pool("p2", fee_bps=100),
+    }
+    quote = best_route_exact_out_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out=400,
+    )
+    assert quote is not None
+    receipt = make_route_quote_receipt(
+        kind="exact_out",
+        quote=quote,
+        pools_by_id=pools,
+    )
+    binding, err = resolve_route_binding_from_receipt(receipt)
+    assert binding is not None, err
+
+    replay = replay_route_legs(
+        binding=binding,
+        pools=pools,
+        protocol_fee_share_bps=5_000,
+    )
+
+    assert replay.ok, replay.reject_reason
+    assert replay.total_protocol_fee_paid > 0
+    for leg in replay.legs:
+        pool = pools[leg.pool_id]
+        assert leg.amount_in == (
+            leg.new_reserve0 - int(pool.reserve0) + leg.protocol_fee_paid
+        )
+        assert leg.amount_out == int(pool.reserve1) - leg.new_reserve1
+
+
+def test_replay_protocol_fee_does_not_read_global_authority_mode(monkeypatch) -> None:
+    pools = {
+        "p1": _pool("p1", fee_bps=100),
+        "p2": _pool("p2", fee_bps=100),
+    }
+    binding = _binding_for(pools)
+
+    def _forbid_global_authority_read() -> object:
+        raise AssertionError("functional core read process-global authority mode")
+
+    monkeypatch.setattr(
+        "src.runtime.authority.active_mode",
+        _forbid_global_authority_read,
+    )
+
+    replay = replay_route_legs(
+        binding=binding,
+        pools=pools,
+        protocol_fee_share_bps=5_000,
+    )
+    assert replay.ok, replay.reject_reason
+
+
+def test_replay_does_not_mask_deterministic_kernel_programming_errors(
+    monkeypatch,
+) -> None:
+    pools = {
+        "p1": _pool("p1", fee_bps=100),
+        "p2": _pool("p2", fee_bps=100),
+    }
+    binding = _binding_for(pools)
+
+    def _programming_error(**_kwargs) -> object:
+        raise RuntimeError("unexpected deterministic-kernel failure")
+
+    monkeypatch.setattr(
+        "src.core.route_settlement.quote_cpmm_swap_exact_in_deterministic",
+        _programming_error,
+    )
+    with pytest.raises(RuntimeError, match="unexpected deterministic-kernel failure"):
+        replay_route_legs(binding=binding, pools=pools, protocol_fee_share_bps=5_000)
+
+
+def test_replay_protocol_fee_rejects_unsupported_curve() -> None:
+    pool = PoolState(
+        pool_id="cubic",
+        asset0="A",
+        asset1="B",
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=100,
+        lp_supply=1,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+        curve_tag=CURVE_TAG_CUBIC_SUM_V1,
+        curve_params='{"p":1,"q":1}',
+    )
+    amount_out, _ = swap_exact_in_for_pool(
+        pool,
+        reserve_in=pool.reserve0,
+        reserve_out=pool.reserve1,
+        amount_in=100,
+    )
+    binding = RouteBinding(
+        kind="exact_in",
+        asset_in="A",
+        asset_out="B",
+        total_amount_in=100,
+        total_amount_out=amount_out,
+        legs=(
+            RouteLegBinding(
+                pool_id=pool.pool_id,
+                asset_in="A",
+                asset_out="B",
+                amount_in=100,
+                amount_out=amount_out,
+            ),
+        ),
+        pool_fingerprints={pool.pool_id: pool_state_fingerprint(pool)},
+    )
+
+    replay = replay_route_legs(
+        binding=binding,
+        pools={pool.pool_id: pool},
+        protocol_fee_share_bps=5_000,
+    )
+
+    assert not replay.ok
+    assert replay.reject_reason == ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED_CURVE
