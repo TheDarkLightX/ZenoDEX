@@ -1,0 +1,518 @@
+{
+  "actions": [
+    {
+      "effects": {
+        "branch": {
+          "var": "branch"
+        },
+        "collateral_to_redistribute": {
+          "var": "collateral_to_redistribute"
+        },
+        "collateral_to_sp": {
+          "var": "collateral_to_sp"
+        },
+        "debt_to_offset": {
+          "var": "debt_to_offset"
+        },
+        "debt_to_redistribute": {
+          "var": "debt_to_redistribute"
+        }
+      },
+      "guard": {
+        "bool": true
+      },
+      "id": "partition_offset_and_redistribution",
+      "params": [
+        {
+          "id": "new_debt",
+          "type": {
+            "kind": "int",
+            "max": 4,
+            "min": 1
+          }
+        },
+        {
+          "id": "new_collateral",
+          "type": {
+            "kind": "int",
+            "max": 4,
+            "min": 0
+          }
+        },
+        {
+          "id": "new_sp_deposits",
+          "type": {
+            "kind": "int",
+            "max": 4,
+            "min": 0
+          }
+        }
+      ],
+      "updates": [
+        {
+          "expr": {
+            "param": "new_debt"
+          },
+          "var": "debt"
+        },
+        {
+          "expr": {
+            "param": "new_collateral"
+          },
+          "var": "collateral"
+        },
+        {
+          "expr": {
+            "param": "new_sp_deposits"
+          },
+          "var": "sp_deposits"
+        },
+        {
+          "expr": {
+            "args": [
+              {
+                "param": "new_debt"
+              },
+              {
+                "param": "new_sp_deposits"
+              }
+            ],
+            "op": "min"
+          },
+          "var": "debt_to_offset"
+        },
+        {
+          "expr": {
+            "args": [
+              {
+                "args": [
+                  {
+                    "args": [
+                      {
+                        "param": "new_debt"
+                      },
+                      {
+                        "param": "new_sp_deposits"
+                      }
+                    ],
+                    "op": "min"
+                  },
+                  {
+                    "param": "new_collateral"
+                  }
+                ],
+                "op": "*"
+              },
+              {
+                "param": "new_debt"
+              }
+            ],
+            "op": "div"
+          },
+          "var": "collateral_to_sp"
+        },
+        {
+          "expr": {
+            "args": [
+              {
+                "param": "new_debt"
+              },
+              {
+                "args": [
+                  {
+                    "param": "new_debt"
+                  },
+                  {
+                    "param": "new_sp_deposits"
+                  }
+                ],
+                "op": "min"
+              }
+            ],
+            "op": "-"
+          },
+          "var": "debt_to_redistribute"
+        },
+        {
+          "expr": {
+            "args": [
+              {
+                "param": "new_collateral"
+              },
+              {
+                "args": [
+                  {
+                    "args": [
+                      {
+                        "args": [
+                          {
+                            "param": "new_debt"
+                          },
+                          {
+                            "param": "new_sp_deposits"
+                          }
+                        ],
+                        "op": "min"
+                      },
+                      {
+                        "param": "new_collateral"
+                      }
+                    ],
+                    "op": "*"
+                  },
+                  {
+                    "param": "new_debt"
+                  }
+                ],
+                "op": "div"
+              }
+            ],
+            "op": "-"
+          },
+          "var": "collateral_to_redistribute"
+        },
+        {
+          "expr": {
+            "cond": {
+              "args": [
+                {
+                  "const": 0
+                },
+                {
+                  "param": "new_sp_deposits"
+                }
+              ],
+              "op": "="
+            },
+            "else": {
+              "cond": {
+                "args": [
+                  {
+                    "param": "new_sp_deposits"
+                  },
+                  {
+                    "param": "new_debt"
+                  }
+                ],
+                "op": "<"
+              },
+              "else": {
+                "const": 2
+              },
+              "op": "ite",
+              "then": {
+                "const": 1
+              }
+            },
+            "op": "ite",
+            "then": {
+              "const": 0
+            }
+          },
+          "var": "branch"
+        }
+      ]
+    }
+  ],
+  "init": [
+    {
+      "expr": {
+        "const": 2
+      },
+      "var": "debt"
+    },
+    {
+      "expr": {
+        "const": 3
+      },
+      "var": "collateral"
+    },
+    {
+      "expr": {
+        "const": 1
+      },
+      "var": "sp_deposits"
+    },
+    {
+      "expr": {
+        "const": 1
+      },
+      "var": "debt_to_offset"
+    },
+    {
+      "expr": {
+        "const": 1
+      },
+      "var": "collateral_to_sp"
+    },
+    {
+      "expr": {
+        "const": 1
+      },
+      "var": "debt_to_redistribute"
+    },
+    {
+      "expr": {
+        "const": 2
+      },
+      "var": "collateral_to_redistribute"
+    },
+    {
+      "expr": {
+        "const": 1
+      },
+      "var": "branch"
+    }
+  ],
+  "invariants": [
+    {
+      "expr": {
+        "args": [
+          {
+            "cond": {
+              "args": [
+                {
+                  "const": 0
+                },
+                {
+                  "var": "sp_deposits"
+                }
+              ],
+              "op": "="
+            },
+            "else": {
+              "cond": {
+                "args": [
+                  {
+                    "var": "sp_deposits"
+                  },
+                  {
+                    "var": "debt"
+                  }
+                ],
+                "op": "<"
+              },
+              "else": {
+                "const": 2
+              },
+              "op": "ite",
+              "then": {
+                "const": 1
+              }
+            },
+            "op": "ite",
+            "then": {
+              "const": 0
+            }
+          },
+          {
+            "var": "branch"
+          }
+        ],
+        "op": "="
+      },
+      "id": "inv_branch_exact",
+      "kind": "safety"
+    },
+    {
+      "expr": {
+        "args": [
+          {
+            "args": [
+              {
+                "var": "collateral_to_redistribute"
+              },
+              {
+                "var": "collateral_to_sp"
+              }
+            ],
+            "op": "+"
+          },
+          {
+            "var": "collateral"
+          }
+        ],
+        "op": "="
+      },
+      "id": "inv_collateral_partition",
+      "kind": "safety"
+    },
+    {
+      "expr": {
+        "args": [
+          {
+            "args": [
+              {
+                "args": [
+                  {
+                    "var": "collateral"
+                  },
+                  {
+                    "var": "debt_to_offset"
+                  }
+                ],
+                "op": "*"
+              },
+              {
+                "var": "debt"
+              }
+            ],
+            "op": "div"
+          },
+          {
+            "var": "collateral_to_sp"
+          }
+        ],
+        "op": "="
+      },
+      "id": "inv_collateral_share_exact_floor",
+      "kind": "safety"
+    },
+    {
+      "expr": {
+        "args": [
+          {
+            "args": [
+              {
+                "var": "debt_to_offset"
+              },
+              {
+                "var": "debt_to_redistribute"
+              }
+            ],
+            "op": "+"
+          },
+          {
+            "var": "debt"
+          }
+        ],
+        "op": "="
+      },
+      "id": "inv_debt_partition",
+      "kind": "safety"
+    },
+    {
+      "expr": {
+        "args": [
+          {
+            "args": [
+              {
+                "var": "debt"
+              },
+              {
+                "var": "sp_deposits"
+              }
+            ],
+            "op": "min"
+          },
+          {
+            "var": "debt_to_offset"
+          }
+        ],
+        "op": "="
+      },
+      "id": "inv_offset_exact",
+      "kind": "safety"
+    }
+  ],
+  "ir_version": "esso-ir/v1",
+  "meta": {
+    "created_by": "zenodex",
+    "model_id": "liquity_v1_sp_offset_redistribution_bounded",
+    "notes": "Bounded reference projection of Liquity V1\nTroveManager._getOffsetAndRedistributionVals.\n\nGiven positive liquidated debt, post-gas-compensation collateral, and\nStability Pool deposits:\n  debt_to_offset = min(debt, sp_deposits)\n  collateral_to_sp = floor(collateral * debt_to_offset / debt)\n  the remaining debt and collateral are redistributed.\n\nBranches are exhaustive and disjoint:\n  0 = FullRedistribution (SP is empty)\n  1 = PartialOffsetAndRedistribution (0 < SP < debt)\n  2 = FullOffset (SP >= debt)\n\nSource pin:\n  liquity/dev@8f52f2906f99414c0b1c3a84c95c74c319b7a8c6\n  TroveManager._getOffsetAndRedistributionVals\n\nNon-claims:\n  - no liquidation eligibility or target selection;\n  - collateral input already excludes gas compensation;\n  - no per-recipient redistribution accumulator or rounding-error tracker;\n  - no runtime binding to current zUSD's full-SP-only liquidation.\n"
+  },
+  "observables": {
+    "effects": [
+      "debt_to_offset",
+      "collateral_to_sp",
+      "debt_to_redistribute",
+      "collateral_to_redistribute",
+      "branch"
+    ],
+    "state_vars": [
+      "debt",
+      "collateral",
+      "sp_deposits",
+      "debt_to_offset",
+      "collateral_to_sp",
+      "debt_to_redistribute",
+      "collateral_to_redistribute",
+      "branch"
+    ]
+  },
+  "state_vars": [
+    {
+      "id": "branch",
+      "role": "control",
+      "type": {
+        "kind": "int",
+        "max": 2,
+        "min": 0
+      }
+    },
+    {
+      "id": "collateral",
+      "role": "data",
+      "type": {
+        "kind": "int",
+        "max": 4,
+        "min": 0
+      }
+    },
+    {
+      "id": "collateral_to_redistribute",
+      "role": "data",
+      "type": {
+        "kind": "int",
+        "max": 4,
+        "min": 0
+      }
+    },
+    {
+      "id": "collateral_to_sp",
+      "role": "data",
+      "type": {
+        "kind": "int",
+        "max": 4,
+        "min": 0
+      }
+    },
+    {
+      "id": "debt",
+      "role": "data",
+      "type": {
+        "kind": "int",
+        "max": 4,
+        "min": 1
+      }
+    },
+    {
+      "id": "debt_to_offset",
+      "role": "data",
+      "type": {
+        "kind": "int",
+        "max": 4,
+        "min": 0
+      }
+    },
+    {
+      "id": "debt_to_redistribute",
+      "role": "data",
+      "type": {
+        "kind": "int",
+        "max": 4,
+        "min": 0
+      }
+    },
+    {
+      "id": "sp_deposits",
+      "role": "data",
+      "type": {
+        "kind": "int",
+        "max": 4,
+        "min": 0
+      }
+    }
+  ],
+  "types": []
+}

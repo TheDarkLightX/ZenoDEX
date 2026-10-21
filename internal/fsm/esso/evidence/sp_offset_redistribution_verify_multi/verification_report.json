@@ -1,0 +1,116 @@
+{
+  "model_id": "liquity_v1_sp_offset_redistribution_bounded",
+  "ir_hash": "7b505df182da9fbf",
+  "timestamp": "2026-07-16T09:47:25.200644+00:00",
+  "scope": {
+    "kind": "inductive",
+    "time": "unbounded",
+    "k": 1,
+    "solver_timeout_ms": 30000,
+    "solver_seed": 0,
+    "fail_closed": true,
+    "badge": "Inductive(k=1)",
+    "domain_caps": {
+      "state_vars": {
+        "branch": {
+          "kind": "int",
+          "min": 0,
+          "max": 2
+        },
+        "collateral": {
+          "kind": "int",
+          "min": 0,
+          "max": 4
+        },
+        "collateral_to_redistribute": {
+          "kind": "int",
+          "min": 0,
+          "max": 4
+        },
+        "collateral_to_sp": {
+          "kind": "int",
+          "min": 0,
+          "max": 4
+        },
+        "debt": {
+          "kind": "int",
+          "min": 1,
+          "max": 4
+        },
+        "debt_to_offset": {
+          "kind": "int",
+          "min": 0,
+          "max": 4
+        },
+        "debt_to_redistribute": {
+          "kind": "int",
+          "min": 0,
+          "max": 4
+        },
+        "sp_deposits": {
+          "kind": "int",
+          "min": 0,
+          "max": 4
+        }
+      },
+      "params": {
+        "partition_offset_and_redistribution": {
+          "new_collateral": {
+            "kind": "int",
+            "min": 0,
+            "max": 4
+          },
+          "new_debt": {
+            "kind": "int",
+            "min": 1,
+            "max": 4
+          },
+          "new_sp_deposits": {
+            "kind": "int",
+            "min": 0,
+            "max": 4
+          }
+        }
+      },
+      "log2_state_space_upper_bound": 17.51653107004533
+    }
+  },
+  "environment_model": {
+    "scheduler": "sequential",
+    "adversary": "may choose any declared command each step with any in-domain parameters",
+    "command_space": [
+      "partition_offset_and_redistribution"
+    ],
+    "notes": [
+      "No concurrency, reordering, or interleaving beyond repeated calls to step(state, command).",
+      "All behavior is defined by the ESSO kernel semantics (guards, simultaneous updates, canonicalizer, invariants)."
+    ]
+  },
+  "tool_versions": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "python": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]",
+    "platform": "Linux-6.17.0-35-generic-x86_64-with-glibc2.39",
+    "solvers": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    },
+    "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+    "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)"
+  },
+  "z3_passed": true,
+  "cvc5_available": true,
+  "cvc5_passed": true,
+  "solvers_agreed": true,
+  "total_queries": 2,
+  "passed_queries": 2,
+  "failed_queries": 0,
+  "inconclusive_queries": 0,
+  "disagreements": [],
+  "lean_path": null,
+  "kani_path": null,
+  "smtlib_path": "internal/fsm/esso/evidence/sp_offset_redistribution_verify_multi/smtlib",
+  "verdict": "VERIFIED",
+  "notes": [
+    "Cross-verified by Z3 and CVC5"
+  ]
+}

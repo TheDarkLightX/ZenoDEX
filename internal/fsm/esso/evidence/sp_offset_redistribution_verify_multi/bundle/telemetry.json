@@ -1,0 +1,44 @@
+{
+  "inductive_partition_offset_and_redistribution": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 42.14903601678088
+    },
+    "query": "inductive_partition_offset_and_redistribution",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 61.01863697404042
+    }
+  },
+  "init_implies_inv": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 13.23807699372992
+    },
+    "query": "init_implies_inv",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 13.564558990765363
+    }
+  }
+}

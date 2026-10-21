@@ -1,0 +1,149 @@
+{
+  "environment_model": {
+    "adversary": "may choose any declared command each step with any in-domain parameters",
+    "command_space": [
+      "partition_offset_and_redistribution"
+    ],
+    "notes": [
+      "No concurrency, reordering, or interleaving beyond repeated calls to step(state, command).",
+      "All behavior is defined by the ESSO kernel semantics (guards, simultaneous updates, canonicalizer, invariants)."
+    ],
+    "scheduler": "sequential"
+  },
+  "proofs": {},
+  "query_hashes": {
+    "inductive_partition_offset_and_redistribution": "db6c17c9c88008bb9f43259baef343f05f10d33e1db422736236638a904b786d",
+    "init_implies_inv": "5c1da7e1750e1279c809f1f683a91fc1bd103c4200dea5fbac046c524116991c"
+  },
+  "results": {
+    "inductive_partition_offset_and_redistribution": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_partition_offset_and_redistribution",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_partition_offset_and_redistribution",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_partition_offset_and_redistribution",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "init_implies_inv": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "init_implies_inv",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "init_implies_inv",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "init_implies_inv",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    }
+  },
+  "scope": {
+    "badge": "Inductive(k=1)",
+    "domain_caps": {
+      "log2_state_space_upper_bound": 17.51653107004533,
+      "params": {
+        "partition_offset_and_redistribution": {
+          "new_collateral": {
+            "kind": "int",
+            "max": 4,
+            "min": 0
+          },
+          "new_debt": {
+            "kind": "int",
+            "max": 4,
+            "min": 1
+          },
+          "new_sp_deposits": {
+            "kind": "int",
+            "max": 4,
+            "min": 0
+          }
+        }
+      },
+      "state_vars": {
+        "branch": {
+          "kind": "int",
+          "max": 2,
+          "min": 0
+        },
+        "collateral": {
+          "kind": "int",
+          "max": 4,
+          "min": 0
+        },
+        "collateral_to_redistribute": {
+          "kind": "int",
+          "max": 4,
+          "min": 0
+        },
+        "collateral_to_sp": {
+          "kind": "int",
+          "max": 4,
+          "min": 0
+        },
+        "debt": {
+          "kind": "int",
+          "max": 4,
+          "min": 1
+        },
+        "debt_to_offset": {
+          "kind": "int",
+          "max": 4,
+          "min": 0
+        },
+        "debt_to_redistribute": {
+          "kind": "int",
+          "max": 4,
+          "min": 0
+        },
+        "sp_deposits": {
+          "kind": "int",
+          "max": 4,
+          "min": 0
+        }
+      }
+    },
+    "fail_closed": true,
+    "k": 1,
+    "kind": "inductive",
+    "solver_seed": 0,
+    "solver_timeout_ms": 30000,
+    "time": "unbounded"
+  },
+  "solvers": [
+    "z3",
+    "cvc5"
+  ],
+  "timeout_ms": 30000,
+  "tool_versions": {
+    "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "platform": "Linux-6.17.0-35-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]",
+    "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)",
+    "solvers": {
+      "cvc5": "This is cvc5 version 1.1.2",
+      "z3": "4.15.4"
+    }
+  }
+}

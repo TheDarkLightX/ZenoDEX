@@ -1,0 +1,209 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "liquity_v1_sp_offset_redistribution_bounded"
+  created_by: "zenodex"
+  notes: |
+    Bounded reference projection of Liquity V1
+    TroveManager._getOffsetAndRedistributionVals.
+
+    Given positive liquidated debt, post-gas-compensation collateral, and
+    Stability Pool deposits:
+      debt_to_offset = min(debt, sp_deposits)
+      collateral_to_sp = floor(collateral * debt_to_offset / debt)
+      the remaining debt and collateral are redistributed.
+
+    Branches are exhaustive and disjoint:
+      0 = FullRedistribution (SP is empty)
+      1 = PartialOffsetAndRedistribution (0 < SP < debt)
+      2 = FullOffset (SP >= debt)
+
+    Source pin:
+      liquity/dev@8f52f2906f99414c0b1c3a84c95c74c319b7a8c6
+      TroveManager._getOffsetAndRedistributionVals
+
+    Non-claims:
+      - no liquidation eligibility or target selection;
+      - collateral input already excludes gas compensation;
+      - no per-recipient redistribution accumulator or rounding-error tracker;
+      - no runtime binding to current zUSD's full-SP-only liquidation.
+
+observables:
+  state_vars:
+    [
+      "debt",
+      "collateral",
+      "sp_deposits",
+      "debt_to_offset",
+      "collateral_to_sp",
+      "debt_to_redistribute",
+      "collateral_to_redistribute",
+      "branch",
+    ]
+  effects:
+    [
+      "debt_to_offset",
+      "collateral_to_sp",
+      "debt_to_redistribute",
+      "collateral_to_redistribute",
+      "branch",
+    ]
+
+types: []
+
+state_vars:
+  - id: "debt"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4 }
+  - id: "collateral"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "sp_deposits"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "debt_to_offset"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "collateral_to_sp"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "debt_to_redistribute"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "collateral_to_redistribute"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "branch"
+    role: "control"
+    type: { kind: "int", min: 0, max: 2 }
+
+init:
+  - var: "debt"
+    expr: { const: 2 }
+  - var: "collateral"
+    expr: { const: 3 }
+  - var: "sp_deposits"
+    expr: { const: 1 }
+  - var: "debt_to_offset"
+    expr: { const: 1 }
+  - var: "collateral_to_sp"
+    expr: { const: 1 }
+  - var: "debt_to_redistribute"
+    expr: { const: 1 }
+  - var: "collateral_to_redistribute"
+    expr: { const: 2 }
+  - var: "branch"
+    expr: { const: 1 }
+
+invariants:
+  - id: "inv_debt_partition"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { op: "+", args: [{ var: "debt_to_offset" }, { var: "debt_to_redistribute" }] }
+        - { var: "debt" }
+
+  - id: "inv_collateral_partition"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { op: "+", args: [{ var: "collateral_to_sp" }, { var: "collateral_to_redistribute" }] }
+        - { var: "collateral" }
+
+  - id: "inv_offset_exact"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "debt_to_offset" }
+        - { op: "min", args: [{ var: "debt" }, { var: "sp_deposits" }] }
+
+  - id: "inv_collateral_share_exact_floor"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "collateral_to_sp" }
+        - op: "div"
+          args:
+            - { op: "*", args: [{ var: "collateral" }, { var: "debt_to_offset" }] }
+            - { var: "debt" }
+
+  - id: "inv_branch_exact"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "branch" }
+        - op: "ite"
+          cond: { op: "=", args: [{ var: "sp_deposits" }, { const: 0 }] }
+          then: { const: 0 }
+          else:
+            op: "ite"
+            cond: { op: "<", args: [{ var: "sp_deposits" }, { var: "debt" }] }
+            then: { const: 1 }
+            else: { const: 2 }
+
+actions:
+  - id: "partition_offset_and_redistribution"
+    params:
+      - id: "new_debt"
+        type: { kind: "int", min: 1, max: 4 }
+      - id: "new_collateral"
+        type: { kind: "int", min: 0, max: 4 }
+      - id: "new_sp_deposits"
+        type: { kind: "int", min: 0, max: 4 }
+    guard: { bool: true }
+    updates:
+      - var: "debt"
+        expr: { param: "new_debt" }
+      - var: "collateral"
+        expr: { param: "new_collateral" }
+      - var: "sp_deposits"
+        expr: { param: "new_sp_deposits" }
+      - var: "debt_to_offset"
+        expr: { op: "min", args: [{ param: "new_debt" }, { param: "new_sp_deposits" }] }
+      - var: "collateral_to_sp"
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - { param: "new_collateral" }
+                - { op: "min", args: [{ param: "new_debt" }, { param: "new_sp_deposits" }] }
+            - { param: "new_debt" }
+      - var: "debt_to_redistribute"
+        expr:
+          op: "-"
+          args:
+            - { param: "new_debt" }
+            - { op: "min", args: [{ param: "new_debt" }, { param: "new_sp_deposits" }] }
+      - var: "collateral_to_redistribute"
+        expr:
+          op: "-"
+          args:
+            - { param: "new_collateral" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { param: "new_collateral" }
+                    - { op: "min", args: [{ param: "new_debt" }, { param: "new_sp_deposits" }] }
+                - { param: "new_debt" }
+      - var: "branch"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "new_sp_deposits" }, { const: 0 }] }
+          then: { const: 0 }
+          else:
+            op: "ite"
+            cond: { op: "<", args: [{ param: "new_sp_deposits" }, { param: "new_debt" }] }
+            then: { const: 1 }
+            else: { const: 2 }
+    effects:
+      debt_to_offset: { var: "debt_to_offset" }
+      collateral_to_sp: { var: "collateral_to_sp" }
+      debt_to_redistribute: { var: "debt_to_redistribute" }
+      collateral_to_redistribute: { var: "collateral_to_redistribute" }
+      branch: { var: "branch" }
