@@ -661,14 +661,15 @@ impl PerpsStateV1 {
                 "deposit collateral asset mismatch",
             ));
         }
-        if self.collateral_asset == default_zusd_asset() {
-            let Some(binding) = collateral_binding.as_ref() else {
-                return Err(TransitionError::InvalidInput(
-                    "zUSD collateral binding missing",
-                ));
-            };
-            validate_collateral_binding(binding)?;
-        }
+        // DbC: every collateral increase must be hash-bound to an external
+        // source proof before recursive aggregation may conserve it. Without
+        // this, a lone recursive child can pass aggregate conservation via a
+        // self-balanced ordinary asset row and inflate collateral with no
+        // external source proof.
+        let Some(binding) = collateral_binding.as_ref() else {
+            return Err(TransitionError::InvalidInput("collateral binding missing"));
+        };
+        validate_collateral_binding(binding)?;
         let mut account = self
             .accounts
             .get(&pubkey)
@@ -2261,21 +2262,20 @@ fn perps_collateral_deposit_binding_hash_v1(
     nonce: u64,
     binding: Option<&CollateralBindingV1>,
 ) -> Result<[u8; 32], TransitionError> {
-    if asset == default_zusd_asset() && binding.is_none() {
-        return Err(TransitionError::InvalidInput(
-            "zUSD collateral binding missing",
-        ));
-    }
-    if let Some(binding) = binding {
-        validate_collateral_binding(binding)?;
-    }
+    // Every collateral deposit must be hash-bound to a validated external
+    // source proof, regardless of asset. A missing binding must never hash to
+    // a value that recursive aggregation could later conserve.
+    let Some(binding) = binding else {
+        return Err(TransitionError::InvalidInput("collateral binding missing"));
+    };
+    validate_collateral_binding(binding)?;
     let mut hasher = Sha256::new();
     hasher.update(b"zenodex.perps_np.collateral_deposit_binding.v1:");
     write_str(&mut hasher, pubkey);
     write_str(&mut hasher, asset);
     write_i128(&mut hasher, amount_e8);
     write_u64(&mut hasher, nonce);
-    hash_optional_collateral_binding(&mut hasher, binding);
+    hash_optional_collateral_binding(&mut hasher, Some(binding));
     Ok(hasher.finalize().into())
 }
 
@@ -2711,10 +2711,148 @@ mod tests {
         };
         assert!(matches!(
             execute_perps_np_transition_v1(input),
-            Err(TransitionError::InvalidInput(
-                "zUSD collateral binding missing"
-            ))
+            Err(TransitionError::InvalidInput("collateral binding missing"))
         ));
+    }
+
+    #[test]
+    fn perps_np_rejects_non_zusd_deposit_without_source_binding() {
+        let actions = alloc::vec![
+            PerpsNpActionV1::InitMarket {
+                market_id: "BTC-PERP".to_string(),
+                collateral_asset: "USDC".to_string(),
+                index_price_e8: 100 * E8_I128,
+                params: PerpsMarketParamsV1::default(),
+                insurance_seed_e8: 0,
+            },
+            PerpsNpActionV1::DepositCollateral {
+                pubkey: "wallet-a".to_string(),
+                asset: "USDC".to_string(),
+                amount_e8: 2_000 * E8_I128,
+                nonce: 1,
+                collateral_binding: None,
+            },
+        ];
+        let input = PerpsNpTransitionInputV1 {
+            state_hash: H,
+            chain_id: "devnet".to_string(),
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: PerpsNpSnapshotV1::empty(),
+            actions,
+            expected_post_app_hash: [0u8; 32],
+            risc0_image_id: IMAGE_ID,
+        };
+        assert!(matches!(
+            execute_perps_np_transition_v1(input),
+            Err(TransitionError::InvalidInput("collateral binding missing"))
+        ));
+    }
+
+    /// Formal property test (deterministic exhaustive enumeration over the
+    /// bounded `asset x binding-shape` space) for the invariant:
+    ///
+    ///   forall collateral_asset in {zUSD, USDC},
+    ///     collateral_binding = None
+    ///       => deposit_collateral rejects with "collateral binding missing"
+    ///     collateral_binding = Some(invalid shape)
+    ///       => deposit_collateral rejects with the corresponding validate error
+    ///     collateral_binding = Some(valid)
+    ///       => deposit_collateral is NOT rejected on binding grounds
+    ///
+    /// This is the property form of the fix: no collateral asset escapes the
+    /// hash-bound external source proof requirement, so no self-balanced
+    /// ordinary asset row can be admitted into recursive aggregation without
+    /// an external reference.
+    #[test]
+    fn perps_np_deposit_collateral_binding_guard_is_total_over_asset_space() {
+        let assets = [default_zusd_asset(), "USDC".to_string()];
+        // (label, binding, expected rejection tag or None for accept)
+        enum Expect {
+            Missing,
+            WrongProofType,
+            MalformedHash,
+            AcceptOnBinding,
+        }
+        let cases: [(&str, Option<CollateralBindingV1>, Expect); 4] = [
+            ("none", None, Expect::Missing),
+            (
+                "wrong-proof-type",
+                Some(CollateralBindingV1 {
+                    source_proof_type: "risc0.bogus".to_string(),
+                    source_state_hash: "aa".repeat(32),
+                    balance_root_hash: "bb".repeat(32),
+                    balance_delta_hash: "cc".repeat(32),
+                }),
+                Expect::WrongProofType,
+            ),
+            (
+                "malformed-hash",
+                Some(CollateralBindingV1 {
+                    source_proof_type: PROOF_TYPE_ZUSD.to_string(),
+                    source_state_hash: "zz".to_string(),
+                    balance_root_hash: "bb".repeat(32),
+                    balance_delta_hash: "cc".repeat(32),
+                }),
+                Expect::MalformedHash,
+            ),
+            (
+                "valid",
+                Some(collateral_binding(7)),
+                Expect::AcceptOnBinding,
+            ),
+        ];
+
+        for asset in &assets {
+            for (label, binding, expect) in &cases {
+                let mut state = PerpsStateV1::from_snapshot(PerpsNpSnapshotV1::empty()).unwrap();
+                state
+                    .init_market(
+                        "BTC-PERP".to_string(),
+                        asset.clone(),
+                        100 * E8_I128,
+                        PerpsMarketParamsV1::default(),
+                        0,
+                    )
+                    .unwrap();
+                let res = state.deposit_collateral(
+                    "wallet-a".to_string(),
+                    asset.clone(),
+                    2_000 * E8_I128,
+                    1,
+                    binding.clone(),
+                );
+                match expect {
+                    Expect::Missing => assert!(
+                        matches!(
+                            res,
+                            Err(TransitionError::InvalidInput("collateral binding missing"))
+                        ),
+                        "asset={asset} binding={label}: expected 'collateral binding missing'"
+                    ),
+                    Expect::WrongProofType => assert!(
+                        matches!(
+                            res,
+                            Err(TransitionError::InvalidInput(
+                                "collateral source proof type mismatch"
+                            ))
+                        ),
+                        "asset={asset} binding={label}: expected proof-type mismatch"
+                    ),
+                    Expect::MalformedHash => assert!(
+                        matches!(
+                            res,
+                            Err(TransitionError::InvalidInput("expected 32-byte hex text"))
+                        ),
+                        "asset={asset} binding={label}: expected malformed hash rejection"
+                    ),
+                    Expect::AcceptOnBinding => assert!(
+                        res.is_ok(),
+                        "asset={asset} binding={label}: valid binding must be accepted on binding grounds, got {res:?}"
+                    ),
+                }
+            }
+        }
     }
 
     #[test]
