@@ -1,0 +1,129 @@
+name: zenodex-math-frontier
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/zenodex-math-frontier.yml"
+      - "lean-mathlib/Proofs/ZenoDEXExactOutDualCertificate.lean"
+      - "lean-mathlib/Proofs/CommitRevealIncentiveCompatibilityBoundary.lean"
+      - "tests/formal/test_lean_zenodex_exact_out_dual_certificate.py"
+      - "tests/formal/test_lean_commit_reveal_incentive_compatibility_boundary.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zenodex-math-frontier-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lean:
+    name: Lean theorem packets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout ZenoDEX
+        uses: actions/checkout@v4
+
+      - name: Install elan and pinned Lean
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install leanprover/lean4:v4.27.0
+
+      - name: Checkout pinned mathlib
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v4.27.0 \
+            https://github.com/leanprover-community/mathlib4.git \
+            external/mathlib4
+
+      - name: Restore mathlib cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.elan/bin:$PATH"
+          cd external/mathlib4
+          lake exe cache get >/dev/null
+
+      - name: Compile exact-out dual certificate
+        id: exact_out
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="$HOME/.elan/bin:$PATH"
+          root="$PWD"
+          mkdir -p "$root/ci-logs"
+          cd lean-mathlib
+          set +e
+          lake env lean Proofs/ZenoDEXExactOutDualCertificate.lean \
+            >"$root/ci-logs/exact-out.log" 2>&1
+          code=$?
+          set -e
+          printf '%s\n' "$code" >"$root/ci-logs/exact-out.exit"
+          cat "$root/ci-logs/exact-out.log"
+          exit "$code"
+
+      - name: Compile commit-reveal boundary
+        id: commit_reveal
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="$HOME/.elan/bin:$PATH"
+          root="$PWD"
+          mkdir -p "$root/ci-logs"
+          cd lean-mathlib
+          set +e
+          lake env lean Proofs/CommitRevealIncentiveCompatibilityBoundary.lean \
+            >"$root/ci-logs/commit-reveal.log" 2>&1
+          code=$?
+          set -e
+          printf '%s\n' "$code" >"$root/ci-logs/commit-reveal.exit"
+          cat "$root/ci-logs/commit-reveal.log"
+          exit "$code"
+
+      - name: Run focused formal tests
+        id: formal_tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="$HOME/.elan/bin:$PATH"
+          mkdir -p ci-logs
+          python3 -m pip install --disable-pip-version-check pytest >/dev/null
+          set +e
+          python3 -m pytest -q \
+            tests/formal/test_lean_zenodex_exact_out_dual_certificate.py \
+            tests/formal/test_lean_commit_reveal_incentive_compatibility_boundary.py \
+            >ci-logs/formal-tests.log 2>&1
+          code=$?
+          set -e
+          printf '%s\n' "$code" >ci-logs/formal-tests.exit
+          cat ci-logs/formal-tests.log
+          exit "$code"
+
+      - name: Upload exact compiler evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenodex-math-frontier-logs-${{ github.sha }}
+          path: ci-logs
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce all formal results
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat ci-logs/exact-out.exit)" = "0"
+          test "$(cat ci-logs/commit-reveal.exit)" = "0"
+          test "$(cat ci-logs/formal-tests.exit)" = "0"
