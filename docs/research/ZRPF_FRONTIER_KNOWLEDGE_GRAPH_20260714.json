@@ -1,0 +1,4095 @@
+{
+  "contradictions": [],
+  "frontier": [
+    {
+      "atom_id": "h_level_ladder",
+      "content": "Generate a finite level-specific aggregate-image ladder whose level k image pins level k-1, and bind the complete ladder into a signed manifest.",
+      "next_action": "retrieve similar failures and decide whether to refine, refute, or promote",
+      "priority": 3.6,
+      "status": "TESTABLE",
+      "tags": [
+        "force-multiplier",
+        "selected"
+      ],
+      "type": "HYPOTHESIS"
+    },
+    {
+      "atom_id": "h_backend_adapter_lab",
+      "content": "Create an authority-free backend adapter laboratory that differentially benchmarks STIR, WHIR, BaseFold/DeepFold, Jagged PCS, Binius-family, and Circle-STARK candidates against the pinned ZRPF statement ABI and assumption profile.",
+      "next_action": "attach evidence and run refutation search before promotion",
+      "priority": 3.6,
+      "status": "CANDIDATE",
+      "tags": [
+        "authority-free",
+        "backlog",
+        "frontier"
+      ],
+      "type": "HYPOTHESIS"
+    },
+    {
+      "atom_id": "q_force_multipliers",
+      "content": "Which force multipliers can increase ZRPF scale or assurance while preserving fail-closed authority?",
+      "next_action": "morph into testable hypotheses",
+      "priority": 3.4,
+      "status": "TESTABLE",
+      "tags": [
+        "frontier",
+        "zrpf"
+      ],
+      "type": "QUESTION"
+    },
+    {
+      "atom_id": "h_soundness_ledger",
+      "content": "Make an executable, source-digested soundness ledger an admission prerequisite, with separate proven and conjectured modes and an exact union-bound event budget.",
+      "next_action": "retrieve similar failures and decide whether to refine, refute, or promote",
+      "priority": 3.4,
+      "status": "TESTABLE",
+      "tags": [
+        "force-multiplier",
+        "selected"
+      ],
+      "type": "HYPOTHESIS"
+    },
+    {
+      "atom_id": "h_formal_verifier_bridge",
+      "content": "Extend the existing Lean layer toward a digest-pinned formal bridge for the receipt verifier and soundness-envelope algebra, while treating the external zkVM implementation as an explicit trusted boundary until refinement is proved.",
+      "next_action": "attach evidence and run refutation search before promotion",
+      "priority": 3.4,
+      "status": "CANDIDATE",
+      "tags": [
+        "authority-free",
+        "backlog",
+        "frontier"
+      ],
+      "type": "HYPOTHESIS"
+    },
+    {
+      "atom_id": "h_distributed_pcs_lab",
+      "content": "Evaluate distributed transparent PCS candidates only behind a fault-injected benchmark lane; first distribute the existing deterministic proof DAG before replacing the pinned proof system.",
+      "next_action": "attach evidence and run refutation search before promotion",
+      "priority": 3.35,
+      "status": "CANDIDATE",
+      "tags": [
+        "authority-free",
+        "backlog",
+        "frontier"
+      ],
+      "type": "HYPOTHESIS"
+    },
+    {
+      "atom_id": "h_base8_forest",
+      "content": "Prototype an append-only base-8 carry forest that holds O(log n) live receipts and finalizes through the finite level-specific image ladder.",
+      "next_action": "attach evidence and run refutation search before promotion",
+      "priority": 3.35,
+      "status": "CANDIDATE",
+      "tags": [
+        "backlog",
+        "force-multiplier"
+      ],
+      "type": "HYPOTHESIS"
+    },
+    {
+      "atom_id": "h_folding_lab",
+      "content": "Keep Nova-family and post-quantum folding schemes in an authority-free research lane until their commitment assumptions, recursion security definition, and statement semantics match ZRPF policy.",
+      "next_action": "attach evidence and run refutation search before promotion",
+      "priority": 3.25,
+      "status": "CANDIDATE",
+      "tags": [
+        "authority-free",
+        "backlog",
+        "frontier"
+      ],
+      "type": "HYPOTHESIS"
+    },
+    {
+      "atom_id": "h_streaming_retention",
+      "content": "Resolve groups incrementally and tier or discard intermediate receipts after parent proof, while retaining the authenticated root and audit/DA indexes required by policy.",
+      "next_action": "attach evidence and run refutation search before promotion",
+      "priority": 3.2,
+      "status": "CANDIDATE",
+      "tags": [
+        "backlog",
+        "force-multiplier"
+      ],
+      "type": "HYPOTHESIS"
+    },
+    {
+      "atom_id": "h_metamorphic_corpus",
+      "content": "Add a ZRPF-specific metamorphic and fault-injection corpus spanning guest semantics, receipts, journals, image IDs, levels, ordering, profiles, and assumptions.",
+      "next_action": "attach evidence and run refutation search before promotion",
+      "priority": 3.2,
+      "status": "CANDIDATE",
+      "tags": [
+        "backlog",
+        "force-multiplier"
+      ],
+      "type": "HYPOTHESIS"
+    }
+  ],
+  "graph": {
+    "atoms": [
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Use a deterministic proof-DAG scheduler with content-addressed node keys, idempotent retries, worker capability attestations, and a receipt cache.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:e977ef37e68c4533b8cad883522577b1afe19f9f7e5d59411ebddeebae5eaa7a",
+        "id": "h_dag_scheduler",
+        "importance_score": 0.95,
+        "metadata": {
+          "falsification_tests": [
+            "same root across worker counts",
+            "crash/restart",
+            "cache-key collision corpus",
+            "backpressure"
+          ],
+          "selected_for_pr": false
+        },
+        "normalized_content": "use a deterministic proof-dag scheduler with content-addressed node keys, idempotent retries, worker capability attestations, and a receipt cache.",
+        "novelty_score": 0.65,
+        "parent_ids": [
+          "c_repeated_join",
+          "h_level_ladder"
+        ],
+        "refutability_score": 0.95,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://github.com/TheDarkLightX/ZenoDEX"
+        ],
+        "status": "CANDIDATE",
+        "tags": [
+          "backlog",
+          "force-multiplier"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.35,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Resolve groups incrementally and tier or discard intermediate receipts after parent proof, while retaining the authenticated root and audit/DA indexes required by policy.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:3fb610cc28eded5c436b410b854928f494d88bcb82bd38292134558ce3b773f8",
+        "id": "h_streaming_retention",
+        "importance_score": 0.95,
+        "metadata": {
+          "falsification_tests": [
+            "peak disk and RSS",
+            "audit recovery",
+            "DA outage",
+            "retention-policy downgrade rejects"
+          ],
+          "selected_for_pr": false
+        },
+        "normalized_content": "resolve groups incrementally and tier or discard intermediate receipts after parent proof, while retaining the authenticated root and audit/da indexes required by policy.",
+        "novelty_score": 0.7,
+        "parent_ids": [
+          "c_storage_pressure",
+          "h_level_ladder"
+        ],
+        "refutability_score": 0.95,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://github.com/TheDarkLightX/ZenoDEX"
+        ],
+        "status": "CANDIDATE",
+        "tags": [
+          "backlog",
+          "force-multiplier"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.3,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Probe and attest the actual prover backend, accelerator path, binary/source digest, and measured throughput instead of inferring acceleration from the host OS or documentation.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:757dd2c9dc0830f0d86d81713f132a254f0262f54f2f430782ac85d312253108",
+        "id": "h_capability_attestation",
+        "importance_score": 0.9,
+        "metadata": {
+          "falsification_tests": [
+            "forced CPU fallback",
+            "version mismatch",
+            "feature mismatch",
+            "attestation replay"
+          ],
+          "selected_for_pr": false
+        },
+        "normalized_content": "probe and attest the actual prover backend, accelerator path, binary/source digest, and measured throughput instead of inferring acceleration from the host os or documentation.",
+        "novelty_score": 0.6,
+        "parent_ids": [
+          "c_union_budget"
+        ],
+        "refutability_score": 0.95,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://github.com/TheDarkLightX/ZenoDEX"
+        ],
+        "status": "CANDIDATE",
+        "tags": [
+          "backlog",
+          "force-multiplier"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.2,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Add a ZRPF-specific metamorphic and fault-injection corpus spanning guest semantics, receipts, journals, image IDs, levels, ordering, profiles, and assumptions.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:dade234e1cde8175f8f658469eeff413783a3f345e72f571019f346b8c1a2aee",
+        "id": "h_metamorphic_corpus",
+        "importance_score": 0.9,
+        "metadata": {
+          "falsification_tests": [
+            "semantic-equivalence oracle",
+            "mutation-kill rate",
+            "sealed verifier separation",
+            "fresh seeds"
+          ],
+          "selected_for_pr": false
+        },
+        "normalized_content": "add a zrpf-specific metamorphic and fault-injection corpus spanning guest semantics, receipts, journals, image ids, levels, ordering, profiles, and assumptions.",
+        "novelty_score": 0.7,
+        "parent_ids": [
+          "c_fault_testing",
+          "c_union_budget"
+        ],
+        "refutability_score": 0.95,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://github.com/TheDarkLightX/ZenoDEX"
+        ],
+        "status": "CANDIDATE",
+        "tags": [
+          "backlog",
+          "force-multiplier"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.35,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Calibrate segment size, fanout, accelerator, and memory profiles while requiring every profile to authenticate the same semantic statement and carry its own soundness budget.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:0e70ab62195af60b0c47335ccb8d368179fe78acf5829ac8b3f69cc603b1bbaf",
+        "id": "h_elastic_profiles",
+        "importance_score": 0.75,
+        "metadata": {
+          "falsification_tests": [
+            "cross-profile root equality",
+            "resource exhaustion",
+            "soundness recalculation",
+            "cold/warm benchmarks"
+          ],
+          "selected_for_pr": false
+        },
+        "normalized_content": "calibrate segment size, fanout, accelerator, and memory profiles while requiring every profile to authenticate the same semantic statement and carry its own soundness budget.",
+        "novelty_score": 0.55,
+        "parent_ids": [
+          "c_union_budget",
+          "h_capability_attestation"
+        ],
+        "refutability_score": 0.95,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://github.com/TheDarkLightX/ZenoDEX"
+        ],
+        "status": "CANDIDATE",
+        "tags": [
+          "backlog",
+          "force-multiplier"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.45,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Prototype an append-only base-8 carry forest that holds O(log n) live receipts and finalizes through the finite level-specific image ladder.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:d3760077a825bacda173e4e77303cc42a3afa61606cd3630fda43e37878ef2b4",
+        "id": "h_base8_forest",
+        "importance_score": 0.65,
+        "metadata": {
+          "falsification_tests": [
+            "prefix consistency",
+            "carry boundaries",
+            "partial-finalization ambiguity",
+            "restart recovery"
+          ],
+          "selected_for_pr": false
+        },
+        "normalized_content": "prototype an append-only base-8 carry forest that holds o(log n) live receipts and finalizes through the finite level-specific image ladder.",
+        "novelty_score": 0.8,
+        "parent_ids": [
+          "h_level_ladder",
+          "h_streaming_retention"
+        ],
+        "refutability_score": 0.95,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://github.com/TheDarkLightX/ZenoDEX"
+        ],
+        "status": "CANDIDATE",
+        "tags": [
+          "backlog",
+          "force-multiplier"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.65,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Turn into assumptions, guarantees, reject cases, and proof obligations: h_level_ladder",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:dd2438b5a224daa95243694e46a63b8b87b1b507a0f606f65d768c9616f7c71f",
+        "id": "atom_b550fa679fdf4558",
+        "importance_score": 0.63,
+        "metadata": {
+          "relation_to_original": "speculative",
+          "risk": "may change problem meaning"
+        },
+        "normalized_content": "turn into assumptions, guarantees, reject cases, and proof obligations: h_level_ladder",
+        "novelty_score": 0.6,
+        "parent_ids": [],
+        "refutability_score": 0.7,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "formal_spec",
+          "morph"
+        ],
+        "type": "REFORMULATION",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Generate the smallest witness that falsifies: h_level_ladder",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:da215b84ceaa1cf03d50a8a060397df78a09f397722bbe47b537f367308dc8d1",
+        "id": "atom_2cda606c70ce4d86",
+        "importance_score": 0.66,
+        "metadata": {
+          "relation_to_original": "speculative",
+          "risk": "may change problem meaning"
+        },
+        "normalized_content": "generate the smallest witness that falsifies: h_level_ladder",
+        "novelty_score": 0.6,
+        "parent_ids": [],
+        "refutability_score": 0.7,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "counterexample_search",
+          "morph"
+        ],
+        "type": "REFORMULATION",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "List code-level obligations required to make this true: h_level_ladder",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:7c0b0a26f15ef3ff4983e5afb47122a0bb08b109f9f48bc4185e54bf7f4dad35",
+        "id": "atom_a58ad557b9f6425a",
+        "importance_score": 0.61,
+        "metadata": {
+          "relation_to_original": "speculative",
+          "risk": "may change problem meaning"
+        },
+        "normalized_content": "list code-level obligations required to make this true: h_level_ladder",
+        "novelty_score": 0.6,
+        "parent_ids": [],
+        "refutability_score": 0.7,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "implementation_obligation",
+          "morph"
+        ],
+        "type": "REFORMULATION",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Enumerate adversarial ways this could fail: h_level_ladder",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:8bc4162a60688e1aca52c79a701dcd9c0d51672f8dedead46cf4ef19c19afb4c",
+        "id": "atom_406ce42bb3a848d5",
+        "importance_score": 0.64,
+        "metadata": {
+          "relation_to_original": "speculative",
+          "risk": "may change problem meaning"
+        },
+        "normalized_content": "enumerate adversarial ways this could fail: h_level_ladder",
+        "novelty_score": 0.6,
+        "parent_ids": [],
+        "refutability_score": 0.7,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "attack_surface",
+          "morph"
+        ],
+        "type": "REFORMULATION",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Turn into assumptions, guarantees, reject cases, and proof obligations: h_soundness_ledger",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:afae96dcd391ae168019c25fcf51a219e92cab87847d657fbce6108906e82da6",
+        "id": "atom_fc4963c56f32432e",
+        "importance_score": 0.63,
+        "metadata": {
+          "relation_to_original": "speculative",
+          "risk": "may change problem meaning"
+        },
+        "normalized_content": "turn into assumptions, guarantees, reject cases, and proof obligations: h_soundness_ledger",
+        "novelty_score": 0.6,
+        "parent_ids": [],
+        "refutability_score": 0.7,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "formal_spec",
+          "morph"
+        ],
+        "type": "REFORMULATION",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Generate the smallest witness that falsifies: h_soundness_ledger",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:c1e0f4ad88b6bf9f936ed2aa46626c2d73bffffcb57967cb08553ef8e2b8019d",
+        "id": "atom_45ed18eb68ce4eff",
+        "importance_score": 0.66,
+        "metadata": {
+          "relation_to_original": "speculative",
+          "risk": "may change problem meaning"
+        },
+        "normalized_content": "generate the smallest witness that falsifies: h_soundness_ledger",
+        "novelty_score": 0.6,
+        "parent_ids": [],
+        "refutability_score": 0.7,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "counterexample_search",
+          "morph"
+        ],
+        "type": "REFORMULATION",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "List code-level obligations required to make this true: h_soundness_ledger",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:ec8d1440c1f579f4974d8a15cdad6fa71df8688227258f3de70ec38c39729fe2",
+        "id": "atom_ea8726ca08cb413e",
+        "importance_score": 0.61,
+        "metadata": {
+          "relation_to_original": "speculative",
+          "risk": "may change problem meaning"
+        },
+        "normalized_content": "list code-level obligations required to make this true: h_soundness_ledger",
+        "novelty_score": 0.6,
+        "parent_ids": [],
+        "refutability_score": 0.7,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "implementation_obligation",
+          "morph"
+        ],
+        "type": "REFORMULATION",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Enumerate adversarial ways this could fail: h_soundness_ledger",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:d2ca33103d06cc67baa71385a3597317bee9fbd169c5c40cd9273fd84af3b89b",
+        "id": "atom_0332418d61fb4b1c",
+        "importance_score": 0.64,
+        "metadata": {
+          "relation_to_original": "speculative",
+          "risk": "may change problem meaning"
+        },
+        "normalized_content": "enumerate adversarial ways this could fail: h_soundness_ledger",
+        "novelty_score": 0.6,
+        "parent_ids": [],
+        "refutability_score": 0.7,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "attack_surface",
+          "morph"
+        ],
+        "type": "REFORMULATION",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "The current common ZRPF profile's 64-leaf ceiling is a profile and evidence ceiling, not a RISC Zero recursion primitive ceiling.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:e70cca8bc827f129980b2bfc80bb2282d15f375143665113b7d76833011ecd54",
+        "id": "c_policy_ceiling",
+        "importance_score": 0.95,
+        "metadata": {},
+        "normalized_content": "the current common zrpf profile's 64-leaf ceiling is a profile and evidence ceiling, not a risc zero recursion primitive ceiling.",
+        "novelty_score": 0.7,
+        "parent_ids": [
+          "q_force_multipliers"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://github.com/TheDarkLightX/ZenoDEX/blob/main/docs/ZENO_RECURSIVE_PROOF_FABRIC_ARCHITECTURE_SPEC_20260710.md"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "grounding",
+          "primary-source"
+        ],
+        "type": "CLAIM",
+        "uncertainty_score": 0.3,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "RISC Zero Succinct receipts can be repeatedly joined and resolved, so recursive composition can have logarithmic critical-path depth under parallel scheduling.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:860b02af32be171944cd12254a9ed7b4b7a596c5d9f0c34fd7f22ed5bfd386af",
+        "id": "c_repeated_join",
+        "importance_score": 0.95,
+        "metadata": {},
+        "normalized_content": "risc zero succinct receipts can be repeatedly joined and resolved, so recursive composition can have logarithmic critical-path depth under parallel scheduling.",
+        "novelty_score": 0.7,
+        "parent_ids": [
+          "q_force_multipliers"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://dev.risczero.com/api/recursion"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "grounding",
+          "primary-source"
+        ],
+        "type": "CLAIM",
+        "uncertainty_score": 0.3,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "An end-to-end ZRPF soundness claim must account for the number and class of proof-verification events; taking the minimum component bit claim is not a compositional bound.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:5bbcccd982a0d25dd0d87162cee2a817a7f00a443ef49f34ebe8738e0a616e79",
+        "id": "c_union_budget",
+        "importance_score": 0.95,
+        "metadata": {},
+        "normalized_content": "an end-to-end zrpf soundness claim must account for the number and class of proof-verification events; taking the minimum component bit claim is not a compositional bound.",
+        "novelty_score": 0.7,
+        "parent_ids": [
+          "q_force_multipliers"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://github.com/risc0/risc0/blob/main/risc0/zkp/src/prove/soundness.rs"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "grounding",
+          "primary-source"
+        ],
+        "type": "CLAIM",
+        "uncertainty_score": 0.3,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "ZRPF must distinguish proven, coding-conjecture, and Toy-Problem security modes instead of presenting one undifferentiated security_level_bits value.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:1aeafacc14320e73be64976ad89636b455f3a05d49758f95f795c8295d6c5beb",
+        "id": "c_conjecture_gap",
+        "importance_score": 0.95,
+        "metadata": {},
+        "normalized_content": "zrpf must distinguish proven, coding-conjecture, and toy-problem security modes instead of presenting one undifferentiated security_level_bits value.",
+        "novelty_score": 0.7,
+        "parent_ids": [
+          "q_force_multipliers"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://dev.risczero.com/api/security-model"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "grounding",
+          "primary-source"
+        ],
+        "type": "CLAIM",
+        "uncertainty_score": 0.3,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "The assumption ledger must name exact conjectures and versions because recent work refutes several up-to-capacity proximity-gap formulations relevant to FRI-family analyses.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:22d2909e066c85ed36d148bf4dba38d764290cf606fddc15dcec7744342914db",
+        "id": "c_conjecture_change",
+        "importance_score": 0.95,
+        "metadata": {},
+        "normalized_content": "the assumption ledger must name exact conjectures and versions because recent work refutes several up-to-capacity proximity-gap formulations relevant to fri-family analyses.",
+        "novelty_score": 0.7,
+        "parent_ids": [
+          "q_force_multipliers"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2025/2046"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "grounding",
+          "primary-source"
+        ],
+        "type": "CLAIM",
+        "uncertainty_score": 0.3,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "At fanout 8 and depth 7 a full tree has 2,097,152 leaves and 2,396,745 total nodes, so persisting every intermediate receipt is a first-order storage and availability problem.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:e96840d9a9ced1ef7c85a39bf9499bf368a5547c1c543aa211ef0bd7576f75d3",
+        "id": "c_storage_pressure",
+        "importance_score": 0.95,
+        "metadata": {},
+        "normalized_content": "at fanout 8 and depth 7 a full tree has 2,097,152 leaves and 2,396,745 total nodes, so persisting every intermediate receipt is a first-order storage and availability problem.",
+        "novelty_score": 0.7,
+        "parent_ids": [
+          "q_force_multipliers"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://dev.risczero.com/api/recursion"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "grounding",
+          "primary-source"
+        ],
+        "type": "CLAIM",
+        "uncertainty_score": 0.3,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Semantics-aware, mutation-based zkVM testing is a credible assurance force multiplier and should complement, not substitute for, cryptographic proofs and formal verification.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:c0b10d5a5a6407f1902bada0c9f66ac11950506325e2621b447145aac7fbfff3",
+        "id": "c_fault_testing",
+        "importance_score": 0.95,
+        "metadata": {},
+        "normalized_content": "semantics-aware, mutation-based zkvm testing is a credible assurance force multiplier and should complement, not substitute for, cryptographic proofs and formal verification.",
+        "novelty_score": 0.7,
+        "parent_ids": [
+          "q_force_multipliers"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://arxiv.org/abs/2509.10819"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "grounding",
+          "primary-source"
+        ],
+        "type": "CLAIM",
+        "uncertainty_score": 0.3,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Which force multipliers can increase ZRPF scale or assurance while preserving fail-closed authority?",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:c4661ccbefd827dc74ecf9b618afe92fca952c24683a375044c4398f183189eb",
+        "id": "q_force_multipliers",
+        "importance_score": 1.0,
+        "metadata": {},
+        "normalized_content": "which force multipliers can increase zrpf scale or assurance while preserving fail-closed authority?",
+        "novelty_score": 0.7,
+        "parent_ids": [],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "TESTABLE",
+        "tags": [
+          "frontier",
+          "zrpf"
+        ],
+        "type": "QUESTION",
+        "uncertainty_score": 0.8,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Generate a finite level-specific aggregate-image ladder whose level k image pins level k-1, and bind the complete ladder into a signed manifest.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:bbf52e89e67fc079ba3cef5e240e44d2a90340f868d4e6c93bc61e47df69594f",
+        "id": "h_level_ladder",
+        "importance_score": 1.0,
+        "metadata": {
+          "falsification_tests": [
+            "fanout 2 depth 3 first",
+            "level-confusion negatives",
+            "child substitution and reordering negatives",
+            "fresh replay"
+          ],
+          "selected_for_pr": true
+        },
+        "normalized_content": "generate a finite level-specific aggregate-image ladder whose level k image pins level k-1, and bind the complete ladder into a signed manifest.",
+        "novelty_score": 0.85,
+        "parent_ids": [
+          "c_policy_ceiling",
+          "c_repeated_join",
+          "c_union_budget"
+        ],
+        "refutability_score": 0.95,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://github.com/TheDarkLightX/ZenoDEX"
+        ],
+        "status": "TESTABLE",
+        "tags": [
+          "force-multiplier",
+          "selected"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.35,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Make an executable, source-digested soundness ledger an admission prerequisite, with separate proven and conjectured modes and an exact union-bound event budget.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:24e91401f318567fb97258f584252e75087e3cad08866249eaac8ddae46d013e",
+        "id": "h_soundness_ledger",
+        "importance_score": 1.0,
+        "metadata": {
+          "falsification_tests": [
+            "unknown mode rejects",
+            "stale source digest rejects",
+            "event-count monotonicity",
+            "exact integer arithmetic"
+          ],
+          "selected_for_pr": true
+        },
+        "normalized_content": "make an executable, source-digested soundness ledger an admission prerequisite, with separate proven and conjectured modes and an exact union-bound event budget.",
+        "novelty_score": 0.8,
+        "parent_ids": [
+          "c_union_budget",
+          "c_conjecture_gap",
+          "c_conjecture_change"
+        ],
+        "refutability_score": 0.95,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://github.com/TheDarkLightX/ZenoDEX"
+        ],
+        "status": "TESTABLE",
+        "tags": [
+          "force-multiplier",
+          "selected"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.2,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:f350f017ac93480030dbdecba1b0ed74278d11fdf304abb76016892f4acb6d59",
+        "id": "atom_7d5f6df35e174354",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "no counterexample found within the stated scope",
+          "strategy": "Search for a backend or repository counterexample that makes this narrow claim false.",
+          "tests": [
+            "inspect pinned source",
+            "check version drift",
+            "separate theorem from conjecture"
+          ]
+        },
+        "normalized_content": "search for a backend or repository counterexample that makes this narrow claim false.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:f350f017ac93480030dbdecba1b0ed74278d11fdf304abb76016892f4acb6d59",
+        "id": "atom_7635ad669d754247",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "no counterexample found within the stated scope",
+          "strategy": "Search for a backend or repository counterexample that makes this narrow claim false.",
+          "tests": [
+            "inspect pinned source",
+            "check version drift",
+            "separate theorem from conjecture"
+          ]
+        },
+        "normalized_content": "search for a backend or repository counterexample that makes this narrow claim false.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:f350f017ac93480030dbdecba1b0ed74278d11fdf304abb76016892f4acb6d59",
+        "id": "atom_944f002625b84efc",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "no counterexample found within the stated scope",
+          "strategy": "Search for a backend or repository counterexample that makes this narrow claim false.",
+          "tests": [
+            "inspect pinned source",
+            "check version drift",
+            "separate theorem from conjecture"
+          ]
+        },
+        "normalized_content": "search for a backend or repository counterexample that makes this narrow claim false.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:f350f017ac93480030dbdecba1b0ed74278d11fdf304abb76016892f4acb6d59",
+        "id": "atom_f0ca5c701a3f4287",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "no counterexample found within the stated scope",
+          "strategy": "Search for a backend or repository counterexample that makes this narrow claim false.",
+          "tests": [
+            "inspect pinned source",
+            "check version drift",
+            "separate theorem from conjecture"
+          ]
+        },
+        "normalized_content": "search for a backend or repository counterexample that makes this narrow claim false.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:f350f017ac93480030dbdecba1b0ed74278d11fdf304abb76016892f4acb6d59",
+        "id": "atom_59c7d7322c53478a",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "no counterexample found within the stated scope",
+          "strategy": "Search for a backend or repository counterexample that makes this narrow claim false.",
+          "tests": [
+            "inspect pinned source",
+            "check version drift",
+            "separate theorem from conjecture"
+          ]
+        },
+        "normalized_content": "search for a backend or repository counterexample that makes this narrow claim false.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:f350f017ac93480030dbdecba1b0ed74278d11fdf304abb76016892f4acb6d59",
+        "id": "atom_325ad1679f544a05",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "no counterexample found within the stated scope",
+          "strategy": "Search for a backend or repository counterexample that makes this narrow claim false.",
+          "tests": [
+            "inspect pinned source",
+            "check version drift",
+            "separate theorem from conjecture"
+          ]
+        },
+        "normalized_content": "search for a backend or repository counterexample that makes this narrow claim false.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:f350f017ac93480030dbdecba1b0ed74278d11fdf304abb76016892f4acb6d59",
+        "id": "atom_656f561805634c8f",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "no counterexample found within the stated scope",
+          "strategy": "Search for a backend or repository counterexample that makes this narrow claim false.",
+          "tests": [
+            "inspect pinned source",
+            "check version drift",
+            "separate theorem from conjecture"
+          ]
+        },
+        "normalized_content": "search for a backend or repository counterexample that makes this narrow claim false.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "A wrong level, child order, image ID, or manifest substitution could make the larger tree unsound.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:6b7395d529a23bd1993d10989ea37244dffd8550ef0fcacba3f5fe018740f94f",
+        "id": "atom_7177c4340c0847d9",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "counterexample_context": "A wrong level, child order, image ID, or manifest substitution could make the larger tree unsound.",
+          "result": "open until executable falsification suite passes",
+          "strategy": "A wrong level, child order, image ID, or manifest substitution could make the larger tree unsound.",
+          "tests": [
+            "fanout 2 depth 3 first",
+            "level-confusion negatives",
+            "child substitution and reordering negatives",
+            "fresh replay"
+          ]
+        },
+        "normalized_content": "a wrong level, child order, image id, or manifest substitution could make the larger tree unsound.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Incorrect event counting or stale backend parameters could still overstate end-to-end security.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:8bb525dd8b60633a3ec582dae61f536d8eef421a55f1adcadc864bddddef559d",
+        "id": "atom_c64bb09d01464804",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "counterexample_context": "Incorrect event counting or stale backend parameters could still overstate end-to-end security.",
+          "result": "open until executable falsification suite passes",
+          "strategy": "Incorrect event counting or stale backend parameters could still overstate end-to-end security.",
+          "tests": [
+            "unknown mode rejects",
+            "stale source digest rejects",
+            "event-count monotonicity",
+            "exact integer arithmetic"
+          ]
+        },
+        "normalized_content": "incorrect event counting or stale backend parameters could still overstate end-to-end security.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Scheduling nondeterminism or an incomplete cache key could change authenticated roots or reuse the wrong receipt.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:d870c52bdedeb9a02a82ef54fe43b619019dcb845d3ab1f1dee5d9f38a43f8ca",
+        "id": "atom_8c6a645315d8450f",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "counterexample_context": "Scheduling nondeterminism or an incomplete cache key could change authenticated roots or reuse the wrong receipt.",
+          "result": "open until executable falsification suite passes",
+          "strategy": "Scheduling nondeterminism or an incomplete cache key could change authenticated roots or reuse the wrong receipt.",
+          "tests": [
+            "same root across worker counts",
+            "crash/restart",
+            "cache-key collision corpus",
+            "backpressure"
+          ]
+        },
+        "normalized_content": "scheduling nondeterminism or an incomplete cache key could change authenticated roots or reuse the wrong receipt.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "A proof of child claims does not by itself make the child journals or recovery data available.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:26df5292411c7964bbc9769cf658839d2752bac156dfa797911334516a36d402",
+        "id": "atom_45b19c1d9e164924",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "counterexample_context": "A proof of child claims does not by itself make the child journals or recovery data available.",
+          "result": "open until executable falsification suite passes",
+          "strategy": "A proof of child claims does not by itself make the child journals or recovery data available.",
+          "tests": [
+            "peak disk and RSS",
+            "audit recovery",
+            "DA outage",
+            "retention-policy downgrade rejects"
+          ]
+        },
+        "normalized_content": "a proof of child claims does not by itself make the child journals or recovery data available.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "A self-reported capability record can lie unless it is bound to measured work and the trusted worker identity.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:8024575c03ed57508488222682549fe108bf6e975926b48258f6e33154fcd38c",
+        "id": "atom_9b2158928cc2491f",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "counterexample_context": "A self-reported capability record can lie unless it is bound to measured work and the trusted worker identity.",
+          "result": "open until executable falsification suite passes",
+          "strategy": "A self-reported capability record can lie unless it is bound to measured work and the trusted worker identity.",
+          "tests": [
+            "forced CPU fallback",
+            "version mismatch",
+            "feature mismatch",
+            "attestation replay"
+          ]
+        },
+        "normalized_content": "a self-reported capability record can lie unless it is bound to measured work and the trusted worker identity.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "A passing corpus is sampling evidence only and must never be represented as a cryptographic proof.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:008396bc56fa810931cf07e78221690b4ebe4bb7fbec28d640e3b6c29ef85101",
+        "id": "atom_85cfe8a5f3fb455c",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "counterexample_context": "A passing corpus is sampling evidence only and must never be represented as a cryptographic proof.",
+          "result": "open until executable falsification suite passes",
+          "strategy": "A passing corpus is sampling evidence only and must never be represented as a cryptographic proof.",
+          "tests": [
+            "semantic-equivalence oracle",
+            "mutation-kill rate",
+            "sealed verifier separation",
+            "fresh seeds"
+          ]
+        },
+        "normalized_content": "a passing corpus is sampling evidence only and must never be represented as a cryptographic proof.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Optimizing resource settings can silently change security parameters or statement semantics.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:51e2ace11703f5c8db7079c70b797d6852d5b94c27c37dcf3dbab7601542202f",
+        "id": "atom_af6b4186e3f44c66",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "counterexample_context": "Optimizing resource settings can silently change security parameters or statement semantics.",
+          "result": "open until executable falsification suite passes",
+          "strategy": "Optimizing resource settings can silently change security parameters or statement semantics.",
+          "tests": [
+            "cross-profile root equality",
+            "resource exhaustion",
+            "soundness recalculation",
+            "cold/warm benchmarks"
+          ]
+        },
+        "normalized_content": "optimizing resource settings can silently change security parameters or statement semantics.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "It does not create an unbounded single-root accumulator and may introduce ambiguous partial-finalization semantics.",
+        "created_at": "2026-07-14T22:59:59Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:fc15980ea8baa3851f87591e5e75d782fc7b62a5d16a623dbbac387183459e69",
+        "id": "atom_f2563db59c6e4427",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "counterexample_context": "It does not create an unbounded single-root accumulator and may introduce ambiguous partial-finalization semantics.",
+          "result": "open until executable falsification suite passes",
+          "strategy": "It does not create an unbounded single-root accumulator and may introduce ambiguous partial-finalization semantics.",
+          "tests": [
+            "prefix consistency",
+            "carry boundaries",
+            "partial-finalization ambiguity",
+            "restart recovery"
+          ]
+        },
+        "normalized_content": "it does not create an unbounded single-root accumulator and may introduce ambiguous partial-finalization semantics.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T22:59:59Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Create an authority-free backend adapter laboratory that differentially benchmarks STIR, WHIR, BaseFold/DeepFold, Jagged PCS, Binius-family, and Circle-STARK candidates against the pinned ZRPF statement ABI and assumption profile.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:b6c6fa0f427144ed41743df9118c95596995eeb95520ebe421f8536f148b09eb",
+        "id": "h_backend_adapter_lab",
+        "importance_score": 0.9,
+        "metadata": {
+          "reason": "requires benchmark or refinement evidence",
+          "selected_for_pr": false
+        },
+        "normalized_content": "create an authority-free backend adapter laboratory that differentially benchmarks stir, whir, basefold/deepfold, jagged pcs, binius-family, and circle-stark candidates against the pinned zrpf statement abi and assumption profile.",
+        "novelty_score": 0.75,
+        "parent_ids": [
+          "c_conjecture_change",
+          "c_union_budget"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "authority-free",
+          "backlog",
+          "frontier"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.75,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Evaluate distributed transparent PCS candidates only behind a fault-injected benchmark lane; first distribute the existing deterministic proof DAG before replacing the pinned proof system.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:912e83a158d08b6a3e10d6ffa8e2c84be67a43a78b4b4129dc6f148160de8f81",
+        "id": "h_distributed_pcs_lab",
+        "importance_score": 0.75,
+        "metadata": {
+          "reason": "requires benchmark or refinement evidence",
+          "selected_for_pr": false
+        },
+        "normalized_content": "evaluate distributed transparent pcs candidates only behind a fault-injected benchmark lane; first distribute the existing deterministic proof dag before replacing the pinned proof system.",
+        "novelty_score": 0.75,
+        "parent_ids": [
+          "c_repeated_join",
+          "h_dag_scheduler"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "authority-free",
+          "backlog",
+          "frontier"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.65,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Keep Nova-family and post-quantum folding schemes in an authority-free research lane until their commitment assumptions, recursion security definition, and statement semantics match ZRPF policy.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:b206f7c7fcf133ee60884759c221e9a3a8e2e5641b3980d41eb5a2728a224008",
+        "id": "h_folding_lab",
+        "importance_score": 0.75,
+        "metadata": {
+          "reason": "requires benchmark or refinement evidence",
+          "selected_for_pr": false
+        },
+        "normalized_content": "keep nova-family and post-quantum folding schemes in an authority-free research lane until their commitment assumptions, recursion security definition, and statement semantics match zrpf policy.",
+        "novelty_score": 0.75,
+        "parent_ids": [
+          "c_union_budget"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "authority-free",
+          "backlog",
+          "frontier"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.7,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Extend the existing Lean layer toward a digest-pinned formal bridge for the receipt verifier and soundness-envelope algebra, while treating the external zkVM implementation as an explicit trusted boundary until refinement is proved.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:65649e270460f2902683d049ea2d64ed543422679e721a5d4312c1f86a89cea8",
+        "id": "h_formal_verifier_bridge",
+        "importance_score": 0.9,
+        "metadata": {
+          "reason": "requires benchmark or refinement evidence",
+          "selected_for_pr": false
+        },
+        "normalized_content": "extend the existing lean layer toward a digest-pinned formal bridge for the receipt verifier and soundness-envelope algebra, while treating the external zkvm implementation as an explicit trusted boundary until refinement is proved.",
+        "novelty_score": 0.75,
+        "parent_ids": [
+          "c_union_budget",
+          "c_conjecture_gap"
+        ],
+        "refutability_score": 0.9,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "CANDIDATE",
+        "tags": [
+          "authority-free",
+          "backlog",
+          "frontier"
+        ],
+        "type": "HYPOTHESIS",
+        "uncertainty_score": 0.55,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "RISC Zero recursion and composition documentation: Documents lift, repeated pairwise join, resolve, and compression for receipt composition.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:72c218e5553553923ffd239b8717840c05e01d4db970637722cdd81d360d0e27",
+        "id": "p_risc0_recursion",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Composition does not establish ZRPF statement semantics, data availability, or admission authority.",
+          "date": "2026-07-14 access",
+          "evidence_scope": "Documents lift, repeated pairwise join, resolve, and compression for receipt composition.",
+          "last_reviewed": "2026-07-14",
+          "title": "RISC Zero recursion and composition documentation"
+        },
+        "normalized_content": "risc zero recursion and composition documentation: documents lift, repeated pairwise join, resolve, and compression for receipt composition.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://dev.risczero.com/api/recursion"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "On Reed-Solomon Proximity Gaps Conjectures: Refutes several up-to-capacity correlated-agreement and DEEP-FRI list-decodability conjectures and proposes modified regimes.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:120aefc899ba5aee174450c66b3201f5cbe9b8b2e3393d4d61f64512821b09e8",
+        "id": "p_crites_stewart_2025",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Does not itself prove RISC Zero v3.0.5 broken and does not directly refute the ethSTARK Toy Problem conjecture.",
+          "date": "2025",
+          "evidence_scope": "Refutes several up-to-capacity correlated-agreement and DEEP-FRI list-decodability conjectures and proposes modified regimes.",
+          "last_reviewed": "2026-07-14",
+          "title": "On Reed-Solomon Proximity Gaps Conjectures"
+        },
+        "normalized_content": "on reed-solomon proximity gaps conjectures: refutes several up-to-capacity correlated-agreement and deep-fri list-decodability conjectures and proposes modified regimes.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2025/2046"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "STIR: Reed-Solomon Proximity Testing with Fewer Queries: Reports fewer queries and smaller arguments than FRI for evaluated parameter sets.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:89879a2ba4a1b3fea28ff0eea2d2c8320eecede99ebfcfbc241d7d155efe6225",
+        "id": "p_stir_2024",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Not a drop-in RISC Zero backend and advertised parameters require current assumption review.",
+          "date": "2024",
+          "evidence_scope": "Reports fewer queries and smaller arguments than FRI for evaluated parameter sets.",
+          "last_reviewed": "2026-07-14",
+          "title": "STIR: Reed-Solomon Proximity Testing with Fewer Queries"
+        },
+        "normalized_content": "stir: reed-solomon proximity testing with fewer queries: reports fewer queries and smaller arguments than fri for evaluated parameter sets.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2024/390"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "WHIR: Reed-Solomon Proximity Testing with Super-Fast Verification: Targets fast verification and compact proofs as a successor to FRI/STIR/BaseFold-style protocols.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:3452eb17701784d99ccfe73f376666c8fb029fc2f53ad69baf8c63d53fe28f6d",
+        "id": "p_whir_2024",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Some aggressive mutual-correlated-agreement assumptions are affected by later counterexamples.",
+          "date": "2024",
+          "evidence_scope": "Targets fast verification and compact proofs as a successor to FRI/STIR/BaseFold-style protocols.",
+          "last_reviewed": "2026-07-14",
+          "title": "WHIR: Reed-Solomon Proximity Testing with Super-Fast Verification"
+        },
+        "normalized_content": "whir: reed-solomon proximity testing with super-fast verification: targets fast verification and compact proofs as a successor to fri/stir/basefold-style protocols.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2024/1586"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "BaseFold: Efficient Field-Agnostic Polynomial Commitment Schemes from Foldable Codes: Presents a foldable-code PCS and reports substantial proof/verifier improvements in evaluated multilinear settings.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:b8a58e7bf50927c0c3dcf59470c5be063df4bfb3b64884e3d777146341bc3d37",
+        "id": "p_basefold_2023",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "The recent revision and exact MCA regime require re-review against current proximity-gap results.",
+          "date": "2023; revised 2026-07-10",
+          "evidence_scope": "Presents a foldable-code PCS and reports substantial proof/verifier improvements in evaluated multilinear settings.",
+          "last_reviewed": "2026-07-14",
+          "title": "BaseFold: Efficient Field-Agnostic Polynomial Commitment Schemes from Foldable Codes"
+        },
+        "normalized_content": "basefold: efficient field-agnostic polynomial commitment schemes from foldable codes: presents a foldable-code pcs and reports substantial proof/verifier improvements in evaluated multilinear settings.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2023/1705"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "DeepFold: Efficient Multilinear Polynomial Commitment from Reed-Solomon Codes: Reports proof-size and performance improvements over BaseFold-family baselines.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:bfca1c78ef952a377c20976b981638941527ed089586cbb7ad20c10dadce7ad8",
+        "id": "p_deepfold_2024",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Custom multilinear backend; no ZRPF statement-equivalence evidence exists.",
+          "date": "2024",
+          "evidence_scope": "Reports proof-size and performance improvements over BaseFold-family baselines.",
+          "last_reviewed": "2026-07-14",
+          "title": "DeepFold: Efficient Multilinear Polynomial Commitment from Reed-Solomon Codes"
+        },
+        "normalized_content": "deepfold: efficient multilinear polynomial commitment from reed-solomon codes: reports proof-size and performance improvements over basefold-family baselines.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2024/1595"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Jagged Polynomial Commitment Scheme: Targets heterogeneous trace tables and recursive-verifier cost tied to total trace area.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:6db280f1bffd4cf63e00170545b25c99a681c078b31459ad528e0959b4539571",
+        "id": "p_jagged_pcs_2025",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Promising zkVM fit is an inference; integration and assumption costs are unmeasured for ZRPF.",
+          "date": "2025",
+          "evidence_scope": "Targets heterogeneous trace tables and recursive-verifier cost tied to total trace area.",
+          "last_reviewed": "2026-07-14",
+          "title": "Jagged Polynomial Commitment Scheme"
+        },
+        "normalized_content": "jagged polynomial commitment scheme: targets heterogeneous trace tables and recursive-verifier cost tied to total trace area.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2025/917"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Binius: Highly Efficient Proof Systems over Binary Fields: Binary towers can reduce bitwise and hashing embedding overhead.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:df30bfd339ce5807eef55d04b9f7ac4958ce01719c64cc3617641318224284cb",
+        "id": "p_binius_2023",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Value depends on a measured ZRPF opcode/trace profile; not automatically beneficial for the current workload.",
+          "date": "2023",
+          "evidence_scope": "Binary towers can reduce bitwise and hashing embedding overhead.",
+          "last_reviewed": "2026-07-14",
+          "title": "Binius: Highly Efficient Proof Systems over Binary Fields"
+        },
+        "normalized_content": "binius: highly efficient proof systems over binary fields: binary towers can reduce bitwise and hashing embedding overhead.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2023/1784"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Lasso and Jolt lookup arguments: Lookup arguments can make cost depend on accessed table entries and motivate workload-specific zkVM designs.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:1b1469de2cc7bd95186250c314941870365131fbb7b4d14f3aaaf7a9879780b2",
+        "id": "p_lasso_2023",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "A new zkVM/backend would be a migration, not an optimization of pinned RISC Zero receipts.",
+          "date": "2023",
+          "evidence_scope": "Lookup arguments can make cost depend on accessed table entries and motivate workload-specific zkVM designs.",
+          "last_reviewed": "2026-07-14",
+          "title": "Lasso and Jolt lookup arguments"
+        },
+        "normalized_content": "lasso and jolt lookup arguments: lookup arguments can make cost depend on accessed table entries and motivate workload-specific zkvm designs.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2023/1216"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Twist and Shout: Faster Memory Checking Arguments: Reports large prover improvements for lookup and memory-checking workloads.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:39bc94dbe0ad4ab21cfc071ffe430622a32b6a70f3da023af37a8a3a04d7e127",
+        "id": "p_twist_shout_2025",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Needs trace profiling and differential semantic tests before relevance to ZRPF is known.",
+          "date": "2025",
+          "evidence_scope": "Reports large prover improvements for lookup and memory-checking workloads.",
+          "last_reviewed": "2026-07-14",
+          "title": "Twist and Shout: Faster Memory Checking Arguments"
+        },
+        "normalized_content": "twist and shout: faster memory checking arguments: reports large prover improvements for lookup and memory-checking workloads.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2025/105"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Circle STARKs: Introduces an M31-based STARK construction and reports preliminary performance gains.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:2738ecf19fabd2b3982b21995e87dd13ea6c12979b7a0f6bf0d9e09b12367430",
+        "id": "p_circle_starks_2024",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "High migration and assurance cost; preliminary comparisons are not ZRPF benchmarks.",
+          "date": "2024",
+          "evidence_scope": "Introduces an M31-based STARK construction and reports preliminary performance gains.",
+          "last_reviewed": "2026-07-14",
+          "title": "Circle STARKs"
+        },
+        "normalized_content": "circle starks: introduces an m31-based stark construction and reports preliminary performance gains.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2024/278"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "FRIttata: Distributed FRI-style Polynomial Commitments: Explores horizontal distribution for FRI-style polynomial commitments.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:0ee793bb60e2b91000cb0453ecf25ceb327a34a537034756786aaa4660d54b27",
+        "id": "p_frittata_2025",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Existing proof-DAG distribution is much lower integration risk for ZRPF.",
+          "date": "2025",
+          "evidence_scope": "Explores horizontal distribution for FRI-style polynomial commitments.",
+          "last_reviewed": "2026-07-14",
+          "title": "FRIttata: Distributed FRI-style Polynomial Commitments"
+        },
+        "normalized_content": "frittata: distributed fri-style polynomial commitments: explores horizontal distribution for fri-style polynomial commitments.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2025/1285"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Shred-to-Shine: Accountable Distributed Proof Generation: Studies accountable distributed proof generation and reports major distributed-prover gains in its evaluated system.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:7d1815c86a37a5e5438a6595ea5fe1b9050af284136a58cd52eb7be452f52397",
+        "id": "p_shred_to_shine_2025",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Different protocol and fault model; no direct ZRPF portability claim.",
+          "date": "2025",
+          "evidence_scope": "Studies accountable distributed proof generation and reports major distributed-prover gains in its evaluated system.",
+          "last_reviewed": "2026-07-14",
+          "title": "Shred-to-Shine: Accountable Distributed Proof Generation"
+        },
+        "normalized_content": "shred-to-shine: accountable distributed proof generation: studies accountable distributed proof generation and reports major distributed-prover gains in its evaluated system.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2025/1354"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Nova: Recursive Zero-Knowledge Arguments from Folding Schemes: Establishes practical folding-based incremental computation.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:d65512dfdf5b7987cc398229b49d6bded1de60dbdbce064df4345f819629740d",
+        "id": "p_nova_2021",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Common instantiations use elliptic-curve/DLOG commitments, conflicting with ZRPF's transparent plausibly post-quantum profile.",
+          "date": "2021",
+          "evidence_scope": "Establishes practical folding-based incremental computation.",
+          "last_reviewed": "2026-07-14",
+          "title": "Nova: Recursive Zero-Knowledge Arguments from Folding Schemes"
+        },
+        "normalized_content": "nova: recursive zero-knowledge arguments from folding schemes: establishes practical folding-based incremental computation.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2021/370"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "HyperNova: Recursive Arguments for Customizable Constraint Systems: Generalizes folding to customizable constraint systems.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:8e27bf136a93cb58aa518aebc3f5521ed5e026aa96aa2843060b79a1f8e47c36",
+        "id": "p_hypernova_2023",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Same commitment-profile and migration concerns as Nova for current ZRPF policy.",
+          "date": "2023",
+          "evidence_scope": "Generalizes folding to customizable constraint systems.",
+          "last_reviewed": "2026-07-14",
+          "title": "HyperNova: Recursive Arguments for Customizable Constraint Systems"
+        },
+        "normalized_content": "hypernova: recursive arguments for customizable constraint systems: generalizes folding to customizable constraint systems.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2023/573"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "ProtoStar: Generic Efficient Accumulation/Folding: Develops generic accumulation/folding techniques relevant to IVC.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:29363fcd6ba854d3571087f4a1dd1fd34d80bed30b6cab54b0ce1539563c4b1c",
+        "id": "p_protostar_2023",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Authority compatibility and post-quantum assumptions remain separate obligations.",
+          "date": "2023",
+          "evidence_scope": "Develops generic accumulation/folding techniques relevant to IVC.",
+          "last_reviewed": "2026-07-14",
+          "title": "ProtoStar: Generic Efficient Accumulation/Folding"
+        },
+        "normalized_content": "protostar: generic efficient accumulation/folding: develops generic accumulation/folding techniques relevant to ivc.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2023/620"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Security of Nova-style Folding at Polynomial Depth: Shows that bounded-depth security formulations need care before extrapolation to polynomial-depth folding.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:145217247cee2e63a7bb92d85983649edbd7b1541a848fb64864cd30f7a1cc76",
+        "id": "p_nova_security_2024",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "A research warning, not a claim that all Nova deployments are insecure.",
+          "date": "2024",
+          "evidence_scope": "Shows that bounded-depth security formulations need care before extrapolation to polynomial-depth folding.",
+          "last_reviewed": "2026-07-14",
+          "title": "Security of Nova-style Folding at Polynomial Depth"
+        },
+        "normalized_content": "security of nova-style folding at polynomial depth: shows that bounded-depth security formulations need care before extrapolation to polynomial-depth folding.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2024/232"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Neo/SuperNeo Post-Quantum Folding: Proposes post-quantum folding using lattice assumptions and small-field-friendly techniques.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:fb4e41d4b3a87b874ebda5881fab4633e04ec22a85b42b92d080dcfd7b2c3ec3",
+        "id": "p_superneo_2026",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Frontier-stage evidence with fresh assumptions and implementation risk; research lane only.",
+          "date": "2026",
+          "evidence_scope": "Proposes post-quantum folding using lattice assumptions and small-field-friendly techniques.",
+          "last_reviewed": "2026-07-14",
+          "title": "Neo/SuperNeo Post-Quantum Folding"
+        },
+        "normalized_content": "neo/superneo post-quantum folding: proposes post-quantum folding using lattice assumptions and small-field-friendly techniques.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://eprint.iacr.org/2026/242"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Arguzz: Argument-Aware Fuzzing for zkVMs: Reports eleven bugs across tested zkVMs, motivating semantics-aware mutation and differential testing.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:c9bce9477dab56b3f92c0d276186f517cdc079204ecc59518695f6e5d0eff9a4",
+        "id": "p_arguzz_2025",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "Fuzzing is sampling evidence, never a soundness proof.",
+          "date": "2025",
+          "evidence_scope": "Reports eleven bugs across tested zkVMs, motivating semantics-aware mutation and differential testing.",
+          "last_reviewed": "2026-07-14",
+          "title": "Arguzz: Argument-Aware Fuzzing for zkVMs"
+        },
+        "normalized_content": "arguzz: argument-aware fuzzing for zkvms: reports eleven bugs across tested zkvms, motivating semantics-aware mutation and differential testing.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://arxiv.org/abs/2509.10819"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Toward Formal Verification of the RISC Zero zkVM: Describes a Lean proof-of-concept for formalizing parts of the RISC Zero circuit semantics.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:9f76f51b9deeeede9367164e0fa8529e0084f494f1d3997f9fc218242bfdd239",
+        "id": "p_risc0_lean_poc",
+        "importance_score": 0.8,
+        "metadata": {
+          "caveat": "A proof-of-concept does not close the full implementation-to-theorem refinement boundary.",
+          "date": "2024",
+          "evidence_scope": "Describes a Lean proof-of-concept for formalizing parts of the RISC Zero circuit semantics.",
+          "last_reviewed": "2026-07-14",
+          "title": "Toward Formal Verification of the RISC Zero zkVM"
+        },
+        "normalized_content": "toward formal verification of the risc zero zkvm: describes a lean proof-of-concept for formalizing parts of the risc zero circuit semantics.",
+        "novelty_score": 0.65,
+        "parent_ids": [],
+        "refutability_score": 0.8,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [
+          "https://www.nethermind.io/blog/towards-formal-verification-of-the-first-risc-v-zkvm"
+        ],
+        "status": "SUPPORTED",
+        "tags": [
+          "literature",
+          "primary-source"
+        ],
+        "type": "EVIDENCE",
+        "uncertainty_score": 0.25,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:cd3b23151fa28fef94c14b5fe9b7d697515deb5c44b8c0622738cff3c0f5e819",
+        "id": "atom_20128638c926423e",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "open research obligation",
+          "strategy": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+          "tests": [
+            "differential statement check",
+            "assumption delta",
+            "fresh reproducible benchmark",
+            "negative fixtures"
+          ]
+        },
+        "normalized_content": "reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:cd3b23151fa28fef94c14b5fe9b7d697515deb5c44b8c0622738cff3c0f5e819",
+        "id": "atom_091884c56e424c1d",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "open research obligation",
+          "strategy": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+          "tests": [
+            "differential statement check",
+            "assumption delta",
+            "fresh reproducible benchmark",
+            "negative fixtures"
+          ]
+        },
+        "normalized_content": "reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:cd3b23151fa28fef94c14b5fe9b7d697515deb5c44b8c0622738cff3c0f5e819",
+        "id": "atom_f1f937a52e51441d",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "open research obligation",
+          "strategy": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+          "tests": [
+            "differential statement check",
+            "assumption delta",
+            "fresh reproducible benchmark",
+            "negative fixtures"
+          ]
+        },
+        "normalized_content": "reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T23:03:41Z"
+      },
+      {
+        "artifact_refs": [],
+        "confidence": null,
+        "content": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "created_at": "2026-07-14T23:03:41Z",
+        "evidence_score": 0.0,
+        "hash": "sha256:cd3b23151fa28fef94c14b5fe9b7d697515deb5c44b8c0622738cff3c0f5e819",
+        "id": "atom_a2ac2124497847b9",
+        "importance_score": 0.8,
+        "metadata": {
+          "actual_counterexample": false,
+          "result": "open research obligation",
+          "strategy": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+          "tests": [
+            "differential statement check",
+            "assumption delta",
+            "fresh reproducible benchmark",
+            "negative fixtures"
+          ]
+        },
+        "normalized_content": "reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "novelty_score": 0.5,
+        "parent_ids": [],
+        "refutability_score": 1.0,
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_refs": [],
+        "status": "UNDER_TEST",
+        "tags": [
+          "refutation"
+        ],
+        "type": "RISK",
+        "uncertainty_score": 0.5,
+        "updated_at": "2026-07-14T23:03:41Z"
+      }
+    ],
+    "edges": [
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_3e3a4da7521445db",
+        "rationale": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_59c7d7322c53478a",
+        "target_atom_id": "c_conjecture_change",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_e5889eccc9b4425a",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_soundness_ledger",
+        "target_atom_id": "c_conjecture_change",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_1b781c07442c4726",
+        "rationale": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_f0ca5c701a3f4287",
+        "target_atom_id": "c_conjecture_gap",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_72178b946e6f4d81",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_soundness_ledger",
+        "target_atom_id": "c_conjecture_gap",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_4ff7c0be177f4f3d",
+        "rationale": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_656f561805634c8f",
+        "target_atom_id": "c_fault_testing",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_7d5858295b084004",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_metamorphic_corpus",
+        "target_atom_id": "c_fault_testing",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_6b451a584856479f",
+        "rationale": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_7d5f6df35e174354",
+        "target_atom_id": "c_policy_ceiling",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_0943a38dae33498b",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_level_ladder",
+        "target_atom_id": "c_policy_ceiling",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_e1686dfa93e84d22",
+        "rationale": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_7635ad669d754247",
+        "target_atom_id": "c_repeated_join",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_baa84e04734148d4",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_level_ladder",
+        "target_atom_id": "c_repeated_join",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_5faef76af7ed4366",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_dag_scheduler",
+        "target_atom_id": "c_repeated_join",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_2180a4bbec0a4655",
+        "rationale": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_325ad1679f544a05",
+        "target_atom_id": "c_storage_pressure",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_1178d19e7c184571",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_streaming_retention",
+        "target_atom_id": "c_storage_pressure",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_1b9b4e7e64b1401b",
+        "rationale": "Search for a backend or repository counterexample that makes this narrow claim false.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_944f002625b84efc",
+        "target_atom_id": "c_union_budget",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_eabe817561964691",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_level_ladder",
+        "target_atom_id": "c_union_budget",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_32b6d0ee71324f10",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_soundness_ledger",
+        "target_atom_id": "c_union_budget",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_1df6e098eabb4443",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_capability_attestation",
+        "target_atom_id": "c_union_budget",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_c6122a34b6764ebc",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_metamorphic_corpus",
+        "target_atom_id": "c_union_budget",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_c28060b278474255",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_elastic_profiles",
+        "target_atom_id": "c_union_budget",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_2eb6cdc6432a4764",
+        "rationale": "It does not create an unbounded single-root accumulator and may introduce ambiguous partial-finalization semantics.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_f2563db59c6e4427",
+        "target_atom_id": "h_base8_forest",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_623cc5c854f64730",
+        "rationale": "A self-reported capability record can lie unless it is bound to measured work and the trusted worker identity.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_9b2158928cc2491f",
+        "target_atom_id": "h_capability_attestation",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_4ec6ce92e02f4e8c",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_elastic_profiles",
+        "target_atom_id": "h_capability_attestation",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_0890c16ac37b486f",
+        "rationale": "Scheduling nondeterminism or an incomplete cache key could change authenticated roots or reuse the wrong receipt.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_8c6a645315d8450f",
+        "target_atom_id": "h_dag_scheduler",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_7c49948dac094fa8",
+        "rationale": "Optimizing resource settings can silently change security parameters or statement semantics.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_af6b4186e3f44c66",
+        "target_atom_id": "h_elastic_profiles",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_d6f1e991c2d94b5e",
+        "rationale": "A wrong level, child order, image ID, or manifest substitution could make the larger tree unsound.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_7177c4340c0847d9",
+        "target_atom_id": "h_level_ladder",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_c6e7a87bd55f4f47",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_dag_scheduler",
+        "target_atom_id": "h_level_ladder",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_c43a31e08150437d",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_streaming_retention",
+        "target_atom_id": "h_level_ladder",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_53579fa1521242fb",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_base8_forest",
+        "target_atom_id": "h_level_ladder",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_461b8f1113aa4d9e",
+        "rationale": "A passing corpus is sampling evidence only and must never be represented as a cryptographic proof.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_85cfe8a5f3fb455c",
+        "target_atom_id": "h_metamorphic_corpus",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_886ae4aa65bc4ba4",
+        "rationale": "Incorrect event counting or stale backend parameters could still overstate end-to-end security.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_c64bb09d01464804",
+        "target_atom_id": "h_soundness_ledger",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "TESTS",
+        "id": "edge_5cedef0a7a7c4bc5",
+        "rationale": "A proof of child claims does not by itself make the child journals or recovery data available.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_45b19c1d9e164924",
+        "target_atom_id": "h_streaming_retention",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_cbeb1eda89db4bfb",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_base8_forest",
+        "target_atom_id": "h_streaming_retention",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_c1a789309b974a94",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "c_policy_ceiling",
+        "target_atom_id": "q_force_multipliers",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_92c40cdaf34d48b0",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "c_repeated_join",
+        "target_atom_id": "q_force_multipliers",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_14676267aaa7452d",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "c_union_budget",
+        "target_atom_id": "q_force_multipliers",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_c25d3a2024624f6e",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "c_conjecture_gap",
+        "target_atom_id": "q_force_multipliers",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_d7b1913db6554470",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "c_conjecture_change",
+        "target_atom_id": "q_force_multipliers",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_9adf4a76b464477e",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "c_storage_pressure",
+        "target_atom_id": "q_force_multipliers",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T22:59:59Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_a01b050dc0d342e6",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "c_fault_testing",
+        "target_atom_id": "q_force_multipliers",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_17846dd5280c4f27",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_backend_adapter_lab",
+        "target_atom_id": "c_conjecture_change",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_12eb004181504a38",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_formal_verifier_bridge",
+        "target_atom_id": "c_conjecture_gap",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_309c98135a0b41af",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_distributed_pcs_lab",
+        "target_atom_id": "c_repeated_join",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_a4859967c868463e",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_backend_adapter_lab",
+        "target_atom_id": "c_union_budget",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_08b14a52a0ef48e6",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_folding_lab",
+        "target_atom_id": "c_union_budget",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_4226aed8cdac49b9",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_formal_verifier_bridge",
+        "target_atom_id": "c_union_budget",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "TESTS",
+        "id": "edge_403174a821f443b1",
+        "rationale": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_20128638c926423e",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_c7f88573dc444167",
+        "rationale": "Does not itself prove RISC Zero v3.0.5 broken and does not directly refute the ethSTARK Toy Problem conjecture.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_crites_stewart_2025",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_c42305b79dea4311",
+        "rationale": "Not a drop-in RISC Zero backend and advertised parameters require current assumption review.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_stir_2024",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_ec6a462cb7544d92",
+        "rationale": "Some aggressive mutual-correlated-agreement assumptions are affected by later counterexamples.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_whir_2024",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_4ec21f9b49564078",
+        "rationale": "The recent revision and exact MCA regime require re-review against current proximity-gap results.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_basefold_2023",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_7c9a2947641d48b1",
+        "rationale": "Custom multilinear backend; no ZRPF statement-equivalence evidence exists.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_deepfold_2024",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_60dcccf1b7074948",
+        "rationale": "Promising zkVM fit is an inference; integration and assumption costs are unmeasured for ZRPF.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_jagged_pcs_2025",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_79206ad200ef4326",
+        "rationale": "Value depends on a measured ZRPF opcode/trace profile; not automatically beneficial for the current workload.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_binius_2023",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_8ae8bea1b65b42da",
+        "rationale": "A new zkVM/backend would be a migration, not an optimization of pinned RISC Zero receipts.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_lasso_2023",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_041deb4dd28f427c",
+        "rationale": "Needs trace profiling and differential semantic tests before relevance to ZRPF is known.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_twist_shout_2025",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_401329d040c3481f",
+        "rationale": "High migration and assurance cost; preliminary comparisons are not ZRPF benchmarks.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_circle_starks_2024",
+        "target_atom_id": "h_backend_adapter_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "DEPENDS_ON",
+        "id": "edge_6f3b8bedb83049c6",
+        "rationale": "parent dependency",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "h_distributed_pcs_lab",
+        "target_atom_id": "h_dag_scheduler",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_2de31f14d3524b55",
+        "rationale": "Composition does not establish ZRPF statement semantics, data availability, or admission authority.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_risc0_recursion",
+        "target_atom_id": "h_dag_scheduler",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "TESTS",
+        "id": "edge_59e6b5bef8a2423d",
+        "rationale": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_091884c56e424c1d",
+        "target_atom_id": "h_distributed_pcs_lab",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_b37ce57541644e2b",
+        "rationale": "Existing proof-DAG distribution is much lower integration risk for ZRPF.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_frittata_2025",
+        "target_atom_id": "h_distributed_pcs_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_bc0d5d3d54254075",
+        "rationale": "Different protocol and fault model; no direct ZRPF portability claim.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_shred_to_shine_2025",
+        "target_atom_id": "h_distributed_pcs_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "TESTS",
+        "id": "edge_4216fac0632c4ba4",
+        "rationale": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_f1f937a52e51441d",
+        "target_atom_id": "h_folding_lab",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_d60b7992b3214c4f",
+        "rationale": "Common instantiations use elliptic-curve/DLOG commitments, conflicting with ZRPF's transparent plausibly post-quantum profile.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_nova_2021",
+        "target_atom_id": "h_folding_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_5b6a28f75d5744f8",
+        "rationale": "Same commitment-profile and migration concerns as Nova for current ZRPF policy.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_hypernova_2023",
+        "target_atom_id": "h_folding_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_36749232b5124838",
+        "rationale": "Authority compatibility and post-quantum assumptions remain separate obligations.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_protostar_2023",
+        "target_atom_id": "h_folding_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_597f004713c14bca",
+        "rationale": "A research warning, not a claim that all Nova deployments are insecure.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_nova_security_2024",
+        "target_atom_id": "h_folding_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_c206a700fcd24f9e",
+        "rationale": "Frontier-stage evidence with fresh assumptions and implementation risk; research lane only.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_superneo_2026",
+        "target_atom_id": "h_folding_lab",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "TESTS",
+        "id": "edge_0ab14e5cf8c04f36",
+        "rationale": "Reject if the candidate changes the statement, weakens the assumption profile, or lacks reproducible conservative parameters.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "atom_a2ac2124497847b9",
+        "target_atom_id": "h_formal_verifier_bridge",
+        "weight": 1.0
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_ee71b8970cc44c73",
+        "rationale": "A proof-of-concept does not close the full implementation-to-theorem refinement boundary.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_risc0_lean_poc",
+        "target_atom_id": "h_formal_verifier_bridge",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_b091474fb8b14cab",
+        "rationale": "Composition does not establish ZRPF statement semantics, data availability, or admission authority.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_risc0_recursion",
+        "target_atom_id": "h_level_ladder",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_e8331757b81f437e",
+        "rationale": "Fuzzing is sampling evidence, never a soundness proof.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_arguzz_2025",
+        "target_atom_id": "h_metamorphic_corpus",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_a986bc9ef13c4e47",
+        "rationale": "Does not itself prove RISC Zero v3.0.5 broken and does not directly refute the ethSTARK Toy Problem conjecture.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_crites_stewart_2025",
+        "target_atom_id": "h_soundness_ledger",
+        "weight": 0.7
+      },
+      {
+        "created_at": "2026-07-14T23:03:41Z",
+        "edge_type": "SUPPORTS",
+        "id": "edge_214a37639d294414",
+        "rationale": "A research warning, not a claim that all Nova deployments are insecure.",
+        "run_id": "run_zrpf_frontier_20260714",
+        "source_atom_id": "p_nova_security_2024",
+        "target_atom_id": "h_soundness_ledger",
+        "weight": 0.7
+      }
+    ],
+    "ok": true,
+    "run_id": "run_zrpf_frontier_20260714"
+  },
+  "latest_events": [
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 167,
+      "payload_json": "{\"edge_id\":\"edge_ee71b8970cc44c73\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_risc0_lean_poc\",\"target_atom_id\":\"h_formal_verifier_bridge\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "atom_added",
+      "id": 166,
+      "payload_json": "{\"atom_id\":\"p_risc0_lean_poc\",\"status\":\"SUPPORTED\",\"type\":\"EVIDENCE\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 165,
+      "payload_json": "{\"edge_id\":\"edge_e8331757b81f437e\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_arguzz_2025\",\"target_atom_id\":\"h_metamorphic_corpus\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "atom_added",
+      "id": 164,
+      "payload_json": "{\"atom_id\":\"p_arguzz_2025\",\"status\":\"SUPPORTED\",\"type\":\"EVIDENCE\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 163,
+      "payload_json": "{\"edge_id\":\"edge_c206a700fcd24f9e\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_superneo_2026\",\"target_atom_id\":\"h_folding_lab\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "atom_added",
+      "id": 162,
+      "payload_json": "{\"atom_id\":\"p_superneo_2026\",\"status\":\"SUPPORTED\",\"type\":\"EVIDENCE\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 161,
+      "payload_json": "{\"edge_id\":\"edge_214a37639d294414\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_nova_security_2024\",\"target_atom_id\":\"h_soundness_ledger\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 160,
+      "payload_json": "{\"edge_id\":\"edge_597f004713c14bca\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_nova_security_2024\",\"target_atom_id\":\"h_folding_lab\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "atom_added",
+      "id": 159,
+      "payload_json": "{\"atom_id\":\"p_nova_security_2024\",\"status\":\"SUPPORTED\",\"type\":\"EVIDENCE\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 158,
+      "payload_json": "{\"edge_id\":\"edge_36749232b5124838\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_protostar_2023\",\"target_atom_id\":\"h_folding_lab\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "atom_added",
+      "id": 157,
+      "payload_json": "{\"atom_id\":\"p_protostar_2023\",\"status\":\"SUPPORTED\",\"type\":\"EVIDENCE\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 156,
+      "payload_json": "{\"edge_id\":\"edge_5b6a28f75d5744f8\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_hypernova_2023\",\"target_atom_id\":\"h_folding_lab\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "atom_added",
+      "id": 155,
+      "payload_json": "{\"atom_id\":\"p_hypernova_2023\",\"status\":\"SUPPORTED\",\"type\":\"EVIDENCE\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 154,
+      "payload_json": "{\"edge_id\":\"edge_d60b7992b3214c4f\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_nova_2021\",\"target_atom_id\":\"h_folding_lab\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "atom_added",
+      "id": 153,
+      "payload_json": "{\"atom_id\":\"p_nova_2021\",\"status\":\"SUPPORTED\",\"type\":\"EVIDENCE\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 152,
+      "payload_json": "{\"edge_id\":\"edge_bc0d5d3d54254075\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_shred_to_shine_2025\",\"target_atom_id\":\"h_distributed_pcs_lab\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "atom_added",
+      "id": 151,
+      "payload_json": "{\"atom_id\":\"p_shred_to_shine_2025\",\"status\":\"SUPPORTED\",\"type\":\"EVIDENCE\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 150,
+      "payload_json": "{\"edge_id\":\"edge_b37ce57541644e2b\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_frittata_2025\",\"target_atom_id\":\"h_distributed_pcs_lab\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "atom_added",
+      "id": 149,
+      "payload_json": "{\"atom_id\":\"p_frittata_2025\",\"status\":\"SUPPORTED\",\"type\":\"EVIDENCE\"}"
+    },
+    {
+      "created_at": "2026-07-14T23:03:41Z",
+      "event_type": "edge_added",
+      "id": 148,
+      "payload_json": "{\"edge_id\":\"edge_401329d040c3481f\",\"edge_type\":\"SUPPORTS\",\"source_atom_id\":\"p_circle_starks_2024\",\"target_atom_id\":\"h_backend_adapter_lab\"}"
+    }
+  ],
+  "non_claims": [
+    "Research Kernel stores public artifacts and evidence, not hidden chain-of-thought.",
+    "SUPPORTED means the local promotion gate passed; it is not an external proof by itself.",
+    "Morph reformulations are candidate search objects until separately tested."
+  ],
+  "ok": true,
+  "refuted_claims": [],
+  "schema": "research_kernel/report/v1",
+  "summary": {
+    "counts_by_status": {
+      "CANDIDATE": 18,
+      "SUPPORTED": 27,
+      "TESTABLE": 3,
+      "UNDER_TEST": 19
+    },
+    "counts_by_type": {
+      "CLAIM": 7,
+      "EVIDENCE": 20,
+      "HYPOTHESIS": 12,
+      "QUESTION": 1,
+      "REFORMULATION": 8,
+      "RISK": 19
+    },
+    "edge_count": 73,
+    "event_count": 167,
+    "evidence_count": 15,
+    "ok": true,
+    "run": {
+      "budget": {},
+      "constraints": {
+        "authority": "fail closed",
+        "backend_continuity": "RISC Zero 3.0.5 until a separately reviewed migration",
+        "no_claim_from_benchmark_alone": true,
+        "separate_prs": true,
+        "typed_statement_first": true
+      },
+      "created_at": "2026-07-14T22:59:59Z",
+      "goal": "Find evidence-backed, falsifiable changes that increase ZRPF scale or assurance without granting authority to unvalidated proof artifacts.",
+      "id": "run_zrpf_frontier_20260714",
+      "metadata": {
+        "as_of": "2026-07-14",
+        "domain": "recursive STARK proof fabrics, zkVM assurance, proof orchestration",
+        "repository": "TheDarkLightX/ZenoDEX"
+      },
+      "status": "ACTIVE",
+      "success_criteria": "Every selected change has primary-source provenance, a counterexample search, an executable check, explicit non-claims, and a separate draft PR.",
+      "title": "ZRPF scaling and assurance frontier, 2026-07-14",
+      "updated_at": "2026-07-14T23:03:41Z"
+    }
+  },
+  "supported_claims": [
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "The current common ZRPF profile's 64-leaf ceiling is a profile and evidence ceiling, not a RISC Zero recursion primitive ceiling.",
+      "created_at": "2026-07-14T22:59:59Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:e70cca8bc827f129980b2bfc80bb2282d15f375143665113b7d76833011ecd54",
+      "id": "c_policy_ceiling",
+      "importance_score": 0.95,
+      "metadata": {},
+      "normalized_content": "the current common zrpf profile's 64-leaf ceiling is a profile and evidence ceiling, not a risc zero recursion primitive ceiling.",
+      "novelty_score": 0.7,
+      "parent_ids": [
+        "q_force_multipliers"
+      ],
+      "refutability_score": 0.9,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://github.com/TheDarkLightX/ZenoDEX/blob/main/docs/ZENO_RECURSIVE_PROOF_FABRIC_ARCHITECTURE_SPEC_20260710.md"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "grounding",
+        "primary-source"
+      ],
+      "type": "CLAIM",
+      "uncertainty_score": 0.3,
+      "updated_at": "2026-07-14T22:59:59Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "RISC Zero Succinct receipts can be repeatedly joined and resolved, so recursive composition can have logarithmic critical-path depth under parallel scheduling.",
+      "created_at": "2026-07-14T22:59:59Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:860b02af32be171944cd12254a9ed7b4b7a596c5d9f0c34fd7f22ed5bfd386af",
+      "id": "c_repeated_join",
+      "importance_score": 0.95,
+      "metadata": {},
+      "normalized_content": "risc zero succinct receipts can be repeatedly joined and resolved, so recursive composition can have logarithmic critical-path depth under parallel scheduling.",
+      "novelty_score": 0.7,
+      "parent_ids": [
+        "q_force_multipliers"
+      ],
+      "refutability_score": 0.9,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://dev.risczero.com/api/recursion"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "grounding",
+        "primary-source"
+      ],
+      "type": "CLAIM",
+      "uncertainty_score": 0.3,
+      "updated_at": "2026-07-14T22:59:59Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "An end-to-end ZRPF soundness claim must account for the number and class of proof-verification events; taking the minimum component bit claim is not a compositional bound.",
+      "created_at": "2026-07-14T22:59:59Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:5bbcccd982a0d25dd0d87162cee2a817a7f00a443ef49f34ebe8738e0a616e79",
+      "id": "c_union_budget",
+      "importance_score": 0.95,
+      "metadata": {},
+      "normalized_content": "an end-to-end zrpf soundness claim must account for the number and class of proof-verification events; taking the minimum component bit claim is not a compositional bound.",
+      "novelty_score": 0.7,
+      "parent_ids": [
+        "q_force_multipliers"
+      ],
+      "refutability_score": 0.9,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://github.com/risc0/risc0/blob/main/risc0/zkp/src/prove/soundness.rs"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "grounding",
+        "primary-source"
+      ],
+      "type": "CLAIM",
+      "uncertainty_score": 0.3,
+      "updated_at": "2026-07-14T22:59:59Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "ZRPF must distinguish proven, coding-conjecture, and Toy-Problem security modes instead of presenting one undifferentiated security_level_bits value.",
+      "created_at": "2026-07-14T22:59:59Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:1aeafacc14320e73be64976ad89636b455f3a05d49758f95f795c8295d6c5beb",
+      "id": "c_conjecture_gap",
+      "importance_score": 0.95,
+      "metadata": {},
+      "normalized_content": "zrpf must distinguish proven, coding-conjecture, and toy-problem security modes instead of presenting one undifferentiated security_level_bits value.",
+      "novelty_score": 0.7,
+      "parent_ids": [
+        "q_force_multipliers"
+      ],
+      "refutability_score": 0.9,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://dev.risczero.com/api/security-model"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "grounding",
+        "primary-source"
+      ],
+      "type": "CLAIM",
+      "uncertainty_score": 0.3,
+      "updated_at": "2026-07-14T22:59:59Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "The assumption ledger must name exact conjectures and versions because recent work refutes several up-to-capacity proximity-gap formulations relevant to FRI-family analyses.",
+      "created_at": "2026-07-14T22:59:59Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:22d2909e066c85ed36d148bf4dba38d764290cf606fddc15dcec7744342914db",
+      "id": "c_conjecture_change",
+      "importance_score": 0.95,
+      "metadata": {},
+      "normalized_content": "the assumption ledger must name exact conjectures and versions because recent work refutes several up-to-capacity proximity-gap formulations relevant to fri-family analyses.",
+      "novelty_score": 0.7,
+      "parent_ids": [
+        "q_force_multipliers"
+      ],
+      "refutability_score": 0.9,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2025/2046"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "grounding",
+        "primary-source"
+      ],
+      "type": "CLAIM",
+      "uncertainty_score": 0.3,
+      "updated_at": "2026-07-14T22:59:59Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "At fanout 8 and depth 7 a full tree has 2,097,152 leaves and 2,396,745 total nodes, so persisting every intermediate receipt is a first-order storage and availability problem.",
+      "created_at": "2026-07-14T22:59:59Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:e96840d9a9ced1ef7c85a39bf9499bf368a5547c1c543aa211ef0bd7576f75d3",
+      "id": "c_storage_pressure",
+      "importance_score": 0.95,
+      "metadata": {},
+      "normalized_content": "at fanout 8 and depth 7 a full tree has 2,097,152 leaves and 2,396,745 total nodes, so persisting every intermediate receipt is a first-order storage and availability problem.",
+      "novelty_score": 0.7,
+      "parent_ids": [
+        "q_force_multipliers"
+      ],
+      "refutability_score": 0.9,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://dev.risczero.com/api/recursion"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "grounding",
+        "primary-source"
+      ],
+      "type": "CLAIM",
+      "uncertainty_score": 0.3,
+      "updated_at": "2026-07-14T22:59:59Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Semantics-aware, mutation-based zkVM testing is a credible assurance force multiplier and should complement, not substitute for, cryptographic proofs and formal verification.",
+      "created_at": "2026-07-14T22:59:59Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:c0b10d5a5a6407f1902bada0c9f66ac11950506325e2621b447145aac7fbfff3",
+      "id": "c_fault_testing",
+      "importance_score": 0.95,
+      "metadata": {},
+      "normalized_content": "semantics-aware, mutation-based zkvm testing is a credible assurance force multiplier and should complement, not substitute for, cryptographic proofs and formal verification.",
+      "novelty_score": 0.7,
+      "parent_ids": [
+        "q_force_multipliers"
+      ],
+      "refutability_score": 0.9,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://arxiv.org/abs/2509.10819"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "grounding",
+        "primary-source"
+      ],
+      "type": "CLAIM",
+      "uncertainty_score": 0.3,
+      "updated_at": "2026-07-14T22:59:59Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "RISC Zero recursion and composition documentation: Documents lift, repeated pairwise join, resolve, and compression for receipt composition.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:72c218e5553553923ffd239b8717840c05e01d4db970637722cdd81d360d0e27",
+      "id": "p_risc0_recursion",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Composition does not establish ZRPF statement semantics, data availability, or admission authority.",
+        "date": "2026-07-14 access",
+        "evidence_scope": "Documents lift, repeated pairwise join, resolve, and compression for receipt composition.",
+        "last_reviewed": "2026-07-14",
+        "title": "RISC Zero recursion and composition documentation"
+      },
+      "normalized_content": "risc zero recursion and composition documentation: documents lift, repeated pairwise join, resolve, and compression for receipt composition.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://dev.risczero.com/api/recursion"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "On Reed-Solomon Proximity Gaps Conjectures: Refutes several up-to-capacity correlated-agreement and DEEP-FRI list-decodability conjectures and proposes modified regimes.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:120aefc899ba5aee174450c66b3201f5cbe9b8b2e3393d4d61f64512821b09e8",
+      "id": "p_crites_stewart_2025",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Does not itself prove RISC Zero v3.0.5 broken and does not directly refute the ethSTARK Toy Problem conjecture.",
+        "date": "2025",
+        "evidence_scope": "Refutes several up-to-capacity correlated-agreement and DEEP-FRI list-decodability conjectures and proposes modified regimes.",
+        "last_reviewed": "2026-07-14",
+        "title": "On Reed-Solomon Proximity Gaps Conjectures"
+      },
+      "normalized_content": "on reed-solomon proximity gaps conjectures: refutes several up-to-capacity correlated-agreement and deep-fri list-decodability conjectures and proposes modified regimes.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2025/2046"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "STIR: Reed-Solomon Proximity Testing with Fewer Queries: Reports fewer queries and smaller arguments than FRI for evaluated parameter sets.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:89879a2ba4a1b3fea28ff0eea2d2c8320eecede99ebfcfbc241d7d155efe6225",
+      "id": "p_stir_2024",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Not a drop-in RISC Zero backend and advertised parameters require current assumption review.",
+        "date": "2024",
+        "evidence_scope": "Reports fewer queries and smaller arguments than FRI for evaluated parameter sets.",
+        "last_reviewed": "2026-07-14",
+        "title": "STIR: Reed-Solomon Proximity Testing with Fewer Queries"
+      },
+      "normalized_content": "stir: reed-solomon proximity testing with fewer queries: reports fewer queries and smaller arguments than fri for evaluated parameter sets.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2024/390"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "WHIR: Reed-Solomon Proximity Testing with Super-Fast Verification: Targets fast verification and compact proofs as a successor to FRI/STIR/BaseFold-style protocols.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:3452eb17701784d99ccfe73f376666c8fb029fc2f53ad69baf8c63d53fe28f6d",
+      "id": "p_whir_2024",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Some aggressive mutual-correlated-agreement assumptions are affected by later counterexamples.",
+        "date": "2024",
+        "evidence_scope": "Targets fast verification and compact proofs as a successor to FRI/STIR/BaseFold-style protocols.",
+        "last_reviewed": "2026-07-14",
+        "title": "WHIR: Reed-Solomon Proximity Testing with Super-Fast Verification"
+      },
+      "normalized_content": "whir: reed-solomon proximity testing with super-fast verification: targets fast verification and compact proofs as a successor to fri/stir/basefold-style protocols.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2024/1586"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "BaseFold: Efficient Field-Agnostic Polynomial Commitment Schemes from Foldable Codes: Presents a foldable-code PCS and reports substantial proof/verifier improvements in evaluated multilinear settings.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:b8a58e7bf50927c0c3dcf59470c5be063df4bfb3b64884e3d777146341bc3d37",
+      "id": "p_basefold_2023",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "The recent revision and exact MCA regime require re-review against current proximity-gap results.",
+        "date": "2023; revised 2026-07-10",
+        "evidence_scope": "Presents a foldable-code PCS and reports substantial proof/verifier improvements in evaluated multilinear settings.",
+        "last_reviewed": "2026-07-14",
+        "title": "BaseFold: Efficient Field-Agnostic Polynomial Commitment Schemes from Foldable Codes"
+      },
+      "normalized_content": "basefold: efficient field-agnostic polynomial commitment schemes from foldable codes: presents a foldable-code pcs and reports substantial proof/verifier improvements in evaluated multilinear settings.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2023/1705"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "DeepFold: Efficient Multilinear Polynomial Commitment from Reed-Solomon Codes: Reports proof-size and performance improvements over BaseFold-family baselines.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:bfca1c78ef952a377c20976b981638941527ed089586cbb7ad20c10dadce7ad8",
+      "id": "p_deepfold_2024",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Custom multilinear backend; no ZRPF statement-equivalence evidence exists.",
+        "date": "2024",
+        "evidence_scope": "Reports proof-size and performance improvements over BaseFold-family baselines.",
+        "last_reviewed": "2026-07-14",
+        "title": "DeepFold: Efficient Multilinear Polynomial Commitment from Reed-Solomon Codes"
+      },
+      "normalized_content": "deepfold: efficient multilinear polynomial commitment from reed-solomon codes: reports proof-size and performance improvements over basefold-family baselines.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2024/1595"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Jagged Polynomial Commitment Scheme: Targets heterogeneous trace tables and recursive-verifier cost tied to total trace area.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:6db280f1bffd4cf63e00170545b25c99a681c078b31459ad528e0959b4539571",
+      "id": "p_jagged_pcs_2025",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Promising zkVM fit is an inference; integration and assumption costs are unmeasured for ZRPF.",
+        "date": "2025",
+        "evidence_scope": "Targets heterogeneous trace tables and recursive-verifier cost tied to total trace area.",
+        "last_reviewed": "2026-07-14",
+        "title": "Jagged Polynomial Commitment Scheme"
+      },
+      "normalized_content": "jagged polynomial commitment scheme: targets heterogeneous trace tables and recursive-verifier cost tied to total trace area.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2025/917"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Binius: Highly Efficient Proof Systems over Binary Fields: Binary towers can reduce bitwise and hashing embedding overhead.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:df30bfd339ce5807eef55d04b9f7ac4958ce01719c64cc3617641318224284cb",
+      "id": "p_binius_2023",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Value depends on a measured ZRPF opcode/trace profile; not automatically beneficial for the current workload.",
+        "date": "2023",
+        "evidence_scope": "Binary towers can reduce bitwise and hashing embedding overhead.",
+        "last_reviewed": "2026-07-14",
+        "title": "Binius: Highly Efficient Proof Systems over Binary Fields"
+      },
+      "normalized_content": "binius: highly efficient proof systems over binary fields: binary towers can reduce bitwise and hashing embedding overhead.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2023/1784"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Lasso and Jolt lookup arguments: Lookup arguments can make cost depend on accessed table entries and motivate workload-specific zkVM designs.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:1b1469de2cc7bd95186250c314941870365131fbb7b4d14f3aaaf7a9879780b2",
+      "id": "p_lasso_2023",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "A new zkVM/backend would be a migration, not an optimization of pinned RISC Zero receipts.",
+        "date": "2023",
+        "evidence_scope": "Lookup arguments can make cost depend on accessed table entries and motivate workload-specific zkVM designs.",
+        "last_reviewed": "2026-07-14",
+        "title": "Lasso and Jolt lookup arguments"
+      },
+      "normalized_content": "lasso and jolt lookup arguments: lookup arguments can make cost depend on accessed table entries and motivate workload-specific zkvm designs.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2023/1216"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Twist and Shout: Faster Memory Checking Arguments: Reports large prover improvements for lookup and memory-checking workloads.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:39bc94dbe0ad4ab21cfc071ffe430622a32b6a70f3da023af37a8a3a04d7e127",
+      "id": "p_twist_shout_2025",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Needs trace profiling and differential semantic tests before relevance to ZRPF is known.",
+        "date": "2025",
+        "evidence_scope": "Reports large prover improvements for lookup and memory-checking workloads.",
+        "last_reviewed": "2026-07-14",
+        "title": "Twist and Shout: Faster Memory Checking Arguments"
+      },
+      "normalized_content": "twist and shout: faster memory checking arguments: reports large prover improvements for lookup and memory-checking workloads.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2025/105"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Circle STARKs: Introduces an M31-based STARK construction and reports preliminary performance gains.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:2738ecf19fabd2b3982b21995e87dd13ea6c12979b7a0f6bf0d9e09b12367430",
+      "id": "p_circle_starks_2024",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "High migration and assurance cost; preliminary comparisons are not ZRPF benchmarks.",
+        "date": "2024",
+        "evidence_scope": "Introduces an M31-based STARK construction and reports preliminary performance gains.",
+        "last_reviewed": "2026-07-14",
+        "title": "Circle STARKs"
+      },
+      "normalized_content": "circle starks: introduces an m31-based stark construction and reports preliminary performance gains.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2024/278"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "FRIttata: Distributed FRI-style Polynomial Commitments: Explores horizontal distribution for FRI-style polynomial commitments.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:0ee793bb60e2b91000cb0453ecf25ceb327a34a537034756786aaa4660d54b27",
+      "id": "p_frittata_2025",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Existing proof-DAG distribution is much lower integration risk for ZRPF.",
+        "date": "2025",
+        "evidence_scope": "Explores horizontal distribution for FRI-style polynomial commitments.",
+        "last_reviewed": "2026-07-14",
+        "title": "FRIttata: Distributed FRI-style Polynomial Commitments"
+      },
+      "normalized_content": "frittata: distributed fri-style polynomial commitments: explores horizontal distribution for fri-style polynomial commitments.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2025/1285"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Shred-to-Shine: Accountable Distributed Proof Generation: Studies accountable distributed proof generation and reports major distributed-prover gains in its evaluated system.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:7d1815c86a37a5e5438a6595ea5fe1b9050af284136a58cd52eb7be452f52397",
+      "id": "p_shred_to_shine_2025",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Different protocol and fault model; no direct ZRPF portability claim.",
+        "date": "2025",
+        "evidence_scope": "Studies accountable distributed proof generation and reports major distributed-prover gains in its evaluated system.",
+        "last_reviewed": "2026-07-14",
+        "title": "Shred-to-Shine: Accountable Distributed Proof Generation"
+      },
+      "normalized_content": "shred-to-shine: accountable distributed proof generation: studies accountable distributed proof generation and reports major distributed-prover gains in its evaluated system.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2025/1354"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Nova: Recursive Zero-Knowledge Arguments from Folding Schemes: Establishes practical folding-based incremental computation.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:d65512dfdf5b7987cc398229b49d6bded1de60dbdbce064df4345f819629740d",
+      "id": "p_nova_2021",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Common instantiations use elliptic-curve/DLOG commitments, conflicting with ZRPF's transparent plausibly post-quantum profile.",
+        "date": "2021",
+        "evidence_scope": "Establishes practical folding-based incremental computation.",
+        "last_reviewed": "2026-07-14",
+        "title": "Nova: Recursive Zero-Knowledge Arguments from Folding Schemes"
+      },
+      "normalized_content": "nova: recursive zero-knowledge arguments from folding schemes: establishes practical folding-based incremental computation.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2021/370"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "HyperNova: Recursive Arguments for Customizable Constraint Systems: Generalizes folding to customizable constraint systems.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:8e27bf136a93cb58aa518aebc3f5521ed5e026aa96aa2843060b79a1f8e47c36",
+      "id": "p_hypernova_2023",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Same commitment-profile and migration concerns as Nova for current ZRPF policy.",
+        "date": "2023",
+        "evidence_scope": "Generalizes folding to customizable constraint systems.",
+        "last_reviewed": "2026-07-14",
+        "title": "HyperNova: Recursive Arguments for Customizable Constraint Systems"
+      },
+      "normalized_content": "hypernova: recursive arguments for customizable constraint systems: generalizes folding to customizable constraint systems.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2023/573"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "ProtoStar: Generic Efficient Accumulation/Folding: Develops generic accumulation/folding techniques relevant to IVC.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:29363fcd6ba854d3571087f4a1dd1fd34d80bed30b6cab54b0ce1539563c4b1c",
+      "id": "p_protostar_2023",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Authority compatibility and post-quantum assumptions remain separate obligations.",
+        "date": "2023",
+        "evidence_scope": "Develops generic accumulation/folding techniques relevant to IVC.",
+        "last_reviewed": "2026-07-14",
+        "title": "ProtoStar: Generic Efficient Accumulation/Folding"
+      },
+      "normalized_content": "protostar: generic efficient accumulation/folding: develops generic accumulation/folding techniques relevant to ivc.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2023/620"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Security of Nova-style Folding at Polynomial Depth: Shows that bounded-depth security formulations need care before extrapolation to polynomial-depth folding.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:145217247cee2e63a7bb92d85983649edbd7b1541a848fb64864cd30f7a1cc76",
+      "id": "p_nova_security_2024",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "A research warning, not a claim that all Nova deployments are insecure.",
+        "date": "2024",
+        "evidence_scope": "Shows that bounded-depth security formulations need care before extrapolation to polynomial-depth folding.",
+        "last_reviewed": "2026-07-14",
+        "title": "Security of Nova-style Folding at Polynomial Depth"
+      },
+      "normalized_content": "security of nova-style folding at polynomial depth: shows that bounded-depth security formulations need care before extrapolation to polynomial-depth folding.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2024/232"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Neo/SuperNeo Post-Quantum Folding: Proposes post-quantum folding using lattice assumptions and small-field-friendly techniques.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:fb4e41d4b3a87b874ebda5881fab4633e04ec22a85b42b92d080dcfd7b2c3ec3",
+      "id": "p_superneo_2026",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Frontier-stage evidence with fresh assumptions and implementation risk; research lane only.",
+        "date": "2026",
+        "evidence_scope": "Proposes post-quantum folding using lattice assumptions and small-field-friendly techniques.",
+        "last_reviewed": "2026-07-14",
+        "title": "Neo/SuperNeo Post-Quantum Folding"
+      },
+      "normalized_content": "neo/superneo post-quantum folding: proposes post-quantum folding using lattice assumptions and small-field-friendly techniques.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://eprint.iacr.org/2026/242"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Arguzz: Argument-Aware Fuzzing for zkVMs: Reports eleven bugs across tested zkVMs, motivating semantics-aware mutation and differential testing.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:c9bce9477dab56b3f92c0d276186f517cdc079204ecc59518695f6e5d0eff9a4",
+      "id": "p_arguzz_2025",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "Fuzzing is sampling evidence, never a soundness proof.",
+        "date": "2025",
+        "evidence_scope": "Reports eleven bugs across tested zkVMs, motivating semantics-aware mutation and differential testing.",
+        "last_reviewed": "2026-07-14",
+        "title": "Arguzz: Argument-Aware Fuzzing for zkVMs"
+      },
+      "normalized_content": "arguzz: argument-aware fuzzing for zkvms: reports eleven bugs across tested zkvms, motivating semantics-aware mutation and differential testing.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://arxiv.org/abs/2509.10819"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    },
+    {
+      "artifact_refs": [],
+      "confidence": null,
+      "content": "Toward Formal Verification of the RISC Zero zkVM: Describes a Lean proof-of-concept for formalizing parts of the RISC Zero circuit semantics.",
+      "created_at": "2026-07-14T23:03:41Z",
+      "evidence_score": 0.0,
+      "hash": "sha256:9f76f51b9deeeede9367164e0fa8529e0084f494f1d3997f9fc218242bfdd239",
+      "id": "p_risc0_lean_poc",
+      "importance_score": 0.8,
+      "metadata": {
+        "caveat": "A proof-of-concept does not close the full implementation-to-theorem refinement boundary.",
+        "date": "2024",
+        "evidence_scope": "Describes a Lean proof-of-concept for formalizing parts of the RISC Zero circuit semantics.",
+        "last_reviewed": "2026-07-14",
+        "title": "Toward Formal Verification of the RISC Zero zkVM"
+      },
+      "normalized_content": "toward formal verification of the risc zero zkvm: describes a lean proof-of-concept for formalizing parts of the risc zero circuit semantics.",
+      "novelty_score": 0.65,
+      "parent_ids": [],
+      "refutability_score": 0.8,
+      "run_id": "run_zrpf_frontier_20260714",
+      "source_refs": [
+        "https://www.nethermind.io/blog/towards-formal-verification-of-the-first-risc-v-zkvm"
+      ],
+      "status": "SUPPORTED",
+      "tags": [
+        "literature",
+        "primary-source"
+      ],
+      "type": "EVIDENCE",
+      "uncertainty_score": 0.25,
+      "updated_at": "2026-07-14T23:03:41Z"
+    }
+  ]
+}

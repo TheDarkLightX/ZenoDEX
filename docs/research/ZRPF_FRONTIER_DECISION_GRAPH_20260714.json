@@ -1,0 +1,1059 @@
+{
+  "schema": "zenodex/zrpf-frontier-decision-graph/v1",
+  "as_of": "2026-07-14",
+  "repository": {
+    "full_name": "TheDarkLightX/ZenoDEX",
+    "default_branch": "main",
+    "default_branch_sha": "44d7f0d2a36b2141b553af1df734926c9d559bca",
+    "integration_pr": 436,
+    "integration_head_sha": "8c223ff0c684d9811ca633b042d0c3edc5220488"
+  },
+  "source_graph": {
+    "path": "ZRPF_FRONTIER_KNOWLEDGE_GRAPH_20260714.json",
+    "sha256": "e4afe4ff8fb7d3287a17e7fb90030900d0e796bbf8917b3a7ba807edf29bc6e8",
+    "schema": "research_kernel/report/v1",
+    "run_id": "run_zrpf_frontier_20260714"
+  },
+  "dependency_states": [
+    "PROVEN",
+    "UNPROVEN",
+    "DISPROVEN",
+    "VERSION_DRIFTED"
+  ],
+  "dependencies": [
+    {
+      "id": "dep_atomic_semantic_merge_formalization",
+      "statement": "The exact bounded semantic merge used by the production codec is machine-checked for associativity, continuity, uniqueness, conservation, and topology independence.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "merge_semantic_subtrees_v2",
+        "expected": "repository-head:8c223ff0",
+        "observed": "repository-head:8c223ff0",
+        "source_revision": "git:8c223ff0c684d9811ca633b042d0c3edc5220488"
+      },
+      "evidence_refs": [
+        "zk/zrpf_protocol/protocol/src/value_node_v4/subtree/merge.rs",
+        "lean-mathlib/Proofs/ZenoLedgerZkTeeProofComposition.lean"
+      ]
+    },
+    {
+      "id": "dep_backend_statement_equivalence_oracle",
+      "statement": "Every experimental backend authenticates exactly the same canonical ZRPF statement and rejects a cross-backend differential corpus identically.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "authority-free-backend-adapter-lab",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "research-kernel:run_zrpf_frontier_20260714"
+      },
+      "evidence_refs": [
+        "research-kernel-atom:h_backend_adapter_lab",
+        "https://eprint.iacr.org/2025/917"
+      ]
+    },
+    {
+      "id": "dep_distributed_pcs_fault_model",
+      "statement": "The distributed prover fault, authentication, retry, equivocation, and recovery model is explicit and exercised by fault injection.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "distributed-pcs-lab",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "research-kernel:run_zrpf_frontier_20260714"
+      },
+      "evidence_refs": [
+        "research-kernel-atom:h_distributed_pcs_lab",
+        "https://eprint.iacr.org/2025/1285",
+        "https://eprint.iacr.org/2025/1354"
+      ]
+    },
+    {
+      "id": "dep_folding_policy_compatibility",
+      "statement": "The selected folding construction has an explicit large-depth security definition and commitment, transparency, and post-quantum assumptions compatible with ZRPF policy.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "folding-lab",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "research-kernel:run_zrpf_frontier_20260714"
+      },
+      "evidence_refs": [
+        "research-kernel-atom:h_folding_lab",
+        "https://eprint.iacr.org/2024/232",
+        "https://eprint.iacr.org/2026/242"
+      ]
+    },
+    {
+      "id": "dep_formal_verifier_refinement_bridge",
+      "statement": "A digest-pinned refinement argument connects formal receipt-verifier semantics to the exact external zkVM implementation and its trusted boundary.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "formal-verifier-bridge",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "research-kernel:run_zrpf_frontier_20260714"
+      },
+      "evidence_refs": [
+        "research-kernel-atom:h_formal_verifier_bridge",
+        "https://www.nethermind.io/blog/towards-formal-verification-of-the-first-risc-v-zkvm"
+      ]
+    },
+    {
+      "id": "dep_trace_profile_and_benchmark_corpus",
+      "statement": "Backend comparisons use a retained, exact-identity ZRPF trace/workload corpus with raw samples, failures, timeouts, and resource measurements.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "backend-benchmark-corpus",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "research-kernel:run_zrpf_frontier_20260714"
+      },
+      "evidence_refs": [
+        "https://github.com/TheDarkLightX/ZenoDEX/pull/435",
+        "docs/research/ZRPF_V6_DARWIN_SETTLEMENT_BENCHMARK_HANDOFF_20260713.md"
+      ]
+    },
+    {
+      "id": "dep_authenticated_worker_capability",
+      "statement": "Remote prover capability, operator identity, backend path, freshness, and measured work are authenticated rather than self-reported.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "remote-reproof-worker",
+        "expected": "v2",
+        "observed": "v2",
+        "source_revision": "git:8c223ff0c684d9811ca633b042d0c3edc5220488"
+      },
+      "evidence_refs": [
+        "docs/research/ZRPF_REMOTE_REPROOF_WORKER_V2_CBC_SPEC_20260714.md"
+      ]
+    },
+    {
+      "id": "dep_current_head_ci",
+      "statement": "Every required assurance workflow succeeds at the exact integration head.",
+      "state": "DISPROVEN",
+      "version": {
+        "component": "pull-request-436",
+        "expected": "8c223ff0c684d9811ca633b042d0c3edc5220488",
+        "observed": "8c223ff0c684d9811ca633b042d0c3edc5220488",
+        "source_revision": "github-actions:zrpf-assurance/run-102"
+      },
+      "evidence_refs": [
+        "https://github.com/TheDarkLightX/ZenoDEX/pull/436",
+        "github-actions:29374278019"
+      ]
+    },
+    {
+      "id": "dep_current_v6_v7_image_identities",
+      "statement": "All V6/V7 image IDs, binaries, receipts, and replay evidence are regenerated from the final governed source.",
+      "state": "VERSION_DRIFTED",
+      "version": {
+        "component": "source-opened-v6-v7-identities",
+        "expected": "final-source-current",
+        "observed": "zero-or-pre-final-pins-at-8c223ff0",
+        "source_revision": "git:8c223ff0c684d9811ca633b042d0c3edc5220488"
+      },
+      "evidence_refs": [
+        "docs/research/ZRPF_SOURCE_OPENED_SPOT_V6_CBC_SPEC_20260712.md",
+        "zk/spot_settlement_v7_risc0/README.md"
+      ]
+    },
+    {
+      "id": "dep_deterministic_proof_dag_worker",
+      "statement": "Every required proof-DAG stage is executable with content-addressed keys, idempotent retries, exact inputs, and bounded resources.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "remote-reproof-handoff",
+        "expected": "v2",
+        "observed": "v2",
+        "source_revision": "git:8c223ff0c684d9811ca633b042d0c3edc5220488"
+      },
+      "evidence_refs": [
+        "docs/research/ZRPF_REMOTE_REPROOF_HANDOFF_V2_CBC_SPEC_20260714.md",
+        "tools/run_zrpf_remote_reproof_worker_v2.py"
+      ]
+    },
+    {
+      "id": "dep_exact_fri_conjecture_registry",
+      "statement": "Every conjectural FRI-family soundness dependency is named by exact formulation, version, source digest, and applicability range.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "fri-assumption-registry",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "literature:2025/2046-revision-2025-12-19"
+      },
+      "evidence_refs": [
+        "https://eprint.iacr.org/2025/2046",
+        "https://dev.risczero.com/api/security-model"
+      ]
+    },
+    {
+      "id": "dep_level_ladder_evidence",
+      "statement": "A finite level-specific aggregate-image ladder is built, manifest-bound, negatively tested, and freshly replayed.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "zrpf-level-ladder",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "research-kernel:run_zrpf_frontier_20260714"
+      },
+      "evidence_refs": [
+        "research-kernel-atom:h_level_ladder"
+      ]
+    },
+    {
+      "id": "dep_metamorphic_equivalence_oracle",
+      "statement": "A deterministic oracle distinguishes semantics-preserving from semantics-changing ZRPF mutations and records mutation-kill evidence.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "zrpf-metamorphic-corpus",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "research-kernel:run_zrpf_frontier_20260714"
+      },
+      "evidence_refs": [
+        "https://arxiv.org/abs/2509.10819",
+        "research-kernel-atom:h_metamorphic_corpus"
+      ]
+    },
+    {
+      "id": "dep_multi_action_settlement_semantics",
+      "statement": "A bounded multi-action settlement statement enforces ordered state continuity, global uniqueness, conservation, conflicts, and exact resource ceilings.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "source-opened-spot-settlement",
+        "expected": "bounded-multi-action-v1",
+        "observed": "single-action-v6-v7",
+        "source_revision": "git:8c223ff0c684d9811ca633b042d0c3edc5220488"
+      },
+      "evidence_refs": [
+        "docs/research/ZRPF_SOURCE_OPENED_SPOT_V6_CBC_SPEC_20260712.md",
+        "zk/spot_settlement_v7_risc0/README.md"
+      ]
+    },
+    {
+      "id": "dep_privileged_runtime_release_authority",
+      "statement": "A governed, rollback-protected release is executed by a concrete privileged Linux supervisor with fresh hostile-process evidence.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "spot-v7-root-supervisor",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "git:8c223ff0c684d9811ca633b042d0c3edc5220488"
+      },
+      "evidence_refs": [
+        "docs/research/ZRPF_SPOT_V7_ROOT_SUPERVISOR_CONTRACT_V1_20260714.md",
+        "docs/research/ZRPF_SPOT_V7_ROOT_OWNED_FIRECRACKER_RUNNER_FRONTIER_20260714.md"
+      ]
+    },
+    {
+      "id": "dep_proof_shape_runtime_enforcement",
+      "statement": "Proof-shape and assumption manifests are enforced by every V6/V7 guest, host planner, worker key, benchmark, and release inventory.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "proof-shape-v1",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "git:8c223ff0c684d9811ca633b042d0c3edc5220488"
+      },
+      "evidence_refs": [
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1",
+        "zk/zrpf_risc0/methods/spot_value_leaf_v6/src/main.rs"
+      ]
+    },
+    {
+      "id": "dep_provider_beacon_governance",
+      "statement": "Sampled-DA provider policy, challenge beacon, response timing, independence, and longitudinal window are governed and authenticated.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "sampled-retrievability",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "git:8c223ff0c684d9811ca633b042d0c3edc5220488"
+      },
+      "evidence_refs": [
+        "docs/research/ZRPF_SAMPLED_RETRIEVABILITY_V1.md",
+        "docs/research/ZRPF_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_V1.md"
+      ]
+    },
+    {
+      "id": "dep_retention_da_recovery_policy",
+      "statement": "Receipt tiering or deletion preserves every authenticated root, audit index, recovery object, and DA obligation required by policy.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "streaming-retention-policy",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "research-kernel:run_zrpf_frontier_20260714"
+      },
+      "evidence_refs": [
+        "research-kernel-atom:h_streaming_retention",
+        "docs/research/ZRPF_FULL_BLOB_DA_V1_CBC_SPEC_20260712.md"
+      ]
+    },
+    {
+      "id": "dep_risc0_3_0_5_recursion_join",
+      "statement": "The pinned RISC Zero line supports repeated Succinct receipt joins and assumption resolution.",
+      "state": "PROVEN",
+      "version": {
+        "component": "risc0-zkvm",
+        "expected": "3.0.5",
+        "observed": "3.0.5",
+        "source_revision": "docs:risc-zero-3.0-checked-2026-07-14"
+      },
+      "evidence_refs": [
+        "https://dev.risczero.com/api/recursion",
+        "research-kernel-atom:c_repeated_join"
+      ]
+    },
+    {
+      "id": "dep_semantic_codec_freeze",
+      "statement": "The exact bounded semantic types, canonical codec, hash domains, and merge behavior are frozen for formalization.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "value-node-v4-semantic-merge",
+        "expected": "repository-head:8c223ff0",
+        "observed": "repository-head:8c223ff0",
+        "source_revision": "git:8c223ff0c684d9811ca633b042d0c3edc5220488"
+      },
+      "evidence_refs": [
+        "zk/zrpf_protocol/protocol/src/value_node_v4/subtree/merge.rs"
+      ]
+    },
+    {
+      "id": "dep_soundness_model_mode_and_parameters",
+      "statement": "Every proof-verification event is classified by exact proof mode, parameters, source digest, and a conservative composed failure budget.",
+      "state": "UNPROVEN",
+      "version": {
+        "component": "zrpf-soundness-ledger",
+        "expected": "v1",
+        "observed": "v1",
+        "source_revision": "research-kernel:run_zrpf_frontier_20260714"
+      },
+      "evidence_refs": [
+        "https://github.com/risc0/risc0/blob/main/risc0/zkp/src/prove/soundness.rs",
+        "research-kernel-atom:h_soundness_ledger"
+      ]
+    },
+    {
+      "id": "dep_source_opened_single_action_statement",
+      "statement": "The current V6/V7 source-opened statement is explicitly bounded to one ordinary Spot action.",
+      "state": "PROVEN",
+      "version": {
+        "component": "source-opened-spot-v6-v7",
+        "expected": "single-action",
+        "observed": "single-action",
+        "source_revision": "git:8c223ff0c684d9811ca633b042d0c3edc5220488"
+      },
+      "evidence_refs": [
+        "docs/research/ZRPF_SOURCE_OPENED_SPOT_V6_CBC_SPEC_20260712.md",
+        "zk/spot_settlement_v7_risc0/README.md"
+      ]
+    }
+  ],
+  "candidates": [
+    {
+      "id": "h_level_ladder",
+      "origin": "research_kernel",
+      "content": "Generate a finite level-specific aggregate-image ladder whose level k image pins level k-1, and bind the complete ladder into a signed manifest.",
+      "selected": true,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_current_head_ci",
+        "dep_current_v6_v7_image_identities",
+        "dep_multi_action_settlement_semantics",
+        "dep_soundness_model_mode_and_parameters"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_risc0_3_0_5_recursion_join",
+          "assumed_statement": "Repeated join remains available on the pinned backend.",
+          "required_state": "PROVEN",
+          "version_requirement": "risc0-zkvm=3.0.5",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "The ladder recursively verifies the previous level."
+        },
+        {
+          "dependency_id": "dep_current_v6_v7_image_identities",
+          "assumed_statement": "Every ladder image and child identity is derived from final source.",
+          "required_state": "PROVEN",
+          "version_requirement": "final-source-current",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "A stale image ladder authenticates stale programs."
+        },
+        {
+          "dependency_id": "dep_multi_action_settlement_semantics",
+          "assumed_statement": "The expanded tree commits an admissible multi-action statement.",
+          "required_state": "PROVEN",
+          "version_requirement": "bounded-multi-action-v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Tree capacity without settlement capacity is not end-to-end scale."
+        },
+        {
+          "dependency_id": "dep_soundness_model_mode_and_parameters",
+          "assumed_statement": "The extra verification events are included in the soundness budget.",
+          "required_state": "PROVEN",
+          "version_requirement": "zrpf-soundness-ledger=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Depth changes the number and class of verification events."
+        },
+        {
+          "dependency_id": "dep_current_head_ci",
+          "assumed_statement": "The integration base is green at the exact head.",
+          "required_state": "PROVEN",
+          "version_requirement": "head=8c223ff0c684d9811ca633b042d0c3edc5220488",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "New evidence cannot be admitted on a failing base."
+        }
+      ]
+    },
+    {
+      "id": "h_soundness_ledger",
+      "origin": "research_kernel",
+      "content": "Make an executable, source-digested soundness ledger an admission prerequisite, with separate proven and conjectured modes and an exact union-bound event budget.",
+      "selected": true,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_current_head_ci",
+        "dep_exact_fri_conjecture_registry",
+        "dep_soundness_model_mode_and_parameters"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_exact_fri_conjecture_registry",
+          "assumed_statement": "Every conjecture is named and versioned precisely enough to detect literature drift.",
+          "required_state": "PROVEN",
+          "version_requirement": "fri-assumption-registry=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Generic family labels cannot distinguish disproved from modified formulations."
+        },
+        {
+          "dependency_id": "dep_soundness_model_mode_and_parameters",
+          "assumed_statement": "The ledger covers every current verification mode and event class.",
+          "required_state": "PROVEN",
+          "version_requirement": "zrpf-soundness-ledger=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Missing events make a union-bound result unsound."
+        },
+        {
+          "dependency_id": "dep_current_head_ci",
+          "assumed_statement": "The integration base is green at the exact head.",
+          "required_state": "PROVEN",
+          "version_requirement": "head=8c223ff0c684d9811ca633b042d0c3edc5220488",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Admission tooling must start from a passing exact base."
+        }
+      ]
+    },
+    {
+      "id": "h_dag_scheduler",
+      "origin": "research_kernel",
+      "content": "Use a deterministic proof-DAG scheduler with content-addressed node keys, idempotent retries, worker capability attestations, and a receipt cache.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_authenticated_worker_capability",
+        "dep_current_head_ci",
+        "dep_current_v6_v7_image_identities",
+        "dep_deterministic_proof_dag_worker"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_deterministic_proof_dag_worker",
+          "assumed_statement": "Every stage has a complete deterministic task definition.",
+          "required_state": "PROVEN",
+          "version_requirement": "remote-reproof-handoff=v2",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "An incomplete graph cannot guarantee reproducible completion."
+        },
+        {
+          "dependency_id": "dep_authenticated_worker_capability",
+          "assumed_statement": "Worker capability and freshness are authenticated.",
+          "required_state": "PROVEN",
+          "version_requirement": "remote-reproof-worker=v2",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Self-reported workers can poison caches and evidence."
+        },
+        {
+          "dependency_id": "dep_current_v6_v7_image_identities",
+          "assumed_statement": "Task keys bind final-source identities.",
+          "required_state": "PROVEN",
+          "version_requirement": "final-source-current",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Caching stale proof identities is unsafe."
+        },
+        {
+          "dependency_id": "dep_current_head_ci",
+          "assumed_statement": "The integration base is green.",
+          "required_state": "PROVEN",
+          "version_requirement": "head=8c223ff0c684d9811ca633b042d0c3edc5220488",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Scheduler evidence must be captured on a passing base."
+        }
+      ]
+    },
+    {
+      "id": "h_streaming_retention",
+      "origin": "research_kernel",
+      "content": "Resolve groups incrementally and tier or discard intermediate receipts after parent proof, while retaining the authenticated root and audit/DA indexes required by policy.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_level_ladder_evidence",
+        "dep_provider_beacon_governance",
+        "dep_retention_da_recovery_policy"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_level_ladder_evidence",
+          "assumed_statement": "The parent proof safely replaces retained child receipts.",
+          "required_state": "PROVEN",
+          "version_requirement": "zrpf-level-ladder=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Retention relies on exact parent-child authentication."
+        },
+        {
+          "dependency_id": "dep_retention_da_recovery_policy",
+          "assumed_statement": "Policy identifies every object needed for audit and recovery.",
+          "required_state": "PROVEN",
+          "version_requirement": "streaming-retention-policy=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Deleting unclassified objects can make recovery impossible."
+        },
+        {
+          "dependency_id": "dep_provider_beacon_governance",
+          "assumed_statement": "External retrievability evidence remains governed after tiering.",
+          "required_state": "PROVEN",
+          "version_requirement": "sampled-retrievability=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "A root is not data availability."
+        }
+      ]
+    },
+    {
+      "id": "h_capability_attestation",
+      "origin": "research_kernel",
+      "content": "Probe and attest the actual prover backend, accelerator path, binary/source digest, and measured throughput instead of inferring acceleration from the host OS or documentation.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_authenticated_worker_capability",
+        "dep_current_head_ci",
+        "dep_current_v6_v7_image_identities"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_authenticated_worker_capability",
+          "assumed_statement": "Capability evidence is bound to trusted worker identity and measured work.",
+          "required_state": "PROVEN",
+          "version_requirement": "remote-reproof-worker=v2",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Self-reporting is not attestation."
+        },
+        {
+          "dependency_id": "dep_current_v6_v7_image_identities",
+          "assumed_statement": "The measured workload is the final source workload.",
+          "required_state": "PROVEN",
+          "version_requirement": "final-source-current",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Performance evidence does not transfer across image drift."
+        },
+        {
+          "dependency_id": "dep_current_head_ci",
+          "assumed_statement": "The measured exact head passes assurance.",
+          "required_state": "PROVEN",
+          "version_requirement": "head=8c223ff0c684d9811ca633b042d0c3edc5220488",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "A benchmark cannot override a failing assurance gate."
+        }
+      ]
+    },
+    {
+      "id": "h_metamorphic_corpus",
+      "origin": "research_kernel",
+      "content": "Add a ZRPF-specific metamorphic and fault-injection corpus spanning guest semantics, receipts, journals, image IDs, levels, ordering, profiles, and assumptions.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_current_head_ci",
+        "dep_metamorphic_equivalence_oracle"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_metamorphic_equivalence_oracle",
+          "assumed_statement": "The oracle correctly labels preserving and changing mutations.",
+          "required_state": "PROVEN",
+          "version_requirement": "zrpf-metamorphic-corpus=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "A wrong oracle can turn false positives into assurance claims."
+        },
+        {
+          "dependency_id": "dep_current_head_ci",
+          "assumed_statement": "The integration base is green before corpus results are interpreted.",
+          "required_state": "PROVEN",
+          "version_requirement": "head=8c223ff0c684d9811ca633b042d0c3edc5220488",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Unrelated failures must not be hidden by mutation results."
+        }
+      ]
+    },
+    {
+      "id": "h_elastic_profiles",
+      "origin": "research_kernel",
+      "content": "Calibrate segment size, fanout, accelerator, and memory profiles while requiring every profile to authenticate the same semantic statement and carry its own soundness budget.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_authenticated_worker_capability",
+        "dep_current_v6_v7_image_identities",
+        "dep_exact_fri_conjecture_registry",
+        "dep_soundness_model_mode_and_parameters"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_authenticated_worker_capability",
+          "assumed_statement": "The selected backend path is authenticated and measured.",
+          "required_state": "PROVEN",
+          "version_requirement": "remote-reproof-worker=v2",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Profile choice must bind actual capability."
+        },
+        {
+          "dependency_id": "dep_soundness_model_mode_and_parameters",
+          "assumed_statement": "Each profile has a complete composed soundness budget.",
+          "required_state": "PROVEN",
+          "version_requirement": "zrpf-soundness-ledger=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Resource tuning can alter security parameters."
+        },
+        {
+          "dependency_id": "dep_exact_fri_conjecture_registry",
+          "assumed_statement": "Every profile points to exact applicable conjectures.",
+          "required_state": "PROVEN",
+          "version_requirement": "fri-assumption-registry=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Profiles cannot share an ambiguous assumption label."
+        },
+        {
+          "dependency_id": "dep_current_v6_v7_image_identities",
+          "assumed_statement": "Cross-profile comparison uses the same final statement and source.",
+          "required_state": "PROVEN",
+          "version_requirement": "final-source-current",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Different program identities invalidate performance comparison."
+        }
+      ]
+    },
+    {
+      "id": "h_base8_forest",
+      "origin": "research_kernel",
+      "content": "Prototype an append-only base-8 carry forest that holds O(log n) live receipts and finalizes through the finite level-specific image ladder.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_level_ladder_evidence",
+        "dep_multi_action_settlement_semantics",
+        "dep_retention_da_recovery_policy"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_level_ladder_evidence",
+          "assumed_statement": "Every carry level authenticates the preceding level.",
+          "required_state": "PROVEN",
+          "version_requirement": "zrpf-level-ladder=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "The carry forest inherits ladder soundness."
+        },
+        {
+          "dependency_id": "dep_retention_da_recovery_policy",
+          "assumed_statement": "O(log n) live receipts preserve required audit and recovery data.",
+          "required_state": "PROVEN",
+          "version_requirement": "streaming-retention-policy=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Small live state must not destroy recoverability."
+        },
+        {
+          "dependency_id": "dep_multi_action_settlement_semantics",
+          "assumed_statement": "Partial and final forest states map to unambiguous settlement semantics.",
+          "required_state": "PROVEN",
+          "version_requirement": "bounded-multi-action-v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Partial finalization otherwise has no authority-safe meaning."
+        }
+      ]
+    },
+    {
+      "id": "h_multi_action_settlement_statement",
+      "origin": "repository_recon",
+      "content": "Define a bounded multi-action Spot settlement statement before increasing aggregate fanout.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_atomic_semantic_merge_formalization",
+        "dep_current_head_ci",
+        "dep_current_v6_v7_image_identities",
+        "dep_multi_action_settlement_semantics"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_source_opened_single_action_statement",
+          "assumed_statement": "The current one-action statement is the compatibility baseline.",
+          "required_state": "PROVEN",
+          "version_requirement": "source-opened-spot=single-action",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Batch semantics must conservatively extend the current statement."
+        },
+        {
+          "dependency_id": "dep_multi_action_settlement_semantics",
+          "assumed_statement": "The proposed bounded batch invariants are complete.",
+          "required_state": "PROVEN",
+          "version_requirement": "bounded-multi-action-v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "This is the new authority statement."
+        },
+        {
+          "dependency_id": "dep_atomic_semantic_merge_formalization",
+          "assumed_statement": "The merge preserves the batch invariants.",
+          "required_state": "PROVEN",
+          "version_requirement": "merge_semantic_subtrees_v2@8c223ff0",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Composition correctness is the core batch property."
+        },
+        {
+          "dependency_id": "dep_current_v6_v7_image_identities",
+          "assumed_statement": "Fresh proof evidence binds the final batch guest.",
+          "required_state": "PROVEN",
+          "version_requirement": "final-source-current",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Proof authority cannot survive source drift."
+        },
+        {
+          "dependency_id": "dep_current_head_ci",
+          "assumed_statement": "The base is green.",
+          "required_state": "PROVEN",
+          "version_requirement": "head=8c223ff0c684d9811ca633b042d0c3edc5220488",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "The new semantic path must begin from a passing base."
+        }
+      ]
+    },
+    {
+      "id": "h_proof_shape_runtime_enforcement",
+      "origin": "repository_recon",
+      "content": "Enforce the proof-shape and assumption registries in every V6/V7 guest, planner, worker, benchmark, and release inventory.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_current_head_ci",
+        "dep_current_v6_v7_image_identities",
+        "dep_proof_shape_runtime_enforcement",
+        "dep_soundness_model_mode_and_parameters"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_proof_shape_runtime_enforcement",
+          "assumed_statement": "Every acceptance path consumes the same shape manifest.",
+          "required_state": "PROVEN",
+          "version_requirement": "proof-shape=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "A protocol-only registry does not constrain production execution."
+        },
+        {
+          "dependency_id": "dep_soundness_model_mode_and_parameters",
+          "assumed_statement": "Shape choices map to exact soundness entries.",
+          "required_state": "PROVEN",
+          "version_requirement": "zrpf-soundness-ledger=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Resource profiles can change verification event budgets."
+        },
+        {
+          "dependency_id": "dep_current_v6_v7_image_identities",
+          "assumed_statement": "Manifests bind final program identities.",
+          "required_state": "PROVEN",
+          "version_requirement": "final-source-current",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Shape evidence must follow source changes."
+        },
+        {
+          "dependency_id": "dep_current_head_ci",
+          "assumed_statement": "The base is green.",
+          "required_state": "PROVEN",
+          "version_requirement": "head=8c223ff0c684d9811ca633b042d0c3edc5220488",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Runtime enforcement must be tested on a passing base."
+        }
+      ]
+    },
+    {
+      "id": "h_lean_semantic_merge",
+      "origin": "repository_recon",
+      "content": "Formalize the exact bounded semantic merge in Lean and connect the theorem inputs to canonical production fixtures.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_atomic_semantic_merge_formalization",
+        "dep_semantic_codec_freeze"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_semantic_codec_freeze",
+          "assumed_statement": "The model target and canonical codec are frozen.",
+          "required_state": "PROVEN",
+          "version_requirement": "value-node-v4@8c223ff0",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "A theorem about a drifting abstraction does not cover production bytes."
+        },
+        {
+          "dependency_id": "dep_atomic_semantic_merge_formalization",
+          "assumed_statement": "All target invariants and bounds are represented in the theorem.",
+          "required_state": "PROVEN",
+          "version_requirement": "merge_semantic_subtrees_v2@8c223ff0",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Omitted bounds or uniqueness conditions invalidate the assurance claim."
+        }
+      ]
+    },
+    {
+      "id": "h_atomic_release_model",
+      "origin": "repository_recon",
+      "content": "Model-check V5 atomic settlement, finality cursor, release-head, revocation, rollback, crash, and replay interleavings before authority activation.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_current_head_ci",
+        "dep_privileged_runtime_release_authority",
+        "dep_provider_beacon_governance"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_privileged_runtime_release_authority",
+          "assumed_statement": "The modeled release/runtime contract matches the concrete authority port.",
+          "required_state": "PROVEN",
+          "version_requirement": "spot-v7-root-supervisor=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "A model of a non-existent port cannot authorize the future implementation."
+        },
+        {
+          "dependency_id": "dep_provider_beacon_governance",
+          "assumed_statement": "DA observations used by the store are governed and authenticated.",
+          "required_state": "PROVEN",
+          "version_requirement": "sampled-retrievability=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Atomic persistence does not make unauthenticated availability true."
+        },
+        {
+          "dependency_id": "dep_current_head_ci",
+          "assumed_statement": "The implementation being modeled passes exact-head assurance.",
+          "required_state": "PROVEN",
+          "version_requirement": "head=8c223ff0c684d9811ca633b042d0c3edc5220488",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Model evidence cannot hide implementation test failures."
+        }
+      ]
+    },
+    {
+      "id": "h_backend_adapter_lab",
+      "origin": "research_kernel",
+      "content": "Create an authority-free backend adapter laboratory that differentially benchmarks STIR, WHIR, BaseFold/DeepFold, Jagged PCS, Binius-family, and Circle-STARK candidates against the pinned ZRPF statement ABI and assumption profile.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_backend_statement_equivalence_oracle",
+        "dep_current_head_ci",
+        "dep_exact_fri_conjecture_registry",
+        "dep_semantic_codec_freeze",
+        "dep_soundness_model_mode_and_parameters",
+        "dep_trace_profile_and_benchmark_corpus"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_backend_statement_equivalence_oracle",
+          "assumed_statement": "Every backend authenticates and rejects the exact same canonical statement corpus.",
+          "required_state": "PROVEN",
+          "version_requirement": "authority-free-backend-adapter-lab=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Performance is irrelevant if statement semantics differ."
+        },
+        {
+          "dependency_id": "dep_exact_fri_conjecture_registry",
+          "assumed_statement": "Each candidate's exact proximity assumptions and affected parameter regimes are versioned.",
+          "required_state": "PROVEN",
+          "version_requirement": "fri-assumption-registry=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Backend comparison must not erase assumption drift."
+        },
+        {
+          "dependency_id": "dep_soundness_model_mode_and_parameters",
+          "assumed_statement": "Each candidate has a composed event-level soundness budget.",
+          "required_state": "PROVEN",
+          "version_requirement": "zrpf-soundness-ledger=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Proof size or speed alone cannot rank security."
+        },
+        {
+          "dependency_id": "dep_semantic_codec_freeze",
+          "assumed_statement": "The benchmark ABI and canonical statement are frozen.",
+          "required_state": "PROVEN",
+          "version_requirement": "value-node-v4@8c223ff0",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "A moving ABI destroys differential comparability."
+        },
+        {
+          "dependency_id": "dep_trace_profile_and_benchmark_corpus",
+          "assumed_statement": "Comparisons retain raw samples, failures, timeouts, and exact workload identity.",
+          "required_state": "PROVEN",
+          "version_requirement": "backend-benchmark-corpus=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Published external benchmarks do not measure ZRPF."
+        },
+        {
+          "dependency_id": "dep_current_head_ci",
+          "assumed_statement": "The comparison base is green at the exact head.",
+          "required_state": "PROVEN",
+          "version_requirement": "head=8c223ff0c684d9811ca633b042d0c3edc5220488",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Experimental results cannot override a failing base."
+        }
+      ]
+    },
+    {
+      "id": "h_distributed_pcs_lab",
+      "origin": "research_kernel",
+      "content": "Evaluate distributed transparent PCS candidates only behind a fault-injected benchmark lane; first distribute the existing deterministic proof DAG before replacing the pinned proof system.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_authenticated_worker_capability",
+        "dep_deterministic_proof_dag_worker",
+        "dep_distributed_pcs_fault_model",
+        "dep_trace_profile_and_benchmark_corpus"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_deterministic_proof_dag_worker",
+          "assumed_statement": "The existing proof DAG supplies a deterministic distribution baseline.",
+          "required_state": "PROVEN",
+          "version_requirement": "remote-reproof-handoff=v2",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Protocol replacement must beat the lower-risk orchestration baseline."
+        },
+        {
+          "dependency_id": "dep_authenticated_worker_capability",
+          "assumed_statement": "Distributed workers and measured work are authenticated.",
+          "required_state": "PROVEN",
+          "version_requirement": "remote-reproof-worker=v2",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Unauthenticated workers invalidate accountability claims."
+        },
+        {
+          "dependency_id": "dep_distributed_pcs_fault_model",
+          "assumed_statement": "The benchmark covers crash, equivocation, omission, retry, and recovery behavior.",
+          "required_state": "PROVEN",
+          "version_requirement": "distributed-pcs-lab=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Happy-path speed does not establish distributed assurance."
+        },
+        {
+          "dependency_id": "dep_trace_profile_and_benchmark_corpus",
+          "assumed_statement": "Both distribution strategies use the same exact workload corpus.",
+          "required_state": "PROVEN",
+          "version_requirement": "backend-benchmark-corpus=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Different inputs make the comparison meaningless."
+        }
+      ]
+    },
+    {
+      "id": "h_folding_lab",
+      "origin": "research_kernel",
+      "content": "Keep Nova-family and post-quantum folding schemes in an authority-free research lane until their commitment assumptions, recursion security definition, and statement semantics match ZRPF policy.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_backend_statement_equivalence_oracle",
+        "dep_folding_policy_compatibility",
+        "dep_soundness_model_mode_and_parameters"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_backend_statement_equivalence_oracle",
+          "assumed_statement": "The folding prototype proves the exact ZRPF statement ABI.",
+          "required_state": "PROVEN",
+          "version_requirement": "authority-free-backend-adapter-lab=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "IVC efficiency does not imply semantic equivalence."
+        },
+        {
+          "dependency_id": "dep_folding_policy_compatibility",
+          "assumed_statement": "Commitment, transparency, post-quantum, and depth-security assumptions match policy.",
+          "required_state": "PROVEN",
+          "version_requirement": "folding-lab=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Common folding instantiations change the trusted assumption profile."
+        },
+        {
+          "dependency_id": "dep_soundness_model_mode_and_parameters",
+          "assumed_statement": "The folding and terminal proof events have a complete composed budget.",
+          "required_state": "PROVEN",
+          "version_requirement": "zrpf-soundness-ledger=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Bounded experiments cannot justify unbounded-depth claims."
+        }
+      ]
+    },
+    {
+      "id": "h_formal_verifier_bridge",
+      "origin": "research_kernel",
+      "content": "Extend the existing Lean layer toward a digest-pinned formal bridge for the receipt verifier and soundness-envelope algebra, while treating the external zkVM implementation as an explicit trusted boundary until refinement is proved.",
+      "selected": false,
+      "promotion_decision": "BLOCKED",
+      "blockers": [
+        "dep_current_v6_v7_image_identities",
+        "dep_formal_verifier_refinement_bridge",
+        "dep_semantic_codec_freeze",
+        "dep_soundness_model_mode_and_parameters"
+      ],
+      "assumption_dependencies": [
+        {
+          "dependency_id": "dep_formal_verifier_refinement_bridge",
+          "assumed_statement": "The theorem is connected to exact executable verifier semantics or declares the gap trusted.",
+          "required_state": "PROVEN",
+          "version_requirement": "formal-verifier-bridge=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "A theorem about an abstract verifier cannot silently authorize an implementation."
+        },
+        {
+          "dependency_id": "dep_semantic_codec_freeze",
+          "assumed_statement": "Canonical receipt and statement inputs are digest-pinned.",
+          "required_state": "PROVEN",
+          "version_requirement": "value-node-v4@8c223ff0",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "Formal inputs must match production bytes."
+        },
+        {
+          "dependency_id": "dep_soundness_model_mode_and_parameters",
+          "assumed_statement": "The formal envelope names every external cryptographic assumption.",
+          "required_state": "PROVEN",
+          "version_requirement": "zrpf-soundness-ledger=v1",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "External assumptions remain explicit trusted boundaries."
+        },
+        {
+          "dependency_id": "dep_current_v6_v7_image_identities",
+          "assumed_statement": "The bridge pins final-source verifier and guest identities.",
+          "required_state": "PROVEN",
+          "version_requirement": "final-source-current",
+          "failure_effect": "BLOCK_PROMOTION",
+          "rationale": "A formal digest must change with the implementation."
+        }
+      ]
+    }
+  ],
+  "non_claims": [
+    "A structurally valid graph is not a promotion authorization.",
+    "A BLOCKED candidate may be implemented only in an authority-false experimental lane.",
+    "A benchmark, fuzz corpus, bounded model, or local theorem does not independently prove cryptographic soundness.",
+    "Finite sampled retrievability does not establish continuous or future public data availability.",
+    "The decision graph is derived research evidence and does not replace the repository CBC matrix."
+  ]
+}
