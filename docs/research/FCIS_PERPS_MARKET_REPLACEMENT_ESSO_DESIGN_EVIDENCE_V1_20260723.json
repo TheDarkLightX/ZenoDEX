@@ -1,0 +1,40 @@
+{
+  "automation_ready": false,
+  "certificate_hash": "sha256:c4a558ae67c8cb3f6521d94d17c604802921103997949b61db83b09a7681a728",
+  "command_template": "python3 -m ESSO.foundry.fcis_design synthesize --intent docs/research/FCIS_PERPS_MARKET_REPLACEMENT_ESSO_INTENT_V1_20260723.json --output <caller-selected-output-path>",
+  "esso_recommendation_complete": true,
+  "esso_head": "8e0b2df72c9b3f71475e0a1c3502bf9b07c53f31",
+  "intent": "docs/research/FCIS_PERPS_MARKET_REPLACEMENT_ESSO_INTENT_V1_20260723.json",
+  "intent_hash": "sha256:d7f1f7d52c470fcba985739875ec096d0521291583c3e4886e53a038a757611b",
+  "nonclaims": [
+    "ESSO did not prove the ZenoDEX domain semantics.",
+    "ESSO did not generate or authorize the Python implementation.",
+    "The synthesized output is hash-bound but is not retained in this repository, so this record alone is not a replay bundle.",
+    "The persistent-map shadow pattern remains a future performance migration under FCIS-D012.",
+    "Receipt, expected-root commit, Rust refinement, and production shell behavior remain outside this leaf."
+  ],
+  "output_sha256": "b4e10fc2f821d4ee95f3471e225442ab7d731b5c630f14ff8f70b3b3477bc862",
+  "plan_hash": "sha256:1c17e97cd92b4bd510ab1c2d3f3c2ed6e630a588278e3069818b729ce7806e1c",
+  "production_blockers": [
+    "persistent_map_shadow_adapter_v1",
+    "project_specific_reference_semantics_must_be_reviewed",
+    "project_specific_shell_refinement_must_be_verified",
+    "proof_assisted_reference_refinement_v1"
+  ],
+  "project_design_complete": false,
+  "replay_count": 2,
+  "replay_artifact": null,
+  "replayability_status": "hash_only_not_repo_replayable",
+  "replay_outputs_byte_identical": true,
+  "schema": "zenodex/fcis-esso-design-evidence/v1",
+  "selected_immediate_contract": [
+    "accept_reject_sum_v1",
+    "bounded_transition_budget_v1",
+    "leaf_transition_composition_v1",
+    "owned_immutable_boundary_values_v1",
+    "sequential_reference_execution_v1",
+    "total_pure_deterministic_transition_v1",
+    "typed_decision_rejection_precedence_v1"
+  ],
+  "source_decision": "FCIS-D012 permits a canonical owned tuple/map rebuild in this correctness repair. Sparse persistent storage remains blocked on its separate benchmark and parity gate."
+}

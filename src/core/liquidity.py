@@ -2,11 +2,17 @@
 Liquidity management operations: create pool, add/remove liquidity.
 """
 
-from typing import Optional, Tuple
+from dataclasses import dataclass
+from typing import Optional, Tuple, final
 
 from ..kernels.python.lp_math_v7 import optimal_liquidity
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState, PoolStatus, compute_pool_id, normalize_curve_config
+from ..state.state_snapshot_values import (
+    POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1,
+    POOL_STATUS_MEMBER_VALUES_V1,
+    CommittedPoolStateV1,
+)
 from .cpmm import MIN_LP_LOCK, compute_lp_burn, compute_lp_mint
 from .domain_limits import (
     DEX_LP_AMOUNT_MAX,
@@ -14,6 +20,27 @@ from .domain_limits import (
     DEX_POOL_RESERVE_MAX,
     require_int_range,
 )
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class AddLiquidityKernelInputV1:
+    """Non-authoritative immutable inputs for the shared LP-addition kernel."""
+
+    amount0_desired: Amount
+    amount1_desired: Amount
+    amount0_min: Amount
+    amount1_min: Amount
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class RemoveLiquidityKernelInputV1:
+    """Non-authoritative immutable inputs for the shared LP-removal kernel."""
+
+    lp_amount: Amount
+    amount0_min: Amount
+    amount1_min: Amount
 
 
 def create_pool(
@@ -30,17 +57,17 @@ def create_pool(
 ) -> Tuple[str, PoolState, Amount]:
     """
     Create a new CPMM pool.
-    
+
     Pool ID is deterministic:
         pool_id = H("TauSwapPool" || asset0 || asset1 || fee_bps || curve_tag || curve_params)
-    
+
     For v0.1 (default):
         curve_tag = "CPMM"
         curve_params = "" (no additional params)
-    
+
     LP minting for first deposit:
         lp = floor(sqrt(amount0 * amount1)) - MIN_LP_LOCK
-    
+
     Args:
         asset0: First asset (must be < asset1 lexicographically)
         asset1: Second asset
@@ -49,10 +76,10 @@ def create_pool(
         fee_bps: Fee in basis points (0-10000)
         creator_pubkey: Public key of pool creator
         created_at: Block height or timestamp
-        
+
     Returns:
         Tuple of (pool_id, PoolState, lp_minted)
-        
+
     Raises:
         ValueError: If inputs are invalid
     """
@@ -67,13 +94,17 @@ def create_pool(
     require_int_range("amount1", amount1, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
     require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
     require_int_range("created_at", created_at, minimum=0)
-    
-    curve_tag_norm, curve_params_norm = normalize_curve_config(curve_tag=curve_tag, curve_params=curve_params)
-    pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag=curve_tag_norm, curve_params=curve_params_norm)
-    
+
+    curve_tag_norm, curve_params_norm = normalize_curve_config(
+        curve_tag=curve_tag, curve_params=curve_params
+    )
+    pool_id = compute_pool_id(
+        asset0, asset1, fee_bps, curve_tag=curve_tag_norm, curve_params=curve_params_norm
+    )
+
     # Compute LP to mint
     lp_minted = compute_lp_mint(amount0, amount1, amount0, amount1, 0)
-    
+
     # Create pool state
     pool_state = PoolState(
         pool_id=pool_id,
@@ -88,7 +119,7 @@ def create_pool(
         status=PoolStatus.ACTIVE,
         created_at=created_at,
     )
-    
+
     return pool_id, pool_state, lp_minted
 
 
@@ -101,70 +132,107 @@ def add_liquidity(
 ) -> Tuple[Amount, Amount, Amount]:
     """
     Add liquidity to an existing pool.
-    
+
     The settlement MUST choose actual used amounts such that:
         amount0_used / amount1_used = reserve0 / reserve1
         (within integer rounding constraints)
-    
+
     LP minted:
         lp = min(floor(amount0_used * lp_supply / reserve0),
                  floor(amount1_used * lp_supply / reserve1))
-    
+
     Args:
         pool_state: Current pool state
         amount0_desired: Desired amount of asset0
         amount1_desired: Desired amount of asset1
         amount0_min: Minimum acceptable amount0
         amount1_min: Minimum acceptable amount1
-        
+
     Returns:
         Tuple of (amount0_used, amount1_used, lp_minted)
-        
+
     Raises:
         ValueError: If inputs are invalid or pool is empty
     """
     if pool_state.status != PoolStatus.ACTIVE:
         raise ValueError(f"Pool is not active: {pool_state.status}")
 
-    require_int_range("pool_state.reserve0", pool_state.reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
-    require_int_range("pool_state.reserve1", pool_state.reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
-    require_int_range("pool_state.lp_supply", pool_state.lp_supply, minimum=0, maximum=DEX_LP_SUPPLY_MAX)
-    if pool_state.reserve0 == 0 or pool_state.reserve1 == 0:
+    return _add_liquidity_for_pool_value_v1(
+        pool_state,
+        AddLiquidityKernelInputV1(
+            amount0_desired=amount0_desired,
+            amount1_desired=amount1_desired,
+            amount0_min=amount0_min,
+            amount1_min=amount1_min,
+        ),
+    )
+
+
+def add_liquidity_for_committed_pool_v1(
+    pool_state: CommittedPoolStateV1,
+    inputs: AddLiquidityKernelInputV1,
+) -> Tuple[Amount, Amount, Amount]:
+    """Quote an LP addition from one exact committed pool value."""
+
+    if type(pool_state) is not CommittedPoolStateV1:
+        raise TypeError("pool_state must be an exact committed pool")
+    if type(inputs) is not AddLiquidityKernelInputV1:
+        raise TypeError("inputs must be exact AddLiquidityKernelInputV1")
+    if pool_state.status.member_ordinal != POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1:
+        status = POOL_STATUS_MEMBER_VALUES_V1[pool_state.status.member_ordinal]
+        raise ValueError(f"Pool is not active: PoolStatus.{status}")
+    return _add_liquidity_for_pool_value_v1(pool_state, inputs)
+
+
+def _add_liquidity_for_pool_value_v1(
+    pool_state: PoolState | CommittedPoolStateV1,
+    inputs: AddLiquidityKernelInputV1,
+) -> Tuple[Amount, Amount, Amount]:
+    """Shared LP-addition kernel for the closed legacy/exact pool union."""
+
+    reserve0 = pool_state.reserve0
+    reserve1 = pool_state.reserve1
+    lp_supply = pool_state.lp_supply
+    amount0_desired = inputs.amount0_desired
+    amount1_desired = inputs.amount1_desired
+    amount0_min = inputs.amount0_min
+    amount1_min = inputs.amount1_min
+
+    require_int_range("pool_state.reserve0", reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("pool_state.reserve1", reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("pool_state.lp_supply", lp_supply, minimum=0, maximum=DEX_LP_SUPPLY_MAX)
+    if reserve0 == 0 or reserve1 == 0:
         raise ValueError("Cannot add liquidity to empty pool")
 
     require_int_range("amount0_desired", amount0_desired, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
     require_int_range("amount1_desired", amount1_desired, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
     require_int_range("amount0_min", amount0_min, minimum=0, maximum=DEX_LP_AMOUNT_MAX)
     require_int_range("amount1_min", amount1_min, minimum=0, maximum=DEX_LP_AMOUNT_MAX)
-    
+
     opt = optimal_liquidity(
-        reserve0=pool_state.reserve0,
-        reserve1=pool_state.reserve1,
+        reserve0=reserve0,
+        reserve1=reserve1,
         amount0_desired=amount0_desired,
         amount1_desired=amount1_desired,
     )
     amount0_used = opt.amount0_used
     amount1_used = opt.amount1_used
-    
+
     # Check minimums
     if amount0_used < amount0_min:
-        raise ValueError(
-            f"amount0_used ({amount0_used}) < amount0_min ({amount0_min})"
-        )
+        raise ValueError(f"amount0_used ({amount0_used}) < amount0_min ({amount0_min})")
     if amount1_used < amount1_min:
-        raise ValueError(
-            f"amount1_used ({amount1_used}) < amount1_min ({amount1_min})"
-        )
-    
+        raise ValueError(f"amount1_used ({amount1_used}) < amount1_min ({amount1_min})")
+
     # Compute LP to mint
     lp_minted = compute_lp_mint(
-        pool_state.reserve0,
-        pool_state.reserve1,
+        reserve0,
+        reserve1,
         amount0_used,
         amount1_used,
-        pool_state.lp_supply,
+        lp_supply,
     )
-    
+
     return amount0_used, amount1_used, lp_minted
 
 
@@ -176,54 +244,87 @@ def remove_liquidity(
 ) -> Tuple[Amount, Amount]:
     """
     Remove liquidity from a pool.
-    
+
     Outputs:
         amount0_out = floor(lp_amount * reserve0 / lp_supply)
         amount1_out = floor(lp_amount * reserve1 / lp_supply)
-    
+
     Args:
         pool_state: Current pool state
         lp_amount: Amount of LP tokens to burn
         amount0_min: Minimum acceptable amount0
         amount1_min: Minimum acceptable amount1
-        
+
     Returns:
         Tuple of (amount0_out, amount1_out)
-        
+
     Raises:
         ValueError: If inputs are invalid
     """
     if pool_state.status != PoolStatus.ACTIVE:
         raise ValueError(f"Pool is not active: {pool_state.status}")
 
-    require_int_range("pool_state.reserve0", pool_state.reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
-    require_int_range("pool_state.reserve1", pool_state.reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
-    require_int_range("pool_state.lp_supply", pool_state.lp_supply, minimum=1, maximum=DEX_LP_SUPPLY_MAX)
+    return _remove_liquidity_for_pool_value_v1(
+        pool_state,
+        RemoveLiquidityKernelInputV1(
+            lp_amount=lp_amount,
+            amount0_min=amount0_min,
+            amount1_min=amount1_min,
+        ),
+    )
+
+
+def remove_liquidity_for_committed_pool_v1(
+    pool_state: CommittedPoolStateV1,
+    inputs: RemoveLiquidityKernelInputV1,
+) -> Tuple[Amount, Amount]:
+    """Quote an LP removal from one exact committed pool value."""
+
+    if type(pool_state) is not CommittedPoolStateV1:
+        raise TypeError("pool_state must be an exact committed pool")
+    if type(inputs) is not RemoveLiquidityKernelInputV1:
+        raise TypeError("inputs must be exact RemoveLiquidityKernelInputV1")
+    if pool_state.status.member_ordinal != POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1:
+        status = POOL_STATUS_MEMBER_VALUES_V1[pool_state.status.member_ordinal]
+        raise ValueError(f"Pool is not active: PoolStatus.{status}")
+    return _remove_liquidity_for_pool_value_v1(pool_state, inputs)
+
+
+def _remove_liquidity_for_pool_value_v1(
+    pool_state: PoolState | CommittedPoolStateV1,
+    inputs: RemoveLiquidityKernelInputV1,
+) -> Tuple[Amount, Amount]:
+    """Shared LP-removal kernel for the closed legacy/exact pool union."""
+
+    reserve0 = pool_state.reserve0
+    reserve1 = pool_state.reserve1
+    lp_supply = pool_state.lp_supply
+    lp_amount = inputs.lp_amount
+    amount0_min = inputs.amount0_min
+    amount1_min = inputs.amount1_min
+
+    require_int_range("pool_state.reserve0", reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("pool_state.reserve1", reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("pool_state.lp_supply", lp_supply, minimum=1, maximum=DEX_LP_SUPPLY_MAX)
     require_int_range("lp_amount", lp_amount, minimum=1, maximum=DEX_LP_SUPPLY_MAX)
     require_int_range("amount0_min", amount0_min, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
     require_int_range("amount1_min", amount1_min, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
 
-    if lp_amount > pool_state.lp_supply:
-        raise ValueError(
-            f"Cannot burn more LP than supply: {lp_amount} > {pool_state.lp_supply}"
-        )
-    
+    if lp_amount > lp_supply:
+        raise ValueError(f"Cannot burn more LP than supply: {lp_amount} > {lp_supply}")
+
     # Compute output amounts
     amount0_out, amount1_out = compute_lp_burn(
         lp_amount,
-        pool_state.reserve0,
-        pool_state.reserve1,
-        pool_state.lp_supply,
+        reserve0,
+        reserve1,
+        lp_supply,
     )
-    
+
     # Check minimums
     if amount0_out < amount0_min:
-        raise ValueError(
-            f"amount0_out ({amount0_out}) < amount0_min ({amount0_min})"
-        )
+        raise ValueError(f"amount0_out ({amount0_out}) < amount0_min ({amount0_min})")
     if amount1_out < amount1_min:
-        raise ValueError(
-            f"amount1_out ({amount1_out}) < amount1_min ({amount1_min})"
-        )
-    
+        raise ValueError(f"amount1_out ({amount1_out}) < amount1_min ({amount1_min})")
+
     return amount0_out, amount1_out

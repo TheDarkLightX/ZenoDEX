@@ -1,0 +1,107 @@
+{
+  "schema": "zenodex/fcis-step-shadow-esso-gap-evidence/v1",
+  "repository": "TheDarkLightX/ZenoDEX",
+  "branch": "agent/fcis-pr454-reviewed-port-20260723",
+  "zenodex_source_commit": "84a2f25151b33ab6141619495538b462a055afb5",
+  "zenodex_source_tree": "e5b86085368279130c36ef2b98416f11c0d26667",
+  "esso_source": {
+    "repository": "TheDarkLightX/ESSO",
+    "pull_request": 11,
+    "merge_commit": "ef5b06cb7dbed9e8a78d27e9918550ee591e42eb",
+    "source_tree": "478db05f8f75f5c7cf0fe6164c097f0ea398cb32",
+    "profile_hash": "sha256:fc0c4be7dea15b9be76010c5d737a8bf882252f642416f51cccd78f15ef26c7b",
+    "generated_bundle_hash": "sha256:ceb243668ec88e3a5caf3ecd2ec1eee1f61312a4e60bd5b1854d770c1ea8c395",
+    "exact_head_workflow_run": 30012629567,
+    "exact_head_workflow_result": "success"
+  },
+  "source_files": [
+    {
+      "repository": "ZenoDEX",
+      "path": "src/integration/fcis_spot_shadow.py",
+      "sha256": "28d578856e9a6ff219633ad619ba71d9685b9e0be9d7d9506a506afbd93fd863"
+    },
+    {
+      "repository": "ZenoDEX",
+      "path": "tests/integration/test_fcis_spot_shadow.py",
+      "sha256": "14a5fe9d708c2c03509e611b1c137a09d8862700f3e57435523bb7661b7138d1"
+    },
+    {
+      "repository": "ESSO",
+      "path": "ESSO/foundry/fcis_protocol.py",
+      "sha256": "c6152b2ff71040a06bc564df73742212dd3d5cd455d471e4e60f6ea2f0553dfe"
+    },
+    {
+      "repository": "ESSO",
+      "path": "ESSO/foundry/zenodex_profile.py",
+      "sha256": "10f95ec7a39009eab6135d0ab3ddf741f5be3c5ac0b40d15caf8a421558f32a2"
+    },
+    {
+      "repository": "ESSO",
+      "path": "ESSO/foundry/zenodex_codegen.py",
+      "sha256": "d6f645b7d608efae24fbb7aab66a7a1e125221213597ddaaef7885ef9267549d"
+    }
+  ],
+  "check": {
+    "kind": "bounded_closed-shape_refinement_gap",
+    "execution": "Python 3 with PYTHONPATH containing the exact ESSO merge checkout and this ZenoDEX checkout",
+    "current_type": "src.integration.fcis_spot_shadow.FCISStepShadowReceiptV1",
+    "target_type": "ESSO.foundry.zenodex_profile.NormalizedRuntimeDecision",
+    "target_reference_case_hash": "sha256:f9642865487fc9cfb648c74dd4aa67dea13b8b1a322fbd601e9e6a1b18d5e2fa",
+    "check_commitment": "sha256:98c13f1283e775623a26ee7de3bc6da19cc3c766c22ee10e0cb181ad58baf79a"
+  },
+  "current_receipt_fields": [
+    "snapshot_version",
+    "canonical_snapshot_bytes",
+    "state_root_preimage",
+    "state_root",
+    "support_root",
+    "snapshot_commitment"
+  ],
+  "target_normalized_decision_fields": [
+    "bundle_bytes_hex",
+    "candidate_id",
+    "decision_commitment",
+    "decision_kind",
+    "outbox_plan_bytes_hex",
+    "patch_bytes_hex",
+    "plan_bytes_hex",
+    "post_root",
+    "pre_root",
+    "reason_code",
+    "receipt_bytes_hex",
+    "schema"
+  ],
+  "semantic_bindings": {
+    "post_root": "state_root"
+  },
+  "missing_target_fields_after_semantic_binding": [
+    "bundle_bytes_hex",
+    "candidate_id",
+    "decision_commitment",
+    "decision_kind",
+    "outbox_plan_bytes_hex",
+    "patch_bytes_hex",
+    "plan_bytes_hex",
+    "pre_root",
+    "reason_code",
+    "receipt_bytes_hex",
+    "schema"
+  ],
+  "incomplete_projection_result": {
+    "accepted": false,
+    "stable_error_code": "RuntimeShape",
+    "message": "runtime decision fields differ from profile"
+  },
+  "interpretation": [
+    "PR 477 correctly remains a pre-M5 shadow checkpoint rather than a complete FCIS transition result.",
+    "The current state_root can serve as the semantic source for a future post_root binding, subject to explicit digest-domain and codec refinement.",
+    "A future mounted result must bind decision kind, canonical rejection or failure reason, pre-root, candidate identity, patch, commit plan, authoritative receipt, outbox plan, and atomic bundle before ESSO runtime refinement can begin."
+  ],
+  "nonclaims": [
+    "This field-shape rejection is not transition-semantic verification.",
+    "The ESSO zUSD lane profile is not a spot-settlement specification.",
+    "The post_root to state_root mapping is semantic and still needs exact codec-domain refinement.",
+    "No production promotion, M5 mounting, datastore atomicity, crash recovery, outbox delivery, Rust parity, proof-guest parity, or release claim is made."
+  ],
+  "production_claim_status": "blocked"
+}

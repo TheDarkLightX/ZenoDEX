@@ -67,20 +67,22 @@ def test_cow_pair_netting_falls_back_when_aggregate_debit_check_fails_closed(mon
     ]
 
     call_counter = {"n": 0}
-    original_get = balances.get
+    original_get = BalanceTable.get
 
-    def _stateful_get(pubkey: str, asset: str) -> int:
+    def _stateful_get(self: BalanceTable, pubkey: str, asset: str) -> int:
+        if self is not balances:
+            return int(original_get(self, pubkey, asset))
         call_counter["n"] += 1
         if call_counter["n"] <= 2:
-            return int(original_get(pubkey, asset))
+            return int(original_get(self, pubkey, asset))
         return 0
 
-    monkeypatch.setattr(balances, "get", _stateful_get)
+    monkeypatch.setattr(BalanceTable, "get", _stateful_get)
     fills, remaining = _cow_pair_netting_exact_in_v1(intents, pool_state=pool, balances=balances)
     assert fills == []
     assert [it.intent_id for it in remaining] == sorted([it.intent_id for it in intents])
-    assert original_get(pk_a, asset0) == 100
-    assert original_get(pk_b, asset1) == 200
+    assert original_get(balances, pk_a, asset0) == 100
+    assert original_get(balances, pk_b, asset1) == 200
 
 
 def test_refine_ab_ordering_global_can_exhaust_pass_budget_with_monotone_improvements(monkeypatch) -> None:

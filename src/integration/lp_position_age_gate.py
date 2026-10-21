@@ -15,6 +15,13 @@ from typing import Optional
 from ..core.settlement import Settlement
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
+from ..state.lp_duration_policy_context import (
+    admit_lp_duration_policy_fields_v1,
+    admit_optional_lp_duration_policy_v1,
+)
+from ..state.lp_duration_policy_schema import LP_DURATION_POLICY_FIELD_NAMES_V1
+from ..state.lp_duration_transitions import LPDurationRiskPolicyV1
+from ..state.snapshot_combinators import AdmitCode, AdmitOk, AdmitReject
 
 
 def _strict_non_negative_int(value: object) -> bool:
@@ -48,7 +55,11 @@ class LPDurationRiskPolicy:
             value = getattr(self, name)
             if not _strict_non_negative_int(value):
                 raise ValueError(f"{name} must be a non-negative int")
-        if not isinstance(self.multiplier, int) or isinstance(self.multiplier, bool) or self.multiplier < 1:
+        if (
+            not isinstance(self.multiplier, int)
+            or isinstance(self.multiplier, bool)
+            or self.multiplier < 1
+        ):
             raise ValueError("multiplier must be an int >= 1")
         if self.max_age_seconds and self.base_age_seconds > self.max_age_seconds:
             raise ValueError("base_age_seconds must be <= max_age_seconds")
@@ -56,11 +67,15 @@ class LPDurationRiskPolicy:
     def decayed_tier(self, tier: int, last_update_timestamp: Optional[int], now: int) -> int:
         if not _strict_non_negative_int(tier):
             raise ValueError("churn tier must be a non-negative int")
-        if last_update_timestamp is not None and not _strict_non_negative_int(last_update_timestamp):
+        if last_update_timestamp is not None and not _strict_non_negative_int(
+            last_update_timestamp
+        ):
             raise ValueError("last churn update timestamp must be a non-negative int")
         if not _strict_non_negative_int(now):
             raise ValueError("now must be a non-negative int")
-        bounded_tier = min(int(tier), int(self.max_churn_tier)) if self.max_churn_tier else int(tier)
+        bounded_tier = (
+            min(int(tier), int(self.max_churn_tier)) if self.max_churn_tier else int(tier)
+        )
         if bounded_tier == 0 or self.decay_seconds == 0 or last_update_timestamp is None:
             return bounded_tier
         if last_update_timestamp > now:
@@ -73,7 +88,9 @@ class LPDurationRiskPolicy:
             raise ValueError("churn tier must be a non-negative int")
         if self.base_age_seconds == 0:
             return 0
-        bounded_tier = min(int(tier), int(self.max_churn_tier)) if self.max_churn_tier else int(tier)
+        bounded_tier = (
+            min(int(tier), int(self.max_churn_tier)) if self.max_churn_tier else int(tier)
+        )
         age = int(self.base_age_seconds)
         for _ in range(bounded_tier):
             age *= int(self.multiplier)
@@ -82,6 +99,42 @@ class LPDurationRiskPolicy:
         if self.max_age_seconds:
             return min(age, int(self.max_age_seconds))
         return age
+
+
+def admit_lp_duration_risk_policy_context_v1(
+    source: object,
+) -> AdmitOk[LPDurationRiskPolicyV1 | None] | AdmitReject:
+    """Own the legacy shell policy through the closed context combinator.
+
+    Field projection is deliberately non-semantic.  Range, type, cross-field,
+    resource, construction, and canonical-encoding checks remain inside the
+    source-bound admission profile.
+    """
+
+    if source is None or type(source) is LPDurationRiskPolicyV1:
+        return admit_optional_lp_duration_policy_v1(source)
+    if type(source) is not LPDurationRiskPolicy:
+        return AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ())
+    try:
+        raw_fields = object.__getattribute__(source, "__dict__")
+    except AttributeError:
+        return AdmitReject(AdmitCode.WRONG_CONTAINER, ())
+    if type(raw_fields) is not dict:
+        return AdmitReject(AdmitCode.WRONG_CONTAINER, ())
+    for observed_name in dict.keys(raw_fields):
+        if type(observed_name) is not str or observed_name not in LP_DURATION_POLICY_FIELD_NAMES_V1:
+            return AdmitReject(AdmitCode.UNKNOWN_FIELD, ())
+    for field_name in LP_DURATION_POLICY_FIELD_NAMES_V1:
+        if not dict.__contains__(raw_fields, field_name):
+            return AdmitReject(AdmitCode.MISSING_FIELD, (field_name,))
+    return admit_lp_duration_policy_fields_v1(
+        base_age_seconds=dict.__getitem__(raw_fields, "base_age_seconds"),
+        max_age_seconds=dict.__getitem__(raw_fields, "max_age_seconds"),
+        churn_window_seconds=dict.__getitem__(raw_fields, "churn_window_seconds"),
+        decay_seconds=dict.__getitem__(raw_fields, "decay_seconds"),
+        multiplier=dict.__getitem__(raw_fields, "multiplier"),
+        max_churn_tier=dict.__getitem__(raw_fields, "max_churn_tier"),
+    )
 
 
 def _pool_id(intent: Intent) -> Optional[str]:

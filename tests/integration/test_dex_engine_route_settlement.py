@@ -35,26 +35,68 @@ from src.integration.operations import (
 )
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
-from src.state.nonces import NonceTable
-from src.state.pools import PoolState, PoolStatus
-
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 SENDER = "0x" + "ab" * 48
 OTHER = "0x" + "cd" * 48
 
 
-def _pool(pool_id: str, *, asset0: str = "A", asset1: str = "B", r0: int = 1_000, r1: int = 1_000, fee_bps: int = 0) -> PoolState:
+def _pool_label_ordinal(label: str) -> int:
+    if label.startswith("p") and label[1:].isdigit():
+        return int(label[1:]) - 1
+    return sum((index + 1) * ord(char) for index, char in enumerate(label)) % 97
+
+
+def _pool(label: str, *, asset0: str = "A", asset1: str = "B", r0: int = 1_000, r1: int = 1_000, fee_bps: int = 0) -> PoolState:
+    label_ordinal = _pool_label_ordinal(label)
+    effective_fee_bps = fee_bps + label_ordinal
+    pool_id = compute_pool_id(asset0, asset1, effective_fee_bps)
     return PoolState(
         pool_id=pool_id,
         asset0=asset0,
         asset1=asset1,
         reserve0=r0,
         reserve1=r1,
-        fee_bps=fee_bps,
+        fee_bps=effective_fee_bps,
         lp_supply=1,
         status=PoolStatus.ACTIVE,
-        created_at=0,
+        created_at=label_ordinal,
     )
+
+
+def _pool_map(
+    *labels: str,
+    asset0: str = "A",
+    asset1: str = "B",
+    r0: int = 1_000,
+    r1: int = 1_000,
+    fee_bps: int = 0,
+) -> dict[str, PoolState]:
+    pools = (
+        _pool(
+            label,
+            asset0=asset0,
+            asset1=asset1,
+            r0=r0,
+            r1=r1,
+            fee_bps=fee_bps,
+        )
+        for label in labels
+    )
+    return {pool.pool_id: pool for pool in pools}
+
+
+def _pool_for_label(pools: dict[str, PoolState], label: str) -> PoolState:
+    ordinal = _pool_label_ordinal(label)
+    return next(pool for pool in pools.values() if pool.created_at == ordinal)
+
+
+def _pools_for_labels(
+    pools: dict[str, PoolState],
+    *labels: str,
+) -> dict[str, PoolState]:
+    selected = (_pool_for_label(pools, label) for label in labels)
+    return {pool.pool_id: pool for pool in selected}
 
 
 def _engine_config() -> DexEngineConfig:
@@ -66,7 +108,10 @@ def _state(pools: dict, *, balances: BalanceTable) -> DexState:
 
 
 def _exact_in_route_setup(n_pools: int, *, amount_in: int, fee_bps: int = 0):
-    pools = {f"p{i}": _pool(f"p{i}", fee_bps=fee_bps) for i in range(1, n_pools + 1)}
+    pools = _pool_map(
+        *(f"p{i}" for i in range(1, n_pools + 1)),
+        fee_bps=fee_bps,
+    )
     quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=amount_in)
     assert quote is not None
     assert all(len(leg.hops) == 1 for leg in quote.legs)
@@ -98,22 +143,25 @@ def _apply(state: DexState, envelopes: list[SignedIntentEnvelope], *, sender: st
 
 
 def _assert_asset_conservation(pre_state: DexState, post_state: DexState, assets: tuple[str, ...]) -> None:
-    for asset in assets:
-        def total(state: DexState) -> int:
-            balance_sum = sum(
-                amount
-                for (pubkey, a), amount in state.balances.get_all_balances().items()
-                if a == asset
-            )
-            reserve_sum = 0
-            for pool in state.pools.values():
-                if pool.asset0 == asset:
-                    reserve_sum += int(pool.reserve0)
-                if pool.asset1 == asset:
-                    reserve_sum += int(pool.reserve1)
-            return balance_sum + reserve_sum
+    def total(state: DexState, asset: str) -> int:
+        balance_sum = sum(
+            amount
+            for (_pubkey, entry_asset), amount in state.balances.get_all_balances().items()
+            if entry_asset == asset
+        )
+        reserve_sum = 0
+        for pool in state.pools.values():
+            if pool.asset0 == asset:
+                reserve_sum += int(pool.reserve0)
+            if pool.asset1 == asset:
+                reserve_sum += int(pool.reserve1)
+        return balance_sum + reserve_sum
 
-        assert total(pre_state) == total(post_state), f"conservation violated for {asset}"
+    for asset in assets:
+        assert total(pre_state, asset) == total(
+            post_state,
+            asset,
+        ), f"conservation violated for {asset}"
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +216,7 @@ def test_route_exact_in_three_pool_split_settles_atomically() -> None:
 
 
 def test_route_exact_out_two_pool_split_settles_atomically() -> None:
-    pools = {f"p{i}": _pool(f"p{i}") for i in (1, 2)}
+    pools = _pool_map("p1", "p2")
     quote = best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=400)
     assert quote is not None
     assert all(len(leg.hops) == 1 for leg in quote.legs)
@@ -204,7 +252,13 @@ def test_route_fee_paid_is_sum_of_leg_fees() -> None:
     res = _apply(state, [SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
     assert res.ok, res.error
     fill = res.settlement.fills[0]
-    expected_fee = sum(compute_fee_total(int(leg.amount_in), 30) for leg in quote.legs)
+    expected_fee = sum(
+        compute_fee_total(
+            int(leg.amount_in),
+            pools[leg.hops[0].pool_id].fee_bps,
+        )
+        for leg in quote.legs
+    )
     assert fill.fee_paid == expected_fee
 
 
@@ -216,9 +270,9 @@ def test_route_fee_paid_is_sum_of_leg_fees() -> None:
 def test_route_rejects_atomically_when_shared_pool_drifts_in_batch() -> None:
     # Two routes share p2. Whichever processes second sees p2 drifted from its
     # receipt snapshot and must reject WITHOUT touching its other pool.
-    pools = {f"p{i}": _pool(f"p{i}") for i in (1, 2, 3)}
-    pools_r1 = {pid: pools[pid] for pid in ("p1", "p2")}
-    pools_r2 = {pid: pools[pid] for pid in ("p2", "p3")}
+    pools = _pool_map("p1", "p2", "p3")
+    pools_r1 = _pools_for_labels(pools, "p1", "p2")
+    pools_r2 = _pools_for_labels(pools, "p2", "p3")
 
     q1 = best_route_exact_in_2hop(pools_by_id=pools_r1, asset_in="A", asset_out="B", amount_in=600)
     q2 = best_route_exact_in_2hop(pools_by_id=pools_r2, asset_in="A", asset_out="B", amount_in=600)
@@ -243,7 +297,7 @@ def test_route_rejects_atomically_when_shared_pool_drifts_in_batch() -> None:
     )
     assert res.ok, res.error
     actions = {f.intent_id: f for f in res.settlement.fills}
-    f1, f2 = actions[i1.intent_id], actions[i2.intent_id]
+    first_fill = actions[i1.intent_id]
 
     # Canonical determinism: routes clear in ascending intent_id order, so the
     # smaller intent_id MUST be the winner (it sees pristine pools) and the
@@ -258,11 +312,12 @@ def test_route_rejects_atomically_when_shared_pool_drifts_in_batch() -> None:
     # The rejected route produced ZERO effects: balances reflect ONLY the
     # filled route's totals, and the rejected route's exclusive pool (the one
     # the filled route does not touch) is unmoved.
-    exclusive_pool = "p1" if rejected is f1 else "p3"
+    exclusive_label = "p1" if rejected is first_fill else "p3"
+    exclusive_pool = _pool_for_label(res.state.pools, exclusive_label)
     assert res.state.balances.get(SENDER, "A") == 20_000 - int(filled.amount_in_filled)
     assert res.state.balances.get(SENDER, "B") == int(filled.amount_out_filled)
-    assert res.state.pools[exclusive_pool].reserve0 == 1_000
-    assert res.state.pools[exclusive_pool].reserve1 == 1_000
+    assert exclusive_pool.reserve0 == 1_000
+    assert exclusive_pool.reserve1 == 1_000
 
 
 def test_route_rejects_atomically_on_insufficient_total_balance() -> None:
@@ -348,7 +403,7 @@ def test_route_rejects_stale_quote_receipt() -> None:
     intent = _route_intent(receipt, pools)
 
     # Pool state moves after the quote was issued.
-    pools["p1"].reserve0 += 7
+    _pool_for_label(pools, "p1").reserve0 += 7
 
     balances = BalanceTable()
     balances.set(SENDER, "A", 10_000)
@@ -364,7 +419,8 @@ def test_route_rejects_tampered_receipt_pool_fingerprint() -> None:
     intent = _route_intent(receipt, pools)
 
     tampered = copy.deepcopy(receipt)
-    tampered["body"]["pools"]["p1"] = "0x" + "00" * 32
+    pool1_id = _pool_for_label(pools, "p1").pool_id
+    tampered["body"]["pools"][pool1_id] = "0x" + "00" * 32
 
     balances = BalanceTable()
     balances.set(SENDER, "A", 10_000)
@@ -395,7 +451,7 @@ def test_route_rejects_unsatisfiable_min_out() -> None:
 
 
 def test_route_rejects_unsatisfiable_max_in() -> None:
-    pools = {f"p{i}": _pool(f"p{i}") for i in (1, 2)}
+    pools = _pool_map("p1", "p2")
     quote = best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=400)
     assert quote is not None
     receipt = make_route_quote_receipt(kind="exact_out", quote=quote, pools_by_id=pools)
@@ -459,7 +515,7 @@ def test_route_intent_id_deterministic_for_same_inputs() -> None:
 
 
 def test_compute_settlement_signature_backward_compatible() -> None:
-    pools = {"p1": _pool("p1")}
+    pools = _pool_map("p1")
     balances = BalanceTable()
     balances.set(SENDER, "A", 10_000)
     # No route_bindings kwarg: legacy call shape still works.
@@ -592,10 +648,9 @@ def test_route_kind_without_hash_or_receipt_fails_closed() -> None:
 
 def test_route_rejects_multi_hop_receipt() -> None:
     # Pools A/X and X/B force a 2-hop leg: unsupported for v1 route intents.
-    pools = {
-        "pax": _pool("pax", asset0="A", asset1="X"),
-        "pxb": _pool("pxb", asset0="B", asset1="X", r0=2_000, r1=2_000),
-    }
+    pool_ax = _pool("pax", asset0="A", asset1="X")
+    pool_bx = _pool("pxb", asset0="B", asset1="X", r0=2_000, r1=2_000)
+    pools = {pool.pool_id: pool for pool in (pool_ax, pool_bx)}
     quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
     assert quote is not None
     assert any(len(leg.hops) > 1 for leg in quote.legs)
@@ -686,6 +741,7 @@ def test_validator_rejects_forged_route_fill_totals() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     assert "route amount_out_filled mismatch" in err
 
 
@@ -700,15 +756,17 @@ def test_validator_rejects_route_binding_without_engine_witness_gate() -> None:
         allow_snapshot_bound_quote_bindings=False,
     )
     assert not ok
+    assert err is not None
     assert "route binding requires validated engine witness" in err
 
 
 def test_validator_rejects_route_fields_on_swap_intent() -> None:
     from src.agents.intent_signer import create_swap_intent
 
-    pools = {"p1": _pool("p1")}
+    pools = _pool_map("p1")
+    pool_id = _pool_for_label(pools, "p1").pool_id
     swap = create_swap_intent(
-        pool_id="p1",
+        pool_id=pool_id,
         asset_in="A",
         asset_out="B",
         amount_in=100,
@@ -732,6 +790,7 @@ def test_validator_rejects_route_fields_on_swap_intent() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     assert "route binding fields only supported for route intents" in err
 
 
@@ -751,6 +810,7 @@ def test_validator_rejects_tampered_route_leg_amounts() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     assert ("route replay failed" in err) or ("route intent/binding mismatch" in err)
 
 
@@ -762,9 +822,9 @@ def _two_route_shared_pool_fixture():
     )
     from src.state.intents import Intent
 
-    pools = {f"p{i}": _pool(f"p{i}") for i in (1, 2, 3)}
-    pools_r1 = {pid: pools[pid] for pid in ("p1", "p2")}
-    pools_r2 = {pid: pools[pid] for pid in ("p2", "p3")}
+    pools = _pool_map("p1", "p2", "p3")
+    pools_r1 = _pools_for_labels(pools, "p1", "p2")
+    pools_r2 = _pools_for_labels(pools, "p2", "p3")
     q1 = best_route_exact_in_2hop(pools_by_id=pools_r1, asset_in="A", asset_out="B", amount_in=600)
     q2 = best_route_exact_in_2hop(pools_by_id=pools_r2, asset_in="A", asset_out="B", amount_in=600)
     assert q1 is not None and q2 is not None
@@ -843,6 +903,7 @@ def test_validator_rejects_forged_non_canonical_route_winner() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     assert "route reject not justified" in err
 
 
@@ -883,6 +944,7 @@ def test_validator_rejects_non_ascending_route_order() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     assert "ascending intent_id order" in err
 
 
@@ -891,8 +953,9 @@ def test_validator_rejects_non_route_intent_settled_before_route() -> None:
     from src.core.settlement import Fill, Settlement
 
     pools, balances, lo, lo_binding, _hi, _hi_binding = _two_route_shared_pool_fixture()
+    pool3_id = _pool_for_label(pools, "p3").pool_id
     swap = create_swap_intent(
-        pool_id="p3",
+        pool_id=pool3_id,
         asset_in="A",
         asset_out="B",
         amount_in=100,
@@ -934,6 +997,7 @@ def test_validator_rejects_non_route_intent_settled_before_route() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     assert "non-canonical settlement phase order" in err
 
 
@@ -1022,6 +1086,7 @@ def test_validator_rejects_create_pool_settled_after_route() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     assert "non-canonical settlement phase order" in err
 
 
@@ -1083,6 +1148,7 @@ def test_validator_rejects_route_reject_with_stripped_binding() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     assert "route reject missing engine binding" in err
 
 
@@ -1141,6 +1207,7 @@ def test_validator_rejects_route_reject_with_tampered_binding() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     # amount_out tamper passes the intent/binding shape check (exact-in does
     # not bind total-out) but the kernel replay rejects the inflated leg while
     # fingerprints still match → flagged as inconsistent with the snapshot.
@@ -1204,6 +1271,7 @@ def test_validator_rejects_route_reject_with_faked_drift_fingerprint() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     assert "does not pin the pre-state snapshot" in err
 
 
@@ -1248,6 +1316,7 @@ def test_validator_rejects_route_fill_pinning_drifted_state() -> None:
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
+    assert err is not None
     assert "route fill binding does not pin the pre-state snapshot" in err
 
 
@@ -1260,9 +1329,9 @@ def test_apply_ops_rejects_forged_non_canonical_route_winner() -> None:
     from src.core.settlement import Fill, FillAction, Settlement
     from src.integration.operations import create_settlement_operation
 
-    pools = {f"p{i}": _pool(f"p{i}") for i in (1, 2, 3)}
-    pools_r1 = {pid: pools[pid] for pid in ("p1", "p2")}
-    pools_r2 = {pid: pools[pid] for pid in ("p2", "p3")}
+    pools = _pool_map("p1", "p2", "p3")
+    pools_r1 = _pools_for_labels(pools, "p1", "p2")
+    pools_r2 = _pools_for_labels(pools, "p2", "p3")
     q1 = best_route_exact_in_2hop(pools_by_id=pools_r1, asset_in="A", asset_out="B", amount_in=600)
     q2 = best_route_exact_in_2hop(pools_by_id=pools_r2, asset_in="A", asset_out="B", amount_in=600)
     assert q1 is not None and q2 is not None
@@ -1353,7 +1422,7 @@ def test_validator_accepts_justified_route_drift_reject() -> None:
 def test_validator_accepts_rejected_route_action_without_binding_fields() -> None:
     from src.state.intents import Intent, IntentKind
 
-    pools = {"p1": _pool("p1")}
+    pools = _pool_map("p1")
     bare = Intent(
         module="TauSwap",
         version="0.1",

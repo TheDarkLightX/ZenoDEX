@@ -21,6 +21,25 @@ def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
 
 
+def _snapshot_bound_pool_fixture() -> dict[str, PoolState]:
+    pool_id = compute_pool_id("A", "B", 10)
+    return {
+        pool_id: PoolState(
+            pool_id=pool_id,
+            asset0="A",
+            asset1="B",
+            reserve0=1_000,
+            reserve1=2_000,
+            fee_bps=10,
+            curve_tag="CPMM",
+            curve_params="",
+            lp_supply=0,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        )
+    }
+
+
 def test_validate_operations_rejects_k_decrease_settlement() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
@@ -231,21 +250,7 @@ def test_validate_operations_accepts_empty_batch_without_settlement() -> None:
 
 def test_validate_operations_rejects_unsanitized_quote_bound_intent_without_engine_path() -> None:
     pk = "0x" + "11" * 48
-    pools = {
-        "p_ab": PoolState(
-            pool_id="p_ab",
-            asset0="A",
-            asset1="B",
-            reserve0=1_000,
-            reserve1=2_000,
-            fee_bps=10,
-            curve_tag="CPMM",
-            curve_params="",
-            lp_supply=0,
-            status=PoolStatus.ACTIVE,
-            created_at=0,
-        )
-    }
+    pools = _snapshot_bound_pool_fixture()
 
     balances = BalanceTable()
     balances.set(pk, "A", 10_000)
@@ -287,21 +292,7 @@ def test_validate_operations_rejects_unsanitized_quote_bound_intent_without_engi
 
 def test_validate_operations_requires_explicit_opt_in_for_snapshot_bound_quote_binding() -> None:
     pk = "0x" + "11" * 48
-    pools = {
-        "p_ab": PoolState(
-            pool_id="p_ab",
-            asset0="A",
-            asset1="B",
-            reserve0=1_000,
-            reserve1=2_000,
-            fee_bps=10,
-            curve_tag="CPMM",
-            curve_params="",
-            lp_supply=0,
-            status=PoolStatus.ACTIVE,
-            created_at=0,
-        )
-    }
+    pools = _snapshot_bound_pool_fixture()
 
     balances = BalanceTable()
     balances.set(pk, "A", 10_000)

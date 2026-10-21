@@ -11,16 +11,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Mapping, Sequence
 
-from .balances import PubKey
+from .balances import PubKey, _SnapshotSealMixin
 from .canonical import canonical_hex_fixed_allow_0x
 from .intents import Intent
 
-
+# Keep the pinned concolic path offsets stable across this representation change.
 _U32_MAX = 0xFFFFFFFF
 
 
-@dataclass
-class NonceTable:
+@dataclass(slots=True)
+class NonceTable(_SnapshotSealMixin):
     """
     Mutable mapping: sender_pubkey -> last_used_nonce.
 

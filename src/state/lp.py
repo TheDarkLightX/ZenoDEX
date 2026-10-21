@@ -15,7 +15,7 @@ from .balances import Amount, PubKey
 PoolId = str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class LPDurationRiskMetadata:
     """Committed duration-risk metadata for one aggregate LP position key."""
 
@@ -34,12 +34,29 @@ class LPTable:
     - Zero balances are omitted to keep the table sparse.
     """
 
+    __slots__ = (
+        "_balances",
+        "_last_mint_timestamps",
+        "_last_remove_timestamps",
+        "_churn_tiers",
+        "_last_churn_update_timestamps",
+        "_snapshot_sealed",
+    )
+
     def __init__(self) -> None:
+        object.__setattr__(self, "_snapshot_sealed", False)
         self._balances: Dict[Tuple[PubKey, PoolId], Amount] = {}
         self._last_mint_timestamps: Dict[Tuple[PubKey, PoolId], int] = {}
         self._last_remove_timestamps: Dict[Tuple[PubKey, PoolId], int] = {}
         self._churn_tiers: Dict[Tuple[PubKey, PoolId], int] = {}
         self._last_churn_update_timestamps: Dict[Tuple[PubKey, PoolId], int] = {}
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Prevent base-descriptor writes through a sealed committed subtype."""
+
+        if getattr(self, "_snapshot_sealed", False):
+            raise TypeError("committed LP snapshot is immutable")
+        object.__setattr__(self, name, value)
 
     def get(self, pubkey: PubKey, pool_id: PoolId) -> Amount:
         """Get LP balance for (pubkey, pool_id). Returns 0 if not found."""

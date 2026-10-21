@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from src.core.dex import DexState
+from src.core.perps import PerpMarketState, PerpsState
 from src.integration.perp_engine import (
     _ORACLE_PERPS_INDEX_QUERY_ID,
     _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
@@ -49,7 +52,11 @@ def _apply_result(
             market=market,
         )
 
-        def bridge_verifier(_bridge: object, *, action_id: str = expected_action_id) -> dict[str, object]:
+        def accepted_bridge(
+            _bridge: object,
+            *,
+            action_id: str = expected_action_id,
+        ) -> dict[str, object]:
             return {
                 "status": "accepted",
                 "errors": [],
@@ -60,6 +67,7 @@ def _apply_result(
                 "action_id": action_id,
             }
 
+        bridge_verifier = accepted_bridge
         break
 
     cfg = PerpEngineConfig(
@@ -120,11 +128,21 @@ def _ready_market(*, market_id: str, operator: str, price_e8: int = 100_000_000)
     )
     assert state.perps is not None
     market = state.perps.markets[market_id]
-    assert hasattr(market, "global_state")
-    market.global_state["oracle_seen"] = True
-    market.global_state["oracle_last_update_epoch"] = max(0, int(market.global_state["now_epoch"]) - 1)
-    market.global_state["index_price_e8"] = int(price_e8)
-    return state
+    assert type(market) is PerpMarketState
+    global_state = dict(market.global_state)
+    global_state["oracle_seen"] = True
+    global_state["oracle_last_update_epoch"] = max(0, int(global_state["now_epoch"]) - 1)
+    global_state["index_price_e8"] = int(price_e8)
+    markets = dict(state.perps.markets)
+    markets[market_id] = replace(
+        market,
+        global_state=global_state,
+        accounts=dict(market.accounts),
+    )
+    return replace(
+        state,
+        perps=PerpsState(version=state.perps.version, markets=markets),
+    )
 
 
 def _authorization_for(
@@ -135,7 +153,11 @@ def _authorization_for(
     evidence_class: str = "O3",
     expires_at_epoch: int | None = None,
 ) -> dict[str, object]:
-    value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
+    runtime_value = runtime["runtime_value_e8"] if value_e8 is None else value_e8
+    assert type(runtime_value) is int
+    value = runtime_value
+    expiry = runtime["now_epoch"] if expires_at_epoch is None else expires_at_epoch
+    assert type(expiry) is int
     query_id = str(runtime["query_id"])
     auth = {
         "consumer_module": "zenodex.perps",
@@ -150,7 +172,7 @@ def _authorization_for(
         "confidence_e8": 10_000,
         "deviation_bps": 5,
         "observed_epoch": int(observed_epoch),
-        "expires_at_epoch": int(runtime["now_epoch"] if expires_at_epoch is None else expires_at_epoch),
+        "expires_at_epoch": expiry,
         "feed_id": "feed:perps:index",
         "feed_registry_root": semantic_hash("test.feed-root", {"surface": "perps"}),
         "query_policy_root": semantic_hash("test.query-policy-root", {"surface": "perps"}),
@@ -243,7 +265,12 @@ def test_isolated_settle_rejects_authorization_for_different_pre_state() -> None
     market = state.perps.markets[market_id]
     runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
     auth = _authorization_for(runtime, observed_epoch=int(market.global_state["oracle_last_update_epoch"]))
-    auth["authorization"]["pre_state_hash"] = semantic_hash("test.wrong-pre-state", {"market_id": market_id})
+    authorization = auth["authorization"]
+    assert isinstance(authorization, dict)
+    authorization["pre_state_hash"] = semantic_hash(
+        "test.wrong-pre-state",
+        {"market_id": market_id},
+    )
 
     res = _apply_result(
         state=state,

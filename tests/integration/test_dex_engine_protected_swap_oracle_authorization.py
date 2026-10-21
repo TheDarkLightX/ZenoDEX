@@ -9,13 +9,14 @@ from src.integration.operations import SignedIntentEnvelope, create_signed_inten
 from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
 from src.integration.zeno_oracle_routing_authorization import protected_swap_runtime_facts
 from src.state import BalanceTable, LPTable
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 def _pool() -> PoolState:
+    pool_id = compute_pool_id("A", "B", 10)
     return PoolState(
-        pool_id="p_ab",
+        pool_id=pool_id,
         asset0="A",
         asset1="B",
         reserve0=1_000,
@@ -28,7 +29,8 @@ def _pool() -> PoolState:
 
 
 def _state_and_intent(*, sender: str, block_timestamp: int = 42):
-    pools = {"p_ab": _pool()}
+    pool = _pool()
+    pools = {pool.pool_id: pool}
     q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=123)
     assert q is not None
     receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools, quote_epoch=1)

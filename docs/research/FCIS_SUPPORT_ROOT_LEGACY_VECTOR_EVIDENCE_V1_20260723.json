@@ -1,0 +1,152 @@
+{
+  "schema": "zenodex/fcis-support-root-legacy-vector-evidence/v1",
+  "repository": "TheDarkLightX/ZenoDEX",
+  "branch": "agent/fcis-pr454-reviewed-port-20260723",
+  "source_commit": "7dbdb914b7c9ebc54aa10afb66ac5fb37c82a24d",
+  "parent_commit": "81d2f6f52205bb20a046deb6112f04c3fa8f96df",
+  "legacy_oracle": {
+    "source_commit": "fa7ae7f7096bb5f2f58fd253bb1571a243b8b69d",
+    "source_path": "src/state/support_root.py",
+    "relationship": "parent of exact-reader commit 04d2e07ab39fad97239dad45b840b0705d5f315c",
+    "capture_method": "detached legacy checkout; legacy derive_batch_state_support and compute_support_state_root_for_batch only",
+    "runtime_dependency": false
+  },
+  "source_files": [
+    {
+      "path": "tests/state/test_committed_support_root_legacy_vectors.py",
+      "sha256": "a8b64ba4a2ac54071bb124db834b4de887194dac5e8ad098e3845cbf16c40af7"
+    },
+    {
+      "path": "src/state/support_root.py",
+      "sha256": "2ee4a91b95ffd9da141fc63744c29e1db5696db8a08c1e318403b34c8f77031f"
+    },
+    {
+      "path": "src/state/committed_spot_roots.py",
+      "sha256": "1a4bf194590b68527809af3645cf97423c14a374c648086e847a4956e8a211f1"
+    },
+    {
+      "path": "docs/specs/fcis_authority_snapshot_v1/PR477_MOUNTED_MIGRATION.md",
+      "sha256": "1455d4ae7cc655fb16654ee926834d8bd5ea59e80037fb7963c4ccb23652dea3"
+    }
+  ],
+  "vectors": [
+    {
+      "name": "empty",
+      "expected_root": "0x3634653e136b4920230054b965b4cbf330afa164cfefba744840b6a3ed602f71"
+    },
+    {
+      "name": "all_intent_kinds_and_sections",
+      "expected_root": "0xbfeef220e37eb9d0707abe05746f28d783daed998b29b297a5550b526b46ddbe"
+    },
+    {
+      "name": "in_batch_create_then_add",
+      "expected_root": "0x1f5495411fde99687175e3d4949b402e6c9585436da01009d7ecc552b7240381"
+    },
+    {
+      "name": "disabled_pool_metadata_only_and_missing_omissions",
+      "expected_root": "0xc8173080147b979c7c2219c6ff12477678c312d391d343133c4cc9f6eda26cdc"
+    },
+    {
+      "name": "invalid_create_fields_minimal_support",
+      "expected_root": "0x3634653e136b4920230054b965b4cbf330afa164cfefba744840b6a3ed602f71"
+    },
+    {
+      "name": "permuted_batch_a",
+      "expected_root": "0x6d96406408e53803a06fbafbde18d17f350b35c2d2488e4731972a62d3ee40fe"
+    },
+    {
+      "name": "permuted_batch_b",
+      "expected_root": "0x6d96406408e53803a06fbafbde18d17f350b35c2d2488e4731972a62d3ee40fe"
+    }
+  ],
+  "coverage": {
+    "intent_kinds": [
+      "CREATE_POOL",
+      "ADD_LIQUIDITY",
+      "REMOVE_LIQUIDITY",
+      "SWAP_EXACT_IN",
+      "SWAP_EXACT_OUT",
+      "ROUTE_EXACT_IN",
+      "ROUTE_EXACT_OUT"
+    ],
+    "support_sections": [
+      "balances",
+      "pools",
+      "lp_balances",
+      "lp_duration_risk",
+      "nonces"
+    ],
+    "pool_statuses": [
+      "ACTIVE",
+      "FROZEN",
+      "DISABLED"
+    ],
+    "curve_profiles": [
+      "CPMM",
+      "SUM_BOOST_V1",
+      "CUBIC_SUM_V1"
+    ],
+    "edges": [
+      "empty support",
+      "in-batch pool creation followed by liquidity",
+      "metadata-only LP key",
+      "missing pool omission",
+      "zero value omission",
+      "invalid CREATE_POOL fields",
+      "batch permutation invariance"
+    ]
+  },
+  "results": {
+    "new_vector_tests": {
+      "command": "python3 -m pytest -q tests/state/test_committed_support_root_legacy_vectors.py",
+      "passed": 16
+    },
+    "combined_support_root_tests": {
+      "command": "python3 -m pytest -q tests/state/test_committed_spot_root_parity.py tests/state/test_committed_balance_root_parity.py tests/core/test_support_root.py tests/state/test_committed_support_root_legacy_vectors.py",
+      "passed": 50
+    },
+    "state_tests": {
+      "command": "python3 -m pytest -q tests/state",
+      "passed": 524
+    },
+    "critical_quality": {
+      "command": "PATH=/tmp/zenodex-fcis-gate-venv-20260723/bin:$PATH bash tools/run_critical_quality_gate.sh",
+      "acceptance_tcb_passed": 539,
+      "critical_tests_passed": 782,
+      "coverage_floors_passed": true,
+      "ok": true
+    },
+    "packet_checker": {
+      "ok": true,
+      "requirement_count": 39,
+      "declared_test_id_count": 103,
+      "bound_test_id_count": 103,
+      "errors": []
+    },
+    "authority_checker": {
+      "ok": true,
+      "violations": []
+    },
+    "production_boundary": {
+      "ok": true
+    },
+    "ruff": {
+      "version": "0.15.13",
+      "ok": true
+    },
+    "mypy": {
+      "version": "2.1.0",
+      "ok": true
+    }
+  },
+  "claim": "The exact committed support derivation and support-root v4 reader match fixed outputs from the pre-exact legacy implementation over the declared bounded corpus.",
+  "remaining_nonclaims": [
+    "The corpus is strong differential evidence, not an exhaustive proof of support-root correctness or collision resistance.",
+    "FCIS-T-477-019 remains open for one full aggregate fixture containing every optional module and every perps market variant.",
+    "No Rust, proof-guest, Tau, ESSO semantic-proof, or cross-language support-root refinement claim is made.",
+    "No M5 DexState switch, production authority, datastore atomicity, receipt, effect, outbox, or release claim is made.",
+    "Vault and Oracle are carried unchanged by the mounted spot step; their standalone kernels remain separate authority surfaces.",
+    "The production assurance profile remains blocked."
+  ],
+  "production_claim_status": "blocked"
+}

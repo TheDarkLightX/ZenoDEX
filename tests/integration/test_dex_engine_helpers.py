@@ -10,6 +10,7 @@ import pytest
 
 import src.integration.dex_engine as dex_engine
 from src.core.dex import DexConfig, DexState
+from src.core.fees import FeeAccumulatorState
 from src.core.settlement import Fill, FillAction, Settlement
 from src.integration.dex_engine import (
     DexEngineConfig,
@@ -1162,7 +1163,12 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
         settlement_env=SettlementEnvelope(settlement=settlement, proof=None),
         computed_settlement=settlement,
     )
-    monkeypatch.setattr(dex_engine, "split_fee_with_dust_carry", lambda **kwargs: ("split", "next-fee"))
+    next_fee_state = FeeAccumulatorState(dust=1)
+    monkeypatch.setattr(
+        dex_engine,
+        "split_fee_with_dust_carry",
+        lambda **kwargs: ("split", next_fee_state),
+    )
     res = apply_ops(
         config=DexEngineConfig(dex_config=DexConfig(fee_split_params=object()), require_settlement_match=False),
         state=state,
@@ -1171,7 +1177,7 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
     )
     assert res.ok is True
     assert res.state is not None
-    assert res.state.fee_accumulator == "next-fee"
+    assert res.state.fee_accumulator == next_fee_state
 
     proof = {"scheme": "dummy", "pre_state_commitment": "0x1", "batch_commitment": "0x2"}
     _patch_apply_ops_happy_path(

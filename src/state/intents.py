@@ -143,6 +143,9 @@ class RouteIntent(Intent):
     def __post_init__(self):
         """Validate route intent fields (shape only; engine validates the rest)."""
         super().__post_init__()
+        fields = self.fields
+        if fields is None:  # pragma: no cover - established by Intent.__post_init__
+            raise AssertionError("route intent fields were not initialized")
 
         if self.kind not in (IntentKind.ROUTE_EXACT_IN, IntentKind.ROUTE_EXACT_OUT):
             raise ValueError(f"Invalid kind for RouteIntent: {self.kind}")
@@ -180,7 +183,7 @@ class RouteIntent(Intent):
         for idx in leg_indices:
             if not isinstance(idx, int) or isinstance(idx, bool) or idx < 0:
                 raise ValueError("leg_indices must be non-negative ints")
-        if not all(a < b for a, b in zip(leg_indices, leg_indices[1:])):
+        if not all(a < b for a, b in zip(leg_indices, leg_indices[1:], strict=False)):
             raise ValueError("leg_indices must be strictly ascending with no duplicates")
 
         # Totals: kind-specific required fields, with the opposite kind's amount
@@ -202,7 +205,7 @@ class RouteIntent(Intent):
                 or total_min_amount_out < 0
             ):
                 raise ValueError("total_min_amount_out must be non-negative")
-            if "total_amount_out" in self.fields or "total_max_amount_in" in self.fields:
+            if "total_amount_out" in fields or "total_max_amount_in" in fields:
                 raise ValueError(
                     "ROUTE_EXACT_IN must not carry exact-out fields "
                     "(total_amount_out, total_max_amount_in)"
@@ -224,7 +227,7 @@ class RouteIntent(Intent):
                 or total_max_amount_in < 0
             ):
                 raise ValueError("total_max_amount_in must be non-negative")
-            if "total_amount_in" in self.fields or "total_min_amount_out" in self.fields:
+            if "total_amount_in" in fields or "total_min_amount_out" in fields:
                 raise ValueError(
                     "ROUTE_EXACT_OUT must not carry exact-in fields "
                     "(total_amount_in, total_min_amount_out)"

@@ -217,7 +217,7 @@ PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS: set[str] = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PerpAccountState:
     """Per-account isolated margin state for the epoch-perp kernel (v2 default)."""
 
@@ -259,7 +259,7 @@ class PerpAccountState:
         }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PerpMarketState:
     """Single-market state: global epoch/oracle + account table."""
 
@@ -491,7 +491,7 @@ def _check_clearinghouse_params(state: Mapping[str, Any]) -> None:
             "(max_oracle_move_bps <= maintenance_margin_bps <= initial_margin_bps)")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PerpClearinghouse2pMarketState:
     """Two-party clearinghouse market state (spec-driven kernel state).
 
@@ -572,7 +572,7 @@ class PerpClearinghouse2pMarketState:
         return None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PerpClearinghouse3pTransferMarketState:
     """Three-party transfer clearinghouse market state (spec-driven kernel state).
 
@@ -734,7 +734,7 @@ PERP_CLEARINGHOUSE_NP_ACCOUNT_KEYS: set[str] = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PerpClearinghouseNpAccount:
     """One participant in an N-party clearinghouse market."""
 
@@ -777,7 +777,7 @@ PERP_CLEARINGHOUSE_NP_PENDING_INTENT_KEYS: set[str] = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PerpClearinghouseNpPendingIntent:
     """A single-signed position intent queued for the next batch match."""
 
@@ -806,7 +806,7 @@ class PerpClearinghouseNpPendingIntent:
             raise ValueError("pending intent expiry_epoch must be non-negative")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PerpClearinghouseNpMarketState:
     """Open N-party net-zero clearinghouse market state."""
 
@@ -957,7 +957,7 @@ PerpAnyMarketState = (
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PerpsState:
     """Top-level perps module state (can hold multiple markets)."""
 

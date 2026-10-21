@@ -11,9 +11,12 @@ from tools.dex_engine_quote_receipt_sequence_grammar_fuzz import (
     ASSET_B,
     ASSET_C,
     ASSET_D,
+    DIRECT_AB_POOL_ID,
+    DIRECT_CD_POOL_ID,
     DIRECT_POOLS,
-    SPLIT_POOLS,
     SENDER,
+    SPLIT_FIRST_POOL_ID,
+    SPLIT_POOLS,
     _direct_state,
     _make_direct_ops,
     _make_split_ops,
@@ -22,7 +25,6 @@ from tools.dex_engine_quote_receipt_sequence_grammar_fuzz import (
     explore_target,
     minimize_case,
 )
-
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
@@ -58,7 +60,10 @@ def test_dex_engine_quote_receipt_sequence_direct_paths_are_stable() -> None:
     assert report.unique_path_count == 5
     assert "ok:pools=2:nonces=aaaaaaaa=1" in labels
     assert "ok:pools=2:nonces=aaaaaaaa=2" in labels
-    assert any("invalid quote receipt:" in label and "verifier_error='pool_snapshot_mismatch'" in label for label in labels)
+    assert any(
+        "invalid quote receipt:" in label and "verifier_error='pool_snapshot_mismatch'" in label
+        for label in labels
+    )
     assert any("missing quote receipt witness:" in label for label in labels)
     assert any("quote receipt hash mismatch:" in label for label in labels)
     assert "DirectSeq->SingleValidAb" in derivations
@@ -68,12 +73,14 @@ def test_dex_engine_quote_receipt_sequence_direct_paths_are_stable() -> None:
     assert "DirectSeq->ValidThenIndependentHashMismatch" in derivations
 
 
-def test_dex_engine_quote_receipt_live_admission_floor_rejects_stale_transport_without_state_advance() -> None:
+def test_dex_engine_quote_receipt_live_admission_floor_rejects_stale_transport_without_state_advance() -> (
+    None
+):
     config = DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False)
     state = _direct_state()
     first_ops = _make_direct_ops(
         pools=DIRECT_POOLS,
-        pool_id="p_ab",
+        pool_id=DIRECT_AB_POOL_ID,
         asset_in=ASSET_A,
         asset_out=ASSET_B,
         amount_in=123,
@@ -93,7 +100,7 @@ def test_dex_engine_quote_receipt_live_admission_floor_rejects_stale_transport_w
     before_failed_step = _dex_state_facts(live_state)
     stale_transport_ops = _make_direct_ops(
         pools=DIRECT_POOLS,
-        pool_id="p_ab",
+        pool_id=DIRECT_AB_POOL_ID,
         asset_in=ASSET_A,
         asset_out=ASSET_B,
         amount_in=123,
@@ -140,7 +147,7 @@ def test_dex_engine_quote_receipt_swapped_split_leg_indices_reject_without_state
     state = _split_state()
     warmup_ops = _make_direct_ops(
         pools=SPLIT_POOLS,
-        pool_id="p_cd",
+        pool_id=DIRECT_CD_POOL_ID,
         asset_in=ASSET_C,
         asset_out=ASSET_D,
         amount_in=111,
@@ -174,7 +181,7 @@ def test_dex_engine_quote_receipt_swapped_split_leg_indices_reject_without_state
     assert failed.error is not None
     assert "intent does not match quote receipt leg:" in failed.error
     assert "leg_index=1" in failed.error
-    assert "pool_id='p1'" in failed.error
+    assert f"pool_id={SPLIT_FIRST_POOL_ID!r}" in failed.error
     assert _dex_state_facts(live_state) == before_failed_step
 
 
@@ -190,7 +197,12 @@ def test_dex_engine_quote_receipt_sequence_targets_are_covered_and_deterministic
 
 def test_dex_engine_quote_receipt_sequence_cli_emits_expected_schema() -> None:
     raw = subprocess.check_output(
-        [sys.executable, str(ROOT_DIR / "tools/dex_engine_quote_receipt_sequence_grammar_fuzz.py"), "--format", "json"],
+        [
+            sys.executable,
+            str(ROOT_DIR / "tools/dex_engine_quote_receipt_sequence_grammar_fuzz.py"),
+            "--format",
+            "json",
+        ],
         text=True,
     )
     payload = json.loads(raw)
@@ -201,13 +213,17 @@ def test_dex_engine_quote_receipt_sequence_cli_emits_expected_schema() -> None:
     }
 
 
-def test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_changing_path() -> None:
-    witness = minimize_case("direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail")
+def test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_changing_path() -> (
+    None
+):
+    witness = minimize_case(
+        "direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail"
+    )
     assert "invalid quote receipt:" in witness.outcome_label
     assert "verifier_error='pool_snapshot_mismatch'" in witness.outcome_label
     _assert_path_id_shape(witness.path_id)
-    assert witness.original_size == 6819
-    assert witness.minimized_size == 4556
+    assert witness.original_size == 7935
+    assert witness.minimized_size == 5300
     assert witness.original_size > witness.minimized_size
     assert isinstance(witness.payload, dict)
     assert witness.payload["initial"] == "direct"
@@ -231,25 +247,31 @@ def test_dex_engine_quote_receipt_sequence_minimizer_cli_emits_expected_schema()
         text=True,
     )
     payload = json.loads(raw)
-    expected = minimize_case("direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail")
+    expected = minimize_case(
+        "direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail"
+    )
     assert payload["schema"] == "zenodex/dex-engine-quote-receipt-sequence-minimized-witness/v1"
     witness = payload["witness"]
     assert witness["target"] == "direct_quote_receipt_sequence"
     assert witness["derivation"] == "DirectSeq->ValidThenStaleSamePoolWithDeadTail"
     assert "invalid quote receipt:" in witness["outcome_label"]
     assert witness["path_id"] == expected.path_id
-    assert witness["original_size"] == 6819
-    assert witness["minimized_size"] == 4556
+    assert witness["original_size"] == 7935
+    assert witness["minimized_size"] == 5300
 
 
-def test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg_projection() -> None:
-    witness = minimize_case("split_quote_receipt_sequence", "SplitSeq->WarmupThenSplitSwappedLegIndices")
+def test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg_projection() -> (
+    None
+):
+    witness = minimize_case(
+        "split_quote_receipt_sequence", "SplitSeq->WarmupThenSplitSwappedLegIndices"
+    )
     assert "intent does not match quote receipt leg:" in witness.outcome_label
     assert "leg_index=1" in witness.outcome_label
-    assert "pool_id='p1'" in witness.outcome_label
+    assert f"pool_id={SPLIT_FIRST_POOL_ID!r}" in witness.outcome_label
     _assert_path_id_shape(witness.path_id)
-    assert witness.original_size == 10523
-    assert witness.minimized_size == 10523
+    assert witness.original_size == 13327
+    assert witness.minimized_size == 13327
     assert isinstance(witness.payload, dict)
     assert witness.payload["initial"] == "split"
     steps = witness.payload["steps"]

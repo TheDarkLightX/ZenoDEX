@@ -18,12 +18,16 @@ import pytest
 
 import src.integration.dex_engine as dex_engine
 from src.core.dex import DexState
-from src.integration.dex_engine import DexEngineConfig, _require_canonical_committed_identifiers, apply_ops
+from src.integration.dex_engine import (
+    DexEngineConfig,
+    _require_canonical_committed_identifiers,
+    apply_ops,
+)
 from src.integration.operations import SignedIntentEnvelope
 from src.state import BalanceTable, LPTable
 from src.state.canonical import hex_to_bytes_fixed
-from src.state.nonces import NonceTable
 from src.state.intents import Intent, IntentKind
+from src.state.nonces import NonceTable
 
 _PK = "0x" + "11" * 48
 _A0 = "0x" + "11" * 32
@@ -141,7 +145,7 @@ def _patch_engine_until_identifier_gate(monkeypatch: pytest.MonkeyPatch, intent:
         lambda signed_intents, *, max_intent_bytes, max_total_intent_bytes: ([{}], [b"{}"]),
     )
     monkeypatch.setattr(dex_engine, "_verify_all_intent_signatures", lambda *args, **kwargs: (True, None))
-    monkeypatch.setattr(dex_engine, "_validate_quote_receipt_witnesses", lambda **kwargs: None)
+    monkeypatch.setattr(dex_engine, "_validate_quote_receipt_witnesses", lambda **kwargs: (None, {}))
     monkeypatch.setattr(
         dex_engine,
         "compute_settlement",

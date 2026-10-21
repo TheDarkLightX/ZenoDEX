@@ -20,8 +20,13 @@ v5 added the FEE section. v4 omitted fee_accumulator.
 
 from __future__ import annotations
 
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 
+from .balance_commitment import (
+    LogicalBalanceEntryV1,
+    _canonical_balance_entries_v1,
+    _encode_logical_balance_entries_v1,
+)
 from .balances import BalanceTable
 from .canonical import (
     domain_sep_bytes,
@@ -33,6 +38,16 @@ from .canonical import (
 from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, validate_pool_id_format, validate_pool_identity
+
+if TYPE_CHECKING:
+    from .owned_collections import OwnedMapV1
+    from .state_snapshot_values import (
+        CommittedBalanceTableV1,
+        CommittedFeeAccumulatorStateV1,
+        CommittedLPTableV1,
+        CommittedNonceTableV1,
+        CommittedPoolStateV1,
+    )
 
 STATE_ROOT_VERSION = 5
 
@@ -50,20 +65,13 @@ _POOL_STATUS_LABEL: dict[PoolStatus, str] = {
 
 
 def _sorted_balance_entries(balances: BalanceTable) -> list[tuple[bytes, bytes, int]]:
-    entries: list[tuple[bytes, bytes, int]] = []
-    seen: set[tuple[bytes, bytes]] = set()
-    for (pubkey, asset), amount in balances.get_all_balances().items():
-        pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
-        asset_b = hex_to_bytes_fixed(asset, nbytes=32, name="asset")
-        key = (pk_b, asset_b)
-        if key in seen:
-            raise ValueError("duplicate decoded (pubkey, asset) in balances")
-        seen.add(key)
-        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
-            raise ValueError(f"invalid balance amount: {amount!r}")
-        entries.append((pk_b, asset_b, amount))
-    entries.sort(key=lambda t: (t[0], t[1]))
-    return entries
+    logical_entries = tuple(balances.get_all_balances().items())
+    return list(
+        _canonical_balance_entries_v1(
+            logical_entries,
+            duplicate_error="duplicate decoded (pubkey, asset) in balances",
+        )
+    )
 
 
 def _sorted_lp_entries(lp_balances: LPTable) -> list[tuple[bytes, bytes, int]]:
@@ -136,14 +144,27 @@ def _sorted_pool_entries(pools: Mapping[str, PoolState]) -> list[tuple[bytes, Po
 
 
 def _encode_balances_section(balances: BalanceTable) -> bytes:
-    out = bytearray()
-    entries = _sorted_balance_entries(balances)
-    out += encode_uvarint(len(entries))
-    for pk_b, asset_b, amount in entries:
-        out += pk_b
-        out += asset_b
-        out += encode_uvarint(amount)
-    return bytes(out)
+    logical_entries = tuple(balances.get_all_balances().items())
+    return _encode_logical_balance_entries_v1(
+        logical_entries,
+        duplicate_error="duplicate decoded (pubkey, asset) in balances",
+    )
+
+
+def _encode_committed_balances_section_v1(balances: CommittedBalanceTableV1) -> bytes:
+    """Encode a fully re-admitted exact committed balance snapshot."""
+
+    from .state_snapshot_values import CommittedBalanceTableV1
+    from .state_snapshots import snapshot_balance_table
+
+    if type(balances) is not CommittedBalanceTableV1:
+        raise TypeError("balances must be an exact CommittedBalanceTableV1")
+    admitted = snapshot_balance_table(balances)
+    logical_entries: tuple[LogicalBalanceEntryV1, ...] = admitted.entries
+    return _encode_logical_balance_entries_v1(
+        logical_entries,
+        duplicate_error="duplicate decoded (pubkey, asset) in balances",
+    )
 
 
 def _encode_pools_section(pools: Mapping[str, PoolState]) -> bytes:
@@ -421,6 +442,62 @@ def compute_state_root(
 STATE_ROOT_SECTION_LABELS: tuple[bytes, ...] = (b"BAL", b"POL", b"LPB", b"LPA", b"NNC", b"FEE")
 
 
+def _state_root_preimage_from_sections_v1(
+    *,
+    balances_section: bytes,
+    pools_section: bytes,
+    lp_balances_section: bytes,
+    lp_duration_risk_section: bytes,
+    nonces_section: bytes,
+    fee_section: bytes,
+) -> bytes:
+    """Join six already canonical root-v5 sections in protocol order."""
+
+    sections = {
+        b"BAL": balances_section,
+        b"POL": pools_section,
+        b"LPB": lp_balances_section,
+        b"LPA": lp_duration_risk_section,
+        b"NNC": nonces_section,
+        b"FEE": fee_section,
+    }
+    if any(type(section) is not bytes for section in sections.values()):
+        raise TypeError("state-root sections must be exact bytes")
+    out = bytearray(domain_sep_bytes("state_root", version=STATE_ROOT_VERSION))
+    for label in STATE_ROOT_SECTION_LABELS:
+        out += label
+        out += encode_bytes(sections[label])
+    return bytes(out)
+
+
+def _state_root_preimage_from_balances_section_v1(
+    *,
+    balances_section: bytes,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+    nonces: NonceTable | None = None,
+    fee_accumulator: object | None = None,
+) -> bytes:
+    """Join one canonical balance section with unchanged root-v5 sections."""
+
+    if type(balances_section) is not bytes:
+        raise TypeError("balances_section must be exact bytes")
+    if not isinstance(lp_balances, LPTable):
+        raise TypeError("lp_balances must be an LPTable")
+    nonce_table = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, NonceTable):
+        raise TypeError("nonces must be a NonceTable")
+
+    return _state_root_preimage_from_sections_v1(
+        balances_section=balances_section,
+        pools_section=_encode_pools_section(pools),
+        lp_balances_section=_encode_lp_section(lp_balances),
+        lp_duration_risk_section=_encode_lp_duration_risk_section(lp_balances),
+        nonces_section=_encode_nonce_section(nonce_table),
+        fee_section=_encode_fee_section(fee_accumulator),
+    )
+
+
 def state_root_preimage(
     *,
     balances: BalanceTable,
@@ -430,24 +507,67 @@ def state_root_preimage(
     fee_accumulator: object | None = None,
 ) -> bytes:
     """Build the canonical state-root preimage bytes, the input to sha256."""
+
     if not isinstance(balances, BalanceTable):
         raise TypeError("balances must be a BalanceTable")
-    if not isinstance(lp_balances, LPTable):
-        raise TypeError("lp_balances must be an LPTable")
-    nonce_table = NonceTable() if nonces is None else nonces
-    if not isinstance(nonce_table, NonceTable):
-        raise TypeError("nonces must be a NonceTable")
+    return _state_root_preimage_from_balances_section_v1(
+        balances_section=_encode_balances_section(balances),
+        pools=pools,
+        lp_balances=lp_balances,
+        nonces=nonces,
+        fee_accumulator=fee_accumulator,
+    )
 
-    sections = {
-        b"BAL": _encode_balances_section(balances),
-        b"POL": _encode_pools_section(pools),
-        b"LPB": _encode_lp_section(lp_balances),
-        b"LPA": _encode_lp_duration_risk_section(lp_balances),
-        b"NNC": _encode_nonce_section(nonce_table),
-        b"FEE": _encode_fee_section(fee_accumulator),
-    }
-    out = bytearray(domain_sep_bytes("state_root", version=STATE_ROOT_VERSION))
-    for label in STATE_ROOT_SECTION_LABELS:
-        out += label
-        out += encode_bytes(sections[label])
-    return bytes(out)
+
+def state_root_preimage_with_committed_balances_v1(
+    *,
+    balances: CommittedBalanceTableV1,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+    nonces: NonceTable | None = None,
+    fee_accumulator: object | None = None,
+) -> bytes:
+    """Build root-v5 bytes from an exact committed balance snapshot.
+
+    This migration-scoped reader changes only the BAL section source. Pools,
+    LP state, nonces, fee framing, the root version, and section order remain
+    unchanged. It stays unmounted until the enclosing ``DexState`` owns exact
+    committed balance state.
+    """
+
+    return _state_root_preimage_from_balances_section_v1(
+        balances_section=_encode_committed_balances_section_v1(balances),
+        pools=pools,
+        lp_balances=lp_balances,
+        nonces=nonces,
+        fee_accumulator=fee_accumulator,
+    )
+
+
+def state_root_preimage_with_committed_spot_state_v1(
+    *,
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    nonces: CommittedNonceTableV1,
+    fee_accumulator: CommittedFeeAccumulatorStateV1,
+) -> bytes:
+    """Build root-v5 bytes directly from exact committed spot state.
+
+    This migration-scoped reader remains unmounted until the aggregate
+    ``DexState`` owns all five exact values and the Rust-authority reader has
+    matching cross-language evidence. Each input is re-admitted through the
+    one closed state profile before its canonical section is encoded.
+    """
+
+    from .committed_spot_roots import (
+        state_root_preimage_with_committed_spot_state_v1 as _read_exact_root,
+    )
+
+    return _read_exact_root(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        nonces=nonces,
+        fee_accumulator=fee_accumulator,
+    )

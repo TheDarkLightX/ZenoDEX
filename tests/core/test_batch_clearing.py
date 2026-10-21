@@ -1630,7 +1630,12 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert swap_lp == []
 
     reverse_balances = _fresh_balances()
-    reverse_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
+    reverse_pool = replace(
+        pool,
+        reserve0=2_000_000,
+        reserve1=2_000_000,
+        lp_supply=lp_minted + 1000,
+    )
     reverse_deltas: list[BalanceDelta] = []
     reverse_reserves: list[ReserveDelta] = []
     reverse_lp: list[LPDelta] = []
@@ -1663,7 +1668,12 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert reverse_pool.reserve0 == 1_999_930
 
     cow_balances = _fresh_balances()
-    cow_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
+    cow_pool = replace(
+        pool,
+        reserve0=2_000_000,
+        reserve1=2_000_000,
+        lp_supply=lp_minted + 1000,
+    )
     cow_reserves: list[ReserveDelta] = []
     _apply_filled_intent_to_locals(
         intent=swap_intent,
@@ -1687,7 +1697,12 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert cow_pool.reserve1 == 2_000_000
 
     add_balances = _fresh_balances()
-    add_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
+    add_pool = replace(
+        pool,
+        reserve0=2_000_000,
+        reserve1=2_000_000,
+        lp_supply=lp_minted + 1000,
+    )
     add_lp = LPTable()
     add_balance_deltas: list[BalanceDelta] = []
     add_reserve_deltas: list[ReserveDelta] = []
@@ -1727,7 +1742,12 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert len(add_lp_deltas) == 1
 
     remove_balances = _fresh_balances()
-    remove_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
+    remove_pool = replace(
+        pool,
+        reserve0=2_000_000,
+        reserve1=2_000_000,
+        lp_supply=lp_minted + 1000,
+    )
     remove_lp = LPTable()
     remove_lp.set(pk, pool_id, 500)
     remove_balance_deltas: list[BalanceDelta] = []
@@ -1769,7 +1789,12 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert len(remove_reserve_deltas) == 2
     assert len(remove_lp_deltas) == 1
 
-    unsupported_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
+    unsupported_pool = replace(
+        pool,
+        reserve0=2_000_000,
+        reserve1=2_000_000,
+        lp_supply=lp_minted + 1000,
+    )
     weird_intent = Intent(
         module="TauSwap",
         version="0.1",

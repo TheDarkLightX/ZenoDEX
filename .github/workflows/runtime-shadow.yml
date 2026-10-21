@@ -217,6 +217,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install locked runtime dependencies
+        run: python -m pip install --require-hashes -r requirements-core.lock.txt
+
       - name: Vectors are in sync with the Python authority
         run: python3 tools/runtime/ocaml_spec_vectors.py --check
 
