@@ -1,0 +1,136 @@
+{
+  "schema": "zrpf/finite-image-ladder-manifest/v1",
+  "manifest_id": "zrpf-finite-ladder-f2-d3-example-v1",
+  "artifact_class": "non_authority_research_plan",
+  "status": "specified_not_executed",
+  "authority": false,
+  "backend": {
+    "backend_id": "risc0_zkvm_3_0_5_succinct_poseidon2",
+    "version": "3.0.5",
+    "receipt_kind": "succinct",
+    "hash_profile": "poseidon2",
+    "composition_mode": "env_verify_assumption_resolve"
+  },
+  "topology": {
+    "fanout": 2,
+    "depth": 3,
+    "full_tree": true,
+    "leaf_count": 8,
+    "internal_node_count": 7,
+    "total_node_count": 15,
+    "edge_count": 14,
+    "level_node_counts": [8, 4, 2, 1],
+    "aggregate_rounds": 3,
+    "program_image_count": 4,
+    "capacity_class": "first_validation_gate"
+  },
+  "validation_gate": {
+    "gate_id": "zrpf_finite_ladder_f2_d3_v1",
+    "evidence_status": "specified_not_executed",
+    "authority": false,
+    "required_negative_tests": [
+      "child_omission_rejects",
+      "child_duplication_rejects",
+      "child_reordering_rejects",
+      "child_image_substitution_rejects",
+      "level_substitution_rejects",
+      "unresolved_assumption_rejects",
+      "profile_or_control_substitution_rejects",
+      "sealed_host_rejects_non_root_image"
+    ]
+  },
+  "levels": [
+    {
+      "level": 0,
+      "role": "leaf_adapter",
+      "program_id": "zrpf_spot_v1_leaf_adapter_example",
+      "node_count": 8,
+      "fanout": 0,
+      "image": {
+        "risc0_image_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+        "elf_sha256_hex": "1010101010101010101010101010101010101010101010101010101010101010",
+        "source_sha256_hex": "2020202020202020202020202020202020202020202020202020202020202020",
+        "provenance_status": "synthetic_example_only"
+      },
+      "child_binding": null
+    },
+    {
+      "level": 1,
+      "role": "aggregate",
+      "program_id": "zrpf_aggregate_level_1_example",
+      "node_count": 4,
+      "fanout": 2,
+      "image": {
+        "risc0_image_id_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+        "elf_sha256_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+        "source_sha256_hex": "2121212121212121212121212121212121212121212121212121212121212121",
+        "provenance_status": "synthetic_example_only"
+      },
+      "child_binding": {
+        "child_level": 0,
+        "child_image_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+        "child_count_exact": 2,
+        "ordered": true
+      }
+    },
+    {
+      "level": 2,
+      "role": "aggregate",
+      "program_id": "zrpf_aggregate_level_2_example",
+      "node_count": 2,
+      "fanout": 2,
+      "image": {
+        "risc0_image_id_hex": "0202020202020202020202020202020202020202020202020202020202020202",
+        "elf_sha256_hex": "1212121212121212121212121212121212121212121212121212121212121212",
+        "source_sha256_hex": "2222222222222222222222222222222222222222222222222222222222222222",
+        "provenance_status": "synthetic_example_only"
+      },
+      "child_binding": {
+        "child_level": 1,
+        "child_image_id_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+        "child_count_exact": 2,
+        "ordered": true
+      }
+    },
+    {
+      "level": 3,
+      "role": "aggregate",
+      "program_id": "zrpf_aggregate_level_3_example",
+      "node_count": 1,
+      "fanout": 2,
+      "image": {
+        "risc0_image_id_hex": "0303030303030303030303030303030303030303030303030303030303030303",
+        "elf_sha256_hex": "1313131313131313131313131313131313131313131313131313131313131313",
+        "source_sha256_hex": "2323232323232323232323232323232323232323232323232323232323232323",
+        "provenance_status": "synthetic_example_only"
+      },
+      "child_binding": {
+        "child_level": 2,
+        "child_image_id_hex": "0202020202020202020202020202020202020202020202020202020202020202",
+        "child_count_exact": 2,
+        "ordered": true
+      }
+    }
+  ],
+  "assurance": {
+    "soundness_budget_status": "not_computed",
+    "backend_capability_status": "not_attested",
+    "build_provenance_status": "synthetic_example_only",
+    "admission_eligible": false,
+    "required_before_any_authority": [
+      "cryptographic_fanout2_depth3_receipt_evidence",
+      "sealed_host_verifier_negative_evidence",
+      "exact_backend_and_build_provenance",
+      "executable_end_to_end_soundness_budget",
+      "resource_and_storage_benchmarks",
+      "governed_release_review"
+    ]
+  },
+  "non_claims": [
+    "This artifact grants no settlement, admission, release, or production authority.",
+    "Capacity arithmetic is not measured throughput, latency, storage viability, or scalability evidence.",
+    "Manifest validation does not verify RISC Zero receipts, image derivation, build reproducibility, or cryptographic soundness.",
+    "The bounded fanout-2 depth-3 ESSO model is not an unbounded correctness proof.",
+    "A constant-size root receipt does not make child journals, witnesses, or data available."
+  ]
+}

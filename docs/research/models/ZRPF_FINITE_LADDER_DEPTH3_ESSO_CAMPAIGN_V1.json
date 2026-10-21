@@ -1,0 +1,66 @@
+{
+  "schema": "zrpf/esso-campaign-registry/v1",
+  "esso_revision": "db8a3f8a782a508ada5005a2cf177f25c58f451d",
+  "execution_status": "specified_not_executed",
+  "unknown_policy": "fail",
+  "authority": false,
+  "promotion_policy": "A result must bind the ESSO executable, model, properties, exact bounds, seeds, backend versions, counterexamples, and complete artifact digests. UNKNOWN, timeout, error, or missing evidence never promotes a claim or grants authority.",
+  "campaigns": [
+    {
+      "id": "ESSO-ZRPF-LADDER-001",
+      "model": "finite_ladder_depth3.esso.json",
+      "format": "esso-ir/v1",
+      "goal": "Check the bounded sequencing and non-authority invariants of the first finite level-specific ladder gate.",
+      "properties": [
+        "authority remains false in every reachable state",
+        "levels build contiguously from leaf through level 3",
+        "each built level has the exact covered-leaf count",
+        "each built level has the exact cumulative node count",
+        "each built level has its distinct expected image identity",
+        "gate completion requires the exact depth-3 root state"
+      ],
+      "mutants": [
+        "skip level 1",
+        "skip level 2",
+        "reuse child image as parent image",
+        "substitute a sibling level image",
+        "use the wrong covered-leaf count",
+        "use the wrong cumulative node count",
+        "finalize before level 3",
+        "set authority true on gate completion",
+        "treat capacity projection as execution evidence"
+      ],
+      "bounds": {
+        "fanout": 2,
+        "depth": 3,
+        "leaves": 8,
+        "internal_nodes": 7,
+        "total_nodes": 15,
+        "reachable_stages": 5,
+        "schedules": "all enabled action sequences"
+      }
+    }
+  ],
+  "result_receipt_required_fields": [
+    "schema",
+    "campaign_id",
+    "esso_executable_sha256",
+    "esso_revision",
+    "model_sha256",
+    "property_sha256",
+    "bounds",
+    "seeds",
+    "backend_names",
+    "backend_versions",
+    "status",
+    "counterexample_artifacts",
+    "artifact_digests",
+    "non_claims"
+  ],
+  "non_claims": [
+    "No ESSO execution result is included in this package.",
+    "Bounded inductiveness would not establish unbounded ladder correctness.",
+    "This model abstracts away RISC Zero proof verification, image derivation, soundness, storage, scheduling, and semantic journal composition.",
+    "No model result can promote this research artifact to settlement, admission, release, or production authority."
+  ]
+}

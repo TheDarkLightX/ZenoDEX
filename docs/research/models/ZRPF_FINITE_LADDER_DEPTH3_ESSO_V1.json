@@ -1,0 +1,212 @@
+{
+  "ir_version": "esso-ir/v1",
+  "meta": {
+    "model_id": "zrpf_finite_level_specific_ladder_f2_d3_v1",
+    "esso_revision": "db8a3f8a782a508ada5005a2cf177f25c58f451d",
+    "status": "specified_not_executed",
+    "authority": false,
+    "scope": "Bounded construction sequencing for a full fanout-2 depth-3 level-specific image ladder.",
+    "bounds": {
+      "fanout": 2,
+      "depth": 3,
+      "leaves": 8,
+      "internal_nodes": 7,
+      "total_nodes": 15,
+      "reachable_stages": 5
+    },
+    "non_claims": [
+      "This model does not execute or verify RISC Zero cryptography.",
+      "Bounded inductiveness is not an unbounded correctness proof.",
+      "Model verification cannot grant ZRPF admission or production authority."
+    ]
+  },
+  "observables": {
+    "state_vars": [
+      "authority",
+      "built_level",
+      "constructed_nodes",
+      "covered_leaves",
+      "gate_complete",
+      "last_image"
+    ],
+    "effects": []
+  },
+  "types": [
+    {
+      "id": "image_id",
+      "type": {
+        "kind": "enum",
+        "symbols": ["leaf", "level_1", "level_2", "level_3"]
+      }
+    }
+  ],
+  "state_vars": [
+    {"id": "authority", "role": "control", "type": {"kind": "bool"}},
+    {"id": "built_level", "role": "control", "type": {"kind": "int", "min": 0, "max": 3}},
+    {"id": "constructed_nodes", "role": "data", "type": {"kind": "int", "min": 8, "max": 15}},
+    {"id": "covered_leaves", "role": "data", "type": {"kind": "int", "min": 1, "max": 8}},
+    {"id": "gate_complete", "role": "control", "type": {"kind": "bool"}},
+    {"id": "last_image", "role": "data", "type": {"ref": "image_id"}}
+  ],
+  "invariants": [
+    {
+      "id": "AuthorityAlwaysFalse",
+      "kind": "safety",
+      "expr": {"op": "not", "args": [{"var": "authority"}]}
+    },
+    {
+      "id": "BuiltLevelDeterminesCoverage",
+      "kind": "safety",
+      "expr": {
+        "op": "and",
+        "args": [
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 0}]}]}, {"op": "=", "args": [{"var": "covered_leaves"}, {"const": 1}]}]},
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 1}]}]}, {"op": "=", "args": [{"var": "covered_leaves"}, {"const": 2}]}]},
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 2}]}]}, {"op": "=", "args": [{"var": "covered_leaves"}, {"const": 4}]}]},
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 3}]}]}, {"op": "=", "args": [{"var": "covered_leaves"}, {"const": 8}]}]}
+        ]
+      }
+    },
+    {
+      "id": "BuiltLevelDeterminesImage",
+      "kind": "safety",
+      "expr": {
+        "op": "and",
+        "args": [
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 0}]}]}, {"op": "=", "args": [{"var": "last_image"}, {"enum": "leaf"}]}]},
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 1}]}]}, {"op": "=", "args": [{"var": "last_image"}, {"enum": "level_1"}]}]},
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 2}]}]}, {"op": "=", "args": [{"var": "last_image"}, {"enum": "level_2"}]}]},
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 3}]}]}, {"op": "=", "args": [{"var": "last_image"}, {"enum": "level_3"}]}]}
+        ]
+      }
+    },
+    {
+      "id": "BuiltLevelDeterminesNodeCount",
+      "kind": "safety",
+      "expr": {
+        "op": "and",
+        "args": [
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 0}]}]}, {"op": "=", "args": [{"var": "constructed_nodes"}, {"const": 8}]}]},
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 1}]}]}, {"op": "=", "args": [{"var": "constructed_nodes"}, {"const": 12}]}]},
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 2}]}]}, {"op": "=", "args": [{"var": "constructed_nodes"}, {"const": 14}]}]},
+          {"op": "or", "args": [{"op": "not", "args": [{"op": "=", "args": [{"var": "built_level"}, {"const": 3}]}]}, {"op": "=", "args": [{"var": "constructed_nodes"}, {"const": 15}]}]}
+        ]
+      }
+    },
+    {
+      "id": "GateCompletionRequiresExactRoot",
+      "kind": "safety",
+      "expr": {
+        "op": "or",
+        "args": [
+          {"op": "not", "args": [{"var": "gate_complete"}]},
+          {
+            "op": "and",
+            "args": [
+              {"op": "=", "args": [{"var": "built_level"}, {"const": 3}]},
+              {"op": "=", "args": [{"var": "constructed_nodes"}, {"const": 15}]},
+              {"op": "=", "args": [{"var": "covered_leaves"}, {"const": 8}]},
+              {"op": "=", "args": [{"var": "last_image"}, {"enum": "level_3"}]},
+              {"op": "not", "args": [{"var": "authority"}]}
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "init": [
+    {"var": "authority", "expr": {"bool": false}},
+    {"var": "built_level", "expr": {"const": 0}},
+    {"var": "constructed_nodes", "expr": {"const": 8}},
+    {"var": "covered_leaves", "expr": {"const": 1}},
+    {"var": "gate_complete", "expr": {"bool": false}},
+    {"var": "last_image", "expr": {"enum": "leaf"}}
+  ],
+  "actions": [
+    {
+      "id": "build_level_1",
+      "params": [],
+      "guard": {
+        "op": "and",
+        "args": [
+          {"op": "not", "args": [{"var": "authority"}]},
+          {"op": "not", "args": [{"var": "gate_complete"}]},
+          {"op": "=", "args": [{"var": "built_level"}, {"const": 0}]},
+          {"op": "=", "args": [{"var": "constructed_nodes"}, {"const": 8}]},
+          {"op": "=", "args": [{"var": "covered_leaves"}, {"const": 1}]},
+          {"op": "=", "args": [{"var": "last_image"}, {"enum": "leaf"}]}
+        ]
+      },
+      "updates": [
+        {"var": "built_level", "expr": {"const": 1}},
+        {"var": "constructed_nodes", "expr": {"const": 12}},
+        {"var": "covered_leaves", "expr": {"const": 2}},
+        {"var": "last_image", "expr": {"enum": "level_1"}}
+      ],
+      "effects": {}
+    },
+    {
+      "id": "build_level_2",
+      "params": [],
+      "guard": {
+        "op": "and",
+        "args": [
+          {"op": "not", "args": [{"var": "authority"}]},
+          {"op": "not", "args": [{"var": "gate_complete"}]},
+          {"op": "=", "args": [{"var": "built_level"}, {"const": 1}]},
+          {"op": "=", "args": [{"var": "constructed_nodes"}, {"const": 12}]},
+          {"op": "=", "args": [{"var": "covered_leaves"}, {"const": 2}]},
+          {"op": "=", "args": [{"var": "last_image"}, {"enum": "level_1"}]}
+        ]
+      },
+      "updates": [
+        {"var": "built_level", "expr": {"const": 2}},
+        {"var": "constructed_nodes", "expr": {"const": 14}},
+        {"var": "covered_leaves", "expr": {"const": 4}},
+        {"var": "last_image", "expr": {"enum": "level_2"}}
+      ],
+      "effects": {}
+    },
+    {
+      "id": "build_level_3",
+      "params": [],
+      "guard": {
+        "op": "and",
+        "args": [
+          {"op": "not", "args": [{"var": "authority"}]},
+          {"op": "not", "args": [{"var": "gate_complete"}]},
+          {"op": "=", "args": [{"var": "built_level"}, {"const": 2}]},
+          {"op": "=", "args": [{"var": "constructed_nodes"}, {"const": 14}]},
+          {"op": "=", "args": [{"var": "covered_leaves"}, {"const": 4}]},
+          {"op": "=", "args": [{"var": "last_image"}, {"enum": "level_2"}]}
+        ]
+      },
+      "updates": [
+        {"var": "built_level", "expr": {"const": 3}},
+        {"var": "constructed_nodes", "expr": {"const": 15}},
+        {"var": "covered_leaves", "expr": {"const": 8}},
+        {"var": "last_image", "expr": {"enum": "level_3"}}
+      ],
+      "effects": {}
+    },
+    {
+      "id": "finalize_non_authority_gate",
+      "params": [],
+      "guard": {
+        "op": "and",
+        "args": [
+          {"op": "not", "args": [{"var": "authority"}]},
+          {"op": "not", "args": [{"var": "gate_complete"}]},
+          {"op": "=", "args": [{"var": "built_level"}, {"const": 3}]},
+          {"op": "=", "args": [{"var": "constructed_nodes"}, {"const": 15}]},
+          {"op": "=", "args": [{"var": "covered_leaves"}, {"const": 8}]},
+          {"op": "=", "args": [{"var": "last_image"}, {"enum": "level_3"}]}
+        ]
+      },
+      "updates": [
+        {"var": "gate_complete", "expr": {"bool": true}}
+      ],
+      "effects": {}
+    }
+  ]
+}
