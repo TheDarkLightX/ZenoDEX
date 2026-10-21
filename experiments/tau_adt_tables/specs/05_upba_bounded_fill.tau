@@ -1,0 +1,14 @@
+# ZenoDEX / UPBA bounded typed fill witness
+# Two complementary intents clear exactly with no pool inventory change.
+# EXPECTED-RESULTS: T T T F
+set charvar off
+set maxsplits 1
+# The proposed fills stay within each user's offered amount.
+type Fill = {sell0: bv[32], buy1: bv[32], sell1: bv[32], buy0: bv[32]}. n all f:Fill ((f.sell0 = {100}:bv[32] && f.buy1 = {95}:bv[32] && f.sell1 = {95}:bv[32] && f.buy0 = {100}:bv[32]) -> (f.sell0 <= {100}:bv[32] && f.sell1 <= {95}:bv[32]))
+# Token-0 clears exactly: A sells 100, B buys 100.
+n ((bv[64]) {100}:bv[32]) = ((bv[64]) {100}:bv[32])
+# Token-1 clears exactly: B sells 95, A buys 95.
+n ((bv[64]) {95}:bv[32]) = ((bv[64]) {95}:bv[32])
+# An overfill of 101 is not within A's 100-token offer.
+n {101}:bv[32] <= {100}:bv[32]
+quit

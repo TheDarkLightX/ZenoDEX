@@ -1,0 +1,13 @@
+# ZenoDEX wide-amount smoke tests
+# EXPECTED-RESULTS: T T T F
+set charvar off
+set maxsplits 1
+# 128-bit arithmetic.
+n ({#xffffffffffffffff}:bv[128] + {1}:bv[128]) = {#x00000000000000010000000000000000}:bv[128]
+# 256-bit arithmetic: 2^128 + 2^128 = 2^129.
+n ({#x0000000000000000000000000000000100000000000000000000000000000000}:bv[256] + {#x0000000000000000000000000000000100000000000000000000000000000000}:bv[256]) = {#x0000000000000000000000000000000200000000000000000000000000000000}:bv[256]
+# Widen two 128-bit economic amounts before sum.
+n ((bv[256]) {#xffffffffffffffffffffffffffffffff}:bv[128] + (bv[256]) {1}:bv[128]) = {#x0000000000000000000000000000000100000000000000000000000000000000}:bv[256]
+# Negative control: that widened sum is not zero.
+n ((bv[256]) {#xffffffffffffffffffffffffffffffff}:bv[128] + (bv[256]) {1}:bv[128]) = {0}:bv[256]
+quit

@@ -1,0 +1,10 @@
+# ZenoOracle: typed 3-reporter median relation
+# EXPECTED-RESULTS: T F
+set charvar off
+set maxsplits 1
+# If m is one observed price, at least two observations are <=m and at least two are >=m,
+# then for prices 100,110,105 the median is forced to 105.
+type Oracle = {a: bv[32], b: bv[32], c: bv[32], m: bv[32]}. n all o:Oracle ((o.a = {100}:bv[32] && o.b = {110}:bv[32] && o.c = {105}:bv[32] && (o.m = o.a || o.m = o.b || o.m = o.c) && ((o.a <= o.m && o.b <= o.m) || (o.a <= o.m && o.c <= o.m) || (o.b <= o.m && o.c <= o.m)) && ((o.a >= o.m && o.b >= o.m) || (o.a >= o.m && o.c >= o.m) || (o.b >= o.m && o.c >= o.m))) -> o.m = {105}:bv[32])
+# No valid median assignment can force m=110 for the same observations.
+type Oracle = {a: bv[32], b: bv[32], c: bv[32], m: bv[32]}. n ex o:Oracle (o.a = {100}:bv[32] && o.b = {110}:bv[32] && o.c = {105}:bv[32] && o.m = {110}:bv[32] && (o.m = o.a || o.m = o.b || o.m = o.c) && ((o.a <= o.m && o.b <= o.m) || (o.a <= o.m && o.c <= o.m) || (o.b <= o.m && o.c <= o.m)) && ((o.a >= o.m && o.b >= o.m) || (o.a >= o.m && o.c >= o.m) || (o.b >= o.m && o.c >= o.m)))
+quit
