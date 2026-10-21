@@ -55,21 +55,18 @@ runtime_authority_policy:
   per_surface:
     balances: rust_authority_with_python_shadow
     burn_receipts: rust_authority_with_python_shadow
-    canonical: rust_authority_with_python_shadow
-    cpmm_settlement: rust_authority_with_python_shadow
+    canonical: python_authority
+    cpmm_settlement: python_authority
     fee_router: rust_authority_with_python_shadow
-    perp_math: rust_authority_with_python_shadow
-    perp_stateful: rust_shadow
+    perp_math: python_authority
+    perp_stateful: python_authority
     replay_guard: rust_authority_with_python_shadow
-    state_root: rust_authority_with_python_shadow
-    zusd: rust_authority_with_python_shadow
+    state_root: python_authority
+    # Rust zUSD is fail-closed demoted until total-debt-cap and finalized-
+    # Oracle semantics match the normative relation and exact evidence is fresh.
+    zusd: python_authority
   promoted_surfaces:
     - balances
     - burn_receipts
-    - canonical
-    - cpmm_settlement
     - fee_router
-    - perp_math
     - replay_guard
-    - state_root
-    - zusd

@@ -266,11 +266,14 @@ def test_public_testnet_profile_rejects_trusted_core_rust_shadow():
     assert any("trusted-core surfaces must use" in conflict for conflict in conflicts)
 
 
-def test_public_testnet_profile_allows_perp_stateful_rust_shadow():
-    # perp_stateful is demoted to rust_shadow on public-testnet (PR #359):
-    # Python authority with Rust checking after the fact, not Rust authority.
+def test_public_testnet_profile_demotes_perp_stateful_to_python_authority():
+    # Stateful perps remains partial CBC, so Python retains authority and the
+    # surface cannot appear in the promotion set.
     profile = load_deploy_profile("public-testnet")
-    assert profile["runtime_authority_policy"]["per_surface"]["perp_stateful"] == "rust_shadow"
+    assert (
+        profile["runtime_authority_policy"]["per_surface"]["perp_stateful"]
+        == "python_authority"
+    )
     assert "perp_stateful" not in profile["runtime_authority_policy"]["promoted_surfaces"]
     conflicts = evaluate_deploy_profile_consistency(profile, {})
     assert not any("perp_stateful" in c for c in conflicts)

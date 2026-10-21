@@ -1,0 +1,26 @@
+[graph]
+all-features = true
+
+[advisories]
+unmaintained = "workspace"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Internal workspace path dependencies are source-bound by this repository and
+# Cargo.lock; registry wildcard requirements remain denied.
+allow-wildcard-paths = true
+
+[licenses]
+confidence-threshold = 0.8
+allow = [
+  "Apache-2.0",
+  "MIT",
+  "Unicode-3.0",
+  "Unlicense",
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

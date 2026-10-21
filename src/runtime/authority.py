@@ -78,15 +78,22 @@ TRUSTED_CORE_AUTHORITY_SURFACES = frozenset(
     }
 )
 
-# Public testnet is the shadow-checked Rust-authority soak lane for the trusted
-# core. Every current TCB surface must be present, promoted, and configured as
-# Rust authority with Python shadow, except ``perp_stateful`` which is demoted
-# to ``rust_shadow`` (Python authority with Rust checking after the fact) until
-# bounded touched-account/page materialization and soak evidence justify
-# promotion. Production-strict intentionally remains all-Python until a later
-# release decision.
+# Public testnet is the shadow-checked Rust-authority soak lane for explicitly
+# promoted full-CBC trusted-core surfaces. Partial-CBC surfaces remain Python
+# authority until their public transition is linked to complete implementation
+# evidence. Production-strict remains all-Python until a release decision.
 PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES = (
-    TRUSTED_CORE_AUTHORITY_SURFACES - frozenset({"perp_stateful"})
+    TRUSTED_CORE_AUTHORITY_SURFACES
+    - frozenset(
+        {
+            "canonical",
+            "cpmm_settlement",
+            "perp_math",
+            "perp_stateful",
+            "state_root",
+            "zusd",
+        }
+    )
 )
 
 
@@ -260,15 +267,16 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
     Under a strict profile (``public-testnet`` or ``production-strict``):
 
     * only trusted-core consensus surfaces may appear in the authority policy;
-    * `public-testnet` must cover every current trusted-core surface with
-      ``rust_authority_with_python_shadow``;
+    * `public-testnet` must cover every currently admitted Rust soak surface
+      with ``rust_authority_with_python_shadow``;
     * the blanket ``default`` may not be a Rust-authoritative mode (that would
       promote every surface at once, including unshadowed ones);
     * pure ``rust_authority`` is not admitted by the current strict-profile
       schema; strict profiles use ``rust_authority_with_python_shadow`` until a
       future schema/version records the sustained soak evidence and sign-off;
     * a per-surface Rust-authoritative mode is only allowed for a surface that
-      is explicitly listed in ``promoted_surfaces`` (i.e. has passed the gate).
+      is admitted by the profile and explicitly listed in
+      ``promoted_surfaces`` (i.e. has passed the gate).
     * every listed ``promoted_surfaces`` entry must actually be configured as a
       Rust-authoritative per-surface mode, so stale or misspelled promotion
       evidence cannot linger in strict deployment facts.
@@ -334,6 +342,24 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
         for surface, mode in policy.per_surface.items()
         if mode in RUST_AUTHORITATIVE_MODES
     )
+
+    if profile_id == "public-testnet":
+        unadmitted_rust = sorted(
+            rust_authoritative_surfaces
+            - PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES
+        )
+        if unadmitted_rust:
+            raise AuthorityError(
+                "profile 'public-testnet': Rust authority is not admitted for "
+                f"partial-CBC surfaces: {unadmitted_rust}"
+            )
+
+    if profile_id == "production-strict" and rust_authoritative_surfaces:
+        raise AuthorityError(
+            "profile 'production-strict': Rust authority requires an explicit "
+            "release profile/schema promotion; current profile is Python authority: "
+            f"{sorted(rust_authoritative_surfaces)}"
+        )
 
     for surface, mode in policy.per_surface.items():
         if mode in RUST_AUTHORITATIVE_MODES and surface not in policy.promoted_surfaces:

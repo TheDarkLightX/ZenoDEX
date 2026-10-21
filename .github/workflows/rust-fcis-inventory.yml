@@ -1,0 +1,104 @@
+name: rust-fcis-inventory
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/rust-fcis-inventory.yml"
+      - "config/deploy/**"
+      - "config/runtime_fcis/**"
+      - "docs/runtime/RUST_FCIS_*"
+      - "rust-runtime/**"
+      - "src/core/**"
+      - "src/fire/**"
+      - "src/integration/**"
+      - "src/runtime/authority.py"
+      - "src/state/**"
+      - "tests/runtime/test_authority_selector.py"
+      - "tests/tools/test_*fcis*"
+      - "tools/check_rust_fcis_policy.py"
+      - "tools/check_value_movement_inventory.py"
+      - "tools/fcis_inventory_core.py"
+  push:
+    branches: [main]
+    paths:
+      - "config/runtime_fcis/**"
+      - "rust-runtime/**"
+      - "src/core/**"
+      - "src/fire/**"
+      - "src/integration/**"
+      - "src/state/**"
+      - "tools/check_rust_fcis_policy.py"
+      - "tools/check_value_movement_inventory.py"
+      - "tools/fcis_inventory_core.py"
+
+permissions:
+  contents: read
+
+jobs:
+  structural-closure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python3 tools/check_value_movement_inventory.py
+      - run: python3 tools/check_rust_fcis_policy.py
+      - run: python3 tools/check_deployment_profiles.py
+      - run: >-
+          python3 -m pytest -q
+          tests/tools/test_fcis_inventory_core.py
+          tests/tools/test_check_rust_fcis_policy.py
+          tests/runtime/test_authority_selector.py
+
+  runtime-reproducibility:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install exact Rust toolchain
+        run: >-
+          rustup toolchain install 1.96.0
+          --profile minimal
+          --component rustfmt
+          --component clippy
+      - name: Compiler fingerprint
+        run: |
+          rustc +1.96.0 --version --verbose
+          cargo +1.96.0 --version --verbose
+      - name: Rust format
+        run: cargo +1.96.0 fmt --all -- --check
+      - name: Rust clippy
+        run: >-
+          cargo +1.96.0 clippy
+          --workspace
+          --all-targets
+          --all-features
+          --locked
+          --
+          -D warnings
+      - name: Rust tests (debug)
+        run: >-
+          cargo +1.96.0 test
+          --workspace
+          --all-features
+          --locked
+      - name: Rust tests (release with overflow checks)
+        run: >-
+          cargo +1.96.0 test
+          --workspace
+          --all-features
+          --release
+          --locked
+      - name: Install dependency-policy tools
+        run: |
+          cargo +1.96.0 install cargo-deny --version 0.20.2 --locked
+          cargo +1.96.0 install cargo-vet --version 0.10.2 --locked
+      - name: Dependency license and source policy
+        run: cargo +1.96.0 deny check
+      - name: Dependency vetting policy
+        run: cargo +1.96.0 vet check --locked

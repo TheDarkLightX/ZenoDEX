@@ -1,5 +1,13 @@
 # Runtime CBC Core Status
 
+> **Authority update (2026-07-22):** The score below is historical evidence
+> inventory, not the current deployment decision. Public testnet now retains
+> Rust authority with Python shadow only for the four surfaces graded full CBC
+> here: replay guard, balances, fee router, and burn receipts. Canonical, CPMM,
+> perps stateless/stateful, state root, and zUSD are Python authority. zUSD is
+> additionally semantically stale against the total-debt-cap and finalized-
+> Oracle relation. See `RUST_FCIS_BASELINE_20260722.json`.
+
 Date: 2026-05-31
 
 This document states the current correctness-by-construction status of the

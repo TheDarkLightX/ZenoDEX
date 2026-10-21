@@ -12,6 +12,6 @@ name = "zenodex-runtime"
 path = "src/main.rs"
 
 [dependencies]
-zenodex-runtime-core = { path = "../zenodex-runtime-core" }
+zenodex-runtime-core = { path = "../zenodex-runtime-core", version = "=0.1.0" }
 serde.workspace = true
 serde_json.workspace = true
