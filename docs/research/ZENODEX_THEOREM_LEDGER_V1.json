@@ -1,0 +1,306 @@
+{
+  "schema": "zenodex.theorem_ledger.v1",
+  "generated_at": "2026-07-21",
+  "claim_status": "research_candidate",
+  "research_question": "Which theorem-level results most directly improve ZenoDEX deterministic parsing, immutable state, parallel execution, atomic commitment, market clearing, and formal assurance?",
+  "tiers": {
+    "S": "required for the normative functional-core profile",
+    "A": "high-value implementation or market-design theorem",
+    "B": "useful supporting architecture or bounded experiment",
+    "C": "conceptual analogy or deferred work"
+  },
+  "assurance_chain": [
+    "unique_authority_bytes",
+    "unique_typed_command",
+    "immutable_owned_pre_state",
+    "pure_total_transition",
+    "sound_read_write_footprint",
+    "independent_patch_commutation",
+    "canonical_join_and_error_order",
+    "expected_root_atomic_commit",
+    "canonical_receipt_and_trace_commitment",
+    "cross_implementation_refinement"
+  ],
+  "theorems": [
+    {
+      "id": "PARSER-UNIQUE-001",
+      "rank": 1,
+      "tier": "S",
+      "source": "Krishnaswami and Yallop, A Typed, Algebraic Approach to Parsing, DOI:10.1145/3314221.3314625",
+      "statement": "A well-typed predictive context-free expression can be parsed unambiguously with one-token lookahead, no backtracking, and linear-time behavior.",
+      "zenodex_use": "Generate authority parsers whose choices are statically disjoint and whose output is a protocol command type rather than an untyped object tree.",
+      "proof_obligation": "full consumption, bounded resources, stable typed errors, no duplicate keys or floats, and equivalence to a reference grammar",
+      "status": "partially_formalized_in_pr",
+      "artifact": "lean-mathlib/Proofs/TypedDeterministicParser.lean"
+    },
+    {
+      "id": "PARSER-NORMALIZE-002",
+      "rank": 2,
+      "tier": "S",
+      "source": "Yallop, Xie, and Krishnaswami, flap, arXiv:2304.05276",
+      "statement": "Normalization of context-free expressions to a deterministic Greibach-style normal form preserves semantics and enables deterministic one-lookahead parsing.",
+      "zenodex_use": "Compile a declarative protocol grammar into a small deterministic parser while retaining a certificate linking generated code to the source grammar.",
+      "proof_obligation": "normalization certificate, source/generated hashes, and differential parser vectors",
+      "status": "open_formal_bridge",
+      "artifact": null
+    },
+    {
+      "id": "ENCODING-INJECTIVE-003",
+      "rank": 3,
+      "tier": "S",
+      "source": "ZenoDEX TypedDeterministicParser and StateRootFramingInjectivity",
+      "statement": "If decoding the output of an encoder returns exactly the original typed value with no remaining input, the encoder is injective; exact accepted re-encoding gives one accepted byte spelling per value.",
+      "zenodex_use": "Exclude alternate JSON, hexadecimal, integer, receipt, and signature preimages for the same semantic authority.",
+      "proof_obligation": "byte-exact decoding, canonical re-encoding, duplicate-key rejection, and cross-language vectors",
+      "status": "proved_in_pr",
+      "artifact": "lean-mathlib/Proofs/TypedDeterministicParser.lean"
+    },
+    {
+      "id": "OWNERSHIP-ALIAS-004",
+      "rank": 4,
+      "tier": "S",
+      "source": "Clarke, Potter, and Noble, Ownership Types for Flexible Alias Protection, DOI:10.1145/286936.286947",
+      "statement": "A sound ownership discipline restricts access paths so declared aliasing properties of well-typed object graphs remain invariant.",
+      "zenodex_use": "Make committed state own every transitive child and reject retained builders and behavior-bearing subclasses at the authority boundary.",
+      "proof_obligation": "constructor-alias attacks, exact protocol-type admission, transitive ownership, and root stability after external mutation",
+      "status": "runtime_witnesses_exist",
+      "artifact": "tests/core/test_dex_state_immutability.py"
+    },
+    {
+      "id": "REFERENCE-IMMUTABILITY-005",
+      "rank": 5,
+      "tier": "S",
+      "source": "Birka and Ernst, A Practical Type System and Language for Reference Immutability, DOI:10.1145/1028976.1028980",
+      "statement": "An immutable reference cannot be used to modify the abstract state transitively reachable through that reference.",
+      "zenodex_use": "Treat committed snapshots, accepted effects, receipts, command payloads, and proof inputs as transitively immutable authority values.",
+      "proof_obligation": "no public or base-class mutator bypass, no reinitializer bypass, immutable nested collections, and copy stability",
+      "status": "runtime_witnesses_exist",
+      "artifact": "src/state/state_snapshots.py"
+    },
+    {
+      "id": "TYPESTATE-LIFECYCLE-006",
+      "rank": 6,
+      "tier": "S",
+      "source": "DeLine and Fahndrich, Typestates for Objects, DOI:10.1007/978-3-540-24851-4_21",
+      "statement": "A typestate discipline makes operation availability depend on protocol state and excludes illegal state transitions.",
+      "zenodex_use": "Represent Parsed, Authenticated, Authorized, Evaluated, Committed, Finalized, and Settled as distinct typed phases with exhaustive transitions.",
+      "proof_obligation": "complete transition table, constructor invariants, illegal-transition tests, and versioned migration relations",
+      "status": "partially_implemented",
+      "artifact": "src/core/zusd_vault_ownership.py"
+    },
+    {
+      "id": "EFFECT-SOUNDNESS-007",
+      "rank": 7,
+      "tier": "S",
+      "source": "Lucassen and Gifford, Polymorphic Effect Systems, DOI:10.1145/73560.73564",
+      "statement": "The statically computed effect and region description conservatively contains the actual effects of evaluation.",
+      "zenodex_use": "Require each parallelizable command to expose a sound ReadSet, WriteSet, ContextSet, effect kind, and algorithm version before scheduling.",
+      "proof_obligation": "read/write footprint soundness and rejection of hidden I/O, clocks, mutable caches, and dynamic undeclared reads",
+      "status": "open",
+      "artifact": null
+    },
+    {
+      "id": "KAHN-DETERMINACY-008",
+      "rank": 8,
+      "tier": "S",
+      "source": "Kahn, The Semantics of a Simple Language for Parallel Programming, IFIP 1974",
+      "statement": "Networks of deterministic continuous processes over monotone streams have a unique least-fixed-point denotation independent of fair interleaving.",
+      "zenodex_use": "Use immutable inputs and deterministic channels or plans so worker timing and shared-memory races cannot influence consensus outputs.",
+      "proof_obligation": "pure workers, fixed input snapshot, deterministic channel or patch order, termination or fairness, and no timing observations",
+      "status": "research_mapping",
+      "artifact": null
+    },
+    {
+      "id": "PATCH-COMMUTATION-009",
+      "rank": 9,
+      "tier": "S",
+      "source": "ZenoDEX DeterministicParallelExecution",
+      "statement": "Patches with disjoint write domains commute, and every permutation of the same independent task list yields the same post-state.",
+      "zenodex_use": "Parallelize only after a sound conflict graph proves independence, then compare the canonical merge with normative sequential execution.",
+      "proof_obligation": "complete patches, read/write independence, common pre-state/context hash, canonical errors, and parallel-versus-sequential differential tests",
+      "status": "proved_in_pr",
+      "artifact": "lean-mathlib/Proofs/DeterministicParallelExecution.lean"
+    },
+    {
+      "id": "LINEARIZABLE-COMMIT-010",
+      "rank": 10,
+      "tier": "S",
+      "source": "Herlihy and Wing, Linearizability, DOI:10.1145/78969.78972",
+      "statement": "Each completed concurrent operation appears to take effect atomically at one point between invocation and response while respecting its sequential specification.",
+      "zenodex_use": "Commit state, effects, receipt, nonce updates, roots, and outbox as one expected-root operation; a mismatch publishes nothing.",
+      "proof_obligation": "linearization point, atomic storage transaction, retry idempotence, crash consistency, and no partial external effects",
+      "status": "abstract_cas_lemmas_proved_in_pr",
+      "artifact": "lean-mathlib/Proofs/DeterministicParallelExecution.lean"
+    },
+    {
+      "id": "HASH-DOMAIN-011",
+      "rank": 11,
+      "tier": "S",
+      "source": "Bellare, Canetti, and Krawczyk, Keying Hash Functions for Message Authentication, DOI:10.1007/3-540-68697-5_1",
+      "statement": "Security of composed keyed-hash invocations depends on structurally separated roles; ZenoDEX applies this as explicit prefix-free domains for every authority hash.",
+      "zenodex_use": "Separate state roots, commands, receipts, proofs, signatures, contexts, chains, algorithms, and versions with length-delimited domains.",
+      "proof_obligation": "domain registry, prefix-free framing, cross-surface collision tests, and algorithm/version binding",
+      "status": "partially_formalized",
+      "artifact": "lean-mathlib/Proofs/StateRootFramingInjectivity.lean"
+    },
+    {
+      "id": "LIGHTCLIENT-BISECTION-012",
+      "rank": 12,
+      "tier": "A",
+      "source": "Tas, Tse, Yang, and Zindros, Light Clients for Lazy Blockchains, arXiv:2203.15968v3",
+      "statement": "A bisection game over a Merkle-committed execution ledger achieves logarithmic interaction and communication with succinctness, completeness, and soundness under the paper's assumptions.",
+      "zenodex_use": "Commit deterministic transition traces so a challenger can isolate the first divergent step without replaying complete history.",
+      "proof_obligation": "canonical leaf encoding, transition index binding, first-divergence protocol, and explicit data-availability assumptions",
+      "status": "open",
+      "artifact": null
+    },
+    {
+      "id": "CFMM-CHARACTERIZATION-013",
+      "rank": 13,
+      "tier": "A",
+      "source": "Schlegel, Kwasnicki, and Mamageishvili, Axioms for Constant Function Market Makers, arXiv:2210.00048v4",
+      "statement": "Within the paper's framework, independence plus scale invariance characterizes a generalized constant-product class, while independence plus translation invariance characterizes LMSR.",
+      "zenodex_use": "Select and version curves by declared axiom profiles, then prove the integer runtime refines the profile rather than validating formulas in isolation.",
+      "proof_obligation": "axiom manifest, zero-liquidity and boundary semantics, fee-adjusted invariant, and integer-runtime refinement",
+      "status": "related_repo_proofs_exist",
+      "artifact": "lean-mathlib/Proofs/CPMMInvariants.lean"
+    },
+    {
+      "id": "FEE-SPLIT-NEUTRALITY-014",
+      "rank": 14,
+      "tier": "A",
+      "source": "Bichuch and Feinstein, Axioms for Automated Market Makers, arXiv:2210.01227v4",
+      "statement": "The paper constructs a fee structure designed so splitting one economic transaction does not alter the aggregate fee outcome.",
+      "zenodex_use": "Require fee debit, fee ownership, and explicit residue to be invariant under admissible command fragmentation and batch regrouping.",
+      "proof_obligation": "split/merge metamorphic tests, dust conservation, no same-transaction stake capture, and authenticated claim reachability",
+      "status": "partially_formalized",
+      "artifact": "lean-mathlib/Proofs/FeeDustCarryConservation.lean"
+    },
+    {
+      "id": "WALRAS-EQUILIBRIUM-015",
+      "rank": 15,
+      "tier": "A",
+      "source": "Yuhjtman, Walraswap, arXiv:2310.12255v2, Theorems 2.4 and 6.1",
+      "statement": "A strict admissible supply function has a zero by Brouwer; for the paper's order-plus-AMM construction this yields a price with nonnegative token surplus and price-optimal AMM swaps.",
+      "zenodex_use": "Use existence as an abstract uniform-price specification, but accept execution only through a deterministic integer approximation certificate and canonical tie-break rule.",
+      "proof_obligation": "strictness or boundary certificate, fixed-point residual, integer conservation, canonical price normalization, and winner certificate",
+      "status": "existence_to_runtime_bridge_open",
+      "artifact": "lean-mathlib/Proofs/SettlementCanonicalExecution.lean"
+    },
+    {
+      "id": "BATCH-DECOMPOSITION-016",
+      "rank": 16,
+      "tier": "A",
+      "source": "Yuhjtman, Walraswap, arXiv:2310.12255v2, Proposition 7.1",
+      "statement": "Supply components supported on separated token subsets can be solved as separated equilibrium conditions under the proposition's support assumptions.",
+      "zenodex_use": "Partition the token graph into certified independent components, solve them in parallel, and join only through a fixed numeraire and canonical normalization.",
+      "proof_obligation": "support-graph certificate, no cross-component order or pool, shared-numeraire semantics, and component-join proof",
+      "status": "open",
+      "artifact": null
+    },
+    {
+      "id": "DOUBLE-AUCTION-EFFICIENCY-017",
+      "rank": 17,
+      "tier": "B",
+      "source": "Pennanen, Efficient allocations in double auction markets, arXiv:2001.02071v2",
+      "statement": "In the paper's divisible-asset nonstrategic model, zero trade coincides with the Pareto frontier and repeated double auctions converge to individually rational Pareto allocations.",
+      "zenodex_use": "Use as a simulation benchmark for long-run batch-market dynamics, not as a production guarantee under strategic blockchain behavior.",
+      "proof_obligation": "assumption-gap analysis, strategic counterexamples, and finite-integer experiments",
+      "status": "research_only",
+      "artifact": null
+    },
+    {
+      "id": "SELF-STABILIZATION-018",
+      "rank": 18,
+      "tier": "B",
+      "source": "Dolev et al., Self-Stabilizing Byzantine Fault-Tolerant Repeated Consensus, arXiv:2506.12900v1",
+      "statement": "The construction is intended to recover repeated Byzantine agreement from arbitrary transiently corrupted states under its stated fault and timing assumptions.",
+      "zenodex_use": "Design explicit recovery epochs for Oracle, validator, and registry state rather than assuming every persisted state begins valid.",
+      "proof_obligation": "fault model, convergence bound, recovery state machine, and prohibition on value movement before recovery",
+      "status": "deferred_consensus_work",
+      "artifact": null
+    }
+  ],
+  "ideas": [
+    {
+      "id": "TYPED-AUTHORITY-PIPELINE",
+      "tier": "S",
+      "design": "RawBytes -> CanonicalBytes -> ParsedCommand -> AuthenticatedCommand -> AuthorizedCommand -> EvaluatedCandidate -> CommittedReceipt"
+    },
+    {
+      "id": "EFFECT-CAPABILITIES",
+      "tier": "S",
+      "design": "Every command derives exact ReadSet, WriteSet, ContextSet, EffectKind, AlgorithmVersion, and authority domains before scheduling."
+    },
+    {
+      "id": "DETERMINISTIC-PARALLEL-PLAN",
+      "tier": "S",
+      "design": "Canonical command order -> sound conflict graph -> deterministic components -> pure workers -> fixed reduction tree -> canonical errors/effects."
+    },
+    {
+      "id": "ATOMIC-CANDIDATE",
+      "tier": "S",
+      "design": "Candidate = {next_state, effects, receipt, nonce_updates, outbox, roots}; expected-root mismatch returns no candidate."
+    },
+    {
+      "id": "TRACE-BISECTION",
+      "tier": "A",
+      "design": "Merkle-commit pre-root, command, context, post-root, effects, and receipt for each step; dispute by first-divergence bisection."
+    },
+    {
+      "id": "CERTIFIED-WALRAS-SOLVER",
+      "tier": "A",
+      "design": "An untrusted optimizer proposes price/allocation; the core checks coverage, conservation, limits, residual bounds, and canonical tie-breaking."
+    },
+    {
+      "id": "SEDNA-DISSEMINATION-ONLY",
+      "tier": "B",
+      "design": "Evaluate Sedna-style coded private dissemination outside consensus semantics; decode first, then parse canonical bytes normally."
+    },
+    {
+      "id": "MATHLEDGER-EVIDENCE",
+      "tier": "B",
+      "design": "Record theorem query, source, formal candidate, checker version, exact SHA, outcome, and unresolved obligations in an append-only evidence ledger."
+    },
+    {
+      "id": "CRDT-NONAUTHORITY",
+      "tier": "B",
+      "design": "Use CRDTs only for telemetry, peer discovery, caches, and rebuildable indexes; never for authoritative economic state."
+    },
+    {
+      "id": "SFI-UNTRUSTED-WORKERS",
+      "tier": "B",
+      "design": "Sandbox optimizers and proof generators; accept only typed bounded candidates checked by the functional core."
+    },
+    {
+      "id": "HASHCONS-CACHE-ONLY",
+      "tier": "C",
+      "design": "Use hash-consing for immutable DAG sharing with collision-safe equality; never let pointer identity or a hash alone define consensus equality."
+    }
+  ],
+  "citation_corrections": [
+    {
+      "supplied": "Xie, Yang, Chen, Zhang — typed deterministic parser combinators (2021)",
+      "status": "not_verified_as_stated",
+      "replacement": "Krishnaswami and Yallop (PLDI 2019), Yallop/Xie/Krishnaswami flap (PLDI 2023), and Mishra/Jagannathan Morpheus (2023)"
+    },
+    {
+      "supplied": "Zhang, Zavala — batch clearing / equilibrium, arXiv:2105.11416v3",
+      "status": "domain_mismatch",
+      "replacement": "Electricity-market data-center load shifting; use revenue adequacy and cost recovery only as mechanism-design checks."
+    },
+    {
+      "supplied": "Improved stochastic rounding, arXiv:2006.00489v1",
+      "status": "reject_for_consensus_core",
+      "replacement": "Useful for approximate off-chain computation, but normative ZenoDEX arithmetic must remain deterministic and integer-exact."
+    }
+  ],
+  "non_claims": [
+    "TheoremSearch semantic similarity is not proof relevance or formal correctness.",
+    "A paper theorem is not applicable outside its stated assumptions without a refinement proof.",
+    "The Lean files prove abstract connective lemmas, not complete runtime correctness.",
+    "Parallel execution is unsafe until read/write/context footprints are proved sound.",
+    "Equilibrium existence does not supply a canonical terminating integer algorithm.",
+    "This ledger does not claim the complete ZenoDEX functional core is verified."
+  ]
+}
