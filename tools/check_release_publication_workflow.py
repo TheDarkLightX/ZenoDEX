@@ -33,9 +33,9 @@ REQUIRED_TOKENS = (
     "macos-x86_64",
     "windows-x86_64",
     "tools/build_release_sboms.py",
-    "npm pack",
+    "npm pack --ignore-scripts --json > npm-pack.json",
     "npm version --no-git-tag-version --allow-same-version",
-    "npm publish --access public --provenance --ignore-scripts *.tgz",
+    'npm publish --access public --provenance --ignore-scripts -- "./$tarball"',
     "NPM_TOKEN",
     "SHA256SUMS",
     "zenodex-release-manifest.json",
@@ -108,10 +108,17 @@ def _npm_token_is_publish_scoped(npm_job: str) -> bool:
         for token in ("NODE_AUTH_TOKEN", "secrets.NPM_TOKEN")
     ):
         return False
-    required_prepare_commands = ("npm ci", "npm test", "npm pack --ignore-scripts")
+    required_prepare_commands = (
+        "rm -f ./*.tgz",
+        "npm ci",
+        "npm test",
+        "npm pack --ignore-scripts --json > npm-pack.json",
+        'printf \'tarball=%s\\n\' "$tarball" >> "$GITHUB_OUTPUT"',
+    )
     required_publish_tokens = (
         "NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}",
-        "npm publish --access public --provenance --ignore-scripts *.tgz",
+        'tarball="${{ steps.package.outputs.tarball }}"',
+        'npm publish --access public --provenance --ignore-scripts -- "./$tarball"',
     )
     return all(
         command in prepare_step for command in required_prepare_commands
