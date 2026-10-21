@@ -1,0 +1,129 @@
+name: math-frontier-assurance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/math-frontier-assurance.yml'
+      - 'lean-mathlib/MathFrontier.lean'
+      - 'lean-mathlib/Proofs/FeeAwareRoutingNonconcavity.lean'
+      - 'lean-mathlib/Proofs/RoutingAffineEnvelopeCertificate.lean'
+      - 'lean-mathlib/lakefile.lean'
+      - 'tests/formal/test_lean_math_frontier.py'
+      - 'tests/test_fee_aware_routing_nonconcavity.py'
+      - 'tools/check_fee_aware_routing_nonconcavity.py'
+      - 'experiments/math_research_memory/fee_aware_routing_nonconcavity_evidence_20260717.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  math-frontier-assurance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@v4
+
+      - name: Materialize pinned mathlib source
+        run: |
+          git clone --depth 1 --branch v4.27.0 \
+            https://github.com/leanprover-community/mathlib4.git \
+            external/mathlib4
+          test "$(cat external/mathlib4/lean-toolchain)" = "$(cat lean-mathlib/lean-toolchain)"
+
+      - name: Install pinned Lean toolchain
+        env:
+          ELAN_INIT_VERSION: v4.2.1
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/leanprover/elan/${ELAN_INIT_VERSION}/elan-init.sh" \
+            --output /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain leanprover/lean4:v4.27.0
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Verify exact Lean and Lake versions
+        run: |
+          lean --version
+          lake --version
+          version="$(lean --version | sed -n 's/^Lean (version \([^,]*\),.*/\1/p')"
+          test "$version" = "4.27.0"
+
+      - name: Retrieve pinned mathlib cache
+        working-directory: lean-mathlib
+        run: |
+          set +e
+          lake exe cache get > /tmp/mathlib-cache.log 2>&1
+          status=$?
+          cat /tmp/mathlib-cache.log
+          exit "$status"
+
+      - name: Build both frontier modules with dependencies
+        id: compile
+        continue-on-error: true
+        working-directory: lean-mathlib
+        run: |
+          set +e
+          log_dir=/tmp/math-frontier-lean-logs
+          mkdir -p "$log_dir"
+          status=0
+          for target in \
+            Proofs.FeeAwareRoutingNonconcavity \
+            Proofs.RoutingAffineEnvelopeCertificate; do
+            log="$log_dir/${target##*.}.log"
+            echo "== building $target =="
+            lake --wfail build "$target" >"$log" 2>&1
+            target_status=$?
+            cat "$log"
+            if [[ $target_status -ne 0 ]]; then
+              status=1
+            fi
+          done
+          printf '%s\n' "$status" > "$log_dir/exit-status.txt"
+          exit "$status"
+
+      - name: Reject incomplete or trust-expanding declarations
+        run: |
+          if grep -En '\b(sorry|admit|axiom|unsafe)\b' \
+            lean-mathlib/Proofs/FeeAwareRoutingNonconcavity.lean \
+            lean-mathlib/Proofs/RoutingAffineEnvelopeCertificate.lean; then
+            echo 'forbidden Lean declaration or placeholder found' >&2
+            exit 1
+          fi
+
+      - name: Replay bounded fee-aware falsification evidence
+        run: |
+          python3 tools/check_fee_aware_routing_nonconcavity.py --max-grade 10000 \
+            > /tmp/fee-aware-routing-replay.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          replayed = json.loads(Path('/tmp/fee-aware-routing-replay.json').read_text())
+          retained = json.loads(
+              Path(
+                  'experiments/math_research_memory/'
+                  'fee_aware_routing_nonconcavity_evidence_20260717.json'
+              ).read_text()
+          )
+          if replayed != retained:
+              raise SystemExit('retained fee-aware routing evidence drifted')
+          PY
+
+      - name: Retain Lean compiler logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: math-frontier-lean-logs
+          path: /tmp/math-frontier-lean-logs
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce Lean compilation success
+        if: always()
+        run: |
+          status="$(cat /tmp/math-frontier-lean-logs/exit-status.txt)"
+          if [[ "$status" != "0" ]]; then
+            echo 'one or more frontier Lean modules failed to compile' >&2
+            exit 1
+          fi

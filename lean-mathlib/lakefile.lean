@@ -8,5 +8,5 @@ require mathlib from "../external/mathlib4"
 
 @[default_target]
 lean_lib Proofs {
-  roots := #[`Proofs]
+  roots := #[`Proofs, `MathFrontier]
 }
