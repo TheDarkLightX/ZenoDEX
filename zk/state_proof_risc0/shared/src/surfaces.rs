@@ -661,14 +661,12 @@ impl PerpsStateV1 {
                 "deposit collateral asset mismatch",
             ));
         }
-        if self.collateral_asset == default_zusd_asset() {
-            let Some(binding) = collateral_binding.as_ref() else {
-                return Err(TransitionError::InvalidInput(
-                    "zUSD collateral binding missing",
-                ));
-            };
-            validate_collateral_binding(binding)?;
-        }
+        // DbC: every collateral increase must be hash-bound to an external
+        // source proof before recursive aggregation may conserve it.
+        let Some(binding) = collateral_binding.as_ref() else {
+            return Err(TransitionError::InvalidInput("collateral binding missing"));
+        };
+        validate_collateral_binding(binding)?;
         let mut account = self
             .accounts
             .get(&pubkey)
@@ -2261,14 +2259,10 @@ fn perps_collateral_deposit_binding_hash_v1(
     nonce: u64,
     binding: Option<&CollateralBindingV1>,
 ) -> Result<[u8; 32], TransitionError> {
-    if asset == default_zusd_asset() && binding.is_none() {
-        return Err(TransitionError::InvalidInput(
-            "zUSD collateral binding missing",
-        ));
-    }
-    if let Some(binding) = binding {
-        validate_collateral_binding(binding)?;
-    }
+    let Some(binding) = binding else {
+        return Err(TransitionError::InvalidInput("collateral binding missing"));
+    };
+    validate_collateral_binding(binding)?;
     let mut hasher = Sha256::new();
     hasher.update(b"zenodex.perps_np.collateral_deposit_binding.v1:");
     write_str(&mut hasher, pubkey);
@@ -2711,9 +2705,41 @@ mod tests {
         };
         assert!(matches!(
             execute_perps_np_transition_v1(input),
-            Err(TransitionError::InvalidInput(
-                "zUSD collateral binding missing"
-            ))
+            Err(TransitionError::InvalidInput("collateral binding missing"))
+        ));
+    }
+
+    #[test]
+    fn perps_np_rejects_non_zusd_deposit_without_source_binding() {
+        let actions = alloc::vec![
+            PerpsNpActionV1::InitMarket {
+                market_id: "BTC-PERP".to_string(),
+                collateral_asset: "USDC".to_string(),
+                index_price_e8: 100 * E8_I128,
+                params: PerpsMarketParamsV1::default(),
+                insurance_seed_e8: 0,
+            },
+            PerpsNpActionV1::DepositCollateral {
+                pubkey: "wallet-a".to_string(),
+                asset: "USDC".to_string(),
+                amount_e8: 2_000 * E8_I128,
+                nonce: 1,
+                collateral_binding: None,
+            },
+        ];
+        let input = PerpsNpTransitionInputV1 {
+            state_hash: H,
+            chain_id: "devnet".to_string(),
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: PerpsNpSnapshotV1::empty(),
+            actions,
+            expected_post_app_hash: [0u8; 32],
+            risc0_image_id: IMAGE_ID,
+        };
+        assert!(matches!(
+            execute_perps_np_transition_v1(input),
+            Err(TransitionError::InvalidInput("collateral binding missing"))
         ));
     }
 

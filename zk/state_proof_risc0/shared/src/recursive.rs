@@ -953,8 +953,14 @@ pub fn perps_np_recursive_leaf_asset_delta_rows_v1(
                 }
             }
             PerpsNpActionV1::DepositCollateral {
-                asset, amount_e8, ..
+                asset,
+                amount_e8,
+                collateral_binding,
+                ..
             } => {
+                if collateral_binding.is_none() {
+                    return Err(TransitionError::InvalidInput("collateral binding missing"));
+                }
                 let amount = positive_i128_to_u128_v1(*amount_e8, "deposit must be positive")?;
                 rows.push(ordinary_asset_delta_row_v1(asset, amount, amount));
             }
@@ -3299,7 +3305,31 @@ mod tests {
     }
 
     #[test]
-    fn perps_np_recursive_leaf_derives_deposit_rows_without_epoch_floor() {
+    fn perps_np_recursive_leaf_rejects_unbound_deposit_rows() {
+        let input = PerpsNpTransitionInputV1 {
+            state_hash: h(1),
+            chain_id: "tau-test".to_string(),
+            pre_app_hash_present: true,
+            pre_app_hash: h(2),
+            pre_state: perps_snapshot(0),
+            actions: alloc::vec![PerpsNpActionV1::DepositCollateral {
+                pubkey: "wallet-a".to_string(),
+                asset: "USDC".to_string(),
+                amount_e8: E8_I128,
+                nonce: 2,
+                collateral_binding: None,
+            }],
+            expected_post_app_hash: h(3),
+            risc0_image_id: image(44),
+        };
+        assert!(matches!(
+            perps_np_recursive_leaf_asset_delta_rows_v1(&input),
+            Err(TransitionError::InvalidInput("collateral binding missing"))
+        ));
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_derives_bound_deposit_rows_without_epoch_floor() {
         let e8 = 100_000_000i128;
         let mut pre_state = perps_snapshot(0);
         pre_state.collateral_asset = "USDC".to_string();
@@ -3329,7 +3359,7 @@ mod tests {
                     asset: "USDC".to_string(),
                     amount_e8: 3 * e8,
                     nonce: 2,
-                    collateral_binding: None,
+                    collateral_binding: Some(collateral_binding(90)),
                 }],
                 expected_post_app_hash: post_app_hash,
                 risc0_image_id: image(44),
