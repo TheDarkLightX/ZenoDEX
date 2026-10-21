@@ -51,6 +51,8 @@ require_file "batch auction exported ref" "$ROOT_DIR/generated/batch_auction_set
 CRITICAL_TESTS=(
   tests/test_check_test_hygiene_v1.py
   tests/test_run_test_hygiene_gate_v1.py
+  tests/test_check_test_quality_v2.py
+  tests/test_run_test_quality_gate_v2.py
   tests/core/test_domain_bounds.py
   tests/core/test_functional_core_no_floats.py
   tests/core/test_cpmm.py
@@ -113,6 +115,9 @@ echo "== critical: ruff =="
   tools/run_test_hygiene_gate_v1.py \
   tools/test_hygiene_evidence_v1.py \
   tools/test_hygiene_model_v1.py \
+  tools/check_test_quality_v2.py \
+  tools/run_test_quality_gate_v2.py \
+  tools/test_quality_model_v2.py \
   src/core/domain_limits.py \
   src/core/cpmm.py \
   src/core/liquidity.py \
@@ -134,6 +139,8 @@ echo "== critical: ruff =="
   tests/core/test_domain_bounds.py \
   tests/test_check_test_hygiene_v1.py \
   tests/test_run_test_hygiene_gate_v1.py \
+  tests/test_check_test_quality_v2.py \
+  tests/test_run_test_quality_gate_v2.py \
   tests/core/test_batch_clearing_properties.py \
   tests/core/test_batch_clearing_coverage_edges.py \
   tests/core/test_batch_auction_settler_v1_ref_parity.py \
@@ -180,6 +187,9 @@ echo "== critical: mypy =="
 
 echo "== critical: test hygiene contract =="
 "$PY" tools/check_test_hygiene_v1.py
+
+echo "== critical: test quality contract =="
+"$PY" tools/check_test_quality_v2.py
 
 echo "== critical: acceptance TCB gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_gate.sh"

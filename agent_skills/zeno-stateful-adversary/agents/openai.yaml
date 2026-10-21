@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zeno Stateful Adversary"
+  short_description: "Test exact-once histories and recovery"
+  default_prompt: "Use $zeno-stateful-adversary to build a minimal independent state model and adversarial history tests for this lifecycle."

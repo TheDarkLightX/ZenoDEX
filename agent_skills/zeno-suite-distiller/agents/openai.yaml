@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zeno Suite Distiller"
+  short_description: "Compress suites without losing evidence"
+  default_prompt: "Use $zeno-suite-distiller to identify evidence-equivalent tests and safely reduce this suite using kill vectors and oracle roles."

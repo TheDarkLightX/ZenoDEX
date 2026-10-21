@@ -157,9 +157,7 @@ def check_repository(
 
     contract = load_contract(contract_path)
     packets = load_packets(evidence_dir, contract)
-    normalized = tuple(
-        sorted(set(changed_paths), key=lambda item: (item.path, item.status))
-    )
+    normalized = tuple(sorted(set(changed_paths), key=lambda item: (item.path, item.status)))
     _reject_packet_rewrites(normalized, evidence_prefix=contract.evidence_path_prefix)
 
     selected: dict[str, PacketV1] = {}
@@ -177,9 +175,7 @@ def check_repository(
         selected[change.path] = _select_packet(selection_context, change, rules)
 
     selected_packets = {packet.evidence_id: packet for packet in selected.values()}
-    nodes = sorted(
-        {node for packet in selected_packets.values() for node in packet.node_ids}
-    )
+    nodes = sorted({node for packet in selected_packets.values() for node in packet.node_ids})
     return {
         "ok": True,
         "contract_schema": CONTRACT_SCHEMA,
@@ -188,6 +184,9 @@ def check_repository(
         "critical_path_count": len(critical),
         "covered_critical_paths": sorted(selected),
         "selected_evidence_ids": sorted(selected_packets),
+        "evidence_by_critical_path": {
+            path: packet.evidence_id for path, packet in sorted(selected.items())
+        },
         "pytest_node_ids": nodes,
     }
 
@@ -202,9 +201,7 @@ def _reject_packet_rewrites(
             )
 
 
-def collect_git_changed_paths(
-    repo_root: Path, base_ref: str
-) -> tuple[ChangedPathV1, ...]:
+def collect_git_changed_paths(repo_root: Path, base_ref: str) -> tuple[ChangedPathV1, ...]:
     """Return base-to-HEAD changes with renames normalized to delete plus add."""
 
     require(bool(base_ref.strip()), "base ref must not be empty")
@@ -231,9 +228,7 @@ def collect_git_changed_paths(
             capture_output=True,
         ).stdout
     except (OSError, subprocess.CalledProcessError) as exc:
-        raise TestHygieneError(
-            f"failed to collect Git diff for {base_ref}: {exc}"
-        ) from exc
+        raise TestHygieneError(f"failed to collect Git diff for {base_ref}: {exc}") from exc
     return _parse_git_name_status(output)
 
 
@@ -297,10 +292,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         changed = (
             collect_git_changed_paths(REPO_ROOT, cast(str, args.base_ref))
             if args.base_ref
-            else tuple(
-                _parse_changed_file(value)
-                for value in cast(list[str], args.changed_file)
-            )
+            else tuple(_parse_changed_file(value) for value in cast(list[str], args.changed_file))
         )
         report = check_repository(
             repo_root=REPO_ROOT,

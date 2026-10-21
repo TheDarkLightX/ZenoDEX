@@ -1,0 +1,273 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-test-quality-v2-bootstrap",
+  "created_date": "2026-08-06",
+  "claim_scope": "Test Quality V2 fail-closes changed critical paths unless selected V1 evidence has one structurally closed, independently-oracled obligation with an executed falsifier linked to a pinned test.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "TQV2-UNIQUE-LINK",
+    "TQV2-RIPR-CLOSED",
+    "TQV2-ORACLE-MINIMUM",
+    "TQV2-EXECUTED-FALSIFIER",
+    "TQV2-APPEND-ONLY"
+  ],
+  "failure_modes": [
+    "a selected critical path has V1 technique labels but no V2 semantic obligation",
+    "a placeholder RIPR account is accepted",
+    "an oracle below the path minimum is promoted",
+    "a prose-only counterexample replaces the required executed mutation",
+    "a falsifier cites a test node outside the selected pinned V1 packet",
+    "an existing V2 quality packet is rewritten or deleted"
+  ],
+  "source_pins": [
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "0570e389e2e39387b360f3c9272bd7903df6faa4321222c9c80cabbac15e9900"
+    },
+    {
+      "path": ".github/workflows/test-hygiene.yml",
+      "sha256": "d0df14f43ba8e08b943613d45a6f44fc2d88b7b136f7c69c6bdb75b12f1d9cc9"
+    },
+    {
+      "path": "agent_skills/zenodex-test-hygiene/SKILL.md",
+      "sha256": "49dd5d338d2de255db6a3fac8e5e52550fb2785bbb5c05b836f465284fd568d1"
+    },
+    {
+      "path": "agent_skills/zenodex-test-hygiene/agents/openai.yaml",
+      "sha256": "c888109933f382e5c6ac99184be3bb941ceefa06966d45bca5e12f7fd3138c91"
+    },
+    {
+      "path": "agent_skills/zeno-mutation-hardener/SKILL.md",
+      "sha256": "80bf368f1b2886e482f29c99b543b6a3c4d3cb1a9b6dad36339495c4b80cd697"
+    },
+    {
+      "path": "agent_skills/zeno-mutation-hardener/agents/openai.yaml",
+      "sha256": "63893f9fa94002dec8afea1cc08f26b0ac3fb03c3346e0cad601a936354bdd61"
+    },
+    {
+      "path": "agent_skills/zeno-semantic-compressor/SKILL.md",
+      "sha256": "caf93d92d44d840f385a4d17cd2ff8247291ff2ec86d31d066babcc6e7c05357"
+    },
+    {
+      "path": "agent_skills/zeno-semantic-compressor/agents/openai.yaml",
+      "sha256": "7c73ff4551fe80e5021546076643082e051846fe5352c893819a08827a10858c"
+    },
+    {
+      "path": "agent_skills/zeno-stateful-adversary/SKILL.md",
+      "sha256": "02d28b228d5dd61cc5e9aad1ebbf658faf55cd674c0425aa10a2606017080014"
+    },
+    {
+      "path": "agent_skills/zeno-stateful-adversary/agents/openai.yaml",
+      "sha256": "64d32366612921fc6ea3955c7c24dda65d0fec40156b469eb632dc6abd3ccdff"
+    },
+    {
+      "path": "agent_skills/zeno-suite-distiller/SKILL.md",
+      "sha256": "e34e68300f200c4b3afb51ac4de319d7de93ca2f2d19b1288cf81492c507ad87"
+    },
+    {
+      "path": "agent_skills/zeno-suite-distiller/agents/openai.yaml",
+      "sha256": "db92f5be08170d117fe3c6e50885c8320ae52f1492777b241c6a1f6a5568d21f"
+    },
+    {
+      "path": "agent_skills/zeno-test-architect/SKILL.md",
+      "sha256": "db2b110bc2a382e001f48460332c8c1dafae0839acccad4f34576e688006cca7"
+    },
+    {
+      "path": "agent_skills/zeno-test-architect/agents/openai.yaml",
+      "sha256": "e0fc3ee34f58131af65a0e407f363e96bebfe3d3ac9b1f700300a37388ccb2bd"
+    },
+    {
+      "path": "agent_skills/zeno-zrpf-proof-adversary/SKILL.md",
+      "sha256": "423826ba977ffe0673b0f8c716abe94b8337276707a13ddefa55184d9ee8ab84"
+    },
+    {
+      "path": "agent_skills/zeno-zrpf-proof-adversary/agents/openai.yaml",
+      "sha256": "dfa41530b88a9f9ecb9a2a73e8f55fd309aa864b330d1402f6aba2fa0fee1404"
+    },
+    {
+      "path": "docs/testing/TEST_QUALITY_CONTRACT_V2.md",
+      "sha256": "46e7f1732777851e4fd548104d022c3994bd6c9f7e2cb1d10a14f37a88ff72f7"
+    },
+    {
+      "path": "docs/testing/templates/fault_model_v1.yaml",
+      "sha256": "129a0987493a0c2270de66cea5bbef5cfe91bc7ccb7c57b38076d6396fa78192"
+    },
+    {
+      "path": "docs/testing/templates/mutation_campaign_v1.yaml",
+      "sha256": "d4f309828168fd2018785eeed0a971d88a053c4710761071a9e3a94c735f7388"
+    },
+    {
+      "path": "docs/testing/templates/test_obligation_v2.yaml",
+      "sha256": "cad3e5d7c2ce1cf85bb07672bab92f8f0319230323427dac03700aedddf3bba6"
+    },
+    {
+      "path": "tools/check_test_hygiene_v1.py",
+      "sha256": "34e923d6dbe8dad6ec1f77fc8004033a3ef280687ca283dc3dfef19210c2541f"
+    },
+    {
+      "path": "tools/check_test_quality_v2.py",
+      "sha256": "b0672c8686e8ae5dba6f25adfebefa6931a41fdb07de2a41839c297dbb19005c"
+    },
+    {
+      "path": "tools/run_critical_quality_gate.sh",
+      "sha256": "5d6389bc3671898479aba380c3166de1df5232ff68c881fa0d2725ed84d0a6ba"
+    },
+    {
+      "path": "tools/run_test_quality_gate_v2.py",
+      "sha256": "29789e8b2716210837f5a02be88cf0d1473d49a72865d52f6e73ccfddcd0437b"
+    },
+    {
+      "path": "tools/test_hygiene_contract_v1.json",
+      "sha256": "8d52f72a2f3824a16645b484ee4f5fbf1c643fbc57ce9cb12b6c390ac7e289c5"
+    },
+    {
+      "path": "tools/test_quality_contract_v2.json",
+      "sha256": "08949ee166bbdecf3f5434dd0bae090ab7357e72094efbeab84f9b9c0d9a45e4"
+    },
+    {
+      "path": "tools/test_quality_model_v2.py",
+      "sha256": "3e78ae5eea66ddab580aceac3a5f5c7758b054f8e21fdd7e267952524df3267a"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_test_hygiene_v1.py",
+      "sha256": "2becfbe6a050fd6600bb4f7d53191b8a4df70aa4b503e53956c6b8fac13633ac",
+      "node_ids": [
+        "tests/test_check_test_hygiene_v1.py::test_current_pins_and_strong_evidence_cover_critical_change",
+        "tests/test_check_test_hygiene_v1.py::test_default_contract_retains_mandatory_critical_path_probes",
+        "tests/test_check_test_hygiene_v1.py::test_pull_request_ci_runs_diff_aware_quality_overlay",
+        "tests/test_check_test_hygiene_v1.py::test_critical_quality_gate_validates_static_hygiene_contract"
+      ]
+    },
+    {
+      "path": "tests/test_check_test_quality_v2.py",
+      "sha256": "14159e24523fbece846dbb87c19e8442ec1d84a38bf4a52fd08f50d3090560fc",
+      "node_ids": [
+        "tests/test_check_test_quality_v2.py::test_selected_hygiene_packet_requires_v2_quality_obligation",
+        "tests/test_check_test_quality_v2.py::test_complete_obligation_links_exact_executable_killer",
+        "tests/test_check_test_quality_v2.py::test_placeholder_ripr_rejects",
+        "tests/test_check_test_quality_v2.py::test_oracle_grade_below_rule_minimum_rejects",
+        "tests/test_check_test_quality_v2.py::test_required_executed_mutation_cannot_be_replaced_by_prose_counterexample",
+        "tests/test_check_test_quality_v2.py::test_falsifier_must_be_killed_by_selected_pinned_node",
+        "tests/test_check_test_quality_v2.py::test_quality_packets_are_append_only",
+        "tests/test_check_test_quality_v2.py::test_quality_packet_must_link_existing_hygiene_evidence",
+        "tests/test_check_test_quality_v2.py::test_default_contract_matches_all_v1_rule_ids",
+        "tests/test_check_test_quality_v2.py::test_quality_contract_cannot_omit_a_hygiene_rule",
+        "tests/test_check_test_quality_v2.py::test_repository_v2_contract_and_bootstrap_packet_are_structurally_valid",
+        "tests/test_check_test_quality_v2.py::test_pull_request_workflow_runs_diff_aware_v2_gate",
+        "tests/test_check_test_quality_v2.py::test_codeowners_protects_test_quality_authority_paths",
+        "tests/test_check_test_quality_v2.py::test_critical_quality_gate_validates_v2_contract"
+      ]
+    },
+    {
+      "path": "tests/test_run_test_quality_gate_v2.py",
+      "sha256": "f99c95c0b7987eeafb65cdff52f13c21ecc89a2b771ff0000c77a36ec83e7dcf",
+      "node_ids": [
+        "tests/test_run_test_quality_gate_v2.py::test_runner_executes_only_nodes_selected_by_quality_checker",
+        "tests/test_run_test_quality_gate_v2.py::test_runner_propagates_declared_test_failure"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Focused parser, selector, and runner regressions use one fixture arrangement, one checker action, and exact result or rejection assertions without ritual comments."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The V2 checker is read-only; negative tests assert stable rejection and operate only on isolated fixture repositories."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "selected V2 obligation cardinality",
+      "points": [
+        "zero rejects",
+        "one exact link accepts"
+      ]
+    },
+    {
+      "name": "oracle independence grade",
+      "points": [
+        "one rejects",
+        "two accepts"
+      ]
+    },
+    {
+      "name": "falsifier killer linkage",
+      "points": [
+        "unpinned node rejects",
+        "selected pinned node accepts"
+      ]
+    },
+    {
+      "name": "append-only packet status",
+      "points": [
+        "new packet accepts",
+        "modified packet rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "remove the V2 packet linked to selected V1 evidence",
+      "killed_by": "tests/test_check_test_quality_v2.py::test_selected_hygiene_packet_requires_v2_quality_obligation"
+    },
+    {
+      "description": "replace the RIPR reveal account with a placeholder",
+      "killed_by": "tests/test_check_test_quality_v2.py::test_placeholder_ripr_rejects"
+    },
+    {
+      "description": "lower the oracle independence grade below the matched path rule",
+      "killed_by": "tests/test_check_test_quality_v2.py::test_oracle_grade_below_rule_minimum_rejects"
+    },
+    {
+      "description": "replace the required executed mutation with a prose counterexample",
+      "killed_by": "tests/test_check_test_quality_v2.py::test_required_executed_mutation_cannot_be_replaced_by_prose_counterexample"
+    },
+    {
+      "description": "point a falsifier at an unselected and unpinned test node",
+      "killed_by": "tests/test_check_test_quality_v2.py::test_falsifier_must_be_killed_by_selected_pinned_node"
+    },
+    {
+      "description": "permit modification of an existing V2 quality packet",
+      "killed_by": "tests/test_check_test_quality_v2.py::test_quality_packets_are_append_only"
+    },
+    {
+      "description": "remove the path-to-selected-evidence mapping from the V1 report",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_current_pins_and_strong_evidence_cover_critical_change"
+    },
+    {
+      "description": "remove V2 tools, skills, or templates from critical path classification",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_default_contract_retains_mandatory_critical_path_probes"
+    },
+    {
+      "description": "omit one V1 critical-path rule from the V2 requirement registry",
+      "killed_by": "tests/test_check_test_quality_v2.py::test_quality_contract_cannot_omit_a_hygiene_rule"
+    },
+    {
+      "description": "downgrade pull-request CI to the V1-only diff runner",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_pull_request_ci_runs_diff_aware_quality_overlay"
+    },
+    {
+      "description": "remove owner review from one test-quality authority path",
+      "killed_by": "tests/test_check_test_quality_v2.py::test_codeowners_protects_test_quality_authority_paths"
+    },
+    {
+      "description": "run pytest nodes that were not selected by the V2 checker",
+      "killed_by": "tests/test_run_test_quality_gate_v2.py::test_runner_executes_only_nodes_selected_by_quality_checker"
+    }
+  ],
+  "nonclaims": [
+    "Structural V2 compliance cannot prove that agent-authored prose is truthful or that an asserted oracle is genuinely independent.",
+    "This packet does not establish production readiness, whole-economy correctness, proof soundness, mutation completeness, branch-protection status, or native Rust test execution.",
+    "The hand-maintained critical gate and pytest-only V1 execution model remain future compression and native-runner work."
+  ]
+}

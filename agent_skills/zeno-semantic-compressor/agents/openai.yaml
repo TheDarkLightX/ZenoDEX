@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zeno Semantic Compressor"
+  short_description: "Remove invalid states before testing"
+  default_prompt: "Use $zeno-semantic-compressor to reduce representational freedom and delete compensating validation or tests safely."

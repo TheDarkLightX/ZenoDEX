@@ -1,0 +1,68 @@
+{
+  "schema": "zenodex/test-quality-contract/v2",
+  "evidence_schema": "zenodex/test-quality-evidence/v2",
+  "evidence_path_prefix": "tests/evidence/test_quality/",
+  "hygiene_contract_path": "tools/test_hygiene_contract_v1.json",
+  "allowed_authority_tiers": [
+    "authority",
+    "reference",
+    "research",
+    "generated_evidence"
+  ],
+  "allowed_techniques": [
+    "example",
+    "bva_bve",
+    "decision_table",
+    "exhaustive",
+    "property",
+    "state_machine",
+    "metamorphic",
+    "differential",
+    "combinatorial",
+    "fuzz",
+    "mutation",
+    "linearizability",
+    "crash",
+    "formal"
+  ],
+  "allowed_falsifier_kinds": [
+    "mutation",
+    "counterexample",
+    "history"
+  ],
+  "allowed_falsifier_statuses": [
+    "killed",
+    "reproduced",
+    "retained"
+  ],
+  "quality_requirements": [
+    {
+      "rule_id": "economic_and_proof_core",
+      "minimum_oracle_grade": 2,
+      "required_falsifier_kinds": [
+        "mutation"
+      ]
+    },
+    {
+      "rule_id": "authority_and_runtime_adapters",
+      "minimum_oracle_grade": 2,
+      "required_falsifier_kinds": [
+        "mutation"
+      ]
+    },
+    {
+      "rule_id": "assurance_and_promotion_tooling",
+      "minimum_oracle_grade": 2,
+      "required_falsifier_kinds": [
+        "mutation"
+      ]
+    },
+    {
+      "rule_id": "critical_test_evidence",
+      "minimum_oracle_grade": 2,
+      "required_falsifier_kinds": [
+        "mutation"
+      ]
+    }
+  ]
+}

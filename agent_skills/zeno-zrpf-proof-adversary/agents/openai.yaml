@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zeno ZRPF Proof Adversary"
+  short_description: "Attack proof and admission binding chains"
+  default_prompt: "Use $zeno-zrpf-proof-adversary to build a one-coordinate substitution matrix for this ZRPF proof or admission change."

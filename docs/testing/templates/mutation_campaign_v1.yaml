@@ -1,0 +1,39 @@
+schema: zeno.mutation-campaign/v1
+id: REPLACE-ME
+repository: REPLACE-ME
+baseline_revision: REPLACE-ME
+authority_surface: REPLACE-ME
+scope:
+  production_paths: []
+  tests: []
+  excluded_paths: []
+  exclusion_rationale: []
+tiers:
+  extreme:
+    enabled: true
+  language_native:
+    enabled: true
+    tool: REPLACE-ME
+  semantic:
+    enabled: true
+    mutants:
+      - id: REPLACE-ME
+        path: REPLACE-ME
+        semantic_change: REPLACE-ME
+        expected_obligation: REPLACE-ME
+        severity: critical
+classification:
+  generated: 0
+  killed: 0
+  survived: 0
+  equivalent: 0
+  unviable: 0
+  out_of_scope: 0
+  unresolved: 0
+kill_matrix:
+  path: null
+  format: test_by_mutant_boolean
+promotion:
+  unresolved_critical_mutants: []
+  explicit_nonclaims: []
+  ready: false

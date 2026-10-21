@@ -1,0 +1,70 @@
+schema: zenodex/test-quality-evidence/v2
+evidence_id: TQV2-YYYYMMDD-slug
+created_date: YYYY-MM-DD
+hygiene_evidence_id: THV1-YYYYMMDD-slug
+claim: State one falsifiable semantic claim.
+promotion_scope: State exactly what this obligation can justify.
+authority_tier: authority | reference | research | generated_evidence
+authority_surface:
+  - path or entry point
+failure_model:
+  - id: F1
+    description: State one semantic defect.
+    severity: critical | high | medium | low
+    coordinate_changed: Name the one authority coordinate changed.
+ripr:
+  reach: Explain how the input or history reaches the risky operation.
+  infect: Explain the incorrect semantic state created by the fault.
+  propagate: Explain how the difference reaches a stable observation.
+  reveal: Name the exact independent oracle that distinguishes it.
+representation_review:
+  invalid_state_status: unrepresentable | guarded | representable | not_applicable
+  action: State the type or construction decision.
+  semantic_source_multiplicity: 1
+  independent_oracle_exception: false
+technique:
+  primary: mutation
+  secondary: []
+  rejected_alternatives:
+    - technique: example
+      reason: Explain why it would not close the obligation.
+oracle:
+  description: State exact success and rejection observations.
+  independence_grade: 2
+  independent_source: Name the reviewed vector, model, solver, theorem, or tool.
+  exact_error_or_precedence: State the exact error or explain applicability.
+  reject_is_noop:
+    status: applied | not_applicable
+    reason: Explain the decision.
+    snapshot_fields: []
+falsifiers:
+  - id: M1
+    kind: mutation | counterexample | history
+    status: killed | reproduced | retained
+    semantic_change: State the executed one-coordinate fault.
+    killed_by_node_ids:
+      - tests/path.py::test_name
+    result: State the observed deterministic result.
+    smallest_witness: State the minimized input or history.
+minimal_test_inventory:
+  added: []
+  merged_or_deleted: []
+  protected: []
+  rationale: Explain why this is the smallest evidence set.
+counterexample:
+  status: retained | not_applicable
+  rationale: Explain retention or inapplicability.
+  retained_path: null
+  replay_command: null
+  minimized_size: null
+metrics:
+  production_sloc_delta: 0
+  test_sloc_delta: 0
+  support_sloc_delta: 0
+  runtime_delta: State measured or bounded runtime change.
+review_decision:
+  ready: false
+  blockers:
+    - Replace with blockers, or set ready true and use an empty list.
+nonclaims:
+  - State what remains outside the evidence boundary.

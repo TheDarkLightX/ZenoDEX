@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zeno Test Architect"
+  short_description: "Design falsifiable independent-oracle tests"
+  default_prompt: "Use $zeno-test-architect to turn this change into one falsifiable test obligation with the smallest adequate technique."

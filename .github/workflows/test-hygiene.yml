@@ -34,13 +34,21 @@ jobs:
       - name: Validate static hygiene contract
         run: python tools/check_test_hygiene_v1.py --json
 
-      - name: Enforce diff-aware evidence and run declared tests
+      - name: Validate static quality contract
+        run: python tools/check_test_quality_v2.py --json
+
+      - name: Enforce diff-aware obligations and run declared tests
         if: github.event_name == 'pull_request'
-        run: python tools/run_test_hygiene_gate_v1.py --base-ref "origin/${{ github.base_ref }}" --json
+        run: python tools/run_test_quality_gate_v2.py --base-ref "origin/${{ github.base_ref }}" --json
 
       - name: Run permanent hygiene regressions
         if: github.event_name != 'pull_request'
-        run: pytest -q tests/test_check_test_hygiene_v1.py tests/test_run_test_hygiene_gate_v1.py
+        run: >-
+          pytest -q
+          tests/test_check_test_hygiene_v1.py
+          tests/test_run_test_hygiene_gate_v1.py
+          tests/test_check_test_quality_v2.py
+          tests/test_run_test_quality_gate_v2.py
 
       - name: Lint hygiene implementation
         run: >-
@@ -49,8 +57,13 @@ jobs:
           tools/run_test_hygiene_gate_v1.py
           tools/test_hygiene_evidence_v1.py
           tools/test_hygiene_model_v1.py
+          tools/check_test_quality_v2.py
+          tools/run_test_quality_gate_v2.py
+          tools/test_quality_model_v2.py
           tests/test_check_test_hygiene_v1.py
           tests/test_run_test_hygiene_gate_v1.py
+          tests/test_check_test_quality_v2.py
+          tests/test_run_test_quality_gate_v2.py
 
       - name: Type-check hygiene implementation
         run: >-
@@ -59,5 +72,10 @@ jobs:
           tools/run_test_hygiene_gate_v1.py
           tools/test_hygiene_evidence_v1.py
           tools/test_hygiene_model_v1.py
+          tools/check_test_quality_v2.py
+          tools/run_test_quality_gate_v2.py
+          tools/test_quality_model_v2.py
           tests/test_check_test_hygiene_v1.py
           tests/test_run_test_hygiene_gate_v1.py
+          tests/test_check_test_quality_v2.py
+          tests/test_run_test_quality_gate_v2.py
