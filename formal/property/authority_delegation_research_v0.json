@@ -1,0 +1,154 @@
+{
+  "schema": "zenodex/authority_delegation_research/v0",
+  "status": "research_only_unmounted",
+  "authority": "none",
+  "inspected_main_sha": "8436c8403342869519154eecb5eee89fddbd991e",
+  "research_bases": {
+    "crucible_draft_pr": "https://github.com/TheDarkLightX/Zeno-Crucible/pull/47",
+    "fcis_draft_pr": "https://github.com/TheDarkLightX/ZenoFCIS/pull/172",
+    "eip": "https://eips.ethereum.org/EIPS/eip-7702"
+  },
+  "actual_existing_anchors": [
+    "src/integration/production_key_management_v0.py",
+    "formal/property/production_key_management_v0.json",
+    "tools/check_production_key_management_spec.py",
+    "docs/PRODUCTION_KEY_MANAGEMENT_RUNBOOK.md",
+    "docs/ZENODEX_TRUST_MINIMIZATION_TARGET.md"
+  ],
+  "scope": "Potential future Ethereum EOA integration and presently defined privileged signer trust boundaries; no claim of existing Ethereum bridge or vulnerability",
+  "threats": [
+    "compromised_upstream_authorizer",
+    "raw_digest_signing_bypass",
+    "unexpected_EIP7702_persistent_delegation",
+    "wildcard_chain_id",
+    "stale_or_competing_nonce",
+    "proxy_or_storage_backed_upgrade",
+    "transaction_reverts_but_delegation_persists",
+    "outstanding_signed_authorization_after_pause",
+    "reentry_before_balance_commit",
+    "lost_or_unknown_effect_result"
+  ],
+  "properties": [
+    {
+      "id": "ZD-AUTH-01",
+      "target": "signer_enforces_independent_policy",
+      "negative": "compromised_upstream",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-02",
+      "target": "no_raw_signer_bypass",
+      "negative": "raw_digest_RPC",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-03",
+      "target": "delegation_is_critical_explicit_action",
+      "negative": "reclassified_routine_transfer",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-04",
+      "target": "chain_id_nonce_and_account_scoped",
+      "negative": "chain_id_zero_and_nonce_replay",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-05",
+      "target": "approved_delegate_behavior_dependency",
+      "negative": "proxy_upgrade_without_codehash_change",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-06",
+      "target": "policy_receipt_is_independent_of_signature_validity",
+      "negative": "forge_upstream_approved_boolean",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-07",
+      "target": "revert_does_not_roll_back_delegation",
+      "negative": "outer_execution_reverts",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-08",
+      "target": "recovery_tracks_issued_authorizations",
+      "negative": "locally_paused_signer_but_delegation_live",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-09",
+      "target": "effect_order_and_conservation",
+      "negative": "send_before_debit_reentry",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-10",
+      "target": "self_custody_and_platform_keys_separate",
+      "negative": "user_key_full_compromise",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-11",
+      "target": "replay_policy_rotation_and_nonce_drifts_fail_closed",
+      "negative": "stale_packet_or_multiple_nonces",
+      "status": "not_qualified"
+    },
+    {
+      "id": "ZD-AUTH-12",
+      "target": "research_receipts_are_never_release_authority",
+      "negative": "forged_crucible_receipt",
+      "status": "not_qualified"
+    }
+  ],
+  "prereg": {
+    "toy_cases": 96,
+    "case_axes": {
+      "wallet_nonce": [
+        0,
+        1
+      ],
+      "authorization_chain_id": [
+        0,
+        1,
+        2
+      ],
+      "delegate": [
+        "reviewed",
+        "evil"
+      ],
+      "observed_code_identity": [
+        "reviewed-v1",
+        "evil-v1"
+      ],
+      "signing_interface": [
+        "gated",
+        "raw"
+      ],
+      "outer_execution_reverts": [
+        false,
+        true
+      ]
+    },
+    "evidence_kind": "research_counterexample_model",
+    "actual_deployment_scope": "none"
+  },
+  "go_no_go": [
+    "inventory_real_signer_and_wallet_implementation",
+    "human_review_Ethereum_specific_policy",
+    "independent_signature_preimage_and_client_oracle",
+    "real_signer_byproduct_and_no_bypass_proof",
+    "hostile_service_and_key_compromise_traces",
+    "source_bound_unambiguous_evidence",
+    "human_acceptance_and_separate_implementation_PR"
+  ],
+  "explicit_nonclaims": [
+    "no_current_EIP7702_adapter_identified",
+    "no_asserted_vulnerability",
+    "no_onchain_enforcement_from_EIP7702_offchain_metadata",
+    "no_protection_from_unrestricted_EOA_private_key_compromise",
+    "no_production_code_change",
+    "no_qualification_of_MPC_or_HSM"
+  ]
+}
