@@ -122,3 +122,17 @@ def test_selected_domain_winner_keeps_fewest_legs_and_pool_id_ties() -> None:
         tuple((leg.pool_id, leg.amount_out) for leg in domain.canonical_quote.legs),
     ) == (2, (("pool_0", 2),))
     assert any(quote.amount_in_total == 2 and len(quote.legs) == 2 for quote in domain.candidates)
+
+
+def test_selected_domain_normalizes_pool_id_subclasses_for_the_canonical_winner() -> None:
+    class ReversePoolId(str):
+        def __lt__(self, other: str) -> bool:
+            return str(self) > str(other)
+
+    pools = tuple(_pool(pid=ReversePoolId(f"pool_{i}"), r0=4, r1=8) for i in (0, 1))
+    domain = build_exact_out_many_pool_selected_domain(
+        pools, asset_in="A", asset_out="B", amount_out_total=2, max_legs=2,
+    )
+    assert domain.selected_pool_ids == ("pool_1", "pool_0")
+    assert domain.canonical_quote == select_exact_out_many_pool_canonical_quote(domain.candidates)
+    assert domain.canonical_quote.legs[0].pool_id == "pool_0"
