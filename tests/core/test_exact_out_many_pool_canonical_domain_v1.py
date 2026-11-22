@@ -8,6 +8,7 @@ from src.core.amm_dispatch import swap_exact_out_for_pool
 from src.kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     build_exact_out_many_pool_selected_domain,
     rank_exact_out_feasible_pools,
+    select_exact_out_many_pool_canonical_quote,
 )
 from src.state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 
@@ -106,5 +107,18 @@ def test_selected_domain_keeps_complete_ordered_candidates_under_capacity_reuse(
     )
     observed = [tuple((leg.pool_id, leg.amount_out, leg.amount_in) for leg in row.legs) for row in domain.candidates]
     assert observed == expected
+    assert domain.canonical_quote == select_exact_out_many_pool_canonical_quote(domain.candidates)
     with pytest.raises(ValueError, match="exceeded max_enumerated_candidates"):
         build_exact_out_many_pool_selected_domain(pools, max_enumerated_candidates=len(expected) - 1, **kwargs)
+
+
+def test_selected_domain_winner_keeps_fewest_legs_and_pool_id_ties() -> None:
+    pools = tuple(_pool(pid=f"pool_{i}", r0=4, r1=8) for i in (2, 1, 0))
+    domain = build_exact_out_many_pool_selected_domain(
+        pools, asset_in="A", asset_out="B", amount_out_total=2, max_legs=2,
+    )
+    assert (
+        domain.canonical_quote.amount_in_total,
+        tuple((leg.pool_id, leg.amount_out) for leg in domain.canonical_quote.legs),
+    ) == (2, (("pool_0", 2),))
+    assert any(quote.amount_in_total == 2 and len(quote.legs) == 2 for quote in domain.candidates)

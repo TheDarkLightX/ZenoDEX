@@ -387,8 +387,18 @@ def build_exact_out_many_pool_selected_domain(
     if len(candidate_quotes) > int(max_enumerated_candidates):
         raise ValueError("many-pool exact-out selected domain exceeded max_enumerated_candidates")
 
+    # Recursion emits distinct legs in ascending pool ID order. This key is
+    # the already-ordered projection of ExactOutManyPoolCanonicalKey.
+    canonical_quote = min(
+        candidate_quotes,
+        key=lambda quote: (
+            quote.amount_in_total,
+            len(quote.legs),
+            tuple((leg.pool_id, leg.amount_out) for leg in quote.legs),
+        ),
+    )
     return ExactOutManyPoolSelectedDomain(
         selected_pool_ids=pool_ids,
         candidates=tuple(candidate_quotes),
-        canonical_quote=select_exact_out_many_pool_canonical_quote(candidate_quotes),
+        canonical_quote=canonical_quote,
     )
