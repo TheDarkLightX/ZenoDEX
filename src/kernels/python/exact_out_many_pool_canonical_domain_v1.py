@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Sequence
 
 from ...state.pools import PoolState
@@ -331,6 +332,9 @@ def build_exact_out_many_pool_selected_domain(
     candidate_quotes: list[ExactOutManyPoolCandidateQuote] = []
     target_out = int(amount_out_total)
 
+    # Sibling allocations revisit the same suffix and slot count. Cache this
+    # bound only for the current quote snapshot and cap retained entries.
+    @lru_cache(maxsize=256)
     def remaining_capacity(start_index: int, slots: int) -> int:
         if int(slots) <= 0:
             return 0

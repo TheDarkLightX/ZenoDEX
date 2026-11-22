@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from itertools import product
+
 import pytest
 
+from src.core.amm_dispatch import swap_exact_out_for_pool
 from src.kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     build_exact_out_many_pool_selected_domain,
     rank_exact_out_feasible_pools,
@@ -79,3 +82,29 @@ def test_selected_domain_rejects_duplicate_pool_ids() -> None:
             max_legs=2,
             max_enumerated_candidates=100,
         )
+
+
+def test_selected_domain_keeps_complete_ordered_candidates_under_capacity_reuse() -> None:
+    pools = tuple(_pool(pid=f"pool_{i}", r0=10 + i, r1=cap + 1) for i, cap in enumerate((2, 5, 3, 4)))
+    target, max_legs = 8, 3
+    expected = []
+    for allocation in product(*(range(pool.reserve1) for pool in pools)):
+        if sum(allocation) != target or sum(amount > 0 for amount in allocation) > max_legs:
+            continue
+        legs = []
+        for pool, amount in zip(pools, allocation):
+            if amount:
+                cost, _ = swap_exact_out_for_pool(
+                    pool, reserve_in=pool.reserve0, reserve_out=pool.reserve1, amount_out=amount,
+                )
+                legs.append((pool.pool_id, amount, cost))
+        expected.append(tuple(legs))
+    expected.sort()
+    kwargs = dict(asset_in="A", asset_out="B", amount_out_total=target, max_legs=max_legs)
+    domain = build_exact_out_many_pool_selected_domain(
+        pools[::-1], max_enumerated_candidates=len(expected), **kwargs,
+    )
+    observed = [tuple((leg.pool_id, leg.amount_out, leg.amount_in) for leg in row.legs) for row in domain.candidates]
+    assert observed == expected
+    with pytest.raises(ValueError, match="exceeded max_enumerated_candidates"):
+        build_exact_out_many_pool_selected_domain(pools, max_enumerated_candidates=len(expected) - 1, **kwargs)
